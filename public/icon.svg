@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+    <rect width="1024" height="1024" fill="#0A192F"/>
+    <g transform="translate(512, 512) scale(1.4) translate(-520, -360)">
+        <g stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none">
+            <polyline points="220,380 300,380 340,280" stroke="#FFFFFF"/>
+            <polyline points="340,280 390,520 440,200" stroke="#54C6F9"/>
+            <path d="M 440,200 L 490,420 C 510,480 540,460 560,412" stroke="#FFFFFF"/>
+            <path d="M 560,412 A 140,140 0 1,0 560,268" stroke="#FFFFFF"/>
+            <polyline points="600,340 660,400 780,240" stroke="#FFFFFF"/>
+        </g>
+    </g>
+</svg>

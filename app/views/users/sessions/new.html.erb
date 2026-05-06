@@ -1,0 +1,56 @@
+<% content_for :title, "Sign in — WorkPulse" %>
+
+<div class="auth-wrapper">
+
+  <div class="auth-logo">
+    <img src="/icon.svg" alt="WorkPulse" class="auth-logo__icon">
+    <div class="auth-logo__wordmark">
+      <span class="work">Work</span><span class="pulse">Pulse</span>
+    </div>
+    <p class="auth-logo__tagline">Employee attendance & HR management</p>
+  </div>
+
+  <div class="auth-card">
+    <h1 class="auth-card__title">Welcome back</h1>
+    <p class="auth-card__subtitle">Sign in to your account to continue</p>
+
+    <%= render "users/shared/error_messages", resource: resource %>
+
+    <%= form_for(resource, as: resource_name, url: session_path(resource_name)) do |f| %>
+
+      <div class="form-group">
+        <%= f.label :login, "Phone number or email", class: "form-label" %>
+        <%= f.text_field :login,
+              autofocus: true,
+              autocomplete: "username",
+              class: "form-control",
+              placeholder: "e.g. +966500000000" %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :password, class: "form-label" %>
+        <%= f.password_field :password,
+              autocomplete: "current-password",
+              class: "form-control",
+              placeholder: "Enter your password" %>
+      </div>
+
+      <% if devise_mapping.rememberable? %>
+        <div class="form-group">
+          <label class="form-check">
+            <%= f.check_box :remember_me %>
+            <span class="form-check-label">Keep me signed in</span>
+          </label>
+        </div>
+      <% end %>
+
+      <%= f.submit "Sign in", class: "btn btn-primary btn-lg btn-block" %>
+
+    <% end %>
+
+    <div class="auth-links">
+      <%= render "users/shared/links" %>
+    </div>
+  </div>
+
+</div>

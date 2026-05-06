@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 800" width="1040" height="800">
+    <rect width="1040" height="800" fill="#0A192F"/>
+    <!-- Logo Mark -->
+    <g stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <polyline points="220,380 300,380 340,280" stroke="#FFFFFF"/>
+        <polyline points="340,280 390,520 440,200" stroke="#54C6F9"/>
+        <path d="M 440,200 L 490,420 C 510,480 540,460 560,412" stroke="#FFFFFF"/>
+        <path d="M 560,412 A 140,140 0 1,0 560,268" stroke="#FFFFFF"/>
+        <polyline points="600,340 660,400 780,240" stroke="#FFFFFF"/>
+    </g>
+    <!-- Text -->
+    <text x="520" y="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="800" font-size="160" text-anchor="middle"><tspan fill="#FFFFFF">Work</tspan><tspan fill="#54C6F9">Pulse</tspan></text>
+</svg>

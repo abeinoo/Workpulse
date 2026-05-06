@@ -1,0 +1,12 @@
+<% if resource.errors.any? %>
+  <div class="form-error" data-turbo-temporary>
+    <p class="form-error__title">
+      <%= pluralize(resource.errors.count, "error") %> prevented this from saving:
+    </p>
+    <ul>
+      <% resource.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
