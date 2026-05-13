@@ -1,6 +1,17 @@
 #!/bin/bash -e
 
-# If running the rails server then create or migrate existing database
+# Wait for PostgreSQL to be ready before proceeding.
+# docker-compose service_healthy covers the happy path; this loop
+# safeguards standalone `docker run` usage where no health check exists.
+if [ -n "$DATABASE_URL" ]; then
+  echo "Waiting for PostgreSQL..."
+  until ./bin/rails runner "ActiveRecord::Base.connection.execute('SELECT 1')" 2>/dev/null; do
+    sleep 2
+  done
+  echo "PostgreSQL is ready."
+fi
+
+# Create or migrate the database whenever the Rails server starts.
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
 fi

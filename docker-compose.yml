@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB:       work_pulse_production
+      POSTGRES_USER:     work_pulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U work_pulse -d work_pulse_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Rails core
+      RAILS_ENV:            production
+      DATABASE_URL:         postgresql://work_pulse:${POSTGRES_PASSWORD}@db/work_pulse_production
+      RAILS_MASTER_KEY:     ${RAILS_MASTER_KEY}
+
+      APP_HOST:             ${APP_HOST:-example.com}
+
+      # Puma / concurrency
+      RAILS_MAX_THREADS:    ${RAILS_MAX_THREADS:-5}
+      WEB_CONCURRENCY:      ${WEB_CONCURRENCY:-2}
+
+      # Background jobs (Solid Queue runs inside Puma on single-server setups)
+      SOLID_QUEUE_IN_PUMA:  "true"
+      JOB_CONCURRENCY:      ${JOB_CONCURRENCY:-2}
+
+      # Logging
+      RAILS_LOG_LEVEL:      ${RAILS_LOG_LEVEL:-info}
+    volumes:
+      # Persistent storage for Active Storage uploads
+      - rails_storage:/rails/storage
+
+volumes:
+  postgres_data:
+  rails_storage:
