@@ -1,12 +1,15 @@
 #!/bin/bash -e
 
-# Wait for PostgreSQL to be ready before proceeding.
-# docker-compose service_healthy covers the happy path; this loop
-# safeguards standalone `docker run` usage where no health check exists.
+# Wait for PostgreSQL using pg_isready — a fast TCP-level check that does not
+# boot Rails and never masks unrelated startup errors.
 if [ -n "$DATABASE_URL" ]; then
-  echo "Waiting for PostgreSQL..."
-  until ./bin/rails runner "ActiveRecord::Base.connection.execute('SELECT 1')" 2>/dev/null; do
-    sleep 2
+  DB_HOST=$(ruby -r uri -e "puts URI('$DATABASE_URL').host")
+  DB_PORT=$(ruby -r uri -e "puts URI('$DATABASE_URL').port || 5432")
+  DB_USER=$(ruby -r uri -e "puts URI('$DATABASE_URL').user")
+
+  echo "Waiting for PostgreSQL at $DB_HOST:$DB_PORT..."
+  until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q; do
+    sleep 1
   done
   echo "PostgreSQL is ready."
 fi
@@ -33,7 +36,7 @@ if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
       end
       puts 'solid_ schemas loaded.'
     end
-  " 2>&1 || true
+  "
 fi
 
 exec "${@}"
