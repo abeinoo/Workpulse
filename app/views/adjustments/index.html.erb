@@ -1,0 +1,117 @@
+<% content_for :title, t("adjustments.index.page_title") %>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><%= t("adjustments.index.title") %></h1>
+    <p class="page-subtitle"><%= t("adjustments.subtitle") %></p>
+  </div>
+  <% if policy(PayrollAdjustment.new(business: current_user.business)).new? %>
+    <%= link_to t("adjustments.new.title"),
+          new_adjustment_path(period_month: params[:period_month], period_year: params[:period_year]),
+          class: "btn btn-primary" %>
+  <% end %>
+</div>
+
+<%# Month filter %>
+<div class="filter-bar">
+  <%= form_with url: adjustments_path, method: :get, local: true, class: "filter-form" do |f| %>
+    <div class="filter-form__group">
+      <%= f.label :period_month, t("adjustments.month"), class: "filter-form__label" %>
+      <%= f.select :period_month,
+            (1..12).map { |m| [Date::MONTHNAMES[m], m] },
+            { selected: params[:period_month]&.to_i || Date.current.month },
+            class: "form-control form-control--sm" %>
+    </div>
+    <div class="filter-form__group">
+      <%= f.label :period_year, t("adjustments.year"), class: "filter-form__label" %>
+      <%= f.select :period_year,
+            ((Date.current.year - 2)..(Date.current.year + 1)).map { |y| [y, y] },
+            { selected: params[:period_year]&.to_i || Date.current.year },
+            class: "form-control form-control--sm" %>
+    </div>
+    <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
+  <% end %>
+</div>
+
+<% if @adjustments.empty? %>
+  <div class="empty-state">
+    <p><%= t("adjustments.no_adjustments") %></p>
+  </div>
+<% else %>
+  <%# Pending approvals banner — super admin only %>
+  <% pending = @adjustments.select(&:pending_review?) %>
+  <% if pending.any? && current_user.super_admin? %>
+    <div class="alert alert-warning" style="margin-bottom: var(--space-5);">
+      <strong><%= t("adjustments.pending", count: pending.size) %></strong>
+    </div>
+  <% end %>
+
+  <div class="table-wrapper">
+    <table class="table">
+      <thead>
+        <tr>
+          <th><%= t("adjustments.employee") %></th>
+          <th><%= t("adjustments.type") %></th>
+          <th><%= t("adjustments.amount") %></th>
+          <th><%= t("adjustments.reason") %></th>
+          <th><%= t("adjustments.created_by") %></th>
+          <th><%= t("adjustments.status") %></th>
+          <th><%= t("adjustments.actions") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @adjustments.each do |adj| %>
+          <tr>
+            <td><%= adj.user.full_name %></td>
+            <td>
+              <span class="badge <%= adjustment_type_badge_class(adj) %>">
+                <%= adj.adjustment_type.humanize %>
+              </span>
+            </td>
+            <td>
+              <span class="<%= adj.positive? ? 'text-success' : 'text-danger' %>">
+                <%= adj.positive? ? "+" : "-" %><%= number_to_currency(adj.amount, unit: "SAR ") %>
+              </span>
+            </td>
+            <td><%= truncate(adj.reason, length: 60) %></td>
+            <td>
+              <%= adj.created_by.full_name %>
+              <span class="text-muted text-sm"><%= adj.created_at.strftime("%b %-d") %></span>
+            </td>
+            <td>
+              <span class="badge <%= adjustment_status_badge_class(adj) %>">
+                <%= adj.review_status.humanize %>
+              </span>
+              <% if adj.approved? && adj.approved_by %>
+                <div class="text-muted text-sm">by <%= adj.approved_by.full_name %></div>
+              <% elsif adj.rejected? && adj.rejected_by %>
+                <div class="text-muted text-sm">by <%= adj.rejected_by.full_name %></div>
+              <% end %>
+            </td>
+            <td class="td-actions">
+              <% if adj.pending_review? && policy(adj).approve? %>
+                <%= button_to t("adjustments.approve"),
+                      approve_adjustment_path(adj),
+                      method: :patch,
+                      class: "btn btn-sm btn-success",
+                      data: { turbo_confirm: "Approve this adjustment?" } %>
+                <%= button_to t("adjustments.reject"),
+                      reject_adjustment_path(adj),
+                      method: :patch,
+                      class: "btn btn-sm btn-danger",
+                      data: { turbo_confirm: "Reject this adjustment?" } %>
+              <% end %>
+              <% if policy(adj).destroy? %>
+                <%= button_to t("adjustments.remove"),
+                      adjustment_path(adj),
+                      method: :delete,
+                      class: "btn btn-sm btn-ghost",
+                      data: { turbo_confirm: "Remove this adjustment?" } %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

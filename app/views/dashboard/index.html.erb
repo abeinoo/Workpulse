@@ -1,65 +1,13 @@
 <% content_for :title, "Home — WorkPulse" %>
 
-<div class="dashboard">
-
-  <%# Greeting %>
-  <div class="dashboard__greeting">
-    <p class="dashboard__greeting-time" id="js-greeting-time">Good morning</p>
-    <h1 class="dashboard__greeting-name">
-      Hello, <span><%= current_user.employee&.full_name&.split&.first || "there" %></span>
-    </h1>
-  </div>
-
-  <%# Attendance status card — will reflect real data once check-in is wired up %>
-  <div class="status-card status-card--out">
-    <div class="status-card__info">
-      <p class="status-card__label">Today's status</p>
-      <p class="status-card__status">Not checked in</p>
-      <p class="status-card__time" id="js-current-time"></p>
-    </div>
-    <div class="status-indicator status-indicator--out">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    </div>
-  </div>
-
-  <%# Check-in CTA — button is ready; action will be wired up in the next sprint %>
-  <div class="checkin-cta">
-    <button class="btn btn-primary btn-xl btn-block" disabled title="Check-in coming soon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-      Check In
-    </button>
-  </div>
-
-  <%# Admin shortcut (only for admins) %>
-  <% if current_user.admin? %>
-    <%= link_to admin_employees_path, class: "admin-quick-link" do %>
-      <div>
-        <p class="admin-quick-link__label">Manage Employees</p>
-        <p class="admin-quick-link__sub">View, add, and edit employee records</p>
-      </div>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-    <% end %>
-  <% end %>
-
-</div>
-
-<script>
-  (function () {
-    var timeEl     = document.getElementById('js-current-time');
-    var greetingEl = document.getElementById('js-greeting-time');
-
-    function update() {
-      var now  = new Date();
-      var h    = now.getHours();
-      var greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-      if (greetingEl) greetingEl.textContent = greeting;
-      if (timeEl) {
-        timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
-          ' · ' + now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-      }
-    }
-
-    update();
-    setInterval(update, 10000);
-  })();
-</script>
+<% if current_user.super_admin? %>
+  <%= render "super_admin" %>
+<% elsif current_user.area_manager? %>
+  <%= render "area_manager" %>
+<% elsif current_user.branch_manager? %>
+  <%= render "branch_manager" %>
+<% elsif current_user.accountant? %>
+  <%= render "accountant" %>
+<% else %>
+  <%= render "employee" %>
+<% end %>

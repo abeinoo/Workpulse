@@ -1,0 +1,12 @@
+<% content_for :title, t("admin.users.edit.page_title") %>
+
+<div class="form-page">
+  <%= link_to admin_user_path(@user), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("admin.users.back") %>
+  <% end %>
+
+  <h1 class="page-title mb-6"><%= t("admin.users.edit.title") %></h1>
+
+  <%= render "form", user: @user %>
+</div>

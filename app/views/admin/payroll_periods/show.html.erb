@@ -1,0 +1,137 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <%= link_to t("admin.payroll_periods.index.title"), admin_payroll_periods_path, class: "back-link" %>
+      <h1 class="page-title"><%= @period.period_label %></h1>
+      <p class="page-subtitle"><%= @period.branch&.name || t("admin.payroll_periods.show.all_branches") %></p>
+    </div>
+    <div class="page-header__actions">
+      <span class="badge <%= period_status_badge_class(@period) %>">
+        <%= @period.status.humanize.gsub("_", " ") %>
+      </span>
+
+      <% if policy(@period).regenerate? && @period.draft? %>
+        <%= button_to t("payroll.regenerate"), regenerate_admin_payroll_period_path(@period),
+              method: :patch, class: "btn btn-secondary btn-sm",
+              data: { turbo_confirm: "Regenerate payroll from attendance records? This will recalculate all entries." } %>
+      <% end %>
+
+      <% if policy(@period).finalize? && (@period.branch_review_completed? || @period.under_review?) %>
+        <%= button_to t("payroll.finalize"), finalize_admin_payroll_period_path(@period),
+              method: :patch, class: "btn btn-accent btn-sm",
+              data: { turbo_confirm: @period.under_review? ? "Override branch reviews and finalize this period?" : "Finalize this payroll period?" } %>
+      <% end %>
+
+      <% if policy(@period).mark_paid? && @period.finalized? %>
+        <%= button_to t("payroll.mark_paid"), mark_paid_admin_payroll_period_path(@period),
+              method: :patch, class: "btn btn-primary btn-sm",
+              data: { turbo_confirm: "Mark this period as paid? Advances will be settled." } %>
+      <% end %>
+
+      <% if policy(@period).destroy? %>
+        <%= button_to t("payroll.delete"), admin_payroll_period_path(@period),
+              method: :delete, class: "btn btn-danger btn-sm",
+              data: { turbo_confirm: "Delete this payroll period? This cannot be undone." } %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Branch review progress %>
+  <% if @branch_reviews.any? %>
+    <div class="section-card" style="margin-bottom: 1.5rem;">
+      <h3 class="section-title"><%= t("admin.payroll_periods.show.branch_review_progress") %></h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("payroll.branch") %></th>
+              <th><%= t("admin.payroll_periods.show.reviewer") %></th>
+              <th><%= t("payroll.status") %></th>
+              <th><%= t("admin.payroll_periods.show.completed") %></th>
+              <th><%= t("admin.payroll_periods.show.notes") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @branch_reviews.each do |br| %>
+              <tr>
+                <td><%= br.branch.name %></td>
+                <td><%= br.reviewer.full_name %></td>
+                <td>
+                  <span class="badge <%= br.completed? ? 'badge-success' : 'badge-warning' %>">
+                    <%= br.status.humanize %>
+                  </span>
+                </td>
+                <td class="td-secondary"><%= br.completed_at&.strftime("%b %d, %Y %H:%M") || "—" %></td>
+                <td class="td-secondary"><%= br.notes.presence || "—" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Payroll entries table %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("payroll.employee") %></th>
+          <th><%= t("payroll.base_salary") %></th>
+          <th><%= t("payroll.deductions") %></th>
+          <th><%= t("payroll.entries.net") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @entries.each do |entry| %>
+          <tr>
+            <td><%= entry.user.full_name %></td>
+            <td class="td-secondary"><%= number_to_currency(entry.base_salary, unit: "SAR ") %></td>
+            <td class="td-secondary"><%= number_to_currency(entry.total_deductions, unit: "SAR ") %></td>
+            <td><strong><%= number_to_currency(entry.net_salary, unit: "SAR ") %></strong></td>
+            <td class="td-actions">
+              <%= link_to t("payroll.view"), admin_payroll_period_payroll_entry_path(@period, entry), class: "link-muted" %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @entries.empty? %>
+          <tr><td colspan="5" class="td-empty"><%= t("admin.payroll_periods.show.entries_empty") %></td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <%# Audit log %>
+  <% if @audit_logs.any? %>
+    <div class="section-card" style="margin-top: 2rem;">
+      <h3 class="section-title"><%= t("admin.payroll_periods.show.audit_history") %></h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("attendance.actions") %></th>
+              <th><%= t("admin.payroll_periods.show.actor") %></th>
+              <th><%= t("admin.payroll_periods.show.from_col") %></th>
+              <th><%= t("admin.payroll_periods.show.to_col") %></th>
+              <th><%= t("admin.payroll_periods.show.date_col") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @audit_logs.each do |log| %>
+              <tr>
+                <td><%= log.action_type.humanize.gsub("_", " ") %></td>
+                <td><%= log.actor.full_name %></td>
+                <td class="td-secondary"><%= log.from_status&.humanize || "—" %></td>
+                <td class="td-secondary"><%= log.to_status&.humanize || "—" %></td>
+                <td class="td-secondary"><%= log.created_at.strftime("%b %d, %Y %H:%M") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+</div>

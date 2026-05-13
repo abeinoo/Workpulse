@@ -1,0 +1,69 @@
+<% content_for :title, t("attendance.edit.page_title") %>
+
+<div class="form-page">
+  <%= link_to attendance_record_path(@record), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("attendance.records.back_record") %>
+  <% end %>
+
+  <h1 class="page-title mb-1"><%= t("attendance.edit.title") %></h1>
+  <p class="page-subtitle mb-6">
+    <%= @record.user.full_name %> &mdash; <%= @record.date.strftime("%B %-d, %Y") %>
+    &middot; <%= @record.branch.name %>
+  </p>
+
+  <div class="audit-notice">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <%= t("attendance.records.audit_notice") %>
+  </div>
+
+  <%= form_with model: @record, url: attendance_record_path(@record), method: :patch, class: "form-card" do |f| %>
+
+    <% if flash[:alert] %>
+      <div class="form-error" data-turbo-temporary>
+        <p class="form-error__title"><%= flash[:alert] %></p>
+      </div>
+    <% end %>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :check_in_at, t("attendance.records.check_in_time"), class: "form-label" %>
+        <%= f.datetime_local_field :check_in_at,
+              class: "form-control",
+              value: @record.check_in_at&.strftime("%Y-%m-%dT%H:%M") %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :check_out_at, t("attendance.records.check_out_time"), class: "form-label" %>
+        <%= f.datetime_local_field :check_out_at,
+              class: "form-control",
+              value: @record.check_out_at&.strftime("%Y-%m-%dT%H:%M") %>
+        <p class="form-hint"><%= t("attendance.records.checkout_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :status, t("attendance.status"), class: "form-label" %>
+        <%= f.select :status,
+              AttendanceRecord::STATUSES.map { |s| [s.humanize, s] },
+              { selected: @record.status },
+              class: "form-control" %>
+        <p class="form-hint"><%= t("attendance.records.status_hint") %></p>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= f.label :reason, t("attendance.records.reason_label"), class: "form-label form-label--required" %>
+        <%= f.text_area :reason,
+              class: "form-control",
+              rows: 3,
+              placeholder: t("attendance.records.reason_placeholder"),
+              required: true %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("attendance.records.save_log"), class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"), attendance_record_path(@record), class: "btn btn-ghost" %>
+    </div>
+
+  <% end %>
+</div>

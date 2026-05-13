@@ -1,0 +1,27 @@
+class PenaltyRule < ApplicationRecord
+  belongs_to :shift
+
+  RULE_TYPES       = %w[late_arrival early_leave].freeze
+  DEDUCTION_TYPES  = %w[fixed_amount percentage_of_daily].freeze
+
+  enum :rule_type,      { late_arrival: "late_arrival", early_leave: "early_leave" }
+  enum :deduction_type, { fixed_amount: "fixed_amount", percentage_of_daily: "percentage_of_daily" }
+
+  validates :rule_type, :deduction_type, presence: true
+  validates :threshold_minutes, presence: true, numericality: { greater_than: 0 }
+  validates :threshold_minutes, uniqueness: { scope: [ :shift_id, :rule_type ],
+                                              message: "already has a rule at this threshold for this rule type" }
+  validates :deduction_value,   presence: true, numericality: { greater_than: 0 }
+  validates :deduction_value,
+            numericality: { less_than_or_equal_to: 100 },
+            if: :percentage_of_daily?
+
+  scope :for_late_arrival,    -> { where(rule_type: "late_arrival") }
+  scope :for_early_leave,     -> { where(rule_type: "early_leave") }
+  scope :ordered_by_threshold, -> { order(threshold_minutes: :asc) }
+
+  # Returns the highest-threshold rule that applies for a given minutes value.
+  def self.applicable_for(minutes, rules_scope)
+    rules_scope.ordered_by_threshold.select { |r| minutes >= r.threshold_minutes }.last
+  end
+end

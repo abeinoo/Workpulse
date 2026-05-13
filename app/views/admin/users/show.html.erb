@@ -1,0 +1,166 @@
+<% content_for :title, "#{@user.full_name} — WorkPulse" %>
+
+<div class="form-page">
+  <%= link_to admin_users_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("admin.users.back") %>
+  <% end %>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="employee-cell">
+        <div class="avatar" style="width:48px;height:48px;font-size:1rem;">
+          <%= @user.full_name.split.map(&:first).first(2).join.upcase %>
+        </div>
+        <div>
+          <h1 style="font-size:var(--text-xl);margin-bottom:2px;"><%= @user.full_name %></h1>
+          <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;"><%= @user.role.humanize %></p>
+        </div>
+      </div>
+      <% if @user.active? %>
+        <span class="badge badge-success"><%= t("admin.users.active") %></span>
+      <% else %>
+        <span class="badge badge-neutral"><%= t("admin.users.inactive") %></span>
+      <% end %>
+    </div>
+
+    <dl class="data-list">
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.users.phone") %></dt>
+        <dd class="data-list__value"><%= @user.phone_number.presence || "—" %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.users.email") %></dt>
+        <dd class="data-list__value"><%= @user.email.presence || "—" %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.users.employee_code") %></dt>
+        <dd class="data-list__value"><%= @user.employee_code.presence || "—" %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.users.direct_manager") %></dt>
+        <dd class="data-list__value">
+          <% if @user.manager %>
+            <%= link_to @user.manager.full_name, admin_user_path(@user.manager), class: "link" %>
+          <% else %>
+            <span class="td-secondary">— <%= t("admin.users.not_assigned") %></span>
+          <% end %>
+        </dd>
+      </div>
+      <% if @user.branch_manager? && @user.managed_employees.any? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.users.managed_employees") %></dt>
+          <dd class="data-list__value">
+            <%= @user.managed_employees.order(:first_name).map(&:full_name).join(", ") %>
+          </dd>
+        </div>
+      <% end %>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.users.status") %></dt>
+        <dd class="data-list__value">
+          <% if @user.encrypted_password.present? %>
+            <span class="badge badge-accent"><%= t("admin.users.registered") %></span>
+          <% else %>
+            <span class="badge badge-warning"><%= t("admin.users.pending_registration") %></span>
+          <% end %>
+        </dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.users.identity_card") %></dt>
+        <dd class="data-list__value"><%= @user.identity_card_number.presence || "—" %></dd>
+      </div>
+      <% if @user.identity_card_expiry_date.present? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.users.id_expiry") %></dt>
+          <dd class="data-list__value"><%= @user.identity_card_expiry_date.strftime("%d %b %Y") %></dd>
+        </div>
+      <% end %>
+    </dl>
+
+    <div class="form-actions">
+      <%= link_to t("admin.users.edit_action"), edit_admin_user_path(@user), class: "btn btn-primary" %>
+      <%= button_to t("admin.users.delete"),
+            admin_user_path(@user),
+            method: :delete,
+            data: { turbo_confirm: t("forms.confirm_delete") },
+            class: "btn btn-danger" %>
+    </div>
+  </div>
+
+  <%# Salary Profiles %>
+  <div class="card" style="margin-top: var(--space-6);">
+    <div class="card-header">
+      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("admin.users.salary_profile") %></h2>
+      <% if policy(SalaryProfile.new(user: @user)).create? %>
+        <%= link_to t("admin.users.new_profile"), new_admin_user_salary_profile_path(@user), class: "btn btn-sm btn-primary" %>
+      <% end %>
+    </div>
+
+    <% if @active_salary_profile %>
+      <dl class="data-list">
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("salary_profiles.type") %></dt>
+          <dd class="data-list__value"><%= @active_salary_profile.salary_type.humanize %></dd>
+        </div>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("salary_profiles.base_salary") %></dt>
+          <dd class="data-list__value">
+            <%= number_with_precision(@active_salary_profile.base_amount, precision: 2, delimiter: ",") %>
+            <%= @active_salary_profile.currency %>
+          </dd>
+        </div>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("salary_profiles.overtime_multiplier") %></dt>
+          <dd class="data-list__value"><%= @active_salary_profile.overtime_multiplier %>x</dd>
+        </div>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("salary_profiles.effective_from") %></dt>
+          <dd class="data-list__value"><%= @active_salary_profile.effective_from.strftime("%d %b %Y") %></dd>
+        </div>
+      </dl>
+      <% if policy(@active_salary_profile).update? %>
+        <div class="form-actions">
+          <%= link_to t("admin.users.edit_active_profile"),
+                edit_admin_user_salary_profile_path(@user, @active_salary_profile),
+                class: "btn btn-sm btn-secondary" %>
+        </div>
+      <% end %>
+    <% else %>
+      <p style="padding: var(--space-4); color: var(--text-2);"><%= t("salary_profiles.no_active") %></p>
+    <% end %>
+
+    <% if @salary_profiles.size > 1 %>
+      <div style="padding: 0 var(--space-4) var(--space-4);">
+        <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin-bottom: var(--space-2);"><%= t("salary_profiles.history") %></h3>
+        <table class="table">
+          <thead>
+            <tr>
+              <th><%= t("salary_profiles.type") %></th>
+              <th><%= t("salary_profiles.base_salary") %></th>
+              <th><%= t("salary_profiles.ot_multiplier") %></th>
+              <th><%= t("salary_profiles.effective_from") %></th>
+              <th><%= t("admin.users.status") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @salary_profiles.each do |profile| %>
+              <tr>
+                <td><%= profile.salary_type.humanize %></td>
+                <td><%= number_with_precision(profile.base_amount, precision: 2, delimiter: ",") %> <%= profile.currency %></td>
+                <td><%= profile.overtime_multiplier %>x</td>
+                <td><%= profile.effective_from.strftime("%d %b %Y") %></td>
+                <td>
+                  <% if profile.active? %>
+                    <span class="badge badge-success"><%= t("salary_profiles.active") %></span>
+                  <% else %>
+                    <span class="badge badge-neutral"><%= t("salary_profiles.historical") %></span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+</div>

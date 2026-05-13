@@ -1,0 +1,195 @@
+<%= form_with model: [:admin, shift], class: "form-card", data: { controller: "shift-form" } do |f| %>
+
+  <%= render "shared/error_messages", resource: shift %>
+
+  <%# ── Shift fields ── %>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :name, class: "form-label form-label--required" %>
+      <%= f.text_field :name,
+            class: "form-control #{'is-error' if shift.errors[:name].any?}",
+            placeholder: t("shifts.form.name_placeholder") %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :shift_type, t("shifts.type"), class: "form-label form-label--required" %>
+      <%= f.select :shift_type,
+            Shift::SHIFT_TYPES.map { |t| [t.humanize, t] },
+            {},
+            class: "form-control",
+            data: { action: "change->shift-form#toggleFields" } %>
+    </div>
+
+    <div class="form-group js-fixed-fields">
+      <%= f.label :start_time, "Start time", class: "form-label form-label--required" %>
+      <%= f.time_field :start_time,
+            class: "form-control",
+            value: shift.start_time&.strftime("%H:%M") %>
+    </div>
+
+    <div class="form-group js-fixed-fields">
+      <%= f.label :end_time, "End time", class: "form-label form-label--required" %>
+      <%= f.time_field :end_time,
+            class: "form-control",
+            value: shift.end_time&.strftime("%H:%M") %>
+    </div>
+
+    <div class="form-group js-hour-fields">
+      <%= f.label :required_hours, t("shifts.required_hours"), class: "form-label form-label--required" %>
+      <%= f.number_field :required_hours,
+            class: "form-control",
+            min: 1, max: 24, step: 0.5,
+            placeholder: "e.g. 8" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :overtime_rate_multiplier, t("shifts.overtime_multiplier"), class: "form-label" %>
+      <%= f.number_field :overtime_rate_multiplier,
+            class: "form-control",
+            min: 1, step: 0.25, placeholder: "1.5" %>
+      <p class="form-hint"><%= t("shifts.form.ot_hint") %></p>
+    </div>
+  </div>
+
+  <%# ── Penalty rules ── %>
+  <div class="penalty-rules-section" data-controller="penalty-rules">
+
+    <div class="penalty-rules-header">
+      <div>
+        <h3 class="penalty-rules-title"><%= t("shifts.penalty_rules") %></h3>
+        <p class="form-hint">
+          <%= t("shifts.form.rules_hint") %>
+          <%= t("shifts.form.grace_hint") %>
+        </p>
+      </div>
+      <button type="button"
+              class="btn btn-ghost btn-sm"
+              data-action="click->penalty-rules#addRule">
+        <%= t("shifts.form.add_rule") %>
+      </button>
+    </div>
+
+    <%# Column headers (hidden on mobile, visible on wider screens) %>
+    <div class="penalty-rule-headers" aria-hidden="true">
+      <span><%= t("shifts.form.type_header") %></span>
+      <span><%= t("shifts.form.threshold_header") %></span>
+      <span><%= t("shifts.form.deduction_header") %></span>
+      <span><%= t("shifts.form.amount_header") %></span>
+      <span></span>
+    </div>
+
+    <%# Existing rules (rendered server-side via fields_for) %>
+    <div data-penalty-rules-target="rulesContainer">
+      <% shift.penalty_rules.each do |rule| %>
+        <%= f.fields_for :penalty_rules, rule do |rf| %>
+          <div class="penalty-rule-row" data-rule-row>
+            <%= rf.hidden_field :id %>
+            <%= rf.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
+
+            <div class="form-group mb-0">
+              <%= rf.label :rule_type, t("shifts.form.type_header"), class: "form-label form-label--mobile-only" %>
+              <%= rf.select :rule_type,
+                    PenaltyRule::RULE_TYPES.map { |t| [t.humanize, t] },
+                    { include_blank: "— Type —" },
+                    class: "form-control #{'is-error' if rule.errors[:rule_type].any?}" %>
+            </div>
+
+            <div class="form-group mb-0">
+              <%= rf.label :threshold_minutes, t("shifts.form.threshold_header"), class: "form-label form-label--mobile-only" %>
+              <%= rf.number_field :threshold_minutes,
+                    class: "form-control #{'is-error' if rule.errors[:threshold_minutes].any?}",
+                    min: 1, placeholder: "30" %>
+            </div>
+
+            <div class="form-group mb-0">
+              <%= rf.label :deduction_type, t("shifts.form.deduction_header"), class: "form-label form-label--mobile-only" %>
+              <%= rf.select :deduction_type,
+                    PenaltyRule::DEDUCTION_TYPES.map { |t| [t.humanize, t] },
+                    { include_blank: "— Deduction —" },
+                    class: "form-control #{'is-error' if rule.errors[:deduction_type].any?}" %>
+            </div>
+
+            <div class="form-group mb-0">
+              <%= rf.label :deduction_value, t("shifts.form.amount_header"), class: "form-label form-label--mobile-only" %>
+              <%= rf.number_field :deduction_value,
+                    class: "form-control #{'is-error' if rule.errors[:deduction_value].any?}",
+                    min: 0.01, step: "0.01", placeholder: "50" %>
+            </div>
+
+            <button type="button"
+                    class="btn-rule-remove"
+                    data-action="click->penalty-rules#removeRule"
+                    aria-label="Remove rule">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+
+    <%# Empty state shown when no rules exist %>
+    <p class="penalty-rules-empty"
+       data-penalty-rules-target="emptyState"
+       <%= shift.penalty_rules.any? ? 'hidden' : '' %>>
+      <%= t("shifts.form.no_rules") %>
+    </p>
+
+    <%# Template for new rows (not rendered as a form field by the browser) %>
+    <template data-penalty-rules-target="template">
+      <div class="penalty-rule-row" data-rule-row>
+        <div class="form-group mb-0">
+          <label class="form-label form-label--mobile-only"><%= t("shifts.form.type_header") %></label>
+          <select name="shift[penalty_rules_attributes][NEW_INDEX][rule_type]" class="form-control">
+            <option value="">— Type —</option>
+            <% PenaltyRule::RULE_TYPES.each do |t| %>
+              <option value="<%= t %>"><%= t.humanize %></option>
+            <% end %>
+          </select>
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label form-label--mobile-only"><%= t("shifts.form.threshold_header") %></label>
+          <input type="number"
+                 name="shift[penalty_rules_attributes][NEW_INDEX][threshold_minutes]"
+                 class="form-control"
+                 min="1"
+                 placeholder="30">
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label form-label--mobile-only"><%= t("shifts.form.deduction_header") %></label>
+          <select name="shift[penalty_rules_attributes][NEW_INDEX][deduction_type]" class="form-control">
+            <option value="">— Deduction —</option>
+            <% PenaltyRule::DEDUCTION_TYPES.each do |t| %>
+              <option value="<%= t %>"><%= t.humanize %></option>
+            <% end %>
+          </select>
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label form-label--mobile-only"><%= t("shifts.form.amount_header") %></label>
+          <input type="number"
+                 name="shift[penalty_rules_attributes][NEW_INDEX][deduction_value]"
+                 class="form-control"
+                 min="0.01"
+                 step="0.01"
+                 placeholder="50">
+        </div>
+
+        <button type="button"
+                class="btn-rule-remove"
+                data-action="click->penalty-rules#removeRule"
+                aria-label="Remove rule">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </template>
+
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit class: "btn btn-primary" %>
+    <%= link_to t("forms.cancel"), admin_shifts_path, class: "btn btn-ghost" %>
+  </div>
+
+<% end %>

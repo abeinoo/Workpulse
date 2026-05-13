@@ -1,0 +1,52 @@
+FactoryBot.define do
+  factory :payroll_line_item do
+    association :payroll_entry
+    item_type     { :late_penalty }
+    amount        { -50.0 }
+    description   { "Late arrival on #{Date.current}" }
+    review_status { :pending_review }
+
+    trait :late_penalty do
+      item_type     { :late_penalty }
+      amount        { -50.0 }
+      review_status { :pending_review }
+    end
+
+    trait :early_leave_penalty do
+      item_type     { :early_leave_penalty }
+      amount        { -80.0 }
+      review_status { :pending_review }
+    end
+
+    trait :overtime do
+      item_type     { :overtime }
+      amount        { 200.0 }
+      review_status { :approved }
+    end
+
+    trait :advance_deduction do
+      item_type     { :advance_deduction }
+      amount        { -500.0 }
+      review_status { :approved }
+    end
+
+    trait :bonus do
+      item_type     { :bonus }
+      amount        { 300.0 }
+      review_status { :approved }
+    end
+
+    trait :approved do
+      review_status { :approved }
+    end
+
+    trait :rejected do
+      review_status { :rejected }
+    end
+
+    trait :waived do
+      review_status { :waived }
+      review_notes  { "Excused by manager" }
+    end
+  end
+end

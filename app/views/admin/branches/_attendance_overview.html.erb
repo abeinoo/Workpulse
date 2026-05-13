@@ -1,0 +1,62 @@
+<div class="dashboard-section__header">
+  <h2 class="dashboard-section__title"><%= t("admin.branches.todays_attendance") %></h2>
+  <span class="td-secondary"><%= Date.current.strftime("%B %d, %Y") %></span>
+</div>
+
+<% if @today_records_by_user.any? %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("attendance.employee") %></th>
+          <th><%= t("admin.branches.check_in") %></th>
+          <th><%= t("admin.branches.check_out") %></th>
+          <th><%= t("attendance.status") %></th>
+          <th><%= t("admin.branches.late") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @today_records_by_user.values.each do |record| %>
+          <tr>
+            <td>
+              <div class="employee-cell">
+                <div class="avatar"><%= record.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                <span class="employee-cell__name">
+                  <%= link_to record.user.full_name, admin_user_path(record.user), class: "link" %>
+                </span>
+              </div>
+            </td>
+            <td class="td-secondary">
+              <%= record.check_in_at ? record.check_in_at.strftime("%H:%M") : "—" %>
+            </td>
+            <td class="td-secondary">
+              <%= record.check_out_at ? record.check_out_at.strftime("%H:%M") : "—" %>
+            </td>
+            <td>
+              <% status_class = case record.status
+                 when "present"     then "badge-success"
+                 when "late"        then "badge-warning"
+                 when "early_leave" then "badge-warning"
+                 when "absent"      then "badge-danger"
+                 else "badge-neutral"
+                 end %>
+              <span class="badge <%= status_class %>"><%= t("attendance.statuses.#{record.status}", default: record.status.humanize) %></span>
+            </td>
+            <td class="td-secondary">
+              <%= record.late_minutes > 0 ? "#{record.late_minutes} min" : "—" %>
+            </td>
+            <td class="td-actions">
+              <%= link_to t("admin.users.view"), admin_attendance_record_path(record), class: "link text-sm" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <div class="empty-state" style="padding: var(--space-10) var(--space-4);">
+    <p class="empty-state__title"><%= t("admin.branches.no_checkins") %></p>
+    <p class="empty-state__text"><%= t("admin.branches.no_checkins_hint") %></p>
+  </div>
+<% end %>

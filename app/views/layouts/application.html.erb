@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= I18n.locale %>" dir="<%= I18n.locale.to_s == 'ar' ? 'rtl' : 'ltr' %>">
   <head>
     <title><%= content_for(:title) || "WorkPulse" %></title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 
     <%# PWA / mobile meta %>
     <meta name="theme-color" content="#54C6F9">
@@ -15,6 +15,8 @@
 
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+    <meta name="app-locale" content="<%= I18n.locale %>">
+    <meta name="app-dir" content="<%= I18n.locale.to_s == 'ar' ? 'rtl' : 'ltr' %>">
 
     <%= yield :head %>
 
@@ -31,48 +33,72 @@
   <body class="<%= user_signed_in? ? 'is-authenticated' : 'is-guest' %>">
 
     <% if user_signed_in? %>
-      <nav class="navbar">
-        <div class="navbar__inner">
-          <a href="<%= root_path %>" class="navbar__brand">
-            <img src="/icon.svg" alt="" class="navbar__logo">
-            <span class="navbar__name">
-              <span class="text-white">Work</span><span class="text-accent">Pulse</span>
-            </span>
+      <div class="app-shell" data-controller="sidebar">
+
+        <%# Mobile top bar %>
+        <header class="mobile-header">
+          <button class="sidebar-toggle"
+                  data-action="click->sidebar#toggle"
+                  aria-label="Toggle menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <a href="<%= root_path %>" class="mobile-header__brand">
+            <span class="text-white">Work</span><span class="text-accent">Pulse</span>
           </a>
+          <span class="mobile-header__spacer"></span>
+        </header>
 
-          <div class="navbar__actions">
-            <% if current_user.admin? %>
-              <%= link_to "Employees", admin_employees_path, class: "navbar__link" %>
-            <% end %>
-            <span class="navbar__user">
-              <%= current_user.employee&.full_name&.split&.first || current_user.email&.split("@")&.first %>
-            </span>
-            <%= link_to "Sign out",
-                        destroy_user_session_path,
-                        data: { turbo_method: :delete },
-                        class: "btn btn-ghost btn-sm" %>
-          </div>
+        <%# Sidebar %>
+        <%= render "layouts/sidebar" %>
+
+        <%# Overlay (mobile drawer backdrop) %>
+        <div class="sidebar-overlay"
+             data-sidebar-target="overlay"
+             data-action="click->sidebar#close"></div>
+
+        <%# Main content %>
+        <main class="app-main">
+          <% if notice.present? %>
+            <div class="flash flash--notice" data-turbo-temporary>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <%= notice %>
+            </div>
+          <% end %>
+
+          <% if alert.present? %>
+            <div class="flash flash--alert" data-turbo-temporary>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <%= alert %>
+            </div>
+          <% end %>
+
+          <%= yield %>
+        </main>
+
+        <%# Bottom navigation (mobile) %>
+        <%= render "layouts/bottom_nav" %>
+
+      </div>
+    <% else %>
+      <% if notice.present? %>
+        <div class="flash flash--notice" data-turbo-temporary>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <%= notice %>
         </div>
-      </nav>
+      <% end %>
+
+      <% if alert.present? %>
+        <div class="flash flash--alert" data-turbo-temporary>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <%= alert %>
+        </div>
+      <% end %>
+
+      <main class="main-content">
+        <%= yield %>
+      </main>
     <% end %>
 
-    <% if notice.present? %>
-      <div class="flash flash--notice" data-turbo-temporary>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        <%= notice %>
-      </div>
-    <% end %>
-
-    <% if alert.present? %>
-      <div class="flash flash--alert" data-turbo-temporary>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <%= alert %>
-      </div>
-    <% end %>
-
-    <main class="main-content">
-      <%= yield %>
-    </main>
-
+    <%= render "layouts/pwa_install_banner" %>
   </body>
 </html>

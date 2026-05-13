@@ -1,0 +1,78 @@
+<div class="form-page">
+
+  <div class="page-header">
+    <div>
+      <%= link_to t("requests.show.back"), employee_requests_path, class: "back-link" %>
+      <h1 class="page-title"><%= @request.request_type.humanize %></h1>
+      <p class="page-subtitle"><%= @request.requested_for_date.strftime("%B %-d, %Y") %></p>
+    </div>
+    <span class="badge <%= request_status_badge_class(@request) %>">
+      <%= @request.salary_advance? && @request.paid? ? t("requests.paid_disbursed") : @request.status.humanize %>
+    </span>
+  </div>
+
+  <div class="info-card">
+    <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("requests.employee") %></span>
+        <span><%= @request.user.full_name %></span>
+      </div>
+    <% end %>
+    <% if @request.salary_advance? && @request.amount.present? %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("requests.amount") %></span>
+        <span><%= number_to_currency(@request.amount, unit: "SAR ") %></span>
+      </div>
+    <% end %>
+    <% if @request.reason.present? %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("requests.reason") %></span>
+        <span><%= @request.reason %></span>
+      </div>
+    <% end %>
+    <% if @request.reviewed_at %>
+      <div class="info-card__row">
+        <span class="info-card__label">
+          <%= @request.paid? ? t("requests.disbursed") : t("requests.reviewed") %>
+        </span>
+        <span>
+          <%= @request.reviewed_at.strftime("%b %-d, %Y %H:%M") %>
+          <% if @request.reviewed_by %>
+            by <%= @request.reviewed_by.full_name %>
+          <% end %>
+        </span>
+      </div>
+    <% end %>
+    <% if @request.response_note.present? %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("requests.note") %></span>
+        <span><%= @request.response_note %></span>
+      </div>
+    <% end %>
+  </div>
+
+  <%# Manager approves/rejects pending requests %>
+  <% if @request.pending? && policy(@request).approve? %>
+    <div class="form-actions" style="margin-top: 1rem;">
+      <%= button_to t("requests.approve"), approve_employee_request_path(@request),
+            method: :patch, class: "btn btn-primary" %>
+      <%= button_to t("requests.reject"), reject_employee_request_path(@request),
+            method: :patch, class: "btn btn-danger" %>
+    </div>
+  <% end %>
+
+  <%# Accountant/admin marks approved salary advance as paid %>
+  <% if @request.salary_advance? && @request.approved? && policy(@request).pay? %>
+    <div class="info-card" style="margin-top: 1rem; background: var(--surface-2, #f8f9fa);">
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 0.75rem;">
+        <%= t("requests.mark_paid_note") %>
+        <%= t("requests.advance_note") %>
+      </p>
+      <%= button_to t("requests.mark_paid_confirm"),
+            pay_employee_request_path(@request),
+            method: :patch, class: "btn btn-primary",
+            data: { turbo_confirm: "Confirm this advance has been disbursed to #{@request.user.full_name}?" } %>
+    </div>
+  <% end %>
+
+</div>

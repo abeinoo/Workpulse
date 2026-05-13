@@ -1,0 +1,56 @@
+<% content_for :title, "#{t('shift_assignments.index.title')} — WorkPulse" %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("shift_assignments.index.title") %></h1>
+    <% if policy(ShiftAssignment).create? %>
+      <%= link_to t("shift_assignments.new.title"), new_shift_assignment_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("shift_assignments.employee") %></th>
+          <th><%= t("shift_assignments.shift") %></th>
+          <th><%= t("shift_assignments.branch") %></th>
+          <th><%= t("shift_assignments.from_date") %></th>
+          <th><%= t("shift_assignments.to_date") %></th>
+          <th><%= t("shift_assignments.status") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @assignments.each do |a| %>
+          <tr>
+            <td><%= a.user.full_name %></td>
+            <td class="td-secondary"><%= link_to a.shift.name, shift_path(a.shift), class: "link-muted" %></td>
+            <td class="td-secondary"><%= a.branch_name || "—" %></td>
+            <td class="td-secondary"><%= a.effective_from.strftime("%b %-d, %Y") %></td>
+            <td class="td-secondary"><%= a.effective_to&.strftime("%b %-d, %Y") || "—" %></td>
+            <td>
+              <% if a.effective_to.nil? || a.effective_to >= Date.current %>
+                <span class="badge badge-success"><%= t("shift_assignments.active") %></span>
+              <% else %>
+                <span class="badge badge-neutral"><%= t("shift_assignments.ended") %></span>
+              <% end %>
+            </td>
+            <td class="td-actions">
+              <% if policy(a).update? %>
+                <%= link_to t("forms.edit"), edit_shift_assignment_path(a), class: "link-muted" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @assignments.empty? %>
+          <tr>
+            <td colspan="7" class="td-empty"><%= t("shift_assignments.no_assignments") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+</div>

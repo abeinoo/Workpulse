@@ -1,0 +1,37 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("admin.branches.index.title") %></h1>
+    <%= link_to t("admin.branches.index.add"), new_admin_branch_path, class: "btn btn-primary btn-sm" %>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("admin.branches.name") %></th>
+          <th><%= t("admin.branches.address") %></th>
+          <th><%= t("admin.branches.status") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @branches.each do |branch| %>
+          <tr>
+            <td><%= link_to branch.name, admin_branch_path(branch), class: "link" %></td>
+            <td class="td-secondary"><%= branch.address.presence || "—" %></td>
+            <td>
+              <span class="badge <%= branch.active? ? 'badge-success' : 'badge-neutral' %>">
+                <%= branch.active? ? t("admin.branches.active") : t("admin.branches.inactive") %>
+              </span>
+            </td>
+            <td class="td-actions">
+              <%= link_to t("admin.branches.edit"), edit_admin_branch_path(branch), class: "link-muted" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+</div>

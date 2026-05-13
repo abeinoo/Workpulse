@@ -1,0 +1,44 @@
+<div class="dashboard-section__header">
+  <h2 class="dashboard-section__title"><%= t("admin.branches.info_title") %></h2>
+</div>
+
+<div class="info-card">
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("admin.branches.branch_manager") %></span>
+    <span>
+      <% if @branch_manager %>
+        <%= link_to @branch_manager.full_name, admin_user_path(@branch_manager), class: "link" %>
+      <% else %>
+        <span class="td-secondary"><%= t("admin.branches.not_assigned") %></span>
+      <% end %>
+    </span>
+  </div>
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("admin.branches.address") %></span>
+    <span><%= @branch.address.presence || "—" %></span>
+  </div>
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("admin.branches.phone") %></span>
+    <span><%= @branch.phone_number.presence || "—" %></span>
+  </div>
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("admin.branches.geolocation") %></span>
+    <span>
+      <% if @branch.geolocation_enabled? %>
+        <span class="badge badge-accent"><%= t("admin.branches.enabled") %></span>
+      <% else %>
+        <span class="badge badge-neutral"><%= t("admin.branches.disabled") %></span>
+      <% end %>
+    </span>
+  </div>
+  <% if @branch.geolocation_enabled? %>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("admin.branches.coordinates") %></span>
+      <span class="td-secondary"><%= @branch.latitude %>, <%= @branch.longitude %></span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("admin.branches.allowed_radius") %></span>
+      <span><%= @branch.radius_meters %> m</span>
+    </div>
+  <% end %>
+</div>

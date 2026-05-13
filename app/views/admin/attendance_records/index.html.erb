@@ -1,0 +1,52 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("admin.attendance_records.index.title") %></h1>
+  </div>
+
+  <div class="filter-bar">
+    <%= form_with url: admin_attendance_records_path, method: :get, local: true, class: "filter-form" do |f| %>
+      <%= f.date_field :date, value: params[:date], class: "form-control form-control--sm", placeholder: t("admin.attendance_records.index.filter_date") %>
+      <%= f.select :branch_id,
+            options_from_collection_for_select(@branches, :id, :name, params[:branch_id]),
+            { include_blank: t("admin.attendance_records.index.all_branches") },
+            class: "form-control form-control--sm" %>
+      <%= f.submit t("admin.attendance_records.index.filter"), class: "btn btn-ghost btn-sm" %>
+      <%= link_to t("admin.attendance_records.index.clear"), admin_attendance_records_path, class: "btn btn-ghost btn-sm" if params[:date].present? || params[:branch_id].present? %>
+    <% end %>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("attendance.employee") %></th>
+          <th><%= t("attendance.date") %></th>
+          <th><%= t("attendance.check_in_at") %></th>
+          <th><%= t("attendance.check_out_at") %></th>
+          <th><%= t("attendance.status") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @records.each do |rec| %>
+          <tr>
+            <td><%= rec.user.full_name %></td>
+            <td class="td-secondary"><%= rec.date.strftime("%b %-d, %Y") %></td>
+            <td class="td-secondary"><%= rec.check_in_at&.strftime("%H:%M") || "—" %></td>
+            <td class="td-secondary"><%= rec.check_out_at&.strftime("%H:%M") || "—" %></td>
+            <td>
+              <span class="badge <%= rec.present? ? 'badge-success' : rec.late? ? 'badge-warning' : 'badge-neutral' %>">
+                <%= t("attendance.statuses.#{rec.status}", default: rec.status.humanize) %>
+              </span>
+            </td>
+            <td class="td-actions">
+              <%= link_to t("attendance.records.view"), admin_attendance_record_path(rec), class: "link-muted" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+</div>

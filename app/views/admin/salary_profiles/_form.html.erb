@@ -1,0 +1,50 @@
+<%= form_with model: [:admin, @employee, profile], class: "form-card" do |f| %>
+
+  <%= render "users/shared/error_messages", resource: profile %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :salary_type, class: "form-label" %>
+      <%= f.select :salary_type,
+            SalaryProfile::SALARY_TYPES.map { |t| [t.humanize, t] },
+            {},
+            class: "form-control" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :base_amount, class: "form-label" %>
+      <%= f.number_field :base_amount,
+            class: "form-control #{'is-error' if profile.errors[:base_amount].any?}",
+            min: 0, step: "0.01",
+            placeholder: "5000.00" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :overtime_multiplier, t("salary_profiles.overtime_multiplier"), class: "form-label" %>
+      <%= f.number_field :overtime_multiplier,
+            class: "form-control #{'is-error' if profile.errors[:overtime_multiplier].any?}",
+            min: "0.01", max: "5", step: "0.01",
+            placeholder: "1.5" %>
+      <p class="form-hint"><%= t("salary_profiles.overtime_hint") %></p>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :currency, class: "form-label" %>
+      <%= f.text_field :currency,
+            class: "form-control #{'is-error' if profile.errors[:currency].any?}",
+            placeholder: "SAR" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :effective_from, t("salary_profiles.effective_from"), class: "form-label" %>
+      <%= f.date_field :effective_from,
+            class: "form-control #{'is-error' if profile.errors[:effective_from].any?}" %>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit class: "btn btn-primary" %>
+    <%= link_to t("forms.cancel"), admin_user_path(@employee), class: "btn btn-ghost" %>
+  </div>
+
+<% end %>

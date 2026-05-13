@@ -1,0 +1,25 @@
+<script>
+  (function () {
+    var timeEl     = document.getElementById('js-current-time');
+    var greetingEl = document.getElementById('js-greeting-time');
+    var greetings  = {
+      morning:   "<%= j t('greeting.morning') %>",
+      afternoon: "<%= j t('greeting.afternoon') %>",
+      evening:   "<%= j t('greeting.evening') %>"
+    };
+
+    function update() {
+      var now = new Date();
+      var h   = now.getHours();
+      var greeting = h < 12 ? greetings.morning : h < 17 ? greetings.afternoon : greetings.evening;
+      if (greetingEl) greetingEl.textContent = greeting;
+      if (timeEl) {
+        timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+          ' · ' + now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+      }
+    }
+
+    update();
+    setInterval(update, 10000);
+  })();
+</script>

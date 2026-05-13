@@ -1,0 +1,28 @@
+class Business < ApplicationRecord
+  has_many :branches,        dependent: :destroy
+  has_many :users,           dependent: :destroy
+  has_many :shifts,          dependent: :destroy
+  has_many :payroll_periods, dependent: :destroy
+
+  serialize :settings, coder: JSON
+
+  validates :name,                presence: true
+  validates :timezone,            presence: true
+  validate  :timezone_recognized
+  validates :working_days_per_month,
+            numericality: { greater_than: 0, less_than_or_equal_to: 31 }
+  validates :business_day_start_hour,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 23 }
+  validates :default_locale, inclusion: { in: %w[en ar] }, allow_blank: true
+
+  def timezone_object
+    ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]
+  end
+
+  private
+
+  def timezone_recognized
+    return if timezone.blank?
+    errors.add(:timezone, "is not a recognized timezone") unless ActiveSupport::TimeZone[timezone]
+  end
+end

@@ -1,0 +1,40 @@
+<%= form_with model: [:admin, @shift, rule], class: "form-card" do |f| %>
+
+  <%= render "shared/error_messages", object: rule %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :rule_type, t("penalty_rules.type"), class: "form-label form-label--required" %>
+      <%= f.select :rule_type,
+            PenaltyRule::RULE_TYPES.map { |t| [t.humanize, t] },
+            { include_blank: t("forms.select") },
+            class: "form-control" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :threshold_minutes, t("penalty_rules.threshold_label"), class: "form-label form-label--required" %>
+      <%= f.number_field :threshold_minutes, class: "form-control", min: 1, placeholder: "30" %>
+      <p class="form-hint"><%= t("penalty_rules.threshold_hint") %></p>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :deduction_type, t("penalty_rules.deduction_type"), class: "form-label form-label--required" %>
+      <%= f.select :deduction_type,
+            PenaltyRule::DEDUCTION_TYPES.map { |t| [t.humanize, t] },
+            { include_blank: t("forms.select") },
+            class: "form-control" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :deduction_value, t("penalty_rules.deduction_value"), class: "form-label form-label--required" %>
+      <%= f.number_field :deduction_value, class: "form-control", min: 0.01, step: "0.01", placeholder: "50" %>
+      <p class="form-hint"><%= t("penalty_rules.deduction_hint") %></p>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit class: "btn btn-primary" %>
+    <%= link_to t("forms.cancel"), admin_shift_path(@shift), class: "btn btn-ghost" %>
+  </div>
+
+<% end %>

@@ -1,0 +1,79 @@
+<% content_for :title, "#{@branch.name} — WorkPulse" %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <%= link_to admin_branches_path, class: "back-link" do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= t("admin.branches.index.title") %>
+    <% end %>
+    <div>
+      <h1 class="page-title"><%= @branch.name %></h1>
+      <% if @branch.address.present? %>
+        <p class="page-subtitle"><%= @branch.address %></p>
+      <% end %>
+    </div>
+    <div class="page-header__actions">
+      <span class="badge <%= @branch.active? ? 'badge-success' : 'badge-neutral' %>">
+        <%= @branch.active? ? t("admin.branches.active") : t("admin.branches.inactive") %>
+      </span>
+      <%= link_to t("admin.branches.edit"), edit_admin_branch_path(@branch), class: "btn btn-ghost btn-sm" %>
+      <%= button_to t("admin.branches.delete"), admin_branch_path(@branch), method: :delete,
+            class: "btn btn-danger btn-sm",
+            data: { turbo_confirm: t("forms.confirm_delete", name: @branch.name) } %>
+    </div>
+  </div>
+
+  <%# Top-level stats %>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <p class="stat-card__label"><%= t("admin.branches.employees_count") %></p>
+      <p class="stat-card__value"><%= @attendance_stats[:total] %></p>
+    </div>
+    <div class="stat-card <%= @attendance_stats[:checked_in] > 0 ? 'stat-card--success' : '' %>">
+      <p class="stat-card__label"><%= t("admin.branches.checked_in_today") %></p>
+      <p class="stat-card__value <%= @attendance_stats[:checked_in] > 0 ? 'text-success' : '' %>">
+        <%= @attendance_stats[:checked_in] %>
+      </p>
+    </div>
+    <div class="stat-card <%= @attendance_stats[:missing_checkout] > 0 ? 'stat-card--warning' : '' %>">
+      <p class="stat-card__label"><%= t("admin.branches.missing_checkout") %></p>
+      <p class="stat-card__value <%= @attendance_stats[:missing_checkout] > 0 ? 'text-warning' : '' %>">
+        <%= @attendance_stats[:missing_checkout] %>
+      </p>
+    </div>
+    <div class="stat-card <%= @attendance_stats[:late] > 0 ? 'stat-card--danger' : '' %>">
+      <p class="stat-card__label"><%= t("admin.branches.late_today") %></p>
+      <p class="stat-card__value <%= @attendance_stats[:late] > 0 ? 'text-danger' : '' %>">
+        <%= @attendance_stats[:late] %>
+      </p>
+    </div>
+  </div>
+
+  <%# Branch info + today's attendance in two columns %>
+  <div class="dashboard-cols">
+    <div><%= render "info" %></div>
+    <div><%= render "attendance_overview" %></div>
+  </div>
+
+  <%# Employees %>
+  <div class="dashboard-section mt-8">
+    <%= render "employees" %>
+  </div>
+
+  <%# Shifts %>
+  <div class="dashboard-section">
+    <%= render "shifts" %>
+  </div>
+
+  <%# Payroll %>
+  <div class="dashboard-section">
+    <%= render "payroll_summary" %>
+  </div>
+
+  <%# Requests %>
+  <div class="dashboard-section">
+    <%= render "requests" %>
+  </div>
+
+</div>

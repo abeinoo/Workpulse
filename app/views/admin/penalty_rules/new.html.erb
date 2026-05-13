@@ -1,0 +1,12 @@
+<% content_for :title, "New Penalty Rule — WorkPulse" %>
+
+<div class="form-page">
+  <%= link_to admin_shift_path(@shift), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("penalty_rules.back_to", name: @shift.name) %>
+  <% end %>
+
+  <h1 class="page-title mb-6"><%= t("penalty_rules.new.title") %></h1>
+
+  <%= render "form", rule: @rule %>
+</div>

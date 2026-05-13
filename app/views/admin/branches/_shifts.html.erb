@@ -1,0 +1,62 @@
+<div class="dashboard-section__header">
+  <h2 class="dashboard-section__title"><%= t("admin.branches.shift_assignments") %></h2>
+  <%= link_to t("admin.branches.manage_shifts"), admin_shifts_path, class: "link-muted" %>
+</div>
+
+<% if @shift_assignments.any? %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("attendance.employee") %></th>
+          <th><%= t("admin.branches.shift") %></th>
+          <th><%= t("requests.type") %></th>
+          <th><%= t("admin.branches.working_hours") %></th>
+          <th><%= t("admin.branches.penalty_rules_col") %></th>
+          <th><%= t("admin.branches.effective_from") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @shift_assignments.each do |assignment| %>
+          <tr>
+            <td>
+              <div class="employee-cell">
+                <div class="avatar"><%= assignment.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                <span><%= link_to assignment.user.full_name, admin_user_path(assignment.user), class: "link" %></span>
+              </div>
+            </td>
+            <td>
+              <%= link_to assignment.shift.name, admin_shift_path(assignment.shift), class: "link" %>
+            </td>
+            <td>
+              <span class="badge badge-neutral"><%= assignment.shift.shift_type.humanize %></span>
+            </td>
+            <td class="td-secondary">
+              <% if assignment.shift.fixed_time? %>
+                <%= assignment.shift.start_time.strftime("%H:%M") %> &ndash; <%= assignment.shift.end_time.strftime("%H:%M") %>
+              <% else %>
+                <%= assignment.shift.required_hours %><%= t("admin.branches.h_per_day") %>
+              <% end %>
+            </td>
+            <td class="td-secondary">
+              <% rule_count = assignment.shift.penalty_rules.size %>
+              <% if rule_count > 0 %>
+                <span class="badge badge-warning"><%= rule_count %></span>
+              <% else %>
+                —
+              <% end %>
+            </td>
+            <td class="td-secondary">
+              <%= assignment.effective_from.strftime("%b %d, %Y") %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <div class="empty-state">
+    <p class="empty-state__title"><%= t("admin.branches.no_shifts") %></p>
+    <p class="empty-state__text"><%= t("admin.branches.no_shifts_hint") %></p>
+  </div>
+<% end %>

@@ -1,0 +1,100 @@
+<div class="dashboard-section__header">
+  <h2 class="dashboard-section__title"><%= t("admin.branches.payroll_section", month: Date.current.strftime("%B"), year: Date.current.year) %></h2>
+  <%= link_to t("admin.branches.view_all_payroll"), admin_payroll_periods_path, class: "link-muted" %>
+</div>
+
+<% if @payroll_period %>
+  <% entries = @payroll_period.payroll_entries.to_a %>
+
+  <div class="stats-grid" style="margin-bottom: var(--space-5);">
+    <div class="stat-card">
+      <p class="stat-card__label"><%= t("admin.branches.entries") %></p>
+      <p class="stat-card__value"><%= entries.size %></p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-card__label"><%= t("admin.branches.total_net") %></p>
+      <p class="stat-card__value text-sm font-medium">
+        <%= number_to_currency(entries.sum(&:net_salary), unit: "SAR ", delimiter: ",", precision: 0) %>
+      </p>
+    </div>
+    <div class="stat-card <%= entries.count(&:draft?) > 0 ? 'stat-card--warning' : '' %>">
+      <p class="stat-card__label"><%= t("admin.branches.pending_approval") %></p>
+      <p class="stat-card__value <%= entries.count(&:draft?) > 0 ? 'text-warning' : '' %>">
+        <%= entries.count(&:draft?) %>
+      </p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-card__label"><%= t("admin.branches.period_status") %></p>
+      <p class="stat-card__value" style="font-size: var(--text-base); padding-top: var(--space-1);">
+        <span class="badge <%= @payroll_period.paid? ? 'badge-success' : @payroll_period.finalized? ? 'badge-accent' : 'badge-neutral' %>">
+          <%= @payroll_period.status.humanize %>
+        </span>
+      </p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("attendance.employee") %></th>
+          <th><%= t("admin.payroll_entries.show.base_salary") %></th>
+          <th><%= t("admin.payroll_entries.show.overtime") %></th>
+          <th><%= t("admin.payroll_entries.show.bonuses") %></th>
+          <th><%= t("admin.payroll_entries.show.deductions") %></th>
+          <th><%= t("admin.payroll_entries.show.net_salary") %></th>
+          <th><%= t("payroll.status") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if entries.any? %>
+          <% entries.each do |entry| %>
+            <tr>
+              <td>
+                <div class="employee-cell">
+                  <div class="avatar"><%= entry.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                  <span><%= link_to entry.user.full_name, admin_user_path(entry.user), class: "link" %></span>
+                </div>
+              </td>
+              <td class="td-secondary">
+                <%= number_to_currency(entry.base_salary, unit: "SAR ", delimiter: ",", precision: 0) %>
+              </td>
+              <td class="<%= entry.total_overtime > 0 ? 'text-success' : 'td-secondary' %>">
+                <%= entry.total_overtime > 0 ? "+#{number_to_currency(entry.total_overtime, unit: 'SAR ', delimiter: ',', precision: 0)}" : '—' %>
+              </td>
+              <td class="<%= entry.total_bonuses > 0 ? 'text-success' : 'td-secondary' %>">
+                <%= entry.total_bonuses > 0 ? "+#{number_to_currency(entry.total_bonuses, unit: 'SAR ', delimiter: ',', precision: 0)}" : '—' %>
+              </td>
+              <td class="<%= entry.total_deductions > 0 ? 'text-danger' : 'td-secondary' %>">
+                <%= entry.total_deductions > 0 ? "-#{number_to_currency(entry.total_deductions, unit: 'SAR ', delimiter: ',', precision: 0)}" : '—' %>
+              </td>
+              <td class="font-bold">
+                <%= number_to_currency(entry.net_salary, unit: "SAR ", delimiter: ",", precision: 0) %>
+              </td>
+              <td>
+                <span class="badge <%= entry.approved? ? 'badge-accent' : entry.disputed? ? 'badge-danger' : 'badge-neutral' %>">
+                  <%= entry.status.humanize %>
+                </span>
+              </td>
+            </tr>
+          <% end %>
+        <% else %>
+          <tr>
+            <td colspan="7" class="td-empty"><%= t("admin.payroll_entries.show.no_line_items") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top: var(--space-4);">
+    <%= link_to t("admin.branches.view_payroll"), admin_payroll_period_path(@payroll_period), class: "btn btn-ghost btn-sm" %>
+  </div>
+<% else %>
+  <div class="empty-state">
+    <p class="empty-state__title"><%= t("admin.branches.no_payroll") %></p>
+    <p class="empty-state__text">
+      <%= t("admin.branches.no_payroll_hint", month: Date.current.strftime("%B"), year: Date.current.year) %>
+    </p>
+  </div>
+<% end %>

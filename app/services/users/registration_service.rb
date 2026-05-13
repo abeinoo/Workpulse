@@ -13,11 +13,12 @@ module Users
     end
 
     def call
-      employee = find_employee
-      return failure("No account found for that phone number or email.") unless employee
-      return failure("This account has already been registered.") if employee.user.present?
+      user = find_user
+      return failure("No account found for that phone number or email.") unless user
+      return failure("This account has already been registered.") if user.encrypted_password.present?
 
-      user = User.new(employee: employee, password: @password, password_confirmation: @password_confirmation)
+      user.password              = @password
+      user.password_confirmation = @password_confirmation
 
       if user.save
         Result.new(success?: true, user: user, error: nil)
@@ -28,9 +29,12 @@ module Users
 
     private
 
-    def find_employee
-      Employee.find_by(phone_number: @login) ||
-        Employee.find_by(email: @login.downcase)
+    def find_user
+      if @login.include?("@")
+        User.find_by("LOWER(email) = ?", @login.downcase)
+      else
+        User.find_by(phone_number: @login)
+      end
     end
 
     def failure(message)

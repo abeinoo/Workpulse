@@ -1,0 +1,219 @@
+<div class="emp-dashboard">
+
+  <%# ── Greeting ──────────────────────────────────────────────────── %>
+  <div class="emp-dashboard__greeting">
+    <p class="emp-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
+    <h1 class="emp-dashboard__greeting-name">
+      <%= current_user.first_name.presence || "there" %>
+    </h1>
+    <% if @current_shift %>
+      <p class="emp-dashboard__greeting-sub">
+        <%= @current_shift.shift_name %> &mdash; <%= @current_shift.branch_name %>
+      </p>
+    <% end %>
+  </div>
+
+  <%# ── Today's status hero ───────────────────────────────────────── %>
+  <% if @today_record %>
+    <div class="attendance-hero attendance-hero--<%= @today_record.checked_out? ? 'done' : 'active' %>">
+      <div class="attendance-hero__body">
+        <p class="attendance-hero__label"><%= t("dashboard.today") %></p>
+        <p class="attendance-hero__status">
+          <% if @today_record.status == "present" %><%= t("attendance.statuses.present") %>
+          <% elsif @today_record.status == "late" %><%= t("attendance.status_late") %>
+          <% elsif @today_record.status == "early_leave" %><%= t("attendance.statuses.early_leave") %>
+          <% elsif @today_record.status == "incomplete" %><%= t("attendance.statuses.incomplete") %>
+          <% else %><%= @today_record.status.humanize %>
+          <% end %>
+        </p>
+        <p class="attendance-hero__times">
+          <span><%= t("dashboard.time_in") %> &nbsp;<strong><%= @today_record.check_in_at.strftime("%H:%M") %></strong></span>
+          <% if @today_record.checked_out? %>
+            <span class="attendance-hero__sep">&middot;</span>
+            <span><%= t("dashboard.time_out") %> <strong><%= @today_record.check_out_at.strftime("%H:%M") %></strong></span>
+            <% if @today_record.worked_minutes %>
+              <span class="attendance-hero__sep">&middot;</span>
+              <span class="attendance-hero__worked"><%= t("dashboard.worked", hours: @today_record.worked_minutes / 60, minutes: @today_record.worked_minutes % 60) %></span>
+            <% end %>
+          <% end %>
+        </p>
+      </div>
+      <div class="attendance-hero__icon">
+        <% if @today_record.checked_out? %>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+        <% else %>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <% end %>
+      </div>
+    </div>
+
+    <% unless @today_record.checked_out? %>
+      <%# Check-out CTA %>
+      <div class="emp-dashboard__cta">
+        <%= form_with url: attendance_check_out_path, method: :post,
+              data: {
+                controller: "attendance-location",
+                action: "submit->attendance-location#capture",
+                attendance_location_required_value: @today_record.branch.geolocation_enabled?
+              } do |f| %>
+          <%= f.hidden_field :branch_id, value: @today_record.branch_id %>
+          <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+          <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+          <%= f.button type: "submit", class: "btn btn-xl btn-block btn-checkout",
+                data: { attendance_location_target: "submitBtn" } do %>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <%= t("dashboard.check_out") %>
+          <% end %>
+          <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+        <% end %>
+      </div>
+    <% end %>
+
+  <% else %>
+    <%# Not checked in yet %>
+    <div class="attendance-hero attendance-hero--idle">
+      <div class="attendance-hero__body">
+        <p class="attendance-hero__label"><%= t("dashboard.today") %></p>
+        <p class="attendance-hero__status"><%= t("dashboard.not_checked_in") %></p>
+        <p class="attendance-hero__times" id="js-current-time"></p>
+      </div>
+      <div class="attendance-hero__icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+    </div>
+
+    <% branches = current_user.branches.active.order(:name) %>
+    <% if branches.one? %>
+      <div class="emp-dashboard__cta">
+        <%= form_with url: attendance_check_in_path, method: :post,
+              data: {
+                controller: "attendance-location",
+                action: "submit->attendance-location#capture",
+                attendance_location_required_value: branches.first.geolocation_enabled?
+              } do |f| %>
+          <%= f.hidden_field :branch_id, value: branches.first.id %>
+          <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+          <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+          <%= f.button type: "submit", class: "btn btn-xl btn-block btn-checkin",
+                data: { attendance_location_target: "submitBtn" } do %>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            <%= t("dashboard.check_in") %>
+          <% end %>
+          <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+        <% end %>
+      </div>
+    <% elsif branches.many? %>
+      <div class="emp-dashboard__cta">
+        <p class="emp-dashboard__branch-label"><%= t("dashboard.select_branch") %></p>
+        <div class="branch-picker">
+          <% branches.each do |branch| %>
+            <%= form_with url: attendance_check_in_path, method: :post,
+                  data: {
+                    controller: "attendance-location",
+                    action: "submit->attendance-location#capture",
+                    attendance_location_required_value: branch.geolocation_enabled?
+                  } do |f| %>
+              <%= f.hidden_field :branch_id, value: branch.id %>
+              <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+              <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+              <%= f.button type: "submit", class: "branch-picker__btn",
+                    data: { attendance_location_target: "submitBtn" } do %>
+                <span class="branch-picker__name"><%= branch.name %></span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              <% end %>
+              <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% else %>
+      <p class="emp-dashboard__no-branch"><%= t("dashboard.no_branch") %></p>
+    <% end %>
+  <% end %>
+
+  <%# ── Quick Actions ──────────────────────────────────────────────── %>
+  <div class="emp-dashboard__quick-actions">
+    <%= link_to new_employee_request_path, class: "quick-action" do %>
+      <span class="quick-action__icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </span>
+      <span class="quick-action__label"><%= t("dashboard.new_request") %></span>
+    <% end %>
+    <%= link_to attendance_records_path, class: "quick-action" do %>
+      <span class="quick-action__icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </span>
+      <span class="quick-action__label"><%= t("nav.attendance") %></span>
+    <% end %>
+    <%= link_to employee_requests_path, class: "quick-action" do %>
+      <span class="quick-action__icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </span>
+      <span class="quick-action__label"><%= t("nav.requests") %></span>
+    <% end %>
+    <%= link_to payroll_periods_path, class: "quick-action" do %>
+      <span class="quick-action__icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </span>
+      <span class="quick-action__label"><%= t("nav.payroll") %></span>
+    <% end %>
+  </div>
+
+  <%# ── Recent Requests ────────────────────────────────────────────── %>
+  <% if @recent_requests.any? %>
+    <div class="emp-dashboard__section">
+      <div class="emp-dashboard__section-header">
+        <h2 class="emp-dashboard__section-title"><%= t("dashboard.recent_requests") %></h2>
+        <%= link_to t("dashboard.view_all"), employee_requests_path, class: "emp-dashboard__section-link" %>
+      </div>
+      <div class="request-list">
+        <% @recent_requests.each do |req| %>
+          <%= link_to employee_request_path(req), class: "request-row" do %>
+            <div class="request-row__main">
+              <span class="request-row__type"><%= req.request_type.humanize %></span>
+              <span class="request-row__date"><%= req.requested_for_date.strftime("%b %-d") %></span>
+            </div>
+            <span class="badge <%= req.approved? ? 'badge-success' : req.rejected? ? 'badge-danger' : 'badge-neutral' %>">
+              <%= req.status.humanize %>
+            </span>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Latest Payroll ─────────────────────────────────────────────── %>
+  <% if @latest_payroll %>
+    <div class="emp-dashboard__section">
+      <div class="emp-dashboard__section-header">
+        <h2 class="emp-dashboard__section-title"><%= t("dashboard.latest_payroll") %></h2>
+        <%= link_to t("dashboard.view_all"), payroll_periods_path, class: "emp-dashboard__section-link" %>
+      </div>
+      <div class="payroll-summary-card">
+        <div class="payroll-summary-card__period">
+          <%= @latest_payroll.payroll_period.period_label %>
+          <span class="badge <%= @latest_payroll.payroll_period.paid? ? 'badge-success' : 'badge-neutral' %> ml-2">
+            <%= @latest_payroll.payroll_period.status.humanize %>
+          </span>
+        </div>
+        <div class="payroll-summary-card__row">
+          <span class="payroll-summary-card__label"><%= t("payroll.base_salary") %></span>
+          <span><%= number_to_currency(@latest_payroll.base_salary, unit: "SAR ", delimiter: ",", precision: 0) %></span>
+        </div>
+        <% if @latest_payroll.total_deductions > 0 %>
+          <div class="payroll-summary-card__row payroll-summary-card__row--deduction">
+            <span class="payroll-summary-card__label"><%= t("payroll.deductions") %></span>
+            <span>&minus; <%= number_to_currency(@latest_payroll.total_deductions, unit: "SAR ", delimiter: ",", precision: 0) %></span>
+          </div>
+        <% end %>
+        <div class="payroll-summary-card__row payroll-summary-card__row--net">
+          <span class="payroll-summary-card__label"><%= t("payroll.net_salary") %></span>
+          <strong><%= number_to_currency(@latest_payroll.net_salary, unit: "SAR ", delimiter: ",", precision: 0) %></strong>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+</div>
+
+<%= render "shared/greeting_script" %>

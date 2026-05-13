@@ -1,0 +1,129 @@
+<% content_for :title, t("attendance.show.page_title") %>
+
+<%# Leaflet CSS — only on pages with the location map %>
+<% if @record.check_in_latitude.present? %>
+  <% content_for :head do %>
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="">
+  <% end %>
+<% end %>
+
+<div class="form-page">
+  <%= link_to attendance_records_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("attendance.records.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= @record.work_date.strftime("%B %-d, %Y") %></h1>
+      <% if current_user.super_admin? || current_user.branch_manager? %>
+        <p class="page-subtitle"><%= @record.user.full_name %><% if @record.branch %> &mdash; <%= @record.branch.name %><% end %></p>
+      <% end %>
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <% if @record.overnight? %>
+        <span class="badge badge-neutral">⇌ <%= t("attendance.records.overnight") %></span>
+      <% end %>
+      <span class="badge <%= @record.status == "present" ? 'badge-success' : @record.status == "late" ? 'badge-warning' : @record.status == "early_leave" ? 'badge-accent' : 'badge-neutral' %>">
+        <%= @record.status.humanize %>
+      </span>
+    </div>
+  </div>
+
+  <div class="info-card">
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance.work_date") %></span>
+      <span><%= @record.work_date.strftime("%B %-d, %Y") %></span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance.check_in_at") %></span>
+      <span><%= @record.check_in_at&.strftime("%b %-d, %Y %H:%M") || "—" %></span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance.check_out_at") %></span>
+      <span><%= @record.check_out_at&.strftime("%b %-d, %Y %H:%M") || "—" %></span>
+    </div>
+    <% if @record.worked_minutes %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance.records.worked") %></span>
+        <span><%= @record.worked_minutes / 60 %>h <%= @record.worked_minutes % 60 %>m</span>
+      </div>
+    <% end %>
+    <% if @record.late_minutes > 0 %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance.records.late_by") %></span>
+        <span class="text-warning"><%= @record.late_minutes %> min</span>
+      </div>
+    <% end %>
+    <% if @record.early_leave_minutes > 0 %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance.records.left_early_by") %></span>
+        <span class="text-warning"><%= @record.early_leave_minutes %> min</span>
+      </div>
+    <% end %>
+    <% if @record.branch %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance.branch") %></span>
+        <span><%= @record.branch.name %></span>
+      </div>
+    <% end %>
+  </div>
+
+  <% if policy(@record).update? %>
+    <div class="mt-4">
+      <%= link_to t("attendance.records.edit_record"), edit_attendance_record_path(@record), class: "btn btn-ghost btn-sm" %>
+    </div>
+  <% end %>
+
+  <%# ── Location map ────────────────────────────────────────────────── %>
+  <% if @record.check_in_latitude.present? %>
+    <% branch = @record.branch %>
+    <h2 class="section-title mt-8"><%= t("attendance.records.check_in_location") %></h2>
+    <div data-controller="location-map"
+         data-location-map-has-check-in-value="true"
+         data-location-map-check-in-lat-value="<%= @record.check_in_latitude %>"
+         data-location-map-check-in-lng-value="<%= @record.check_in_longitude %>"
+         <%= @record.check_out_latitude.present? ? 'data-location-map-has-check-out-value="true"' : "" %>
+         <%= @record.check_out_latitude.present? ? "data-location-map-check-out-lat-value=\"#{@record.check_out_latitude}\"" : "" %>
+         <%= @record.check_out_latitude.present? ? "data-location-map-check-out-lng-value=\"#{@record.check_out_longitude}\"" : "" %>
+         <%= branch.latitude.present? ? 'data-location-map-has-branch-value="true"' : "" %>
+         <%= branch.latitude.present? ? "data-location-map-branch-lat-value=\"#{branch.latitude}\"" : "" %>
+         <%= branch.latitude.present? ? "data-location-map-branch-lng-value=\"#{branch.longitude}\"" : "" %>
+         data-location-map-branch-radius-value="<%= branch.radius_meters || 100 %>">
+      <div data-location-map-target="container" class="branch-map"></div>
+    </div>
+    <div class="location-map-legend">
+      <span class="loc-legend-item"><span class="loc-marker loc-marker--branch loc-marker--sm">B</span> <%= t("attendance.records.legend_branch") %></span>
+      <span class="loc-legend-item"><span class="loc-dot loc-dot--checkin"></span> <%= t("attendance.records.legend_check_in") %></span>
+      <% if @record.check_out_latitude.present? %>
+        <span class="loc-legend-item"><span class="loc-dot loc-dot--checkout"></span> <%= t("attendance.records.legend_check_out") %></span>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Audit trail ─────────────────────────────────────────────────── %>
+  <% if @adjustments.any? %>
+    <h2 class="section-title mt-8"><%= t("attendance.records.edit_history") %></h2>
+    <div class="audit-list">
+      <% @adjustments.each do |adj| %>
+        <div class="audit-entry">
+          <div class="audit-entry__header">
+            <span class="audit-entry__editor"><%= adj.adjusted_by.full_name %></span>
+            <span class="audit-entry__time"><%= adj.created_at.strftime("%b %-d, %Y %H:%M") %></span>
+          </div>
+          <div class="audit-entry__change">
+            <span class="audit-entry__field"><%= adj.field_name.humanize %></span>
+            <span class="audit-entry__old"><%= adj.old_value.presence || "—" %></span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            <span class="audit-entry__new"><%= adj.new_value.presence || "—" %></span>
+          </div>
+          <p class="audit-entry__reason">&ldquo;<%= adj.reason %>&rdquo;</p>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+</div>

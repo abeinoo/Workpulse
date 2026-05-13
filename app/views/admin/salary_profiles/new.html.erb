@@ -1,0 +1,17 @@
+<% content_for :title, "#{t('salary_profiles.new.title')} — #{@employee.full_name}" %>
+
+<div class="form-page">
+  <%= link_to admin_user_path(@employee), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("salary_profiles.new.back", name: @employee.full_name) %>
+  <% end %>
+
+  <div class="card">
+    <div class="card-header">
+      <h1 class="card-title"><%= t("salary_profiles.new.title") %></h1>
+      <p class="card-subtitle"><%= t("salary_profiles.new.for", name: @employee.full_name) %></p>
+    </div>
+
+    <%= render "form", profile: @profile %>
+  </div>
+</div>

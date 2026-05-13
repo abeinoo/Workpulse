@@ -1,0 +1,74 @@
+<% content_for :title, "#{t('adjustments.new.title')} — WorkPulse" %>
+
+<div class="form-page">
+  <%= link_to adjustments_path(period_month: @period_month, period_year: @period_year),
+        class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    <%= t("adjustments.new.back") %>
+  <% end %>
+
+  <h1 class="page-title"><%= t("adjustments.new.title") %></h1>
+  <p class="page-subtitle">
+    <%= t("adjustments.new.period", label: "#{Date::MONTHNAMES[@period_month]} #{@period_year}") %>
+  </p>
+
+  <%= form_with model: @adjustment, url: adjustments_path, local: true, class: "form-card" do |f| %>
+    <%= render "shared/error_messages", object: @adjustment %>
+
+    <div class="form-grid">
+      <div class="form-group form-group--full">
+        <%= f.label :user_id, t("adjustments.new.employee_label"), class: "form-label form-label--required" %>
+        <%= f.select :user_id,
+              @employees.map { |u| [u.full_name, u.id] },
+              { include_blank: t("forms.select") },
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :adjustment_type, t("adjustments.new.type_label"), class: "form-label form-label--required" %>
+        <%= f.select :adjustment_type,
+              PayrollAdjustment::ADJUSTMENT_TYPES.map { |t| [t.humanize, t] },
+              { include_blank: t("forms.select") },
+              class: "form-control" %>
+        <p class="form-hint"><%= t("adjustments.new.type_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :amount, t("adjustments.new.amount_label"), class: "form-label form-label--required" %>
+        <%= f.number_field :amount,
+              class: "form-control",
+              min: 0.01,
+              step: "0.01",
+              placeholder: t("adjustments.new.amount_placeholder") %>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= f.label :reason, t("adjustments.new.reason_label"), class: "form-label form-label--required" %>
+        <%= f.text_area :reason,
+              rows: 3,
+              class: "form-control",
+              placeholder: t("adjustments.new.reason_placeholder") %>
+      </div>
+
+      <%= f.hidden_field :period_month, value: @period_month %>
+      <%= f.hidden_field :period_year,  value: @period_year %>
+    </div>
+
+    <% unless current_user.super_admin? %>
+      <div class="alert alert-info" style="margin-top: var(--space-4);">
+        <%= t("adjustments.new.hint") %>
+      </div>
+    <% end %>
+
+    <div class="form-actions">
+      <%= f.submit current_user.super_admin? ? t("adjustments.new.save_approve") : t("adjustments.new.submit_review"),
+            class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"),
+            adjustments_path(period_month: @period_month, period_year: @period_year),
+            class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>

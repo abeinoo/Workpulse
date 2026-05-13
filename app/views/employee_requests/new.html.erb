@@ -1,0 +1,103 @@
+<% content_for :title, "#{t('requests.new.title')} — WorkPulse" %>
+
+<div class="form-page">
+  <%= link_to employee_requests_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("requests.new.back") %>
+  <% end %>
+
+  <h1 class="page-title">
+    <% if @for_user %>
+      <%= t("requests.new.title") %> <%= @for_user.full_name %>
+    <% else %>
+      <%= t("requests.new.title") %>
+    <% end %>
+  </h1>
+
+  <%# Manager: "for whom" selector shown when no pre-selected employee %>
+  <% if current_user.branch_manager? && @for_user.nil? && @managed_employees.any? %>
+    <div class="for-whom-bar">
+      <span class="for-whom-bar__label"><%= t("requests.new.creating_for") %></span>
+      <div class="for-whom-bar__options">
+        <span class="for-whom-chip for-whom-chip--active"><%= t("requests.new.yourself") %></span>
+        <% @managed_employees.each do |emp| %>
+          <%= link_to new_employee_request_path(for_user_id: emp.id),
+                class: "for-whom-chip" do %>
+            <%= emp.full_name %>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% elsif @for_user %>
+    <div class="for-whom-bar for-whom-bar--selected">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <%= t("requests.new.behalf_of", name: @for_user.full_name) %>
+      &ensp;
+      <%= link_to t("requests.new.change"), new_employee_request_path, class: "for-whom-bar__change" %>
+    </div>
+  <% end %>
+
+  <%= form_with model: @request, url: employee_requests_path, local: true, class: "form-card" do |f| %>
+    <% if @for_user %>
+      <%= hidden_field_tag "employee_request[for_user_id]", @for_user.id %>
+    <% end %>
+
+    <%= render "shared/error_messages", object: @request %>
+
+    <div class="form-grid">
+      <div class="form-group form-group--full">
+        <%= f.label :request_type, t("requests.new.type_label"), class: "form-label form-label--required" %>
+        <%= f.select :request_type,
+              EmployeeRequest::REQUEST_TYPES.map { |t| [t.humanize, t] },
+              { include_blank: t("forms.select") },
+              class: "form-control",
+              id: "request_type_select" %>
+      </div>
+
+      <%# Amount — shown only for salary advance (JS progressively enhances; baseline always visible) %>
+      <div class="form-group form-group--full" id="amount-field">
+        <%= f.label :amount, t("requests.new.amount_label"), class: "form-label form-label--required" %>
+        <%= f.number_field :amount,
+              class: "form-control",
+              min: 1,
+              step: "0.01",
+              placeholder: t("requests.new.amount_placeholder") %>
+        <p class="form-hint"><%= t("requests.new.amount_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :requested_for_date, t("requests.new.date_label"), class: "form-label form-label--required" %>
+        <%= f.date_field :requested_for_date,
+              class: "form-control",
+              value: @request.requested_for_date || Date.current %>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= f.label :reason, t("requests.new.reason_label"), class: "form-label form-label--required" %>
+        <%= f.text_area :reason,
+              rows: 3,
+              class: "form-control",
+              placeholder: t("requests.new.reason_placeholder") %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("requests.new.submit"), class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"), employee_requests_path, class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  (function () {
+    var select = document.getElementById("request_type_select");
+    var amountField = document.getElementById("amount-field");
+    function toggle() {
+      amountField.style.display = select.value === "salary_advance" ? "" : "none";
+    }
+    if (select && amountField) {
+      toggle();
+      select.addEventListener("change", toggle);
+    }
+  })();
+</script>

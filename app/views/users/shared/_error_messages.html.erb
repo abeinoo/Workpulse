@@ -1,7 +1,7 @@
 <% if resource.errors.any? %>
   <div class="form-error" data-turbo-temporary>
     <p class="form-error__title">
-      <%= pluralize(resource.errors.count, "error") %> prevented this from saving:
+      <%= t("flash.errors_#{resource.errors.count == 1 ? 'one' : 'other'}", count: resource.errors.count) %>
     </p>
     <ul>
       <% resource.errors.full_messages.each do |message| %>

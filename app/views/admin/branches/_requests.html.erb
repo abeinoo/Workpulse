@@ -1,0 +1,91 @@
+<div class="dashboard-section__header">
+  <h2 class="dashboard-section__title"><%= t("admin.branches.requests_section") %></h2>
+</div>
+
+<%# Pending requests %>
+<div class="flex items-center gap-3" style="margin-bottom: var(--space-3);">
+  <h3 style="font-size: var(--text-base); font-weight: 600; color: var(--text-1); margin: 0;"><%= t("admin.branches.pending_requests") %></h3>
+  <% if @pending_requests.any? %>
+    <span class="badge badge-warning"><%= @pending_requests.size %></span>
+  <% end %>
+</div>
+
+<% if @pending_requests.any? %>
+  <div class="table-wrap" style="margin-bottom: var(--space-6);">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("requests.employee") %></th>
+          <th><%= t("requests.type") %></th>
+          <th><%= t("admin.branches.for_date") %></th>
+          <th><%= t("requests.reason") %></th>
+          <th><%= t("admin.branches.submitted") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @pending_requests.each do |request| %>
+          <tr>
+            <td>
+              <div class="employee-cell">
+                <div class="avatar"><%= request.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                <span><%= link_to request.user.full_name, admin_user_path(request.user), class: "link" %></span>
+              </div>
+            </td>
+            <td>
+              <span class="badge badge-warning"><%= request.request_type.humanize %></span>
+            </td>
+            <td class="td-secondary"><%= request.requested_for_date.strftime("%b %d, %Y") %></td>
+            <td class="td-secondary" style="max-width: 220px; white-space: normal;">
+              <%= truncate(request.reason, length: 80) %>
+            </td>
+            <td class="td-secondary"><%= request.created_at.strftime("%b %d") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <div class="empty-state" style="padding: var(--space-8) var(--space-4); margin-bottom: var(--space-4);">
+    <p class="empty-state__title"><%= t("admin.branches.no_pending_requests") %></p>
+  </div>
+<% end %>
+
+<%# Recent decisions %>
+<% if @recent_requests.any? %>
+  <div class="flex items-center gap-3" style="margin-bottom: var(--space-3);">
+    <h3 style="font-size: var(--text-base); font-weight: 600; color: var(--text-1); margin: 0;"><%= t("admin.branches.recent_decisions") %></h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("requests.employee") %></th>
+          <th><%= t("requests.type") %></th>
+          <th><%= t("admin.branches.for_date") %></th>
+          <th><%= t("requests.status") %></th>
+          <th><%= t("admin.branches.reviewed_by") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @recent_requests.each do |request| %>
+          <tr>
+            <td>
+              <div class="employee-cell">
+                <div class="avatar"><%= request.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                <span><%= link_to request.user.full_name, admin_user_path(request.user), class: "link" %></span>
+              </div>
+            </td>
+            <td class="td-secondary"><%= request.request_type.humanize %></td>
+            <td class="td-secondary"><%= request.requested_for_date.strftime("%b %d, %Y") %></td>
+            <td>
+              <span class="badge <%= request.approved? ? 'badge-success' : 'badge-danger' %>">
+                <%= request.status.humanize %>
+              </span>
+            </td>
+            <td class="td-secondary"><%= request.reviewed_by&.full_name || "—" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

@@ -1,0 +1,84 @@
+<% content_for :title, "#{@shift.name} — WorkPulse" %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <%= link_to admin_shifts_path, class: "back-link" do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= t("shifts.show.back") %>
+    <% end %>
+    <h1 class="page-title"><%= @shift.name %></h1>
+    <div class="page-header__actions">
+      <%= link_to t("shifts.edit_action"), edit_admin_shift_path(@shift), class: "btn btn-ghost btn-sm" %>
+      <%= button_to t("shifts.delete"), admin_shift_path(@shift), method: :delete,
+            class: "btn btn-danger btn-sm",
+            data: { turbo_confirm: "Delete #{@shift.name}? This cannot be undone." } %>
+    </div>
+  </div>
+
+  <div class="info-card">
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("shifts.type") %></span>
+      <span><%= @shift.shift_type.humanize %></span>
+    </div>
+    <% if @shift.fixed_time? %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("shifts.working_hours") %></span>
+        <span><%= @shift.start_time.strftime("%H:%M") %> &ndash; <%= @shift.end_time.strftime("%H:%M") %></span>
+      </div>
+    <% else %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("shifts.required_hours") %></span>
+        <span><%= @shift.required_hours %>h / day</span>
+      </div>
+    <% end %>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("shifts.overtime_multiplier") %></span>
+      <span><%= @shift.overtime_rate_multiplier.presence || "—" %>x</span>
+    </div>
+  </div>
+
+  <div class="page-header mt-8">
+    <h2 class="section-title"><%= t("shifts.penalty_rules") %></h2>
+    <%= link_to t("shifts.add_penalty"), new_admin_shift_penalty_rule_path(@shift), class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <% if @penalty_rules.any? %>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("shifts.type") %></th>
+            <th><%= t("penalty_rules.threshold_label") %></th>
+            <th><%= t("shifts.deduction_percent") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @penalty_rules.each do |rule| %>
+            <tr>
+              <td><%= rule.rule_type.humanize %></td>
+              <td class="td-secondary"><%= rule.threshold_minutes %> min</td>
+              <td>
+                <% if rule.fixed_amount? %>
+                  SAR <%= number_with_delimiter(rule.deduction_value) %>
+                <% else %>
+                  <%= rule.deduction_value %><%= t("shifts.deduction_percent") %>
+                <% end %>
+              </td>
+              <td class="td-actions">
+                <%= link_to t("shifts.edit_action"), edit_admin_shift_penalty_rule_path(@shift, rule), class: "link-muted" %>
+                <%= button_to t("penalty_rules.delete"), admin_shift_penalty_rule_path(@shift, rule), method: :delete,
+                      class: "link-danger",
+                      data: { turbo_confirm: "Remove this penalty rule?" } %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <p class="text-muted"><%= t("shifts.show.no_rules") %> <%= link_to t("shifts.add_penalty"), new_admin_shift_penalty_rule_path(@shift), class: "link" %>.</p>
+  <% end %>
+
+</div>

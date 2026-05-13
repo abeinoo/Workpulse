@@ -1,0 +1,39 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("shifts.index.title") %></h1>
+    <%= link_to t("shifts.add"), new_admin_shift_path, class: "btn btn-primary btn-sm" %>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><%= t("shifts.name") %></th>
+          <th><%= t("shifts.type") %></th>
+          <th><%= t("shifts.hours") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @shifts.each do |shift| %>
+          <tr>
+            <td><%= link_to shift.name, admin_shift_path(shift), class: "link" %></td>
+            <td class="td-secondary"><%= shift.shift_type.humanize %></td>
+            <td class="td-secondary">
+              <% if shift.start_time && shift.end_time %>
+                <%= shift.start_time.strftime("%H:%M") %> – <%= shift.end_time.strftime("%H:%M") %>
+              <% else %>
+                <%= "#{shift.required_hours}h" if shift.required_hours %>
+              <% end %>
+            </td>
+            <td class="td-actions">
+              <%= link_to t("shifts.edit_action"), edit_admin_shift_path(shift), class: "link-muted" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+</div>

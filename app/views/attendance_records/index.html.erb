@@ -1,0 +1,84 @@
+<% content_for :title, t("attendance.admin_index.page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("attendance.admin_index.title") %></h1>
+      <% if @filter_user %>
+        <p class="page-subtitle">
+          <%= t("attendance.records.showing_for", name: @filter_user.full_name) %>
+          &ensp;
+          <%= link_to t("attendance.records.clear_filter"), attendance_records_path, class: "link" %>
+        </p>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <% if current_user.super_admin? || current_user.branch_manager? %>
+            <th><%= t("attendance.employee") %></th>
+          <% end %>
+          <th><%= t("attendance.work_date") %></th>
+          <th><%= t("attendance.branch") %></th>
+          <th><%= t("attendance.check_in_at") %></th>
+          <th><%= t("attendance.check_out_at") %></th>
+          <th><%= t("attendance.status") %></th>
+          <% if current_user.super_admin? || current_user.branch_manager? %>
+            <th></th>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody>
+        <% @records.each do |rec| %>
+          <tr>
+            <% if current_user.super_admin? || current_user.branch_manager? %>
+              <td>
+                <% if current_user.branch_manager? && !@filter_user %>
+                  <%= link_to rec.user.full_name,
+                        attendance_records_path(user_id: rec.user_id),
+                        class: "link" %>
+                <% else %>
+                  <%= rec.user.full_name %>
+                <% end %>
+              </td>
+            <% end %>
+            <td class="td-secondary">
+              <%= rec.work_date.strftime("%b %-d, %Y") %>
+              <% if rec.overnight? %>
+                <span class="badge badge-neutral" title="Overnight shift — checkout was next calendar day">⇌ <%= t("attendance.records.overnight") %></span>
+              <% end %>
+            </td>
+            <td class="td-secondary"><%= rec.branch&.name || "—" %></td>
+            <td class="td-secondary">
+              <%= rec.check_in_at&.strftime("%b %-d %H:%M") || "—" %>
+            </td>
+            <td class="td-secondary">
+              <%= rec.check_out_at&.strftime("%b %-d %H:%M") || "—" %>
+            </td>
+            <td>
+              <span class="badge <%= rec.present? ? 'badge-success' : rec.late? ? 'badge-warning' : rec.early_leave? ? 'badge-accent' : 'badge-neutral' %>">
+                <%= rec.status.humanize %>
+              </span>
+            </td>
+            <% if current_user.super_admin? || current_user.branch_manager? %>
+              <td class="td-actions">
+                <%= link_to t("attendance.records.view"), attendance_record_path(rec), class: "table-link" %>
+                <% if AttendanceRecordPolicy.new(current_user, rec).update? %>
+                  <%= link_to t("attendance.records.edit"), edit_attendance_record_path(rec), class: "table-link table-link--primary" %>
+                <% end %>
+              </td>
+            <% end %>
+          </tr>
+        <% end %>
+        <% if @records.empty? %>
+          <tr><td colspan="8" class="td-empty"><%= t("attendance.no_records") %></td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+</div>

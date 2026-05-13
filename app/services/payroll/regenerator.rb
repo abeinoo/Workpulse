@@ -1,0 +1,60 @@
+module Payroll
+  # Safe payroll regeneration for super admins.
+  # Only operates on draft periods. Delegates actual computation to
+  # PeriodGenerator (which already clears stale entries idempotently)
+  # and writes a PayrollAuditLog so the action is traceable.
+  class Regenerator
+    Result = Struct.new(:success, :period, :error, keyword_init: true) do
+      def success? = success
+    end
+
+    def self.call(period:, regenerated_by:)
+      new(period: period, regenerated_by: regenerated_by).call
+    end
+
+    def initialize(period:, regenerated_by:)
+      @period          = period
+      @regenerated_by  = regenerated_by
+    end
+
+    def call
+      unless @period.draft?
+        return err("Only draft periods can be regenerated. Reset the period to draft first.")
+      end
+
+      previous_entry_count = @period.payroll_entries.count
+
+      regenerated = Payroll::PeriodGenerator.call(
+        business:     @period.business,
+        year:         @period.period_year,
+        month:        @period.period_month,
+        generated_by: @regenerated_by
+      )
+
+      PayrollAuditLog.create!(
+        payroll_period: regenerated,
+        actor:          @regenerated_by,
+        action_type:    :regenerated,
+        from_status:    "draft",
+        to_status:      "draft",
+        metadata:       JSON.generate(
+          previous_entry_count: previous_entry_count,
+          new_entry_count:      regenerated.payroll_entries.count,
+          regenerated_at:       Time.current.iso8601
+        )
+      )
+
+      Result.new(success: true, period: regenerated)
+    rescue ArgumentError, RuntimeError => e
+      Result.new(success: false, error: e.message)
+    rescue StandardError => e
+      Result.new(success: false, error: e.message)
+    end
+
+    private
+
+    def err(message)
+      Result.new(success: false, error: message)
+    end
+  end
+end

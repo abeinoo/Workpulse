@@ -41,6 +41,8 @@ Shoulda::Matchers.configure do |config|
   end
 end
 
+Rails.root.glob('spec/support/**/*.rb').sort.each { |f| require f }
+
 RSpec.configure do |config|
   config.include FactoryBot::Syntax::Methods
   config.include ActiveSupport::Testing::TimeHelpers

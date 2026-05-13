@@ -1,0 +1,76 @@
+<div class="admin-page">
+  <div class="page-header">
+    <div>
+      <%= link_to t("payroll_adjustments.new.back"), payroll_period_payroll_entry_path(@period, @entry), class: "back-link" %>
+      <h1 class="page-title">
+        <% if @adjustment.adjustment_type == "bonus" || params[:adjustment_type] == "bonus" %>
+          <%= t("payroll_adjustments.new.title_bonus") %>
+        <% else %>
+          <%= t("payroll_adjustments.new.title_deduction") %>
+        <% end %>
+      </h1>
+      <p class="page-subtitle"><%= @entry.user.full_name %> &middot; <%= @period.period_label %></p>
+    </div>
+  </div>
+
+  <%= form_with model: @adjustment,
+        url: payroll_period_payroll_entry_payroll_adjustments_path(@period, @entry),
+        method: :post do |f| %>
+
+    <% if @adjustment.errors.any? %>
+      <div class="alert alert-danger" style="margin-bottom: 1rem;">
+        <% @adjustment.errors.full_messages.each do |msg| %>
+          <p><%= msg %></p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div class="form-card">
+      <div class="form-group">
+        <%= f.label :adjustment_type, t("payroll_adjustments.new.type") %>
+        <%= f.select :adjustment_type,
+              [[t("payroll_adjustments.new.bonus_option"), "bonus"], [t("payroll_adjustments.new.deduction_option"), "deduction"]],
+              { selected: params[:adjustment_type] || "bonus" },
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :amount, t("payroll_adjustments.new.amount_label") %>
+        <%= f.number_field :amount, step: "0.01", min: "0.01",
+              placeholder: "e.g. 500.00", class: "form-control" %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :reason, t("payroll_adjustments.new.reason_label") %>
+        <%= f.text_area :reason, rows: 3, placeholder: t("payroll_adjustments.new.reason_placeholder"),
+              class: "form-control", required: true %>
+      </div>
+
+      <% if !current_user.super_admin? %>
+        <p class="form-hint">
+          <%= t("payroll_adjustments.new.hint") %>
+        </p>
+      <% end %>
+
+      <div class="form-actions">
+        <%= f.submit current_user.super_admin? ? t("payroll_adjustments.new.save_approve") : t("payroll_adjustments.new.submit_review"),
+              class: "btn btn-primary" %>
+        <%= link_to t("forms.cancel"), payroll_period_payroll_entry_path(@period, @entry), class: "btn btn-secondary" %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<style>
+  .form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    max-width: 480px;
+  }
+  .form-group { margin-bottom: 1rem; }
+  .form-group label { display: block; font-size: var(--text-sm); font-weight: 500; margin-bottom: 0.25rem; }
+  .form-hint { font-size: 0.8rem; color: var(--text-2); margin-bottom: 1rem; }
+  .form-actions { display: flex; gap: 0.5rem; margin-top: 1.25rem; }
+</style>

@@ -1,0 +1,56 @@
+<% editing = local_assigns.fetch(:editing, false) %>
+
+<%= form_with model: @assignment, class: "form-card" do |f| %>
+
+  <%= render "shared/error_messages", object: @assignment %>
+
+  <div class="form-grid">
+    <% unless editing %>
+      <div class="form-group">
+        <%= f.label :user_id, t("shift_assignments.employee"), class: "form-label form-label--required" %>
+        <%= f.select :user_id,
+              options_from_collection_for_select(@employees, :id, :full_name, @assignment.user_id),
+              { include_blank: t("shift_assignments.form.select_employee") },
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :shift_id, t("shift_assignments.shift"), class: "form-label form-label--required" %>
+        <%= f.select :shift_id,
+              @shifts.map { |s|
+                label = s.fixed_time? ?
+                  "#{s.name} (#{s.start_time.strftime('%H:%M')}–#{s.end_time.strftime('%H:%M')})" :
+                  "#{s.name} (#{s.required_hours}h)"
+                [label, s.id]
+              },
+              { include_blank: t("shift_assignments.form.select_shift") },
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :branch_id, t("shift_assignments.branch"), class: "form-label form-label--required" %>
+        <%= f.select :branch_id,
+              options_from_collection_for_select(@branches, :id, :name, @assignment.branch_id),
+              { include_blank: t("shift_assignments.form.select_branch") },
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :effective_from, t("shift_assignments.start_date"), class: "form-label form-label--required" %>
+        <%= f.date_field :effective_from, class: "form-control" %>
+      </div>
+    <% end %>
+
+    <div class="form-group <%= editing ? 'form-group--full' : '' %>">
+      <%= f.label :effective_to, t("shift_assignments.end_date"), class: "form-label" %>
+      <%= f.date_field :effective_to, class: "form-control" %>
+      <p class="form-hint"><%= t("shift_assignments.form.end_hint") %></p>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit class: "btn btn-primary" %>
+    <%= link_to t("forms.cancel"), shift_assignments_path, class: "btn btn-ghost" %>
+  </div>
+
+<% end %>

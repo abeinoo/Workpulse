@@ -1,0 +1,149 @@
+<div class="mgr-dashboard">
+
+  <%# ── Greeting ──────────────────────────────────────────────────── %>
+  <div class="mgr-dashboard__greeting">
+    <div>
+      <p class="mgr-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
+      <h1 class="mgr-dashboard__greeting-name"><%= current_user.first_name %></h1>
+      <p class="mgr-dashboard__greeting-sub">
+        <%= t("dashboard.area_manager_role") %> &mdash; <%= @managed_branches.map(&:name).to_sentence %>
+      </p>
+    </div>
+    <span class="mgr-dashboard__date"><%= Date.current.strftime("%b %-d, %Y") %></span>
+  </div>
+
+  <%# ── Stat cards ─────────────────────────────────────────────────── %>
+  <div class="mgr-dashboard__stats">
+    <div class="stat-card">
+      <p class="stat-card__value"><%= @managed_branches.size %></p>
+      <p class="stat-card__label"><%= t("dashboard.stats.branches_managed") %></p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-card__value"><%= @checked_in_today %> <span class="stat-card__sub">/ <%= @employee_count %></span></p>
+      <p class="stat-card__label"><%= t("dashboard.stats.checked_in_today") %></p>
+    </div>
+    <div class="stat-card <%= @pending_adjustments.any? ? 'stat-card--alert' : '' %>">
+      <p class="stat-card__value"><%= @pending_adjustments.count %></p>
+      <p class="stat-card__label"><%= t("dashboard.stats.pending_adjustments") %></p>
+    </div>
+  </div>
+
+  <%# ── Branch Overview ───────────────────────────────────────────── %>
+  <% if @branch_summaries.any? %>
+    <div class="mgr-dashboard__section">
+      <div class="mgr-dashboard__section-header">
+        <h2 class="mgr-dashboard__section-title"><%= t("dashboard.sections.branch_overview") %></h2>
+        <%= link_to t("dashboard.view_attendance"), attendance_records_path, class: "mgr-dashboard__section-link" %>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("payroll.branch") %></th>
+              <th><%= t("admin.branches.show.manager") %></th>
+              <th><%= t("dashboard.checked_in") %></th>
+              <th><%= t("attendance.statuses.late") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @branch_summaries.each do |s| %>
+              <tr>
+                <td><%= s[:branch].name %></td>
+                <td class="td-secondary"><%= s[:branch].branch_manager&.full_name || "—" %></td>
+                <td>
+                  <span class="<%= s[:checked_in] > 0 ? 'text-success' : '' %>">
+                    <%= s[:checked_in] %> / <%= s[:employee_count] %>
+                  </span>
+                </td>
+                <td>
+                  <% if s[:late] > 0 %>
+                    <span class="text-danger"><%= s[:late] %></span>
+                  <% else %>
+                    <span class="text-muted">0</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Pending Adjustments ────────────────────────────────────────── %>
+  <% if @pending_adjustments.any? %>
+    <div class="mgr-dashboard__section">
+      <div class="mgr-dashboard__section-header">
+        <h2 class="mgr-dashboard__section-title"><%= t("dashboard.sections.pending_adjustments") %></h2>
+        <%= link_to t("dashboard.view_all"), adjustments_path, class: "mgr-dashboard__section-link" %>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("adjustments.employee") %></th>
+              <th><%= t("adjustments.type") %></th>
+              <th><%= t("adjustments.amount") %></th>
+              <th><%= t("adjustments.reason") %></th>
+              <th><%= t("adjustments.created_by") %></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @pending_adjustments.each do |adj| %>
+              <tr>
+                <td><%= adj.user.full_name %></td>
+                <td>
+                  <span class="badge <%= adjustment_type_badge_class(adj) %>">
+                    <%= adj.adjustment_type.humanize %>
+                  </span>
+                </td>
+                <td>
+                  <span class="<%= adj.positive? ? 'text-success' : 'text-danger' %>">
+                    <%= adj.positive? ? "+" : "-" %><%= number_to_currency(adj.amount, unit: "SAR ") %>
+                  </span>
+                </td>
+                <td class="td-secondary"><%= truncate(adj.reason, length: 50) %></td>
+                <td class="td-secondary"><%= adj.created_by.full_name %></td>
+                <td class="td-actions">
+                  <% if policy(adj).destroy? %>
+                    <%= button_to t("adjustments.remove"),
+                          adjustment_path(adj),
+                          method: :delete,
+                          class: "btn btn-sm btn-ghost",
+                          data: { turbo_confirm: t("adjustments.remove_confirm") } %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Quick Actions ───────────────────────────────────────────────── %>
+  <div class="mgr-dashboard__quick-actions">
+    <%= link_to new_adjustment_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      <%= t("dashboard.quick_actions.add_adjustment") %>
+    <% end %>
+    <%= link_to attendance_records_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <%= t("dashboard.quick_actions.attendance_log") %>
+    <% end %>
+    <%= link_to adjustments_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <%= t("dashboard.quick_actions.all_adjustments") %>
+    <% end %>
+    <%= link_to employee_requests_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <%= t("dashboard.quick_actions.all_requests") %>
+    <% end %>
+  </div>
+
+</div>
+
+<%= render "shared/greeting_script" %>

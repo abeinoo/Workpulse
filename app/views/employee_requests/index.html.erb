@@ -1,0 +1,79 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("requests.index.title") %></h1>
+    <% unless current_user.super_admin? || current_user.accountant? %>
+      <%= link_to t("requests.new.title"), new_employee_request_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <%# ── Accountant/Admin: salary advance management panel ─────────────────── %>
+  <% if current_user.super_admin? || current_user.accountant? %>
+    <% advances_pending = @requests.select { |r| r.salary_advance? && r.approved? } %>
+    <% if advances_pending.any? %>
+      <div class="alert-banner alert-banner--warning" style="margin-bottom: 1.5rem;">
+        <%= t("requests.pending_disbursement", count: advances_pending.count) %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
+            <th><%= t("requests.employee") %></th>
+          <% end %>
+          <th><%= t("requests.type") %></th>
+          <th><%= t("requests.date") %></th>
+          <th><%= t("requests.amount") %></th>
+          <th><%= t("requests.status") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @requests.each do |req| %>
+          <tr>
+            <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
+              <td><%= req.user.full_name %></td>
+            <% end %>
+            <td><%= req.request_type.humanize %></td>
+            <td class="td-secondary"><%= req.requested_for_date.strftime("%b %-d, %Y") %></td>
+            <td class="td-secondary">
+              <% if req.salary_advance? && req.amount.present? %>
+                <%= number_to_currency(req.amount, unit: "SAR ", precision: 0) %>
+              <% else %>
+                —
+              <% end %>
+            </td>
+            <td>
+              <span class="badge <%= request_status_badge_class(req) %>">
+                <%= req.salary_advance? && req.paid? ? t("requests.paid_disbursed") : req.status.humanize %>
+              </span>
+            </td>
+            <td class="td-actions">
+              <%= link_to t("payroll.view"), employee_request_path(req), class: "link-muted" %>
+              <% if req.salary_advance? && req.approved? && policy(req).pay? %>
+                <%= button_to t("requests.pay"),
+                      pay_employee_request_path(req),
+                      method: :patch, class: "btn btn-sm btn-primary",
+                      data: { turbo_confirm: "Confirm this advance has been disbursed to #{req.user.full_name}?" } %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @requests.empty? %>
+          <tr><td colspan="6" class="td-empty"><%= t("requests.no_requests") %></td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <%# ── CSV export for accountants ─────────────────────────────────────────── %>
+  <% if current_user.super_admin? || current_user.accountant? %>
+    <div style="margin-top: 1rem; text-align: right;">
+      <%= link_to t("requests.export_csv"), employee_requests_path(format: :csv), class: "btn btn-secondary btn-sm" %>
+    </div>
+  <% end %>
+
+</div>

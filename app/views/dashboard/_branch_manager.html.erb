@@ -1,0 +1,333 @@
+<div class="mgr-dashboard">
+
+  <%# ── Greeting ──────────────────────────────────────────────────── %>
+  <div class="mgr-dashboard__greeting">
+    <div>
+      <p class="mgr-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
+      <h1 class="mgr-dashboard__greeting-name"><%= current_user.first_name %></h1>
+      <p class="mgr-dashboard__greeting-sub">
+        <%= @managed_branches.map(&:name).to_sentence %>
+      </p>
+    </div>
+    <span class="mgr-dashboard__date"><%= Date.current.strftime("%b %-d, %Y") %></span>
+  </div>
+
+  <%# ── Personal check-in / check-out ────────────────────────────── %>
+  <div class="mgr-dashboard__personal">
+    <% if @my_today_record %>
+      <div class="attendance-hero attendance-hero--<%= @my_today_record.checked_out? ? 'done' : 'active' %> attendance-hero--compact">
+        <div class="attendance-hero__body">
+          <p class="attendance-hero__label"><%= t("dashboard.your_attendance_today") %></p>
+          <p class="attendance-hero__status">
+            <% if @my_today_record.status == "present" %><%= t("attendance.statuses.present") %>
+            <% elsif @my_today_record.status == "late" %><%= t("attendance.status_late") %>
+            <% elsif @my_today_record.status == "early_leave" %><%= t("attendance.statuses.early_leave") %>
+            <% elsif @my_today_record.status == "incomplete" %><%= t("attendance.statuses.incomplete") %>
+            <% else %><%= @my_today_record.status.humanize %>
+            <% end %>
+          </p>
+          <p class="attendance-hero__times">
+            <span><%= t("dashboard.time_in") %> <strong><%= @my_today_record.check_in_at.strftime("%H:%M") %></strong></span>
+            <% if @my_today_record.checked_out? %>
+              <span class="attendance-hero__sep">&middot;</span>
+              <span><%= t("dashboard.time_out") %> <strong><%= @my_today_record.check_out_at.strftime("%H:%M") %></strong></span>
+            <% end %>
+          </p>
+        </div>
+        <% unless @my_today_record.checked_out? %>
+          <%= form_with url: attendance_check_out_path, method: :post,
+                data: {
+                  controller: "attendance-location",
+                  action: "submit->attendance-location#capture",
+                  attendance_location_required_value: @my_today_record.branch.geolocation_enabled?
+                } do |f| %>
+            <%= f.hidden_field :branch_id, value: @my_today_record.branch_id %>
+            <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+            <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+            <%= f.button type: "submit", class: "btn btn-sm btn-checkout",
+                  data: { attendance_location_target: "submitBtn" } do %>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <%= t("dashboard.check_out") %>
+            <% end %>
+            <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+          <% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <% my_branches = current_user.branches.active.order(:name) %>
+      <% if my_branches.one? %>
+        <%= form_with url: attendance_check_in_path, method: :post, class: "mgr-checkin-form",
+              data: {
+                controller: "attendance-location",
+                action: "submit->attendance-location#capture",
+                attendance_location_required_value: my_branches.first.geolocation_enabled?
+              } do |f| %>
+          <%= f.hidden_field :branch_id, value: my_branches.first.id %>
+          <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+          <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+          <%= f.button type: "submit", class: "btn btn-primary btn-block btn-checkin",
+                data: { attendance_location_target: "submitBtn" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            <%= t("dashboard.check_in_manager") %>
+          <% end %>
+          <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+        <% end %>
+      <% elsif my_branches.many? %>
+        <div class="mgr-dashboard__section">
+          <p class="mgr-dashboard__section-title"><%= t("dashboard.check_in_for_yourself") %></p>
+          <div class="branch-picker">
+            <% my_branches.each do |branch| %>
+              <%= form_with url: attendance_check_in_path, method: :post,
+                    data: {
+                      controller: "attendance-location",
+                      action: "submit->attendance-location#capture",
+                      attendance_location_required_value: branch.geolocation_enabled?
+                    } do |f| %>
+                <%= f.hidden_field :branch_id, value: branch.id %>
+                <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+                <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+                <%= f.button type: "submit", class: "branch-picker__btn",
+                      data: { attendance_location_target: "submitBtn" } do %>
+                  <span class="branch-picker__name"><%= branch.name %></span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                <% end %>
+                <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+
+  <%# ── Alert: missing check-outs ─────────────────────────────────── %>
+  <% if @missing_checkouts.any? %>
+    <div class="alert-bar alert-bar--warning">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span>
+        <%= t("dashboard.missing_checkout_alert", count: @missing_checkouts.count) %>
+      </span>
+      <% @missing_checkouts.first(3).each do |rec| %>
+        <%= link_to rec.user.full_name, edit_attendance_record_path(rec), class: "alert-bar__link" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Stat cards ─────────────────────────────────────────────────── %>
+  <div class="mgr-dashboard__stats">
+    <div class="stat-card">
+      <p class="stat-card__value"><%= @checked_in_count %> <span class="stat-card__sub">/ <%= @branch_employee_count %></span></p>
+      <p class="stat-card__label"><%= t("dashboard.stats.checked_in_today") %></p>
+    </div>
+    <div class="stat-card <%= @pending_requests.any? ? 'stat-card--alert' : '' %>">
+      <p class="stat-card__value"><%= @pending_requests.count %></p>
+      <p class="stat-card__label"><%= t("dashboard.stats.pending_requests") %></p>
+    </div>
+    <div class="stat-card <%= @pending_adjustments.any? ? 'stat-card--alert' : '' %>">
+      <p class="stat-card__value"><%= @pending_adjustments.count %></p>
+      <p class="stat-card__label"><%= t("dashboard.stats.pending_adjustments") %></p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-card__value">
+        <%= @managed_today_records.count { |_, r| r.late? } %>
+      </p>
+      <p class="stat-card__label"><%= t("dashboard.stats.late_today") %></p>
+    </div>
+  </div>
+
+  <%# ── Pending Requests ───────────────────────────────────────────── %>
+  <% if @pending_requests.any? %>
+    <div class="mgr-dashboard__section">
+      <div class="mgr-dashboard__section-header">
+        <h2 class="mgr-dashboard__section-title"><%= t("dashboard.sections.pending_requests") %></h2>
+        <%= link_to t("dashboard.view_all"), employee_requests_path, class: "mgr-dashboard__section-link" %>
+      </div>
+
+      <div class="request-review-list">
+        <% @pending_requests.first(5).each do |req| %>
+          <div class="request-review-row">
+            <div class="request-review-row__info">
+              <p class="request-review-row__name"><%= req.user.full_name %></p>
+              <p class="request-review-row__meta">
+                <span class="badge badge-neutral"><%= req.request_type.humanize %></span>
+                <span class="request-review-row__date"><%= req.requested_for_date.strftime("%b %-d") %></span>
+              </p>
+              <% if req.reason.present? %>
+                <p class="request-review-row__reason"><%= truncate(req.reason, length: 80) %></p>
+              <% end %>
+            </div>
+            <div class="request-review-row__actions">
+              <%= button_to t("requests.approve"), approve_employee_request_path(req),
+                    method: :patch,
+                    class: "btn btn-sm btn-primary",
+                    data: { turbo_confirm: "Approve this request?" } %>
+              <%= button_to t("requests.reject"), reject_employee_request_path(req),
+                    method: :patch,
+                    class: "btn btn-sm btn-ghost",
+                    data: { turbo_confirm: "Reject this request?" } %>
+            </div>
+          </div>
+        <% end %>
+        <% if @pending_requests.count > 5 %>
+          <div class="mgr-dashboard__show-more">
+            <%= link_to t("dashboard.view_more", count: @pending_requests.count - 5), employee_requests_path, class: "link" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Pending Adjustments ────────────────────────────────────────── %>
+  <% if @pending_adjustments.any? %>
+    <div class="mgr-dashboard__section">
+      <div class="mgr-dashboard__section-header">
+        <h2 class="mgr-dashboard__section-title"><%= t("dashboard.sections.pending_adjustments") %></h2>
+        <%= link_to t("dashboard.view_all"), adjustments_path, class: "mgr-dashboard__section-link" %>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("adjustments.employee") %></th>
+              <th><%= t("adjustments.type") %></th>
+              <th><%= t("adjustments.amount") %></th>
+              <th><%= t("adjustments.reason") %></th>
+              <th><%= t("adjustments.created_by") %></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @pending_adjustments.each do |adj| %>
+              <tr>
+                <td><%= adj.user.full_name %></td>
+                <td>
+                  <span class="badge <%= adjustment_type_badge_class(adj) %>">
+                    <%= adj.adjustment_type.humanize %>
+                  </span>
+                </td>
+                <td>
+                  <span class="<%= adj.positive? ? 'text-success' : 'text-danger' %>">
+                    <%= adj.positive? ? "+" : "-" %><%= number_to_currency(adj.amount, unit: "SAR ") %>
+                  </span>
+                </td>
+                <td class="td-secondary"><%= truncate(adj.reason, length: 50) %></td>
+                <td class="td-secondary"><%= adj.created_at.strftime("%b %-d") %></td>
+                <td class="td-actions">
+                  <% if policy(adj).destroy? %>
+                    <%= button_to t("adjustments.remove"),
+                          adjustment_path(adj),
+                          method: :delete,
+                          class: "btn btn-sm btn-ghost",
+                          data: { turbo_confirm: "Remove this adjustment?" } %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── My Team ─────────────────────────────────────────────────────── %>
+  <div class="mgr-dashboard__section">
+    <div class="mgr-dashboard__section-header">
+      <h2 class="mgr-dashboard__section-title"><%= t("dashboard.sections.my_team") %></h2>
+      <%= link_to t("dashboard.full_log"), attendance_records_path, class: "mgr-dashboard__section-link" %>
+    </div>
+
+    <% if @managed_employees.any? %>
+      <div class="team-list">
+        <% @managed_employees.each do |emp| %>
+          <% rec = @managed_today_records[emp.id] %>
+          <%
+            if rec.nil?
+              status_key   = "absent"
+              status_label = t("dashboard.team.not_clocked_in")
+            elsif rec.status == "present"
+              status_key   = "present"
+              status_label = t("attendance.statuses.present")
+            elsif rec.status == "late"
+              status_key   = "late"
+              status_label = t("attendance.statuses.late")
+            elsif rec.status == "early_leave"
+              status_key   = "early_leave"
+              status_label = t("attendance.statuses.early_leave")
+            elsif rec.status == "incomplete"
+              status_key   = "incomplete"
+              status_label = t("dashboard.team.no_checkout")
+            else
+              status_key   = "neutral"
+              status_label = rec.status.humanize
+            end
+          %>
+          <div class="team-member team-member--<%= status_key %>">
+            <div class="team-member__avatar"><%= emp.first_name.first.upcase %></div>
+
+            <div class="team-member__info">
+              <p class="team-member__name"><%= emp.full_name %></p>
+              <% if rec %>
+                <p class="team-member__times">
+                  <%= t("dashboard.time_in") %> <strong><%= rec.check_in_at.strftime("%H:%M") %></strong>
+                  <% if rec.checked_out? %>
+                    &middot; <%= t("dashboard.time_out") %> <strong><%= rec.check_out_at.strftime("%H:%M") %></strong>
+                  <% else %>
+                    &middot; <span class="team-member__no-out"><%= t("dashboard.team.no_checkout") %></span>
+                  <% end %>
+                </p>
+              <% else %>
+                <p class="team-member__times team-member__times--absent"><%= t("dashboard.team.no_record_today") %></p>
+              <% end %>
+            </div>
+
+            <div class="team-member__right">
+              <span class="team-status-badge team-status-badge--<%= status_key %>">
+                <%= status_label %>
+              </span>
+              <div class="team-member__actions">
+                <% if rec %>
+                  <%= link_to t("dashboard.team.edit"), edit_attendance_record_path(rec), class: "team-action-link team-action-link--edit" %>
+                <% end %>
+                <%= link_to t("dashboard.team.history"), attendance_records_path(user_id: emp.id), class: "team-action-link" %>
+                <%= link_to t("dashboard.team.request"), new_employee_request_path(for_user_id: emp.id), class: "team-action-link" %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="mgr-dashboard__empty">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <p><%= t("dashboard.team.no_employees") %></p>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Quick Actions ───────────────────────────────────────────────── %>
+  <div class="mgr-dashboard__quick-actions">
+    <%= link_to new_employee_request_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <%= t("dashboard.quick_actions.new_request") %>
+    <% end %>
+    <%= link_to new_adjustment_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      <%= t("dashboard.quick_actions.add_adjustment") %>
+    <% end %>
+    <%= link_to attendance_records_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <%= t("dashboard.quick_actions.attendance_log") %>
+    <% end %>
+    <%= link_to payroll_periods_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <%= t("dashboard.quick_actions.payroll") %>
+    <% end %>
+    <%= link_to employee_requests_path, class: "mgr-quick-action" do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <%= t("dashboard.quick_actions.all_requests") %>
+    <% end %>
+  </div>
+
+</div>
+
+<%= render "shared/greeting_script" %>
