@@ -11,9 +11,29 @@ if [ -n "$DATABASE_URL" ]; then
   echo "PostgreSQL is ready."
 fi
 
-# Create or migrate the database whenever the Rails server starts.
+# Create / migrate the database whenever the Rails server starts.
+# After db:prepare for the primary connection, also ensure the solid_ tables
+# exist by loading the cache/queue/cable schemas if they are missing.
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
+
+  # solid_cache / solid_queue / solid_cable tables live in the same database
+  # but are defined in separate schema files; load them if not yet present.
+  ./bin/rails runner "
+    missing = %w[solid_cache_entries solid_queue_jobs solid_cable_messages].reject do |t|
+      ActiveRecord::Base.connection.table_exists?(t)
+    end
+    if missing.any?
+      puts 'Loading solid_ schemas...'
+      require 'active_record/tasks/database_tasks'
+      %w[cache queue cable].each do |db|
+        ActiveRecord::Base.configurations.find_db_config(db)&.tap do |cfg|
+          ActiveRecord::Tasks::DatabaseTasks.load_schema(cfg)
+        end
+      end
+      puts 'solid_ schemas loaded.'
+    end
+  " 2>&1 || true
 fi
 
 exec "${@}"
