@@ -4,7 +4,7 @@ module Attendance
     # Minutes the employee was late relative to the shift start.
     # Returns 0 for hour-based shifts (no fixed start time penalty).
     def self.late_minutes(shift, check_in_at, branch)
-      return 0 unless shift.fixed_time? && shift.start_time && check_in_at
+      return 0 unless shift.fixed_time? && shift.start_time && check_in_at && branch
 
       tz         = branch.business.timezone_object
       local_time = check_in_at.in_time_zone(tz)

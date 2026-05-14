@@ -11,7 +11,7 @@
 </div>
 
 <% if @pending_requests.any? %>
-  <div class="table-wrap" style="margin-bottom: var(--space-6);">
+  <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-6);">
     <table>
       <thead>
         <tr>
@@ -55,7 +55,7 @@
   <div class="flex items-center gap-3" style="margin-bottom: var(--space-3);">
     <h3 style="font-size: var(--text-base); font-weight: 600; color: var(--text-1); margin: 0;"><%= t("admin.branches.recent_decisions") %></h3>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
         <tr>

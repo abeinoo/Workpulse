@@ -39,7 +39,14 @@ class AttendanceController < ApplicationController
   private
 
   # Returns the branch when branch_id is supplied; nil for branchless employees.
+  # Looks up via user_branches first, then falls back to an active ShiftAssignment
+  # so that employees assigned via shift (no static user_branch row) can check in.
   def resolve_branch
-    params[:branch_id].present? ? current_user.branches.find_by(id: params[:branch_id]) : nil
+    return nil unless params[:branch_id].present?
+
+    current_user.branches.find_by(id: params[:branch_id]) ||
+      ShiftAssignment.current
+                     .where(user: current_user, branch_id: params[:branch_id])
+                     .first&.branch
   end
 end

@@ -137,6 +137,16 @@ class DashboardController < ApplicationController
   def load_employee_data
     @today_record    = AttendanceRecord.find_by(user: current_user, date: Date.current)
     @current_shift   = ShiftAssignment.current.find_by(user: current_user)
+
+    # Resolve today's check-in branches from active ShiftAssignments (date-range aware).
+    # Falls back to static user_branches for employees without shift assignments.
+    sa_branches = ShiftAssignment.current
+                                 .where(user: current_user)
+                                 .includes(:branch)
+                                 .filter_map(&:branch)
+                                 .uniq
+    @today_branches  = sa_branches.any? ? sa_branches : current_user.branches.active.order(:name).to_a
+
     @recent_requests = current_user.employee_requests
                                    .order(created_at: :desc)
                                    .limit(3)

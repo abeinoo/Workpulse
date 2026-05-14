@@ -82,7 +82,7 @@
       </div>
     </div>
 
-    <% branches = current_user.branches.active.order(:name) %>
+    <% branches = @today_branches %>
     <% if branches.one? %>
       <div class="emp-dashboard__cta">
         <%= form_with url: attendance_check_in_path, method: :post,

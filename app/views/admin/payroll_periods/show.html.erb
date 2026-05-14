@@ -41,7 +41,7 @@
   <% if @branch_reviews.any? %>
     <div class="section-card" style="margin-bottom: 1.5rem;">
       <h3 class="section-title"><%= t("admin.payroll_periods.show.branch_review_progress") %></h3>
-      <div class="table-wrap">
+      <div class="table-wrap table-wrap--cards">
         <table>
           <thead>
             <tr>
@@ -73,7 +73,7 @@
   <% end %>
 
   <%# Payroll entries table %>
-  <div class="table-wrap">
+  <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
         <tr>
@@ -107,7 +107,7 @@
   <% if @audit_logs.any? %>
     <div class="section-card" style="margin-top: 2rem;">
       <h3 class="section-title"><%= t("admin.payroll_periods.show.audit_history") %></h3>
-      <div class="table-wrap">
+      <div class="table-wrap table-wrap--cards">
         <table>
           <thead>
             <tr>

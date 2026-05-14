@@ -132,34 +132,36 @@
     <% if @salary_profiles.size > 1 %>
       <div style="padding: 0 var(--space-4) var(--space-4);">
         <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin-bottom: var(--space-2);"><%= t("salary_profiles.history") %></h3>
-        <table class="table">
-          <thead>
-            <tr>
-              <th><%= t("salary_profiles.type") %></th>
-              <th><%= t("salary_profiles.base_salary") %></th>
-              <th><%= t("salary_profiles.ot_multiplier") %></th>
-              <th><%= t("salary_profiles.effective_from") %></th>
-              <th><%= t("admin.users.status") %></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @salary_profiles.each do |profile| %>
+        <div class="table-wrap table-wrap--cards">
+          <table>
+            <thead>
               <tr>
-                <td><%= profile.salary_type.humanize %></td>
-                <td><%= number_with_precision(profile.base_amount, precision: 2, delimiter: ",") %> <%= profile.currency %></td>
-                <td><%= profile.overtime_multiplier %>x</td>
-                <td><%= profile.effective_from.strftime("%d %b %Y") %></td>
-                <td>
-                  <% if profile.active? %>
-                    <span class="badge badge-success"><%= t("salary_profiles.active") %></span>
-                  <% else %>
-                    <span class="badge badge-neutral"><%= t("salary_profiles.historical") %></span>
-                  <% end %>
-                </td>
+                <th><%= t("salary_profiles.type") %></th>
+                <th><%= t("salary_profiles.base_salary") %></th>
+                <th><%= t("salary_profiles.ot_multiplier") %></th>
+                <th><%= t("salary_profiles.effective_from") %></th>
+                <th><%= t("admin.users.status") %></th>
               </tr>
-            <% end %>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <% @salary_profiles.each do |profile| %>
+                <tr>
+                  <td><%= profile.salary_type.humanize %></td>
+                  <td><%= number_with_precision(profile.base_amount, precision: 2, delimiter: ",") %> <%= profile.currency %></td>
+                  <td><%= profile.overtime_multiplier %>x</td>
+                  <td><%= profile.effective_from.strftime("%d %b %Y") %></td>
+                  <td>
+                    <% if profile.active? %>
+                      <span class="badge badge-success"><%= t("salary_profiles.active") %></span>
+                    <% else %>
+                      <span class="badge badge-neutral"><%= t("salary_profiles.historical") %></span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
       </div>
     <% end %>
   </div>

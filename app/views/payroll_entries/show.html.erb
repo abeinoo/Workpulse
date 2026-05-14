@@ -88,7 +88,7 @@
   <%# ─────────────────────────────────────────────────────────────────────── %>
   <% if @deductions.any? %>
     <h2 class="section-heading"><%= t("payroll.deductions") %></h2>
-    <div class="table-wrap" style="margin-bottom: 1.5rem;">
+    <div class="table-wrap table-wrap--cards" style="margin-bottom: 1.5rem;">
       <table>
         <thead>
           <tr>
@@ -193,7 +193,7 @@
       <% end %>
     </div>
     <% if @additions.any? %>
-      <div class="table-wrap" style="margin-bottom: 1.5rem;">
+      <div class="table-wrap table-wrap--cards" style="margin-bottom: 1.5rem;">
         <table>
           <thead>
             <tr>
@@ -254,7 +254,7 @@
     </div>
     <% manual = @deductions.select(&:manual_deduction?) %>
     <% if manual.any? %>
-      <div class="table-wrap" style="margin-bottom: 1.5rem;">
+      <div class="table-wrap table-wrap--cards" style="margin-bottom: 1.5rem;">
         <table>
           <thead>
             <tr>
@@ -308,7 +308,7 @@
   <%# ─────────────────────────────────────────────────────────────────────── %>
   <% if @attendance_records.any? %>
     <h2 class="section-heading"><%= t("payroll.entry.attendance_records") %></h2>
-    <div class="table-wrap">
+    <div class="table-wrap table-wrap--cards">
       <table class="attendance-table">
         <thead>
           <tr>

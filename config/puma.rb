@@ -28,6 +28,13 @@
 threads_count = ENV.fetch("RAILS_MAX_THREADS", 3)
 threads threads_count, threads_count
 
+# Cluster mode: only activate when WEB_CONCURRENCY is explicitly set to > 0.
+# In local development on macOS, cluster mode causes a fork() crash with the pg
+# gem (Objective-C runtime is not fork-safe). Leave WEB_CONCURRENCY unset or 0
+# for local dev; Docker production sets it via docker-compose.yml.
+concurrency = Integer(ENV.fetch("WEB_CONCURRENCY", 0))
+workers concurrency if concurrency > 0
+
 # Specifies the `port` that Puma will listen on to receive requests; default is 3000.
 port ENV.fetch("PORT", 3000)
 
@@ -35,7 +42,14 @@ port ENV.fetch("PORT", 3000)
 plugin :tmp_restart
 
 # Run the Solid Queue supervisor inside of Puma for single-server deployments.
-plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
+if ENV["SOLID_QUEUE_IN_PUMA"]
+  plugin :solid_queue
+
+  # :fork mode (the default) is not safe on macOS: the pg gem's Objective-C
+  # bindings crash when fork() is called after the app is preloaded.
+  # Use :async mode on macOS (threads inside Puma); Linux (Docker) can fork.
+  solid_queue_mode(RUBY_PLATFORM.include?("darwin") ? :async : :fork)
+end
 
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.
