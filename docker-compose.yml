@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     ports:
-      - "5432:5432"   # exposes PostgreSQL to the host for local development
+      - "127.0.0.1:5432:5432"   # localhost only — never expose PostgreSQL publicly
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -23,7 +23,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "127.0.0.1:3000:80"   # Nginx proxies to this port; never bind to 0.0.0.0
     depends_on:
       db:
         condition: service_healthy
