@@ -29,8 +29,8 @@
       <div class="form-group">
         <%= f.label :adjustment_type, t("payroll_adjustments.new.type") %>
         <%= f.select :adjustment_type,
-              [[t("payroll_adjustments.new.bonus_option"), "bonus"], [t("payroll_adjustments.new.deduction_option"), "deduction"]],
-              { selected: params[:adjustment_type] || "bonus" },
+              [[t("payroll_adjustments.new.bonus_option"), "bonus"], [t("payroll_adjustments.new.deduction_option"), "manual_deduction"]],
+              { selected: params[:adjustment_type] == "deduction" ? "manual_deduction" : (params[:adjustment_type] || "bonus") },
               class: "form-control" %>
       </div>
 

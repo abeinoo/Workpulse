@@ -56,6 +56,9 @@ class PayrollAdjustment < ApplicationRecord
   private
 
   def period_not_locked
+    # Review-time adjustments (linked to a specific payroll_period) are always allowed —
+    # they are created intentionally during the review workflow.
+    return if payroll_period_id.present?
     return unless business_id && period_month && period_year
 
     locked = PayrollPeriod.where(

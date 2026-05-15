@@ -13,6 +13,15 @@ class EmployeeRequest < ApplicationRecord
 
   validates :request_type, :requested_for_date, :reason, presence: true
   validates :amount, presence: true, numericality: { greater_than: 0 }, if: :salary_advance?
+  validates :duration_minutes,
+            presence: true,
+            on: :create,
+            if: -> { late_permission? || early_leave? }
+  validates :duration_minutes,
+            numericality: { only_integer: true, greater_than: 0 },
+            allow_nil: true
+  validate :within_monthly_permission_limit, on: :create,
+           if: -> { late_permission? || early_leave? }
 
   before_save :derive_affects_payroll
 
@@ -28,16 +37,17 @@ class EmployeeRequest < ApplicationRecord
       .distinct
   }
 
-  # Used by PenaltyCalculator: returns true when an approved request waives
-  # the given penalty type for a specific user + date.
-  def self.exempts?(user:, date:, type:)
-    where(
+  # Returns the number of approved permission minutes for a user on a given date.
+  # Zero means no exemption applies. Used by EntryCalculator for partial reduction.
+  def self.approved_minutes(user:, date:, type:)
+    request = where(
       user:               user,
       requested_for_date: date,
       request_type:       type,
       status:             "approved",
       affects_payroll:    true
-    ).exists?
+    ).first
+    request&.duration_minutes.to_i
   end
 
   private
@@ -45,5 +55,30 @@ class EmployeeRequest < ApplicationRecord
   # affects_payroll is always derived from request_type — never set by the caller.
   def derive_affects_payroll
     self.affects_payroll = !salary_advance?
+  end
+
+  def within_monthly_permission_limit
+    return unless duration_minutes.present? && requested_for_date.present? && user.present?
+
+    limit = case request_type
+            when "late_permission"  then user.business.max_late_permission_minutes
+            when "early_leave"      then user.business.max_early_leave_permission_minutes
+            end
+    return unless limit.present?
+
+    month_start = requested_for_date.beginning_of_month
+    month_end   = requested_for_date.end_of_month
+
+    used = self.class
+               .where(user: user, request_type: request_type, status: %w[pending approved])
+               .where(requested_for_date: month_start..month_end)
+               .sum(:duration_minutes)
+
+    remaining = [ limit - used, 0 ].max
+    if duration_minutes > remaining
+      errors.add(:duration_minutes,
+                 I18n.t("requests.errors.exceeds_monthly_limit",
+                        remaining: remaining, limit: limit))
+    end
   end
 end

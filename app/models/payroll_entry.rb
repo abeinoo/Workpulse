@@ -33,7 +33,7 @@ class PayrollEntry < ApplicationRecord
 
     deductions = active.reject(&:advance_deduction?).select(&:deduction?).sum { |li| li.amount.abs }
     overtime   = active.select(&:overtime?).sum(&:amount)
-    bonuses    = active.select(&:bonus?).sum(&:amount)
+    bonuses    = active.select { |li| %w[bonus commission reward].include?(li.item_type) }.sum(&:amount)
     advances   = active.select(&:advance_deduction?).sum { |li| li.amount.abs }
 
     net = base_salary.to_f - deductions + overtime + bonuses - advances

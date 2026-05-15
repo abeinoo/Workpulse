@@ -252,7 +252,7 @@
               class: "btn btn-sm btn-primary" %>
       <% end %>
     </div>
-    <% manual = @deductions.select(&:manual_deduction?) %>
+    <% manual = @manual_deductions %>
     <% if manual.any? %>
       <div class="table-wrap table-wrap--cards" style="margin-bottom: 1.5rem;">
         <table>

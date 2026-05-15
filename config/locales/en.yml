@@ -332,6 +332,10 @@ en:
       amount_label: "Advance amount (SAR)"
       amount_placeholder: "e.g. 2000"
       amount_hint: "Required for salary advance requests."
+      duration_label: "Duration (minutes)"
+      duration_placeholder: "e.g. 30"
+      duration_hint: "How many minutes of late arrival or early leave are you requesting?"
+      remaining_allowance: "%{remaining} of %{limit} minutes remaining this month"
       date_label: "Date"
       reason_label: "Reason"
       reason_placeholder: "Briefly explain the request"
@@ -363,6 +367,8 @@ en:
     export_csv: "Export CSV"
     pending_disbursement_one: "1 salary advance approved by managers and awaiting disbursement."
     pending_disbursement_other: "%{count} salary advances approved by managers and awaiting disbursement."
+    errors:
+      exceeds_monthly_limit: "exceeds the monthly limit (%{remaining} minutes remaining out of %{limit})"
 
   adjustments:
     index:
@@ -718,6 +724,13 @@ en:
         attendance: "Attendance"
         payroll: "Payroll"
         language: "Language"
+        permissions: "Permissions"
+      permissions_hint: "Leave blank to impose no monthly limit."
+      max_late_permission_label: "Max late permission (min/month)"
+      max_late_permission_hint: "Maximum total late-arrival minutes an employee may request in a single month."
+      max_early_leave_permission_label: "Max early leave (min/month)"
+      max_early_leave_permission_hint: "Maximum total early-departure minutes an employee may request in a single month."
+      permission_limit_placeholder: "e.g. 120"
       timezone_label: "Timezone"
       timezone_hint: "Used for all attendance, payroll, and business-day calculations. Stored as an IANA timezone identifier (e.g. Asia/Riyadh)."
       business_day_label: "Business Day Start Hour"

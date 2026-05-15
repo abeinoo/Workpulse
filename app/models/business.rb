@@ -14,6 +14,10 @@ class Business < ApplicationRecord
   validates :business_day_start_hour,
             numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 23 }
   validates :default_locale, inclusion: { in: %w[en ar] }, allow_blank: true
+  validates :max_late_permission_minutes,
+            numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+  validates :max_early_leave_permission_minutes,
+            numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
 
   def timezone_object
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]

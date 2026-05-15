@@ -55,7 +55,7 @@ module Api
 
       def request_params
         params.require(:employee_request)
-              .permit(:request_type, :requested_for_date, :amount, :reason)
+              .permit(:request_type, :requested_for_date, :amount, :reason, :duration_minutes)
       end
 
       def handle_result(result)

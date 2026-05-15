@@ -4,7 +4,7 @@ class PayrollPeriodPolicy < ApplicationPolicy
   def create?            = super_admin? || accountant?
   def submit_for_review? = super_admin? || accountant?
   def regenerate?        = super_admin?
-  def finalize?          = super_admin?
+  def finalize?          = super_admin? || area_manager?
   def mark_paid?         = super_admin?
   def destroy?           = super_admin? && record.draft?
 

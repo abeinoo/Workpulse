@@ -73,16 +73,27 @@ module Payroll
       records.flat_map do |record|
         next [] if record.absent? || !record.checked_out?
 
-        items   = []
-        penalty = Attendance::PenaltyCalculator.calculate(record: record, daily_salary: daily_rate)
+        items = []
 
-        if penalty.late_penalty > 0 &&
-           !EmployeeRequest.exempts?(user: @user, date: record.work_date, type: "late_permission")
+        # Partial permission reduction: approved late/early-leave requests reduce the
+        # penalised minutes proportionally rather than waiving the penalty entirely.
+        late_allowed        = EmployeeRequest.approved_minutes(user: @user, date: record.work_date, type: "late_permission")
+        early_leave_allowed = EmployeeRequest.approved_minutes(user: @user, date: record.work_date, type: "early_leave")
+        effective_late      = [ record.late_minutes.to_i - late_allowed, 0 ].max
+        effective_early     = [ record.early_leave_minutes.to_i - early_leave_allowed, 0 ].max
+
+        penalty = Attendance::PenaltyCalculator.calculate(
+          record:                    record,
+          daily_salary:              daily_rate,
+          late_minutes_override:     effective_late,
+          early_leave_minutes_override: effective_early
+        )
+
+        if penalty.late_penalty > 0
           items << item("late_penalty", -penalty.late_penalty, record, "Late arrival #{record.work_date}")
         end
 
-        if penalty.early_leave_penalty > 0 &&
-           !EmployeeRequest.exempts?(user: @user, date: record.work_date, type: "early_leave")
+        if penalty.early_leave_penalty > 0
           items << item("early_leave_penalty", -penalty.early_leave_penalty, record, "Early leave #{record.work_date}")
         end
 

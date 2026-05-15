@@ -5,11 +5,10 @@ class PayrollEntriesController < ApplicationController
   def show
     authorize @entry
 
-    all_items       = @entry.payroll_line_items.to_a
-    # Attendance-generated deductions shown in section 3 (late, absence, etc.)
-    # Manual deductions shown separately in section 4b.
-    @deductions     = all_items.select { |li| li.deduction? && !li.manual_deduction? }
-    @additions      = all_items.select(&:addition?)
+    all_items          = @entry.payroll_line_items.to_a
+    @deductions        = all_items.select { |li| li.deduction? && !li.manual_deduction? }
+    @manual_deductions = all_items.select(&:manual_deduction?)
+    @additions         = all_items.select(&:addition?)
     @attendance     = load_attendance_stats
     @salary_profile = SalaryProfile.current_for(@entry.user)
   end

@@ -26,6 +26,7 @@ class EmployeeRequestsController < ApplicationController
     @request           = EmployeeRequest.new
     authorize @request
     @managed_employees = managed_employees_for_form
+    @permission_limits = permission_limits_for(@for_user || current_user)
   end
 
   def create
@@ -124,9 +125,27 @@ class EmployeeRequestsController < ApplicationController
     current_user.managed_employees.where(active: true).order(:first_name, :last_name)
   end
 
+  def permission_limits_for(target_user)
+    biz = target_user.business
+    month = Date.current
+    month_start = month.beginning_of_month
+    month_end   = month.end_of_month
+
+    %w[late_permission early_leave].each_with_object({}) do |type, h|
+      limit = type == "late_permission" ? biz.max_late_permission_minutes : biz.max_early_leave_permission_minutes
+      next unless limit
+
+      used = EmployeeRequest
+               .where(user: target_user, request_type: type, status: %w[pending approved])
+               .where(requested_for_date: month_start..month_end)
+               .sum(:duration_minutes)
+      h[type] = { limit: limit, used: used, remaining: [ limit - used, 0 ].max }
+    end
+  end
+
   def request_params
     params.require(:employee_request)
-          .permit(:request_type, :requested_for_date, :reason, :amount)
+          .permit(:request_type, :requested_for_date, :reason, :amount, :duration_minutes)
   end
 
   def salary_advances_csv

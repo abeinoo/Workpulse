@@ -65,6 +65,31 @@
         <p class="form-hint"><%= t("requests.new.amount_hint") %></p>
       </div>
 
+      <%# Duration — shown for late_permission and early_leave requests %>
+      <div class="form-group form-group--full" id="duration-field">
+        <%= f.label :duration_minutes, t("requests.new.duration_label"), class: "form-label form-label--required" %>
+        <%= f.number_field :duration_minutes,
+              class: "form-control",
+              min: 1,
+              step: 1,
+              placeholder: t("requests.new.duration_placeholder") %>
+        <p class="form-hint" id="duration-hint-generic"><%= t("requests.new.duration_hint") %></p>
+        <% if @permission_limits&.key?("late_permission") %>
+          <p class="form-hint" id="duration-hint-late" style="display:none;">
+            <%= t("requests.new.remaining_allowance",
+                  remaining: @permission_limits["late_permission"][:remaining],
+                  limit:     @permission_limits["late_permission"][:limit]) %>
+          </p>
+        <% end %>
+        <% if @permission_limits&.key?("early_leave") %>
+          <p class="form-hint" id="duration-hint-early" style="display:none;">
+            <%= t("requests.new.remaining_allowance",
+                  remaining: @permission_limits["early_leave"][:remaining],
+                  limit:     @permission_limits["early_leave"][:limit]) %>
+          </p>
+        <% end %>
+      </div>
+
       <div class="form-group">
         <%= f.label :requested_for_date, t("requests.new.date_label"), class: "form-label form-label--required" %>
         <%= f.date_field :requested_for_date,
@@ -92,10 +117,21 @@
   (function () {
     var select = document.getElementById("request_type_select");
     var amountField = document.getElementById("amount-field");
+    var durationField = document.getElementById("duration-field");
+    var hintGeneric = document.getElementById("duration-hint-generic");
+    var hintLate    = document.getElementById("duration-hint-late");
+    var hintEarly   = document.getElementById("duration-hint-early");
+
     function toggle() {
-      amountField.style.display = select.value === "salary_advance" ? "" : "none";
+      var t = select.value;
+      var isPermission = t === "late_permission" || t === "early_leave";
+      if (amountField)    amountField.style.display    = t === "salary_advance" ? "" : "none";
+      if (durationField)  durationField.style.display  = isPermission ? "" : "none";
+      if (hintGeneric)    hintGeneric.style.display     = isPermission && !hintLate && !hintEarly ? "" : "none";
+      if (hintLate)       hintLate.style.display        = t === "late_permission" ? "" : "none";
+      if (hintEarly)      hintEarly.style.display       = t === "early_leave"     ? "" : "none";
     }
-    if (select && amountField) {
+    if (select) {
       toggle();
       select.addEventListener("change", toggle);
     }

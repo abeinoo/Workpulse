@@ -332,6 +332,10 @@ ar:
       amount_label: "مبلغ السلفة (ريال)"
       amount_placeholder: "مثال: 2000"
       amount_hint: "مطلوب لطلبات السلفة."
+      duration_label: "المدة (بالدقائق)"
+      duration_placeholder: "مثال: 30"
+      duration_hint: "كم دقيقة تريد إذن التأخر أو المغادرة المبكرة؟"
+      remaining_allowance: "متبقي %{remaining} من أصل %{limit} دقيقة هذا الشهر"
       date_label: "التاريخ"
       reason_label: "السبب"
       reason_placeholder: "اشرح الطلب باختصار"
@@ -363,6 +367,8 @@ ar:
     export_csv: "تصدير CSV"
     pending_disbursement_one: "سلفة راتب واحدة معتمدة من المديرين بانتظار الصرف."
     pending_disbursement_other: "%{count} سلف رواتب معتمدة من المديرين بانتظار الصرف."
+    errors:
+      exceeds_monthly_limit: "يتجاوز الحد الشهري (%{remaining} دقيقة متبقية من أصل %{limit})"
 
   adjustments:
     index:
@@ -718,6 +724,13 @@ ar:
         attendance: "الحضور"
         payroll: "الرواتب"
         language: "اللغة"
+        permissions: "الأذونات"
+      permissions_hint: "اتركها فارغة إذا كنت لا تريد تحديد سقف شهري."
+      max_late_permission_label: "الحد الأقصى لدقائق التأخر الشهرية"
+      max_late_permission_hint: "إجمالي دقائق التأخر المسموح بطلبها لكل موظف في الشهر."
+      max_early_leave_permission_label: "الحد الأقصى للمغادرة المبكرة الشهرية"
+      max_early_leave_permission_hint: "إجمالي دقائق المغادرة المبكرة المسموح بطلبها لكل موظف في الشهر."
+      permission_limit_placeholder: "مثال: 120"
       timezone_label: "المنطقة الزمنية"
       timezone_hint: "تُستخدم لجميع حسابات الحضور والرواتب وأيام العمل."
       business_day_label: "ساعة بداية يوم العمل"
