@@ -90,11 +90,13 @@ module Payroll
         )
 
         if penalty.late_penalty > 0
-          items << item("late_penalty", -penalty.late_penalty, record, "Late arrival #{record.work_date}")
+          items << item("late_penalty", -penalty.late_penalty, record, "Late arrival #{record.work_date}",
+                        original_minutes: record.late_minutes.to_i, permission_minutes: late_allowed)
         end
 
         if penalty.early_leave_penalty > 0
-          items << item("early_leave_penalty", -penalty.early_leave_penalty, record, "Early leave #{record.work_date}")
+          items << item("early_leave_penalty", -penalty.early_leave_penalty, record, "Early leave #{record.work_date}",
+                        original_minutes: record.early_leave_minutes.to_i, permission_minutes: early_leave_allowed)
         end
 
         overtime = Salary::OvertimeCalculator.calculate(
@@ -158,7 +160,7 @@ module Payroll
       items.select { |i| i[:amount] > 0 }.sum { |i| i[:amount] }
     end
 
-    def item(type, amount, source = nil, description = "")
+    def item(type, amount, source = nil, description = "", extras = {})
       {
         item_type:     type,
         amount:        amount.to_f.round(2),
@@ -166,7 +168,7 @@ module Payroll
         source_type:   source&.class&.name,
         source_id:     source&.id,
         review_status: PayrollLineItem::REVIEW_REQUIRED_TYPES.include?(type) ? "pending_review" : "approved"
-      }
+      }.merge(extras)
     end
   end
 end

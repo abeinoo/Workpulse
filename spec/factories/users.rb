@@ -13,6 +13,10 @@ FactoryBot.define do
       role { :super_admin }
     end
 
+    trait :area_manager do
+      role { :area_manager }
+    end
+
     trait :branch_manager do
       role { :branch_manager }
     end

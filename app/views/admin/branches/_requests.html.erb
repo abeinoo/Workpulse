@@ -20,6 +20,7 @@
           <th><%= t("admin.branches.for_date") %></th>
           <th><%= t("requests.reason") %></th>
           <th><%= t("admin.branches.submitted") %></th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -32,13 +33,27 @@
               </div>
             </td>
             <td>
-              <span class="badge badge-warning"><%= request.request_type.humanize %></span>
+              <span class="badge badge-warning"><%= t("requests.types.#{request.request_type}") %></span>
             </td>
             <td class="td-secondary"><%= request.requested_for_date.strftime("%b %d, %Y") %></td>
             <td class="td-secondary" style="max-width: 220px; white-space: normal;">
               <%= truncate(request.reason, length: 80) %>
             </td>
             <td class="td-secondary"><%= request.created_at.strftime("%b %d") %></td>
+            <td class="td-actions">
+              <% if policy(request).approve? %>
+                <%= button_to t("requests.approve"),
+                      approve_employee_request_path(request),
+                      method: :patch,
+                      class: "btn btn-sm btn-success",
+                      data: { turbo_confirm: t("requests.confirm_approve") } %>
+                <%= button_to t("requests.reject"),
+                      reject_employee_request_path(request),
+                      method: :patch,
+                      class: "btn btn-sm btn-danger",
+                      data: { turbo_confirm: t("requests.confirm_reject") } %>
+              <% end %>
+            </td>
           </tr>
         <% end %>
       </tbody>
@@ -75,11 +90,11 @@
                 <span><%= link_to request.user.full_name, admin_user_path(request.user), class: "link" %></span>
               </div>
             </td>
-            <td class="td-secondary"><%= request.request_type.humanize %></td>
+            <td class="td-secondary"><%= t("requests.types.#{request.request_type}") %></td>
             <td class="td-secondary"><%= request.requested_for_date.strftime("%b %d, %Y") %></td>
             <td>
               <span class="badge <%= request.approved? ? 'badge-success' : 'badge-danger' %>">
-                <%= request.status.humanize %>
+                <%= t("requests.statuses.#{request.status}") %>
               </span>
             </td>
             <td class="td-secondary"><%= request.reviewed_by&.full_name || "—" %></td>

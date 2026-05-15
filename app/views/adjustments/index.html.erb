@@ -80,7 +80,7 @@
             </td>
             <td>
               <span class="badge <%= adjustment_status_badge_class(adj) %>">
-                <%= adj.review_status.humanize %>
+                <%= t("payroll.entry.review_statuses.#{adj.review_status}") %>
               </span>
               <% if adj.approved? && adj.approved_by %>
                 <div class="text-muted text-sm">by <%= adj.approved_by.full_name %></div>

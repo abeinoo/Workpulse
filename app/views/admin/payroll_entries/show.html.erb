@@ -63,14 +63,14 @@
         <tbody>
           <% line_items.each do |item| %>
             <tr>
-              <td><%= item.item_type.humanize %></td>
+              <td><%= t("payroll.entry.item_types.#{item.item_type}") %></td>
               <td class="td-secondary"><%= item.description.presence || "—" %></td>
               <td style="color: <%= item.deduction? ? 'var(--danger)' : 'var(--success)' %>;">
                 <%= item.deduction? ? "- " : "+ " %><%= number_to_currency(item.amount.abs, unit: "SAR ") %>
               </td>
               <td>
                 <span class="badge <%= line_item_review_badge_class(item) %>">
-                  <%= item.review_status.humanize %>
+                  <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                 </span>
               </td>
             </tr>

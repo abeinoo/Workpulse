@@ -124,6 +124,42 @@ RSpec.describe ShiftAssignment, type: :model do
     end
   end
 
+  describe "ending an assignment" do
+    let(:assignment) { create(:shift_assignment, effective_from: 3.months.ago.to_date, effective_to: nil) }
+
+    it "becomes inactive after effective_to is set" do
+      assignment.update!(effective_to: Date.current)
+      expect(ShiftAssignment.active_on(Date.current + 1.day)).not_to include(assignment)
+    end
+
+    it "remains active on the effective_to date itself" do
+      assignment.update!(effective_to: Date.current)
+      expect(ShiftAssignment.active_on(Date.current)).to include(assignment)
+    end
+
+    it "is invalid when ended_on is set to before effective_from" do
+      assignment.effective_to = assignment.effective_from - 1.day
+      expect(assignment).not_to be_valid
+      expect(assignment.errors[:effective_to]).to be_present
+    end
+
+    it "is valid when ended_on is after effective_from" do
+      assignment.effective_to = assignment.effective_from + 1.day
+      expect(assignment).to be_valid
+    end
+
+    it "does not affect historical attendance records" do
+      business  = assignment.user.business
+      shift     = assignment.shift
+      rec = create(:attendance_record,
+                   user:             assignment.user,
+                   shift_assignment: assignment,
+                   work_date:        1.week.ago.to_date)
+      assignment.update!(effective_to: Date.current)
+      expect(rec.reload.shift_assignment_id).to eq(assignment.id)
+    end
+  end
+
   describe "delegations" do
     it "delegates shift_name to shift#name" do
       assignment = build(:shift_assignment)

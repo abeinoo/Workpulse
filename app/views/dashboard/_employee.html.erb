@@ -170,11 +170,11 @@
         <% @recent_requests.each do |req| %>
           <%= link_to employee_request_path(req), class: "request-row" do %>
             <div class="request-row__main">
-              <span class="request-row__type"><%= req.request_type.humanize %></span>
+              <span class="request-row__type"><%= t("requests.types.#{req.request_type}") %></span>
               <span class="request-row__date"><%= req.requested_for_date.strftime("%b %-d") %></span>
             </div>
             <span class="badge <%= req.approved? ? 'badge-success' : req.rejected? ? 'badge-danger' : 'badge-neutral' %>">
-              <%= req.status.humanize %>
+              <%= t("requests.statuses.#{req.status}") %>
             </span>
           <% end %>
         <% end %>

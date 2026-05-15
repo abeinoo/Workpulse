@@ -10,6 +10,16 @@ export default class extends Controller {
   addRule() {
     const html = this.templateTarget.innerHTML.replace(/NEW_INDEX/g, Date.now())
     this.rulesContainerTarget.insertAdjacentHTML("beforeend", html)
+
+    // Notify the parent shift-form controller so the new row reflects the
+    // currently selected shift type (fixed vs. hour-based).
+    const newRow = this.rulesContainerTarget.lastElementChild
+    const shiftFormEl = this.element.closest("[data-controller~='shift-form']")
+    if (shiftFormEl && newRow) {
+      const shiftFormCtrl = this.application.getControllerForElementAndIdentifier(shiftFormEl, "shift-form")
+      shiftFormCtrl?.syncNewRow(newRow)
+    }
+
     this.#updateEmptyState()
   }
 

@@ -8,6 +8,7 @@ class PenaltyRule < ApplicationRecord
   enum :deduction_type, { fixed_amount: "fixed_amount", percentage_of_daily: "percentage_of_daily" }
 
   validates :rule_type, :deduction_type, presence: true
+  validate :rule_type_compatible_with_shift
   validates :threshold_minutes, presence: true, numericality: { greater_than: 0 }
   validates :threshold_minutes, uniqueness: { scope: [ :shift_id, :rule_type ],
                                               message: "already has a rule at this threshold for this rule type" }
@@ -19,6 +20,15 @@ class PenaltyRule < ApplicationRecord
   scope :for_late_arrival,    -> { where(rule_type: "late_arrival") }
   scope :for_early_leave,     -> { where(rule_type: "early_leave") }
   scope :ordered_by_threshold, -> { order(threshold_minutes: :asc) }
+
+  private
+
+  def rule_type_compatible_with_shift
+    return unless late_arrival? && shift&.hour_based?
+    errors.add(:rule_type, :incompatible_with_hour_based)
+  end
+
+  public
 
   # Returns the highest-threshold rule that applies for a given minutes value.
   def self.applicable_for(minutes, rules_scope)

@@ -29,7 +29,7 @@
               <%= link_to assignment.shift.name, admin_shift_path(assignment.shift), class: "link" %>
             </td>
             <td>
-              <span class="badge badge-neutral"><%= assignment.shift.shift_type.humanize %></span>
+              <span class="badge badge-neutral"><%= t("shifts.types.#{assignment.shift.shift_type}") %></span>
             </td>
             <td class="td-secondary">
               <% if assignment.shift.fixed_time? %>

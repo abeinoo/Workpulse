@@ -41,6 +41,33 @@ class ShiftAssignmentsController < ApplicationController
     end
   end
 
+  def confirm_end
+    @assignment = policy_scope(ShiftAssignment).find(params[:id])
+    authorize @assignment, :end_assignment?
+  end
+
+  def end
+    @assignment = policy_scope(ShiftAssignment).find(params[:id])
+    authorize @assignment, :end_assignment?
+
+    ended_on_str = params.dig(:shift_assignment, :ended_on)
+    end_date = ended_on_str.present? ? Date.parse(ended_on_str) : nil
+
+    if end_date.nil?
+      @assignment.errors.add(:effective_to, :blank)
+      render :confirm_end, status: :unprocessable_entity and return
+    end
+
+    if @assignment.update(effective_to: end_date)
+      redirect_to shift_assignments_path, notice: t("flash.assignment_ended")
+    else
+      render :confirm_end, status: :unprocessable_entity
+    end
+  rescue Date::Error
+    @assignment.errors.add(:effective_to, :invalid)
+    render :confirm_end, status: :unprocessable_entity
+  end
+
   private
 
   def load_form_data

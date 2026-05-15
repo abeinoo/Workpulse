@@ -5,9 +5,15 @@
   <div class="form-grid">
     <div class="form-group">
       <%= f.label :rule_type, t("penalty_rules.type"), class: "form-label form-label--required" %>
-      <%= f.select :rule_type,
-            PenaltyRule::RULE_TYPES.map { |t| [t.humanize, t] },
-            { include_blank: t("forms.select") },
+      <%
+        rule_type_options = if @shift.hour_based?
+          [[t("penalty_rules.rule_types.deficit_hours"), "early_leave"]]
+        else
+          PenaltyRule::RULE_TYPES.map { |rt| [t("penalty_rules.rule_types.#{rt}"), rt] }
+        end
+      %>
+      <%= f.select :rule_type, rule_type_options,
+            { include_blank: (@shift.fixed_time? ? t("forms.select") : nil) },
             class: "form-control" %>
     </div>
 
@@ -20,7 +26,7 @@
     <div class="form-group">
       <%= f.label :deduction_type, t("penalty_rules.deduction_type"), class: "form-label form-label--required" %>
       <%= f.select :deduction_type,
-            PenaltyRule::DEDUCTION_TYPES.map { |t| [t.humanize, t] },
+            PenaltyRule::DEDUCTION_TYPES.map { |dt| [t("penalty_rules.deduction_types.#{dt}"), dt] },
             { include_blank: t("forms.select") },
             class: "form-control" %>
     </div>

@@ -103,7 +103,12 @@ Rails.application.routes.draw do
 
   # ── Branch Manager + Employee (shared web routes) ─────────────────────────
   resources :shifts,            only: [ :show ]
-  resources :shift_assignments, only: [ :index, :new, :create, :edit, :update ]
+  resources :shift_assignments, only: [ :index, :new, :create, :edit, :update ] do
+    member do
+      get  :confirm_end
+      patch :end
+    end
+  end
 
   post "attendance/check_in",  to: "attendance#check_in",  as: :attendance_check_in
   post "attendance/check_out", to: "attendance#check_out", as: :attendance_check_out

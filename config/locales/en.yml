@@ -295,10 +295,31 @@ en:
       overtime_col: "Overtime"
       late_col: "Late"
       early_leave_col: "Early Leave"
+      permission_col: "Permission"
+      permission_granted: "Permission: %{minutes} min covered"
+      permission_original: "Original: %{minutes} min"
+      permission_penalized: "Penalized: %{minutes} min"
+      permission_fully_waived: "Fully covered by approved permission"
       type_col: "Type"
       description_col: "Description"
       date_col: "Date"
       review_status: "Review Status"
+      item_types:
+        late_penalty: "Late Arrival Penalty"
+        early_leave_penalty: "Early Leave / Deficit Hours Penalty"
+        overtime: "Overtime"
+        advance_deduction: "Salary Advance Deduction"
+        bonus: "Bonus"
+        commission: "Commission"
+        reward: "Reward"
+        penalty: "Manual Penalty"
+        manual_adjustment: "Manual Adjustment"
+        manual_deduction: "Manual Deduction"
+      review_statuses:
+        pending_review: "Pending Review"
+        approved: "Approved"
+        rejected: "Rejected"
+        waived: "Waived"
       waive_hint: "A reason is required. This will remove the deduction from the employee's net salary."
       waive_placeholder: "Excused late arrival"
       confirm_waive: "Confirm Waive"
@@ -336,6 +357,7 @@ en:
       duration_placeholder: "e.g. 30"
       duration_hint: "How many minutes of late arrival or early leave are you requesting?"
       remaining_allowance: "%{remaining} of %{limit} minutes remaining this month"
+      late_permission_unavailable: "Late permission is not available for employees with hour-based (flexible) shifts — there is no fixed start time to be late relative to."
       date_label: "Date"
       reason_label: "Reason"
       reason_placeholder: "Briefly explain the request"
@@ -359,6 +381,18 @@ en:
     paid_disbursed: "Paid / Disbursed"
     approve: "Approve"
     reject: "Reject"
+    confirm_approve: "Approve this request?"
+    confirm_reject: "Reject this request?"
+    confirm_pay: "Confirm this advance has been disbursed to %{name}?"
+    types:
+      salary_advance: "Salary Advance"
+      late_permission: "Late Permission"
+      early_leave: "Early Leave"
+    statuses:
+      pending: "Pending"
+      approved: "Approved"
+      rejected: "Rejected"
+      paid: "Paid / Disbursed"
     pay: "Mark as Paid"
     mark_all_paid: "Mark All Paid"
     mark_paid_note: "Marking as paid confirms the advance was disbursed to the employee."
@@ -369,6 +403,7 @@ en:
     pending_disbursement_other: "%{count} salary advances approved by managers and awaiting disbursement."
     errors:
       exceeds_monthly_limit: "exceeds the monthly limit (%{remaining} minutes remaining out of %{limit})"
+      unavailable_for_hour_based: "is not available for employees assigned to hour-based (flexible) shifts"
 
   adjustments:
     index:
@@ -424,6 +459,16 @@ en:
       page_title: "Edit Assignment — WorkPulse"
       submit: "Update Assignment"
       back: "Back to Shift Assignments"
+    end:
+      page_title: "End Assignment — WorkPulse"
+      title: "End Assignment"
+      back: "Back to Shift Assignments"
+      end_date_label: "End date"
+      end_date_hint: "The assignment becomes inactive after this date. All historical attendance and payroll records are preserved."
+      confirm_btn: "Confirm End"
+      action_btn: "End"
+      warning_title: "Impact on future scheduling"
+      warning_body: "The employee will no longer be matched to this shift from the selected end date. Past attendance records and finalized payroll periods will not be changed."
     employee: "Employee"
     shift: "Shift"
     branch: "Branch"
@@ -443,6 +488,10 @@ en:
       select_branch: "Select branch —"
 
   shifts:
+    types:
+      fixed_time: "Fixed Schedule"
+      hour_based: "Flexible Hours"
+    overnight_badge: "Overnight"
     index:
       title: "Shifts"
       page_title: "Shifts — WorkPulse"
@@ -479,12 +528,14 @@ en:
       ot_hint: "Leave blank to disable overtime pay. Default 1.5×."
       rules_hint: "Progressive: the highest threshold that applies is used."
       grace_hint: "The lowest threshold acts as the grace period."
+      hour_based_rules_hint: "Rules apply when total hours worked fall short of the required daily hours."
       add_rule: "+ Add rule"
       no_rules: "No penalty rules yet. Click + Add rule to configure deductions."
       type_header: "Type"
       threshold_header: "Threshold (min)"
       deduction_header: "Deduction type"
       amount_header: "Amount"
+      shortfall_label: "Hours shortfall"
 
   penalty_rules:
     new:
@@ -506,6 +557,13 @@ en:
     percent: "% of daily rate"
     back_to: "Back to %{name}"
     delete: "Delete"
+    rule_types:
+      late_arrival: "Late Arrival"
+      early_leave: "Early Leave"
+      deficit_hours: "Deficit Hours"
+    deduction_types:
+      fixed_amount: "Fixed Amount (SAR)"
+      percentage_of_daily: "% of Daily Rate"
 
   salary_profiles:
     new:
@@ -844,6 +902,7 @@ en:
     advances_paid_other: "%{count} advances marked as paid."
     shift_assigned: "Shift assigned successfully."
     assignment_updated: "Assignment updated."
+    assignment_ended: "Assignment ended."
     adjustment_approved: "Adjustment approved."
     adjustment_rejected: "Adjustment rejected."
     adjustment_removed: "Adjustment removed."
@@ -861,3 +920,11 @@ en:
   locale:
     en: "English"
     ar: "العربية"
+
+  activerecord:
+    errors:
+      models:
+        penalty_rule:
+          attributes:
+            rule_type:
+              incompatible_with_hour_based: "Late arrival rules are not allowed for flexible (hour-based) shifts"

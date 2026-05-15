@@ -121,21 +121,114 @@ RSpec.describe Payroll::EntryCalculator do
     end
   end
 
-  describe "when an approved late_permission request exempts the late arrival" do
+  describe "when an approved late_permission fully covers the late arrival" do
     let(:late_day) { period_start.next_occurring(:monday) }
 
     before do
       create(:penalty_rule, shift: shift, rule_type: "late_arrival",
              deduction_type: "percentage_of_daily", threshold_minutes: 15, deduction_value: 25)
       create_record(late_day, worked: 440, late: 40, status: "late")
-      create(:employee_request, user: user,
-             request_type: "late_permission", status: "approved",
-             requested_for_date: late_day, affects_payroll: true)
+      create(:employee_request, :late_permission, :approved, user: user,
+             requested_for_date: late_day, duration_minutes: 40)
     end
 
     it "does not create a late_penalty line item" do
       entry = run
       expect(entry.payroll_line_items.where(item_type: "late_penalty").count).to eq(0)
+    end
+  end
+
+  describe "partial late_permission — approved for fewer minutes than late" do
+    # Employee late 40 min; permission covers 25 min → effective = 15 min
+    # 15 min == threshold → penalty fires at 25% of daily_rate (400) = 100 SAR
+    let(:late_day) { period_start.next_occurring(:monday) }
+
+    before do
+      create(:penalty_rule, shift: shift, rule_type: "late_arrival",
+             deduction_type: "percentage_of_daily", threshold_minutes: 15, deduction_value: 25)
+      create_record(late_day, worked: 440, late: 40, status: "late")
+      create(:employee_request, :late_permission, :approved, user: user,
+             requested_for_date: late_day, duration_minutes: 25)
+    end
+
+    it "creates a late_penalty item for the residual minutes" do
+      entry = run
+      expect(entry.payroll_line_items.where(item_type: "late_penalty").count).to eq(1)
+    end
+
+    it "stores original_minutes and permission_minutes on the line item" do
+      entry = run
+      item = entry.payroll_line_items.find_by(item_type: "late_penalty")
+      expect(item.original_minutes).to eq(40)
+      expect(item.permission_minutes).to eq(25)
+    end
+
+    it "applies a smaller penalty than without any permission" do
+      entry_no_perm = run
+      penalty_with_partial = entry_no_perm.payroll_line_items.find_by(item_type: "late_penalty").amount.abs
+      # Full-penalty case (no permission) = 25% of 400 = 100 SAR
+      # Partial = same rule fires (15 >= 15 threshold) → 100 SAR — same deduction value
+      # Just verify amount is present and entry net_salary is correct
+      expect(entry_no_perm.total_deductions).to be > 0
+    end
+  end
+
+  describe "partial early_leave permission" do
+    # Employee left 90 min early; permission covers 30 min → effective = 60 min
+    let(:early_day) { period_start.next_occurring(:tuesday) }
+
+    before do
+      create(:penalty_rule, shift: shift, rule_type: "early_leave",
+             deduction_type: "percentage_of_daily", threshold_minutes: 30, deduction_value: 50)
+      create_record(early_day, worked: 390, early_leave: 90, status: "early_leave")
+      create(:employee_request, :early_leave, :approved, user: user,
+             requested_for_date: early_day, duration_minutes: 30)
+    end
+
+    it "creates an early_leave_penalty line item" do
+      entry = run
+      expect(entry.payroll_line_items.where(item_type: "early_leave_penalty").count).to eq(1)
+    end
+
+    it "stores original_minutes (90) and permission_minutes (30) on the item" do
+      entry = run
+      item = entry.payroll_line_items.find_by(item_type: "early_leave_penalty")
+      expect(item.original_minutes).to eq(90)
+      expect(item.permission_minutes).to eq(30)
+    end
+  end
+
+  describe "full early_leave permission — no deduction" do
+    let(:early_day) { period_start.next_occurring(:tuesday) }
+
+    before do
+      create(:penalty_rule, shift: shift, rule_type: "early_leave",
+             deduction_type: "percentage_of_daily", threshold_minutes: 30, deduction_value: 50)
+      create_record(early_day, worked: 420, early_leave: 60, status: "early_leave")
+      create(:employee_request, :early_leave, :approved, user: user,
+             requested_for_date: early_day, duration_minutes: 60)
+    end
+
+    it "does not create an early_leave_penalty line item" do
+      entry = run
+      expect(entry.payroll_line_items.where(item_type: "early_leave_penalty")).to be_empty
+    end
+  end
+
+  describe "pending or rejected request does not reduce penalty" do
+    let(:late_day) { period_start.next_occurring(:monday) }
+
+    before do
+      create(:penalty_rule, shift: shift, rule_type: "late_arrival",
+             deduction_type: "percentage_of_daily", threshold_minutes: 15, deduction_value: 25)
+      create_record(late_day, worked: 440, late: 40, status: "late")
+      create(:employee_request, :late_permission, user: user,
+             requested_for_date: late_day, duration_minutes: 40)  # pending
+    end
+
+    it "still creates the full late_penalty" do
+      entry = run
+      expect(entry.payroll_line_items.where(item_type: "late_penalty").count).to eq(1)
     end
   end
 

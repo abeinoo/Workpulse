@@ -41,6 +41,11 @@
               <% if policy(a).update? %>
                 <%= link_to t("forms.edit"), edit_shift_assignment_path(a), class: "link-muted" %>
               <% end %>
+              <% if (a.effective_to.nil? || a.effective_to >= Date.current) && policy(a).end_assignment? %>
+                <%= link_to t("shift_assignments.end.action_btn"),
+                      confirm_end_shift_assignment_path(a),
+                      class: "link-muted text-danger" %>
+              <% end %>
             </td>
           </tr>
         <% end %>

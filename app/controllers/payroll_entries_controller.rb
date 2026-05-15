@@ -9,8 +9,9 @@ class PayrollEntriesController < ApplicationController
     @deductions        = all_items.select { |li| li.deduction? && !li.manual_deduction? }
     @manual_deductions = all_items.select(&:manual_deduction?)
     @additions         = all_items.select(&:addition?)
-    @attendance     = load_attendance_stats
-    @salary_profile = SalaryProfile.current_for(@entry.user)
+    @attendance        = load_attendance_stats
+    @salary_profile    = SalaryProfile.current_for(@entry.user)
+    @permission_lookup = load_permission_lookup
   end
 
   private
@@ -21,6 +22,16 @@ class PayrollEntriesController < ApplicationController
                 .includes(:payroll_line_items, :payroll_period)
                 .where(payroll_period: @period)
                 .find(params[:id])
+  end
+
+  def load_permission_lookup
+    EmployeeRequest
+      .where(user: @entry.user, status: "approved", affects_payroll: true)
+      .where(request_type: %w[late_permission early_leave])
+      .where(requested_for_date: @period.period_start..@period.period_end)
+      .each_with_object({}) do |req, hash|
+        hash[[req.request_type, req.requested_for_date]] = req.duration_minutes.to_i
+      end
   end
 
   def load_attendance_stats

@@ -33,6 +33,12 @@ RSpec.describe Requests::Approver do
           described_class.approve(request: request, reviewed_by: manager)
         }.not_to change(Advance, :count)
       end
+
+      it "calls Payroll::PermissionApplier to retroactively update payroll" do
+        allow(Payroll::PermissionApplier).to receive(:call)
+        described_class.approve(request: request, reviewed_by: manager)
+        expect(Payroll::PermissionApplier).to have_received(:call).with(request)
+      end
     end
 
     context "salary_advance request" do

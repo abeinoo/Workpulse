@@ -21,7 +21,7 @@
     <table>
       <thead>
         <tr>
-          <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
+          <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? || current_user.area_manager? %>
             <th><%= t("requests.employee") %></th>
           <% end %>
           <th><%= t("requests.type") %></th>
@@ -34,10 +34,10 @@
       <tbody>
         <% @requests.each do |req| %>
           <tr>
-            <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
+            <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? || current_user.area_manager? %>
               <td><%= req.user.full_name %></td>
             <% end %>
-            <td><%= req.request_type.humanize %></td>
+            <td><span class="badge badge-neutral"><%= t("requests.types.#{req.request_type}") %></span></td>
             <td class="td-secondary"><%= req.requested_for_date.strftime("%b %-d, %Y") %></td>
             <td class="td-secondary">
               <% if req.salary_advance? && req.amount.present? %>
@@ -48,17 +48,30 @@
             </td>
             <td>
               <span class="badge <%= request_status_badge_class(req) %>">
-                <%= req.salary_advance? && req.paid? ? t("requests.paid_disbursed") : req.status.humanize %>
+                <%= t("requests.statuses.#{req.status}") %>
               </span>
             </td>
             <td class="td-actions">
-              <%= link_to t("payroll.view"), employee_request_path(req), class: "link-muted" %>
+              <% if req.pending? && policy(req).approve? %>
+                <%= button_to t("requests.approve"),
+                      approve_employee_request_path(req),
+                      method: :patch,
+                      class: "btn btn-sm btn-success",
+                      data: { turbo_confirm: t("requests.confirm_approve") } %>
+                <%= button_to t("requests.reject"),
+                      reject_employee_request_path(req),
+                      method: :patch,
+                      class: "btn btn-sm btn-danger",
+                      data: { turbo_confirm: t("requests.confirm_reject") } %>
+              <% end %>
               <% if req.salary_advance? && req.approved? && policy(req).pay? %>
                 <%= button_to t("requests.pay"),
                       pay_employee_request_path(req),
-                      method: :patch, class: "btn btn-sm btn-primary",
-                      data: { turbo_confirm: "Confirm this advance has been disbursed to #{req.user.full_name}?" } %>
+                      method: :patch,
+                      class: "btn btn-sm btn-primary",
+                      data: { turbo_confirm: t("requests.confirm_pay", name: req.user.full_name) } %>
               <% end %>
+              <%= link_to t("payroll.view"), employee_request_path(req), class: "link-muted" %>
             </td>
           </tr>
         <% end %>
@@ -71,7 +84,7 @@
 
   <%# ── CSV export for accountants ─────────────────────────────────────────── %>
   <% if current_user.super_admin? || current_user.accountant? %>
-    <div style="margin-top: 1rem; text-align: right;">
+    <div style="margin-top: 1rem; text-align: end;">
       <%= link_to t("requests.export_csv"), employee_requests_path(format: :csv), class: "btn btn-secondary btn-sm" %>
     </div>
   <% end %>

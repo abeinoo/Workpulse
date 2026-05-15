@@ -3,11 +3,11 @@
   <div class="page-header">
     <div>
       <%= link_to t("requests.show.back"), employee_requests_path, class: "back-link" %>
-      <h1 class="page-title"><%= @request.request_type.humanize %></h1>
+      <h1 class="page-title"><%= t("requests.types.#{@request.request_type}") %></h1>
       <p class="page-subtitle"><%= @request.requested_for_date.strftime("%B %-d, %Y") %></p>
     </div>
     <span class="badge <%= request_status_badge_class(@request) %>">
-      <%= @request.salary_advance? && @request.paid? ? t("requests.paid_disbursed") : @request.status.humanize %>
+      <%= t("requests.statuses.#{@request.status}") %>
     </span>
   </div>
 
@@ -71,7 +71,7 @@
       <%= button_to t("requests.mark_paid_confirm"),
             pay_employee_request_path(@request),
             method: :patch, class: "btn btn-primary",
-            data: { turbo_confirm: "Confirm this advance has been disbursed to #{@request.user.full_name}?" } %>
+            data: { turbo_confirm: t("requests.confirm_pay", name: @request.user.full_name) } %>
     </div>
   <% end %>
 

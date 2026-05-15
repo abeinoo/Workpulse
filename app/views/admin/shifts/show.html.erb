@@ -19,7 +19,12 @@
   <div class="info-card">
     <div class="info-card__row">
       <span class="info-card__label"><%= t("shifts.type") %></span>
-      <span><%= @shift.shift_type.humanize %></span>
+      <span>
+        <%= t("shifts.types.#{@shift.shift_type}") %>
+        <% if @shift.overnight? %>
+          <span class="badge badge-neutral" style="margin-inline-start: 0.4rem;"><%= t("shifts.overnight_badge") %></span>
+        <% end %>
+      </span>
     </div>
     <% if @shift.fixed_time? %>
       <div class="info-card__row">
@@ -57,7 +62,13 @@
         <tbody>
           <% @penalty_rules.each do |rule| %>
             <tr>
-              <td><%= rule.rule_type.humanize %></td>
+              <td>
+                <% if @shift.hour_based? %>
+                  <%= t("shifts.form.shortfall_label") %>
+                <% else %>
+                  <%= t("penalty_rules.rule_types.#{rule.rule_type}") %>
+                <% end %>
+              </td>
               <td class="td-secondary"><%= rule.threshold_minutes %> min</td>
               <td>
                 <% if rule.fixed_amount? %>

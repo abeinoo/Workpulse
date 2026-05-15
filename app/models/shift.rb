@@ -18,6 +18,8 @@ class Shift < ApplicationRecord
             presence: true,
             numericality: { greater_than: 0 },
             if: :hour_based?
+  before_validation { self.overtime_rate_multiplier ||= 1.0 }
+
   validates :overtime_rate_multiplier,
             numericality: { greater_than_or_equal_to: 1 }, allow_nil: true
 

@@ -149,7 +149,7 @@
             <div class="request-review-row__info">
               <p class="request-review-row__name"><%= req.user.full_name %></p>
               <p class="request-review-row__meta">
-                <span class="badge badge-neutral"><%= req.request_type.humanize %></span>
+                <span class="badge badge-neutral"><%= t("requests.types.#{req.request_type}") %></span>
                 <span class="request-review-row__date"><%= req.requested_for_date.strftime("%b %-d") %></span>
               </p>
               <% if req.reason.present? %>
@@ -160,11 +160,11 @@
               <%= button_to t("requests.approve"), approve_employee_request_path(req),
                     method: :patch,
                     class: "btn btn-sm btn-primary",
-                    data: { turbo_confirm: "Approve this request?" } %>
+                    data: { turbo_confirm: t("requests.confirm_approve") } %>
               <%= button_to t("requests.reject"), reject_employee_request_path(req),
                     method: :patch,
                     class: "btn btn-sm btn-ghost",
-                    data: { turbo_confirm: "Reject this request?" } %>
+                    data: { turbo_confirm: t("requests.confirm_reject") } %>
             </div>
           </div>
         <% end %>

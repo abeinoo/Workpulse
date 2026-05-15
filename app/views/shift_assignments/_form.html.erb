@@ -18,10 +18,12 @@
         <%= f.label :shift_id, t("shift_assignments.shift"), class: "form-label form-label--required" %>
         <%= f.select :shift_id,
               @shifts.map { |s|
-                label = s.fixed_time? ?
-                  "#{s.name} (#{s.start_time.strftime('%H:%M')}–#{s.end_time.strftime('%H:%M')})" :
-                  "#{s.name} (#{s.required_hours}h)"
-                [label, s.id]
+                detail = if s.fixed_time?
+                  "#{s.start_time.strftime('%H:%M')}–#{s.end_time.strftime('%H:%M')}"
+                else
+                  "#{s.required_hours}h / #{t('shifts.types.hour_based')}"
+                end
+                ["#{s.name} (#{detail})", s.id]
               },
               { include_blank: t("shift_assignments.form.select_shift") },
               class: "form-control" %>

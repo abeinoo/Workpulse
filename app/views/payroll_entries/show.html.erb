@@ -112,7 +112,7 @@
               struck = item.waived? || item.rejected?
             %>
             <tr>
-              <td><%= item.item_type.humanize %></td>
+              <td><%= t("payroll.entry.item_types.#{item.item_type}") %></td>
               <td class="td-secondary"><%= item.description.presence || "—" %></td>
               <td class="td-secondary"><%= source_date&.strftime("%-d %b") || "—" %></td>
               <td class="text-right<%= struck ? ' text-muted' : ' text-danger' %>"
@@ -121,7 +121,7 @@
               </td>
               <td>
                 <span class="badge <%= deduction_status_badge_class(item) %>">
-                  <%= item.review_status.humanize %>
+                  <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                 </span>
               </td>
               <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
@@ -155,6 +155,22 @@
                 </td>
               <% end %>
             </tr>
+
+            <%# Permission reduction note for late/early-leave penalty items %>
+            <% if %w[late_penalty early_leave_penalty].include?(item.item_type) && item.permission_minutes.to_i > 0 %>
+              <tr class="permission-note-row">
+                <td colspan="<%= (current_user.super_admin? || current_user.branch_manager? || current_user.accountant?) ? 6 : 5 %>">
+                  <span class="permission-note permission-note--covered">
+                    ✓ <%= t("payroll.entry.permission_granted", minutes: item.permission_minutes) %>
+                    &middot;
+                    <%= t("payroll.entry.permission_original", minutes: item.original_minutes) %>
+                    &middot;
+                    <% effective = [ item.original_minutes.to_i - item.permission_minutes.to_i, 0 ].max %>
+                    <%= t("payroll.entry.permission_penalized", minutes: effective) %>
+                  </span>
+                </td>
+              </tr>
+            <% end %>
 
             <%# Waive / rejection note visible to everyone including employees %>
             <% if item.review_notes.present? %>
@@ -207,7 +223,7 @@
           <tbody>
             <% @additions.each do |item| %>
               <tr>
-                <td><%= item.item_type.humanize %></td>
+                <td><%= t("payroll.entry.item_types.#{item.item_type}") %></td>
                 <td class="td-secondary"><%= item.description.presence || "—" %></td>
                 <td class="text-right <%= item.pending_review? ? 'text-muted' : 'text-success' %>"
                     style="<%= 'text-decoration: line-through;' if item.rejected? %>">
@@ -215,7 +231,7 @@
                 </td>
                 <td>
                   <span class="badge <%= line_item_review_badge_class(item) %>">
-                    <%= item.review_status.humanize %>
+                    <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                   </span>
                 </td>
                 <% if current_user.super_admin? %>
@@ -274,7 +290,7 @@
                 </td>
                 <td>
                   <span class="badge <%= deduction_status_badge_class(item) %>">
-                    <%= item.review_status.humanize %>
+                    <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                   </span>
                 </td>
                 <% if current_user.super_admin? %>
@@ -319,6 +335,7 @@
             <th class="text-right"><%= t("payroll.entry.overtime_col") %></th>
             <th class="text-right"><%= t("payroll.entry.late_col") %></th>
             <th class="text-right"><%= t("payroll.entry.early_leave_col") %></th>
+            <th class="text-right"><%= t("payroll.entry.permission_col") %></th>
             <th><%= t("attendance.status") %></th>
           </tr>
         </thead>
@@ -341,6 +358,14 @@
               </td>
               <td class="text-right <%= rec.early_leave_minutes > 0 ? 'text-warning' : 'td-secondary' %>">
                 <%= rec.early_leave_minutes > 0 ? "#{rec.early_leave_minutes} min" : "—" %>
+              </td>
+              <%
+                late_perm  = @permission_lookup[["late_permission",  rec.work_date]].to_i
+                early_perm = @permission_lookup[["early_leave",      rec.work_date]].to_i
+                total_perm = late_perm + early_perm
+              %>
+              <td class="text-right <%= total_perm > 0 ? 'text-success' : 'td-secondary' %>">
+                <%= total_perm > 0 ? "#{total_perm} min" : "—" %>
               </td>
               <td>
                 <span class="badge <%= attendance_status_badge_class(rec) %>">
@@ -392,9 +417,11 @@
     margin: 1.75rem 0 0.6rem;
   }
 
-  /* Deduction note sub-rows */
-  .deduction-note-row td { padding-top: 0 !important; padding-bottom: 0.4rem; }
+  /* Deduction / permission note sub-rows */
+  .deduction-note-row td, .permission-note-row td { padding-top: 0 !important; padding-bottom: 0.4rem; }
   .deduction-note { font-size: 0.8rem; color: var(--text-muted, var(--text-2)); }
+  .permission-note { font-size: 0.8rem; }
+  .permission-note--covered { color: var(--success); }
 
   /* Waive popover */
   .waive-popover {

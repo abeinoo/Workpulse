@@ -1,0 +1,40 @@
+<% content_for :title, t("shift_assignments.end.page_title") %>
+
+<div class="form-page">
+  <%= link_to shift_assignments_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("shift_assignments.end.back") %>
+  <% end %>
+
+  <h1 class="page-title mb-2"><%= t("shift_assignments.end.title") %></h1>
+  <p class="page-subtitle mb-6">
+    <%= @assignment.user&.full_name %> &mdash; <%= @assignment.shift&.name %><% if @assignment.branch %> &mdash; <%= @assignment.branch.name %><% end %>
+  </p>
+
+  <div class="alert alert-warning mb-6">
+    <strong><%= t("shift_assignments.end.warning_title") %></strong>
+    <p style="margin: 0.25rem 0 0;"><%= t("shift_assignments.end.warning_body") %></p>
+  </div>
+
+  <%= form_with url: end_shift_assignment_path(@assignment), method: :patch, class: "form-card" do |f| %>
+
+    <%= render "shared/error_messages", object: @assignment %>
+
+    <div class="form-group">
+      <label class="form-label form-label--required"><%= t("shift_assignments.end.end_date_label") %></label>
+      <input type="date"
+             name="shift_assignment[ended_on]"
+             value="<%= Date.current %>"
+             min="<%= @assignment.effective_from %>"
+             class="form-control"
+             required>
+      <p class="form-hint"><%= t("shift_assignments.end.end_date_hint") %></p>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("shift_assignments.end.confirm_btn"), class: "btn btn-danger" %>
+      <%= link_to t("forms.cancel"), shift_assignments_path, class: "btn btn-ghost" %>
+    </div>
+
+  <% end %>
+</div>

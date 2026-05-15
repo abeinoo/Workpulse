@@ -295,10 +295,31 @@ ar:
       overtime_col: "إضافي"
       late_col: "تأخير"
       early_leave_col: "مبكر"
+      permission_col: "إذن"
+      permission_granted: "إذن: %{minutes} دقيقة مغطاة"
+      permission_original: "الأصلي: %{minutes} دقيقة"
+      permission_penalized: "المخصوم: %{minutes} دقيقة"
+      permission_fully_waived: "مغطى بالكامل بالإذن الموافق عليه"
       type_col: "النوع"
       description_col: "الوصف"
       date_col: "التاريخ"
       review_status: "حالة المراجعة"
+      item_types:
+        late_penalty: "غرامة التأخير"
+        early_leave_penalty: "غرامة المغادرة / نقص الساعات"
+        overtime: "أوفرتايم"
+        advance_deduction: "خصم سلفة الراتب"
+        bonus: "مكافأة"
+        commission: "عمولة"
+        reward: "جائزة"
+        penalty: "غرامة يدوية"
+        manual_adjustment: "تسوية يدوية"
+        manual_deduction: "خصم يدوي"
+      review_statuses:
+        pending_review: "قيد المراجعة"
+        approved: "مقبول"
+        rejected: "مرفوض"
+        waived: "متنازل عنه"
       waive_hint: "السبب مطلوب. سيؤدي ذلك إلى إزالة الخصم من صافي راتب الموظف."
       waive_placeholder: "تأخير معذور"
       confirm_waive: "تأكيد الإعفاء"
@@ -336,6 +357,7 @@ ar:
       duration_placeholder: "مثال: 30"
       duration_hint: "كم دقيقة تريد إذن التأخر أو المغادرة المبكرة؟"
       remaining_allowance: "متبقي %{remaining} من أصل %{limit} دقيقة هذا الشهر"
+      late_permission_unavailable: "إذن التأخر غير متاح للموظفين المعيَّنين على ورديات مرنة — لا يوجد وقت بداية ثابت للتأخر عنه."
       date_label: "التاريخ"
       reason_label: "السبب"
       reason_placeholder: "اشرح الطلب باختصار"
@@ -359,6 +381,18 @@ ar:
     paid_disbursed: "مدفوع / مصروف"
     approve: "موافقة"
     reject: "رفض"
+    confirm_approve: "الموافقة على هذا الطلب؟"
+    confirm_reject: "رفض هذا الطلب؟"
+    confirm_pay: "هل تأكد صرف السلفة لـ %{name}؟"
+    types:
+      salary_advance: "سلفة"
+      late_permission: "إذن تأخير"
+      early_leave: "انصراف مبكر"
+    statuses:
+      pending: "قيد الانتظار"
+      approved: "مقبول"
+      rejected: "مرفوض"
+      paid: "مدفوع / مصروف"
     pay: "تحديد كمدفوع"
     mark_all_paid: "تحديد الكل كمدفوع"
     mark_paid_note: "تحديد كمدفوع يؤكد أن السلفة صُرفت للموظف."
@@ -369,6 +403,7 @@ ar:
     pending_disbursement_other: "%{count} سلف رواتب معتمدة من المديرين بانتظار الصرف."
     errors:
       exceeds_monthly_limit: "يتجاوز الحد الشهري (%{remaining} دقيقة متبقية من أصل %{limit})"
+      unavailable_for_hour_based: "غير متاح للموظفين المعيَّنين على ورديات مرنة (بالساعة)"
 
   adjustments:
     index:
@@ -424,6 +459,16 @@ ar:
       page_title: "تعديل التعيين — ووركبلس"
       submit: "تحديث التعيين"
       back: "الرجوع لتوزيع الورديات"
+    end:
+      page_title: "إنهاء التعيين — ووركبلس"
+      title: "إنهاء التعيين"
+      back: "الرجوع لتوزيع الورديات"
+      end_date_label: "تاريخ الإنهاء"
+      end_date_hint: "يصبح التعيين غير نشط بعد هذا التاريخ. تُحفظ جميع سجلات الحضور والرواتب التاريخية."
+      confirm_btn: "تأكيد الإنهاء"
+      action_btn: "إنهاء"
+      warning_title: "التأثير على الجدولة المستقبلية"
+      warning_body: "لن يُربط الموظف بهذه الوردية اعتبارًا من تاريخ الإنهاء المحدد. لن تتأثر سجلات الحضور السابقة ولا فترات الرواتب المُنتهية."
     employee: "الموظف"
     shift: "الوردية"
     branch: "الفرع"
@@ -443,6 +488,10 @@ ar:
       select_branch: "اختر الفرع —"
 
   shifts:
+    types:
+      fixed_time: "وردية ثابتة"
+      hour_based: "وردية مرنة"
+    overnight_badge: "ليلية"
     index:
       title: "الورديات"
       page_title: "الورديات — ووركبلس"
@@ -479,12 +528,14 @@ ar:
       ot_hint: "اتركه فارغاً لتعطيل أجر الإضافي. الافتراضي 1.5×."
       rules_hint: "تدريجي: يُطبَّق أعلى حد ينطبق على المخالفة."
       grace_hint: "أدنى حد يعمل كفترة سماح."
+      hour_based_rules_hint: "تُطبَّق القواعد عند نقص إجمالي ساعات العمل عن الساعات اليومية المطلوبة."
       add_rule: "+ إضافة قاعدة"
       no_rules: "لا توجد قواعد غرامات. اضغط + إضافة قاعدة لإعداد الخصومات."
       type_header: "النوع"
       threshold_header: "الحد (دقيقة)"
       deduction_header: "نوع الخصم"
       amount_header: "المبلغ"
+      shortfall_label: "عجز الساعات"
 
   penalty_rules:
     new:
@@ -506,6 +557,13 @@ ar:
     percent: "% من اليومية"
     back_to: "الرجوع إلى %{name}"
     delete: "حذف"
+    rule_types:
+      late_arrival: "تأخير الوصول"
+      early_leave: "مغادرة مبكرة"
+      deficit_hours: "نقص الساعات"
+    deduction_types:
+      fixed_amount: "مبلغ ثابت (ريال)"
+      percentage_of_daily: "% من اليومية"
 
   salary_profiles:
     new:
@@ -844,6 +902,7 @@ ar:
     advances_paid_other: "تم تحديد %{count} سلف كمدفوعة."
     shift_assigned: "تم تعيين الوردية بنجاح."
     assignment_updated: "تم تحديث التعيين."
+    assignment_ended: "تم إنهاء التعيين."
     adjustment_approved: "تمت الموافقة على التسوية."
     adjustment_rejected: "تم رفض التسوية."
     adjustment_removed: "تم حذف التسوية."
@@ -861,3 +920,11 @@ ar:
   locale:
     en: "English"
     ar: "العربية"
+
+  activerecord:
+    errors:
+      models:
+        penalty_rule:
+          attributes:
+            rule_type:
+              incompatible_with_hour_based: "قواعد تأخير الوصول غير مسموح بها للورديات المرنة (بالساعة)"

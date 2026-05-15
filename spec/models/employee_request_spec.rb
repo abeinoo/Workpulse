@@ -55,33 +55,120 @@ RSpec.describe EmployeeRequest, type: :model do
     end
   end
 
-  describe ".exempts?" do
+  describe "shift type compatibility" do
     let(:business) { create(:business) }
     let(:user)     { create(:user, business: business) }
     let(:date)     { Date.current + 1.day }
 
-    it "returns true for an approved request that affects_payroll" do
-      create(:employee_request, :late_permission, :approved,
-             user: user, requested_for_date: date)
-      expect(EmployeeRequest.exempts?(user: user, date: date, type: "late_permission")).to be true
+    context "employee on a fixed_time shift" do
+      before do
+        shift = create(:shift, :fixed_time, business: business)
+        create(:shift_assignment, user: user, shift: shift, effective_from: 1.month.ago.to_date)
+      end
+
+      it "allows late_permission requests" do
+        req = build(:employee_request, :late_permission, user: user, requested_for_date: date)
+        expect(req).to be_valid
+      end
+
+      it "allows early_leave requests" do
+        req = build(:employee_request, :early_leave, user: user, requested_for_date: date)
+        expect(req).to be_valid
+      end
     end
 
-    it "returns false for a pending request" do
+    context "employee on an hour_based shift" do
+      before do
+        shift = create(:shift, :hour_based, business: business)
+        create(:shift_assignment, user: user, shift: shift, effective_from: 1.month.ago.to_date)
+      end
+
+      it "rejects late_permission requests" do
+        req = build(:employee_request, :late_permission, user: user, requested_for_date: date)
+        expect(req).not_to be_valid
+        expect(req.errors[:request_type]).to be_present
+      end
+
+      it "still allows early_leave requests" do
+        req = build(:employee_request, :early_leave, user: user, requested_for_date: date)
+        expect(req).to be_valid
+      end
+
+      it "still allows salary_advance requests" do
+        req = build(:employee_request, :salary_advance, user: user, requested_for_date: date)
+        expect(req).to be_valid
+      end
+    end
+
+    context "employee with no active shift assignment" do
+      it "does not block any request type" do
+        req = build(:employee_request, :late_permission, user: user, requested_for_date: date)
+        expect(req).to be_valid
+      end
+    end
+  end
+
+  describe ".approved_minutes" do
+    let(:business) { create(:business) }
+    let(:user)     { create(:user, business: business) }
+    let(:date)     { Date.current + 1.day }
+
+    it "returns duration_minutes for an approved late_permission" do
+      create(:employee_request, :late_permission, :approved,
+             user: user, requested_for_date: date, duration_minutes: 45)
+      expect(EmployeeRequest.approved_minutes(user: user, date: date, type: "late_permission")).to eq(45)
+    end
+
+    it "returns 0 for a pending request" do
       create(:employee_request, :late_permission,
-             user: user, requested_for_date: date)
-      expect(EmployeeRequest.exempts?(user: user, date: date, type: "late_permission")).to be false
+             user: user, requested_for_date: date, duration_minutes: 30)
+      expect(EmployeeRequest.approved_minutes(user: user, date: date, type: "late_permission")).to eq(0)
     end
 
-    it "returns false when the date does not match" do
+    it "returns 0 when the date does not match" do
       create(:employee_request, :late_permission, :approved,
-             user: user, requested_for_date: date)
-      expect(EmployeeRequest.exempts?(user: user, date: date + 1.day, type: "late_permission")).to be false
+             user: user, requested_for_date: date, duration_minutes: 30)
+      expect(EmployeeRequest.approved_minutes(user: user, date: date + 1.day, type: "late_permission")).to eq(0)
     end
 
-    it "returns false for salary_advance (affects_payroll is false)" do
+    it "returns 0 for salary_advance (affects_payroll is false)" do
       create(:employee_request, :salary_advance, :approved,
              user: user, requested_for_date: date)
-      expect(EmployeeRequest.exempts?(user: user, date: date, type: "salary_advance")).to be false
+      expect(EmployeeRequest.approved_minutes(user: user, date: date, type: "salary_advance")).to eq(0)
+    end
+
+    it "returns duration_minutes for an approved early_leave request" do
+      create(:employee_request, :early_leave, :approved,
+             user: user, requested_for_date: date, duration_minutes: 60)
+      expect(EmployeeRequest.approved_minutes(user: user, date: date, type: "early_leave")).to eq(60)
+    end
+  end
+
+  describe "monthly permission limit" do
+    let(:business) { create(:business, max_late_permission_minutes: 120) }
+    let(:user)     { create(:user, business: business) }
+    let(:date)     { Date.current.beginning_of_month + 5.days }
+
+    it "is valid when duration is within the remaining limit" do
+      req = build(:employee_request, :late_permission, user: user,
+                  requested_for_date: date, duration_minutes: 60)
+      expect(req).to be_valid
+    end
+
+    it "is invalid when duration exceeds the remaining limit" do
+      create(:employee_request, :late_permission, :approved, user: user,
+             requested_for_date: date, duration_minutes: 100)
+      req = build(:employee_request, :late_permission, user: user,
+                  requested_for_date: date + 1.day, duration_minutes: 30)
+      expect(req).not_to be_valid
+      expect(req.errors[:duration_minutes]).to be_present
+    end
+
+    it "is valid when no limit is configured (nil)" do
+      business.update!(max_late_permission_minutes: nil)
+      req = build(:employee_request, :late_permission, user: user,
+                  requested_for_date: date, duration_minutes: 9999)
+      expect(req).to be_valid
     end
   end
 

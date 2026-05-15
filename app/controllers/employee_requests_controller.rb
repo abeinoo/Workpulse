@@ -22,11 +22,12 @@ class EmployeeRequestsController < ApplicationController
   end
 
   def new
-    @for_user          = resolve_for_user
-    @request           = EmployeeRequest.new
+    @for_user             = resolve_for_user
+    @request              = EmployeeRequest.new
     authorize @request
-    @managed_employees = managed_employees_for_form
-    @permission_limits = permission_limits_for(@for_user || current_user)
+    @managed_employees    = managed_employees_for_form
+    @permission_limits    = permission_limits_for(@for_user || current_user)
+    @allowed_request_types = allowed_request_types_for(@for_user || current_user)
   end
 
   def create
@@ -38,8 +39,10 @@ class EmployeeRequestsController < ApplicationController
     if @request.save
       redirect_to employee_requests_path, notice: t("flash.request_submitted")
     else
-      @for_user          = @request.user unless @request.user == current_user
-      @managed_employees = managed_employees_for_form
+      @for_user              = @request.user unless @request.user == current_user
+      @managed_employees     = managed_employees_for_form
+      @permission_limits     = permission_limits_for(@request.user)
+      @allowed_request_types = allowed_request_types_for(@request.user)
       render :new, status: :unprocessable_entity
     end
   end
@@ -123,6 +126,15 @@ class EmployeeRequestsController < ApplicationController
   def managed_employees_for_form
     return [] unless current_user.branch_manager?
     current_user.managed_employees.where(active: true).order(:first_name, :last_name)
+  end
+
+  def allowed_request_types_for(target_user)
+    assignment = ShiftAssignment.current.find_by(user: target_user)
+    if assignment&.shift&.hour_based?
+      EmployeeRequest::REQUEST_TYPES.reject { |t| t == "late_permission" }
+    else
+      EmployeeRequest::REQUEST_TYPES
+    end
   end
 
   def permission_limits_for(target_user)

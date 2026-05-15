@@ -22,6 +22,7 @@ class EmployeeRequest < ApplicationRecord
             allow_nil: true
   validate :within_monthly_permission_limit, on: :create,
            if: -> { late_permission? || early_leave? }
+  validate :shift_supports_request_type, if: :late_permission?, on: :create
 
   before_save :derive_affects_payroll
 
@@ -55,6 +56,15 @@ class EmployeeRequest < ApplicationRecord
   # affects_payroll is always derived from request_type — never set by the caller.
   def derive_affects_payroll
     self.affects_payroll = !salary_advance?
+  end
+
+  def shift_supports_request_type
+    return unless user.present? && requested_for_date.present?
+
+    assignment = ShiftAssignment.active_on(requested_for_date).find_by(user: user)
+    return unless assignment&.shift&.hour_based?
+
+    errors.add(:request_type, I18n.t("requests.errors.unavailable_for_hour_based"))
   end
 
   def within_monthly_permission_limit

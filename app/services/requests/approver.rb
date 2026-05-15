@@ -64,6 +64,8 @@ module Requests
         response_note: @response_note
       )
 
+      Payroll::PermissionApplier.call(@request)
+
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))

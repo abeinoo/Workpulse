@@ -9,6 +9,7 @@ FactoryBot.define do
     requested_for_date { Date.current + 1.day }
     reason             { Faker::Lorem.sentence }
     status             { :pending }
+    duration_minutes   { 30 }
 
     trait :salary_advance do
       request_type { :salary_advance }
@@ -17,13 +18,15 @@ FactoryBot.define do
     end
 
     trait :late_permission do
-      request_type { :late_permission }
-      reason       { "Medical appointment in the morning" }
+      request_type     { :late_permission }
+      reason           { "Medical appointment in the morning" }
+      duration_minutes { 30 }
     end
 
     trait :early_leave do
-      request_type { :early_leave }
-      reason       { "Family obligation requires early departure" }
+      request_type     { :early_leave }
+      reason           { "Family obligation requires early departure" }
+      duration_minutes { 30 }
     end
 
     trait :pending do

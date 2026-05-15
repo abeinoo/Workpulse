@@ -14,32 +14,35 @@
     <div class="form-group">
       <%= f.label :shift_type, t("shifts.type"), class: "form-label form-label--required" %>
       <%= f.select :shift_type,
-            Shift::SHIFT_TYPES.map { |t| [t.humanize, t] },
-            {},
+            [[t("shifts.types.fixed_time"), "fixed_time"], [t("shifts.types.hour_based"), "hour_based"]],
+            { selected: shift.shift_type.presence || "fixed_time" },
             class: "form-control",
             data: { action: "change->shift-form#toggleFields" } %>
     </div>
 
-    <div class="form-group js-fixed-fields">
-      <%= f.label :start_time, "Start time", class: "form-label form-label--required" %>
+    <div class="form-group" data-shift-form-target="fixedFields" <%= "hidden" if shift.hour_based? %>>
+      <%= f.label :start_time, t("shifts.start_time"), class: "form-label form-label--required" %>
       <%= f.time_field :start_time,
             class: "form-control",
-            value: shift.start_time&.strftime("%H:%M") %>
+            value: shift.start_time&.strftime("%H:%M"),
+            disabled: shift.hour_based? %>
     </div>
 
-    <div class="form-group js-fixed-fields">
-      <%= f.label :end_time, "End time", class: "form-label form-label--required" %>
+    <div class="form-group" data-shift-form-target="fixedFields" <%= "hidden" if shift.hour_based? %>>
+      <%= f.label :end_time, t("shifts.end_time"), class: "form-label form-label--required" %>
       <%= f.time_field :end_time,
             class: "form-control",
-            value: shift.end_time&.strftime("%H:%M") %>
+            value: shift.end_time&.strftime("%H:%M"),
+            disabled: shift.hour_based? %>
     </div>
 
-    <div class="form-group js-hour-fields">
+    <div class="form-group" data-shift-form-target="hourFields" <%= "hidden" unless shift.hour_based? %>>
       <%= f.label :required_hours, t("shifts.required_hours"), class: "form-label form-label--required" %>
       <%= f.number_field :required_hours,
             class: "form-control",
             min: 1, max: 24, step: 0.5,
-            placeholder: "e.g. 8" %>
+            placeholder: "e.g. 8",
+            disabled: !shift.hour_based? %>
     </div>
 
     <div class="form-group">
@@ -57,10 +60,11 @@
     <div class="penalty-rules-header">
       <div>
         <h3 class="penalty-rules-title"><%= t("shifts.penalty_rules") %></h3>
-        <p class="form-hint">
+        <p class="form-hint" data-shift-form-target="fixedRuleHint" <%= "hidden" if shift.hour_based? %>>
           <%= t("shifts.form.rules_hint") %>
           <%= t("shifts.form.grace_hint") %>
         </p>
+        <p class="form-hint" data-shift-form-target="hourRuleHint" <%= "hidden" unless shift.hour_based? %>><%= t("shifts.form.hour_based_rules_hint") %></p>
       </div>
       <button type="button"
               class="btn btn-ghost btn-sm"
@@ -86,12 +90,16 @@
             <%= rf.hidden_field :id %>
             <%= rf.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
 
-            <div class="form-group mb-0">
+            <div class="form-group mb-0 js-rule-type-wrapper">
               <%= rf.label :rule_type, t("shifts.form.type_header"), class: "form-label form-label--mobile-only" %>
               <%= rf.select :rule_type,
-                    PenaltyRule::RULE_TYPES.map { |t| [t.humanize, t] },
-                    { include_blank: "— Type —" },
-                    class: "form-control #{'is-error' if rule.errors[:rule_type].any?}" %>
+                    PenaltyRule::RULE_TYPES.map { |rt| [t("penalty_rules.rule_types.#{rt}"), rt] },
+                    { include_blank: t("forms.select") },
+                    class: "form-control js-rule-type-select #{'is-error' if rule.errors[:rule_type].any?}" %>
+            </div>
+            <div class="form-group mb-0 js-shortfall-label" hidden>
+              <span class="form-label form-label--mobile-only"><%= t("shifts.form.type_header") %></span>
+              <span class="form-control-static text-muted"><%= t("shifts.form.shortfall_label") %></span>
             </div>
 
             <div class="form-group mb-0">
@@ -104,8 +112,8 @@
             <div class="form-group mb-0">
               <%= rf.label :deduction_type, t("shifts.form.deduction_header"), class: "form-label form-label--mobile-only" %>
               <%= rf.select :deduction_type,
-                    PenaltyRule::DEDUCTION_TYPES.map { |t| [t.humanize, t] },
-                    { include_blank: "— Deduction —" },
+                    PenaltyRule::DEDUCTION_TYPES.map { |dt| [t("penalty_rules.deduction_types.#{dt}"), dt] },
+                    { include_blank: t("forms.select") },
                     class: "form-control #{'is-error' if rule.errors[:deduction_type].any?}" %>
             </div>
 
@@ -137,14 +145,18 @@
     <%# Template for new rows (not rendered as a form field by the browser) %>
     <template data-penalty-rules-target="template">
       <div class="penalty-rule-row" data-rule-row>
-        <div class="form-group mb-0">
+        <div class="form-group mb-0 js-rule-type-wrapper">
           <label class="form-label form-label--mobile-only"><%= t("shifts.form.type_header") %></label>
-          <select name="shift[penalty_rules_attributes][NEW_INDEX][rule_type]" class="form-control">
-            <option value="">— Type —</option>
-            <% PenaltyRule::RULE_TYPES.each do |t| %>
-              <option value="<%= t %>"><%= t.humanize %></option>
+          <select name="shift[penalty_rules_attributes][NEW_INDEX][rule_type]" class="form-control js-rule-type-select">
+            <option value=""><%= t("forms.select") %></option>
+            <% PenaltyRule::RULE_TYPES.each do |rt| %>
+              <option value="<%= rt %>"><%= t("penalty_rules.rule_types.#{rt}") %></option>
             <% end %>
           </select>
+        </div>
+        <div class="form-group mb-0 js-shortfall-label" hidden>
+          <label class="form-label form-label--mobile-only"><%= t("shifts.form.type_header") %></label>
+          <span class="form-control-static text-muted"><%= t("shifts.form.shortfall_label") %></span>
         </div>
 
         <div class="form-group mb-0">
@@ -159,9 +171,9 @@
         <div class="form-group mb-0">
           <label class="form-label form-label--mobile-only"><%= t("shifts.form.deduction_header") %></label>
           <select name="shift[penalty_rules_attributes][NEW_INDEX][deduction_type]" class="form-control">
-            <option value="">— Deduction —</option>
-            <% PenaltyRule::DEDUCTION_TYPES.each do |t| %>
-              <option value="<%= t %>"><%= t.humanize %></option>
+            <option value=""><%= t("forms.select") %></option>
+            <% PenaltyRule::DEDUCTION_TYPES.each do |dt| %>
+              <option value="<%= dt %>"><%= t("penalty_rules.deduction_types.#{dt}") %></option>
             <% end %>
           </select>
         </div>

@@ -48,10 +48,13 @@
       <div class="form-group form-group--full">
         <%= f.label :request_type, t("requests.new.type_label"), class: "form-label form-label--required" %>
         <%= f.select :request_type,
-              EmployeeRequest::REQUEST_TYPES.map { |t| [t.humanize, t] },
+              @allowed_request_types.map { |rt| [t("requests.types.#{rt}"), rt] },
               { include_blank: t("forms.select") },
               class: "form-control",
               id: "request_type_select" %>
+        <% if @allowed_request_types.exclude?("late_permission") %>
+          <p class="form-hint form-hint--info"><%= t("requests.new.late_permission_unavailable") %></p>
+        <% end %>
       </div>
 
       <%# Amount — shown only for salary advance (JS progressively enhances; baseline always visible) %>
@@ -123,13 +126,14 @@
     var hintEarly   = document.getElementById("duration-hint-early");
 
     function toggle() {
-      var t = select.value;
+      var t  = select.value;
+      var isAdvance    = t === "salary_advance";
       var isPermission = t === "late_permission" || t === "early_leave";
-      if (amountField)    amountField.style.display    = t === "salary_advance" ? "" : "none";
-      if (durationField)  durationField.style.display  = isPermission ? "" : "none";
-      if (hintGeneric)    hintGeneric.style.display     = isPermission && !hintLate && !hintEarly ? "" : "none";
-      if (hintLate)       hintLate.style.display        = t === "late_permission" ? "" : "none";
-      if (hintEarly)      hintEarly.style.display       = t === "early_leave"     ? "" : "none";
+      if (amountField)   amountField.style.display   = isAdvance    ? "" : "none";
+      if (durationField) durationField.style.display = isPermission ? "" : "none";
+      if (hintGeneric)   hintGeneric.style.display   = isPermission && !hintLate && !hintEarly ? "" : "none";
+      if (hintLate)      hintLate.style.display      = t === "late_permission" ? "" : "none";
+      if (hintEarly)     hintEarly.style.display     = t === "early_leave"     ? "" : "none";
     }
     if (select) {
       toggle();
