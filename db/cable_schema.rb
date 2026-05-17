@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_15_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_17_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -260,7 +260,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_060000) do
     t.datetime "created_at", null: false
     t.string "currency", default: "SAR", null: false
     t.date "effective_from", null: false
-    t.decimal "overtime_multiplier", precision: 4, scale: 2, default: "1.5", null: false
+    t.decimal "overtime_multiplier", precision: 4, scale: 2
     t.string "salary_type", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false

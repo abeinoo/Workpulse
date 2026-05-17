@@ -578,17 +578,23 @@ en:
       submit: "Update Profile"
       for: "For %{name}. Only the active profile can be edited."
       back: "Back to %{name}"
+    salary_types:
+      monthly: "Monthly Salary"
+      daily: "Daily Salary"
     base_salary: "Base Salary"
     effective_from: "Effective From"
     type: "Type"
-    overtime_multiplier: "Overtime multiplier"
-    overtime_hint: "e.g. 1.5 = 150% of regular rate"
+    overtime_multiplier: "Overtime Multiplier"
+    overtime_multiplier_placeholder: "e.g. 1.5"
+    overtime_hint: "Leave blank to fall back to the shift's overtime rate. e.g. 1.5 = 150% of regular rate"
+    overtime_enabled: "Overtime Enabled"
     currency: "Currency"
     active: "Active"
     historical: "Historical"
     no_active: "No active salary profile."
     history: "History"
-    ot_multiplier: "OT multiplier"
+    ot_multiplier: "OT Multiplier"
+    no_overtime: "No overtime"
 
   payroll_adjustments:
     new:

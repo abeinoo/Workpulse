@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(bundle exec *)",
-      "Bash(ruby -c /Users/mrsool/RubymineProjects/WorkPulse/db/seeds.rb)"
+      "Bash(ruby -c /Users/mrsool/RubymineProjects/WorkPulse/db/seeds.rb)",
+      "Bash(bin/rails runner ' *)"
     ]
   }
 }

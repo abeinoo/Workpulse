@@ -33,8 +33,8 @@ module Shifts
     private
 
     def valid_business_scope?
-      @business.branches.exists?(@params[:branch_id]) &&
-        @business.shifts.exists?(@params[:shift_id])
+      branch_ok = @params[:branch_id].nil? || @business.branches.exists?(@params[:branch_id])
+      branch_ok && @business.shifts.exists?(@params[:shift_id])
     end
 
     def invalid_scope_result

@@ -3,7 +3,7 @@ module Api
     # Handles employee-facing check-in / check-out actions.
     class AttendanceController < BaseController
       def check_in
-        branch = find_branch
+        branch = find_checkin_branch
         return render_not_found("Branch not found") unless branch
 
         result = Attendance::CheckInService.call(
@@ -21,7 +21,7 @@ module Api
       end
 
       def check_out
-        branch = find_branch
+        branch = find_checkout_branch
         return render_not_found("Branch not found") unless branch
 
         result = Attendance::CheckOutService.call(
@@ -46,7 +46,20 @@ module Api
 
       private
 
-      def find_branch
+      # Branch eligibility at check-in must come from an active ShiftAssignment.
+      def find_checkin_branch
+        return nil unless params[:branch_id].present?
+
+        ShiftAssignment.current
+                       .where(user: current_user, branch_id: params[:branch_id])
+                       .first&.branch
+      end
+
+      # At check-out the shift was already validated at check-in. Only need the
+      # branch object for geolocation, so look it up directly.
+      def find_checkout_branch
+        return nil unless params[:branch_id].present?
+
         current_business.branches.active.find_by(id: params[:branch_id])
       end
 

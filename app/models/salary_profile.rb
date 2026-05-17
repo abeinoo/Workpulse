@@ -5,12 +5,10 @@ class SalaryProfile < ApplicationRecord
 
   enum :salary_type, { monthly: "monthly", daily: "daily" }
 
-  attribute :overtime_multiplier, :decimal, default: 1.5
-
   validates :salary_type,         presence: true, inclusion: { in: SALARY_TYPES }
   validates :base_amount,         presence: true, numericality: { greater_than: 0 }
-  validates :overtime_multiplier, presence: true,
-                                  numericality: { greater_than: 0, less_than_or_equal_to: 5 }
+  validates :overtime_multiplier, numericality: { greater_than: 0, less_than_or_equal_to: 5 },
+                                  allow_nil: true
   validates :currency,            presence: true
   validates :effective_from,      presence: true
 

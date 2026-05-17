@@ -578,17 +578,23 @@ ar:
       submit: "تحديث الملف"
       for: "لـ %{name}. يمكن تعديل الملف النشط فقط."
       back: "الرجوع إلى %{name}"
+    salary_types:
+      monthly: "راتب شهري"
+      daily: "راتب يومي"
     base_salary: "الراتب الأساسي"
     effective_from: "ساري من"
     type: "النوع"
-    overtime_multiplier: "معامل الإضافي"
-    overtime_hint: "مثال: 1.5 = 150% من الأجر العادي"
+    overtime_multiplier: "معامل الوقت الإضافي"
+    overtime_multiplier_placeholder: "مثال: 1.5"
+    overtime_hint: "اتركه فارغاً للرجوع إلى معدل الوقت الإضافي للوردية. مثال: 1.5 = 150% من الأجر العادي"
+    overtime_enabled: "تفعيل الوقت الإضافي"
     currency: "العملة"
     active: "نشط"
     historical: "سابق"
     no_active: "لا يوجد ملف راتب نشط."
     history: "السجل التاريخي"
     ot_multiplier: "معامل الإضافي"
+    no_overtime: "لا وقت إضافي"
 
   payroll_adjustments:
     new:

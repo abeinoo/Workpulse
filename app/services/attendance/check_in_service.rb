@@ -36,8 +36,7 @@ module Attendance
     end
 
     def assigned_to_branch?
-      @user.branches.exists?(@branch.id) ||
-        ShiftAssignment.current.exists?(user: @user, branch: @branch)
+      ShiftAssignment.current.exists?(user: @user, branch: @branch)
     end
 
     def location_valid?

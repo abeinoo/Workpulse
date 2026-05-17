@@ -100,7 +100,7 @@
       <dl class="data-list">
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("salary_profiles.type") %></dt>
-          <dd class="data-list__value"><%= @active_salary_profile.salary_type.humanize %></dd>
+          <dd class="data-list__value"><%= t("salary_profiles.salary_types.#{@active_salary_profile.salary_type}") %></dd>
         </div>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("salary_profiles.base_salary") %></dt>
@@ -111,7 +111,13 @@
         </div>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("salary_profiles.overtime_multiplier") %></dt>
-          <dd class="data-list__value"><%= @active_salary_profile.overtime_multiplier %>x</dd>
+          <dd class="data-list__value">
+            <% if @active_salary_profile.overtime_multiplier %>
+              <%= @active_salary_profile.overtime_multiplier %>x
+            <% else %>
+              <span class="text-muted">—</span>
+            <% end %>
+          </dd>
         </div>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("salary_profiles.effective_from") %></dt>
@@ -146,11 +152,11 @@
             <tbody>
               <% @salary_profiles.each do |profile| %>
                 <tr>
-                  <td><%= profile.salary_type.humanize %></td>
-                  <td><%= number_with_precision(profile.base_amount, precision: 2, delimiter: ",") %> <%= profile.currency %></td>
-                  <td><%= profile.overtime_multiplier %>x</td>
-                  <td><%= profile.effective_from.strftime("%d %b %Y") %></td>
-                  <td>
+                  <td data-label="<%= t('salary_profiles.type') %>"><%= t("salary_profiles.salary_types.#{profile.salary_type}") %></td>
+                  <td data-label="<%= t('salary_profiles.base_salary') %>"><%= number_with_precision(profile.base_amount, precision: 2, delimiter: ",") %> <%= profile.currency %></td>
+                  <td data-label="<%= t('salary_profiles.ot_multiplier') %>"><%= profile.overtime_multiplier ? "#{profile.overtime_multiplier}x" : "—" %></td>
+                  <td data-label="<%= t('salary_profiles.effective_from') %>"><%= profile.effective_from.strftime("%d %b %Y") %></td>
+                  <td data-label="<%= t('admin.users.status') %>">
                     <% if profile.active? %>
                       <span class="badge badge-success"><%= t("salary_profiles.active") %></span>
                     <% else %>

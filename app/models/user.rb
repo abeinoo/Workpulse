@@ -31,6 +31,7 @@ class User < ApplicationRecord
   scope :inactive,      -> { where(active: false) }
   scope :staff,         -> { where(role: %w[employee branch_manager area_manager]) }
 
+  normalizes :email,               with: ->(e) { e.blank? ? nil : e.strip.downcase }
   normalizes :phone_number,        with: ->(phone) {
     digits = phone.to_s.gsub(/\D/, "")
     phone.to_s.start_with?("+") ? "+#{digits}" : digits

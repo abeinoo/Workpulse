@@ -42,7 +42,11 @@ module Api
           phone_number: user.phone_number,
           role:         user.role,
           business_id:  user.business_id,
-          branch_ids:   user.branch_ids
+          checkin_branch_ids: ShiftAssignment.current
+                                             .where(user: user)
+                                             .pluck(:branch_id)
+                                             .compact
+                                             .uniq
         }
       end
     end

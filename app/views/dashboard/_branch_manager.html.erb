@@ -12,7 +12,10 @@
     <span class="mgr-dashboard__date"><%= Date.current.strftime("%b %-d, %Y") %></span>
   </div>
 
-  <%# ── Personal check-in / check-out ────────────────────────────── %>
+  <%# ── Personal check-in / check-out (only when attendance-eligible) %>
+  <%# Shown when the manager has a shift assignment (or has already    %>
+  <%# checked in today). Managers without shifts skip this section.   %>
+  <% if @my_today_record || @my_check_in_branches.any? %>
   <div class="mgr-dashboard__personal">
     <% if @my_today_record %>
       <div class="attendance-hero attendance-hero--<%= @my_today_record.checked_out? ? 'done' : 'active' %> attendance-hero--compact">
@@ -54,15 +57,14 @@
         <% end %>
       </div>
     <% else %>
-      <% my_branches = current_user.branches.active.order(:name) %>
-      <% if my_branches.one? %>
+      <% if @my_check_in_branches.one? %>
         <%= form_with url: attendance_check_in_path, method: :post, class: "mgr-checkin-form",
               data: {
                 controller: "attendance-location",
                 action: "submit->attendance-location#capture",
-                attendance_location_required_value: my_branches.first.geolocation_enabled?
+                attendance_location_required_value: @my_check_in_branches.first.geolocation_enabled?
               } do |f| %>
-          <%= f.hidden_field :branch_id, value: my_branches.first.id %>
+          <%= f.hidden_field :branch_id, value: @my_check_in_branches.first.id %>
           <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
           <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
           <%= f.button type: "submit", class: "btn btn-primary btn-block btn-checkin",
@@ -72,11 +74,11 @@
           <% end %>
           <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
         <% end %>
-      <% elsif my_branches.many? %>
+      <% elsif @my_check_in_branches.many? %>
         <div class="mgr-dashboard__section">
           <p class="mgr-dashboard__section-title"><%= t("dashboard.check_in_for_yourself") %></p>
           <div class="branch-picker">
-            <% my_branches.each do |branch| %>
+            <% @my_check_in_branches.each do |branch| %>
               <%= form_with url: attendance_check_in_path, method: :post,
                     data: {
                       controller: "attendance-location",
@@ -99,6 +101,7 @@
       <% end %>
     <% end %>
   </div>
+  <% end %>
 
   <%# ── Alert: missing check-outs ─────────────────────────────────── %>
   <% if @missing_checkouts.any? %>

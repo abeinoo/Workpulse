@@ -4,9 +4,9 @@
 
   <div class="form-grid">
     <div class="form-group">
-      <%= f.label :salary_type, class: "form-label" %>
+      <%= f.label :salary_type, t("salary_profiles.type"), class: "form-label" %>
       <%= f.select :salary_type,
-            SalaryProfile::SALARY_TYPES.map { |t| [t.humanize, t] },
+            SalaryProfile::SALARY_TYPES.map { |type| [t("salary_profiles.salary_types.#{type}"), type] },
             {},
             class: "form-control" %>
     </div>
@@ -20,11 +20,14 @@
     </div>
 
     <div class="form-group">
-      <%= f.label :overtime_multiplier, t("salary_profiles.overtime_multiplier"), class: "form-label" %>
+      <%= f.label :overtime_multiplier, class: "form-label" do %>
+        <%= t("salary_profiles.overtime_multiplier") %>
+        <span class="form-label__optional"><%= t("forms.optional") %></span>
+      <% end %>
       <%= f.number_field :overtime_multiplier,
             class: "form-control #{'is-error' if profile.errors[:overtime_multiplier].any?}",
             min: "0.01", max: "5", step: "0.01",
-            placeholder: "1.5" %>
+            placeholder: t("salary_profiles.overtime_multiplier_placeholder") %>
       <p class="form-hint"><%= t("salary_profiles.overtime_hint") %></p>
     </div>
 

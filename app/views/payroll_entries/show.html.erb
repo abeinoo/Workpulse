@@ -17,33 +17,35 @@
   </div>
 
   <%# ─────────────────────────────────────────────────────────────────────── %>
-  <%# 1. Attendance summary stats                                             %>
+  <%# 1. Attendance summary stats (only for employees with tracked attendance) %>
   <%# ─────────────────────────────────────────────────────────────────────── %>
-  <div class="stats-grid" style="margin-bottom: 1.5rem;">
-    <div class="stat-card">
-      <div class="stat-card__label"><%= t("payroll.entry.days_worked") %></div>
-      <div class="stat-card__value"><%= @attendance[:days_present] %></div>
-      <div class="stat-card__sub"><%= t("payroll.entry.of_working_days", count: @entry.working_days) %></div>
-    </div>
-    <div class="stat-card <%= @attendance[:days_absent] > 0 ? 'stat-card--danger' : '' %>">
-      <div class="stat-card__label"><%= t("payroll.entry.days_absent") %></div>
-      <div class="stat-card__value"><%= @attendance[:days_absent] %></div>
-    </div>
-    <div class="stat-card <%= @attendance[:total_late_minutes] > 0 ? 'stat-card--warning' : '' %>">
-      <div class="stat-card__label"><%= t("payroll.entry.late_minutes_label") %></div>
-      <div class="stat-card__value"><%= @attendance[:total_late_minutes] %></div>
-    </div>
-    <div class="stat-card <%= @attendance[:overtime_minutes] > 0 ? 'stat-card--success' : '' %>">
-      <div class="stat-card__label"><%= t("payroll.entry.overtime_col") %></div>
-      <div class="stat-card__value"><%= format_minutes(@attendance[:overtime_minutes]) %></div>
-    </div>
-    <% if @attendance[:total_early_leave_minutes] > 0 %>
-      <div class="stat-card stat-card--warning">
-        <div class="stat-card__label"><%= t("payroll.entry.early_leave_col") %></div>
-        <div class="stat-card__value"><%= @attendance[:total_early_leave_minutes] %> min</div>
+  <% if @attendance_records.any? %>
+    <div class="stats-grid" style="margin-bottom: 1.5rem;">
+      <div class="stat-card">
+        <div class="stat-card__label"><%= t("payroll.entry.days_worked") %></div>
+        <div class="stat-card__value"><%= @attendance[:days_present] %></div>
+        <div class="stat-card__sub"><%= t("payroll.entry.of_working_days", count: @entry.working_days) %></div>
       </div>
-    <% end %>
-  </div>
+      <div class="stat-card <%= @attendance[:days_absent] > 0 ? 'stat-card--danger' : '' %>">
+        <div class="stat-card__label"><%= t("payroll.entry.days_absent") %></div>
+        <div class="stat-card__value"><%= @attendance[:days_absent] %></div>
+      </div>
+      <div class="stat-card <%= @attendance[:total_late_minutes] > 0 ? 'stat-card--warning' : '' %>">
+        <div class="stat-card__label"><%= t("payroll.entry.late_minutes_label") %></div>
+        <div class="stat-card__value"><%= @attendance[:total_late_minutes] %></div>
+      </div>
+      <div class="stat-card <%= @attendance[:overtime_minutes] > 0 ? 'stat-card--success' : '' %>">
+        <div class="stat-card__label"><%= t("payroll.entry.overtime_col") %></div>
+        <div class="stat-card__value"><%= format_minutes(@attendance[:overtime_minutes]) %></div>
+      </div>
+      <% if @attendance[:total_early_leave_minutes] > 0 %>
+        <div class="stat-card stat-card--warning">
+          <div class="stat-card__label"><%= t("payroll.entry.early_leave_col") %></div>
+          <div class="stat-card__value"><%= @attendance[:total_early_leave_minutes] %> min</div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
 
   <%# ─────────────────────────────────────────────────────────────────────── %>
   <%# 2. Salary breakdown                                                     %>

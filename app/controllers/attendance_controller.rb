@@ -2,7 +2,7 @@ class AttendanceController < ApplicationController
   before_action :authenticate_user!
 
   def check_in
-    branch = resolve_branch
+    branch = resolve_checkin_branch
     return redirect_to(root_path, alert: t("flash.branch_not_found")) if params[:branch_id].present? && branch.nil?
 
     result = Attendance::CheckInService.call(
@@ -20,7 +20,7 @@ class AttendanceController < ApplicationController
   end
 
   def check_out
-    branch = resolve_branch
+    branch = resolve_checkout_branch
 
     result = Attendance::CheckOutService.call(
       user:      current_user,
@@ -38,15 +38,21 @@ class AttendanceController < ApplicationController
 
   private
 
-  # Returns the branch when branch_id is supplied; nil for branchless employees.
-  # Looks up via user_branches first, then falls back to an active ShiftAssignment
-  # so that employees assigned via shift (no static user_branch row) can check in.
-  def resolve_branch
+  # Branch eligibility at check-in must come from an active ShiftAssignment.
+  # Permanent user_branches are not used — branch context is shift-driven.
+  def resolve_checkin_branch
     return nil unless params[:branch_id].present?
 
-    current_user.branches.find_by(id: params[:branch_id]) ||
-      ShiftAssignment.current
-                     .where(user: current_user, branch_id: params[:branch_id])
-                     .first&.branch
+    ShiftAssignment.current
+                   .where(user: current_user, branch_id: params[:branch_id])
+                   .first&.branch
+  end
+
+  # At check-out the shift assignment was already validated at check-in time.
+  # We only need the branch object for geolocation validation, so look it up directly.
+  def resolve_checkout_branch
+    return nil unless params[:branch_id].present?
+
+    Branch.active.find_by(id: params[:branch_id], business: current_user.business)
   end
 end

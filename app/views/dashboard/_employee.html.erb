@@ -13,7 +13,10 @@
     <% end %>
   </div>
 
-  <%# ── Today's status hero ───────────────────────────────────────── %>
+  <%# ── Today's status hero (only for attendance-tracked employees) ── %>
+  <%# Shown when the employee has already checked in today, or has an  %>
+  <%# active shift assignment that makes them attendance-eligible.      %>
+  <% if @today_record || @today_branches.any? %>
   <% if @today_record %>
     <div class="attendance-hero attendance-hero--<%= @today_record.checked_out? ? 'done' : 'active' %>">
       <div class="attendance-hero__body">
@@ -126,9 +129,8 @@
           <% end %>
         </div>
       </div>
-    <% else %>
-      <p class="emp-dashboard__no-branch"><%= t("dashboard.no_branch") %></p>
     <% end %>
+  <% end %>
   <% end %>
 
   <%# ── Quick Actions ──────────────────────────────────────────────── %>
