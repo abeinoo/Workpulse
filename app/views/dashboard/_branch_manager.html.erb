@@ -15,6 +15,12 @@
   <%# ── Personal check-in / check-out (only when attendance-eligible) %>
   <%# Shown when the manager has a shift assignment (or has already    %>
   <%# checked in today). Managers without shifts skip this section.   %>
+  <% if @my_current_shift && @my_check_in_branches.empty? && @my_today_record.nil? %>
+    <div class="alert-bar alert-bar--warning">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span><%= t("dashboard.shift_no_branch_warning") %></span>
+    </div>
+  <% end %>
   <% if @my_today_record || @my_check_in_branches.any? %>
   <div class="mgr-dashboard__personal">
     <% if @my_today_record %>

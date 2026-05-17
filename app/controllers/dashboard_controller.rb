@@ -69,8 +69,12 @@ class DashboardController < ApplicationController
   end
 
   def load_branch_manager_data
-    branch_ids        = current_user.branch_ids
-    @managed_branches = current_user.branches.active.order(:name)
+    # Branch managers are officially assigned to branches via Branch#branch_manager_id.
+    # user_branches is supplementary (many-to-many). Both sources must be combined.
+    direct_branch_ids = Branch.where(branch_manager_id: current_user.id).pluck(:id)
+    all_branch_ids    = (direct_branch_ids + current_user.branch_ids).uniq
+    @managed_branches = Branch.where(id: all_branch_ids).active.order(:name)
+    branch_ids        = @managed_branches.pluck(:id)
 
     # Manager's own attendance (they are also an employee)
     @my_today_record  = AttendanceRecord.find_by(user: current_user, date: Date.current)

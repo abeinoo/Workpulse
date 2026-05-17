@@ -10,8 +10,14 @@ class ShiftAssignmentPolicy < ApplicationPolicy
     def resolve
       if user.super_admin?
         scope.for_business(user.business)
-      elsif user.area_manager? || user.branch_manager?
+      elsif user.area_manager?
         scope.where(branch_id: user.branch_ids)
+      elsif user.branch_manager?
+        # Include own assignment + assignments for all managed branches
+        # (branch_manager_id takes precedence over user_branches).
+        managed_ids = Branch.where(branch_manager_id: user.id).pluck(:id)
+        visible_branch_ids = (managed_ids + user.branch_ids).uniq
+        scope.where(user_id: user.id).or(scope.where(branch_id: visible_branch_ids))
       else
         scope.where(user_id: user.id)
       end
@@ -21,7 +27,10 @@ class ShiftAssignmentPolicy < ApplicationPolicy
   private
 
   def managing_branch?
-    branch_manager? && record.branch_id && user.branch_ids.include?(record.branch_id)
+    return false unless branch_manager? && record.branch_id
+
+    user.branch_ids.include?(record.branch_id) ||
+      Branch.exists?(id: record.branch_id, branch_manager_id: user.id)
   end
 
   def managing_area?
