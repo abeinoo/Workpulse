@@ -15,6 +15,7 @@ ar:
     branches: "الفروع"
     settings: "الإعدادات"
     sign_out: "تسجيل الخروج"
+    change_password: "تغيير كلمة المرور"
     section_admin: "الإدارة"
     home: "الرئيسية"
 
@@ -51,6 +52,17 @@ ar:
     evening: "مساء الخير"
     hello: "مرحباً، %{name}"
 
+  profile:
+    password:
+      page_title: "تغيير كلمة المرور — ووركبلس"
+      title: "تغيير كلمة المرور"
+      subtitle: "حدّث كلمة مرورك للحفاظ على أمان حسابك."
+      current_password: "كلمة المرور الحالية"
+      new_password: "كلمة المرور الجديدة"
+      confirm_password: "تأكيد كلمة المرور الجديدة"
+      submit: "تحديث كلمة المرور"
+      min_length: "٦ أحرف على الأقل."
+
   dashboard:
     today: "اليوم"
     not_checked_in: "لم تُسجِّل حضورك"
@@ -84,6 +96,7 @@ ar:
     your_attendance_today: "حضورك اليوم"
     check_in_manager: "تسجيل الحضور"
     check_in_for_yourself: "سجّل حضورك:"
+    shift_no_branch_warning: "لديك وردية نشطة ولكن لا يوجد فرع مُعيَّن. تواصل مع المسؤول لإضافة فرع لتعيين الوردية."
     missing_checkout_alert_one: "موظف واحد لم يسجّل انصرافه من أمس."
     missing_checkout_alert_other: "%{count} موظفين لم يسجّلوا انصرافهم من أمس."
     view_attendance: "عرض الحضور"
@@ -672,6 +685,15 @@ ar:
       new_profile: "ملف جديد"
       back: "الرجوع للموظفين"
       edit_active_profile: "تعديل الملف النشط"
+      reset_password_action: "إعادة تعيين كلمة المرور"
+      password:
+        page_title: "إعادة تعيين كلمة المرور — ووركبلس"
+        title: "إعادة تعيين كلمة المرور"
+        subtitle: "تعيين كلمة مرور جديدة لـ %{name}. لا حاجة لكلمة المرور الحالية."
+        new_password: "كلمة المرور الجديدة"
+        confirm_password: "تأكيد كلمة المرور الجديدة"
+        submit: "إعادة تعيين كلمة المرور"
+        reset_action: "إعادة تعيين كلمة المرور"
       form:
         employee_code: "رمز الموظف"
         direct_manager: "المدير المباشر"
@@ -913,6 +935,8 @@ ar:
     adjustment_rejected: "تم رفض التسوية."
     adjustment_removed: "تم حذف التسوية."
     locale_updated: "تم تحديث اللغة."
+    password_changed: "تم تحديث كلمة المرور بنجاح."
+    password_reset: "تمت إعادة تعيين كلمة المرور بنجاح."
 
   pwa:
     install_title: "تثبيت ووركبلس"

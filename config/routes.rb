@@ -72,6 +72,7 @@ Rails.application.routes.draw do
 
     resources :users do
       resources :salary_profiles, only: [ :new, :create, :edit, :update ]
+      resource  :password, only: [ :edit, :update ], controller: "user_passwords"
     end
 
     resources :branches
@@ -151,6 +152,11 @@ Rails.application.routes.draw do
   end
 
   patch "preferences/locale", to: "preferences#update", as: :user_locale
+
+  # ── Profile (employee self-service) ───────────────────────────────────────
+  namespace :profile do
+    resource :password, only: [ :edit, :update ]
+  end
 
   # ── Root ──────────────────────────────────────────────────────────────────
   root to: "dashboard#index"

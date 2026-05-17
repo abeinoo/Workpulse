@@ -3,7 +3,8 @@ class UserPolicy < ApplicationPolicy
   def show?    = super_admin? || manages_this_user? || own_record?
   def create?  = super_admin?
   def update?  = super_admin? || own_record?
-  def destroy? = super_admin?
+  def destroy?        = super_admin?
+  def reset_password? = super_admin?
 
   class Scope < ApplicationPolicy::Scope
     def resolve

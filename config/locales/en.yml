@@ -15,6 +15,7 @@ en:
     branches: "Branches"
     settings: "Settings"
     sign_out: "Sign out"
+    change_password: "Change Password"
     section_admin: "Admin"
     home: "Home"
 
@@ -51,6 +52,17 @@ en:
     evening: "Good evening"
     hello: "Hello, %{name}"
 
+  profile:
+    password:
+      page_title: "Change Password — WorkPulse"
+      title: "Change Password"
+      subtitle: "Update your password to keep your account secure."
+      current_password: "Current Password"
+      new_password: "New Password"
+      confirm_password: "Confirm New Password"
+      submit: "Update Password"
+      min_length: "Minimum 6 characters."
+
   dashboard:
     today: "Today"
     not_checked_in: "Not checked in"
@@ -84,6 +96,7 @@ en:
     your_attendance_today: "Your attendance today"
     check_in_manager: "Check In"
     check_in_for_yourself: "Check in for yourself:"
+    shift_no_branch_warning: "You have an active shift but no branch assigned. Contact your admin to add a branch to your shift assignment."
     missing_checkout_alert_one: "1 employee has a missing check-out from yesterday."
     missing_checkout_alert_other: "%{count} employees have a missing check-out from yesterday."
     view_attendance: "View attendance"
@@ -672,6 +685,15 @@ en:
       new_profile: "New Profile"
       back: "Back to Employees"
       edit_active_profile: "Edit Active Profile"
+      reset_password_action: "Reset Password"
+      password:
+        page_title: "Reset Password — WorkPulse"
+        title: "Reset Password"
+        subtitle: "Set a new password for %{name}. No current password required."
+        new_password: "New Password"
+        confirm_password: "Confirm New Password"
+        submit: "Reset Password"
+        reset_action: "Reset Password"
       form:
         employee_code: "Employee code"
         direct_manager: "Direct Manager"
@@ -913,6 +935,8 @@ en:
     adjustment_rejected: "Adjustment rejected."
     adjustment_removed: "Adjustment removed."
     locale_updated: "Language updated."
+    password_changed: "Your password has been updated."
+    password_reset: "Password has been reset successfully."
 
   pwa:
     install_title: "Install WorkPulse"

@@ -1,0 +1,43 @@
+<% content_for :title, t("admin.users.password.page_title") %>
+
+<div class="form-page">
+  <%= link_to admin_user_path(@user), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= @user.full_name %>
+  <% end %>
+
+  <div style="margin-bottom: var(--space-4);">
+    <h1 style="font-size: var(--text-2xl); font-weight: 700; color: var(--text-1);">
+      <%= t("admin.users.password.title") %>
+    </h1>
+    <p style="color: var(--text-2); margin-top: var(--space-1);">
+      <%= t("admin.users.password.subtitle", name: @user.full_name) %>
+    </p>
+  </div>
+
+  <%= form_with model: @user, url: admin_user_password_path(@user), method: :patch, class: "form-card" do |f| %>
+    <%= render "shared/error_messages", object: @user %>
+
+    <div class="form-grid">
+      <div class="form-group form-group--full">
+        <%= f.label :password, t("admin.users.password.new_password"), class: "form-label form-label--required" %>
+        <%= f.password_field :password,
+              autocomplete: "new-password",
+              class: "form-control" %>
+        <p class="form-hint"><%= t("profile.password.min_length") %></p>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= f.label :password_confirmation, t("admin.users.password.confirm_password"), class: "form-label form-label--required" %>
+        <%= f.password_field :password_confirmation,
+              autocomplete: "new-password",
+              class: "form-control" %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("admin.users.password.submit"), class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"), admin_user_path(@user), class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>

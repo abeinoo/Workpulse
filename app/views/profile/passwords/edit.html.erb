@@ -1,0 +1,50 @@
+<% content_for :title, t("profile.password.page_title") %>
+
+<div class="form-page">
+  <%= link_to root_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div style="margin-bottom: var(--space-4);">
+    <h1 style="font-size: var(--text-2xl); font-weight: 700; color: var(--text-1);">
+      <%= t("profile.password.title") %>
+    </h1>
+    <p style="color: var(--text-2); margin-top: var(--space-1);">
+      <%= t("profile.password.subtitle") %>
+    </p>
+  </div>
+
+  <%= form_with url: profile_password_path, method: :patch, scope: :user, class: "form-card" do |f| %>
+    <%= render "shared/error_messages", object: @user %>
+
+    <div class="form-grid">
+      <div class="form-group form-group--full">
+        <%= f.label :current_password, t("profile.password.current_password"), class: "form-label form-label--required" %>
+        <%= f.password_field :current_password,
+              autocomplete: "current-password",
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= f.label :password, t("profile.password.new_password"), class: "form-label form-label--required" %>
+        <%= f.password_field :password,
+              autocomplete: "new-password",
+              class: "form-control" %>
+        <p class="form-hint"><%= t("profile.password.min_length") %></p>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= f.label :password_confirmation, t("profile.password.confirm_password"), class: "form-label form-label--required" %>
+        <%= f.password_field :password_confirmation,
+              autocomplete: "new-password",
+              class: "form-control" %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("profile.password.submit"), class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"), root_path, class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>
