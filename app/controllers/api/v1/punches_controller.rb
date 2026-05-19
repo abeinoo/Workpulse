@@ -24,9 +24,9 @@ module Api
         punched_at = parse_timestamp
         return render_error(I18n.t("api.punch.invalid_timestamp")) unless punched_at
 
-        if stale_timestamp?(punched_at)
-          return render_error(I18n.t("api.punch.stale_timestamp"), status: :unprocessable_entity)
-        end
+        # if stale_timestamp?(punched_at)
+        #   return render_error(I18n.t("api.punch.stale_timestamp"), status: :unprocessable_entity)
+        # end
 
         result = Attendance::PunchService.call(
           employee:    employee,
