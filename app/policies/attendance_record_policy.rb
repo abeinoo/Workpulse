@@ -1,6 +1,6 @@
 class AttendanceRecordPolicy < ApplicationPolicy
-  def index?   = super_admin? || branch_manager? || accountant? || employee?
-  def show?    = super_admin? || accountant_sees_record? || branch_sees_record? || own_record?
+  def index?   = super_admin? || area_manager? || branch_manager? || accountant? || employee?
+  def show?    = super_admin? || accountant_sees_record? || manager_sees_record? || own_record?
   def create?  = false  # created only via CheckInService
   def update?  = super_admin? || direct_manager_can_edit?
   def destroy? = super_admin?
@@ -9,6 +9,13 @@ class AttendanceRecordPolicy < ApplicationPolicy
     def resolve
       if user.super_admin? || user.accountant?
         scope.for_business(user.business)
+      elsif user.area_manager?
+        area_branch_ids = Branch.where(area_manager_id: user.id).pluck(:id)
+        scope.for_business(user.business)
+             .where(
+               AttendanceRecord.arel_table[:user_id].eq(user.id)
+               .or(AttendanceRecord.arel_table[:branch_id].in(area_branch_ids))
+             )
       elsif user.branch_manager?
         # Index view: own records + records for all branch employees (read-only overview)
         scope.for_business(user.business)
@@ -39,9 +46,15 @@ class AttendanceRecordPolicy < ApplicationPolicy
     accountant? && same_business?(record.user)
   end
 
-  # View gate: branch manager can see any record in their managed branches
-  def branch_sees_record?
-    branch_manager? && user.branch_ids.include?(record.branch_id)
+  # View gate: branch manager or area manager can see any record in their managed branches
+  def manager_sees_record?
+    if branch_manager?
+      user.branch_ids.include?(record.branch_id)
+    elsif area_manager?
+      Branch.where(area_manager_id: user.id).exists?(id: record.branch_id)
+    else
+      false
+    end
   end
 
   def own_record?

@@ -28,6 +28,12 @@ module Attendance
     end
 
     def call
+      unless @employee.allow_biometric_attendance?
+        log = record_punch!(action: "rejected_not_allowed")
+        return Result.new(success: false, action: "rejected_not_allowed", log: log,
+                          error: I18n.t("api.punch.biometric_attendance_not_allowed"))
+      end
+
       @work_date  = BusinessDay.work_date_for(@punched_at, context: @business)
       @assignment = Shifts::AssignmentFinder.for(user: @employee, date: @work_date)
 
@@ -141,6 +147,7 @@ module Attendance
         work_date:         @work_date,
         punched_at:        @punched_at,
         received_at:       Time.current,
+        source:            "biometric",
         action:            action,
         ip_address:        @ip_address,
         raw_payload:       @raw_payload&.to_json,

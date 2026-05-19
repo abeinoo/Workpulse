@@ -1,5 +1,6 @@
 class AttendanceController < ApplicationController
   before_action :authenticate_user!
+  before_action :require_mobile_attendance_allowed!, only: [:check_in, :check_out]
 
   def check_in
     branch = resolve_checkin_branch
@@ -37,6 +38,11 @@ class AttendanceController < ApplicationController
   end
 
   private
+
+  def require_mobile_attendance_allowed!
+    return if current_user.allow_mobile_attendance?
+    redirect_to root_path, alert: t("flash.mobile_attendance_disabled")
+  end
 
   # Branch eligibility at check-in must come from an active ShiftAssignment.
   # Permanent user_branches are not used — branch context is shift-driven.

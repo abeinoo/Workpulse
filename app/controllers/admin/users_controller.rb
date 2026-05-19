@@ -80,7 +80,9 @@ class Admin::UsersController < Admin::BaseController
     params.require(:user).permit(
       :first_name, :last_name, :phone_number, :email,
       :employee_code, :role, :active, :manager_id,
-      :identity_card_number, :identity_card_expiry_date
+      :identity_card_number, :identity_card_expiry_date,
+      :allow_mobile_attendance, :allow_biometric_attendance,
+      :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship
     )
   end
 end

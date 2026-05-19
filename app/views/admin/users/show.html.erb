@@ -75,6 +75,34 @@
           <dd class="data-list__value"><%= @user.identity_card_expiry_date.strftime("%d %b %Y") %></dd>
         </div>
       <% end %>
+      <% if @user.emergency_contact_name.present? || @user.emergency_contact_phone.present? %>
+        <div class="data-list__item data-list__item--section-header">
+          <dt class="data-list__label data-list__label--section">
+            <%= t("admin.users.emergency_contact") %>
+          </dt>
+        </div>
+        <% if @user.emergency_contact_name.present? %>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("admin.users.emergency_contact_name") %></dt>
+            <dd class="data-list__value">
+              <%= @user.emergency_contact_name %>
+              <% if @user.emergency_contact_relationship.present? %>
+                <span class="text-muted text-sm">&nbsp;(<%=  @user.emergency_contact_relationship %>)</span>
+              <% end %>
+            </dd>
+          </div>
+        <% end %>
+        <% if @user.emergency_contact_phone.present? %>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("admin.users.emergency_contact_phone") %></dt>
+            <dd class="data-list__value">
+              <a href="tel:<%= @user.emergency_contact_phone %>" class="link">
+                <%= @user.emergency_contact_phone %>
+              </a>
+            </dd>
+          </div>
+        <% end %>
+      <% end %>
     </dl>
 
     <div class="form-actions">

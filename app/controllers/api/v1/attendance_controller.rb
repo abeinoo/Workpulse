@@ -2,6 +2,8 @@ module Api
   module V1
     # Handles employee-facing check-in / check-out actions.
     class AttendanceController < BaseController
+      before_action :require_mobile_attendance_allowed!, only: [:check_in, :check_out]
+
       def check_in
         branch = find_checkin_branch
         return render_not_found("Branch not found") unless branch
@@ -70,6 +72,31 @@ module Api
           :check_out_at, :check_out_latitude,  :check_out_longitude,
           :worked_minutes, :late_minutes, :early_leave_minutes
         )
+      end
+
+      def require_mobile_attendance_allowed!
+        return if current_user.allow_mobile_attendance?
+
+        log_mobile_rejection
+        render_error(
+          I18n.t("api.punch.mobile_attendance_not_allowed"),
+          status: :forbidden
+        )
+      end
+
+      def log_mobile_rejection
+        BiometricPunchLog.create!(
+          business:    current_business,
+          employee:    current_user,
+          punched_at:  Time.current,
+          received_at: Time.current,
+          source:      "mobile",
+          action:      "rejected_not_allowed",
+          ip_address:  request.remote_ip,
+          error_message: I18n.t("api.punch.mobile_attendance_not_allowed")
+        )
+      rescue ActiveRecord::RecordInvalid
+        # Non-fatal — don't let a logging failure block the error response
       end
     end
   end

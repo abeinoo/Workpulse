@@ -734,6 +734,20 @@ tbody td {
 }
 .data-list__item:last-child { border-bottom: none; }
 
+.data-list__item--section-header {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.data-list__label--section {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-2);
+  text-transform: none;
+  letter-spacing: 0;
+  padding-top: var(--space-2);
+}
+
 .data-list__label {
   font-size: var(--text-xs);
   font-weight: 600;
@@ -1549,7 +1563,130 @@ body.is-authenticated {
 }
 
 .filter-bar {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
   margin-bottom: var(--space-5);
+}
+
+.filter-bar__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.filter-bar__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.filter-bar__label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filter-bar__input,
+.filter-bar__select {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+.filter-bar__input:focus,
+.filter-bar__select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.filter-bar__toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.table-meta {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  margin-bottom: var(--space-2);
+}
+
+.th-sort-link {
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.th-sort-link:hover { color: var(--accent); }
+
+/* ─── Pagination ─────────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-5);
+}
+
+.pagination__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pagination__btn:hover { background: var(--surface-1); border-color: var(--accent); }
+
+.pagination__btn--active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.pagination__ellipsis {
+  color: var(--text-2);
+  padding: 0 var(--space-1);
+}
+
+.badge-xs {
+  font-size: 0.65rem;
+  padding: 0.1em 0.4em;
 }
 
 .filter-form {
@@ -2955,6 +3092,15 @@ body.is-authenticated {
 /* Badges and inline items */
 [dir="rtl"] .badge {
   direction: rtl;
+}
+
+[dir="rtl"] .filter-bar__fields {
+  direction: rtl;
+}
+
+[dir="rtl"] .pagination__btn:first-child,
+[dir="rtl"] .pagination__btn:last-child {
+  transform: scaleX(-1);
 }
 
 /* Bottom nav: icons + labels unchanged (centered, so no flip needed) */

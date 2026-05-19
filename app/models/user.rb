@@ -36,12 +36,21 @@ class User < ApplicationRecord
     digits = phone.to_s.gsub(/\D/, "")
     phone.to_s.start_with?("+") ? "+#{digits}" : digits
   }
-  normalizes :identity_card_number, with: ->(v) { v.strip.upcase }
+  normalizes :identity_card_number,     with: ->(v) { v.strip.upcase }
+  normalizes :employee_code,            with: ->(v) { v.blank? ? nil : v.strip }
+  normalizes :emergency_contact_phone,  with: ->(phone) {
+    next nil if phone.blank?
+    digits = phone.to_s.gsub(/\D/, "")
+    phone.to_s.start_with?("+") ? "+#{digits}" : digits
+  }
 
   attr_accessor :login
 
   validates :preferred_locale, inclusion: { in: %w[en ar] }, allow_blank: true
-  validates :phone_number,        uniqueness: true, allow_blank: true
+  validates :employee_code,            uniqueness: { scope: :business_id, case_sensitive: false },
+                                       allow_blank: true
+  validates :phone_number,             uniqueness: true, allow_blank: true
+  validates :emergency_contact_phone,  length: { minimum: 5, maximum: 20 }, allow_blank: true
   validates :identity_card_number, uniqueness: { case_sensitive: false },
                                    length: { minimum: 5, maximum: 30 },
                                    allow_blank: true

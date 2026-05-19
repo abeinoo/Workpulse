@@ -78,6 +78,68 @@
         <span class="form-check-label"><%= t("admin.users.form.active") %></span>
       </label>
     </div>
+
+    <%# ── Emergency Contact ──────────────────────────────────────────── %>
+    <div class="form-group form-group--full">
+      <p class="form-label" style="margin-bottom: var(--space-2);">
+        <%= t("admin.users.form.emergency_contact") %>
+      </p>
+      <p class="form-hint" style="margin-bottom: var(--space-3);">
+        <%= t("admin.users.form.emergency_contact_hint") %>
+      </p>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :emergency_contact_name, t("admin.users.form.emergency_contact_name"), class: "form-label" %>
+      <%= f.text_field :emergency_contact_name,
+            class: "form-control",
+            placeholder: t("admin.users.form.emergency_contact_name_placeholder") %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :emergency_contact_phone, t("admin.users.form.emergency_contact_phone"), class: "form-label" %>
+      <%= f.text_field :emergency_contact_phone,
+            class: "form-control #{'is-error' if user.errors[:emergency_contact_phone].any?}",
+            placeholder: "+966500000000",
+            inputmode: "tel" %>
+      <% if user.errors[:emergency_contact_phone].any? %>
+        <p class="form-error"><%= user.errors[:emergency_contact_phone].first %></p>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :emergency_contact_relationship, t("admin.users.form.emergency_contact_relationship"), class: "form-label" %>
+      <%= f.text_field :emergency_contact_relationship,
+            class: "form-control",
+            placeholder: t("admin.users.form.relationship_placeholder"),
+            list: "relationship-suggestions",
+            autocomplete: "off" %>
+      <datalist id="relationship-suggestions">
+        <% t("admin.users.form.relationship_options").each do |opt| %>
+          <option value="<%= opt %>">
+        <% end %>
+      </datalist>
+    </div>
+
+    <%# ── Attendance Sources ─────────────────────────────────────────── %>
+    <div class="form-group form-group--full">
+      <p class="form-label" style="margin-bottom: var(--space-2);">
+        <%= t("admin.users.form.attendance_sources") %>
+      </p>
+      <p class="form-hint" style="margin-bottom: var(--space-3);">
+        <%= t("admin.users.form.attendance_sources_hint") %>
+      </p>
+      <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+        <label class="form-check">
+          <%= f.check_box :allow_mobile_attendance %>
+          <span class="form-check-label"><%= t("admin.users.form.allow_mobile_attendance") %></span>
+        </label>
+        <label class="form-check">
+          <%= f.check_box :allow_biometric_attendance %>
+          <span class="form-check-label"><%= t("admin.users.form.allow_biometric_attendance") %></span>
+        </label>
+      </div>
+    </div>
   </div>
 
   <div class="form-actions">

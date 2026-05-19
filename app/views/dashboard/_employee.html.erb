@@ -13,6 +13,14 @@
     <% end %>
   </div>
 
+  <%# ── Biometric-only notice (mobile disabled, shift active, not yet checked in) %>
+  <% if !current_user.allow_mobile_attendance? && @current_shift && @today_record.nil? %>
+    <div class="alert-bar alert-bar--info">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span><%= t("dashboard.mobile_attendance_disabled") %></span>
+    </div>
+  <% end %>
+
   <%# ── Today's status hero (only for attendance-tracked employees) ── %>
   <%# Shown when the employee has already checked in today, or has an  %>
   <%# active shift assignment that makes them attendance-eligible.      %>
@@ -51,25 +59,32 @@
     </div>
 
     <% unless @today_record.checked_out? %>
-      <%# Check-out CTA %>
-      <div class="emp-dashboard__cta">
-        <%= form_with url: attendance_check_out_path, method: :post,
-              data: {
-                controller: "attendance-location",
-                action: "submit->attendance-location#capture",
-                attendance_location_required_value: @today_record.branch.geolocation_enabled?
-              } do |f| %>
-          <%= f.hidden_field :branch_id, value: @today_record.branch_id %>
-          <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
-          <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
-          <%= f.button type: "submit", class: "btn btn-xl btn-block btn-checkout",
-                data: { attendance_location_target: "submitBtn" } do %>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            <%= t("dashboard.check_out") %>
+      <%# Check-out CTA — only shown when mobile attendance is permitted %>
+      <% if current_user.allow_mobile_attendance? %>
+        <div class="emp-dashboard__cta">
+          <%= form_with url: attendance_check_out_path, method: :post,
+                data: {
+                  controller: "attendance-location",
+                  action: "submit->attendance-location#capture",
+                  attendance_location_required_value: @today_record.branch.geolocation_enabled?
+                } do |f| %>
+            <%= f.hidden_field :branch_id, value: @today_record.branch_id %>
+            <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+            <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+            <%= f.button type: "submit", class: "btn btn-xl btn-block btn-checkout",
+                  data: { attendance_location_target: "submitBtn" } do %>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <%= t("dashboard.check_out") %>
+            <% end %>
+            <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
           <% end %>
-          <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
-        <% end %>
-      </div>
+        </div>
+      <% else %>
+        <div class="alert-bar alert-bar--info" style="margin-top: var(--space-3);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span><%= t("dashboard.mobile_attendance_disabled") %></span>
+        </div>
+      <% end %>
     <% end %>
 
   <% else %>

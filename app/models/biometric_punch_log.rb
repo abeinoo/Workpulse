@@ -5,8 +5,11 @@ class BiometricPunchLog < ApplicationRecord
     check_out
     rejected_no_assignment
     rejected_spam
+    rejected_not_allowed
     error
   ].freeze
+
+  SOURCES = %w[biometric mobile].freeze
 
   belongs_to :business
   belongs_to :biometric_device,  optional: true
@@ -14,12 +17,14 @@ class BiometricPunchLog < ApplicationRecord
   belongs_to :attendance_record, optional: true
 
   validates :action,      inclusion: { in: ACTIONS }
+  validates :source,      inclusion: { in: SOURCES }
   validates :punched_at,  presence: true
   validates :received_at, presence: true
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(received_at: :desc) }
   scope :for_employee, ->(user) { where(employee: user) }
+  scope :from_source,  ->(src) { where(source: src) }
 
   def rejected?
     action.start_with?("rejected_")

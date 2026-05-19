@@ -222,8 +222,12 @@ RSpec.describe Attendance::PunchService do
     context "when assignment expired yesterday" do
       before { assignment.update!(effective_to: Date.yesterday) }
 
-      it "rejects the punch as no active assignment" do
-        result = punch("2026-05-17 09:00:00 +03:00")
+      it "rejects today's punch as no active assignment" do
+        result = described_class.call(
+          employee:   employee,
+          punched_at: Time.current,
+          business:   business
+        )
         expect(result.action).to eq("rejected_no_assignment")
       end
     end
@@ -242,6 +246,47 @@ RSpec.describe Attendance::PunchService do
         device:     device
       )
       expect(result.log.biometric_device).to eq(device)
+    end
+
+    it "records source as biometric on every log entry" do
+      result = described_class.call(
+        employee:   employee,
+        punched_at: Time.zone.parse("2026-05-17 09:00:00 +03:00"),
+        business:   business,
+        device:     device
+      )
+      expect(result.log.source).to eq("biometric")
+    end
+  end
+
+  # ───── Biometric attendance permission ────────────────────────────────────
+
+  describe "biometric attendance permission" do
+    context "when employee has biometric attendance disabled" do
+      before { employee.update!(allow_biometric_attendance: false) }
+
+      it "rejects the punch immediately without checking shift assignment" do
+        result = punch("2026-05-17 09:00:00 +03:00")
+        expect(result.success?).to be false
+        expect(result.action).to eq("rejected_not_allowed")
+      end
+
+      it "does not create an attendance record" do
+        expect { punch("2026-05-17 09:00:00 +03:00") }.not_to change(AttendanceRecord, :count)
+      end
+
+      it "logs the rejection with source biometric" do
+        result = punch("2026-05-17 09:00:00 +03:00")
+        expect(result.log.action).to eq("rejected_not_allowed")
+        expect(result.log.source).to eq("biometric")
+      end
+    end
+
+    context "when employee has biometric attendance enabled (default)" do
+      it "processes the punch normally" do
+        result = punch("2026-05-17 09:00:00 +03:00")
+        expect(result.action).to eq("check_in")
+      end
     end
   end
 end

@@ -84,6 +84,46 @@ RSpec.describe User, type: :model do
     end
   end
 
+  # ── employee_code ─────────────────────────────────────────────────────────
+  describe "employee_code" do
+    let(:business) { create(:business) }
+
+    it "accepts a blank employee_code" do
+      expect(build(:user, business: business, employee_code: nil)).to be_valid
+    end
+
+    it "strips leading/trailing whitespace on normalization" do
+      u = build(:user, business: business, employee_code: "  EMP001  ")
+      u.valid?
+      expect(u.employee_code).to eq("EMP001")
+    end
+
+    it "normalizes blank strings to nil" do
+      u = build(:user, business: business, employee_code: "   ")
+      u.valid?
+      expect(u.employee_code).to be_nil
+    end
+
+    it "rejects a duplicate employee_code within the same business (case-insensitive)" do
+      create(:user, business: business, employee_code: "EMP001")
+      duplicate = build(:user, business: business, employee_code: "emp001")
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:employee_code]).to be_present
+    end
+
+    it "allows the same employee_code in a different business" do
+      other_business = create(:business)
+      create(:user, business: business,       employee_code: "EMP001")
+      user_other_biz  = build(:user, business: other_business, employee_code: "EMP001")
+      expect(user_other_biz).to be_valid
+    end
+
+    it "allows multiple employees with blank employee_code in the same business" do
+      create(:user, business: business, employee_code: nil)
+      expect(build(:user, business: business, employee_code: nil)).to be_valid
+    end
+  end
+
   # ── Identity card ─────────────────────────────────────────────────────────
   describe "identity_card_number" do
     it "accepts a blank value" do

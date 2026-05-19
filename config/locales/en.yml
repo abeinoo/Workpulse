@@ -99,6 +99,7 @@ en:
     check_in_manager: "Check In"
     check_in_for_yourself: "Check in for yourself:"
     shift_no_branch_warning: "You have an active shift but no branch assigned. Contact your admin to add a branch to your shift assignment."
+    mobile_attendance_disabled: "Mobile attendance is disabled for your account."
     missing_checkout_alert_one: "1 employee has a missing check-out from yesterday."
     missing_checkout_alert_other: "%{count} employees have a missing check-out from yesterday."
     view_attendance: "View attendance"
@@ -189,6 +190,8 @@ en:
       reason_label: "Reason for edit"
       reason_placeholder: "e.g. Employee forgot to check out, confirmed departure at 17:00"
       overnight: "Overnight"
+      overnight_title: "Overnight shift — checkout was next calendar day"
+      open: "Open"
       showing_for: "Showing records for %{name}"
       clear_filter: "Clear filter"
       check_in_location: "Check-in Location"
@@ -200,6 +203,8 @@ en:
       late_by: "Late by"
       left_early_by: "Left early by"
       filter_date: "Filter by date"
+      date_from: "From"
+      date_to: "To"
       clear: "Clear"
       view: "View"
       edit: "Edit"
@@ -207,6 +212,15 @@ en:
       check_out_coords: "Check-out coords"
       edit_record: "Edit Record"
       all_branches_option: "All branches"
+      all_branches: "All branches"
+      all_shifts: "All shifts"
+      all_statuses: "All statuses"
+      filter_employee: "Employee"
+      filter_late: "Late only"
+      filter_missing_checkout: "Missing checkout"
+      filter_overnight: "Overnight shifts"
+      search_placeholder: "Name or employee code…"
+      page_info: "Showing %{from}–%{to} of %{total} records"
 
   payroll:
     base_salary: "Base salary"
@@ -693,6 +707,7 @@ en:
         check_out: "Check-out"
         rejected_no_assignment: "Rejected — no shift"
         rejected_spam: "Rejected — duplicate"
+        rejected_not_allowed: "Rejected — not allowed"
         error: "Error"
       back: "Back to Logs"
     dashboard:
@@ -747,6 +762,9 @@ en:
       identity_card: "Identity card"
       id_expiry: "ID expiry"
       employee_code: "Employee code"
+      emergency_contact: "Emergency Contact"
+      emergency_contact_name: "Contact name"
+      emergency_contact_phone: "Contact phone"
       registered: "Registered"
       pending_registration: "Pending registration"
       not_assigned: "Not assigned"
@@ -772,6 +790,25 @@ en:
         id_expiry: "ID expiry date"
         active: "Active"
         hierarchy_hint: "Hierarchy: Employee → Branch Manager or Area Manager → Area Manager → Super Admin."
+        emergency_contact: "Emergency Contact"
+        emergency_contact_hint: "Optional. For HR and emergency use only — not used for login or authentication."
+        emergency_contact_name: "Contact name"
+        emergency_contact_name_placeholder: "Full name"
+        emergency_contact_phone: "Contact phone"
+        emergency_contact_relationship: "Relationship"
+        relationship_placeholder: "e.g. Father, Spouse, Sibling"
+        relationship_options:
+          - Father
+          - Mother
+          - Brother
+          - Sister
+          - Spouse
+          - Relative
+          - Friend
+        attendance_sources: "Attendance Sources"
+        attendance_sources_hint: "Control how this employee may record attendance. At least one source should be enabled for employees with shift assignments."
+        allow_mobile_attendance: "Allow Mobile Attendance"
+        allow_biometric_attendance: "Allow Biometric Attendance"
     branches:
       index:
         title: "Branches"
@@ -969,6 +1006,8 @@ en:
       employee_not_found: "Employee not found."
       invalid_timestamp: "Invalid or missing timestamp."
       stale_timestamp: "Timestamp is outside the accepted 24-hour window."
+      biometric_attendance_not_allowed: "This employee is not allowed to use biometric attendance."
+      mobile_attendance_not_allowed: "Your account is not allowed to use mobile attendance. Please contact your manager."
 
   flash:
     errors_one: "1 error prevented this from saving:"
@@ -1020,6 +1059,12 @@ en:
     biometric_device_updated: "Device updated."
     biometric_device_deleted: "Device removed."
     token_regenerated: "Token regenerated. Update the device configuration with the new token."
+    mobile_attendance_disabled: "Mobile attendance is disabled for your account."
+
+  pagination:
+    label: "Page navigation"
+    prev: "← Previous"
+    next: "Next →"
 
   pwa:
     install_title: "Install WorkPulse"

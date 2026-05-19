@@ -83,11 +83,17 @@ class DashboardController < ApplicationController
     # Attendance eligibility for the manager themselves is shift-driven.
     # Branch context comes exclusively from their active ShiftAssignment.
     # No fallback to permanent branch relations.
-    @my_check_in_branches = ShiftAssignment.current
-                                           .where(user: current_user)
-                                           .includes(:branch)
-                                           .filter_map(&:branch)
-                                           .uniq
+    # When mobile attendance is disabled, suppress check-in/check-out controls.
+    @my_check_in_branches =
+      if current_user.allow_mobile_attendance?
+        ShiftAssignment.current
+                       .where(user: current_user)
+                       .includes(:branch)
+                       .filter_map(&:branch)
+                       .uniq
+      else
+        []
+      end
 
     # Full team: all active employees directly managed by this manager
     @managed_employees = current_user.managed_employees
@@ -153,13 +159,18 @@ class DashboardController < ApplicationController
 
     # Attendance eligibility is shift-driven. Branch context comes exclusively from
     # active ShiftAssignments — no fallback to permanent user_branches.
-    # Employees with no active shift assignment are non-attendance employees and
-    # will not see a check-in widget.
-    @today_branches = ShiftAssignment.current
-                                     .where(user: current_user)
-                                     .includes(:branch)
-                                     .filter_map(&:branch)
-                                     .uniq
+    # When mobile attendance is disabled the check-in widget is suppressed entirely;
+    # the employee's status card (if already checked in via biometric) still shows.
+    @today_branches =
+      if current_user.allow_mobile_attendance?
+        ShiftAssignment.current
+                       .where(user: current_user)
+                       .includes(:branch)
+                       .filter_map(&:branch)
+                       .uniq
+      else
+        []
+      end
 
     @recent_requests = current_user.employee_requests
                                    .order(created_at: :desc)

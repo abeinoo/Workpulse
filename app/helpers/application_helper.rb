@@ -101,6 +101,7 @@ module ApplicationHelper
     when "check_out"                    then "badge-accent"
     when "rejected_spam"                then "badge-neutral"
     when "rejected_no_assignment"       then "badge-warning"
+    when "rejected_not_allowed"         then "badge-danger"
     when "error"                        then "badge-danger"
     else                                     "badge-neutral"
     end

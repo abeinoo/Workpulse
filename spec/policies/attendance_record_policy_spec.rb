@@ -1,29 +1,41 @@
 require "rails_helper"
 
 RSpec.describe AttendanceRecordPolicy, type: :model do
-  let(:business)    { create(:business) }
-  let(:branch)      { create(:branch, business: business) }
-  let(:super_admin) { create(:user, :super_admin, business: business) }
-  let(:manager)     { create(:user, :branch_manager, business: business) }
-  let(:employee)    { create(:user, business: business, manager: manager) }
-  let(:record)      { create(:attendance_record, branch: branch, user: employee) }
+  let(:business)      { create(:business) }
+  let(:branch)        { create(:branch, business: business) }
+  let(:super_admin)   { create(:user, :super_admin,   business: business) }
+  let(:area_manager)  { create(:user, :area_manager,  business: business) }
+  let(:manager)       { create(:user, :branch_manager, business: business) }
+  let(:employee)      { create(:user, business: business, manager: manager) }
+  let(:record)        { create(:attendance_record, branch: branch, user: employee) }
 
   before do
-    create(:user_branch, user: manager, branch: branch)
+    create(:user_branch, user: manager,  branch: branch)
     create(:user_branch, user: employee, branch: branch)
+    branch.update!(area_manager: area_manager)
   end
 
   subject { described_class }
 
   describe "index?" do
-    it "permits super_admin"    do expect(subject).to permit(super_admin, AttendanceRecord) end
+    it "permits super_admin"   do expect(subject).to permit(super_admin,  AttendanceRecord) end
+    it "permits area_manager"  do expect(subject).to permit(area_manager, AttendanceRecord) end
     it "permits branch_manager" do expect(subject).to permit(manager,     AttendanceRecord) end
-    it "permits employee"       do expect(subject).to permit(employee,    AttendanceRecord) end
+    it "permits employee"      do expect(subject).to permit(employee,     AttendanceRecord) end
   end
 
   describe "show?" do
     it "permits super_admin" do
       expect(subject).to permit(super_admin, record)
+    end
+
+    it "permits area_manager whose area includes this record's branch" do
+      expect(subject).to permit(area_manager, record)
+    end
+
+    it "denies area_manager whose area does not include this record's branch" do
+      other_area_manager = create(:user, :area_manager, business: business)
+      expect(subject).not_to permit(other_area_manager, record)
     end
 
     it "permits branch_manager whose branch includes this record" do
@@ -49,6 +61,12 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
       it "can edit a branch_manager record" do
         mgr_record = create(:attendance_record, user: manager, branch: branch)
         expect(subject).to permit(super_admin, mgr_record)
+      end
+    end
+
+    context "area_manager" do
+      it "cannot edit attendance records (view-only)" do
+        expect(subject).not_to permit(area_manager, record)
       end
     end
 
@@ -96,15 +114,15 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
 
   describe "create?" do
     it "denies everyone" do
-      [ super_admin, manager, employee ].each do |user|
+      [ super_admin, area_manager, manager, employee ].each do |user|
         expect(subject).not_to permit(user, AttendanceRecord.new)
       end
     end
   end
 
   describe "Scope" do
-    let!(:emp_record) { create(:attendance_record, branch: branch, user: employee) }
-    let!(:mgr_record) { create(:attendance_record, branch: branch, user: manager) }
+    let!(:emp_record)   { create(:attendance_record, branch: branch, user: employee) }
+    let!(:mgr_record)   { create(:attendance_record, branch: branch, user: manager) }
     let!(:other_record) { create(:attendance_record) }
 
     describe "super_admin scope" do
@@ -112,6 +130,28 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
         scope = described_class::Scope.new(super_admin, AttendanceRecord).resolve
         expect(scope).to include(emp_record, mgr_record)
         expect(scope).not_to include(other_record)
+      end
+    end
+
+    describe "area_manager scope" do
+      it "includes records for employees in their area branches" do
+        scope = described_class::Scope.new(area_manager, AttendanceRecord).resolve
+        expect(scope).to include(emp_record, mgr_record)
+        expect(scope).not_to include(other_record)
+      end
+
+      it "excludes records from branches not in their area" do
+        other_branch = create(:branch, business: business)
+        other_emp    = create(:user, business: business)
+        outside_record = create(:attendance_record, branch: other_branch, user: other_emp)
+        scope = described_class::Scope.new(area_manager, AttendanceRecord).resolve
+        expect(scope).not_to include(outside_record)
+      end
+
+      it "includes the area manager's own records" do
+        am_record = create(:attendance_record, branch: branch, user: area_manager)
+        scope = described_class::Scope.new(area_manager, AttendanceRecord).resolve
+        expect(scope).to include(am_record)
       end
     end
 

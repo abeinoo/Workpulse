@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_17_210001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -93,6 +93,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_210001) do
     t.datetime "punched_at", null: false
     t.text "raw_payload"
     t.datetime "received_at", null: false
+    t.string "source", default: "biometric", null: false
     t.datetime "updated_at", null: false
     t.date "work_date"
     t.index ["action"], name: "index_biometric_punch_logs_on_action"
@@ -103,6 +104,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_210001) do
     t.index ["employee_id"], name: "index_biometric_punch_logs_on_employee_id"
     t.index ["punched_at"], name: "index_biometric_punch_logs_on_punched_at"
     t.index ["received_at"], name: "index_biometric_punch_logs_on_received_at"
+    t.index ["source"], name: "index_biometric_punch_logs_on_source"
   end
 
   create_table "branches", force: :cascade do |t|
@@ -505,9 +507,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_210001) do
 
   create_table "users", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.boolean "allow_biometric_attendance", default: true, null: false
+    t.boolean "allow_mobile_attendance", default: true, null: false
     t.integer "business_id"
     t.datetime "created_at", null: false
     t.string "email"
+    t.string "emergency_contact_name"
+    t.string "emergency_contact_phone"
+    t.string "emergency_contact_relationship"
     t.string "employee_code"
     t.string "encrypted_password", default: "", null: false
     t.string "first_name"
@@ -522,6 +529,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_210001) do
     t.string "reset_password_token"
     t.string "role", default: "employee", null: false
     t.datetime "updated_at", null: false
+    t.index "business_id, lower((employee_code)::text)", name: "index_users_on_business_id_and_lower_employee_code", unique: true, where: "((employee_code IS NOT NULL) AND ((employee_code)::text <> ''::text))"
     t.index ["business_id"], name: "index_users_on_business_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["identity_card_number"], name: "index_users_on_identity_card_number", unique: true

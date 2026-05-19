@@ -99,6 +99,7 @@ ar:
     check_in_manager: "تسجيل الحضور"
     check_in_for_yourself: "سجّل حضورك:"
     shift_no_branch_warning: "لديك وردية نشطة ولكن لا يوجد فرع مُعيَّن. تواصل مع المسؤول لإضافة فرع لتعيين الوردية."
+    mobile_attendance_disabled: "البصمة من التطبيق غير مفعلة لهذا الحساب."
     missing_checkout_alert_one: "موظف واحد لم يسجّل انصرافه من أمس."
     missing_checkout_alert_other: "%{count} موظفين لم يسجّلوا انصرافهم من أمس."
     view_attendance: "عرض الحضور"
@@ -200,6 +201,8 @@ ar:
       late_by: "تأخر بمقدار"
       left_early_by: "خرج مبكراً بمقدار"
       filter_date: "تصفية بالتاريخ"
+      date_from: "من"
+      date_to: "إلى"
       clear: "مسح"
       view: "عرض"
       edit: "تعديل"
@@ -207,6 +210,18 @@ ar:
       check_out_coords: "إحداثيات الخروج"
       edit_record: "تعديل السجل"
       all_branches_option: "جميع الفروع"
+      all_branches: "جميع الفروع"
+      all_shifts: "جميع الورديات"
+      all_statuses: "جميع الحالات"
+      overnight: "عبر منتصف الليل"
+      overnight_title: "وردية ليلية — تسجيل الخروج كان في اليوم التالي"
+      open: "مفتوح"
+      filter_employee: "الموظف"
+      filter_late: "المتأخرون فقط"
+      filter_missing_checkout: "خروج ناقص"
+      filter_overnight: "الورديات الليلية"
+      search_placeholder: "الاسم أو رقم الموظف…"
+      page_info: "عرض %{from}–%{to} من %{total} سجل"
 
   payroll:
     base_salary: "الراتب الأساسي"
@@ -693,6 +708,7 @@ ar:
         check_out: "تسجيل انصراف"
         rejected_no_assignment: "مرفوض — لا وردية"
         rejected_spam: "مرفوض — مكرر"
+        rejected_not_allowed: "مرفوض — غير مسموح"
         error: "خطأ"
       back: "الرجوع للسجلات"
     dashboard:
@@ -749,6 +765,9 @@ ar:
       employee_code: "رمز الموظف"
       registered: "مُسجَّل"
       pending_registration: "بانتظار التسجيل"
+      emergency_contact: "جهة اتصال للطوارئ"
+      emergency_contact_name: "اسم جهة الاتصال"
+      emergency_contact_phone: "رقم هاتف للطوارئ"
       not_assigned: "غير مُعيَّن"
       managed_employees: "الموظفون التابعون"
       salary_profile: "ملف الراتب"
@@ -772,6 +791,25 @@ ar:
         id_expiry: "تاريخ انتهاء الهوية"
         active: "نشط"
         hierarchy_hint: "التسلسل الوظيفي: موظف → مدير فرع أو مدير منطقة → مدير منطقة → مسؤول."
+        attendance_sources: "مصادر تسجيل الحضور"
+        emergency_contact: "جهة اتصال للطوارئ"
+        emergency_contact_hint: "اختياري. للاستخدام من قِبل الموارد البشرية وحالات الطوارئ فقط — لا يُستخدم لتسجيل الدخول."
+        emergency_contact_name: "اسم جهة الاتصال"
+        emergency_contact_name_placeholder: "الاسم الكامل"
+        emergency_contact_phone: "رقم هاتف للطوارئ"
+        emergency_contact_relationship: "صلة القرابة"
+        relationship_placeholder: "مثال: والد، زوج، أخ"
+        relationship_options:
+          - والد
+          - والدة
+          - أخ
+          - أخت
+          - زوج/زوجة
+          - قريب
+          - صديق
+        attendance_sources_hint: "حدّد كيف يُسمح لهذا الموظف بتسجيل حضوره. يجب تفعيل مصدر واحد على الأقل للموظفين الذين لديهم وردية."
+        allow_mobile_attendance: "السماح بالحضور من الموبايل"
+        allow_biometric_attendance: "السماح بالحضور من جهاز البصمة"
     branches:
       index:
         title: "الفروع"
@@ -969,6 +1007,8 @@ ar:
       employee_not_found: "الموظف غير موجود."
       invalid_timestamp: "الطابع الزمني مفقود أو غير صالح."
       stale_timestamp: "الطابع الزمني خارج نافذة القبول (24 ساعة)."
+      biometric_attendance_not_allowed: "هذا الموظف غير مسموح له باستخدام جهاز البصمة."
+      mobile_attendance_not_allowed: "حسابك غير مسموح له بتسجيل الحضور من الهاتف. تواصل مع مديرك."
 
   flash:
     errors_one: "خطأ واحد حال دون الحفظ:"
@@ -1020,6 +1060,12 @@ ar:
     biometric_device_updated: "تم تحديث الجهاز."
     biometric_device_deleted: "تم حذف الجهاز."
     token_regenerated: "تمت إعادة توليد الرمز. حدّث إعدادات الجهاز بالرمز الجديد."
+    mobile_attendance_disabled: "البصمة من التطبيق غير مفعلة لهذا الحساب."
+
+  pagination:
+    label: "التنقل بين الصفحات"
+    prev: "→ السابق"
+    next: "التالي ←"
 
   pwa:
     install_title: "تثبيت ووركبلس"
