@@ -1,0 +1,107 @@
+<% content_for :title, "#{@device.name} — WorkPulse" %>
+
+<div class="form-page">
+  <%= link_to admin_biometric_devices_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("admin.biometric_devices.back") %>
+  <% end %>
+
+  <div class="card">
+    <div class="card-header">
+      <h1 style="font-size:var(--text-xl)"><%= @device.name %></h1>
+      <span class="badge <%= @device.active? ? 'badge-success' : 'badge-neutral' %>">
+        <%= @device.active? ? t("admin.biometric_devices.active") : t("admin.biometric_devices.inactive") %>
+      </span>
+    </div>
+
+    <dl class="data-list">
+      <% if @device.location_note.present? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.biometric_devices.form.location_note") %></dt>
+          <dd class="data-list__value"><%= @device.location_note %></dd>
+        </div>
+      <% end %>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.biometric_devices.index.last_seen_header") %></dt>
+        <dd class="data-list__value">
+          <%= @device.last_seen_at ? l(@device.last_seen_at, format: :long) : t("admin.biometric_devices.never_seen") %>
+        </dd>
+      </div>
+    </dl>
+
+    <%# API Token — shown in a code block so admins can copy it %>
+    <div style="padding: var(--space-4); border-top: 1px solid var(--border);">
+      <p class="form-label" style="margin-bottom: var(--space-2);">
+        <%= t("admin.biometric_devices.show.token") %>
+      </p>
+      <code style="
+        display: block;
+        word-break: break-all;
+        background: var(--surface-2, #f4f4f5);
+        padding: var(--space-3);
+        border-radius: var(--radius);
+        font-size: var(--text-sm);
+        color: var(--text-1);
+      "><%= @device.token %></code>
+      <p class="form-hint" style="margin-top: var(--space-2);">
+        <%= t("admin.biometric_devices.show.token_hint") %>
+      </p>
+    </div>
+
+    <div class="form-actions">
+      <%= link_to t("forms.edit"), edit_admin_biometric_device_path(@device), class: "btn btn-primary" %>
+      <%= button_to t("admin.biometric_devices.show.regenerate"),
+            regenerate_token_admin_biometric_device_path(@device),
+            method: :patch,
+            data: { turbo_confirm: t("admin.biometric_devices.show.regenerate_confirm") },
+            class: "btn btn-secondary" %>
+      <%= button_to t("forms.delete"),
+            admin_biometric_device_path(@device),
+            method: :delete,
+            data: { turbo_confirm: t("forms.confirm_delete") },
+            class: "btn btn-danger" %>
+    </div>
+  </div>
+
+  <%# Recent punch logs for this device %>
+  <div class="card" style="margin-top: var(--space-6);">
+    <div class="card-header">
+      <h2 class="card-title" style="font-size: var(--text-lg);">
+        <%= t("admin.biometric_devices.show.recent_logs") %>
+      </h2>
+      <%= link_to t("admin.biometric_devices.show.view_all_logs"),
+            admin_biometric_punch_logs_path(device_id: @device.id),
+            class: "btn btn-sm btn-ghost" %>
+    </div>
+
+    <% recent_logs = @device.biometric_punch_logs.recent.includes(:employee).limit(10) %>
+    <% if recent_logs.empty? %>
+      <p style="padding: var(--space-4); color: var(--text-2);"><%= t("admin.biometric_punch_logs.index.empty") %></p>
+    <% else %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("admin.biometric_punch_logs.index.employee_header") %></th>
+              <th><%= t("admin.biometric_punch_logs.index.punched_at_header") %></th>
+              <th><%= t("admin.biometric_punch_logs.index.action_header") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% recent_logs.each do |log| %>
+              <tr>
+                <td><%= log.employee&.full_name || "—" %></td>
+                <td class="td-secondary"><%= l(log.punched_at, format: :short) %></td>
+                <td>
+                  <span class="badge <%= punch_log_badge_class(log.action) %>">
+                    <%= t("admin.biometric_punch_logs.action.#{log.action}") %>
+                  </span>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+</div>

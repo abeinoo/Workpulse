@@ -23,6 +23,7 @@ Rails.application.routes.draw do
       post "attendance/check_in",  to: "attendance#check_in"
       post "attendance/check_out", to: "attendance#check_out"
       get  "attendance/today",     to: "attendance#today"
+      post "attendance/punch",     to: "punches#create"
 
       resources :attendance_records, only: [ :index, :show, :update ]
 
@@ -82,6 +83,14 @@ Rails.application.routes.draw do
     end
 
     resources :attendance_records, only: [ :index, :show, :update ]
+
+    resources :biometric_devices do
+      member do
+        patch :regenerate_token
+      end
+    end
+
+    resources :biometric_punch_logs, only: [ :index, :show ]
 
     resources :payroll_periods, only: [ :index, :show ] do
       member do

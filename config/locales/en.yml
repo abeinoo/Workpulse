@@ -18,6 +18,8 @@ en:
     change_password: "Change Password"
     section_admin: "Admin"
     home: "Home"
+    biometric_devices: "Biometric Devices"
+    punch_logs: "Punch Logs"
 
   auth:
     sign_in:
@@ -625,6 +627,74 @@ en:
       submit_review: "Submit for Review"
 
   admin:
+    biometric_devices:
+      index:
+        title: "Biometric Devices"
+        page_title: "Biometric Devices — WorkPulse"
+        add: "Register Device"
+        empty: "No biometric devices registered yet."
+        status_header: "Status"
+        last_seen_header: "Last Seen"
+      show:
+        token: "API Token"
+        token_hint: "Include this in the request header: Authorization: Bearer <token>"
+        regenerate: "Regenerate Token"
+        regenerate_confirm: "This will invalidate the current token and the device will need to be reconfigured. Continue?"
+        recent_logs: "Recent Punch Logs"
+        view_all_logs: "View All"
+      new:
+        title: "Register Biometric Device"
+        page_title: "Register Device — WorkPulse"
+        hint: "After saving, you will see the API token to configure on the device."
+      edit:
+        title: "Edit Device"
+        page_title: "Edit Device — WorkPulse"
+      form:
+        name: "Device Name"
+        location_note: "Location Note"
+        location_placeholder: "e.g. Main entrance, Floor 2"
+        location_hint: "Optional label for where this device is installed."
+        active: "Active"
+        submit: "Register Device"
+      active: "Active"
+      inactive: "Inactive"
+      never_seen: "Never"
+      back: "Back to Devices"
+    biometric_punch_logs:
+      index:
+        title: "Punch Logs"
+        page_title: "Punch Logs — WorkPulse"
+        empty: "No punch logs found."
+        employee_header: "Employee"
+        device_header: "Device"
+        punched_at_header: "Punch Time"
+        work_date_header: "Work Date"
+        action_header: "Result"
+        filter_device: "Device"
+        filter_action: "Result"
+        all_devices: "All Devices"
+        all_actions: "All Results"
+      show:
+        title: "Punch Log"
+        page_title: "Punch Log — WorkPulse"
+        employee: "Employee"
+        device: "Device"
+        punched_at: "Punch Time"
+        received_at: "Received At"
+        work_date: "Work Date"
+        ip_address: "IP Address"
+        attendance_record: "Attendance Record"
+        record_id: "Record"
+        error: "Error"
+        raw_payload: "Raw Payload"
+      action:
+        check_in: "Check-in"
+        check_in_updated: "Check-in (updated)"
+        check_out: "Check-out"
+        rejected_no_assignment: "Rejected — no shift"
+        rejected_spam: "Rejected — duplicate"
+        error: "Error"
+      back: "Back to Logs"
     dashboard:
       title: "Admin Dashboard"
       page_title: "Admin Dashboard — WorkPulse"
@@ -890,6 +960,15 @@ en:
     all: "All"
     select: "Select…"
     optional: "(optional)"
+    view: "View"
+    clear: "Clear"
+
+  api:
+    punch:
+      no_shift_assignment: "No active shift assignment for this work date."
+      employee_not_found: "Employee not found."
+      invalid_timestamp: "Invalid or missing timestamp."
+      stale_timestamp: "Timestamp is outside the accepted 24-hour window."
 
   flash:
     errors_one: "1 error prevented this from saving:"
@@ -937,6 +1016,10 @@ en:
     locale_updated: "Language updated."
     password_changed: "Your password has been updated."
     password_reset: "Password has been reset successfully."
+    biometric_device_created: "Device registered. Copy the API token from the device details page."
+    biometric_device_updated: "Device updated."
+    biometric_device_deleted: "Device removed."
+    token_regenerated: "Token regenerated. Update the device configuration with the new token."
 
   pwa:
     install_title: "Install WorkPulse"

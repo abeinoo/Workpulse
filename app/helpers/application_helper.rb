@@ -95,6 +95,17 @@ module ApplicationHelper
     end
   end
 
+  def punch_log_badge_class(action)
+    case action
+    when "check_in", "check_in_updated" then "badge-success"
+    when "check_out"                    then "badge-accent"
+    when "rejected_spam"                then "badge-neutral"
+    when "rejected_no_assignment"       then "badge-warning"
+    when "error"                        then "badge-danger"
+    else                                     "badge-neutral"
+    end
+  end
+
   # Formats a minutes integer as "Xh Ym" (e.g. 90 → "1h 30m").
   # Returns "—" for nil/zero.
   def format_minutes(minutes)

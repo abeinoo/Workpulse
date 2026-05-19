@@ -1,8 +1,10 @@
 class Business < ApplicationRecord
-  has_many :branches,        dependent: :destroy
-  has_many :users,           dependent: :destroy
-  has_many :shifts,          dependent: :destroy
-  has_many :payroll_periods, dependent: :destroy
+  has_many :branches,             dependent: :destroy
+  has_many :users,                dependent: :destroy
+  has_many :shifts,               dependent: :destroy
+  has_many :payroll_periods,      dependent: :destroy
+  has_many :biometric_devices,    dependent: :destroy
+  has_many :biometric_punch_logs, dependent: :destroy
 
   serialize :settings, coder: JSON
 

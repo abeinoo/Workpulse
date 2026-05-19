@@ -1,0 +1,47 @@
+<% content_for :title, t("admin.biometric_devices.index.page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("admin.biometric_devices.index.title") %></h1>
+    <%= link_to t("admin.biometric_devices.index.add"), new_admin_biometric_device_path, class: "btn btn-primary btn-sm" %>
+  </div>
+
+  <% if @devices.empty? %>
+    <p style="color: var(--text-2); padding: var(--space-6) 0;"><%= t("admin.biometric_devices.index.empty") %></p>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("admin.biometric_devices.form.name") %></th>
+            <th><%= t("admin.biometric_devices.form.location_note") %></th>
+            <th><%= t("admin.biometric_devices.index.status_header") %></th>
+            <th><%= t("admin.biometric_devices.index.last_seen_header") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @devices.each do |device| %>
+            <tr>
+              <td><%= link_to device.name, admin_biometric_device_path(device), class: "link" %></td>
+              <td class="td-secondary"><%= device.location_note.presence || "—" %></td>
+              <td>
+                <span class="badge <%= device.active? ? 'badge-success' : 'badge-neutral' %>">
+                  <%= device.active? ? t("admin.biometric_devices.active") : t("admin.biometric_devices.inactive") %>
+                </span>
+              </td>
+              <td class="td-secondary">
+                <%= device.last_seen_at ? l(device.last_seen_at, format: :short) : t("admin.biometric_devices.never_seen") %>
+              </td>
+              <td class="td-actions">
+                <%= link_to t("forms.edit"), edit_admin_biometric_device_path(device), class: "link-muted" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+</div>

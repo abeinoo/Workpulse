@@ -1,0 +1,89 @@
+<% content_for :title, t("admin.biometric_punch_logs.show.page_title") %>
+
+<div class="form-page">
+  <%= link_to admin_biometric_punch_logs_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("admin.biometric_punch_logs.back") %>
+  <% end %>
+
+  <div class="card">
+    <div class="card-header">
+      <h1 style="font-size: var(--text-xl)"><%= t("admin.biometric_punch_logs.show.title") %></h1>
+      <span class="badge <%= punch_log_badge_class(@log.action) %>">
+        <%= t("admin.biometric_punch_logs.action.#{@log.action}") %>
+      </span>
+    </div>
+
+    <dl class="data-list">
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.employee") %></dt>
+        <dd class="data-list__value">
+          <% if @log.employee %>
+            <%= link_to @log.employee.full_name, admin_user_path(@log.employee), class: "link" %>
+          <% else %>
+            <span class="td-secondary">—</span>
+          <% end %>
+        </dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.device") %></dt>
+        <dd class="data-list__value">
+          <% if @log.biometric_device %>
+            <%= link_to @log.biometric_device.name, admin_biometric_device_path(@log.biometric_device), class: "link" %>
+          <% else %>
+            <span class="td-secondary">—</span>
+          <% end %>
+        </dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.punched_at") %></dt>
+        <dd class="data-list__value"><%= l(@log.punched_at, format: :long) %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.received_at") %></dt>
+        <dd class="data-list__value"><%= l(@log.received_at, format: :long) %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.work_date") %></dt>
+        <dd class="data-list__value"><%= @log.work_date&.strftime("%d %b %Y") || "—" %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.ip_address") %></dt>
+        <dd class="data-list__value"><%= @log.ip_address.presence || "—" %></dd>
+      </div>
+      <% if @log.attendance_record %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.attendance_record") %></dt>
+          <dd class="data-list__value">
+            <%= link_to "#{t('admin.biometric_punch_logs.show.record_id')} ##{@log.attendance_record.id}",
+                  admin_attendance_record_path(@log.attendance_record), class: "link" %>
+          </dd>
+        </div>
+      <% end %>
+      <% if @log.error_message.present? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.error") %></dt>
+          <dd class="data-list__value" style="color: var(--color-danger);">
+            <%= @log.error_message %>
+          </dd>
+        </div>
+      <% end %>
+      <% if @log.raw_payload.present? %>
+        <div class="data-list__item" style="flex-direction: column; align-items: flex-start; gap: var(--space-2);">
+          <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.raw_payload") %></dt>
+          <dd style="width: 100%;">
+            <code style="
+              display: block;
+              word-break: break-all;
+              white-space: pre-wrap;
+              background: var(--surface-2, #f4f4f5);
+              padding: var(--space-3);
+              border-radius: var(--radius);
+              font-size: var(--text-sm);
+            "><%= @log.raw_payload %></code>
+          </dd>
+        </div>
+      <% end %>
+    </dl>
+  </div>
+</div>

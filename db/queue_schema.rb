@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_17_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_17_210001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -65,6 +65,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_200000) do
     t.index ["user_id", "status"], name: "index_attendance_records_on_user_id_and_status"
     t.index ["user_id", "work_date"], name: "index_attendance_records_on_user_id_and_work_date", unique: true
     t.index ["user_id"], name: "index_attendance_records_on_user_id"
+  end
+
+  create_table "biometric_devices", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "last_seen_at"
+    t.string "location_note"
+    t.string "name", null: false
+    t.string "token", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_biometric_devices_on_business_id_and_name", unique: true
+    t.index ["business_id"], name: "index_biometric_devices_on_business_id"
+    t.index ["token"], name: "index_biometric_devices_on_token", unique: true
+  end
+
+  create_table "biometric_punch_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "attendance_record_id"
+    t.bigint "biometric_device_id"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "employee_id"
+    t.text "error_message"
+    t.string "ip_address"
+    t.datetime "punched_at", null: false
+    t.text "raw_payload"
+    t.datetime "received_at", null: false
+    t.datetime "updated_at", null: false
+    t.date "work_date"
+    t.index ["action"], name: "index_biometric_punch_logs_on_action"
+    t.index ["attendance_record_id"], name: "index_biometric_punch_logs_on_attendance_record_id"
+    t.index ["biometric_device_id"], name: "index_biometric_punch_logs_on_biometric_device_id"
+    t.index ["business_id"], name: "index_biometric_punch_logs_on_business_id"
+    t.index ["employee_id", "punched_at"], name: "index_biometric_punch_logs_on_employee_id_and_punched_at"
+    t.index ["employee_id"], name: "index_biometric_punch_logs_on_employee_id"
+    t.index ["punched_at"], name: "index_biometric_punch_logs_on_punched_at"
+    t.index ["received_at"], name: "index_biometric_punch_logs_on_received_at"
   end
 
   create_table "branches", force: :cascade do |t|
@@ -500,6 +538,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_17_200000) do
   add_foreign_key "attendance_records", "branches"
   add_foreign_key "attendance_records", "shift_assignments"
   add_foreign_key "attendance_records", "users"
+  add_foreign_key "biometric_devices", "businesses"
+  add_foreign_key "biometric_punch_logs", "attendance_records"
+  add_foreign_key "biometric_punch_logs", "biometric_devices"
+  add_foreign_key "biometric_punch_logs", "businesses"
+  add_foreign_key "biometric_punch_logs", "users", column: "employee_id"
   add_foreign_key "branches", "businesses"
   add_foreign_key "branches", "users", column: "area_manager_id"
   add_foreign_key "branches", "users", column: "branch_manager_id"

@@ -18,6 +18,8 @@ ar:
     change_password: "تغيير كلمة المرور"
     section_admin: "الإدارة"
     home: "الرئيسية"
+    biometric_devices: "الأجهزة البيومترية"
+    punch_logs: "سجلات البصمة"
 
   auth:
     sign_in:
@@ -625,6 +627,74 @@ ar:
       submit_review: "إرسال للمراجعة"
 
   admin:
+    biometric_devices:
+      index:
+        title: "الأجهزة البيومترية"
+        page_title: "الأجهزة البيومترية — ووركبلس"
+        add: "تسجيل جهاز"
+        empty: "لا توجد أجهزة بيومترية مسجّلة."
+        status_header: "الحالة"
+        last_seen_header: "آخر ظهور"
+      show:
+        token: "رمز API"
+        token_hint: "أضفه في ترويسة الطلب: Authorization: Bearer <token>"
+        regenerate: "إعادة توليد الرمز"
+        regenerate_confirm: "سيُبطل هذا الرمز الحالي ويحتاج الجهاز لإعادة ضبط. المتابعة؟"
+        recent_logs: "سجلات البصمة الأخيرة"
+        view_all_logs: "عرض الكل"
+      new:
+        title: "تسجيل جهاز بيومتري"
+        page_title: "تسجيل جهاز — ووركبلس"
+        hint: "بعد الحفظ، ستظهر رمز API لضبطه على الجهاز."
+      edit:
+        title: "تعديل الجهاز"
+        page_title: "تعديل الجهاز — ووركبلس"
+      form:
+        name: "اسم الجهاز"
+        location_note: "ملاحظة الموقع"
+        location_placeholder: "مثل: المدخل الرئيسي، الطابق الثاني"
+        location_hint: "تسمية اختيارية لمكان تركيب الجهاز."
+        active: "نشط"
+        submit: "تسجيل الجهاز"
+      active: "نشط"
+      inactive: "غير نشط"
+      never_seen: "لم يُستخدم"
+      back: "الرجوع للأجهزة"
+    biometric_punch_logs:
+      index:
+        title: "سجلات البصمة"
+        page_title: "سجلات البصمة — ووركبلس"
+        empty: "لا توجد سجلات."
+        employee_header: "الموظف"
+        device_header: "الجهاز"
+        punched_at_header: "وقت البصمة"
+        work_date_header: "تاريخ العمل"
+        action_header: "النتيجة"
+        filter_device: "الجهاز"
+        filter_action: "النتيجة"
+        all_devices: "جميع الأجهزة"
+        all_actions: "جميع النتائج"
+      show:
+        title: "تفاصيل البصمة"
+        page_title: "تفاصيل البصمة — ووركبلس"
+        employee: "الموظف"
+        device: "الجهاز"
+        punched_at: "وقت البصمة"
+        received_at: "وقت الاستلام"
+        work_date: "تاريخ العمل"
+        ip_address: "عنوان IP"
+        attendance_record: "سجل الحضور"
+        record_id: "سجل"
+        error: "الخطأ"
+        raw_payload: "البيانات الخام"
+      action:
+        check_in: "تسجيل حضور"
+        check_in_updated: "تحديث وقت الحضور"
+        check_out: "تسجيل انصراف"
+        rejected_no_assignment: "مرفوض — لا وردية"
+        rejected_spam: "مرفوض — مكرر"
+        error: "خطأ"
+      back: "الرجوع للسجلات"
     dashboard:
       title: "لوحة تحكم الإدارة"
       page_title: "لوحة تحكم الإدارة — ووركبلس"
@@ -890,6 +960,15 @@ ar:
     all: "الكل"
     select: "اختر…"
     optional: "(اختياري)"
+    view: "عرض"
+    clear: "مسح"
+
+  api:
+    punch:
+      no_shift_assignment: "لا يوجد تعيين وردية نشط لتاريخ العمل هذا."
+      employee_not_found: "الموظف غير موجود."
+      invalid_timestamp: "الطابع الزمني مفقود أو غير صالح."
+      stale_timestamp: "الطابع الزمني خارج نافذة القبول (24 ساعة)."
 
   flash:
     errors_one: "خطأ واحد حال دون الحفظ:"
@@ -937,6 +1016,10 @@ ar:
     locale_updated: "تم تحديث اللغة."
     password_changed: "تم تحديث كلمة المرور بنجاح."
     password_reset: "تمت إعادة تعيين كلمة المرور بنجاح."
+    biometric_device_created: "تم تسجيل الجهاز. انسخ رمز API من صفحة تفاصيل الجهاز."
+    biometric_device_updated: "تم تحديث الجهاز."
+    biometric_device_deleted: "تم حذف الجهاز."
+    token_regenerated: "تمت إعادة توليد الرمز. حدّث إعدادات الجهاز بالرمز الجديد."
 
   pwa:
     install_title: "تثبيت ووركبلس"

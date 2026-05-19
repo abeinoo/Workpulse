@@ -119,6 +119,20 @@
         <%= t("nav.payroll") %>
       <% end %>
 
+      <%= link_to admin_biometric_devices_path,
+            class: "sidebar__nav-item #{request.path.start_with?('/admin/biometric_devices') ? 'is-active' : ''}",
+            data: { action: "click->sidebar#close" } do %>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="3"/></svg>
+        <%= t("nav.biometric_devices") %>
+      <% end %>
+
+      <%= link_to admin_biometric_punch_logs_path,
+            class: "sidebar__nav-item #{request.path.start_with?('/admin/biometric_punch_logs') ? 'is-active' : ''}",
+            data: { action: "click->sidebar#close" } do %>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <%= t("nav.punch_logs") %>
+      <% end %>
+
       <%= link_to admin_settings_path,
             class: "sidebar__nav-item #{request.path.start_with?('/admin/settings') ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>

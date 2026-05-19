@@ -1,0 +1,81 @@
+<% content_for :title, t("admin.biometric_punch_logs.index.page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("admin.biometric_punch_logs.index.title") %></h1>
+  </div>
+
+  <%# Filters %>
+  <div class="card" style="margin-bottom: var(--space-4);">
+    <%= form_with url: admin_biometric_punch_logs_path, method: :get, class: "form-grid", data: { turbo: false } do |f| %>
+      <div class="form-group">
+        <%= f.label :device_id, t("admin.biometric_punch_logs.index.filter_device"), class: "form-label" %>
+        <%= f.select :device_id,
+              options_for_select(@devices.map { |d| [d.name, d.id] }, params[:device_id]),
+              { include_blank: t("admin.biometric_punch_logs.index.all_devices") },
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :action_filter, t("admin.biometric_punch_logs.index.filter_action"), class: "form-label" %>
+        <%= f.select :action_filter,
+              options_for_select(
+                BiometricPunchLog::ACTIONS.map { |a| [t("admin.biometric_punch_logs.action.#{a}"), a] },
+                params[:action_filter]
+              ),
+              { include_blank: t("admin.biometric_punch_logs.index.all_actions") },
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group" style="align-self: flex-end;">
+        <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
+        <%= link_to t("forms.clear"), admin_biometric_punch_logs_path, class: "btn btn-ghost btn-sm" %>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @logs.empty? %>
+    <p style="color: var(--text-2); padding: var(--space-6) 0;"><%= t("admin.biometric_punch_logs.index.empty") %></p>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("admin.biometric_punch_logs.index.employee_header") %></th>
+            <th><%= t("admin.biometric_punch_logs.index.device_header") %></th>
+            <th><%= t("admin.biometric_punch_logs.index.punched_at_header") %></th>
+            <th><%= t("admin.biometric_punch_logs.index.work_date_header") %></th>
+            <th><%= t("admin.biometric_punch_logs.index.action_header") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @logs.each do |log| %>
+            <tr>
+              <td>
+                <% if log.employee %>
+                  <%= link_to log.employee.full_name, admin_user_path(log.employee), class: "link" %>
+                <% else %>
+                  <span class="td-secondary">—</span>
+                <% end %>
+              </td>
+              <td class="td-secondary"><%= log.biometric_device&.name || "—" %></td>
+              <td class="td-secondary"><%= l(log.punched_at, format: :short) %></td>
+              <td class="td-secondary"><%= log.work_date&.strftime("%d %b %Y") || "—" %></td>
+              <td>
+                <span class="badge <%= punch_log_badge_class(log.action) %>">
+                  <%= t("admin.biometric_punch_logs.action.#{log.action}") %>
+                </span>
+              </td>
+              <td class="td-actions">
+                <%= link_to t("forms.view"), admin_biometric_punch_log_path(log), class: "link-muted" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+</div>

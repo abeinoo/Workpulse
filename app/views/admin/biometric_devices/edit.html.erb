@@ -1,0 +1,12 @@
+<% content_for :title, t("admin.biometric_devices.edit.page_title") %>
+
+<div class="form-page">
+  <%= link_to admin_biometric_device_path(@device), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= @device.name %>
+  <% end %>
+
+  <h1 class="page-title mb-6"><%= t("admin.biometric_devices.edit.title") %></h1>
+
+  <%= render "form", device: @device %>
+</div>

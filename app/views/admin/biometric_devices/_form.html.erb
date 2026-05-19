@@ -1,0 +1,34 @@
+<%= form_with model: [:admin, device], class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: device %>
+
+  <div class="form-grid">
+    <div class="form-group form-group--full">
+      <%= f.label :name, t("admin.biometric_devices.form.name"), class: "form-label form-label--required" %>
+      <%= f.text_field :name, class: "form-control", autocomplete: "off" %>
+    </div>
+
+    <div class="form-group form-group--full">
+      <%= f.label :location_note, t("admin.biometric_devices.form.location_note"), class: "form-label" %>
+      <%= f.text_field :location_note, class: "form-control",
+            placeholder: t("admin.biometric_devices.form.location_placeholder") %>
+      <p class="form-hint"><%= t("admin.biometric_devices.form.location_hint") %></p>
+    </div>
+
+    <% if device.persisted? %>
+      <div class="form-group">
+        <div class="form-check">
+          <%= f.check_box :active, class: "form-check-input" %>
+          <%= f.label :active, t("admin.biometric_devices.form.active"), class: "form-check-label" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit device.persisted? ? t("forms.save") : t("admin.biometric_devices.form.submit"),
+          class: "btn btn-primary" %>
+    <%= link_to t("forms.cancel"),
+          device.persisted? ? admin_biometric_device_path(device) : admin_biometric_devices_path,
+          class: "btn btn-ghost" %>
+  </div>
+<% end %>
