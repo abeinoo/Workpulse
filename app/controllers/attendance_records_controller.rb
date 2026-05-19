@@ -8,7 +8,8 @@ class AttendanceRecordsController < ApplicationController
     scope = policy_scope(AttendanceRecord)
               .includes(:branch, :user, shift_assignment: :shift)
 
-    scope = apply_filters(scope)
+    manager = current_user.super_admin? || current_user.area_manager? || current_user.branch_manager?
+    scope = apply_filters(scope) if manager
 
     @total_count  = scope.count
     @page         = [ (params[:page] || 1).to_i, 1 ].max
@@ -22,8 +23,8 @@ class AttendanceRecordsController < ApplicationController
                     .offset((@page - 1) * PER_PAGE)
                     .limit(PER_PAGE)
 
-    @filter_branches = visible_branches
-    @filter_shifts   = current_user.business.shifts.active.order(:name)
+    @filter_branches = manager ? visible_branches : Branch.none
+    @filter_shifts   = manager ? current_user.business.shifts.active.order(:name) : Shift.none
   end
 
   def show
@@ -82,10 +83,10 @@ class AttendanceRecordsController < ApplicationController
                    .where(shift_assignments: { shift_id: params[:shift_id] })
     end
 
-    scope = scope.where(status: "late")   if params[:late].present?
-    scope = scope.where(check_out_at: nil) if params[:missing_checkout].present?
+    scope = scope.where(status: "late")   if params[:late] == "1"
+    scope = scope.where(check_out_at: nil) if params[:missing_checkout] == "1"
 
-    if params[:overnight].present?
+    if params[:overnight] == "1"
       # Overnight: check_out_at exists on a later calendar day than the work_date
       scope = scope.where.not(check_out_at: nil)
                    .where("DATE(check_out_at) > work_date")

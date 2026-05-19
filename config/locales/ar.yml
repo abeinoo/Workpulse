@@ -213,7 +213,6 @@ ar:
       all_branches: "جميع الفروع"
       all_shifts: "جميع الورديات"
       all_statuses: "جميع الحالات"
-      overnight: "عبر منتصف الليل"
       overnight_title: "وردية ليلية — تسجيل الخروج كان في اليوم التالي"
       open: "مفتوح"
       filter_employee: "الموظف"

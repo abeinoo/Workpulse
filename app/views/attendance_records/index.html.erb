@@ -7,7 +7,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title"><%= t("attendance.admin_index.title") %></h1>
-      <% if params[:user_id].present? && @records.any? %>
+      <% if can_manage && params[:user_id].present? && @records.any? %>
         <p class="page-subtitle">
           <%= t("attendance.records.showing_for", name: @records.first.user.full_name) %>
           &ensp;
@@ -17,97 +17,97 @@
     </div>
   </div>
 
-  <%# ── Filter bar ─────────────────────────────────────────────────────── %>
-  <%= form_with url: attendance_records_path, method: :get, local: true, class: "filter-bar" do |f| %>
-    <div class="filter-bar__fields">
+  <%# ── Filter bar — visible to managers only ──────────────────────────── %>
+  <% if can_manage %>
+    <%= form_with url: attendance_records_path, method: :get, local: true, class: "filter-bar" do |f| %>
+      <div class="filter-bar__fields">
 
-      <%# Employee search %>
-      <% if can_manage %>
+        <%# Employee search %>
         <div class="filter-bar__field">
           <%= f.label :q, t("attendance.records.filter_employee"), class: "filter-bar__label" %>
           <%= f.search_field :q, value: params[:q],
                 placeholder: t("attendance.records.search_placeholder"),
                 class: "filter-bar__input" %>
         </div>
-      <% end %>
 
-      <%# Branch filter %>
-      <% if @filter_branches.any? %>
+        <%# Branch filter %>
+        <% if @filter_branches.any? %>
+          <div class="filter-bar__field">
+            <%= f.label :branch_id, t("attendance.branch"), class: "filter-bar__label" %>
+            <%= f.select :branch_id,
+                  options_for_select(
+                    [[t("attendance.records.all_branches"), ""]] +
+                      @filter_branches.map { |b| [b.name, b.id] },
+                    params[:branch_id]
+                  ),
+                  {},
+                  class: "filter-bar__select" %>
+          </div>
+        <% end %>
+
+        <%# Shift filter %>
+        <% if @filter_shifts.any? %>
+          <div class="filter-bar__field">
+            <%= f.label :shift_id, t("attendance.shift"), class: "filter-bar__label" %>
+            <%= f.select :shift_id,
+                  options_for_select(
+                    [[t("attendance.records.all_shifts"), ""]] +
+                      @filter_shifts.map { |s| [s.name, s.id] },
+                    params[:shift_id]
+                  ),
+                  {},
+                  class: "filter-bar__select" %>
+          </div>
+        <% end %>
+
+        <%# Status filter %>
         <div class="filter-bar__field">
-          <%= f.label :branch_id, t("attendance.branch"), class: "filter-bar__label" %>
-          <%= f.select :branch_id,
+          <%= f.label :status, t("attendance.status"), class: "filter-bar__label" %>
+          <%= f.select :status,
                 options_for_select(
-                  [[t("attendance.records.all_branches"), ""]] +
-                    @filter_branches.map { |b| [b.name, b.id] },
-                  params[:branch_id]
+                  [[t("attendance.records.all_statuses"), ""]] +
+                    AttendanceRecord.statuses.keys.map { |s|
+                      [t("attendance.statuses.#{s}", default: s.humanize), s]
+                    },
+                  params[:status]
                 ),
                 {},
                 class: "filter-bar__select" %>
         </div>
-      <% end %>
 
-      <%# Shift filter %>
-      <% if @filter_shifts.any? %>
+        <%# Date range %>
         <div class="filter-bar__field">
-          <%= f.label :shift_id, t("attendance.shift"), class: "filter-bar__label" %>
-          <%= f.select :shift_id,
-                options_for_select(
-                  [[t("attendance.records.all_shifts"), ""]] +
-                    @filter_shifts.map { |s| [s.name, s.id] },
-                  params[:shift_id]
-                ),
-                {},
-                class: "filter-bar__select" %>
+          <%= f.label :date_from, t("attendance.records.date_from"), class: "filter-bar__label" %>
+          <%= f.date_field :date_from, value: params[:date_from], class: "filter-bar__input" %>
         </div>
-      <% end %>
+        <div class="filter-bar__field">
+          <%= f.label :date_to, t("attendance.records.date_to"), class: "filter-bar__label" %>
+          <%= f.date_field :date_to, value: params[:date_to], class: "filter-bar__input" %>
+        </div>
 
-      <%# Status filter %>
-      <div class="filter-bar__field">
-        <%= f.label :status, t("attendance.status"), class: "filter-bar__label" %>
-        <%= f.select :status,
-              options_for_select(
-                [[t("attendance.records.all_statuses"), ""]] +
-                  AttendanceRecord.statuses.keys.map { |s|
-                    [t("attendance.statuses.#{s}", default: s.humanize), s]
-                  },
-                params[:status]
-              ),
-              {},
-              class: "filter-bar__select" %>
       </div>
 
-      <%# Date range %>
-      <div class="filter-bar__field">
-        <%= f.label :date_from, t("attendance.records.date_from"), class: "filter-bar__label" %>
-        <%= f.date_field :date_from, value: params[:date_from], class: "filter-bar__input" %>
+      <%# Toggle flags — use check_box_tag (no hidden "0" field, clean uncheck behavior) %>
+      <div class="filter-bar__toggles">
+        <label class="filter-toggle">
+          <%= check_box_tag :late, "1", params[:late] == "1" %>
+          <span><%= t("attendance.records.filter_late") %></span>
+        </label>
+        <label class="filter-toggle">
+          <%= check_box_tag :missing_checkout, "1", params[:missing_checkout] == "1" %>
+          <span><%= t("attendance.records.filter_missing_checkout") %></span>
+        </label>
+        <label class="filter-toggle">
+          <%= check_box_tag :overnight, "1", params[:overnight] == "1" %>
+          <span><%= t("attendance.records.filter_overnight") %></span>
+        </label>
       </div>
-      <div class="filter-bar__field">
-        <%= f.label :date_to, t("attendance.records.date_to"), class: "filter-bar__label" %>
-        <%= f.date_field :date_to, value: params[:date_to], class: "filter-bar__input" %>
+
+      <div class="filter-bar__actions">
+        <%= f.submit t("forms.filter"), class: "btn btn-sm btn-primary" %>
+        <%= link_to t("attendance.records.clear"), attendance_records_path, class: "btn btn-sm btn-ghost" %>
       </div>
-
-    </div>
-
-    <%# Toggle flags %>
-    <div class="filter-bar__toggles">
-      <label class="filter-toggle">
-        <%= f.check_box :late, checked: params[:late].present? %>
-        <span><%= t("attendance.records.filter_late") %></span>
-      </label>
-      <label class="filter-toggle">
-        <%= f.check_box :missing_checkout, checked: params[:missing_checkout].present? %>
-        <span><%= t("attendance.records.filter_missing_checkout") %></span>
-      </label>
-      <label class="filter-toggle">
-        <%= f.check_box :overnight, checked: params[:overnight].present? %>
-        <span><%= t("attendance.records.filter_overnight") %></span>
-      </label>
-    </div>
-
-    <div class="filter-bar__actions">
-      <%= f.submit t("filter"), class: "btn btn-sm btn-primary" %>
-      <%= link_to t("attendance.records.clear"), attendance_records_path, class: "btn btn-sm btn-ghost" %>
-    </div>
+    <% end %>
   <% end %>
 
   <%# ── Results summary ────────────────────────────────────────────────── %>
@@ -210,7 +210,7 @@
       <% if @page > 1 %>
         <%= link_to t("pagination.prev"),
               attendance_records_path(request.query_parameters.merge(page: @page - 1)),
-              class: "pagination__btn" %>
+              class: "pagination__btn pagination__btn--prev" %>
       <% end %>
 
       <% start_page = [[@page - 2, 1].max, [@total_pages - 4, 1].max].min
@@ -237,7 +237,7 @@
       <% if @page < @total_pages %>
         <%= link_to t("pagination.next"),
               attendance_records_path(request.query_parameters.merge(page: @page + 1)),
-              class: "pagination__btn" %>
+              class: "pagination__btn pagination__btn--next" %>
       <% end %>
     </nav>
   <% end %>

@@ -3098,8 +3098,8 @@ body.is-authenticated {
   direction: rtl;
 }
 
-[dir="rtl"] .pagination__btn:first-child,
-[dir="rtl"] .pagination__btn:last-child {
+[dir="rtl"] .pagination__btn--prev,
+[dir="rtl"] .pagination__btn--next {
   transform: scaleX(-1);
 }
 
@@ -3272,36 +3272,9 @@ body.is-authenticated {
   direction: rtl;
 }
 
-/* Salary profile history table: responsive on small screens */
-@media (max-width: 600px) {
-  .table-wrap--cards table thead {
-    display: none;
-  }
-  .table-wrap--cards table tr {
-    display: block;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    margin-bottom: var(--space-3);
-    padding: var(--space-3);
-  }
-  .table-wrap--cards table td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-1) 0;
-    border: none;
-    font-size: var(--text-sm);
-  }
-  .table-wrap--cards table td::before {
-    content: attr(data-label);
-    font-weight: 600;
-    color: var(--text-2);
-    font-size: var(--text-xs);
-  }
-  [dir="rtl"] .table-wrap--cards table td {
-    flex-direction: row-reverse;
-  }
-}
+/* Legacy 600px block removed — superseded by the comprehensive 640px card-table
+   block below. Keeping a single definition avoids ::before pseudo-element
+   conflicts that caused invisible content on mobile. */
 
 /* Back-link chevron: flip from left-pointing to right-pointing in RTL */
 [dir="rtl"] .back-link svg {
@@ -3396,6 +3369,34 @@ table {
   .accountant-dashboard__stats {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  /* Filter bar: single column on narrow screens */
+  .filter-bar__fields {
+    grid-template-columns: 1fr;
+  }
+
+  /* Full-width action row on mobile */
+  .filter-bar__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-bar__actions .btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* iOS/Android: normalise select appearance so our border/bg styling shows */
+  .filter-bar__select {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Toggles: tighten spacing so they wrap cleanly in 2 columns */
+  .filter-bar__toggles {
+    gap: var(--space-3) var(--space-5);
+  }
 }
 
 @media (max-width: 480px) {
@@ -3472,6 +3473,13 @@ table {
   /* Branch picker buttons in RTL */
   [dir="rtl"] .branch-picker__btn {
     flex-direction: row-reverse;
+  }
+
+  /* Filter bar RTL: fields already direction:rtl from base rule; ensure select arrow flips */
+  [dir="rtl"] .filter-bar__select {
+    background-position: left 12px center;
+    padding-right: var(--space-3);
+    padding-left: 40px;
   }
 }
 
