@@ -1,4 +1,4 @@
-<% content_for :title, "#{@user.full_name} — WorkPulse" %>
+<% content_for :title, t("admin.users.show.page_title", name: @user.full_name) %>
 
 <div class="form-page">
   <%= link_to admin_users_path, class: "back-link" do %>
@@ -14,7 +14,7 @@
         </div>
         <div>
           <h1 style="font-size:var(--text-xl);margin-bottom:2px;"><%= @user.full_name %></h1>
-          <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;"><%= @user.permission_role&.name || (@user.owner? ? "Super Admin" : "—") %></p>
+          <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;"><%= @user.permission_role&.name || (@user.owner? ? t("admin.users.super_admin_role") : "—") %></p>
         </div>
       </div>
       <% if @user.active? %>

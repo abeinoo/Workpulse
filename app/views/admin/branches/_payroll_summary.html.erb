@@ -27,7 +27,7 @@
       <p class="stat-card__label"><%= t("admin.branches.period_status") %></p>
       <p class="stat-card__value" style="font-size: var(--text-base); padding-top: var(--space-1);">
         <span class="badge <%= @payroll_period.paid? ? 'badge-success' : @payroll_period.finalized? ? 'badge-accent' : 'badge-neutral' %>">
-          <%= @payroll_period.status.humanize %>
+          <%= t("payroll.statuses.#{@payroll_period.status}") %>
         </span>
       </p>
     </div>
@@ -73,7 +73,7 @@
               </td>
               <td>
                 <span class="badge <%= entry.approved? ? 'badge-accent' : entry.disputed? ? 'badge-danger' : 'badge-neutral' %>">
-                  <%= entry.status.humanize %>
+                  <%= t("payroll.entry_statuses.#{entry.status}") %>
                 </span>
               </td>
             </tr>

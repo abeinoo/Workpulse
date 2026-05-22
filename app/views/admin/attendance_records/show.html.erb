@@ -1,4 +1,4 @@
-<% content_for :title, "Attendance Record — WorkPulse" %>
+<% content_for :title, t("admin.attendance_records.show.page_title") %>
 
 <% if @record.check_in_latitude.present? %>
   <% content_for :head do %>
@@ -17,7 +17,7 @@
 
   <div class="page-header">
     <div>
-      <h1 class="page-title"><%= @record.date.strftime("%B %-d, %Y") %></h1>
+      <h1 class="page-title"><%= l(@record.date, format: :long) %></h1>
       <p class="page-subtitle"><%= @record.user.full_name %> &mdash; <%= @record.branch.name %></p>
     </div>
     <span class="badge <%= @record.present? ? 'badge-success' : @record.late? ? 'badge-warning' : 'badge-neutral' %>">
@@ -113,7 +113,7 @@
       <div class="form-group">
         <%= f.label :status, t("attendance.status"), class: "form-label" %>
         <%= f.select :status,
-              AttendanceRecord.statuses.keys.map { |s| [s.humanize, s] },
+              AttendanceRecord.statuses.keys.map { |s| [t("attendance.statuses.#{s}"), s] },
               { selected: @record.status },
               class: "form-control" %>
       </div>

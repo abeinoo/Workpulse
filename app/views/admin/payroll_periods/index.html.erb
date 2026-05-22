@@ -21,7 +21,7 @@
             <td class="td-secondary"><%= period.branch&.name || t("payroll.all_branches") %></td>
             <td>
               <span class="badge <%= period_status_badge_class(period) %>">
-                <%= period.status.humanize %>
+                <%= t("payroll.statuses.#{period.status}") %>
               </span>
             </td>
             <td class="td-actions">

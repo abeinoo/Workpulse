@@ -46,7 +46,7 @@
   </div>
 
   <div class="form-actions">
-    <%= f.submit class: "btn btn-primary" %>
+    <%= f.submit f.object.persisted? ? t("salary_profiles.edit.submit") : t("salary_profiles.new.submit"), class: "btn btn-primary" %>
     <%= link_to t("forms.cancel"), admin_user_path(@employee), class: "btn btn-ghost" %>
   </div>
 

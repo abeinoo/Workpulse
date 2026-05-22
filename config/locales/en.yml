@@ -70,6 +70,7 @@ en:
       min_length: "Minimum 6 characters."
 
   dashboard:
+    page_title: "Home — WorkPulse"
     today: "Today"
     not_checked_in: "Not checked in"
     checked_in: "Checked in"
@@ -241,6 +242,15 @@ en:
     complete_branch_review: "Complete Branch Review"
     finalize: "Finalize"
     finalize_confirm: "Finalize this payroll period?"
+    confirm:
+      submit_for_review: "Submit this payroll period for branch manager review?"
+      complete_branch_review: "Mark your branch review as complete? You won't be able to reverse this."
+      finalize_under_review: "Override branch reviews and finalize?"
+      finalize: "Finalize this payroll period?"
+      finalize_admin_under_review: "Override branch reviews and finalize this period?"
+      regenerate: "Regenerate payroll from attendance records? This will recalculate all entries."
+      mark_paid: "Mark this period as paid? Advances will be settled."
+      delete: "Delete this payroll period? This cannot be undone."
     mark_paid: "Mark as Paid"
     regenerate: "Regenerate"
     delete: "Delete"
@@ -250,8 +260,11 @@ en:
     additions: "Additions"
     overtime: "Overtime"
     statuses:
-      paid: "Paid"
+      draft: "Draft"
+      under_review: "Under Review"
+      branch_review_completed: "Branch Review Complete"
       finalized: "Finalized"
+      paid: "Paid"
     index:
       title: "Payroll Periods"
       page_title: "Payroll Periods — WorkPulse"
@@ -363,6 +376,21 @@ en:
       payslip: "Your payslip"
       back: "Payroll"
       add_btn: "+ Add"
+    entry_statuses:
+      draft: "Draft"
+      approved: "Approved"
+      disputed: "Disputed"
+    branch_review_statuses:
+      pending: "Pending"
+      completed: "Completed"
+    audit_log_action_types:
+      generated: "Generated"
+      regenerated: "Regenerated"
+      submitted_for_review: "Submitted for Review"
+      branch_review_completed: "Branch Review Completed"
+      finalized: "Finalized"
+      paid: "Marked Paid"
+      deleted: "Deleted"
     adjustments:
       new_title: "New Adjustment"
       page_title: "New Adjustment — WorkPulse"
@@ -440,6 +468,12 @@ en:
       unavailable_for_hour_based: "is not available for employees assigned to hour-based (flexible) shifts"
 
   adjustments:
+    types:
+      bonus: "Bonus"
+      commission: "Commission"
+      reward: "Reward"
+      penalty: "Penalty"
+      manual_deduction: "Manual Deduction"
     index:
       title: "Adjustments"
       page_title: "Adjustments — WorkPulse"
@@ -476,6 +510,8 @@ en:
     reject: "Reject"
     remove: "Remove"
     remove_confirm: "Remove this adjustment?"
+    approve_confirm: "Approve this adjustment?"
+    reject_confirm: "Reject this adjustment?"
     pending_one: "1 adjustment awaiting your review"
     pending_other: "%{count} adjustments awaiting your review"
 
@@ -531,15 +567,9 @@ en:
       page_title: "Shifts — WorkPulse"
     show:
       title: "Shift Details"
-      page_title: "Shift Details — WorkPulse"
+      page_title: "%{name} — WorkPulse"
       back: "Shifts"
       no_rules: "No penalty rules have been configured for this shift."
-    new:
-      title: "New Shift"
-      page_title: "New Shift — WorkPulse"
-    edit:
-      title: "Edit Shift"
-      page_title: "Edit Shift — WorkPulse"
     name: "Name"
     type: "Type"
     start_time: "Start Time"
@@ -553,6 +583,19 @@ en:
     actions: "Actions"
     no_shifts: "No shifts found."
     add: "Add Shift"
+    new:
+      title: "New Shift"
+      page_title: "New Shift — WorkPulse"
+      submit: "Create Shift"
+    edit:
+      title: "Edit Shift"
+      page_title: "Edit Shift — WorkPulse"
+      submit: "Update Shift"
+    show:
+      page_title: "%{name} — WorkPulse"
+    confirm:
+      delete: "Delete %{name}? This cannot be undone."
+      remove_penalty: "Remove this penalty rule?"
     edit_action: "Edit"
     delete: "Delete"
     penalty_rules: "Penalty Rules"
@@ -655,6 +698,7 @@ en:
         status_header: "Status"
         last_seen_header: "Last Seen"
       show:
+        page_title: "%{name} — WorkPulse"
         token: "API Token"
         token_hint: "Include this in the request header: Authorization: Bearer <token>"
         regenerate: "Regenerate Token"
@@ -731,13 +775,14 @@ en:
       attendance_records: "Attendance Records"
       attendance_records_sub: "Review and adjust check-in/out logs"
     users:
+      super_admin_role: "Super Admin"
       index:
         title: "Employees"
         page_title: "Employees — WorkPulse"
         add: "Add Employee"
       show:
         title: "Employee"
-        page_title: "Employee — WorkPulse"
+        page_title: "%{name} — WorkPulse"
       new:
         title: "Add Employee"
         page_title: "Add Employee — WorkPulse"
@@ -830,7 +875,7 @@ en:
         add: "New branch"
       show:
         title: "Branch"
-        page_title: "Branch — WorkPulse"
+        page_title: "%{name} — WorkPulse"
       new:
         title: "New Branch"
         page_title: "New Branch — WorkPulse"
@@ -987,6 +1032,7 @@ en:
         filter: "Filter"
         clear: "Clear"
       show:
+        page_title: "Attendance Record — WorkPulse"
         back: "Back to Attendance Records"
         check_in_coords: "Check-in coords"
         check_out_coords: "Check-out coords"
@@ -1094,6 +1140,14 @@ en:
     employee_obligations:
       back: "← Obligations"
       back_to_detail: "← Obligation Detail"
+      new:
+        page_title: "New Obligation — WorkPulse"
+        title: "New Employee Obligation"
+        submit: "Create Obligation"
+      edit:
+        page_title: "Edit Obligation — %{title}"
+        title: "Edit Obligation"
+        submit: "Update Obligation"
       employee: "Employee"
       type: "Type"
       title_col: "Title"
@@ -1144,16 +1198,10 @@ en:
         completed: "Completed"
         cancelled: "Cancelled"
       index:
-        page_title: "Employee Obligations"
+        page_title: "Employee Obligations — WorkPulse"
         title: "Employee Obligations"
         add: "New Obligation"
         none: "No obligations found."
-      new:
-        page_title: "New Obligation"
-        title: "New Employee Obligation"
-      edit:
-        page_title: "Edit — %{title}"
-        title: "Edit Obligation"
 
   forms:
     save: "Save"
@@ -1263,9 +1311,41 @@ en:
     ar: "العربية"
 
   activerecord:
+    models:
+      employee_obligation: "Employee Obligation"
+      user: "Employee"
+      branch: "Branch"
+    attributes:
+      employee_obligation:
+        user: "Employee"
+        obligation_type: "Obligation type"
+        title: "Title"
+        total_amount: "Total amount"
+        remaining_amount: "Remaining amount"
+        installment_amount: "Installment amount"
+        start_month: "Start month"
+        start_year: "Start year"
+        end_month: "End month"
+        end_year: "End year"
+        auto_deduct: "Auto deduct"
     errors:
+      messages:
+        blank: "can't be blank"
+        taken: "has already been taken"
+        not_a_number: "is not a number"
+        greater_than: "must be greater than %{count}"
+        greater_than_or_equal_to: "must be greater than or equal to %{count}"
+        less_than_or_equal_to: "must be less than or equal to %{count}"
+        inclusion: "is not included in the list"
+        invalid: "is invalid"
+        too_short:
+          one: "is too short (minimum is 1 character)"
+          other: "is too short (minimum is %{count} characters)"
       models:
         penalty_rule:
           attributes:
             rule_type:
               incompatible_with_hour_based: "Late arrival rules are not allowed for flexible (hour-based) shifts"
+  date:
+    formats:
+      long: "%B %-d, %Y"

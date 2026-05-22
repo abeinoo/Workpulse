@@ -12,7 +12,7 @@
       <% end %>
     </div>
     <span class="badge <%= period_status_badge_class(@period) %>">
-      <%= @period.status.humanize.gsub("_", " ") %>
+      <%= t("payroll.statuses.#{@period.status}") %>
     </span>
   </div>
 
@@ -371,7 +371,7 @@
               </td>
               <td>
                 <span class="badge <%= attendance_status_badge_class(rec) %>">
-                  <%= rec.status.humanize %>
+                  <%= t("attendance.statuses.#{rec.status}") %>
                 </span>
               </td>
             </tr>

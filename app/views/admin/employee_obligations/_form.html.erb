@@ -45,7 +45,7 @@
       <%= f.label :start_month, t("admin.employee_obligations.start_period"), class: "form-label" %>
       <div style="display:flex;gap:var(--space-2);">
         <%= f.select :start_month,
-              (1..12).map { |m| [Date::MONTHNAMES[m], m] },
+              (1..12).map { |m| [I18n.t("date.month_names")[m], m] },
               { selected: @obligation.start_month },
               class: "form-control" %>
         <%= f.number_field :start_year,
@@ -61,7 +61,7 @@
       <% end %>
       <div style="display:flex;gap:var(--space-2);">
         <%= f.select :end_month,
-              [["—", ""]] + (1..12).map { |m| [Date::MONTHNAMES[m], m] },
+              [["—", ""]] + (1..12).map { |m| [I18n.t("date.month_names")[m], m] },
               { selected: @obligation.end_month },
               class: "form-control" %>
         <%= f.number_field :end_year,
@@ -102,7 +102,7 @@
   </div>
 
   <div class="form-actions">
-    <%= f.submit class: "btn btn-primary" %>
+    <%= f.submit f.object.persisted? ? t("admin.employee_obligations.edit.submit") : t("admin.employee_obligations.new.submit"), class: "btn btn-primary" %>
     <%= link_to t("forms.cancel"), admin_employee_obligations_path, class: "btn btn-ghost" %>
   </div>
 

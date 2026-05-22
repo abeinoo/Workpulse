@@ -110,7 +110,7 @@
                     </div>
                   </div>
                 </td>
-                <td class="td-secondary"><%= u.owner? ? "Super Admin" : "—" %></td>
+                <td class="td-secondary"><%= u.owner? ? t("admin.users.super_admin_role") : "—" %></td>
                 <td>
                   <%= button_to t("admin.permission_roles.show.remove_btn"),
                         remove_user_admin_permission_role_path(@permission_role, user_id: u.id),

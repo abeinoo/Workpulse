@@ -7,7 +7,7 @@
       <p class="page-subtitle"><%= @period.period_label %> &middot; <%= @period.branch&.name || t("payroll.all_branches") %></p>
     </div>
     <span class="badge <%= period_status_badge_class(@period) %>">
-      <%= @period.status.humanize %>
+      <%= t("payroll.statuses.#{@period.status}") %>
     </span>
   </div>
 

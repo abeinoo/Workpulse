@@ -30,7 +30,7 @@
       <div class="form-group">
         <%= f.label :adjustment_type, t("adjustments.new.type_label"), class: "form-label form-label--required" %>
         <%= f.select :adjustment_type,
-              PayrollAdjustment::ADJUSTMENT_TYPES.map { |t| [t.humanize, t] },
+              PayrollAdjustment::ADJUSTMENT_TYPES.map { |type| [t("adjustments.types.#{type}"), type] },
               { include_blank: t("forms.select") },
               class: "form-control" %>
         <p class="form-hint"><%= t("adjustments.new.type_hint") %></p>

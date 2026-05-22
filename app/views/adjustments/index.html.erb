@@ -65,7 +65,7 @@
             <td><%= adj.user.full_name %></td>
             <td>
               <span class="badge <%= adjustment_type_badge_class(adj) %>">
-                <%= adj.adjustment_type.humanize %>
+                <%= t("adjustments.types.#{adj.adjustment_type}") %>
               </span>
             </td>
             <td>
@@ -94,19 +94,19 @@
                       approve_adjustment_path(adj),
                       method: :patch,
                       class: "btn btn-sm btn-success",
-                      data: { turbo_confirm: "Approve this adjustment?" } %>
+                      data: { turbo_confirm: t("adjustments.approve_confirm") } %>
                 <%= button_to t("adjustments.reject"),
                       reject_adjustment_path(adj),
                       method: :patch,
                       class: "btn btn-sm btn-danger",
-                      data: { turbo_confirm: "Reject this adjustment?" } %>
+                      data: { turbo_confirm: t("adjustments.reject_confirm") } %>
               <% end %>
               <% if policy(adj).destroy? %>
                 <%= button_to t("adjustments.remove"),
                       adjustment_path(adj),
                       method: :delete,
                       class: "btn btn-sm btn-ghost",
-                      data: { turbo_confirm: "Remove this adjustment?" } %>
+                      data: { turbo_confirm: t("adjustments.remove_confirm") } %>
               <% end %>
             </td>
           </tr>

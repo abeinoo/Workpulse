@@ -79,7 +79,7 @@
               <td><%= link_to period.period_label, payroll_period_path(period), class: "link" %></td>
               <td>
                 <span class="badge <%= period_status_badge_class(period) %>">
-                  <%= period.status.humanize.gsub("_", " ") %>
+                  <%= t("payroll.statuses.#{period.status}") %>
                 </span>
               </td>
               <td class="td-actions">

@@ -8,31 +8,31 @@
     </div>
     <div class="page-header__actions">
       <span class="badge <%= period_status_badge_class(@period) %>">
-        <%= @period.status.humanize.gsub("_", " ") %>
+        <%= t("payroll.statuses.#{@period.status}") %>
       </span>
 
       <% if policy(@period).regenerate? && @period.draft? %>
         <%= button_to t("payroll.regenerate"), regenerate_admin_payroll_period_path(@period),
               method: :patch, class: "btn btn-secondary btn-sm",
-              data: { turbo_confirm: "Regenerate payroll from attendance records? This will recalculate all entries." } %>
+              data: { turbo_confirm: t("payroll.confirm.regenerate") } %>
       <% end %>
 
       <% if policy(@period).finalize? && (@period.branch_review_completed? || @period.under_review?) %>
         <%= button_to t("payroll.finalize"), finalize_admin_payroll_period_path(@period),
               method: :patch, class: "btn btn-accent btn-sm",
-              data: { turbo_confirm: @period.under_review? ? "Override branch reviews and finalize this period?" : "Finalize this payroll period?" } %>
+              data: { turbo_confirm: @period.under_review? ? t("payroll.confirm.finalize_admin_under_review") : t("payroll.confirm.finalize") } %>
       <% end %>
 
       <% if policy(@period).mark_paid? && @period.finalized? %>
         <%= button_to t("payroll.mark_paid"), mark_paid_admin_payroll_period_path(@period),
               method: :patch, class: "btn btn-primary btn-sm",
-              data: { turbo_confirm: "Mark this period as paid? Advances will be settled." } %>
+              data: { turbo_confirm: t("payroll.confirm.mark_paid") } %>
       <% end %>
 
       <% if policy(@period).destroy? %>
         <%= button_to t("payroll.delete"), admin_payroll_period_path(@period),
               method: :delete, class: "btn btn-danger btn-sm",
-              data: { turbo_confirm: "Delete this payroll period? This cannot be undone." } %>
+              data: { turbo_confirm: t("payroll.confirm.delete") } %>
       <% end %>
     </div>
   </div>
@@ -59,7 +59,7 @@
                 <td><%= br.reviewer.full_name %></td>
                 <td>
                   <span class="badge <%= br.completed? ? 'badge-success' : 'badge-warning' %>">
-                    <%= br.status.humanize %>
+                    <%= t("payroll.branch_review_statuses.#{br.status}") %>
                   </span>
                 </td>
                 <td class="td-secondary"><%= br.completed_at&.strftime("%b %d, %Y %H:%M") || "—" %></td>
@@ -121,10 +121,10 @@
           <tbody>
             <% @audit_logs.each do |log| %>
               <tr>
-                <td><%= log.action_type.humanize.gsub("_", " ") %></td>
+                <td><%= t("payroll.audit_log_action_types.#{log.action_type}") %></td>
                 <td><%= log.actor.full_name %></td>
-                <td class="td-secondary"><%= log.from_status&.humanize || "—" %></td>
-                <td class="td-secondary"><%= log.to_status&.humanize || "—" %></td>
+                <td class="td-secondary"><%= log.from_status ? t("payroll.statuses.#{log.from_status}") : "—" %></td>
+                <td class="td-secondary"><%= log.to_status ? t("payroll.statuses.#{log.to_status}") : "—" %></td>
                 <td class="td-secondary"><%= log.created_at.strftime("%b %d, %Y %H:%M") %></td>
               </tr>
             <% end %>

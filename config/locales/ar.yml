@@ -70,6 +70,7 @@ ar:
       min_length: "٦ أحرف على الأقل."
 
   dashboard:
+    page_title: "الرئيسية — ووركبلس"
     today: "اليوم"
     not_checked_in: "لم تُسجِّل حضورك"
     checked_in: "مسجَّل الحضور"
@@ -241,6 +242,15 @@ ar:
     complete_branch_review: "إتمام مراجعة الفرع"
     finalize: "اعتماد"
     finalize_confirm: "هل تريد اعتماد هذه الفترة؟"
+    confirm:
+      submit_for_review: "هل تريد إرسال هذه الفترة لمراجعة مديري الفروع؟"
+      complete_branch_review: "هل تريد إتمام مراجعة فرعك؟ لا يمكن التراجع عن هذا."
+      finalize_under_review: "تجاوز مراجعات الفروع واعتماد الفترة؟"
+      finalize: "اعتماد هذه الفترة؟"
+      finalize_admin_under_review: "تجاوز مراجعات الفروع واعتماد هذه الفترة؟"
+      regenerate: "إعادة إنشاء الرواتب من سجلات الحضور؟ سيُعيد احتساب جميع البنود."
+      mark_paid: "تحديد هذه الفترة كمدفوعة؟ ستُسوَّى السلف."
+      delete: "هل تريد حذف هذه الفترة؟ لا يمكن التراجع عن هذا الإجراء."
     mark_paid: "تحديد كمدفوع"
     regenerate: "إعادة الإنشاء"
     delete: "حذف"
@@ -250,8 +260,11 @@ ar:
     additions: "الإضافات"
     overtime: "العمل الإضافي"
     statuses:
-      paid: "مدفوع"
+      draft: "مسودة"
+      under_review: "قيد المراجعة"
+      branch_review_completed: "اكتملت مراجعة الفرع"
       finalized: "مُعتمد"
+      paid: "مدفوع"
     index:
       title: "فترات الرواتب"
       page_title: "فترات الرواتب — ووركبلس"
@@ -363,6 +376,21 @@ ar:
       payslip: "كشف راتبك"
       back: "الرواتب"
       add_btn: "+ إضافة"
+    entry_statuses:
+      draft: "مسودة"
+      approved: "مقبول"
+      disputed: "متنازَع عليه"
+    branch_review_statuses:
+      pending: "معلّق"
+      completed: "مكتمل"
+    audit_log_action_types:
+      generated: "تم الإنشاء"
+      regenerated: "أُعيد الإنشاء"
+      submitted_for_review: "أُرسل للمراجعة"
+      branch_review_completed: "اكتملت مراجعة الفرع"
+      finalized: "مُعتمد"
+      paid: "مُحدَّد كمدفوع"
+      deleted: "محذوف"
     adjustments:
       new_title: "تسوية جديدة"
       page_title: "تسوية جديدة — ووركبلس"
@@ -440,6 +468,12 @@ ar:
       unavailable_for_hour_based: "غير متاح للموظفين المعيَّنين على ورديات مرنة (بالساعة)"
 
   adjustments:
+    types:
+      bonus: "مكافأة"
+      commission: "عمولة"
+      reward: "جائزة"
+      penalty: "غرامة"
+      manual_deduction: "خصم يدوي"
     index:
       title: "التسويات"
       page_title: "التسويات — ووركبلس"
@@ -476,6 +510,8 @@ ar:
     reject: "رفض"
     remove: "حذف"
     remove_confirm: "هل تريد حذف هذه التسوية؟"
+    approve_confirm: "الموافقة على هذه التسوية؟"
+    reject_confirm: "رفض هذه التسوية؟"
     pending_one: "تسوية واحدة بانتظار مراجعتك"
     pending_other: "%{count} تسويات بانتظار مراجعتك"
 
@@ -531,15 +567,9 @@ ar:
       page_title: "الورديات — ووركبلس"
     show:
       title: "تفاصيل الوردية"
-      page_title: "تفاصيل الوردية — ووركبلس"
+      page_title: "%{name} — ووركبلس"
       back: "الورديات"
       no_rules: "لم تُضَف أي قواعد غرامات لهذه الوردية."
-    new:
-      title: "وردية جديدة"
-      page_title: "وردية جديدة — ووركبلس"
-    edit:
-      title: "تعديل الوردية"
-      page_title: "تعديل الوردية — ووركبلس"
     name: "الاسم"
     type: "النوع"
     start_time: "وقت البداية"
@@ -553,6 +583,19 @@ ar:
     actions: "الإجراءات"
     no_shifts: "لا توجد ورديات."
     add: "إضافة وردية"
+    new:
+      title: "وردية جديدة"
+      page_title: "وردية جديدة — ووركبلس"
+      submit: "إنشاء الوردية"
+    edit:
+      title: "تعديل الوردية"
+      page_title: "تعديل الوردية — ووركبلس"
+      submit: "تحديث الوردية"
+    show:
+      page_title: "%{name} — ووركبلس"
+    confirm:
+      delete: "هل تريد حذف %{name}؟ لا يمكن التراجع عن هذا الإجراء."
+      remove_penalty: "هل تريد حذف قاعدة الغرامة هذه؟"
     edit_action: "تعديل"
     delete: "حذف"
     penalty_rules: "قواعد الغرامات"
@@ -655,6 +698,7 @@ ar:
         status_header: "الحالة"
         last_seen_header: "آخر ظهور"
       show:
+        page_title: "%{name} — ووركبلس"
         token: "رمز API"
         token_hint: "أضفه في ترويسة الطلب: Authorization: Bearer <token>"
         regenerate: "إعادة توليد الرمز"
@@ -731,13 +775,14 @@ ar:
       attendance_records: "سجلات الحضور"
       attendance_records_sub: "مراجعة وتعديل سجلات الدخول والخروج"
     users:
+      super_admin_role: "مسؤول عام"
       index:
         title: "الموظفون"
         page_title: "الموظفون — ووركبلس"
         add: "إضافة موظف"
       show:
         title: "الموظف"
-        page_title: "الموظف — ووركبلس"
+        page_title: "%{name} — ووركبلس"
       new:
         title: "إضافة موظف"
         page_title: "إضافة موظف — ووركبلس"
@@ -830,7 +875,7 @@ ar:
         add: "فرع جديد"
       show:
         title: "الفرع"
-        page_title: "الفرع — ووركبلس"
+        page_title: "%{name} — ووركبلس"
       new:
         title: "فرع جديد"
         page_title: "فرع جديد — ووركبلس"
@@ -987,6 +1032,7 @@ ar:
         filter: "تصفية"
         clear: "مسح"
       show:
+        page_title: "سجل الحضور — ووركبلس"
         back: "الرجوع لسجلات الحضور"
         check_in_coords: "إحداثيات الدخول"
         check_out_coords: "إحداثيات الخروج"
@@ -1145,16 +1191,18 @@ ar:
         completed: "مكتمل"
         cancelled: "ملغى"
       index:
-        page_title: "التزامات الموظفين"
+        page_title: "التزامات الموظفين — ووركبلس"
         title: "التزامات الموظفين"
         add: "التزام جديد"
         none: "لا توجد التزامات."
       new:
-        page_title: "التزام جديد"
+        page_title: "التزام جديد — ووركبلس"
         title: "التزام موظف جديد"
+        submit: "إنشاء الالتزام"
       edit:
         page_title: "تعديل — %{title}"
         title: "تعديل الالتزام"
+        submit: "تحديث الالتزام"
 
   forms:
     save: "حفظ"
@@ -1260,12 +1308,73 @@ ar:
     ios_add: "إضافة إلى الشاشة الرئيسية"
     dismiss: "إغلاق"
 
+  date:
+    month_names:
+      - ~
+      - "يناير"
+      - "فبراير"
+      - "مارس"
+      - "أبريل"
+      - "مايو"
+      - "يونيو"
+      - "يوليو"
+      - "أغسطس"
+      - "سبتمبر"
+      - "أكتوبر"
+      - "نوفمبر"
+      - "ديسمبر"
+    abbr_month_names:
+      - ~
+      - "يناير"
+      - "فبراير"
+      - "مارس"
+      - "أبريل"
+      - "مايو"
+      - "يونيو"
+      - "يوليو"
+      - "أغسطس"
+      - "سبتمبر"
+      - "أكتوبر"
+      - "نوفمبر"
+      - "ديسمبر"
+    formats:
+      long: "%-d %B %Y"
+
   locale:
     en: "English"
     ar: "العربية"
 
   activerecord:
+    models:
+      employee_obligation: "التزام موظف"
+      user: "موظف"
+      branch: "فرع"
+    attributes:
+      employee_obligation:
+        user: "الموظف"
+        obligation_type: "نوع الالتزام"
+        title: "العنوان"
+        total_amount: "إجمالي المبلغ"
+        remaining_amount: "المبلغ المتبقي"
+        installment_amount: "مبلغ القسط"
+        start_month: "شهر البداية"
+        start_year: "سنة البداية"
+        end_month: "شهر النهاية"
+        end_year: "سنة النهاية"
+        auto_deduct: "خصم تلقائي"
     errors:
+      messages:
+        blank: "مطلوب"
+        taken: "محجوز مسبقاً"
+        not_a_number: "يجب أن يكون رقماً"
+        greater_than: "يجب أن يكون أكبر من %{count}"
+        greater_than_or_equal_to: "يجب أن يكون أكبر من أو يساوي %{count}"
+        less_than_or_equal_to: "يجب أن يكون أقل من أو يساوي %{count}"
+        inclusion: "غير مضمَّن في القائمة"
+        invalid: "غير صالح"
+        too_short:
+          one: "قصير جداً (الحد الأدنى حرف واحد)"
+          other: "قصير جداً (الحد الأدنى %{count} أحرف)"
       models:
         penalty_rule:
           attributes:

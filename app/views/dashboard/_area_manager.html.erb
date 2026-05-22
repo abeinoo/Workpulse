@@ -97,7 +97,7 @@
                 <td><%= adj.user.full_name %></td>
                 <td>
                   <span class="badge <%= adjustment_type_badge_class(adj) %>">
-                    <%= adj.adjustment_type.humanize %>
+                    <%= t("adjustments.types.#{adj.adjustment_type}") %>
                   </span>
                 </td>
                 <td>

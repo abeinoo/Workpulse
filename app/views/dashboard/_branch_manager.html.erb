@@ -40,7 +40,7 @@
             <% elsif @my_today_record.status == "late" %><%= t("attendance.status_late") %>
             <% elsif @my_today_record.status == "early_leave" %><%= t("attendance.statuses.early_leave") %>
             <% elsif @my_today_record.status == "incomplete" %><%= t("attendance.statuses.incomplete") %>
-            <% else %><%= @my_today_record.status.humanize %>
+            <% else %><%= t("attendance.statuses.#{@my_today_record.status}", default: @my_today_record.status.humanize) %>
             <% end %>
           </p>
           <p class="attendance-hero__times">
@@ -227,7 +227,7 @@
                 <td><%= adj.user.full_name %></td>
                 <td>
                   <span class="badge <%= adjustment_type_badge_class(adj) %>">
-                    <%= adj.adjustment_type.humanize %>
+                    <%= t("adjustments.types.#{adj.adjustment_type}") %>
                   </span>
                 </td>
                 <td>
@@ -243,7 +243,7 @@
                           adjustment_path(adj),
                           method: :delete,
                           class: "btn btn-sm btn-ghost",
-                          data: { turbo_confirm: "Remove this adjustment?" } %>
+                          data: { turbo_confirm: t("adjustments.remove_confirm") } %>
                   <% end %>
                 </td>
               </tr>
@@ -283,7 +283,7 @@
               status_label = t("dashboard.team.no_checkout")
             else
               status_key   = "neutral"
-              status_label = rec.status.humanize
+              status_label = t("attendance.statuses.#{rec.status}", default: rec.status.humanize)
             end
           %>
           <div class="team-member team-member--<%= status_key %>">

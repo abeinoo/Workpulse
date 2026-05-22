@@ -39,7 +39,7 @@
                 <td class="td-secondary"><%= period.branch&.name || t("payroll.all_branches") %></td>
                 <td>
                   <span class="badge <%= period.paid? ? 'badge-success' : period.finalized? ? 'badge-accent' : 'badge-neutral' %>">
-                    <%= period.status.humanize.gsub("_", " ") %>
+                    <%= t("payroll.statuses.#{period.status}") %>
                   </span>
                 </td>
               </tr>

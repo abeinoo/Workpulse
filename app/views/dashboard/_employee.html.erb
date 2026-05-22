@@ -34,7 +34,7 @@
           <% elsif @today_record.status == "late" %><%= t("attendance.status_late") %>
           <% elsif @today_record.status == "early_leave" %><%= t("attendance.statuses.early_leave") %>
           <% elsif @today_record.status == "incomplete" %><%= t("attendance.statuses.incomplete") %>
-          <% else %><%= @today_record.status.humanize %>
+          <% else %><%= t("attendance.statuses.#{@today_record.status}", default: @today_record.status.humanize) %>
           <% end %>
         </p>
         <p class="attendance-hero__times">
@@ -210,7 +210,7 @@
         <div class="payroll-summary-card__period">
           <%= @latest_payroll.payroll_period.period_label %>
           <span class="badge <%= @latest_payroll.payroll_period.paid? ? 'badge-success' : 'badge-neutral' %> ml-2">
-            <%= @latest_payroll.payroll_period.status.humanize %>
+            <%= t("payroll.statuses.#{@latest_payroll.payroll_period.status}") %>
           </span>
         </div>
         <div class="payroll-summary-card__row">

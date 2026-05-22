@@ -8,7 +8,7 @@
     </div>
     <div class="page-header__actions">
       <span class="badge <%= period_status_badge_class(@period) %>">
-        <%= @period.status.humanize.gsub("_", " ") %>
+        <%= t("payroll.statuses.#{@period.status}") %>
       </span>
 
       <% if @total_pending > 0 %>
@@ -20,7 +20,7 @@
               submit_for_review_payroll_period_path(@period),
               method: :patch,
               class: "btn btn-secondary",
-              data: { turbo_confirm: "Submit this payroll period for branch manager review?" } %>
+              data: { turbo_confirm: t("payroll.confirm.submit_for_review") } %>
       <% end %>
 
       <%# Branch manager: complete their branch review(s) %>
@@ -33,7 +33,7 @@
                 complete_branch_review_payroll_period_path(@period),
                 method: :patch,
                 class: "btn btn-primary",
-                data: { turbo_confirm: "Mark your branch review as complete? You won't be able to reverse this." } %>
+                data: { turbo_confirm: t("payroll.confirm.complete_branch_review") } %>
         <% end %>
       <% end %>
 
@@ -43,7 +43,7 @@
               finalize_payroll_period_path(@period),
               method: :patch,
               class: "btn btn-accent",
-              data: { turbo_confirm: @period.under_review? ? "Override branch reviews and finalize?" : "Finalize this payroll period?" } %>
+              data: { turbo_confirm: @period.under_review? ? t("payroll.confirm.finalize_under_review") : t("payroll.confirm.finalize") } %>
       <% end %>
     </div>
   </div>

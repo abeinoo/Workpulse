@@ -36,7 +36,7 @@
                   </div>
                 </div>
               </td>
-              <td class="td-secondary"><%= user.permission_role&.name || (user.owner? ? "Super Admin" : "—") %></td>
+              <td class="td-secondary"><%= user.permission_role&.name || (user.owner? ? t("admin.users.super_admin_role") : "—") %></td>
               <td class="td-secondary">
                 <% if user.manager %>
                   <%= link_to user.manager.full_name, admin_user_path(user.manager), class: "link-muted" %>

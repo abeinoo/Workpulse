@@ -165,7 +165,7 @@
   </div><%# /geo-fields %>
 
   <div class="form-actions">
-    <%= f.submit class: "btn btn-primary" %>
+    <%= f.submit branch.persisted? ? t("admin.branches.edit.submit") : t("admin.branches.new.submit"), class: "btn btn-primary" %>
     <% cancel_path = branch.persisted? ? admin_branch_path(branch) : admin_branches_path %>
     <%= link_to t("forms.cancel"), cancel_path, class: "btn btn-ghost" %>
   </div>
