@@ -2,7 +2,7 @@ class Admin::DashboardController < Admin::BaseController
   def index
     business = current_user.business
     @stats = {
-      employees:        business.users.where.not(role: :super_admin).count,
+      employees:        business.users.where.not(id: business.owner_id).count,
       branches:         business.branches.active.count,
       pending_requests: EmployeeRequest.for_business(business).pending.count,
       active_shifts:    Shift.where(business_id: business.id, active: true).count

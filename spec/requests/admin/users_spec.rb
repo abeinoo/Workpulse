@@ -41,7 +41,6 @@ RSpec.describe "Admin::Users", type: :request do
           first_name:   "Fatima",
           last_name:    "Al-Rashid",
           email:        "fatima@example.com",
-          role:         "employee",
           business_id:  business.id
         }
       }

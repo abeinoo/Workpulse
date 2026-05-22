@@ -219,8 +219,11 @@ RSpec.describe Attendance::PunchService do
       expect(result.record.shift_assignment).to eq(assignment)
     end
 
-    context "when assignment expired yesterday" do
-      before { assignment.update!(effective_to: Date.yesterday) }
+    context "when assignment has expired" do
+      # Use 2.days.ago so the assignment is clearly before any work_date the service
+      # might compute (business day starts at 06:00 Riyadh time; if tests run in the
+      # early-morning UTC window, Date.yesterday is still the active work_date).
+      before { assignment.update!(effective_to: 2.days.ago.to_date) }
 
       it "rejects today's punch as no active assignment" do
         result = described_class.call(
