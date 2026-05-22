@@ -38,6 +38,135 @@ RSpec.describe ShiftAssignment, type: :model do
       end
     end
 
+    describe "no_overlapping_shift_time" do
+      let(:business)  { create(:business) }
+      let(:user)      { create(:user, business: business) }
+      let(:branch_a)  { create(:branch, business: business) }
+      let(:branch_b)  { create(:branch, business: business) }
+      # Morning: 09:00–17:00
+      let(:morning)   { create(:shift, :fixed_time, business: business, name: "Morning",
+                               start_time: Time.zone.parse("09:00"), end_time: Time.zone.parse("17:00")) }
+      # Afternoon: 13:00–21:00 (overlaps morning 13:00–17:00)
+      let(:afternoon) { create(:shift, :fixed_time, business: business, name: "Afternoon",
+                               start_time: Time.zone.parse("13:00"), end_time: Time.zone.parse("21:00")) }
+      # Evening: 18:00–02:00 overnight (no overlap with morning)
+      let(:evening)   { create(:shift, :fixed_time, business: business, name: "Evening",
+                               start_time: Time.zone.parse("18:00"), end_time: Time.zone.parse("02:00")) }
+      # Night: 22:00–06:00 overnight
+      let(:night)     { create(:shift, :fixed_time, business: business, name: "Night",
+                               start_time: Time.zone.parse("22:00"), end_time: Time.zone.parse("06:00")) }
+      # Early morning: 05:00–13:00 (overlaps night 05:00–06:00)
+      let(:early)     { create(:shift, :fixed_time, business: business, name: "Early Morning",
+                               start_time: Time.zone.parse("05:00"), end_time: Time.zone.parse("13:00")) }
+      let(:flexible)  { create(:shift, :hour_based, business: business, name: "Flexible") }
+
+      let(:from) { Date.new(2025, 1, 1) }
+      let(:to)   { Date.new(2025, 6, 30) }
+
+      def assign(shift, branch: branch_a, start: from, finish: to)
+        create(:shift_assignment, user: user, shift: shift, branch: branch,
+               effective_from: start, effective_to: finish)
+      end
+
+      def build_assign(shift, branch: branch_b, start: from, finish: to)
+        build(:shift_assignment, user: user, shift: shift, branch: branch,
+              effective_from: start, effective_to: finish)
+      end
+
+      context "non-overnight overlapping shifts" do
+        before { assign(morning) }
+
+        it "is invalid when shift times overlap (13:00–21:00 vs 09:00–17:00)" do
+          expect(build_assign(afternoon)).not_to be_valid
+        end
+
+        it "includes the conflicting shift name and times in the error" do
+          bad = build_assign(afternoon)
+          bad.valid?
+          msg = bad.errors[:base].join
+          expect(msg).to include("Morning")
+          expect(msg).to include("09:00")
+          expect(msg).to include("17:00")
+        end
+
+        it "is valid when shift times do not overlap (18:00–02:00 vs 09:00–17:00)" do
+          expect(build_assign(evening)).to be_valid
+        end
+      end
+
+      context "overnight shift overlap detection" do
+        before { assign(night) }  # 22:00–06:00
+
+        it "detects overlap when early-morning shift (05:00–13:00) conflicts with overnight" do
+          bad = build_assign(early)
+          expect(bad).not_to be_valid
+          expect(bad.errors[:base].join).to include("Night")
+        end
+
+        it "is valid for a shift entirely clear of the overnight window (07:00–21:00)" do
+          day = create(:shift, :fixed_time, business: business,
+                       start_time: Time.zone.parse("07:00"), end_time: Time.zone.parse("21:00"))
+          expect(build_assign(day)).to be_valid
+        end
+      end
+
+      context "two overnight shifts" do
+        before { assign(night) }  # 22:00–06:00
+
+        it "detects overlap with a second overnight shift sharing hours (21:00–05:00)" do
+          late_night = create(:shift, :fixed_time, business: business,
+                              start_time: Time.zone.parse("21:00"), end_time: Time.zone.parse("05:00"))
+          expect(build_assign(late_night)).not_to be_valid
+        end
+      end
+
+      context "hour_based shifts are excluded from time-overlap checks" do
+        before { assign(flexible) }
+
+        it "does not flag a conflict when the existing shift is hour_based" do
+          expect(build_assign(morning)).to be_valid
+        end
+
+        context "when the new shift is hour_based" do
+          before { assign(morning, branch: branch_a) }
+
+          it "does not flag a conflict for the hour_based new assignment" do
+            expect(build_assign(flexible)).to be_valid
+          end
+        end
+      end
+
+      context "non-concurrent date ranges" do
+        before { assign(morning, start: Date.new(2025, 1, 1), finish: Date.new(2025, 3, 31)) }
+
+        it "is valid when the assignment periods do not overlap" do
+          later = build_assign(afternoon, start: Date.new(2025, 7, 1), finish: Date.new(2025, 12, 31))
+          expect(later).to be_valid
+        end
+      end
+
+      context "across different branches during the same date range" do
+        before { assign(morning, branch: branch_a) }
+
+        it "catches time overlap even when branches differ" do
+          expect(build_assign(afternoon, branch: branch_b)).not_to be_valid
+        end
+
+        it "allows non-overlapping shifts across branches" do
+          expect(build_assign(evening, branch: branch_b)).to be_valid
+        end
+      end
+
+      context "self-exclusion on update" do
+        let!(:existing) { assign(morning, branch: branch_a) }
+
+        it "does not flag the assignment against itself when extending effective_to" do
+          existing.effective_to = Date.new(2025, 12, 31)
+          expect(existing).to be_valid
+        end
+      end
+    end
+
     describe "no_overlapping_assignment" do
       let(:business)    { create(:business) }
       let(:user)        { create(:user,   business: business) }

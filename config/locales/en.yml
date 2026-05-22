@@ -555,6 +555,8 @@ en:
     ended: "Ended"
     actions: "Actions"
     no_assignments: "No shift assignments found."
+    errors:
+      overlapping_time: "This employee already has an overlapping shift: %{shift_name} (%{start_time}–%{end_time})."
     form:
       end_hint: "Leave blank for an open-ended assignment."
       select_employee: "Select employee —"

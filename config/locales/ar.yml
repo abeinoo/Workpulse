@@ -555,6 +555,8 @@ ar:
     ended: "انتهى"
     actions: "الإجراءات"
     no_assignments: "لا توجد ورديات مُعيَّنة."
+    errors:
+      overlapping_time: "هذا الموظف لديه وردية متداخلة: %{shift_name} (%{start_time}–%{end_time})."
     form:
       end_hint: "اتركه فارغاً لتعيين مفتوح النهاية."
       select_employee: "اختر الموظف —"
