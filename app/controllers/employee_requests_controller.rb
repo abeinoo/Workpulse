@@ -166,7 +166,7 @@ class EmployeeRequestsController < ApplicationController
     advances = @requests.select { |r| r.salary_advance? && r.approved? }
     CSV.generate(headers: true) do |csv|
       csv << [ "Employee Name", "Phone Number", "Identity Card Number",
-               "Amount (SAR)", "Request Date", "Approved By Manager", "Status" ]
+               "Amount (#{current_user.business.currency})", "Request Date", "Approved By Manager", "Status" ]
       advances.each do |req|
         csv << [
           req.user.full_name,

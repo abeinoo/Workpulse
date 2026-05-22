@@ -75,26 +75,30 @@ RSpec.describe Attendance::AdjustmentService do
     end
   end
 
-  describe "status override" do
-    it "allows explicitly setting status" do
-      call(status: "present", reason: "Approved late permission waives penalty")
-      expect(record.reload.status).to eq("present")
+  describe "status is always auto-derived (never user-editable)" do
+    it "ignores a status param and rejects the call when no time fields changed" do
+      result = call(status: "present", reason: "Trying to manually set status")
+      expect(result).not_to be_success
+      expect(result.error).to include("No changes detected")
     end
 
-    it "creates an audit entry for the status change" do
-      original_status = record.status  # "present" from :checked_out trait
-      # Override to a different status so the service detects a change
-      call(status: "late", reason: "Override")
-      adj = AttendanceAdjustment.find_by(field_name: "status")
-      expect(adj).to be_present
-      expect(adj.old_value).to eq(original_status)
-      expect(adj.new_value).to eq("late")
+    it "does not create a status audit entry even when status param is passed alongside a time change" do
+      call(check_in_at: record.check_in_at - 30.minutes, status: "late", reason: "Fix")
+      expect(AttendanceAdjustment.find_by(field_name: "status")).to be_nil
     end
 
-    it "does not auto-derive status when explicitly set" do
-      call(check_in_at: record.check_in_at + 45.minutes, status: "present",
-           reason: "Override — manager approved")
-      expect(record.reload.status).to eq("present")
+    it "derives status as late when check_in is adjusted to a late time" do
+      shift_start = record.shift_assignment.shift.start_time
+      late_time   = record.check_in_at.change(hour: shift_start.hour, min: shift_start.min + 20)
+      call(check_in_at: late_time, reason: "Corrected entry")
+      expect(record.reload.status).to eq("late")
+    end
+
+    it "reverts status to incomplete when check_out is cleared" do
+      call(check_out_at: "", reason: "Checkout was entered in error")
+      expect(record.reload.status).to eq("incomplete").or eq("late")
+      expect(record.reload.check_out_at).to be_nil
+      expect(record.reload.worked_minutes).to be_nil
     end
   end
 

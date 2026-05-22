@@ -18,9 +18,16 @@ class Admin::AttendanceRecordsController < Admin::BaseController
 
   def update
     @record = find_record
-    if @record.update(record_params)
-      redirect_to admin_attendance_record_path(@record), notice: "Record updated."
+    result = Attendance::AdjustmentService.call(
+      record:      @record,
+      adjusted_by: current_user,
+      params:      record_params
+    )
+
+    if result.success?
+      redirect_to admin_attendance_record_path(@record), notice: t("flash.attendance_updated")
     else
+      flash.now[:alert] = result.error
       render :show, status: :unprocessable_entity
     end
   end
@@ -34,6 +41,6 @@ class Admin::AttendanceRecordsController < Admin::BaseController
   end
 
   def record_params
-    params.require(:attendance_record).permit(:check_in_at, :check_out_at, :status, :notes)
+    params.require(:attendance_record).permit(:check_in_at, :check_out_at, :reason)
   end
 end

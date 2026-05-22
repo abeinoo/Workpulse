@@ -53,35 +53,35 @@
   <div class="payslip-breakdown" style="margin-bottom: 1.5rem;">
     <div class="payslip-breakdown__row">
       <span class="payslip-breakdown__label"><%= t("payroll.entry.base_salary") %></span>
-      <span class="payslip-breakdown__value"><%= number_to_currency(@entry.base_salary, unit: "SAR ") %></span>
+      <span class="payslip-breakdown__value"><%= format_currency(@entry.base_salary) %></span>
     </div>
     <% if @entry.total_overtime > 0 %>
       <div class="payslip-breakdown__row">
         <span class="payslip-breakdown__label"><%= t("payroll.entry.overtime_pay") %></span>
-        <span class="payslip-breakdown__value text-success">+ <%= number_to_currency(@entry.total_overtime, unit: "SAR ") %></span>
+        <span class="payslip-breakdown__value text-success">+ <%= format_currency(@entry.total_overtime) %></span>
       </div>
     <% end %>
     <% if @entry.total_bonuses > 0 %>
       <div class="payslip-breakdown__row">
         <span class="payslip-breakdown__label"><%= t("payroll.entry.bonuses") %></span>
-        <span class="payslip-breakdown__value text-success">+ <%= number_to_currency(@entry.total_bonuses, unit: "SAR ") %></span>
+        <span class="payslip-breakdown__value text-success">+ <%= format_currency(@entry.total_bonuses) %></span>
       </div>
     <% end %>
     <% if @entry.total_deductions > 0 %>
       <div class="payslip-breakdown__row">
         <span class="payslip-breakdown__label"><%= t("payroll.deductions") %></span>
-        <span class="payslip-breakdown__value text-danger">− <%= number_to_currency(@entry.total_deductions, unit: "SAR ") %></span>
+        <span class="payslip-breakdown__value text-danger">− <%= format_currency(@entry.total_deductions) %></span>
       </div>
     <% end %>
     <% if @entry.advances_deducted > 0 %>
       <div class="payslip-breakdown__row">
         <span class="payslip-breakdown__label"><%= t("payroll.entry.advance_repayments") %></span>
-        <span class="payslip-breakdown__value text-danger">− <%= number_to_currency(@entry.advances_deducted, unit: "SAR ") %></span>
+        <span class="payslip-breakdown__value text-danger">− <%= format_currency(@entry.advances_deducted) %></span>
       </div>
     <% end %>
     <div class="payslip-breakdown__row payslip-breakdown__row--total">
       <span class="payslip-breakdown__label"><%= t("payroll.entry.net_salary") %></span>
-      <span class="payslip-breakdown__value"><%= number_to_currency(@entry.net_salary, unit: "SAR ") %></span>
+      <span class="payslip-breakdown__value"><%= format_currency(@entry.net_salary) %></span>
     </div>
   </div>
 
@@ -119,7 +119,7 @@
               <td class="td-secondary"><%= source_date&.strftime("%-d %b") || "—" %></td>
               <td class="text-right<%= struck ? ' text-muted' : ' text-danger' %>"
                   style="<%= 'text-decoration: line-through;' if struck %>">
-                − <%= number_to_currency(item.amount.abs, unit: "SAR ") %>
+                − <%= format_currency(item.amount.abs) %>
               </td>
               <td>
                 <span class="badge <%= deduction_status_badge_class(item) %>">
@@ -229,7 +229,7 @@
                 <td class="td-secondary"><%= item.description.presence || "—" %></td>
                 <td class="text-right <%= item.pending_review? ? 'text-muted' : 'text-success' %>"
                     style="<%= 'text-decoration: line-through;' if item.rejected? %>">
-                  + <%= number_to_currency(item.amount, unit: "SAR ") %>
+                  + <%= format_currency(item.amount) %>
                 </td>
                 <td>
                   <span class="badge <%= line_item_review_badge_class(item) %>">
@@ -288,7 +288,7 @@
                 <td class="td-secondary"><%= item.description.presence || "—" %></td>
                 <td class="text-right <%= item.approved? ? 'text-danger' : 'text-muted' %>"
                     style="<%= 'text-decoration: line-through;' if item.rejected? || item.waived? %>">
-                  − <%= number_to_currency(item.amount.abs, unit: "SAR ") %>
+                  − <%= format_currency(item.amount.abs) %>
                 </td>
                 <td>
                   <span class="badge <%= deduction_status_badge_class(item) %>">

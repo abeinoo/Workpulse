@@ -33,13 +33,13 @@
             <div class="payslip-card__body">
               <div class="payslip-card__stat">
                 <span class="payslip-card__stat-label"><%= t("payroll.index.base") %></span>
-                <span class="payslip-card__stat-value"><%= number_to_currency(entry.base_salary, unit: "SAR ", precision: 0) %></span>
+                <span class="payslip-card__stat-value"><%= format_currency(entry.base_salary, precision: 0) %></span>
               </div>
               <% if entry.total_deductions > 0 %>
                 <div class="payslip-card__stat">
                   <span class="payslip-card__stat-label"><%= t("payroll.deductions") %></span>
                   <span class="payslip-card__stat-value" style="color: var(--danger);">
-                    − <%= number_to_currency(entry.total_deductions, unit: "SAR ", precision: 0) %>
+                    − <%= format_currency(entry.total_deductions, precision: 0) %>
                   </span>
                 </div>
               <% end %>
@@ -47,13 +47,13 @@
                 <div class="payslip-card__stat">
                   <span class="payslip-card__stat-label"><%= t("payroll.index.additions_col") %></span>
                   <span class="payslip-card__stat-value" style="color: var(--success);">
-                    + <%= number_to_currency(entry.total_bonuses + entry.total_overtime, unit: "SAR ", precision: 0) %>
+                    + <%= format_currency(entry.total_bonuses + entry.total_overtime, precision: 0) %>
                   </span>
                 </div>
               <% end %>
               <div class="payslip-card__net">
                 <span><%= t("payroll.index.net_col") %></span>
-                <strong><%= number_to_currency(entry.net_salary, unit: "SAR ", precision: 0) %></strong>
+                <strong><%= format_currency(entry.net_salary, precision: 0) %></strong>
               </div>
             </div>
           <% end %>

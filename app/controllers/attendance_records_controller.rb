@@ -121,7 +121,7 @@ class AttendanceRecordsController < ApplicationController
 
   def record_params
     params.require(:attendance_record)
-          .permit(:check_in_at, :check_out_at, :status, :reason)
+          .permit(:check_in_at, :check_out_at, :reason)
           .to_h
           .symbolize_keys
   end

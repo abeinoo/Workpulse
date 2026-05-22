@@ -15,35 +15,35 @@
   <div class="card" style="margin-bottom: 1.5rem;">
     <div class="info-card__row">
       <span class="info-card__label"><%= t("admin.payroll_entries.show.base_salary") %></span>
-      <span><%= number_to_currency(@entry.base_salary, unit: "SAR ") %></span>
+      <span><%= format_currency(@entry.base_salary) %></span>
     </div>
     <% if @entry.total_overtime > 0 %>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("admin.payroll_entries.show.overtime") %></span>
-        <span style="color: var(--success);">+ <%= number_to_currency(@entry.total_overtime, unit: "SAR ") %></span>
+        <span style="color: var(--success);">+ <%= format_currency(@entry.total_overtime) %></span>
       </div>
     <% end %>
     <% if @entry.total_bonuses > 0 %>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("admin.payroll_entries.show.bonuses") %></span>
-        <span style="color: var(--success);">+ <%= number_to_currency(@entry.total_bonuses, unit: "SAR ") %></span>
+        <span style="color: var(--success);">+ <%= format_currency(@entry.total_bonuses) %></span>
       </div>
     <% end %>
     <% if @entry.total_deductions > 0 %>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("admin.payroll_entries.show.deductions") %></span>
-        <span style="color: var(--danger);">- <%= number_to_currency(@entry.total_deductions, unit: "SAR ") %></span>
+        <span style="color: var(--danger);">- <%= format_currency(@entry.total_deductions) %></span>
       </div>
     <% end %>
     <% if @entry.advances_deducted > 0 %>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("admin.payroll_entries.show.advance_repayments") %></span>
-        <span style="color: var(--danger);">- <%= number_to_currency(@entry.advances_deducted, unit: "SAR ") %></span>
+        <span style="color: var(--danger);">- <%= format_currency(@entry.advances_deducted) %></span>
       </div>
     <% end %>
     <div class="info-card__row" style="border-top: 2px solid var(--border); font-weight: 600;">
       <span class="info-card__label"><%= t("admin.payroll_entries.show.net_salary") %></span>
-      <span><%= number_to_currency(@entry.net_salary, unit: "SAR ") %></span>
+      <span><%= format_currency(@entry.net_salary) %></span>
     </div>
   </div>
 
@@ -66,7 +66,7 @@
               <td><%= t("payroll.entry.item_types.#{item.item_type}") %></td>
               <td class="td-secondary"><%= item.description.presence || "—" %></td>
               <td style="color: <%= item.deduction? ? 'var(--danger)' : 'var(--success)' %>;">
-                <%= item.deduction? ? "- " : "+ " %><%= number_to_currency(item.amount.abs, unit: "SAR ") %>
+                <%= item.deduction? ? "- " : "+ " %><%= format_currency(item.amount.abs) %>
               </td>
               <td>
                 <span class="badge <%= line_item_review_badge_class(item) %>">

@@ -3,12 +3,12 @@ class Admin::SalaryProfilesController < Admin::BaseController
   before_action :set_profile, only: [ :edit, :update ]
 
   def new
-    @profile = @employee.salary_profiles.new(currency: "SAR", active: true)
+    @profile = @employee.salary_profiles.new(currency: @employee.business.currency, active: true)
     authorize @profile
   end
 
   def create
-    @profile = @employee.salary_profiles.new(profile_params.merge(active: true))
+    @profile = @employee.salary_profiles.new(profile_params.merge(currency: @employee.business.currency, active: true))
     authorize @profile
 
     if @profile.save
@@ -46,8 +46,7 @@ class Admin::SalaryProfilesController < Admin::BaseController
 
   def profile_params
     params.require(:salary_profile).permit(
-      :salary_type, :base_amount, :overtime_multiplier,
-      :currency, :effective_from
+      :salary_type, :base_amount, :overtime_multiplier, :effective_from
     )
   end
 

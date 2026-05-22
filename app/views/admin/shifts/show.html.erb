@@ -72,7 +72,7 @@
               <td class="td-secondary"><%= rule.threshold_minutes %> min</td>
               <td>
                 <% if rule.fixed_amount? %>
-                  SAR <%= number_with_delimiter(rule.deduction_value) %>
+                  <%= format_currency(rule.deduction_value) %>
                 <% else %>
                   <%= rule.deduction_value %><%= t("shifts.deduction_percent") %>
                 <% end %>

@@ -58,6 +58,29 @@ RSpec.describe Attendance::PunchService do
     end
   end
 
+  # ───── Mobile check-in + biometric within check-in window → update check-in ──
+
+  describe "biometric punch within CHECK_IN_UPDATE_WINDOW (mobile+biometric scenario)" do
+    before { punch("2026-05-17 09:00:00 +03:00") } # simulates mobile check-in
+
+    it "treats a biometric punch within 1 hour (no checkout yet) as check_in_updated" do
+      result = punch("2026-05-17 09:05:00 +03:00") # 5 minutes after mobile check-in
+      expect(result.action).to eq("check_in_updated")
+    end
+
+    it "updates check_in_at to the biometric punch time" do
+      result = punch("2026-05-17 09:05:00 +03:00")
+      expect(result.record.check_in_at).to be_within(1.second).of(
+        Time.zone.parse("2026-05-17 09:05:00 +03:00")
+      )
+    end
+
+    it "treats a punch beyond 1 hour as checkout when no checkout exists" do
+      result = punch("2026-05-17 10:30:00 +03:00") # 1.5 hours after check-in
+      expect(result.action).to eq("check_out")
+    end
+  end
+
   # ───── Second punch → check_out ───────────────────────────────────────────
 
   describe "second punch (after check_in)" do

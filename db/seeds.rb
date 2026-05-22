@@ -233,7 +233,7 @@ all_staff.each_with_index do |user, i|
     user:           user,
     salary_type:    data[:salary_type],
     base_amount:    data[:amount],
-    currency:       "SAR",
+    currency:       business.currency,
     effective_from: 1.year.ago.to_date,
     active:         true
   )

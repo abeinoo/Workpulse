@@ -41,15 +41,6 @@
         <p class="form-hint"><%= t("attendance.records.checkout_hint") %></p>
       </div>
 
-      <div class="form-group">
-        <%= f.label :status, t("attendance.status"), class: "form-label" %>
-        <%= f.select :status,
-              AttendanceRecord::STATUSES.map { |s| [s.humanize, s] },
-              { selected: @record.status },
-              class: "form-control" %>
-        <p class="form-hint"><%= t("attendance.records.status_hint") %></p>
-      </div>
-
       <div class="form-group form-group--full">
         <%= f.label :reason, t("attendance.records.reason_label"), class: "form-label form-label--required" %>
         <%= f.text_area :reason,

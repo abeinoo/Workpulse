@@ -96,6 +96,7 @@
   <% end %>
 
   <h2 class="section-title mt-8"><%= t("admin.attendance_records.show.edit_record") %></h2>
+  <p class="form-hint mb-4"><%= t("attendance.records.audit_notice") %></p>
   <%= form_with model: [:admin, @record], method: :patch, class: "form-card" do |f| %>
     <div class="form-grid">
       <div class="form-group">
@@ -109,14 +110,15 @@
         <%= f.datetime_local_field :check_out_at,
               value: @record.check_out_at&.strftime("%Y-%m-%dT%H:%M"),
               class: "form-control" %>
+        <p class="form-hint"><%= t("attendance.records.checkout_hint") %></p>
       </div>
-      <div class="form-group">
-        <%= f.label :status, t("attendance.status"), class: "form-label" %>
-        <%= f.select :status,
-              AttendanceRecord.statuses.keys.map { |s| [t("attendance.statuses.#{s}"), s] },
-              { selected: @record.status },
-              class: "form-control" %>
-      </div>
+    </div>
+    <div class="form-group">
+      <%= f.label :reason, t("attendance.records.reason_label"), class: "form-label" %>
+      <%= f.text_area :reason,
+            placeholder: t("attendance.records.reason_placeholder"),
+            class: "form-control",
+            rows: 3 %>
     </div>
     <div class="form-actions">
       <%= f.submit t("attendance.records.save_changes"), class: "btn btn-primary" %>

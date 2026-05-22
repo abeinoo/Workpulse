@@ -1,12 +1,13 @@
 module Attendance
   # Applies manager edits to an attendance record and writes an immutable audit entry
   # for every field that changes. All changes happen in a single transaction.
+  # Status is never user-editable — it is always re-derived from times after every save.
   class AdjustmentService
     Result = Struct.new(:success, :record, :error, keyword_init: true) do
       def success? = success
     end
 
-    ADJUSTABLE_FIELDS = %w[check_in_at check_out_at status].freeze
+    ADJUSTABLE_FIELDS = %w[check_in_at check_out_at].freeze
 
     def self.call(record:, adjusted_by:, params:)
       new(record: record, adjusted_by: adjusted_by, params: params).call
@@ -64,19 +65,22 @@ module Attendance
     end
 
     def recompute_derived_fields
-      return unless @record.check_in_at && @record.check_out_at
+      shift  = @record.shift_assignment&.shift
+      branch = @record.branch
 
-      shift = @record.shift_assignment.shift
-
-      @record.worked_minutes      = ((@record.check_out_at - @record.check_in_at) / 60).to_i
-      @record.late_minutes        = TimeCalculator.late_minutes(shift, @record.check_in_at, @record.branch)
-      @record.early_leave_minutes = TimeCalculator.early_leave_minutes(
-        shift, @record.check_out_at, @record.worked_minutes, @record.branch
-      )
-
-      # Only derive status automatically when the editor didn't explicitly set it
-      unless @params.key?(:status)
+      if @record.check_in_at && @record.check_out_at
+        @record.worked_minutes      = ((@record.check_out_at - @record.check_in_at) / 60).to_i
+        @record.late_minutes        = TimeCalculator.late_minutes(shift, @record.check_in_at, branch)
+        @record.early_leave_minutes = TimeCalculator.early_leave_minutes(
+          shift, @record.check_out_at, @record.worked_minutes, branch
+        )
         @record.status = TimeCalculator.derive_status(@record.late_minutes, @record.early_leave_minutes)
+      else
+        # Checkout absent or cleared — reset checkout-derived fields and revert status
+        @record.worked_minutes      = nil
+        @record.early_leave_minutes = 0
+        @record.late_minutes        = TimeCalculator.late_minutes(shift, @record.check_in_at, branch)
+        @record.status              = @record.late_minutes.to_i > 0 ? "late" : "incomplete"
       end
     end
 

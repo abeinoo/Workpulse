@@ -66,6 +66,14 @@
 
     <div class="form-grid">
       <div class="form-group">
+        <%= f.label :currency, t("admin.settings.currency_label"), class: "form-label" %>
+        <%= f.select :currency,
+              Business::CURRENCIES.map { |code, info| ["#{info[:name]} (#{code})", code] },
+              {},
+              class: "form-control #{'is-error' if @business.errors[:currency].any?}" %>
+        <p class="form-hint"><%= t("admin.settings.currency_hint") %></p>
+      </div>
+      <div class="form-group">
         <%= f.label :working_days_per_month, t("admin.settings.working_days_label"), class: "form-label" %>
         <%= f.number_field :working_days_per_month,
               class: "form-control #{'is-error' if @business.errors[:working_days_per_month].any?}",

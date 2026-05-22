@@ -3955,4 +3955,38 @@ table {
   .page-header__actions {
     flex-wrap: wrap;
   }
+
+  /* Mobile: smaller page title to avoid overflow in narrow headers */
+  .page-title {
+    font-size: var(--text-xl);
+  }
+
+  /* Mobile: remove negative margin that pulls subtitle up (avoids overlap) */
+  .page-subtitle {
+    margin-top: var(--space-1);
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  /* Mobile: allow long values (coords, branch names) in info-card rows to wrap */
+  .info-card__row {
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .info-card__row > *:last-child {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+  }
+
+  /* Mobile: form-page already has side padding, reduce top padding slightly */
+  .form-page {
+    padding-top: var(--space-4);
+  }
+
+  /* Mobile: section title margins */
+  .section-title {
+    font-size: var(--text-base);
+  }
 }

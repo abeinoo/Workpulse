@@ -215,17 +215,17 @@
         </div>
         <div class="payroll-summary-card__row">
           <span class="payroll-summary-card__label"><%= t("payroll.base_salary") %></span>
-          <span><%= number_to_currency(@latest_payroll.base_salary, unit: "SAR ", delimiter: ",", precision: 0) %></span>
+          <span><%= format_currency(@latest_payroll.base_salary, precision: 0) %></span>
         </div>
         <% if @latest_payroll.total_deductions > 0 %>
           <div class="payroll-summary-card__row payroll-summary-card__row--deduction">
             <span class="payroll-summary-card__label"><%= t("payroll.deductions") %></span>
-            <span>&minus; <%= number_to_currency(@latest_payroll.total_deductions, unit: "SAR ", delimiter: ",", precision: 0) %></span>
+            <span>&minus; <%= format_currency(@latest_payroll.total_deductions, precision: 0) %></span>
           </div>
         <% end %>
         <div class="payroll-summary-card__row payroll-summary-card__row--net">
           <span class="payroll-summary-card__label"><%= t("payroll.net_salary") %></span>
-          <strong><%= number_to_currency(@latest_payroll.net_salary, unit: "SAR ", delimiter: ",", precision: 0) %></strong>
+          <strong><%= format_currency(@latest_payroll.net_salary, precision: 0) %></strong>
         </div>
       </div>
     </div>

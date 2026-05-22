@@ -32,18 +32,17 @@
     </div>
 
     <div class="form-group">
-      <%= f.label :currency, class: "form-label" %>
-      <%= f.text_field :currency,
-            class: "form-control #{'is-error' if profile.errors[:currency].any?}",
-            placeholder: "SAR" %>
-    </div>
-
-    <div class="form-group">
       <%= f.label :effective_from, t("salary_profiles.effective_from"), class: "form-label" %>
       <%= f.date_field :effective_from,
             class: "form-control #{'is-error' if profile.errors[:effective_from].any?}" %>
     </div>
   </div>
+
+  <p class="form-hint" style="margin-bottom: 0;">
+    <%= t("salary_profiles.currency_note",
+          currency: @employee.business.currency_info[:name],
+          code: @employee.business.currency) %>
+  </p>
 
   <div class="form-actions">
     <%= f.submit f.object.persisted? ? t("salary_profiles.edit.submit") : t("salary_profiles.new.submit"), class: "btn btn-primary" %>

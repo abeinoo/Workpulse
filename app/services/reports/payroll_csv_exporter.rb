@@ -2,26 +2,22 @@ require "csv"
 
 module Reports
   class PayrollCsvExporter
-    HEADERS = [
-      "Employee ID", "Full Name", "Salary Type",
-      "Base Salary", "Working Days", "Days Worked",
-      "Total Deductions", "Total Overtime", "Total Bonuses",
-      "Advances Deducted", "Obligations Deducted", "Net Salary", "Status"
-    ].freeze
-
-    def self.call(period:)
-      new(period: period).call
+    def self.call(period:, business: nil)
+      new(period: period, business: business).call
     end
 
-    def initialize(period:)
-      @period = period
+    def initialize(period:, business: nil)
+      @period   = period
+      @business = business || period.business
+      @currency = @business&.currency || "SAR"
     end
 
     def call
       summary = PayrollSummary.call(period: @period)
 
       CSV.generate(headers: true) do |csv|
-        csv << HEADERS
+        csv << ["Currency: #{@currency}"]
+        csv << headers
         summary[:entries].each { |row| csv << row_values(row) }
         csv << []
         csv << totals_row(summary[:totals])
@@ -29,6 +25,16 @@ module Reports
     end
 
     private
+
+    def headers
+      [
+        "Employee ID", "Full Name", "Salary Type",
+        "Base Salary (#{@currency})", "Working Days", "Days Worked",
+        "Total Deductions (#{@currency})", "Total Overtime (#{@currency})",
+        "Total Bonuses (#{@currency})", "Advances Deducted (#{@currency})",
+        "Obligations Deducted (#{@currency})", "Net Salary (#{@currency})", "Status"
+      ]
+    end
 
     def row_values(row)
       [

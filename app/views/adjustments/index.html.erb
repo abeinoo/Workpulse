@@ -70,7 +70,7 @@
             </td>
             <td>
               <span class="<%= adj.positive? ? 'text-success' : 'text-danger' %>">
-                <%= adj.positive? ? "+" : "-" %><%= number_to_currency(adj.amount, unit: "SAR ") %>
+                <%= adj.positive? ? "+" : "-" %><%= format_currency(adj.amount) %>
               </span>
             </td>
             <td><%= truncate(adj.reason, length: 60) %></td>

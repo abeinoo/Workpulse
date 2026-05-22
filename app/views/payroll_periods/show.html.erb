@@ -76,9 +76,9 @@
         <% @entries.each do |entry| %>
           <tr>
             <td><%= entry.user.full_name %></td>
-            <td class="td-secondary"><%= number_to_currency(entry.base_salary, unit: "SAR ") %></td>
-            <td class="td-secondary"><%= number_to_currency(entry.total_deductions, unit: "SAR ") %></td>
-            <td><strong><%= number_to_currency(entry.net_salary, unit: "SAR ") %></strong></td>
+            <td class="td-secondary"><%= format_currency(entry.base_salary) %></td>
+            <td class="td-secondary"><%= format_currency(entry.total_deductions) %></td>
+            <td><strong><%= format_currency(entry.net_salary) %></strong></td>
             <td>
               <% pending = @pending_counts[entry.id] %>
               <% if pending && pending > 0 %>

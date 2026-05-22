@@ -117,6 +117,18 @@ module ApplicationHelper
     end
   end
 
+  # Formats a monetary amount using the current user's business currency.
+  # In Arabic locale: "1,500 ر.س"; in English: "SAR 1,500.00"
+  # precision: keyword controls decimal places (default 2; pass 0 for whole numbers).
+  def format_currency(amount, precision: 2)
+    return "—" if amount.nil?
+    business = current_user&.business
+    code     = business&.currency.presence || "SAR"
+    info     = Business::CURRENCIES[code] || Business::CURRENCIES["SAR"]
+    num      = number_with_precision(amount.to_f, precision: precision, delimiter: ",", separator: ".")
+    I18n.locale.to_s == "ar" ? "#{num} #{info[:symbol]}" : "#{info[:symbol_en]} #{num}"
+  end
+
   # Formats a minutes integer as "Xh Ym" (e.g. 90 → "1h 30m").
   # Returns "—" for nil/zero.
   def format_minutes(minutes)

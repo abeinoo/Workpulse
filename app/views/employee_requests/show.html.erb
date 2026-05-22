@@ -21,7 +21,7 @@
     <% if @request.salary_advance? && @request.amount.present? %>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("requests.amount") %></span>
-        <span><%= number_to_currency(@request.amount, unit: "SAR ") %></span>
+        <span><%= format_currency(@request.amount) %></span>
       </div>
     <% end %>
     <% if @request.reason.present? %>

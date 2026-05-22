@@ -8,7 +8,8 @@ module Attendance
   #   - Punch within SPAM_WINDOW of a previous logged punch → rejected_spam
   #   - No active shift assignment    → rejected_no_assignment
   class PunchService
-    SPAM_WINDOW = 60.seconds
+    SPAM_WINDOW            = 60.seconds
+    CHECK_IN_UPDATE_WINDOW = 1.hour
 
     Result = Struct.new(:success, :action, :record, :log, :error, keyword_init: true) do
       def success? = success
@@ -53,6 +54,10 @@ module Attendance
       if record.new_record? || record.check_in_at.nil?
         perform_check_in(record)
       elsif @punched_at <= record.check_in_at
+        perform_check_in_update(record)
+      elsif record.check_out_at.nil? && (@punched_at - record.check_in_at) < CHECK_IN_UPDATE_WINDOW
+        # Punch is within the check-in window and no checkout yet — treat as a check-in refinement.
+        # This handles mobile check-in followed quickly by a biometric scan at the same entrance.
         perform_check_in_update(record)
       else
         perform_check_out(record)

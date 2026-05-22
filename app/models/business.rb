@@ -1,4 +1,18 @@
 class Business < ApplicationRecord
+  CURRENCIES = {
+    "SAR" => { name: "Saudi Riyal",     symbol: "ر.س", symbol_en: "SAR" },
+    "EGP" => { name: "Egyptian Pound",  symbol: "ج.م", symbol_en: "EGP" },
+    "AED" => { name: "UAE Dirham",      symbol: "د.إ", symbol_en: "AED" },
+    "USD" => { name: "US Dollar",       symbol: "$",   symbol_en: "$"   },
+    "EUR" => { name: "Euro",            symbol: "€",   symbol_en: "€"   },
+    "GBP" => { name: "British Pound",   symbol: "£",   symbol_en: "£"   },
+    "KWD" => { name: "Kuwaiti Dinar",   symbol: "د.ك", symbol_en: "KWD" },
+    "BHD" => { name: "Bahraini Dinar",  symbol: "د.ب", symbol_en: "BHD" },
+    "QAR" => { name: "Qatari Riyal",    symbol: "ر.ق", symbol_en: "QAR" },
+    "OMR" => { name: "Omani Rial",      symbol: "ر.ع", symbol_en: "OMR" },
+    "JOD" => { name: "Jordanian Dinar", symbol: "د.أ", symbol_en: "JOD" },
+  }.freeze
+
   belongs_to :owner, class_name: "User", optional: true
 
   has_many :branches,              dependent: :destroy
@@ -20,6 +34,7 @@ class Business < ApplicationRecord
   validates :business_day_start_hour,
             numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 23 }
   validates :default_locale, inclusion: { in: %w[en ar] }, allow_blank: true
+  validates :currency, inclusion: { in: CURRENCIES.keys }, allow_blank: false
   validates :max_late_permission_minutes,
             numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :max_early_leave_permission_minutes,
@@ -27,6 +42,18 @@ class Business < ApplicationRecord
 
   def timezone_object
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]
+  end
+
+  def currency_info
+    CURRENCIES[currency] || CURRENCIES["SAR"]
+  end
+
+  def currency_symbol
+    currency_info[:symbol]
+  end
+
+  def currency_symbol_en
+    currency_info[:symbol_en]
   end
 
   private

@@ -154,10 +154,7 @@
         </div>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("salary_profiles.base_salary") %></dt>
-          <dd class="data-list__value">
-            <%= number_with_precision(@active_salary_profile.base_amount, precision: 2, delimiter: ",") %>
-            <%= @active_salary_profile.currency %>
-          </dd>
+          <dd class="data-list__value"><%= format_currency(@active_salary_profile.base_amount) %></dd>
         </div>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("salary_profiles.overtime_multiplier") %></dt>
@@ -203,7 +200,7 @@
               <% @salary_profiles.each do |profile| %>
                 <tr>
                   <td data-label="<%= t('salary_profiles.type') %>"><%= t("salary_profiles.salary_types.#{profile.salary_type}") %></td>
-                  <td data-label="<%= t('salary_profiles.base_salary') %>"><%= number_with_precision(profile.base_amount, precision: 2, delimiter: ",") %> <%= profile.currency %></td>
+                  <td data-label="<%= t('salary_profiles.base_salary') %>"><%= format_currency(profile.base_amount) %></td>
                   <td data-label="<%= t('salary_profiles.ot_multiplier') %>"><%= profile.overtime_multiplier ? "#{profile.overtime_multiplier}x" : "—" %></td>
                   <td data-label="<%= t('salary_profiles.effective_from') %>"><%= profile.effective_from.strftime("%d %b %Y") %></td>
                   <td data-label="<%= t('admin.users.status') %>">

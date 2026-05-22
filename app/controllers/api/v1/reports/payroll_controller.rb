@@ -11,7 +11,7 @@ module Api
         def export
           period = find_period
           authorize period, :show?
-          csv = ::Reports::PayrollCsvExporter.call(period: period)
+          csv = ::Reports::PayrollCsvExporter.call(period: period, business: current_user.business)
           send_data csv,
                     filename:    "payroll_#{period.period_label.parameterize}.csv",
                     type:        "text/csv",

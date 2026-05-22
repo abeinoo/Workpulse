@@ -41,7 +41,7 @@
             <td class="td-secondary"><%= req.requested_for_date.strftime("%b %-d, %Y") %></td>
             <td class="td-secondary">
               <% if req.salary_advance? && req.amount.present? %>
-                <%= number_to_currency(req.amount, unit: "SAR ", precision: 0) %>
+                <%= format_currency(req.amount, precision: 0) %>
               <% else %>
                 —
               <% end %>

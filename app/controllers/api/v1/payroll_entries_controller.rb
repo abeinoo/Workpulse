@@ -66,7 +66,8 @@ module Api
         ).merge(
           payroll_period_id: entry.payroll_period_id,
           gross_salary:      entry.gross_salary,
-          total_adjustments: entry.total_adjustments
+          total_adjustments: entry.total_adjustments,
+          currency:          current_user.business.currency
         )
 
         if detailed

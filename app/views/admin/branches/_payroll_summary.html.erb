@@ -14,7 +14,7 @@
     <div class="stat-card">
       <p class="stat-card__label"><%= t("admin.branches.total_net") %></p>
       <p class="stat-card__value text-sm font-medium">
-        <%= number_to_currency(entries.sum(&:net_salary), unit: "SAR ", delimiter: ",", precision: 0) %>
+        <%= format_currency(entries.sum(&:net_salary), precision: 0) %>
       </p>
     </div>
     <div class="stat-card <%= entries.count(&:draft?) > 0 ? 'stat-card--warning' : '' %>">
@@ -57,19 +57,19 @@
                 </div>
               </td>
               <td class="td-secondary">
-                <%= number_to_currency(entry.base_salary, unit: "SAR ", delimiter: ",", precision: 0) %>
+                <%= format_currency(entry.base_salary, precision: 0) %>
               </td>
               <td class="<%= entry.total_overtime > 0 ? 'text-success' : 'td-secondary' %>">
-                <%= entry.total_overtime > 0 ? "+#{number_to_currency(entry.total_overtime, unit: 'SAR ', delimiter: ',', precision: 0)}" : '—' %>
+                <%= entry.total_overtime > 0 ? "+#{format_currency(entry.total_overtime, precision: 0)}" : '—' %>
               </td>
               <td class="<%= entry.total_bonuses > 0 ? 'text-success' : 'td-secondary' %>">
-                <%= entry.total_bonuses > 0 ? "+#{number_to_currency(entry.total_bonuses, unit: 'SAR ', delimiter: ',', precision: 0)}" : '—' %>
+                <%= entry.total_bonuses > 0 ? "+#{format_currency(entry.total_bonuses, precision: 0)}" : '—' %>
               </td>
               <td class="<%= entry.total_deductions > 0 ? 'text-danger' : 'td-secondary' %>">
-                <%= entry.total_deductions > 0 ? "-#{number_to_currency(entry.total_deductions, unit: 'SAR ', delimiter: ',', precision: 0)}" : '—' %>
+                <%= entry.total_deductions > 0 ? "-#{format_currency(entry.total_deductions, precision: 0)}" : '—' %>
               </td>
               <td class="font-bold">
-                <%= number_to_currency(entry.net_salary, unit: "SAR ", delimiter: ",", precision: 0) %>
+                <%= format_currency(entry.net_salary, precision: 0) %>
               </td>
               <td>
                 <span class="badge <%= entry.approved? ? 'badge-accent' : entry.disputed? ? 'badge-danger' : 'badge-neutral' %>">
