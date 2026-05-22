@@ -84,31 +84,6 @@
       </div>
     </div>
 
-    <div class="divider"></div>
-
-    <%# ── Permissions ──────────────────────────────────────────────────── %>
-    <h2 class="section-title"><%= t("admin.settings.sections.permissions") %></h2>
-    <p class="form-hint" style="margin-bottom: 1rem;"><%= t("admin.settings.permissions_hint") %></p>
-
-    <div class="form-grid">
-      <div class="form-group">
-        <%= f.label :max_late_permission_minutes, t("admin.settings.max_late_permission_label"), class: "form-label" %>
-        <%= f.number_field :max_late_permission_minutes,
-              class: "form-control #{'is-error' if @business.errors[:max_late_permission_minutes].any?}",
-              min: 1,
-              placeholder: t("admin.settings.permission_limit_placeholder") %>
-        <p class="form-hint"><%= t("admin.settings.max_late_permission_hint") %></p>
-      </div>
-      <div class="form-group">
-        <%= f.label :max_early_leave_permission_minutes, t("admin.settings.max_early_leave_permission_label"), class: "form-label" %>
-        <%= f.number_field :max_early_leave_permission_minutes,
-              class: "form-control #{'is-error' if @business.errors[:max_early_leave_permission_minutes].any?}",
-              min: 1,
-              placeholder: t("admin.settings.permission_limit_placeholder") %>
-        <p class="form-hint"><%= t("admin.settings.max_early_leave_permission_hint") %></p>
-      </div>
-    </div>
-
     <div class="form-actions">
       <%= f.submit t("admin.settings.save"), class: "btn btn-primary" %>
     </div>

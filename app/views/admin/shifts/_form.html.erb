@@ -54,6 +54,38 @@
     </div>
   </div>
 
+  <%# ── Permission limits ── %>
+  <div class="divider"></div>
+
+  <h3 class="section-title" style="margin-bottom: 0.5rem;">
+    <%= t("shifts.form.permission_limits_title") %>
+  </h3>
+  <p class="form-hint" style="margin-bottom: 1rem;">
+    <%= t("shifts.form.permission_limits_hint") %>
+  </p>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :max_late_permission_minutes,
+            t("shifts.form.max_late_permission_label"), class: "form-label" %>
+      <%= f.number_field :max_late_permission_minutes,
+            class: "form-control #{'is-error' if shift.errors[:max_late_permission_minutes].any?}",
+            min: 1,
+            placeholder: t("shifts.form.permission_limit_placeholder") %>
+      <p class="form-hint"><%= t("shifts.form.max_late_permission_hint") %></p>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :max_early_leave_permission_minutes,
+            t("shifts.form.max_early_leave_permission_label"), class: "form-label" %>
+      <%= f.number_field :max_early_leave_permission_minutes,
+            class: "form-control #{'is-error' if shift.errors[:max_early_leave_permission_minutes].any?}",
+            min: 1,
+            placeholder: t("shifts.form.permission_limit_placeholder") %>
+      <p class="form-hint"><%= t("shifts.form.max_early_leave_permission_hint") %></p>
+    </div>
+  </div>
+
   <%# ── Penalty rules ── %>
   <div class="penalty-rules-section" data-controller="penalty-rules">
 

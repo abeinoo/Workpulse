@@ -70,10 +70,7 @@ class EmployeeRequest < ApplicationRecord
   def within_monthly_permission_limit
     return unless duration_minutes.present? && requested_for_date.present? && user.present?
 
-    limit = case request_type
-            when "late_permission"  then user.business.max_late_permission_minutes
-            when "early_leave"      then user.business.max_early_leave_permission_minutes
-            end
+    limit = permission_limit
     return unless limit.present?
 
     month_start = requested_for_date.beginning_of_month
@@ -89,6 +86,18 @@ class EmployeeRequest < ApplicationRecord
       errors.add(:duration_minutes,
                  I18n.t("requests.errors.exceeds_monthly_limit",
                         remaining: remaining, limit: limit))
+    end
+  end
+
+  # Reads the monthly permission limit from the employee's active shift on the
+  # requested date. Falls back to the business-level setting for shifts that
+  # predate the per-shift configuration (i.e. still have nil values).
+  def permission_limit
+    shift = ShiftAssignment.active_on(requested_for_date).find_by(user: user)&.shift
+    if late_permission?
+      shift&.max_late_permission_minutes || user.business.max_late_permission_minutes
+    elsif early_leave?
+      shift&.max_early_leave_permission_minutes || user.business.max_early_leave_permission_minutes
     end
   end
 end

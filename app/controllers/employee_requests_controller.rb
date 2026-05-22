@@ -138,13 +138,17 @@ class EmployeeRequestsController < ApplicationController
   end
 
   def permission_limits_for(target_user)
-    biz = target_user.business
-    month = Date.current
-    month_start = month.beginning_of_month
-    month_end   = month.end_of_month
+    shift       = ShiftAssignment.current.find_by(user: target_user)&.shift
+    biz         = target_user.business
+    month_start = Date.current.beginning_of_month
+    month_end   = Date.current.end_of_month
 
     %w[late_permission early_leave].each_with_object({}) do |type, h|
-      limit = type == "late_permission" ? biz.max_late_permission_minutes : biz.max_early_leave_permission_minutes
+      limit = if type == "late_permission"
+                shift&.max_late_permission_minutes || biz.max_late_permission_minutes
+              else
+                shift&.max_early_leave_permission_minutes || biz.max_early_leave_permission_minutes
+              end
       next unless limit
 
       used = EmployeeRequest

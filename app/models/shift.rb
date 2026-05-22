@@ -22,6 +22,10 @@ class Shift < ApplicationRecord
 
   validates :overtime_rate_multiplier,
             numericality: { greater_than_or_equal_to: 1 }, allow_nil: true
+  validates :max_late_permission_minutes,
+            numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+  validates :max_early_leave_permission_minutes,
+            numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
 
   scope :active,        -> { where(active: true) }
   scope :for_business,  ->(business) { where(business: business) }

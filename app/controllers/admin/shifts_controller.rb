@@ -48,6 +48,7 @@ class Admin::ShiftsController < Admin::BaseController
   def shift_params
     params.require(:shift).permit(
       :name, :shift_type, :start_time, :end_time, :required_hours, :overtime_rate_multiplier,
+      :max_late_permission_minutes, :max_early_leave_permission_minutes,
       penalty_rules_attributes: [ :id, :rule_type, :threshold_minutes, :deduction_type, :deduction_value, :_destroy ]
     )
   end

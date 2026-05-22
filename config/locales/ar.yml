@@ -619,6 +619,13 @@ ar:
       deduction_header: "نوع الخصم"
       amount_header: "المبلغ"
       shortfall_label: "عجز الساعات"
+      permission_limits_title: "حدود الإذن الشهرية"
+      permission_limits_hint: "الحد الأقصى للدقائق التي يمكن للموظفين في هذه الوردية طلبها شهريًا. اتركها فارغة لعدم وضع سقف."
+      max_late_permission_label: "الحد الأقصى لدقائق التأخر (دقيقة/شهر)"
+      max_late_permission_hint: "إجمالي دقائق التأخر المسموح بطلبها لكل موظف في هذه الوردية خلال الشهر."
+      max_early_leave_permission_label: "الحد الأقصى للمغادرة المبكرة (دقيقة/شهر)"
+      max_early_leave_permission_hint: "إجمالي دقائق المغادرة المبكرة المسموح بطلبها لكل موظف في هذه الوردية خلال الشهر."
+      permission_limit_placeholder: "مثال: 120"
 
   penalty_rules:
     new:
@@ -1003,13 +1010,6 @@ ar:
         attendance: "الحضور"
         payroll: "الرواتب"
         language: "اللغة"
-        permissions: "الأذونات"
-      permissions_hint: "اتركها فارغة إذا كنت لا تريد تحديد سقف شهري."
-      max_late_permission_label: "الحد الأقصى لدقائق التأخر الشهرية"
-      max_late_permission_hint: "إجمالي دقائق التأخر المسموح بطلبها لكل موظف في الشهر."
-      max_early_leave_permission_label: "الحد الأقصى للمغادرة المبكرة الشهرية"
-      max_early_leave_permission_hint: "إجمالي دقائق المغادرة المبكرة المسموح بطلبها لكل موظف في الشهر."
-      permission_limit_placeholder: "مثال: 120"
       timezone_label: "المنطقة الزمنية"
       timezone_hint: "تُستخدم لجميع حسابات الحضور والرواتب وأيام العمل."
       business_day_label: "ساعة بداية يوم العمل"

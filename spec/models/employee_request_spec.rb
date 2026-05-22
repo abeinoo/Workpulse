@@ -145,17 +145,26 @@ RSpec.describe EmployeeRequest, type: :model do
   end
 
   describe "monthly permission limit" do
-    let(:business) { create(:business, max_late_permission_minutes: 120) }
+    let(:business) { create(:business) }
     let(:user)     { create(:user, business: business) }
+    let(:branch)   { create(:branch, business: business) }
     let(:date)     { Date.current.beginning_of_month + 5.days }
+    let(:shift)    { create(:shift, :fixed_time, business: business,
+                            max_late_permission_minutes: 120,
+                            max_early_leave_permission_minutes: 60) }
 
-    it "is valid when duration is within the remaining limit" do
+    before do
+      create(:shift_assignment, user: user, shift: shift, branch: branch,
+             effective_from: date.beginning_of_month, effective_to: nil)
+    end
+
+    it "is valid when duration is within the shift's monthly limit" do
       req = build(:employee_request, :late_permission, user: user,
                   requested_for_date: date, duration_minutes: 60)
       expect(req).to be_valid
     end
 
-    it "is invalid when duration exceeds the remaining limit" do
+    it "is invalid when duration exceeds the shift's remaining monthly limit" do
       create(:employee_request, :late_permission, :approved, user: user,
              requested_for_date: date, duration_minutes: 100)
       req = build(:employee_request, :late_permission, user: user,
@@ -164,11 +173,47 @@ RSpec.describe EmployeeRequest, type: :model do
       expect(req.errors[:duration_minutes]).to be_present
     end
 
-    it "is valid when no limit is configured (nil)" do
-      business.update!(max_late_permission_minutes: nil)
+    it "is valid when the shift has no limit configured (nil)" do
+      shift.update!(max_late_permission_minutes: nil)
       req = build(:employee_request, :late_permission, user: user,
                   requested_for_date: date, duration_minutes: 9999)
       expect(req).to be_valid
+    end
+
+    context "business-level fallback when shift has no limit" do
+      before { shift.update!(max_late_permission_minutes: nil) }
+
+      it "enforces the business limit when the shift limit is nil" do
+        business.update!(max_late_permission_minutes: 30)
+        req = build(:employee_request, :late_permission, user: user,
+                    requested_for_date: date, duration_minutes: 50)
+        expect(req).not_to be_valid
+        expect(req.errors[:duration_minutes]).to be_present
+      end
+
+      it "skips enforcement when both shift and business limits are nil" do
+        business.update!(max_late_permission_minutes: nil)
+        req = build(:employee_request, :late_permission, user: user,
+                    requested_for_date: date, duration_minutes: 9999)
+        expect(req).to be_valid
+      end
+    end
+
+    context "employee without a shift assignment" do
+      before { ShiftAssignment.where(user: user).delete_all }
+
+      it "falls back to the business limit when no shift is assigned" do
+        business.update!(max_late_permission_minutes: 30)
+        req = build(:employee_request, :late_permission, user: user,
+                    requested_for_date: date, duration_minutes: 50)
+        expect(req).not_to be_valid
+      end
+
+      it "is valid when neither shift nor business has a limit" do
+        req = build(:employee_request, :late_permission, user: user,
+                    requested_for_date: date, duration_minutes: 9999)
+        expect(req).to be_valid
+      end
     end
   end
 
