@@ -1751,7 +1751,7 @@ body.is-authenticated {
 .emp-dashboard {
   max-width: 480px;
   margin: 0 auto;
-  padding: var(--space-4) var(--space-4) var(--space-20);
+  padding: var(--space-4) var(--space-4) var(--space-8);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
@@ -3988,5 +3988,151 @@ table {
   /* Mobile: section title margins */
   .section-title {
     font-size: var(--text-base);
+  }
+}
+
+/* ============================================================
+   §30 — MOBILE DASHBOARD (375–430px)
+   Targets all team cards, stat cards, hero, action buttons
+   ============================================================ */
+@media (max-width: 640px) {
+
+  /* ── Dashboard container padding: tighter on phones ── */
+  .mgr-dashboard,
+  .emp-dashboard {
+    padding-inline: var(--space-3);
+    gap: var(--space-4);
+  }
+
+  /* ── Stat cards: reduce padding so numbers breathe ── */
+  .stat-card {
+    padding: var(--space-3) var(--space-3);
+  }
+  .stat-card__value {
+    font-size: var(--text-2xl);
+  }
+  .stat-card__label {
+    font-size: 10px;
+  }
+
+  /* ── Team member card: 2-row layout ─────────────────────
+     Row 1: [avatar] [name + times]
+     Row 2: [status badge] ················ [action links]
+  ── */
+  .team-member {
+    flex-wrap: wrap;
+    padding: var(--space-3);
+    gap: var(--space-2);
+    align-items: flex-start;
+  }
+
+  /* Row 1: avatar + info fill the row */
+  .team-member__info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Row 2: full-width footer with badge ↔ actions */
+  .team-member__right {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-2);
+  }
+
+  /* Ensure actions wrap if still squeezed */
+  .team-member__actions {
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    justify-content: flex-end;
+  }
+
+  /* Bigger touch targets on mobile */
+  .team-action-link {
+    padding: var(--space-1) var(--space-2);
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* ── Mgr greeting: allow branch sub-text to wrap ── */
+  .mgr-dashboard__greeting {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .mgr-dashboard__greeting-sub,
+  .emp-dashboard__greeting-sub {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  /* ── Attendance hero: trim padding on mobile ── */
+  .attendance-hero {
+    padding: var(--space-4);
+    gap: var(--space-3);
+  }
+
+  /* ── Section header: prevent "view all" link from overflowing ── */
+  .mgr-dashboard__section-header,
+  .emp-dashboard__section-header {
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  /* ── Quick actions grid: 2 columns on mobile (mgr) ── */
+  .mgr-dashboard__quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+  }
+  .mgr-quick-action {
+    justify-content: flex-start;
+  }
+}
+
+/* ── Extra-narrow (< 480px): final squeeze fixes ── */
+@media (max-width: 480px) {
+
+  /* Reduce btn-xl padding for check-in CTA */
+  .btn-xl {
+    padding: var(--space-4) var(--space-6);
+    font-size: var(--text-base);
+  }
+
+  /* Greeting name: scale down on very narrow screens */
+  .mgr-dashboard__greeting-name,
+  .emp-dashboard__greeting-name {
+    font-size: var(--text-xl);
+  }
+
+  /* Date: allow to sit below greeting on very small screens */
+  .mgr-dashboard__date {
+    flex-basis: 100%;
+    padding-top: 0;
+  }
+
+  /* Stat card value: compact on tiny screens */
+  .stat-card__value {
+    font-size: var(--text-xl);
+  }
+
+  /* Attendance hero status: slightly smaller */
+  .attendance-hero__status {
+    font-size: var(--text-lg);
+  }
+}
+
+/* ── RTL mobile: mirror the 2-row team card correctly ── */
+@media (max-width: 640px) {
+  [dir="rtl"] .team-member__right {
+    flex-direction: row-reverse;
+  }
+  [dir="rtl"] .team-member__actions {
+    justify-content: flex-start;
+  }
+  [dir="rtl"] .mgr-quick-action {
+    flex-direction: row-reverse;
   }
 }
