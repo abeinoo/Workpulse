@@ -7,6 +7,7 @@ RSpec.describe User, type: :model do
   describe "associations" do
     it { is_expected.to belong_to(:business) }
     it { is_expected.to belong_to(:manager).optional }
+    it { is_expected.to belong_to(:permission_role).optional }
     it { is_expected.to have_many(:managed_employees).dependent(:nullify) }
     it { is_expected.to have_many(:user_branches).dependent(:destroy) }
     it { is_expected.to have_many(:branches).through(:user_branches) }
@@ -22,7 +23,6 @@ RSpec.describe User, type: :model do
   describe "validations" do
     it { is_expected.to validate_presence_of(:first_name) }
     it { is_expected.to validate_presence_of(:last_name) }
-    it { is_expected.to validate_presence_of(:role) }
 
     describe "email uniqueness" do
       it "rejects a duplicate email (case-insensitive)" do
@@ -77,7 +77,6 @@ RSpec.describe User, type: :model do
 
       it "skips password validation when password is blank" do
         user = build(:user, :unregistered)
-        # no password set — should still be valid (pre-created by admin)
         user.valid?
         expect(user.errors[:password]).to be_empty
       end
@@ -191,19 +190,6 @@ RSpec.describe User, type: :model do
         expect(User.inactive).not_to include(active_user)
       end
     end
-
-    describe ".staff" do
-      let!(:admin) { create(:user, :super_admin) }
-
-      it "excludes super_admin users" do
-        expect(User.staff).not_to include(admin)
-      end
-
-      it "includes employees and branch_managers" do
-        manager = create(:user, :branch_manager)
-        expect(User.staff).to include(active_user, manager)
-      end
-    end
   end
 
   # ── .find_for_database_authentication ────────────────────────────────────
@@ -242,33 +228,21 @@ RSpec.describe User, type: :model do
 
   # ── Manager relationship validations ─────────────────────────────────────
   describe "manager validations" do
-    let(:business) { create(:business) }
-    let(:manager)  { create(:user, :branch_manager, business: business) }
+    let(:business)       { create(:business) }
+    let(:other_business) { create(:business) }
 
-    describe "manager_must_be_branch_manager" do
-      it "accepts a branch_manager as manager" do
+    describe "validate_manager_in_same_business" do
+      it "accepts any user in the same business as manager" do
+        manager  = create(:user, business: business)
         employee = build(:user, business: business, manager: manager)
         expect(employee).to be_valid
       end
 
-      it "rejects a non-manager user as manager" do
-        other_employee = create(:user, business: business)
-        employee = build(:user, business: business, manager: other_employee)
+      it "rejects a manager from a different business" do
+        other_manager = create(:user, business: other_business)
+        employee = build(:user, business: business, manager: other_manager)
         expect(employee).not_to be_valid
-        expect(employee.errors[:manager]).to include("does not have the required role for this position")
-      end
-
-      it "rejects a super_admin as direct manager for an employee" do
-        admin = create(:user, :super_admin, business: business)
-        employee = build(:user, business: business, manager: admin)
-        expect(employee).not_to be_valid
-        expect(employee.errors[:manager]).to include("does not have the required role for this position")
-      end
-
-      it "permits super_admin as manager of a branch_manager" do
-        admin = create(:user, :super_admin, business: business)
-        bm = build(:user, :branch_manager, business: business, manager: admin)
-        expect(bm).to be_valid
+        expect(employee.errors[:manager]).to include("must belong to the same business")
       end
 
       it "is valid with no manager assigned" do
@@ -279,7 +253,7 @@ RSpec.describe User, type: :model do
 
     describe "no_self_management" do
       it "rejects assigning oneself as manager" do
-        mgr = create(:user, :branch_manager, business: business)
+        mgr = create(:user, business: business)
         mgr.manager = mgr
         expect(mgr).not_to be_valid
         expect(mgr.errors[:manager]).to include("cannot be yourself")
@@ -290,7 +264,7 @@ RSpec.describe User, type: :model do
   # ── #managed_employee_ids ─────────────────────────────────────────────────
   describe "#managed_employee_ids" do
     let(:business) { create(:business) }
-    let(:manager)  { create(:user, :branch_manager, business: business) }
+    let(:manager)  { create(:user, business: business) }
 
     it "returns IDs of directly managed employees" do
       emp1 = create(:user, business: business, manager: manager)
@@ -303,7 +277,7 @@ RSpec.describe User, type: :model do
     end
 
     it "does not include employees managed by a different manager" do
-      other_manager = create(:user, :branch_manager, business: business)
+      other_manager = create(:user, business: business)
       create(:user, business: business, manager: other_manager)
       expect(manager.managed_employee_ids).to be_empty
     end
@@ -317,11 +291,67 @@ RSpec.describe User, type: :model do
     end
   end
 
-  describe "#role predicates" do
-    it "returns true for the assigned role" do
-      expect(build(:user, :super_admin).super_admin?).to be true
-      expect(build(:user, :branch_manager).branch_manager?).to be true
-      expect(build(:user, :employee).employee?).to be true
+  describe "#owner?" do
+    let(:business) { create(:business) }
+
+    it "returns true when the user is the business owner" do
+      owner = create(:user, :owner, business: business)
+      expect(owner.owner?).to be true
+    end
+
+    it "returns false for a regular staff member" do
+      staff = create(:user, business: business)
+      expect(staff.owner?).to be false
+    end
+  end
+
+  describe "#can?" do
+    let(:business) { create(:business) }
+
+    it "returns true for any permission when the user is the owner" do
+      owner = create(:user, :owner, business: business)
+      expect(owner.can?(:view_payroll)).to be true
+      expect(owner.can?(:manage_employees)).to be true
+    end
+
+    it "returns false when the user has no permission role" do
+      staff = create(:user, business: business)
+      expect(staff.can?(:view_payroll)).to be false
+    end
+
+    it "delegates to the permission_role when present" do
+      role = create(:permission_role, business: business, permissions: %w[view_payroll])
+      staff = create(:user, business: business, permission_role: role)
+      expect(staff.can?(:view_payroll)).to be true
+      expect(staff.can?(:manage_payroll)).to be false
+    end
+  end
+
+  describe "#manages_branch?" do
+    let(:business) { create(:business) }
+
+    it "returns true when the user is set as branch_manager_id on a branch" do
+      manager = create(:user, :branch_manager, business: business)
+      expect(manager.manages_branch?).to be true
+    end
+
+    it "returns false for a plain employee" do
+      employee = create(:user, business: business)
+      expect(employee.manages_branch?).to be false
+    end
+  end
+
+  describe "#manages_area?" do
+    let(:business) { create(:business) }
+
+    it "returns true when the user is set as area_manager_id on a branch" do
+      area_mgr = create(:user, :area_manager, business: business)
+      expect(area_mgr.manages_area?).to be true
+    end
+
+    it "returns false for a plain employee" do
+      employee = create(:user, business: business)
+      expect(employee.manages_area?).to be false
     end
   end
 end

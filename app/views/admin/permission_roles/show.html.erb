@@ -1,0 +1,133 @@
+<% content_for :title, t("admin.permission_roles.show.page_title", name: @permission_role.name) %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <%= link_to admin_permission_roles_path, class: "back-link" do %>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        <%= t("admin.permission_roles.back") %>
+      <% end %>
+      <h1 class="page-title"><%= @permission_role.name %></h1>
+      <% if @permission_role.description.present? %>
+        <p class="page-subtitle"><%= @permission_role.description %></p>
+      <% end %>
+    </div>
+    <div class="page-header__actions">
+      <%= link_to t("forms.edit"), edit_admin_permission_role_path(@permission_role), class: "btn btn-secondary" %>
+      <%= button_to t("forms.delete"),
+            admin_permission_role_path(@permission_role),
+            method: :delete,
+            data: { turbo_confirm: t("admin.permission_roles.index.delete_confirm", name: @permission_role.name) },
+            class: "btn btn-danger" %>
+    </div>
+  </div>
+
+  <%# Permissions matrix %>
+  <div class="card mb-6">
+    <div class="card__header">
+      <h2 class="card__title"><%= t("admin.permission_roles.show.permissions_title") %></h2>
+      <span class="badge badge-primary"><%= t("admin.permission_roles.index.permission_count", count: @permission_role.permission_count) %></span>
+    </div>
+
+    <div class="permission-groups permission-groups--readonly">
+      <% PermissionRole::PERMISSION_GROUPS.each do |group, perms| %>
+        <% group_perms_granted = perms.count { |p| @permission_role.has_permission?(p) } %>
+        <div class="permission-group">
+          <div class="permission-group__header">
+            <h3 class="permission-group__title">
+              <%= t("admin.permission_roles.groups.#{group}") %>
+            </h3>
+            <span class="permission-group__count">
+              <%= t("admin.permission_roles.show.granted_count",
+                    granted: group_perms_granted, total: perms.size) %>
+            </span>
+          </div>
+          <div class="permission-group__perms">
+            <% perms.each do |perm| %>
+              <div class="permission-badge <%= @permission_role.has_permission?(perm) ? 'permission-badge--granted' : 'permission-badge--denied' %>">
+                <% if @permission_role.has_permission?(perm) %>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                <% else %>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <% end %>
+                <%= t("admin.permission_roles.permissions.#{perm}") %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Assigned Users %>
+  <div class="card">
+    <div class="card__header">
+      <h2 class="card__title"><%= t("admin.permission_roles.show.users_title") %></h2>
+      <span class="badge badge-neutral"><%= @users.count %></span>
+    </div>
+
+    <%# Assign user form %>
+    <% if @available_users.any? %>
+      <div class="permission-role-assign-form">
+        <%= form_with url: assign_user_admin_permission_role_path(@permission_role),
+                      method: :post, class: "inline-form" do |f| %>
+          <select name="user_id" class="form-control form-control--sm">
+            <option value=""><%= t("admin.permission_roles.show.select_user") %></option>
+            <% @available_users.each do |u| %>
+              <option value="<%= u.id %>"
+                      <%= "selected" if u.permission_role_id == @permission_role.id %>>
+                <%= u.full_name %>
+              </option>
+            <% end %>
+          </select>
+          <%= f.submit t("admin.permission_roles.show.assign_btn"), class: "btn btn-primary btn-sm" %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if @users.any? %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("admin.permission_roles.show.user_name") %></th>
+              <th><%= t("admin.permission_roles.show.user_role") %></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @users.each do |u| %>
+              <tr>
+                <td>
+                  <div class="employee-cell">
+                    <div class="avatar">
+                      <%= u.full_name.split.map(&:first).first(2).join.upcase %>
+                    </div>
+                    <div>
+                      <div class="employee-cell__name"><%= u.full_name %></div>
+                      <div class="employee-cell__sub"><%= u.email.presence || u.phone_number %></div>
+                    </div>
+                  </div>
+                </td>
+                <td class="td-secondary"><%= u.owner? ? "Super Admin" : "—" %></td>
+                <td>
+                  <%= button_to t("admin.permission_roles.show.remove_btn"),
+                        remove_user_admin_permission_role_path(@permission_role, user_id: u.id),
+                        method: :delete,
+                        data: { turbo_confirm: t("admin.permission_roles.show.remove_confirm", name: u.full_name) },
+                        class: "btn btn-ghost btn-sm btn-danger-ghost" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="empty-state empty-state--compact">
+        <p class="empty-state__text"><%= t("admin.permission_roles.show.no_users") %></p>
+      </div>
+    <% end %>
+  </div>
+
+</div>

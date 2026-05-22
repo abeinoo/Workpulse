@@ -6,27 +6,49 @@ FactoryBot.define do
     sequence(:email)      { |n| "user#{n}@example.com" }
     password              { "password123" }
     password_confirmation { "password123" }
-    role                  { :employee }
     active                { true }
 
+    # Ownership: sets this user as the business owner.
+    # Use :owner (or the :super_admin alias) for tests that need owner-level access.
+    trait :owner do
+      after(:create) { |u| u.business.update!(owner: u) }
+    end
+
+    # Backward-compat alias — many older specs use :super_admin to mean "owner"
     trait :super_admin do
-      role { :super_admin }
+      after(:create) { |u| u.business.update!(owner: u) }
+    end
+
+    # Relationship-based manager traits — creates a branch and sets manager relationship
+    trait :branch_manager do
+      after(:create) do |u|
+        branch = Branch.find_or_create_by!(business: u.business, name: "Test Branch #{u.id}") do |b|
+          b.active = true
+        end
+        branch.update_column(:branch_manager_id, u.id)
+      end
     end
 
     trait :area_manager do
-      role { :area_manager }
-    end
-
-    trait :branch_manager do
-      role { :branch_manager }
+      after(:create) do |u|
+        branch = Branch.find_or_create_by!(business: u.business, name: "Test Branch #{u.id}") do |b|
+          b.active = true
+        end
+        branch.update_column(:area_manager_id, u.id)
+      end
     end
 
     trait :accountant do
-      role { :accountant }
+      after(:create) do |u|
+        role = PermissionRole.find_or_create_by!(business: u.business, name: "Finance #{u.business_id}") do |r|
+          r.permissions = %w[view_payroll manage_payroll manage_adjustments view_requests pay_advances]
+        end
+        u.update_column(:permission_role_id, role.id)
+      end
     end
 
     trait :employee do
-      role { :employee }
+      # plain user — no special setup needed
     end
 
     # Has a phone number in addition to email

@@ -117,14 +117,14 @@ class EmployeeRequestsController < ApplicationController
   private
 
   def resolve_for_user
-    return nil unless current_user.branch_manager?
+    return nil unless current_user.manages_branch? || current_user.can?(:approve_requests)
     id = params[:for_user_id].presence || params.dig(:employee_request, :for_user_id).presence
     return nil unless id
     current_user.managed_employees.find_by(id: id)
   end
 
   def managed_employees_for_form
-    return [] unless current_user.branch_manager?
+    return [] unless current_user.manages_branch? || current_user.can?(:approve_requests)
     current_user.managed_employees.where(active: true).order(:first_name, :last_name)
   end
 

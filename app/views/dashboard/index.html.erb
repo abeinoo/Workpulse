@@ -1,12 +1,12 @@
 <% content_for :title, "Home — WorkPulse" %>
 
-<% if current_user.super_admin? %>
+<% if current_user.owner? %>
   <%= render "super_admin" %>
-<% elsif current_user.area_manager? %>
+<% elsif current_user.manages_area? %>
   <%= render "area_manager" %>
-<% elsif current_user.branch_manager? %>
+<% elsif current_user.manages_branch? %>
   <%= render "branch_manager" %>
-<% elsif current_user.accountant? %>
+<% elsif current_user.can?(:view_payroll) %>
   <%= render "accountant" %>
 <% else %>
   <%= render "employee" %>

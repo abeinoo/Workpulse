@@ -38,19 +38,21 @@
             placeholder: "EMP-001" %>
     </div>
 
+
     <div class="form-group">
-      <%= f.label :role, class: "form-label" %>
-      <%= f.select :role,
-            User::ROLES.map { |r| [r.humanize, r] },
-            {},
+      <%= f.label :permission_role_id, t("admin.users.form.permission_role"), class: "form-label" %>
+      <%= f.select :permission_role_id,
+            current_user.business.permission_roles.ordered.map { |r| [r.name, r.id] },
+            { include_blank: "— #{t("admin.users.form.no_permission_role")} —" },
             class: "form-control" %>
+      <p class="form-hint"><%= t("admin.users.form.permission_role_hint") %></p>
     </div>
 
     <% if defined?(@managers) && @managers.any? %>
       <div class="form-group">
         <%= f.label :manager_id, t("admin.users.form.direct_manager"), class: "form-label" %>
         <%= f.select :manager_id,
-              @managers.map { |m| ["#{m.full_name} (#{m.role.humanize})", m.id] },
+              @managers.map { |m| [m.full_name, m.id] },
               { include_blank: "— #{t("admin.users.form.no_manager")} —" },
               class: "form-control" %>
         <p class="form-hint">
@@ -115,7 +117,7 @@
             list: "relationship-suggestions",
             autocomplete: "off" %>
       <datalist id="relationship-suggestions">
-        <% t("admin.users.form.relationship_options").each do |opt| %>
+        <% Array(t("admin.users.form.relationship_options")).each do |opt| %>
           <option value="<%= opt %>">
         <% end %>
       </datalist>

@@ -15,6 +15,8 @@ RSpec.describe ShiftAssignmentPolicy, type: :model do
   let(:own_assignment)   { create(:shift_assignment, user: employee, branch: branch) }
 
   before do
+    branch.update_column(:area_manager_id,  area_manager.id)
+    branch.update_column(:branch_manager_id, manager.id)
     create(:user_branch, user: area_manager, branch: branch)
     create(:user_branch, user: manager,      branch: branch)
     create(:user_branch, user: employee,     branch: branch)

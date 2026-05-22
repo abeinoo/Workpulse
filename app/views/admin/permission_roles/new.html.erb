@@ -1,0 +1,15 @@
+<% content_for :title, t("admin.permission_roles.new.page_title") %>
+
+<div class="admin-page admin-page--form">
+  <div class="page-header">
+    <div>
+      <%= link_to admin_permission_roles_path, class: "back-link" do %>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        <%= t("admin.permission_roles.back") %>
+      <% end %>
+      <h1 class="page-title"><%= t("admin.permission_roles.new.title") %></h1>
+    </div>
+  </div>
+
+  <%= render "form", permission_role: @permission_role %>
+</div>

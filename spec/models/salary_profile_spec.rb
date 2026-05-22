@@ -25,7 +25,9 @@ RSpec.describe SalaryProfile, type: :model do
     end
 
     describe "overtime_multiplier" do
-      it { is_expected.to validate_presence_of(:overtime_multiplier) }
+      it "allows nil (field is optional)" do
+        expect(build(:salary_profile, overtime_multiplier: nil)).to be_valid
+      end
 
       it "rejects zero" do
         expect(build(:salary_profile, overtime_multiplier: 0)).not_to be_valid

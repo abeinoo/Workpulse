@@ -46,14 +46,14 @@
               class: "form-control", required: true %>
       </div>
 
-      <% if !current_user.super_admin? %>
+      <% if !current_user.owner? %>
         <p class="form-hint">
           <%= t("payroll_adjustments.new.hint") %>
         </p>
       <% end %>
 
       <div class="form-actions">
-        <%= f.submit current_user.super_admin? ? t("payroll_adjustments.new.save_approve") : t("payroll_adjustments.new.submit_review"),
+        <%= f.submit current_user.owner? ? t("payroll_adjustments.new.save_approve") : t("payroll_adjustments.new.submit_review"),
               class: "btn btn-primary" %>
         <%= link_to t("forms.cancel"), payroll_period_payroll_entry_path(@period, @entry), class: "btn btn-secondary" %>
       </div>

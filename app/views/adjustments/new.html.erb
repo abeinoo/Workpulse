@@ -57,14 +57,14 @@
       <%= f.hidden_field :period_year,  value: @period_year %>
     </div>
 
-    <% unless current_user.super_admin? %>
+    <% unless current_user.owner? %>
       <div class="alert alert-info" style="margin-top: var(--space-4);">
         <%= t("adjustments.new.hint") %>
       </div>
     <% end %>
 
     <div class="form-actions">
-      <%= f.submit current_user.super_admin? ? t("adjustments.new.save_approve") : t("adjustments.new.submit_review"),
+      <%= f.submit current_user.owner? ? t("adjustments.new.save_approve") : t("adjustments.new.submit_review"),
             class: "btn btn-primary" %>
       <%= link_to t("forms.cancel"),
             adjustments_path(period_month: @period_month, period_year: @period_year),

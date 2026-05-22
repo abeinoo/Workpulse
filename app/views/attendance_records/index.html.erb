@@ -1,6 +1,6 @@
 <% content_for :title, t("attendance.admin_index.page_title") %>
 
-<% can_manage = current_user.super_admin? || current_user.area_manager? || current_user.branch_manager? %>
+<% can_manage = current_user.owner? || current_user.manages_area? || current_user.manages_branch? || current_user.can?(:view_attendance) %>
 
 <div class="admin-page">
 
@@ -151,7 +151,7 @@
           <tr>
             <% if can_manage %>
               <td>
-                <% if (current_user.branch_manager? || current_user.area_manager?) && params[:user_id].blank? %>
+                <% if (current_user.manages_branch? || current_user.manages_area?) && params[:user_id].blank? %>
                   <%= link_to attendance_records_path(user_id: rec.user_id), class: "link" do %>
                     <%= rec.user.full_name %>
                     <% if rec.user.employee_code.present? %>

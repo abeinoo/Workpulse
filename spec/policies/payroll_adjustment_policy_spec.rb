@@ -9,6 +9,7 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
   let(:employee)    { create(:user, business: business) }
 
   before do
+    branch.update_column(:branch_manager_id, manager.id)
     create(:user_branch, user: manager,  branch: branch)
     create(:user_branch, user: employee, branch: branch)
   end

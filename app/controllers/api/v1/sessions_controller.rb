@@ -35,13 +35,16 @@ module Api
 
       def user_payload(user)
         {
-          id:           user.id,
-          first_name:   user.first_name,
-          last_name:    user.last_name,
-          email:        user.email,
-          phone_number: user.phone_number,
-          role:         user.role,
-          business_id:  user.business_id,
+          id:             user.id,
+          first_name:     user.first_name,
+          last_name:      user.last_name,
+          email:          user.email,
+          phone_number:   user.phone_number,
+          role:           user.owner? ? "owner" : "staff",
+          permissions:    user.permission_role&.permissions || [],
+          manages_area:   user.manages_area?,
+          manages_branch: user.manages_branch?,
+          business_id:    user.business_id,
           checkin_branch_ids: ShiftAssignment.current
                                              .where(user: user)
                                              .pluck(:branch_id)

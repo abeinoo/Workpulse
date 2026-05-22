@@ -1,10 +1,12 @@
 class Admin::BranchesController < Admin::BaseController
   def index
-    @branches = current_user.business.branches.order(:name)
+    authorize Branch
+    @branches = policy_scope(Branch).order(:name)
   end
 
   def show
     @branch = find_branch
+    authorize @branch
     today = Date.current
 
     @employees = @branch.users.where(active: true).order(:first_name, :last_name)
@@ -50,11 +52,13 @@ class Admin::BranchesController < Admin::BaseController
 
   def new
     @branch = current_user.business.branches.build
+    authorize @branch
     load_managers
   end
 
   def create
     @branch = current_user.business.branches.build(branch_params)
+    authorize @branch
     if @branch.save
       redirect_to admin_branch_path(@branch), notice: t("flash.branch_created")
     else
@@ -65,11 +69,13 @@ class Admin::BranchesController < Admin::BaseController
 
   def edit
     @branch = find_branch
+    authorize @branch
     load_managers
   end
 
   def update
     @branch = find_branch
+    authorize @branch
     if @branch.update(branch_params)
       redirect_to admin_branch_path(@branch), notice: t("flash.branch_updated")
     else
@@ -79,7 +85,9 @@ class Admin::BranchesController < Admin::BaseController
   end
 
   def destroy
-    find_branch.destroy
+    @branch = find_branch
+    authorize @branch
+    @branch.destroy
     redirect_to admin_branches_path, notice: t("flash.branch_removed")
   end
 
@@ -90,12 +98,9 @@ class Admin::BranchesController < Admin::BaseController
   end
 
   def load_managers
-    @managers = current_user.business.users
-                             .where(role: :branch_manager, active: true)
-                             .order(:first_name, :last_name)
-    @area_managers = current_user.business.users
-                                  .where(role: :area_manager, active: true)
-                                  .order(:first_name, :last_name)
+    all_active = current_user.business.users.active.order(:first_name, :last_name)
+    @managers      = all_active
+    @area_managers = all_active
   end
 
   def branch_params

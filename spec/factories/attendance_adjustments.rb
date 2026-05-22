@@ -7,8 +7,7 @@ FactoryBot.define do
     reason     { "Manager correction after employee reported wrong time" }
 
     after(:build) do |adj|
-      adj.adjusted_by ||= create(:user, :branch_manager,
-                                  business: adj.attendance_record.branch.business)
+      adj.adjusted_by ||= create(:user, business: adj.attendance_record.branch.business)
     end
   end
 end

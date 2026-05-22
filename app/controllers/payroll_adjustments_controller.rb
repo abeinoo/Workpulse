@@ -19,14 +19,14 @@ class PayrollAdjustmentsController < ApplicationController
     @adjustment.period_year    = @period.period_year
     @adjustment.created_by     = current_user
     # Super admins' adjustments are auto-approved; managers' require review.
-    @adjustment.review_status  = current_user.super_admin? ? "approved" : "pending_review"
+    @adjustment.review_status  = current_user.owner? ? "approved" : "pending_review"
 
     authorize @adjustment
 
     if @adjustment.save
       materialise_line_item!(@adjustment, entry)
       redirect_to payroll_period_payroll_entry_path(@period, entry),
-                  notice: current_user.super_admin? ? "Adjustment added." : "Adjustment submitted for review."
+                  notice: current_user.owner? ? "Adjustment added." : "Adjustment submitted for review."
     else
       @entry = entry
       render :new, status: :unprocessable_entity

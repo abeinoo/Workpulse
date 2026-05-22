@@ -14,7 +14,7 @@
         </div>
         <div>
           <h1 style="font-size:var(--text-xl);margin-bottom:2px;"><%= @user.full_name %></h1>
-          <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;"><%= @user.role.humanize %></p>
+          <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;"><%= @user.permission_role&.name || (@user.owner? ? "Super Admin" : "—") %></p>
         </div>
       </div>
       <% if @user.active? %>
@@ -47,7 +47,7 @@
           <% end %>
         </dd>
       </div>
-      <% if @user.branch_manager? && @user.managed_employees.any? %>
+      <% if @user.manages_branch? && @user.managed_employees.any? %>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("admin.users.managed_employees") %></dt>
           <dd class="data-list__value">
@@ -115,6 +115,27 @@
             class: "btn btn-danger" %>
     </div>
   </div>
+
+  <%# Ownership Transfer — only the current owner sees this, and only for other users %>
+  <% if policy(@user).transfer_ownership? %>
+    <div class="card" style="margin-top: var(--space-6); border-color: var(--color-warning, #f59e0b);">
+      <div class="card-header">
+        <h2 class="card-title" style="font-size: var(--text-lg); color: var(--color-warning, #b45309);">
+          <%= t("admin.users.transfer_ownership") %>
+        </h2>
+      </div>
+      <div style="padding: var(--space-4);">
+        <p class="form-hint" style="margin-bottom: var(--space-4);">
+          <%= t("admin.users.transfer_ownership_hint", name: @user.full_name) %>
+        </p>
+        <%= button_to t("admin.users.transfer_ownership"),
+              transfer_ownership_admin_user_path(@user),
+              method: :patch,
+              data: { turbo_confirm: t("admin.users.transfer_ownership_confirm", name: @user.full_name) },
+              class: "btn btn-warning" %>
+      </div>
+    </div>
+  <% end %>
 
   <%# Salary Profiles %>
   <div class="card" style="margin-top: var(--space-6);">

@@ -12,7 +12,7 @@
   </div>
 
   <div class="info-card">
-    <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
+    <% if current_user.owner? || current_user.manages_branch? || current_user.can?(:view_requests) %>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("requests.employee") %></span>
         <span><%= @request.user.full_name %></span>

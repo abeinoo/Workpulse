@@ -15,7 +15,7 @@
   </h1>
 
   <%# Manager: "for whom" selector shown when no pre-selected employee %>
-  <% if current_user.branch_manager? && @for_user.nil? && @managed_employees.any? %>
+  <% if (current_user.manages_branch? || current_user.can?(:approve_requests)) && @for_user.nil? && @managed_employees.any? %>
     <div class="for-whom-bar">
       <span class="for-whom-bar__label"><%= t("requests.new.creating_for") %></span>
       <div class="for-whom-bar__options">

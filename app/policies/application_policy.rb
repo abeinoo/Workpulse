@@ -33,29 +33,14 @@ class ApplicationPolicy
 
   protected
 
-  def super_admin?
-    user.super_admin?
-  end
+  def owner?          = user.owner?
+  def manages_area?   = user.manages_area?
+  def manages_branch? = user.manages_branch?
 
-  def branch_manager?
-    user.branch_manager?
-  end
+  def can?(permission) = user.can?(permission)
 
-  def area_manager?
-    user.area_manager?
-  end
-
-  def accountant?
-    user.accountant?
-  end
-
-  def employee?
-    user.employee?
-  end
-
-  # True for any role that manages branches or the whole business.
   def managing?
-    super_admin? || area_manager? || branch_manager?
+    owner? || manages_area? || manages_branch?
   end
 
   def same_business?(target = record)

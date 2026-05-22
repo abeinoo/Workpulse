@@ -15,7 +15,7 @@
       <%= t("nav.dashboard") %>
     <% end %>
 
-    <% if current_user.branch_manager? || current_user.super_admin? %>
+    <% if current_user.can?(:assign_shifts) || current_user.manages_branch? || current_user.owner? %>
       <%= link_to shift_assignments_path,
             class: "sidebar__nav-item #{controller_name == 'shift_assignments' ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>
@@ -24,7 +24,7 @@
       <% end %>
     <% end %>
 
-    <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
+    <% if current_user.can?(:view_attendance) || current_user.owner? || current_user.manages_branch? || current_user.manages_area? %>
       <%= link_to attendance_records_path,
             class: "sidebar__nav-item #{controller_name == 'attendance_records' && !request.path.start_with?('/admin') ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>
@@ -33,7 +33,7 @@
       <% end %>
     <% end %>
 
-    <% if current_user.super_admin? || current_user.area_manager? || current_user.branch_manager? %>
+    <% if current_user.can?(:approve_requests) || current_user.owner? || current_user.manages_area? || current_user.manages_branch? %>
       <%= link_to employee_requests_path,
             class: "sidebar__nav-item #{controller_name == 'employee_requests' && !request.path.start_with?('/admin') ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>
@@ -49,7 +49,7 @@
       <% end %>
     <% end %>
 
-    <% if current_user.super_admin? || current_user.branch_manager? || current_user.accountant? %>
+    <% if current_user.can?(:view_payroll) || current_user.owner? || current_user.manages_branch? || current_user.manages_area? %>
       <%= link_to payroll_periods_path,
             class: "sidebar__nav-item #{controller_name == 'payroll_periods' || controller_name == 'payroll_entries' && !request.path.start_with?('/admin') ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>
@@ -58,7 +58,7 @@
       <% end %>
     <% end %>
 
-    <% if current_user.employee? %>
+    <% unless current_user.management_access? %>
       <%= link_to attendance_records_path,
             class: "sidebar__nav-item #{controller_name == 'attendance_records' ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>
@@ -81,63 +81,86 @@
       <% end %>
     <% end %>
 
-    <% if current_user.super_admin? %>
+    <% if current_user.owner? || current_user.can?(:manage_roles) %>
       <div class="sidebar__section-label"><%= t("nav.section_admin") %></div>
 
-      <%= link_to admin_users_path,
-            class: "sidebar__nav-item #{request.path.start_with?('/admin/users') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <%= t("nav.employees") %>
+      <% if current_user.owner? || current_user.can?(:view_employees) %>
+        <%= link_to admin_users_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/users') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <%= t("nav.employees") %>
+        <% end %>
       <% end %>
 
-      <%= link_to admin_branches_path,
-            class: "sidebar__nav-item #{request.path.start_with?('/admin/branches') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        <%= t("nav.branches") %>
+      <% if current_user.owner? || current_user.can?(:manage_branches) %>
+        <%= link_to admin_branches_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/branches') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <%= t("nav.branches") %>
+        <% end %>
       <% end %>
 
-      <%= link_to admin_shifts_path,
-            class: "sidebar__nav-item #{request.path.start_with?('/admin/shifts') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <%= t("nav.shifts") %>
+      <% if current_user.owner? || current_user.can?(:manage_shifts) %>
+        <%= link_to admin_shifts_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/shifts') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <%= t("nav.shifts") %>
+        <% end %>
       <% end %>
 
-      <%= link_to admin_attendance_records_path,
-            class: "sidebar__nav-item #{request.path.start_with?('/admin/attendance_records') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        <%= t("nav.attendance") %>
+      <% if current_user.owner? || current_user.can?(:view_attendance) %>
+        <%= link_to admin_attendance_records_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/attendance_records') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <%= t("nav.attendance") %>
+        <% end %>
       <% end %>
 
-      <%= link_to admin_payroll_periods_path,
-            class: "sidebar__nav-item #{request.path.start_with?('/admin/payroll') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-        <%= t("nav.payroll") %>
+      <% if current_user.owner? || current_user.can?(:view_payroll) %>
+        <%= link_to admin_payroll_periods_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/payroll') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          <%= t("nav.payroll") %>
+        <% end %>
       <% end %>
 
-      <%= link_to admin_biometric_devices_path,
-            class: "sidebar__nav-item #{request.path.start_with?('/admin/biometric_devices') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="3"/></svg>
-        <%= t("nav.biometric_devices") %>
+      <% if current_user.owner? || current_user.can?(:manage_devices) %>
+        <%= link_to admin_biometric_devices_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/biometric_devices') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="3"/></svg>
+          <%= t("nav.biometric_devices") %>
+        <% end %>
+
+        <%= link_to admin_biometric_punch_logs_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/biometric_punch_logs') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <%= t("nav.punch_logs") %>
+        <% end %>
       <% end %>
 
-      <%= link_to admin_biometric_punch_logs_path,
-            class: "sidebar__nav-item #{request.path.start_with?('/admin/biometric_punch_logs') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        <%= t("nav.punch_logs") %>
+      <% if current_user.owner? || current_user.can?(:manage_roles) %>
+        <%= link_to admin_permission_roles_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/permission_roles') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <%= t("nav.permission_roles") %>
+        <% end %>
       <% end %>
 
-      <%= link_to admin_settings_path,
-            class: "sidebar__nav-item #{request.path.start_with?('/admin/settings') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <%= t("nav.settings") %>
+      <% if current_user.owner? || current_user.can?(:manage_settings) %>
+        <%= link_to admin_settings_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/settings') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <%= t("nav.settings") %>
+        <% end %>
       <% end %>
     <% end %>
 
@@ -150,7 +173,9 @@
       </div>
       <div class="sidebar__user-info">
         <p class="sidebar__user-name"><%= current_user.full_name %></p>
-        <p class="sidebar__user-role"><%= current_user.role.humanize %></p>
+        <p class="sidebar__user-role">
+          <%= current_user.permission_role&.name.presence || (current_user.owner? ? "Super Admin" : t("nav.staff")) %>
+        </p>
       </div>
     </div>
 

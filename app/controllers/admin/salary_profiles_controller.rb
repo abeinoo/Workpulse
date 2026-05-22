@@ -51,7 +51,9 @@ class Admin::SalaryProfilesController < Admin::BaseController
     )
   end
 
-  def require_super_admin!
-    redirect_to root_path, alert: t("flash.not_authorized") unless current_user.super_admin?
+  def require_admin_access!
+    unless current_user.owner? || current_user.can?(:manage_salary_profiles)
+      redirect_to root_path, alert: t("flash.not_authorized")
+    end
   end
 end
