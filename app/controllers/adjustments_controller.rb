@@ -24,9 +24,9 @@ class AdjustmentsController < ApplicationController
     @adjustment = PayrollAdjustment.new(adjustment_params)
     @adjustment.business     = current_user.business
     @adjustment.created_by   = current_user
-    @adjustment.review_status = current_user.super_admin? ? "approved" : "pending_review"
+    @adjustment.review_status = current_user.owner? ? "approved" : "pending_review"
 
-    if current_user.super_admin?
+    if current_user.owner?
       @adjustment.approved_by = current_user
       @adjustment.approved_at = Time.current
       @adjustment.reviewed_by = current_user
@@ -36,7 +36,7 @@ class AdjustmentsController < ApplicationController
     authorize @adjustment
 
     if @adjustment.save
-      msg = current_user.super_admin? ? t("flash.adjustment_approved") : t("flash.request_submitted")
+      msg = current_user.owner? ? t("flash.adjustment_approved") : t("flash.request_submitted")
       redirect_to adjustments_path(period_month: @adjustment.period_month,
                                    period_year:  @adjustment.period_year),
                   notice: msg
@@ -101,15 +101,13 @@ class AdjustmentsController < ApplicationController
   end
 
   def manageable_employees
-    if current_user.super_admin?
-      current_user.business.users.where(role: %w[employee branch_manager area_manager])
-                  .active.order(:first_name, :last_name)
-    elsif current_user.area_manager?
-      branch_ids = Branch.where(area_manager_id: current_user.id).pluck(:id)
+    if current_user.owner? || current_user.can?(:manage_adjustments)
+      current_user.business.users.active.order(:first_name, :last_name)
+    elsif current_user.manages_area?
       User.joins(:user_branches)
-          .where(user_branches: { branch_id: branch_ids })
+          .where(user_branches: { branch_id: current_user.area_managed_branch_ids })
           .active.order(:first_name, :last_name).distinct
-    elsif current_user.branch_manager?
+    elsif current_user.manages_branch?
       current_user.managed_employees.active.order(:first_name, :last_name)
     else
       User.none

@@ -10,9 +10,9 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
   let(:record)        { create(:attendance_record, branch: branch, user: employee) }
 
   before do
+    branch.update!(area_manager: area_manager, branch_manager: manager)
     create(:user_branch, user: manager,  branch: branch)
     create(:user_branch, user: employee, branch: branch)
-    branch.update!(area_manager: area_manager)
   end
 
   subject { described_class }

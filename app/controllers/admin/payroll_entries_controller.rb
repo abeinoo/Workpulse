@@ -31,8 +31,4 @@ class Admin::PayrollEntriesController < Admin::BaseController
   def entry_params
     params.require(:payroll_entry).permit(:notes, :adjustments)
   end
-
-  def require_super_admin!
-    redirect_to root_path, alert: "Not authorized." unless current_user.super_admin? || current_user.accountant?
-  end
 end

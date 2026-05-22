@@ -2,7 +2,8 @@ class User < ApplicationRecord
   devise :database_authenticatable, :registerable, :recoverable, :rememberable
 
   belongs_to :business
-  belongs_to :manager,             class_name: "User", optional: true
+  belongs_to :manager,          class_name: "User", optional: true
+  belongs_to :permission_role,  optional: true
 
   has_many :managed_employees,     class_name: "User", foreign_key: :manager_id, dependent: :nullify
   has_many :user_branches,         dependent: :destroy
@@ -17,19 +18,8 @@ class User < ApplicationRecord
   has_many :advances,              dependent: :destroy
   has_many :payroll_entries,       dependent: :destroy
 
-  ROLES = %w[super_admin area_manager branch_manager accountant employee].freeze
-
-  enum :role, {
-    employee:      "employee",
-    branch_manager: "branch_manager",
-    area_manager:  "area_manager",
-    super_admin:   "super_admin",
-    accountant:    "accountant"
-  }
-
-  scope :active,        -> { where(active: true) }
-  scope :inactive,      -> { where(active: false) }
-  scope :staff,         -> { where(role: %w[employee branch_manager area_manager]) }
+  scope :active,   -> { where(active: true) }
+  scope :inactive, -> { where(active: false) }
 
   normalizes :email,               with: ->(e) { e.blank? ? nil : e.strip.downcase }
   normalizes :phone_number,        with: ->(phone) {
@@ -56,12 +46,11 @@ class User < ApplicationRecord
                                    allow_blank: true
   validates :email, uniqueness: { case_sensitive: false }, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
   validates :first_name, :last_name, presence: true
-  validates :role, presence: true, inclusion: { in: ROLES }
   validates :business, presence: true
   validates :password, length: { minimum: 6, maximum: 128 }, if: :password_required?
   validates_confirmation_of :password, if: :password_required?
   validate :phone_or_email_present
-  validate :manager_must_be_branch_manager
+  validate :validate_manager_in_same_business
   validate :no_self_management
 
   def self.find_for_database_authentication(warden_conditions)
@@ -81,6 +70,39 @@ class User < ApplicationRecord
     managed_employees.pluck(:id)
   end
 
+  def owner?
+    business.owner_id == id
+  end
+
+  def manages_area?
+    Branch.where(area_manager_id: id).exists?
+  end
+
+  def manages_branch?
+    Branch.where(branch_manager_id: id).exists?
+  end
+
+  def managed_branch_ids
+    Branch.where(branch_manager_id: id).pluck(:id)
+  end
+
+  def area_managed_branch_ids
+    Branch.where(area_manager_id: id).pluck(:id)
+  end
+
+  def management_access?
+    owner? || manages_area? || manages_branch? ||
+      can?(:view_attendance) || can?(:view_payroll) || can?(:approve_requests) ||
+      can?(:assign_shifts) || can?(:view_employees) || can?(:manage_employees)
+  end
+
+  def can?(permission)
+    return true if owner?
+    return false unless permission_role
+
+    permission_role.has_permission?(permission)
+  end
+
   private
 
   def phone_or_email_present
@@ -91,18 +113,9 @@ class User < ApplicationRecord
     password.present? || password_confirmation.present?
   end
 
-  def manager_must_be_branch_manager
+  def validate_manager_in_same_business
     return unless manager_id.present? && manager
-
-    valid_manager_role =
-      case role
-      when "employee"      then manager.branch_manager? || manager.area_manager?
-      when "branch_manager" then manager.area_manager?  || manager.super_admin?
-      when "area_manager"  then manager.super_admin?
-      else true
-      end
-
-    errors.add(:manager, "does not have the required role for this position") unless valid_manager_role
+    errors.add(:manager, "must belong to the same business") unless manager.business_id == business_id
   end
 
   def no_self_management

@@ -19,7 +19,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title"><%= @record.work_date.strftime("%B %-d, %Y") %></h1>
-      <% if current_user.super_admin? || current_user.branch_manager? %>
+      <% if current_user.owner? || current_user.manages_branch? %>
         <p class="page-subtitle"><%= @record.user.full_name %><% if @record.branch %> &mdash; <%= @record.branch.name %><% end %></p>
       <% end %>
     </div>

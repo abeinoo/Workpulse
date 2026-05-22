@@ -74,6 +74,9 @@ Rails.application.routes.draw do
     resources :users do
       resources :salary_profiles, only: [ :new, :create, :edit, :update ]
       resource  :password, only: [ :edit, :update ], controller: "user_passwords"
+      member do
+        patch :transfer_ownership
+      end
     end
 
     resources :branches
@@ -100,6 +103,13 @@ Rails.application.routes.draw do
         delete :destroy
       end
       resources :payroll_entries, only: [ :index, :show, :update ]
+    end
+
+    resources :permission_roles do
+      member do
+        post   :assign_user
+        delete :remove_user
+      end
     end
   end
 

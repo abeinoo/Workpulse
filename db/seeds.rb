@@ -9,7 +9,7 @@ puts "\n== WorkPulse Seed Data =="
 # ---------------------------------------------------------------------------
 business = Business.find_or_create_by!(name: "Al-Noor Group") do |b|
   b.timezone               = "Asia/Riyadh"
-  b.working_days_per_month = 22
+  b.working_days_per_month = 26
   b.active                 = true
 end
 puts "Business: #{business.name}"
@@ -71,7 +71,7 @@ puts "Penalty rules: #{morning_shift.penalty_rules.count} rules for #{morning_sh
 # ---------------------------------------------------------------------------
 # Users helper
 # ---------------------------------------------------------------------------
-def seed_user(business:, email:, phone: nil, first_name:, last_name:, role:,
+def seed_user(business:, email:, phone: nil, first_name:, last_name:,
               employee_code: nil, identity_card_number: nil)
   user = User.find_by(email: email) || (phone && User.find_by(phone_number: phone))
   if user.nil?
@@ -81,7 +81,6 @@ def seed_user(business:, email:, phone: nil, first_name:, last_name:, role:,
       phone_number:          phone,
       first_name:            first_name,
       last_name:             last_name,
-      role:                  role,
       employee_code:         employee_code,
       identity_card_number:  identity_card_number,
       password:              "password123",
@@ -100,10 +99,10 @@ admin = seed_user(
   email:         "admin@workpulse.dev",
   first_name:    "Sara",
   last_name:     "Al-Otaibi",
-  role:          "super_admin",
   employee_code: "ADM-001"
 )
-puts "Super Admin: #{admin.email}"
+business.update_column(:owner_id, admin.id) if business.owner_id.nil?
+puts "Owner: #{admin.email}"
 
 # ---------------------------------------------------------------------------
 # Area Manager
@@ -114,7 +113,6 @@ area_mgr = seed_user(
   phone:         "+966509990002",
   first_name:    "Tariq",
   last_name:     "Al-Harbi",
-  role:          "area_manager",
   employee_code: "ARM-001"
 )
 puts "Area Manager: #{area_mgr.email}"
@@ -128,7 +126,6 @@ accountant = seed_user(
   phone:         "+966509990001",
   first_name:    "Hana",
   last_name:     "Al-Rashid",
-  role:          "accountant",
   employee_code: "ACC-001"
 )
 puts "Accountant: #{accountant.email}"
@@ -142,7 +139,6 @@ mgr_riyadh = seed_user(
   phone:         "+966501110001",
   first_name:    "Khaled",
   last_name:     "Al-Ghamdi",
-  role:          "branch_manager",
   employee_code: "MGR-001"
 )
 
@@ -152,7 +148,6 @@ mgr_jeddah = seed_user(
   phone:         "+966501110002",
   first_name:    "Noura",
   last_name:     "Al-Zahrani",
-  role:          "branch_manager",
   employee_code: "MGR-002"
 )
 puts "Managers: #{mgr_riyadh.email}, #{mgr_jeddah.email}"
@@ -166,7 +161,7 @@ employees_data = [
   { email: "omar.nasser@workpulse.dev",   phone: "+966502220003", first_name: "Omar",   last_name: "Nasser",   branch: riyadh, shift: flexible_shift, salary_type: "daily",   amount: 350,   code: "EMP-003", ic: "1034567890" },
   { email: "layla.ibrahim@workpulse.dev", phone: "+966502220004", first_name: "Layla",  last_name: "Ibrahim",  branch: jeddah, shift: morning_shift,  salary_type: "monthly", amount: 6_500, code: "EMP-004", ic: "2045678901" },
   { email: "yusuf.karimi@workpulse.dev",  phone: "+966502220005", first_name: "Yusuf",  last_name: "Karimi",   branch: jeddah, shift: flexible_shift, salary_type: "daily",   amount: 300,   code: "EMP-005", ic: "2056789012" },
-  { email: "reem.sultan@workpulse.dev",   phone: "+966502220006", first_name: "Reem",   last_name: "Sultan",   branch: jeddah, shift: morning_shift,  salary_type: "monthly", amount: 7_000, code: "EMP-006", ic: "2067890123" },
+  { email: "reem.sultan@workpulse.dev",   phone: "+966502220006", first_name: "Reem",   last_name: "Sultan",   branch: jeddah, shift: morning_shift,  salary_type: "monthly", amount: 7_000, code: "EMP-006", ic: "2067890123" }
 ]
 
 employees = employees_data.map do |d|
@@ -176,7 +171,6 @@ employees = employees_data.map do |d|
     phone:                d[:phone],
     first_name:           d[:first_name],
     last_name:            d[:last_name],
-    role:                 "employee",
     employee_code:        d[:code],
     identity_card_number: d[:ic]
   )
@@ -191,9 +185,9 @@ emp5 = employees[4]  # Yusuf Karimi   — Jeddah, daily 300
 emp6 = employees[5]  # Reem Sultan    — Jeddah, monthly 7000
 
 # ---------------------------------------------------------------------------
-# UserBranch assignments
+# UserBranch assignments + branch manager relationships
 # ---------------------------------------------------------------------------
-[[mgr_riyadh, riyadh], [mgr_jeddah, jeddah]].each do |user, branch|
+[ [ mgr_riyadh, riyadh ], [ mgr_jeddah, jeddah ] ].each do |user, branch|
   UserBranch.find_or_create_by!(user: user, branch: branch)
 end
 
@@ -201,6 +195,11 @@ employees_data.each_with_index do |d, i|
   UserBranch.find_or_create_by!(user: employees[i], branch: d[:branch])
 end
 puts "UserBranch records assigned"
+
+riyadh.update_column(:branch_manager_id, mgr_riyadh.id) if riyadh.branch_manager_id.nil?
+jeddah.update_column(:branch_manager_id, mgr_jeddah.id) if jeddah.branch_manager_id.nil?
+puts "Branch manager relationships set"
+
 
 # ---------------------------------------------------------------------------
 # Manager assignments
@@ -225,7 +224,7 @@ puts "Hierarchy: employees → branch managers → #{area_mgr.full_name} → #{a
 # ---------------------------------------------------------------------------
 # Salary profiles
 # ---------------------------------------------------------------------------
-all_staff = employees + [mgr_riyadh, mgr_jeddah]
+all_staff = employees + [ mgr_riyadh, mgr_jeddah ]
 all_staff.each_with_index do |user, i|
   next if SalaryProfile.where(user: user, active: true).exists?
 
@@ -258,7 +257,7 @@ employees_data.each_with_index do |d, i|
   )
 end
 
-[[mgr_riyadh, riyadh], [mgr_jeddah, jeddah]].each do |user, branch|
+[ [ mgr_riyadh, riyadh ], [ mgr_jeddah, jeddah ] ].each do |user, branch|
   next if ShiftAssignment.active_on(Date.current).where(user: user, branch: branch).exists?
 
   ShiftAssignment.create!(
@@ -461,7 +460,7 @@ def build_payroll_entry(payroll_period:, user:, admin:)
   late_deduction = ((total_late_mins / 60.0) * (daily / 8.0)).round(2)
 
   advance_record   = Advance.active.find_by(user: user)
-  advance_deducted = advance_record ? [advance_record.remaining_amount * 0.5, 500].min.round(2) : 0.0
+  advance_deducted = advance_record ? [ advance_record.remaining_amount * 0.5, 500 ].min.round(2) : 0.0
 
   net = (profile.monthly? ? base : daily * days_worked) - late_deduction - advance_deducted
 
@@ -476,7 +475,7 @@ def build_payroll_entry(payroll_period:, user:, admin:)
     advances_deducted: advance_deducted,
     total_bonuses:     0,
     total_overtime:    0,
-    net_salary:        [net, 0].max
+    net_salary:        [ net, 0 ].max
   )
 
   if late_deduction > 0
@@ -694,19 +693,54 @@ end
 puts "Payroll period (draft): #{period_curr.period_label}"
 
 # ---------------------------------------------------------------------------
+# Permission Roles — two optional demo roles to illustrate the system.
+# The business owner creates and names their own roles in the UI;
+# nothing here is required or enforced by the application.
+# ---------------------------------------------------------------------------
+[
+  {
+    name:        "Full Access",
+    description: "Example: can manage everything except business settings",
+    permissions: %w[
+      view_employees manage_employees manage_salary_profiles
+      view_attendance manage_attendance manage_devices
+      view_payroll manage_payroll finalize_payroll
+      manage_adjustments approve_adjustments
+      view_requests approve_requests
+      view_shifts manage_shifts assign_shifts
+      view_reports export_reports
+    ]
+  },
+  {
+    name:        "View Only",
+    description: "Example: read-only access across all modules",
+    permissions: %w[
+      view_employees view_attendance view_payroll
+      view_requests view_shifts view_reports
+    ]
+  }
+].each do |attrs|
+  PermissionRole.find_or_create_by!(business: business, name: attrs[:name]) do |r|
+    r.description = attrs[:description]
+    r.permissions = attrs[:permissions]
+  end
+end
+puts "Permission roles: #{PermissionRole.where(business: business).count} roles (owner can rename/delete/add freely)"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 puts "\n== Seed Complete =="
 puts "  Business  : #{business.name}"
 puts "  Branches  : #{Branch.where(business: business).count}"
-puts "  Users     : #{business.users.count} (#{business.users.where(role: :super_admin).count} admin, #{business.users.where(role: :area_manager).count} area_mgr, #{business.users.where(role: :accountant).count} accountant, #{business.users.where(role: :branch_manager).count} mgr, #{business.users.where(role: :employee).count} emp)"
+puts "  Users     : #{business.users.count} (owner: #{business.owner&.full_name}, #{business.users.count - 1} staff)"
 puts "  Records   : #{AttendanceRecord.joins(:branch).where(branches: { business: business }).count} attendance records"
 puts "  Requests  : #{EmployeeRequest.for_business(business).count} employee requests"
 puts "  Payroll   : #{PayrollPeriod.where(business: business).count} periods, #{PayrollEntry.joins(:payroll_period).where(payroll_periods: { business: business }).count} entries"
 puts "\n  Credentials (password: password123)"
-puts "    admin@workpulse.dev          — Super Admin"
+puts "    admin@workpulse.dev          — Owner"
 puts "    area.manager@workpulse.dev   — Area Manager (all branches)"
-puts "    accountant@workpulse.dev     — Accountant"
+puts "    accountant@workpulse.dev     — Staff"
 puts "    manager.riyadh@workpulse.dev — Branch Manager (Riyadh)"
 puts "    manager.jeddah@workpulse.dev — Branch Manager (Jeddah)"
 puts "    ahmed.hassan@workpulse.dev   — Employee (Riyadh, monthly SAR 8,000)"

@@ -50,7 +50,8 @@ RSpec.describe "API V1 Employee Requests", type: :request do
         employee_request: {
           request_type:       "late_permission",
           requested_for_date: Date.tomorrow.to_s,
-          reason:             "Medical appointment"
+          reason:             "Medical appointment",
+          duration_minutes:   30
         }
       }
     end

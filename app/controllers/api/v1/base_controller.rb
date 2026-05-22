@@ -24,7 +24,7 @@ module Api
       end
 
       def require_manager!
-        render_unauthorized unless current_user.super_admin? || current_user.branch_manager?
+        render_unauthorized unless current_user.owner? || current_user.manages_branch? || current_user.can?(:manage_employees)
       end
     end
   end

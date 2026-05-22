@@ -24,7 +24,7 @@
     <span><%= t("nav.payroll") %></span>
   <% end %>
 
-  <% if current_user.super_admin? %>
+  <% if current_user.owner? %>
     <%= link_to admin_root_path,
           class: "bottom-nav__item #{request.path.start_with?('/admin') ? 'is-active' : ''}" do %>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>

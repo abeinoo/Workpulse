@@ -1,5 +1,5 @@
 class Admin::UsersController < Admin::BaseController
-  before_action :set_user, only: [ :show, :edit, :update, :destroy ]
+  before_action :set_user, only: [ :show, :edit, :update, :destroy, :transfer_ownership ]
 
   def index
     authorize User
@@ -55,6 +55,12 @@ class Admin::UsersController < Admin::BaseController
     redirect_to admin_users_path, notice: t("flash.employee_removed")
   end
 
+  def transfer_ownership
+    authorize @user
+    current_user.business.update!(owner: @user)
+    redirect_to admin_user_path(@user), notice: t("flash.ownership_transferred")
+  end
+
   private
 
   def set_user
@@ -62,24 +68,16 @@ class Admin::UsersController < Admin::BaseController
   end
 
   def load_managers
-    # Return the roles that can manage the target user's role.
-    manager_roles =
-      case @user.role
-      when "branch_manager" then %w[area_manager super_admin]
-      when "area_manager"   then %w[super_admin]
-      else                       %w[branch_manager area_manager]
-      end
-
-    @managers = current_user.business.users
-                              .where(role: manager_roles)
-                              .where.not(id: @user.id)
-                              .order(:first_name, :last_name)
+    @managers = current_user.business.users.active
+                             .where.not(id: @user.id)
+                             .order(:first_name, :last_name)
   end
 
   def user_params
     params.require(:user).permit(
       :first_name, :last_name, :phone_number, :email,
-      :employee_code, :role, :active, :manager_id,
+      :employee_code, :active, :manager_id,
+      :permission_role_id,
       :identity_card_number, :identity_card_expiry_date,
       :allow_mobile_attendance, :allow_biometric_attendance,
       :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship

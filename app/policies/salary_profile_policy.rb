@@ -1,18 +1,17 @@
 class SalaryProfilePolicy < ApplicationPolicy
   def index?   = viewable?
   def show?    = viewable?
-  def create?  = super_admin?
-  # Only the currently active profile may be edited; historical ones are immutable.
-  def update?  = super_admin? && record.active?
+  def create?  = can?(:manage_salary_profiles) || owner?
+  def update?  = (can?(:manage_salary_profiles) || owner?) && record.active?
   def destroy? = false
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.super_admin? || user.accountant?
+      if user.owner? || user.can?(:manage_salary_profiles) || user.can?(:view_payroll)
         scope.joins(:user).where(users: { business_id: user.business_id })
-      elsif user.branch_manager?
+      elsif user.manages_branch?
         managed_user_ids = User.joins(:user_branches)
-                               .where(user_branches: { branch_id: user.branch_ids, active: true })
+                               .where(user_branches: { branch_id: user.managed_branch_ids, active: true })
                                .select(:id)
         scope.where(user_id: managed_user_ids)
       else
@@ -24,7 +23,7 @@ class SalaryProfilePolicy < ApplicationPolicy
   private
 
   def viewable?
-    super_admin? || accountant? || managing_profile_owner? || own_record?
+    can?(:manage_salary_profiles) || can?(:view_payroll) || owner? || managing_profile_owner? || own_record?
   end
 
   def own_record?
@@ -32,7 +31,6 @@ class SalaryProfilePolicy < ApplicationPolicy
   end
 
   def managing_profile_owner?
-    branch_manager? &&
-      UserBranch.where(user_id: record.user_id, branch_id: user.branch_ids, active: true).exists?
+    UserBranch.where(user_id: record.user_id, branch_id: user.managed_branch_ids, active: true).exists?
   end
 end

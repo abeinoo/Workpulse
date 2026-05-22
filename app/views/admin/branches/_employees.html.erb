@@ -32,8 +32,8 @@
               </div>
             </td>
             <td>
-              <span class="badge <%= employee.branch_manager? ? 'badge-accent' : 'badge-neutral' %>">
-                <%= employee.role.humanize %>
+              <span class="badge <%= employee.id == @branch.branch_manager_id ? 'badge-accent' : 'badge-neutral' %>">
+                <%= employee.permission_role&.name || "—" %>
               </span>
             </td>
             <td>

@@ -1,37 +1,31 @@
 class PayrollAdjustmentPolicy < ApplicationPolicy
   def index?
-    same_business? && (super_admin? || area_manager? || branch_manager? || accountant?)
+    same_business? && (can?(:view_payroll) || owner? || manages_area? || manages_branch?)
   end
 
-  # new? uses a blank record (no user yet), so only check role — no employee-scope check.
   def new?
-    same_business? && (super_admin? || area_manager? || branch_manager?)
+    same_business? && (owner? || manages_area? || manages_branch?)
   end
 
-  # create? is called with the fully-built record (user_id already set by params).
   def create?  = can_manage_adjustment?
-
-  # Only super admin may approve or reject.
   def approve? = can_review?
   def reject?  = can_review?
-  # Creator (or super admin) can delete while still pending and period not locked.
+
   def destroy?
     return false unless record.pending_review?
     return false unless same_business?
 
-    super_admin? || record.created_by_id == user.id
+    owner? || record.created_by_id == user.id
   end
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.super_admin?
+      if user.owner? || user.can?(:view_payroll)
         scope.where(business: user.business)
-      elsif user.area_manager?
+      elsif user.manages_area?
         scope.where(business: user.business, user_id: employees_in_area)
-      elsif user.branch_manager?
+      elsif user.manages_branch?
         scope.where(business: user.business, user_id: employees_in_branches)
-      elsif user.accountant?
-        scope.where(business: user.business)
       else
         scope.where(user_id: user.id, business: user.business)
       end
@@ -40,13 +34,12 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
     private
 
     def employees_in_area
-      branch_ids = Branch.where(area_manager_id: user.id).pluck(:id)
-      User.joins(:user_branches).where(user_branches: { branch_id: branch_ids }).select(:id)
+      User.joins(:user_branches).where(user_branches: { branch_id: user.area_managed_branch_ids }).select(:id)
     end
 
     def employees_in_branches
       User.joins(:user_branches)
-          .where(user_branches: { branch_id: user.branch_ids })
+          .where(user_branches: { branch_id: user.managed_branch_ids })
           .select(:id)
     end
   end
@@ -56,11 +49,11 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
   def can_manage_adjustment?
     return false unless same_business?
 
-    if super_admin? || accountant?
+    if can?(:manage_adjustments) || owner?
       true
-    elsif area_manager?
+    elsif manages_area?
       employee_in_area?
-    elsif branch_manager?
+    elsif manages_branch?
       employee_in_branch?
     else
       false
@@ -69,17 +62,16 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
 
   def can_review?
     return false unless same_business?
-    super_admin?
+    can?(:approve_adjustments) || owner?
   end
 
   def employee_in_branch?
     return false unless record.user
-    (user.branch_ids & record.user.branch_ids).any?
+    (user.managed_branch_ids & record.user.branch_ids).any?
   end
 
   def employee_in_area?
     return false unless record.user
-    area_branch_ids = Branch.where(area_manager_id: user.id).pluck(:id)
-    (area_branch_ids & record.user.branch_ids).any?
+    (user.area_managed_branch_ids & record.user.branch_ids).any?
   end
 end

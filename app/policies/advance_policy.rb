@@ -5,12 +5,11 @@ class AdvancePolicy < ApplicationPolicy
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.super_admin? || user.accountant?
+      if user.owner? || user.can?(:view_payroll)
         scope.joins(:user).where(users: { business_id: user.business_id })
-      elsif user.branch_manager?
-        # Advances for employees who belong to any of the manager's branches.
+      elsif user.manages_branch?
         scope.joins(user: :user_branches)
-             .where(user_branches: { branch_id: user.branch_ids })
+             .where(user_branches: { branch_id: user.managed_branch_ids })
       else
         scope.where(user_id: user.id)
       end
@@ -24,10 +23,10 @@ class AdvancePolicy < ApplicationPolicy
   end
 
   def managing_business?
-    (super_admin? || accountant?) && same_business?(record.user)
+    (owner? || can?(:view_payroll)) && same_business?(record.user)
   end
 
   def managing_branch?
-    branch_manager? && (user.branch_ids & record.user.branch_ids).any?
+    manages_branch? && (user.managed_branch_ids & record.user.branch_ids).any?
   end
 end

@@ -79,7 +79,7 @@
             <% @recent_employees.each do |user| %>
               <tr>
                 <td><%= link_to user.full_name, admin_user_path(user), class: "link" %></td>
-                <td class="td-secondary"><%= user.role.humanize %></td>
+                <td class="td-secondary"><%= user.permission_role&.name || (user.owner? ? "Super Admin" : "—") %></td>
                 <td>
                   <span class="badge <%= user.active? ? 'badge-success' : 'badge-neutral' %>">
                     <%= user.active? ? t("admin.users.active") : t("admin.users.inactive") %>

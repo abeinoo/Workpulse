@@ -1,9 +1,9 @@
 class PenaltyRulePolicy < ApplicationPolicy
   # Branch managers can view rules on shifts they use; only super admin mutates.
-  def show?    = super_admin? || branch_manager?
-  def create?  = super_admin?
-  def update?  = super_admin?
-  def destroy? = super_admin?
+  def show?    = owner? || manages_branch?
+  def create?  = owner?
+  def update?  = owner?
+  def destroy? = owner?
 
   class Scope < ApplicationPolicy::Scope
     def resolve

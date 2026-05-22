@@ -2,13 +2,13 @@ class DashboardController < ApplicationController
   before_action :authenticate_user!
 
   def index
-    if current_user.super_admin?
+    if current_user.owner?
       load_super_admin_data
-    elsif current_user.area_manager?
+    elsif current_user.manages_area?
       load_area_manager_data
-    elsif current_user.branch_manager?
+    elsif current_user.manages_branch?
       load_branch_manager_data
-    elsif current_user.accountant?
+    elsif current_user.can?(:view_payroll)
       load_accountant_data
     else
       load_employee_data

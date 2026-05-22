@@ -34,7 +34,7 @@ class ApplicationController < ActionController::Base
   end
 
   def after_sign_in_path_for(resource)
-    resource.super_admin? ? admin_root_path : root_path
+    resource.owner? ? admin_root_path : root_path
   end
 
   def handle_pundit_unauthorized

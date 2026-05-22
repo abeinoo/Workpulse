@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_21_200001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -71,13 +71,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
     t.boolean "active", default: true, null: false
     t.bigint "business_id", null: false
     t.datetime "created_at", null: false
+    t.datetime "last_punch_timestamp"
     t.datetime "last_seen_at"
     t.string "location_note"
     t.string "name", null: false
+    t.date "sync_from_date"
     t.string "token", null: false
     t.datetime "updated_at", null: false
     t.index ["business_id", "name"], name: "index_biometric_devices_on_business_id_and_name", unique: true
     t.index ["business_id"], name: "index_biometric_devices_on_business_id"
+    t.index ["last_punch_timestamp"], name: "index_biometric_devices_on_last_punch_timestamp"
     t.index ["token"], name: "index_biometric_devices_on_token", unique: true
   end
 
@@ -134,10 +137,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
     t.integer "max_early_leave_permission_minutes"
     t.integer "max_late_permission_minutes"
     t.string "name", null: false
+    t.bigint "owner_id"
     t.text "settings"
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.integer "working_days_per_month", default: 26, null: false
+    t.index ["owner_id"], name: "index_businesses_on_owner_id"
   end
 
   create_table "employee_requests", force: :cascade do |t|
@@ -292,6 +297,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
     t.datetime "updated_at", null: false
     t.index ["shift_id", "rule_type", "threshold_minutes"], name: "index_penalty_rules_on_shift_type_threshold", unique: true
     t.index ["shift_id"], name: "index_penalty_rules_on_shift_id"
+  end
+
+  create_table "permission_roles", force: :cascade do |t|
+    t.integer "business_id", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.jsonb "permissions", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_permission_roles_on_business_id_and_name", unique: true
+    t.index ["business_id"], name: "index_permission_roles_on_business_id"
   end
 
   create_table "salary_profiles", force: :cascade do |t|
@@ -522,21 +538,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
     t.string "identity_card_number"
     t.string "last_name"
     t.integer "manager_id"
+    t.integer "permission_role_id"
     t.string "phone_number"
     t.string "preferred_locale"
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
-    t.string "role", default: "employee", null: false
     t.datetime "updated_at", null: false
     t.index "business_id, lower((employee_code)::text)", name: "index_users_on_business_id_and_lower_employee_code", unique: true, where: "((employee_code IS NOT NULL) AND ((employee_code)::text <> ''::text))"
     t.index ["business_id"], name: "index_users_on_business_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["identity_card_number"], name: "index_users_on_identity_card_number", unique: true
     t.index ["manager_id"], name: "index_users_on_manager_id"
+    t.index ["permission_role_id"], name: "index_users_on_permission_role_id"
     t.index ["phone_number"], name: "index_users_on_phone_number", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
-    t.index ["role"], name: "index_users_on_role"
   end
 
   add_foreign_key "advances", "employee_requests"
@@ -554,6 +570,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
   add_foreign_key "branches", "businesses"
   add_foreign_key "branches", "users", column: "area_manager_id"
   add_foreign_key "branches", "users", column: "branch_manager_id"
+  add_foreign_key "businesses", "users", column: "owner_id"
   add_foreign_key "employee_requests", "users"
   add_foreign_key "employee_requests", "users", column: "reviewed_by_id"
   add_foreign_key "payroll_adjustments", "businesses"
@@ -577,6 +594,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
   add_foreign_key "payroll_periods", "users", column: "finalized_by_id"
   add_foreign_key "payroll_periods", "users", column: "generated_by_id"
   add_foreign_key "penalty_rules", "shifts"
+  add_foreign_key "permission_roles", "businesses"
   add_foreign_key "salary_profiles", "users"
   add_foreign_key "shift_assignments", "branches"
   add_foreign_key "shift_assignments", "shifts"
@@ -593,5 +611,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_19_210000) do
   add_foreign_key "user_branches", "branches"
   add_foreign_key "user_branches", "users"
   add_foreign_key "users", "businesses"
+  add_foreign_key "users", "permission_roles", on_delete: :nullify
   add_foreign_key "users", "users", column: "manager_id", on_delete: :nullify
 end

@@ -8,7 +8,7 @@ class AttendanceRecordsController < ApplicationController
     scope = policy_scope(AttendanceRecord)
               .includes(:branch, :user, shift_assignment: :shift)
 
-    manager = current_user.super_admin? || current_user.area_manager? || current_user.branch_manager?
+    manager = current_user.owner? || current_user.manages_area? || current_user.manages_branch? || current_user.can?(:view_attendance)
     scope = apply_filters(scope) if manager
 
     @total_count  = scope.count
@@ -96,25 +96,24 @@ class AttendanceRecordsController < ApplicationController
   end
 
   def resolve_filter_user(user_id)
-    if current_user.super_admin?
+    if current_user.owner? || current_user.can?(:view_attendance)
       current_user.business.users.find_by(id: user_id)
-    elsif current_user.area_manager?
-      area_branch_ids = Branch.where(area_manager_id: current_user.id).pluck(:id)
+    elsif current_user.manages_area?
       User.joins(:user_branches)
-          .where(user_branches: { branch_id: area_branch_ids })
+          .where(user_branches: { branch_id: current_user.area_managed_branch_ids })
           .find_by(id: user_id)
-    elsif current_user.branch_manager?
+    elsif current_user.manages_branch?
       current_user.managed_employees.find_by(id: user_id)
     end
   end
 
   def visible_branches
-    if current_user.super_admin? || current_user.accountant?
+    if current_user.owner? || current_user.can?(:view_attendance)
       current_user.business.branches.active.order(:name)
-    elsif current_user.area_manager?
-      Branch.where(area_manager_id: current_user.id).active.order(:name)
-    elsif current_user.branch_manager?
-      current_user.branches.active.order(:name)
+    elsif current_user.manages_area?
+      Branch.where(id: current_user.area_managed_branch_ids).active.order(:name)
+    elsif current_user.manages_branch?
+      Branch.where(id: current_user.managed_branch_ids).active.order(:name)
     else
       Branch.none
     end

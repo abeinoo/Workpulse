@@ -72,21 +72,19 @@ class ShiftAssignmentsController < ApplicationController
 
   def load_form_data
     @shifts = Shift.for_business(current_user.business).active.order(:name)
-    if current_user.super_admin?
+    owner_id = current_user.business.owner_id
+    if current_user.owner?
       @employees = User.where(business: current_user.business)
-                       .where(role: %w[employee branch_manager])
+                       .where.not(id: owner_id)
                        .where(active: true)
                        .order(:first_name, :last_name)
       @branches = Branch.for_business(current_user.business).active.order(:name)
     else
-      # Branch managers are assigned via Branch#branch_manager_id, not only user_branches.
-      # Combine both sources so the form shows correct employees and branches.
-      direct_ids = Branch.where(branch_manager_id: current_user.id).pluck(:id)
-      managed_branch_ids = (direct_ids + current_user.branch_ids).uniq
+      managed_branch_ids = current_user.managed_branch_ids
 
       @employees = User.joins(:user_branches)
                        .where(user_branches: { branch_id: managed_branch_ids })
-                       .where(role: %w[employee branch_manager])
+                       .where.not(id: owner_id)
                        .where(active: true)
                        .distinct
                        .order(:first_name, :last_name)

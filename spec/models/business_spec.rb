@@ -6,6 +6,7 @@ RSpec.describe Business, type: :model do
   describe "associations" do
     it { is_expected.to have_many(:branches).dependent(:destroy) }
     it { is_expected.to have_many(:users).dependent(:destroy) }
+    it { is_expected.to have_many(:permission_roles).dependent(:destroy) }
     it { is_expected.to have_many(:shifts).dependent(:destroy) }
     it { is_expected.to have_many(:payroll_periods).dependent(:destroy) }
   end

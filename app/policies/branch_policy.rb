@@ -1,13 +1,13 @@
 class BranchPolicy < ApplicationPolicy
-  def index?   = super_admin? || branch_manager?
-  def show?    = super_admin? || managing_this_branch?
-  def create?  = super_admin?
-  def update?  = super_admin? || managing_this_branch?
-  def destroy? = super_admin?
+  def index?   = can?(:manage_branches) || owner? || manages_branch?
+  def show?    = can?(:manage_branches) || owner? || managing_this_branch?
+  def create?  = can?(:manage_branches) || owner?
+  def update?  = can?(:manage_branches) || owner? || managing_this_branch?
+  def destroy? = can?(:manage_branches) || owner?
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.super_admin?
+      if user.owner? || user.can?(:manage_branches)
         scope.for_business(user.business)
       else
         user.branches.active
@@ -18,6 +18,8 @@ class BranchPolicy < ApplicationPolicy
   private
 
   def managing_this_branch?
-    branch_manager? && user.branches.exists?(record.id)
+    user.branches.exists?(record.id) ||
+      record.branch_manager_id == user.id ||
+      record.area_manager_id == user.id
   end
 end

@@ -1,0 +1,71 @@
+<% content_for :title, t("admin.permission_roles.index.page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("admin.permission_roles.index.title") %></h1>
+    <%= link_to new_admin_permission_role_path, class: "btn btn-primary" do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <%= t("admin.permission_roles.index.new") %>
+    <% end %>
+  </div>
+
+  <p class="page-subtitle"><%= t("admin.permission_roles.index.subtitle") %></p>
+
+  <% if @permission_roles.any? %>
+    <div class="permission-roles-grid">
+      <% @permission_roles.each do |role| %>
+        <div class="permission-role-card">
+          <div class="permission-role-card__header">
+            <h3 class="permission-role-card__name"><%= role.name %></h3>
+            <% if role.description.present? %>
+              <p class="permission-role-card__desc"><%= role.description %></p>
+            <% end %>
+          </div>
+
+          <div class="permission-role-card__stats">
+            <span class="permission-role-card__stat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <%= t("admin.permission_roles.index.user_count", count: role.user_count) %>
+            </span>
+            <span class="permission-role-card__stat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              <%= t("admin.permission_roles.index.permission_count", count: role.permission_count) %>
+            </span>
+          </div>
+
+          <% if role.permissions.any? %>
+            <div class="permission-role-card__preview">
+              <% role.permissions.first(5).each do |perm| %>
+                <span class="permission-tag"><%= t("admin.permission_roles.permissions.#{perm}", default: perm.humanize) %></span>
+              <% end %>
+              <% if role.permission_count > 5 %>
+                <span class="permission-tag permission-tag--more">+<%= role.permission_count - 5 %></span>
+              <% end %>
+            </div>
+          <% end %>
+
+          <div class="permission-role-card__actions">
+            <%= link_to t("forms.view"), admin_permission_role_path(role), class: "btn btn-ghost btn-sm" %>
+            <%= link_to t("forms.edit"), edit_admin_permission_role_path(role), class: "btn btn-secondary btn-sm" %>
+            <%= button_to t("forms.delete"),
+                  admin_permission_role_path(role),
+                  method: :delete,
+                  data: { turbo_confirm: t("admin.permission_roles.index.delete_confirm", name: role.name) },
+                  class: "btn btn-danger btn-sm" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="empty-state">
+      <div class="empty-state__icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+      <p class="empty-state__title"><%= t("admin.permission_roles.index.empty_title") %></p>
+      <p class="empty-state__text"><%= t("admin.permission_roles.index.empty_hint") %></p>
+      <%= link_to t("admin.permission_roles.index.new"), new_admin_permission_role_path, class: "btn btn-primary" %>
+    </div>
+  <% end %>
+
+</div>

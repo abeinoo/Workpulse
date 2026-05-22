@@ -1,0 +1,84 @@
+<%= form_with model: [ :admin, permission_role ], data: { controller: "permission-role-form" } do |f| %>
+  <%= render "shared/error_messages", resource: permission_role %>
+
+  <div class="form-section">
+    <div class="form-group">
+      <%= f.label :name, t("admin.permission_roles.form.name"), class: "form-label" %>
+      <%= f.text_field :name,
+            class: "form-control",
+            placeholder: t("admin.permission_roles.form.name_placeholder"),
+            autocomplete: "off" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :description, t("admin.permission_roles.form.description"), class: "form-label" %>
+      <%= f.text_area :description,
+            class: "form-control",
+            rows: 2,
+            placeholder: t("admin.permission_roles.form.description_placeholder") %>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="permission-groups-header">
+      <h2 class="form-section-title"><%= t("admin.permission_roles.form.permissions_title") %></h2>
+      <button type="button" class="btn btn-ghost btn-sm"
+              data-action="permission-role-form#selectAll">
+        <%= t("admin.permission_roles.form.select_all") %>
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm"
+              data-action="permission-role-form#clearAll">
+        <%= t("admin.permission_roles.form.clear_all") %>
+      </button>
+    </div>
+
+    <%# Hidden field ensures an empty array is sent when all checkboxes are unchecked %>
+    <%= f.hidden_field :permissions, value: "", name: "permission_role[permissions][]" %>
+
+    <div class="permission-groups">
+      <% PermissionRole::PERMISSION_GROUPS.each do |group, perms| %>
+        <div class="permission-group" data-permission-role-form-target="group">
+          <div class="permission-group__header">
+            <h3 class="permission-group__title">
+              <%= t("admin.permission_roles.groups.#{group}") %>
+            </h3>
+            <label class="permission-group__select-all">
+              <input type="checkbox"
+                     class="permission-group__toggle"
+                     data-action="change->permission-role-form#toggleGroup"
+                     data-permission-role-form-target="groupToggle">
+              <span><%= t("admin.permission_roles.form.select_group") %></span>
+            </label>
+          </div>
+
+          <div class="permission-group__perms">
+            <% perms.each do |perm| %>
+              <label class="permission-toggle">
+                <%= check_box_tag "permission_role[permissions][]",
+                      perm,
+                      permission_role.has_permission?(perm),
+                      id: "perm_#{perm}",
+                      class: "permission-toggle__input",
+                      data: { action: "change->permission-role-form#updateGroupToggle",
+                              "permission-role-form-target": "checkbox" } %>
+                <span class="permission-toggle__label">
+                  <span class="permission-toggle__name">
+                    <%= t("admin.permission_roles.permissions.#{perm}") %>
+                  </span>
+                  <span class="permission-toggle__desc">
+                    <%= t("admin.permission_roles.permission_descriptions.#{perm}", default: "") %>
+                  </span>
+                </span>
+              </label>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("forms.save"), class: "btn btn-primary" %>
+    <%= link_to t("forms.cancel"), admin_permission_roles_path, class: "btn btn-secondary" %>
+  </div>
+<% end %>

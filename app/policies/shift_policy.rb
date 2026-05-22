@@ -1,9 +1,9 @@
 class ShiftPolicy < ApplicationPolicy
-  def index?   = super_admin? || branch_manager?
-  def show?    = super_admin? || branch_manager?
-  def create?  = super_admin?
-  def update?  = super_admin?
-  def destroy? = super_admin?
+  def index?   = can?(:view_shifts) || owner? || manages_branch?
+  def show?    = can?(:view_shifts) || owner? || manages_branch?
+  def create?  = can?(:manage_shifts) || owner?
+  def update?  = can?(:manage_shifts) || owner?
+  def destroy? = can?(:manage_shifts) || owner?
 
   class Scope < ApplicationPolicy::Scope
     def resolve

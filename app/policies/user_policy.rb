@@ -1,17 +1,17 @@
 class UserPolicy < ApplicationPolicy
-  def index?   = super_admin? || branch_manager?
-  def show?    = super_admin? || manages_this_user? || own_record?
-  def create?  = super_admin?
-  def update?  = super_admin? || own_record?
-  def destroy?        = super_admin?
-  def reset_password? = super_admin?
+  def index?          = can?(:view_employees) || owner? || manages_branch?
+  def show?           = can?(:view_employees) || owner? || manages_this_user? || own_record?
+  def create?         = can?(:manage_employees) || owner?
+  def update?         = can?(:manage_employees) || owner? || own_record?
+  def destroy?        = can?(:manage_employees) || owner?
+  def reset_password?       = can?(:manage_employees) || owner?
+  def transfer_ownership?   = user.owner? && record != user
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.super_admin?
+      if user.owner? || user.can?(:view_employees)
         scope.where(business: user.business)
-      elsif user.branch_manager?
-        # Managers see themselves + their directly assigned employees
+      elsif user.manages_branch?
         scope.where(id: user.id)
              .or(scope.where(manager_id: user.id))
       else
@@ -27,6 +27,6 @@ class UserPolicy < ApplicationPolicy
   end
 
   def manages_this_user?
-    branch_manager? && record.manager_id == user.id
+    record.manager_id == user.id
   end
 end

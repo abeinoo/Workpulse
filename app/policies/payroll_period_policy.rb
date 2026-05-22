@@ -1,29 +1,28 @@
 class PayrollPeriodPolicy < ApplicationPolicy
-  def index?             = super_admin? || area_manager? || branch_manager? || accountant? || employee?
-  def show?              = managing? || visible_to_employee?
-  def create?            = super_admin? || accountant?
-  def submit_for_review? = super_admin? || accountant?
-  def regenerate?        = super_admin?
-  def finalize?          = super_admin? || area_manager?
-  def mark_paid?         = super_admin?
-  def destroy?           = super_admin? && record.draft?
+  def index?             = true  # scope handles isolation
+  def show?              = can?(:view_payroll) || managing? || visible_to_employee?
+  def create?            = can?(:manage_payroll) || owner?
+  def submit_for_review? = can?(:manage_payroll) || owner?
+  def regenerate?        = owner?
+  def finalize?          = can?(:finalize_payroll) || owner?
+  def mark_paid?         = owner?
+  def destroy?           = owner? && record.draft?
 
-  # Branch managers complete the review for their own branch(es).
-  def complete_branch_review? = branch_manager? && same_business?
+  def complete_branch_review?
+    owner? || (manages_branch? && same_business?)
+  end
 
   class Scope < ApplicationPolicy::Scope
     VISIBLE_TO_EMPLOYEE = %w[finalized paid].freeze
 
     def resolve
-      if user.super_admin? || user.accountant? || user.area_manager? || user.branch_manager?
+      if user.owner? || user.can?(:view_payroll) || user.manages_area? || user.manages_branch?
         scope.where(business: user.business)
-      elsif user.employee?
+      else
         scope.where(business: user.business)
              .where(status: VISIBLE_TO_EMPLOYEE)
              .joins(:payroll_entries)
              .where(payroll_entries: { user_id: user.id })
-      else
-        scope.none
       end
     end
   end
@@ -32,11 +31,11 @@ class PayrollPeriodPolicy < ApplicationPolicy
 
   def managing?
     return false unless same_business?
-    super_admin? || accountant? || area_manager? || branch_manager?
+    can?(:view_payroll) || owner? || manages_area? || manages_branch?
   end
 
   def visible_to_employee?
-    employee? && same_business? && (record.finalized? || record.paid?) &&
+    same_business? && (record.finalized? || record.paid?) &&
       record.payroll_entries.exists?(user_id: user.id)
   end
 end

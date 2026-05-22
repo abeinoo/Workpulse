@@ -7,7 +7,7 @@
     <% end %>
   </div>
 
-  <% if current_user.employee? %>
+  <% unless current_user.management_access? %>
 
     <%# ── Employee view: one card per payroll period ─────────────────────── %>
     <% if @periods.empty? %>
@@ -98,7 +98,7 @@
 
 </div>
 
-<% if current_user.employee? %>
+<% unless current_user.management_access? %>
   <style>
     .payslip-list { display: flex; flex-direction: column; gap: 0.75rem; }
 

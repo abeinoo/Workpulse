@@ -5,7 +5,7 @@ class PayrollPeriodsController < ApplicationController
     @periods = policy_scope(PayrollPeriod)
                  .order(period_year: :desc, period_month: :desc)
 
-    if current_user.employee?
+    unless current_user.management_access?
       @my_entries = PayrollEntry
                       .where(user: current_user, payroll_period: @periods)
                       .index_by(&:payroll_period_id)
@@ -16,7 +16,7 @@ class PayrollPeriodsController < ApplicationController
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period
 
-    if current_user.employee?
+    unless current_user.management_access?
       entry = @period.payroll_entries.find_by(user: current_user)
       if entry
         return redirect_to payroll_period_payroll_entry_path(@period, entry)
@@ -76,7 +76,7 @@ class PayrollPeriodsController < ApplicationController
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period, :complete_branch_review?
 
-    managed_branch_ids = Branch.where(branch_manager_id: current_user.id).pluck(:id)
+    managed_branch_ids = current_user.managed_branch_ids
     pending_reviews    = @period.payroll_period_branch_reviews
                                 .where(branch_id: managed_branch_ids, status: :pending)
                                 .includes(:branch)
@@ -123,8 +123,7 @@ class PayrollPeriodsController < ApplicationController
   end
 
   def manager_branch_reviews
-    return nil unless current_user.branch_manager?
-    managed_branch_ids = Branch.where(branch_manager_id: current_user.id).pluck(:id)
-    @period.payroll_period_branch_reviews.where(branch_id: managed_branch_ids)
+    return nil unless current_user.manages_branch?
+    @period.payroll_period_branch_reviews.where(branch_id: current_user.managed_branch_ids)
   end
 end
