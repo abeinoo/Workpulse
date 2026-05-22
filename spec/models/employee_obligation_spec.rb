@@ -57,6 +57,43 @@ RSpec.describe EmployeeObligation, type: :model do
     end
   end
 
+  # ── Financial integrity validations ───────────────────────────────────────
+  describe "financial integrity" do
+    it "rejects total_amount of zero" do
+      expect(build(:employee_obligation, total_amount: 0, remaining_amount: 0)).not_to be_valid
+    end
+
+    it "rejects installment_amount greater than total_amount" do
+      expect(build(:employee_obligation, total_amount: 500, installment_amount: 600,
+                   remaining_amount: 500, installments_count: 1)).not_to be_valid
+    end
+
+    it "rejects remaining_amount greater than total_amount" do
+      expect(build(:employee_obligation, total_amount: 1000, remaining_amount: 1500,
+                   installments_count: 2)).not_to be_valid
+    end
+
+    it "rejects installments_count inconsistent with total and installment" do
+      # total=5000, installment=900 → ceil(5000/900) = 6, not 5
+      obligation = build(:employee_obligation, total_amount: 5000, installment_amount: 900,
+                         remaining_amount: 5000, installments_count: 5)
+      expect(obligation).not_to be_valid
+      expect(obligation.errors[:installments_count]).to be_present
+    end
+
+    it "accepts installments_count consistent with total and installment (exact division)" do
+      # total=3000, installment=500 → ceil(3000/500) = 6
+      expect(build(:employee_obligation, total_amount: 3000, installment_amount: 500,
+                   remaining_amount: 3000, installments_count: 6)).to be_valid
+    end
+
+    it "accepts installments_count consistent with non-divisible total (last installment smaller)" do
+      # total=5000, installment=900 → ceil(5000/900) = 6
+      expect(build(:employee_obligation, total_amount: 5000, installment_amount: 900,
+                   remaining_amount: 5000, installments_count: 6)).to be_valid
+    end
+  end
+
   # ── Instance Methods ──────────────────────────────────────────────────────
   describe "#installment_for_period" do
     it "returns the installment amount when remaining is larger" do

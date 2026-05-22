@@ -22,9 +22,10 @@ class Admin::EmployeeObligationsController < Admin::BaseController
 
   def create
     @obligation = EmployeeObligation.new(obligation_params)
-    @obligation.business    = current_user.business
-    @obligation.created_by  = current_user
+    @obligation.business         = current_user.business
+    @obligation.created_by       = current_user
     @obligation.remaining_amount = @obligation.total_amount
+    @obligation.installments_count = derive_installments_count(@obligation)
     authorize @obligation
 
     if @obligation.save
@@ -43,8 +44,13 @@ class Admin::EmployeeObligationsController < Admin::BaseController
 
   def update
     authorize @obligation
+    attrs = obligation_params
+    new_obligation = @obligation.dup.tap { |o| o.assign_attributes(attrs) }
+    attrs_with_count = attrs.merge(
+      installments_count: derive_installments_count(new_obligation)
+    )
 
-    if @obligation.update(obligation_params)
+    if @obligation.update(attrs_with_count)
       redirect_to admin_employee_obligation_path(@obligation),
                   notice: t("admin.employee_obligations.updated")
     else
@@ -106,5 +112,12 @@ class Admin::EmployeeObligationsController < Admin::BaseController
 
   def load_employees
     @employees = current_user.business.users.active.order(:first_name, :last_name)
+  end
+
+  def derive_installments_count(obligation)
+    total = obligation.total_amount.to_f
+    installment = obligation.installment_amount.to_f
+    return 1 if total <= 0 || installment <= 0
+    (total / installment).ceil
   end
 end

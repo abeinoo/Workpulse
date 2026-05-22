@@ -25,13 +25,18 @@ class EmployeeObligation < ApplicationRecord
   validates :total_amount, :remaining_amount, :installment_amount,
             presence: true,
             numericality: { greater_than_or_equal_to: 0 }
-  validates :installment_amount,
-            numericality: { greater_than: 0 },
-            on: :create
+  validates :total_amount,      numericality: { greater_than: 0 }
+  validates :installment_amount, numericality: { greater_than: 0 }
+  validates :installments_count,
+            presence: true,
+            numericality: { only_integer: true, greater_than: 0 }
   validates :start_month, presence: true, inclusion: { in: 1..12 }
   validates :start_year,  presence: true, numericality: { only_integer: true, greater_than: 2000 }
   validates :end_month, inclusion: { in: 1..12 }, allow_nil: true
   validate  :end_period_after_start, if: -> { end_year.present? || end_month.present? }
+  validate  :remaining_within_total
+  validate  :installment_not_exceeding_total
+  validate  :installment_count_consistent
 
   scope :for_user,       ->(user)     { where(user: user) }
   scope :for_business,   ->(business) { where(business: business) }
@@ -81,6 +86,38 @@ class EmployeeObligation < ApplicationRecord
     ((repaid_amount / total_amount.to_f) * 100).round(1)
   end
 
+  # Returns the remainder after full installments, or 0.0 if evenly divisible.
+  # For 5000 / 900: remainder = 500.0 (last payment is smaller)
+  def final_installment_amount
+    return 0.0 unless total_amount.to_f > 0 && installment_amount.to_f > 0
+    (total_amount.to_f % installment_amount.to_f).round(2)
+  end
+
+  def even_installments?
+    final_installment_amount.zero?
+  end
+
+  # Number of full-sized installments (excludes the smaller final one when there's a remainder).
+  def full_installments_count
+    even_installments? ? installments_count : installments_count - 1
+  end
+
+  # Ordered list of {month:, year:, amount:} for the complete payment schedule.
+  def installment_schedule
+    return [] unless start_month.present? && start_year.present? && installments_count.to_i > 0
+    m, y = start_month, start_year
+    Array.new(installments_count) do |i|
+      amount = (!even_installments? && i == installments_count - 1) ? final_installment_amount : installment_amount.to_f
+      entry = { month: m, year: y, amount: amount.round(2) }
+      m += 1
+      if m > 12
+        m = 1
+        y += 1
+      end
+      entry
+    end
+  end
+
   def start_label
     "#{Date::MONTHNAMES[start_month]} #{start_year}"
   end
@@ -97,8 +134,37 @@ class EmployeeObligation < ApplicationRecord
       errors.add(:end_year,  :blank) if end_month.present?
       return
     end
+    return unless start_year.present? && start_month.present?
     if (end_year * 12 + end_month) < (start_year * 12 + start_month)
       errors.add(:end_month, "must be on or after the start period")
+    end
+  end
+
+  def remaining_within_total
+    return unless total_amount.present? && remaining_amount.present?
+    return unless total_amount > 0
+    if remaining_amount > total_amount
+      errors.add(:remaining_amount, :exceeds_total, total: total_amount)
+    end
+  end
+
+  def installment_not_exceeding_total
+    return unless total_amount.present? && installment_amount.present?
+    return unless total_amount > 0 && installment_amount > 0
+    if installment_amount > total_amount
+      errors.add(:installment_amount, :exceeds_total, total: total_amount)
+    end
+  end
+
+  def installment_count_consistent
+    return unless total_amount.present? && installment_amount.present? && installments_count.present?
+    return unless total_amount > 0 && installment_amount > 0 && installments_count > 0
+
+    expected = (total_amount.to_f / installment_amount.to_f).ceil
+    unless installments_count == expected
+      errors.add(:installments_count, :inconsistent,
+                 total: total_amount, installment: installment_amount,
+                 count: installments_count, expected: expected)
     end
   end
 end

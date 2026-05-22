@@ -39,7 +39,18 @@
       </div>
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.employee_obligations.installment") %></dt>
-        <dd class="data-list__value"><%= number_with_precision(@obligation.installment_amount, precision: 2, delimiter: ",") %></dd>
+        <dd class="data-list__value">
+          <% if @obligation.even_installments? %>
+            <%= number_with_precision(@obligation.installment_amount, precision: 2, delimiter: ",") %>
+            <span class="td-secondary">&nbsp;&times;&nbsp;<%= @obligation.installments_count %> <%= t("admin.employee_obligations.installments_count_unit") %></span>
+          <% else %>
+            <%= number_with_precision(@obligation.installment_amount, precision: 2, delimiter: ",") %>
+            <span class="td-secondary">
+              &nbsp;&times;&nbsp;<%= @obligation.full_installments_count %>
+              &nbsp;+&nbsp;<%= t("admin.employee_obligations.final_installment") %>:&nbsp;<%= number_with_precision(@obligation.final_installment_amount, precision: 2, delimiter: ",") %>
+            </span>
+          <% end %>
+        </dd>
       </div>
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.employee_obligations.start_period") %></dt>
@@ -78,6 +89,39 @@
         <dd class="data-list__value"><%= @obligation.created_by.full_name %></dd>
       </div>
     </dl>
+
+    <%# Payment schedule — only shown when not yet started or partially paid %>
+    <% schedule = @obligation.installment_schedule %>
+    <% if schedule.any? %>
+      <div style="margin-top:var(--space-6);border-top:1px solid var(--border);padding-top:var(--space-4);">
+        <h3 style="font-size:var(--text-sm);font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3);">
+          <%= t("admin.employee_obligations.payment_schedule") %>
+        </h3>
+        <div class="table-wrap table-wrap--cards" style="max-height:260px;overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th><%= t("admin.employee_obligations.schedule_month") %></th>
+                <th><%= t("admin.employee_obligations.schedule_amount") %></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% schedule.each_with_index do |entry, i| %>
+                <tr>
+                  <td><%= Date::MONTHNAMES[entry[:month]] %> <%= entry[:year] %></td>
+                  <td>
+                    <%= number_with_precision(entry[:amount], precision: 2, delimiter: ",") %>
+                    <% if i == schedule.size - 1 && !@obligation.even_installments? %>
+                      &nbsp;<span class="badge badge-neutral" style="font-size:10px;"><%= t("admin.employee_obligations.final_installment") %></span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% end %>
 
     <div class="form-actions">
       <% if @obligation.active? || @obligation.paused? %>

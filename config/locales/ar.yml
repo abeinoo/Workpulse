@@ -1154,6 +1154,11 @@ ar:
       remaining: "المتبقي"
       installment: "القسط الشهري"
       installment_hint: "المبلغ المخصوم في كل دورة رواتب"
+      installments_count_unit: "قسط"
+      final_installment: "القسط الأخير"
+      payment_schedule: "جدول الأقساط"
+      schedule_month: "الشهر"
+      schedule_amount: "المبلغ"
       start_period: "فترة البدء"
       end_period: "فترة الانتهاء"
       end_period_hint: "اتركه فارغاً للأقساط المفتوحة"
@@ -1360,6 +1365,7 @@ ar:
         total_amount: "إجمالي المبلغ"
         remaining_amount: "المبلغ المتبقي"
         installment_amount: "مبلغ القسط"
+        installments_count: "عدد الأقساط"
         start_month: "شهر البداية"
         start_year: "سنة البداية"
         end_month: "شهر النهاية"
@@ -1379,6 +1385,14 @@ ar:
           one: "قصير جداً (الحد الأدنى حرف واحد)"
           other: "قصير جداً (الحد الأدنى %{count} أحرف)"
       models:
+        employee_obligation:
+          attributes:
+            remaining_amount:
+              exceeds_total: "لا يمكن أن يتجاوز المبلغ الإجمالي"
+            installment_amount:
+              exceeds_total: "لا يمكن أن يتجاوز المبلغ الإجمالي"
+            installments_count:
+              inconsistent: "غير متسق — %{total} ÷ %{installment} يتطلب %{expected} قسطاً، وليس %{count}"
         penalty_rule:
           attributes:
             rule_type:

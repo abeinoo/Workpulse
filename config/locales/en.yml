@@ -1161,6 +1161,11 @@ en:
       remaining: "Remaining"
       installment: "Monthly Installment"
       installment_hint: "Amount deducted per payroll period"
+      installments_count_unit: "installments"
+      final_installment: "final"
+      payment_schedule: "Payment Schedule"
+      schedule_month: "Month"
+      schedule_amount: "Amount"
       start_period: "Start Period"
       end_period: "End Period"
       end_period_hint: "Leave blank for open-ended installments"
@@ -1326,6 +1331,7 @@ en:
         total_amount: "Total amount"
         remaining_amount: "Remaining amount"
         installment_amount: "Installment amount"
+        installments_count: "Number of installments"
         start_month: "Start month"
         start_year: "Start year"
         end_month: "End month"
@@ -1345,6 +1351,14 @@ en:
           one: "is too short (minimum is 1 character)"
           other: "is too short (minimum is %{count} characters)"
       models:
+        employee_obligation:
+          attributes:
+            remaining_amount:
+              exceeds_total: "cannot exceed the total amount"
+            installment_amount:
+              exceeds_total: "cannot exceed the total amount"
+            installments_count:
+              inconsistent: "is inconsistent — %{total} ÷ %{installment} requires %{expected} installment(s), not %{count}"
         penalty_rule:
           attributes:
             rule_type:

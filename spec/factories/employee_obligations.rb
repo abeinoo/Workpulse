@@ -9,6 +9,7 @@ FactoryBot.define do
     total_amount       { 3000.00 }
     remaining_amount   { 3000.00 }
     installment_amount { 500.00 }
+    installments_count { (total_amount.to_f / installment_amount.to_f).ceil }
     start_month        { Date.current.month }
     start_year         { Date.current.year }
     status             { "active" }

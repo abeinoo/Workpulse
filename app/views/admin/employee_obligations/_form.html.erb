@@ -1,4 +1,5 @@
-<%= form_with model: [:admin, @obligation], class: "form-card" do |f| %>
+<%= form_with model: [:admin, @obligation], class: "form-card",
+      data: { controller: "obligation-form" } do |f| %>
 
   <%= render "users/shared/error_messages", resource: @obligation %>
 
@@ -30,15 +31,33 @@
       <%= f.label :total_amount, t("admin.employee_obligations.total"), class: "form-label" %>
       <%= f.number_field :total_amount,
             class: "form-control #{'is-error' if @obligation.errors[:total_amount].any?}",
-            min: 0, step: "0.01", placeholder: "5000.00" %>
+            min: 0.01, step: "0.01", placeholder: "5000.00",
+            data: { obligation_form_target: "total", action: "input->obligation-form#calculate" } %>
     </div>
 
     <div class="form-group">
       <%= f.label :installment_amount, t("admin.employee_obligations.installment"), class: "form-label" %>
       <%= f.number_field :installment_amount,
             class: "form-control #{'is-error' if @obligation.errors[:installment_amount].any?}",
-            min: 0, step: "0.01", placeholder: "500.00" %>
-      <p class="form-hint"><%= t("admin.employee_obligations.installment_hint") %></p>
+            min: 0.01, step: "0.01", placeholder: "500.00",
+            data: { obligation_form_target: "installment", action: "input->obligation-form#calculate" } %>
+      <p class="form-hint">
+        <%= t("admin.employee_obligations.installment_hint") %> &mdash;
+        <span data-obligation-form-target="preview" class="text-muted">
+          <% if @obligation.installments_count.to_i > 0 %>
+            <% if @obligation.even_installments? %>
+              <%= @obligation.installments_count %> <%= t("admin.employee_obligations.installments_count_unit") %>
+            <% else %>
+              <%= @obligation.full_installments_count %> &times; <%= number_with_precision(@obligation.installment_amount, precision: 2) %> + <%= t("admin.employee_obligations.final_installment") %>: <%= number_with_precision(@obligation.final_installment_amount, precision: 2) %>
+            <% end %>
+          <% else %>
+            —
+          <% end %>
+        </span>
+      </p>
+      <% if @obligation.errors[:installments_count].any? %>
+        <p class="form-error-message"><%= @obligation.errors[:installments_count].first %></p>
+      <% end %>
     </div>
 
     <div class="form-group">
@@ -47,10 +66,12 @@
         <%= f.select :start_month,
               (1..12).map { |m| [I18n.t("date.month_names")[m], m] },
               { selected: @obligation.start_month },
-              class: "form-control" %>
+              class: "form-control",
+              data: { obligation_form_target: "startMonth", action: "change->obligation-form#calculate" } %>
         <%= f.number_field :start_year,
               class: "form-control",
-              min: 2020, max: 2099, placeholder: Date.current.year %>
+              min: 2020, max: 2099, placeholder: Date.current.year,
+              data: { obligation_form_target: "startYear", action: "input->obligation-form#calculate" } %>
       </div>
     </div>
 
@@ -98,6 +119,25 @@
         <%= f.label :auto_deduct, t("admin.employee_obligations.auto_deduct_label"), class: "form-check__label" %>
       </div>
       <p class="form-hint"><%= t("admin.employee_obligations.auto_deduct_hint") %></p>
+    </div>
+  </div>
+
+  <div data-obligation-form-target="scheduleSection"
+       style="display:none;margin-top:var(--space-5);border-top:1px solid var(--border);padding-top:var(--space-4);">
+    <h4 style="font-size:var(--text-sm);font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3);">
+      <%= t("admin.employee_obligations.payment_schedule") %>
+    </h4>
+    <div class="table-wrap" style="max-height:240px;overflow-y:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("admin.employee_obligations.schedule_month") %></th>
+            <th><%= t("admin.employee_obligations.schedule_amount") %></th>
+          </tr>
+        </thead>
+        <tbody data-obligation-form-target="schedule"
+               data-final-label="<%= t('admin.employee_obligations.final_installment') %>"></tbody>
+      </table>
     </div>
   </div>
 
