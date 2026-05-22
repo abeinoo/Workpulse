@@ -52,6 +52,19 @@ RSpec.describe PermissionRole, type: :model do
         expect(role).not_to be_valid
         expect(role.errors[:permissions]).to be_present
       end
+
+      it "strips blank strings from the hidden-field sentinel before validating" do
+        # Rails form helpers emit permissions[]='' as a sentinel; ensure it is silently dropped
+        role = build(:permission_role, permissions: ["", "view_employees", ""])
+        expect(role).to be_valid
+        expect(role.permissions).to eq(%w[view_employees])
+      end
+
+      it "deduplicates repeated permission values" do
+        role = build(:permission_role, permissions: %w[view_employees view_employees manage_payroll])
+        expect(role).to be_valid
+        expect(role.permissions).to eq(%w[view_employees manage_payroll])
+      end
     end
   end
 

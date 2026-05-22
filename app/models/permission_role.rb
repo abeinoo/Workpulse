@@ -16,6 +16,8 @@ class PermissionRole < ApplicationRecord
 
   ALL_PERMISSIONS = PERMISSION_GROUPS.values.flatten.freeze
 
+  before_validation { self.permissions = Array(permissions).reject(&:blank?).uniq }
+
   validates :name, presence: true,
                    uniqueness: { scope: :business_id, case_sensitive: false },
                    length: { maximum: 80 }
