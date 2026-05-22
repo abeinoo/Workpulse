@@ -3,7 +3,7 @@ class PayrollLineItem < ApplicationRecord
   belongs_to :reviewed_by, class_name: "User", optional: true
 
   ITEM_TYPES = %w[
-    late_penalty early_leave_penalty overtime advance_deduction
+    late_penalty early_leave_penalty overtime advance_deduction obligation_deduction
     bonus commission reward
     penalty manual_deduction manual_adjustment
   ].freeze
@@ -16,6 +16,7 @@ class PayrollLineItem < ApplicationRecord
     early_leave_penalty: "early_leave_penalty",
     overtime:            "overtime",
     advance_deduction:   "advance_deduction",
+    obligation_deduction: "obligation_deduction",
     bonus:               "bonus",
     commission:          "commission",
     reward:              "reward",

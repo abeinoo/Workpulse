@@ -1,9 +1,10 @@
 class Business < ApplicationRecord
   belongs_to :owner, class_name: "User", optional: true
 
-  has_many :branches,             dependent: :destroy
-  has_many :users,                dependent: :destroy
-  has_many :permission_roles,     dependent: :destroy
+  has_many :branches,              dependent: :destroy
+  has_many :users,                 dependent: :destroy
+  has_many :permission_roles,      dependent: :destroy
+  has_many :employee_obligations,  dependent: :destroy
   has_many :shifts,               dependent: :destroy
   has_many :payroll_periods,      dependent: :destroy
   has_many :biometric_devices,    dependent: :destroy

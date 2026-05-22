@@ -221,4 +221,47 @@
       </div>
     <% end %>
   </div>
+
+  <%# Active Obligations %>
+  <% active_obligations = @user.employee_obligations.where(status: %w[active paused]).order(created_at: :desc) %>
+  <% if active_obligations.any? %>
+    <div class="card" style="margin-top: var(--space-6);">
+      <div class="card-header">
+        <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("admin.employee_obligations.user_section_title") %></h2>
+        <%= link_to t("admin.employee_obligations.index.add"),
+              new_admin_employee_obligation_path(user_id: @user.id),
+              class: "btn btn-sm btn-primary" %>
+      </div>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("admin.employee_obligations.title_col") %></th>
+              <th><%= t("admin.employee_obligations.remaining") %></th>
+              <th><%= t("admin.employee_obligations.installment") %></th>
+              <th><%= t("admin.employee_obligations.status_col") %></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% active_obligations.each do |obligation| %>
+              <tr>
+                <td><%= obligation.title %></td>
+                <td><%= number_with_precision(obligation.remaining_amount, precision: 2, delimiter: ",") %></td>
+                <td class="td-secondary"><%= number_with_precision(obligation.installment_amount, precision: 2, delimiter: ",") %></td>
+                <td>
+                  <span class="badge <%= obligation_status_badge(obligation.status) %>">
+                    <%= t("admin.employee_obligations.statuses.#{obligation.status}") %>
+                  </span>
+                </td>
+                <td>
+                  <%= link_to t("forms.view"), admin_employee_obligation_path(obligation), class: "btn btn-ghost btn-sm" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
 </div>

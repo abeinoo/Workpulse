@@ -7,6 +7,7 @@ class PayrollPeriod < ApplicationRecord
   has_many   :payroll_period_branch_reviews, dependent: :destroy
   has_many   :payroll_adjustments,           dependent: :nullify
   has_many   :payroll_audit_logs,            dependent: :nullify
+  has_many   :obligation_deductions,         dependent: :destroy
 
   STATUSES = %w[draft under_review branch_review_completed finalized paid].freeze
 

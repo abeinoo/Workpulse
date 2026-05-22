@@ -6,7 +6,7 @@ module Reports
       "Employee ID", "Full Name", "Salary Type",
       "Base Salary", "Working Days", "Days Worked",
       "Total Deductions", "Total Overtime", "Total Bonuses",
-      "Advances Deducted", "Net Salary", "Status"
+      "Advances Deducted", "Obligations Deducted", "Net Salary", "Status"
     ].freeze
 
     def self.call(period:)
@@ -35,7 +35,7 @@ module Reports
         row[:user_id], row[:full_name], row[:salary_type],
         row[:base_salary], row[:working_days], row[:days_worked],
         row[:total_deductions], row[:total_overtime], row[:total_bonuses],
-        row[:advances_deducted], row[:net_salary], row[:status]
+        row[:advances_deducted], row[:obligations_deducted], row[:net_salary], row[:status]
       ]
     end
 
@@ -44,7 +44,7 @@ module Reports
         "", "TOTALS", "",
         totals[:base_salary], "", "",
         totals[:deductions], totals[:overtime], totals[:bonuses],
-        totals[:advances_deducted], totals[:net_salary], ""
+        totals[:advances_deducted], totals[:obligations_deducted], totals[:net_salary], ""
       ]
     end
   end

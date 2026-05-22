@@ -41,10 +41,21 @@ module Api
           email:          user.email,
           phone_number:   user.phone_number,
           role:           user.owner? ? "owner" : "staff",
+          # Extra admin/management capabilities granted via PermissionRole.
+          # An empty array does NOT mean no access — all authenticated users
+          # have the self_service capabilities listed below by default.
           permissions:    user.permission_role&.permissions || [],
           manages_area:   user.manages_area?,
           manages_branch: user.manages_branch?,
           business_id:    user.business_id,
+          # Self-service capabilities available to every authenticated employee.
+          # These are always true regardless of PermissionRole assignment.
+          self_service: {
+            can_create_requests:     true,
+            can_view_own_attendance: true,
+            can_view_own_payroll:    true,
+            can_check_in:            user.allow_mobile_attendance?
+          },
           checkin_branch_ids: ShiftAssignment.current
                                              .where(user: user)
                                              .pluck(:branch_id)

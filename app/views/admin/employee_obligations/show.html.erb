@@ -1,0 +1,139 @@
+<% content_for :title, @obligation.title %>
+
+<div class="form-page">
+  <%= link_to admin_employee_obligations_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("admin.employee_obligations.back") %>
+  <% end %>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h1 style="font-size:var(--text-xl);margin-bottom:4px;"><%= @obligation.title %></h1>
+        <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;">
+          <%= t("admin.employee_obligations.obligation_types.#{@obligation.obligation_type}") %>
+          &nbsp;·&nbsp;
+          <%= link_to @obligation.user.full_name, admin_user_path(@obligation.user), class: "link" %>
+        </p>
+      </div>
+      <span class="badge <%= obligation_status_badge(@obligation.status) %>">
+        <%= t("admin.employee_obligations.statuses.#{@obligation.status}") %>
+      </span>
+    </div>
+
+    <dl class="data-list">
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.employee_obligations.total") %></dt>
+        <dd class="data-list__value"><%= number_with_precision(@obligation.total_amount, precision: 2, delimiter: ",") %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.employee_obligations.repaid") %></dt>
+        <dd class="data-list__value"><%= number_with_precision(@obligation.repaid_amount, precision: 2, delimiter: ",") %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.employee_obligations.remaining") %></dt>
+        <dd class="data-list__value">
+          <strong><%= number_with_precision(@obligation.remaining_amount, precision: 2, delimiter: ",") %></strong>
+          <span class="td-secondary">&nbsp;(<%= @obligation.percent_repaid %>%)</span>
+        </dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.employee_obligations.installment") %></dt>
+        <dd class="data-list__value"><%= number_with_precision(@obligation.installment_amount, precision: 2, delimiter: ",") %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.employee_obligations.start_period") %></dt>
+        <dd class="data-list__value"><%= @obligation.start_label %></dd>
+      </div>
+      <% if @obligation.end_label.present? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.employee_obligations.end_period") %></dt>
+          <dd class="data-list__value"><%= @obligation.end_label %></dd>
+        </div>
+      <% end %>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.employee_obligations.auto_deduct") %></dt>
+        <dd class="data-list__value">
+          <% if @obligation.auto_deduct? %>
+            <span class="badge badge-success"><%= t("forms.yes") %></span>
+          <% else %>
+            <span class="badge badge-neutral"><%= t("forms.no") %></span>
+          <% end %>
+        </dd>
+      </div>
+      <% if @obligation.description.present? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.employee_obligations.description") %></dt>
+          <dd class="data-list__value"><%= @obligation.description %></dd>
+        </div>
+      <% end %>
+      <% if @obligation.notes.present? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.employee_obligations.notes") %></dt>
+          <dd class="data-list__value"><%= @obligation.notes %></dd>
+        </div>
+      <% end %>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.employee_obligations.created_by") %></dt>
+        <dd class="data-list__value"><%= @obligation.created_by.full_name %></dd>
+      </div>
+    </dl>
+
+    <div class="form-actions">
+      <% if @obligation.active? || @obligation.paused? %>
+        <%= link_to t("forms.edit"), edit_admin_employee_obligation_path(@obligation), class: "btn btn-secondary" %>
+      <% end %>
+      <% if @obligation.active? %>
+        <%= button_to t("admin.employee_obligations.pause"),
+              pause_admin_employee_obligation_path(@obligation),
+              method: :patch,
+              data: { turbo_confirm: t("admin.employee_obligations.pause_confirm") },
+              class: "btn btn-warning" %>
+      <% elsif @obligation.paused? %>
+        <%= button_to t("admin.employee_obligations.resume"),
+              resume_admin_employee_obligation_path(@obligation),
+              method: :patch,
+              class: "btn btn-primary" %>
+      <% end %>
+      <% if @obligation.active? || @obligation.paused? %>
+        <%= button_to t("admin.employee_obligations.cancel"),
+              cancel_admin_employee_obligation_path(@obligation),
+              method: :patch,
+              data: { turbo_confirm: t("admin.employee_obligations.cancel_confirm") },
+              class: "btn btn-danger" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Deduction history %>
+  <% if @obligation.obligation_deductions.any? %>
+    <div class="card" style="margin-top: var(--space-6);">
+      <div class="card-header">
+        <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("admin.employee_obligations.deduction_history") %></h2>
+      </div>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("admin.employee_obligations.period") %></th>
+              <th><%= t("admin.employee_obligations.deducted") %></th>
+              <th><%= t("admin.employee_obligations.balance_before") %></th>
+              <th><%= t("admin.employee_obligations.balance_after") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @obligation.obligation_deductions.includes(:payroll_period).order(created_at: :desc).each do |deduction| %>
+              <tr>
+                <td><%= deduction.payroll_period.period_label %></td>
+                <td><%= number_with_precision(deduction.deducted_amount, precision: 2) %></td>
+                <td class="td-secondary"><%= number_with_precision(deduction.remaining_before, precision: 2) %></td>
+                <td class="td-secondary"><%= number_with_precision(deduction.remaining_after, precision: 2) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+</div>

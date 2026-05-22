@@ -111,6 +111,14 @@ Rails.application.routes.draw do
         delete :remove_user
       end
     end
+
+    resources :employee_obligations, except: [ :destroy ] do
+      member do
+        patch :pause
+        patch :resume
+        patch :cancel
+      end
+    end
   end
 
   # ── Standalone Adjustments (pre-payroll, manager creates / admin approves) ─

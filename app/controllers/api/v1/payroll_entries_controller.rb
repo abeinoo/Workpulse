@@ -61,7 +61,7 @@ module Api
         data = entry.slice(
           :id, :user_id, :salary_type, :base_salary,
           :working_days, :days_worked, :total_deductions,
-          :total_overtime, :total_bonuses, :advances_deducted,
+          :total_overtime, :total_bonuses, :advances_deducted, :obligations_deducted,
           :net_salary, :status, :notes
         ).merge(
           payroll_period_id: entry.payroll_period_id,

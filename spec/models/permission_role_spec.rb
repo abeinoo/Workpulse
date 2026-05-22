@@ -70,12 +70,12 @@ RSpec.describe PermissionRole, type: :model do
 
   # ── Constants ───────────────────────────────────────────────────────────────
   describe "PERMISSION_GROUPS" do
-    it "covers exactly 9 groups" do
-      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(9)
+    it "covers exactly 10 groups" do
+      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(10)
     end
 
-    it "has 22 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(22)
+    it "has 23 total permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(23)
     end
 
     it "contains no duplicates" do

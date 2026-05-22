@@ -19,7 +19,7 @@ class PayrollEntry < ApplicationRecord
   end
 
   def total_adjustments
-    total_bonuses - total_deductions - advances_deducted
+    total_bonuses - total_deductions - advances_deducted - obligations_deducted
   end
 
   # Recomputes stored totals from current line item statuses. Call this after
@@ -31,19 +31,22 @@ class PayrollEntry < ApplicationRecord
     # Only approved items affect the employee's pay.
     active = items.select(&:approved?)
 
-    deductions = active.reject(&:advance_deduction?).select(&:deduction?).sum { |li| li.amount.abs }
-    overtime   = active.select(&:overtime?).sum(&:amount)
-    bonuses    = active.select { |li| %w[bonus commission reward].include?(li.item_type) }.sum(&:amount)
-    advances   = active.select(&:advance_deduction?).sum { |li| li.amount.abs }
+    non_financial = ->(li) { li.advance_deduction? || li.obligation_deduction? }
+    deductions   = active.reject(&non_financial).select(&:deduction?).sum { |li| li.amount.abs }
+    overtime     = active.select(&:overtime?).sum(&:amount)
+    bonuses      = active.select { |li| %w[bonus commission reward].include?(li.item_type) }.sum(&:amount)
+    advances     = active.select(&:advance_deduction?).sum { |li| li.amount.abs }
+    obligations  = active.select(&:obligation_deduction?).sum { |li| li.amount.abs }
 
-    net = base_salary.to_f - deductions + overtime + bonuses - advances
+    net = base_salary.to_f - deductions + overtime + bonuses - advances - obligations
 
     update!(
-      total_deductions:  deductions.round(2),
-      total_overtime:    overtime.round(2),
-      total_bonuses:     bonuses.round(2),
-      advances_deducted: advances.round(2),
-      net_salary:        net.round(2)
+      total_deductions:     deductions.round(2),
+      total_overtime:       overtime.round(2),
+      total_bonuses:        bonuses.round(2),
+      advances_deducted:    advances.round(2),
+      obligations_deducted: obligations.round(2),
+      net_salary:           net.round(2)
     )
   end
 end

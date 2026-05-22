@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_21_200001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_22_100002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -145,6 +145,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_21_200001) do
     t.index ["owner_id"], name: "index_businesses_on_owner_id"
   end
 
+  create_table "employee_obligations", force: :cascade do |t|
+    t.boolean "auto_deduct", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.text "description"
+    t.integer "end_month"
+    t.integer "end_year"
+    t.decimal "installment_amount", precision: 12, scale: 2, null: false
+    t.text "notes"
+    t.string "obligation_type", null: false
+    t.decimal "remaining_amount", precision: 12, scale: 2, null: false
+    t.integer "start_month", null: false
+    t.integer "start_year", null: false
+    t.string "status", default: "active", null: false
+    t.string "title", null: false
+    t.decimal "total_amount", precision: 12, scale: 2, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["business_id", "status"], name: "index_employee_obligations_on_business_id_and_status"
+    t.index ["business_id"], name: "index_employee_obligations_on_business_id"
+    t.index ["created_by_id"], name: "index_employee_obligations_on_created_by_id"
+    t.index ["user_id", "status"], name: "index_employee_obligations_on_user_id_and_status"
+    t.index ["user_id"], name: "index_employee_obligations_on_user_id"
+  end
+
   create_table "employee_requests", force: :cascade do |t|
     t.boolean "affects_payroll", default: false, null: false
     t.decimal "amount", precision: 12, scale: 2
@@ -162,6 +188,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_21_200001) do
     t.index ["reviewed_by_id"], name: "index_employee_requests_on_reviewed_by_id"
     t.index ["user_id", "request_type", "requested_for_date"], name: "idx_on_user_id_request_type_requested_for_date_bed206bfdf"
     t.index ["user_id"], name: "index_employee_requests_on_user_id"
+  end
+
+  create_table "obligation_deductions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "deducted_amount", precision: 12, scale: 2, null: false
+    t.bigint "employee_obligation_id", null: false
+    t.bigint "payroll_period_id", null: false
+    t.decimal "remaining_after", precision: 12, scale: 2, null: false
+    t.decimal "remaining_before", precision: 12, scale: 2, null: false
+    t.datetime "updated_at", null: false
+    t.index ["employee_obligation_id", "payroll_period_id"], name: "idx_obligation_deductions_unique", unique: true
+    t.index ["employee_obligation_id"], name: "index_obligation_deductions_on_employee_obligation_id"
+    t.index ["payroll_period_id"], name: "index_obligation_deductions_on_payroll_period_id"
   end
 
   create_table "payroll_adjustments", force: :cascade do |t|
@@ -216,6 +255,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_21_200001) do
     t.integer "days_worked", default: 0, null: false
     t.decimal "net_salary", precision: 12, scale: 2, null: false
     t.text "notes"
+    t.decimal "obligations_deducted", precision: 12, scale: 2, default: "0.0", null: false
     t.integer "payroll_period_id", null: false
     t.string "salary_type", null: false
     t.string "status", default: "draft", null: false
@@ -571,8 +611,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_21_200001) do
   add_foreign_key "branches", "users", column: "area_manager_id"
   add_foreign_key "branches", "users", column: "branch_manager_id"
   add_foreign_key "businesses", "users", column: "owner_id"
+  add_foreign_key "employee_obligations", "businesses"
+  add_foreign_key "employee_obligations", "users"
+  add_foreign_key "employee_obligations", "users", column: "created_by_id"
   add_foreign_key "employee_requests", "users"
   add_foreign_key "employee_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "obligation_deductions", "employee_obligations"
+  add_foreign_key "obligation_deductions", "payroll_periods"
   add_foreign_key "payroll_adjustments", "businesses"
   add_foreign_key "payroll_adjustments", "payroll_periods"
   add_foreign_key "payroll_adjustments", "users"

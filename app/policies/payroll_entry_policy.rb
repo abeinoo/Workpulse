@@ -1,5 +1,5 @@
 class PayrollEntryPolicy < ApplicationPolicy
-  def index?  = can?(:view_payroll) || owner? || manages_area? || manages_branch?
+  def index?  = true  # scope handles isolation; employees see only their own finalized/paid entries
   def show?   = can?(:view_payroll) || owner? || manages_area? || manages_branch? || own_entry?
   def update? = can?(:manage_payroll) || owner?
 

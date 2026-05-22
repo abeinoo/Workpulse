@@ -20,6 +20,10 @@ module Payroll
 
       ActiveRecord::Base.transaction do
         period = find_or_build_period
+        # Destroy obligation snapshots BEFORE entries: the before_destroy callback
+        # on ObligationDeduction restores each obligation's remaining_amount so the
+        # balance is accurate when ObligationDeductor runs again during regeneration.
+        ObligationDeduction.where(payroll_period: period).destroy_all
         period.payroll_entries.destroy_all  # clear stale entries on regeneration
         period.save!
 

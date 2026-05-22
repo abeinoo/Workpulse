@@ -107,6 +107,16 @@ module ApplicationHelper
     end
   end
 
+  def obligation_status_badge(status)
+    case status.to_s
+    when "active"    then "badge-success"
+    when "paused"    then "badge-warning"
+    when "completed" then "badge-accent"
+    when "cancelled" then "badge-neutral"
+    else                  "badge-neutral"
+    end
+  end
+
   # Formats a minutes integer as "Xh Ym" (e.g. 90 → "1h 30m").
   # Returns "—" for nil/zero.
   def format_minutes(minutes)

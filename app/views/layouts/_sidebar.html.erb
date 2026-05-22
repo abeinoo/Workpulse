@@ -66,6 +66,13 @@
         <%= t("nav.my_attendance") %>
       <% end %>
 
+      <%= link_to shift_assignments_path,
+            class: "sidebar__nav-item #{controller_name == 'shift_assignments' ? 'is-active' : ''}",
+            data: { action: "click->sidebar#close" } do %>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <%= t("nav.my_shifts") %>
+      <% end %>
+
       <%= link_to employee_requests_path,
             class: "sidebar__nav-item #{controller_name == 'employee_requests' ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>
@@ -81,7 +88,7 @@
       <% end %>
     <% end %>
 
-    <% if current_user.owner? || current_user.can?(:manage_roles) %>
+    <% if current_user.owner? || current_user.permission_role.present? %>
       <div class="sidebar__section-label"><%= t("nav.section_admin") %></div>
 
       <% if current_user.owner? || current_user.can?(:view_employees) %>
@@ -142,6 +149,15 @@
               data: { action: "click->sidebar#close" } do %>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           <%= t("nav.punch_logs") %>
+        <% end %>
+      <% end %>
+
+      <% if current_user.owner? || current_user.can?(:manage_obligations) %>
+        <%= link_to admin_employee_obligations_path,
+              class: "sidebar__nav-item #{request.path.start_with?('/admin/employee_obligations') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <%= t("nav.employee_obligations") %>
         <% end %>
       <% end %>
 

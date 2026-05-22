@@ -1,0 +1,84 @@
+<% content_for :title, t("admin.employee_obligations.index.page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("admin.employee_obligations.index.title") %></h1>
+    <%= link_to new_admin_employee_obligation_path, class: "btn btn-primary" do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <%= t("admin.employee_obligations.index.add") %>
+    <% end %>
+  </div>
+
+  <%# Filters %>
+  <div class="filters-bar">
+    <%= form_with url: admin_employee_obligations_path, method: :get, local: true, class: "filters-form" do |f| %>
+      <%= f.select :status,
+            [["", ""]] + EmployeeObligation::STATUSES.map { |s| [t("admin.employee_obligations.statuses.#{s}"), s] },
+            { selected: params[:status] },
+            class: "form-control form-control--sm" %>
+      <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
+      <% if params[:status].present? %>
+        <%= link_to t("forms.clear"), admin_employee_obligations_path, class: "btn btn-ghost btn-sm" %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <% if @obligations.any? %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("admin.employee_obligations.employee") %></th>
+            <th><%= t("admin.employee_obligations.type") %></th>
+            <th><%= t("admin.employee_obligations.title_col") %></th>
+            <th><%= t("admin.employee_obligations.total") %></th>
+            <th><%= t("admin.employee_obligations.remaining") %></th>
+            <th><%= t("admin.employee_obligations.installment") %></th>
+            <th><%= t("admin.employee_obligations.status_col") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @obligations.each do |obligation| %>
+            <tr>
+              <td>
+                <div class="employee-cell">
+                  <div class="avatar"><%= obligation.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                  <div>
+                    <div class="employee-cell__name"><%= obligation.user.full_name %></div>
+                    <div class="employee-cell__sub"><%= t("admin.employee_obligations.start_period") %>: <%= obligation.start_label %></div>
+                  </div>
+                </div>
+              </td>
+              <td class="td-secondary"><%= t("admin.employee_obligations.obligation_types.#{obligation.obligation_type}") %></td>
+              <td><%= obligation.title %></td>
+              <td class="td-secondary"><%= number_with_precision(obligation.total_amount, precision: 2) %></td>
+              <td>
+                <span class="<%= obligation.remaining_amount.to_f > 0 ? 'text-warning' : 'text-success' %>">
+                  <%= number_with_precision(obligation.remaining_amount, precision: 2) %>
+                </span>
+              </td>
+              <td class="td-secondary"><%= number_with_precision(obligation.installment_amount, precision: 2) %></td>
+              <td>
+                <span class="badge <%= obligation_status_badge(obligation.status) %>">
+                  <%= t("admin.employee_obligations.statuses.#{obligation.status}") %>
+                </span>
+              </td>
+              <td>
+                <div class="td-actions">
+                  <%= link_to t("forms.view"), admin_employee_obligation_path(obligation), class: "btn btn-ghost btn-sm" %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <div class="empty-state">
+      <p class="empty-state__title"><%= t("admin.employee_obligations.index.none") %></p>
+    </div>
+  <% end %>
+
+</div>

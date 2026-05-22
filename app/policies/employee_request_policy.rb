@@ -9,10 +9,13 @@ class EmployeeRequestPolicy < ApplicationPolicy
   def new?     = create?
 
   def create?
-    return false unless same_business?(record.user)
-    return true  if record.user_id == user.id
+    # record.user is nil when the controller authorizes a bare EmployeeRequest.new
+    # (the new form action) before assigning the target user — default to self.
+    effective_user = record.user || user
+    return false unless effective_user.business_id == user.business_id
+    return true  if effective_user == user
 
-    (can?(:approve_requests) || manages_branch?) && record.user&.manager_id == user.id
+    (can?(:approve_requests) || manages_branch?) && effective_user.manager_id == user.id
   end
 
   class Scope < ApplicationPolicy::Scope
@@ -32,6 +35,6 @@ class EmployeeRequestPolicy < ApplicationPolicy
   end
 
   def manages_requester?
-    record.user.manager_id == user.id
+    record.user&.manager_id == user.id
   end
 end

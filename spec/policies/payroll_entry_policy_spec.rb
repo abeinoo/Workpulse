@@ -25,7 +25,9 @@ RSpec.describe PayrollEntryPolicy, type: :model do
     it "permits accountant"     do expect(subject).to permit(accountant,  entry) end
     it "permits area_manager"   do expect(subject).to permit(area_mgr,    entry) end
     it "permits branch_manager" do expect(subject).to permit(manager,     entry) end
-    it "denies employee"        do expect(subject).not_to permit(employee, entry) end
+    it "permits employee (scope handles isolation)" do
+      expect(subject).to permit(employee, entry)
+    end
   end
 
   describe "show?" do

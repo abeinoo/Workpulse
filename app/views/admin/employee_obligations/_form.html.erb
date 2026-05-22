@@ -1,0 +1,109 @@
+<%= form_with model: [:admin, @obligation], class: "form-card" do |f| %>
+
+  <%= render "users/shared/error_messages", resource: @obligation %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :user_id, t("admin.employee_obligations.employee"), class: "form-label" %>
+      <%= f.select :user_id,
+            @employees.map { |u| [u.full_name, u.id] },
+            { prompt: t("forms.select") },
+            class: "form-control #{'is-error' if @obligation.errors[:user_id].any?}" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :obligation_type, t("admin.employee_obligations.type"), class: "form-label" %>
+      <%= f.select :obligation_type,
+            EmployeeObligation::OBLIGATION_TYPES.map { |t_| [t("admin.employee_obligations.obligation_types.#{t_}"), t_] },
+            {},
+            class: "form-control #{'is-error' if @obligation.errors[:obligation_type].any?}" %>
+    </div>
+
+    <div class="form-group form-group--wide">
+      <%= f.label :title, t("admin.employee_obligations.title_label"), class: "form-label" %>
+      <%= f.text_field :title,
+            class: "form-control #{'is-error' if @obligation.errors[:title].any?}",
+            placeholder: t("admin.employee_obligations.title_placeholder") %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :total_amount, t("admin.employee_obligations.total"), class: "form-label" %>
+      <%= f.number_field :total_amount,
+            class: "form-control #{'is-error' if @obligation.errors[:total_amount].any?}",
+            min: 0, step: "0.01", placeholder: "5000.00" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :installment_amount, t("admin.employee_obligations.installment"), class: "form-label" %>
+      <%= f.number_field :installment_amount,
+            class: "form-control #{'is-error' if @obligation.errors[:installment_amount].any?}",
+            min: 0, step: "0.01", placeholder: "500.00" %>
+      <p class="form-hint"><%= t("admin.employee_obligations.installment_hint") %></p>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :start_month, t("admin.employee_obligations.start_period"), class: "form-label" %>
+      <div style="display:flex;gap:var(--space-2);">
+        <%= f.select :start_month,
+              (1..12).map { |m| [Date::MONTHNAMES[m], m] },
+              { selected: @obligation.start_month },
+              class: "form-control" %>
+        <%= f.number_field :start_year,
+              class: "form-control",
+              min: 2020, max: 2099, placeholder: Date.current.year %>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :end_month, class: "form-label" do %>
+        <%= t("admin.employee_obligations.end_period") %>
+        <span class="form-label__optional"><%= t("forms.optional") %></span>
+      <% end %>
+      <div style="display:flex;gap:var(--space-2);">
+        <%= f.select :end_month,
+              [["—", ""]] + (1..12).map { |m| [Date::MONTHNAMES[m], m] },
+              { selected: @obligation.end_month },
+              class: "form-control" %>
+        <%= f.number_field :end_year,
+              class: "form-control",
+              min: 2020, max: 2099, placeholder: "—",
+              value: @obligation.end_year %>
+      </div>
+      <p class="form-hint"><%= t("admin.employee_obligations.end_period_hint") %></p>
+    </div>
+
+    <div class="form-group form-group--wide">
+      <%= f.label :description, class: "form-label" do %>
+        <%= t("admin.employee_obligations.description") %>
+        <span class="form-label__optional"><%= t("forms.optional") %></span>
+      <% end %>
+      <%= f.text_area :description,
+            class: "form-control #{'is-error' if @obligation.errors[:description].any?}",
+            rows: 3 %>
+    </div>
+
+    <div class="form-group form-group--wide">
+      <%= f.label :notes, class: "form-label" do %>
+        <%= t("admin.employee_obligations.notes") %>
+        <span class="form-label__optional"><%= t("forms.optional") %></span>
+      <% end %>
+      <%= f.text_area :notes,
+            class: "form-control",
+            rows: 2 %>
+    </div>
+
+    <div class="form-group">
+      <div class="form-check">
+        <%= f.check_box :auto_deduct, class: "form-check__input" %>
+        <%= f.label :auto_deduct, t("admin.employee_obligations.auto_deduct_label"), class: "form-check__label" %>
+      </div>
+      <p class="form-hint"><%= t("admin.employee_obligations.auto_deduct_hint") %></p>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit class: "btn btn-primary" %>
+    <%= link_to t("forms.cancel"), admin_employee_obligations_path, class: "btn btn-ghost" %>
+  </div>
+
+<% end %>

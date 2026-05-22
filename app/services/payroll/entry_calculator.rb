@@ -22,34 +22,46 @@ module Payroll
       profile    = rate_calc.profile
       records    = load_records
 
-      days_worked    = records.count { |r| !r.absent? }
-      line_items     = attendance_line_items(records, daily_rate, profile.overtime_multiplier)
-      line_items    += absence_line_items(profile, days_worked, daily_rate)
-      advance_result = AdvanceDeductor.call(user: @user)
-      adj_items      = adjustment_line_items
+      days_worked        = records.count { |r| !r.absent? }
+      line_items         = attendance_line_items(records, daily_rate, profile.overtime_multiplier)
+      line_items        += absence_line_items(profile, days_worked, daily_rate)
+      advance_result     = AdvanceDeductor.call(user: @user)
+      obligation_result  = ObligationDeductor.call(user: @user, period: @period)
+      adj_items          = adjustment_line_items
 
-      base_salary       = base(profile, daily_rate, days_worked)
-      att_deductions    = sum_negatives(line_items)
-      adj_deductions    = sum_negatives(adj_items)
-      total_deductions  = att_deductions + adj_deductions
-      total_overtime    = line_items.select { |i| i[:item_type] == "overtime" }.sum { |i| i[:amount] }
-      total_bonuses     = sum_positives(adj_items)
-      advances_deducted = advance_result.total_amount
-      net_salary        = base_salary - total_deductions + total_overtime + total_bonuses - advances_deducted
+      base_salary          = base(profile, daily_rate, days_worked)
+      att_deductions       = sum_negatives(line_items)
+      adj_deductions       = sum_negatives(adj_items)
+      total_deductions     = att_deductions + adj_deductions
+      total_overtime       = line_items.select { |i| i[:item_type] == "overtime" }.sum { |i| i[:amount] }
+      total_bonuses        = sum_positives(adj_items)
+      advances_deducted    = advance_result.total_amount
+      obligations_deducted = obligation_result.total_amount
+      net_salary           = base_salary - total_deductions + total_overtime + total_bonuses \
+                             - advances_deducted - obligations_deducted
 
       ActiveRecord::Base.transaction do
         entry = @period.payroll_entries.create!(
-          user:              @user,
-          salary_type:       profile.salary_type,
-          base_salary:       base_salary.round(2),
-          working_days:      @period.working_days,
-          days_worked:       days_worked,
-          total_deductions:  total_deductions.round(2),
-          total_overtime:    total_overtime.round(2),
-          total_bonuses:     total_bonuses.round(2),
-          advances_deducted: advances_deducted.round(2),
-          net_salary:        net_salary.round(2)
+          user:                 @user,
+          salary_type:          profile.salary_type,
+          base_salary:          base_salary.round(2),
+          working_days:         @period.working_days,
+          days_worked:          days_worked,
+          total_deductions:     total_deductions.round(2),
+          total_overtime:       total_overtime.round(2),
+          total_bonuses:        total_bonuses.round(2),
+          advances_deducted:    advances_deducted.round(2),
+          obligations_deducted: obligations_deducted.round(2),
+          net_salary:           net_salary.round(2)
         )
+
+        # Obligation deductions: save snapshot first (triggers balance decrement),
+        # then create the line item with the snapshot's id as source.
+        obligation_result.items.each do |item|
+          snapshot = item.snapshot
+          snapshot.save!
+          entry.payroll_line_items.create!(item.line_item_attrs.merge(source_id: snapshot.id))
+        end
 
         advance_items = advance_result.line_items.map { |li| li.merge(review_status: "approved") }
         (line_items + advance_items + adj_items).each do |attrs|

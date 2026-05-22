@@ -11,6 +11,7 @@ class PermissionRole < ApplicationRecord
     shifts:         %w[view_shifts manage_shifts assign_shifts],
     reports:        %w[view_reports export_reports],
     settings:       %w[manage_settings manage_branches],
+    obligations:    %w[manage_obligations],
     administration: %w[manage_roles]
   }.freeze
 

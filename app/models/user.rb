@@ -17,6 +17,7 @@ class User < ApplicationRecord
   has_many :employee_requests,     dependent: :destroy
   has_many :advances,              dependent: :destroy
   has_many :payroll_entries,       dependent: :destroy
+  has_many :employee_obligations,  dependent: :destroy, foreign_key: :user_id
 
   scope :active,   -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
