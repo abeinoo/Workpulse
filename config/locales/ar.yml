@@ -420,6 +420,10 @@ ar:
       amount_label: "مبلغ السلفة"
       amount_placeholder: "مثال: 2000"
       amount_hint: "مطلوب لطلبات السلفة."
+      advance_limit_monthly_basis: "الحد الأقصى للسلفة: %{percentage}% من الراتب الأساسي (%{max} %{currency})."
+      advance_limit_daily_basis: "الحد الأقصى للسلفة: %{percentage}% من أحدث الأرباح (%{max} %{currency})."
+      advance_outstanding: "مبلغ %{amount} %{currency} قائم بالفعل."
+      advance_available: "المتاح: %{amount} %{currency}"
       duration_label: "المدة (بالدقائق)"
       duration_placeholder: "مثال: 30"
       duration_hint: "كم دقيقة تريد إذن التأخر أو المغادرة المبكرة؟"
@@ -471,6 +475,7 @@ ar:
     errors:
       exceeds_monthly_limit: "يتجاوز الحد الشهري (%{remaining} دقيقة متبقية من أصل %{limit})"
       unavailable_for_hour_based: "غير متاح للموظفين المعيَّنين على ورديات مرنة (بالساعة)"
+      exceeds_advance_limit: "يتجاوز الحد المتاح للسلفة (%{available} %{currency} متبقية)"
 
   adjustments:
     types:
@@ -1020,6 +1025,9 @@ ar:
       working_days_hint: "عدد أيام العمل القياسية المستخدمة في احتساب الراتب اليومي."
       default_locale_label: "اللغة الافتراضية"
       default_locale_hint: "تحدد اللغة الافتراضية لجميع موظفي المنشأة."
+      max_advance_percentage_label: "الحد الأقصى لسلفة الراتب (%)"
+      max_advance_percentage_hint: "أقصى نسبة مئوية من الراتب يمكن للموظف طلبها كسلفة. اتركه فارغاً لرفع الحد."
+      max_advance_percentage_placeholder: "مثال: 30"
     payroll_periods:
       index:
         title: "فترات الرواتب"

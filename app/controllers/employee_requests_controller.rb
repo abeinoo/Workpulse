@@ -22,12 +22,14 @@ class EmployeeRequestsController < ApplicationController
   end
 
   def new
-    @for_user             = resolve_for_user
-    @request              = EmployeeRequest.new
+    @for_user              = resolve_for_user
+    @request               = EmployeeRequest.new
     authorize @request
-    @managed_employees    = managed_employees_for_form
-    @permission_limits    = permission_limits_for(@for_user || current_user)
-    @allowed_request_types = allowed_request_types_for(@for_user || current_user)
+    target_user            = @for_user || current_user
+    @managed_employees     = managed_employees_for_form
+    @permission_limits     = permission_limits_for(target_user)
+    @allowed_request_types = allowed_request_types_for(target_user)
+    @advance_limit         = Salary::AdvanceEligibilityCalculator.for(user: target_user)
   end
 
   def create
@@ -43,6 +45,7 @@ class EmployeeRequestsController < ApplicationController
       @managed_employees     = managed_employees_for_form
       @permission_limits     = permission_limits_for(@request.user)
       @allowed_request_types = allowed_request_types_for(@request.user)
+      @advance_limit         = Salary::AdvanceEligibilityCalculator.for(user: @request.user)
       render :new, status: :unprocessable_entity
     end
   end

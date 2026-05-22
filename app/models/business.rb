@@ -35,6 +35,8 @@ class Business < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 23 }
   validates :default_locale, inclusion: { in: %w[en ar] }, allow_blank: true
   validates :currency, inclusion: { in: CURRENCIES.keys }, allow_blank: false
+  validates :max_salary_advance_percentage,
+            numericality: { greater_than: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   def timezone_object
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]

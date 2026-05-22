@@ -15,6 +15,6 @@ class Admin::SettingsController < Admin::BaseController
   private
 
   def settings_params
-    params.require(:business).permit(:timezone, :working_days_per_month, :business_day_start_hour, :default_locale, :currency)
+    params.require(:business).permit(:timezone, :working_days_per_month, :business_day_start_hour, :default_locale, :currency, :max_salary_advance_percentage)
   end
 end

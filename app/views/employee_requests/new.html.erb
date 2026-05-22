@@ -66,6 +66,31 @@
               step: "0.01",
               placeholder: t("requests.new.amount_placeholder") %>
         <p class="form-hint"><%= t("requests.new.amount_hint") %></p>
+        <%# Advance eligibility hint — rendered server-side so it's visible on first load %>
+        <% if @advance_limit %>
+          <% adv_user    = @for_user || current_user %>
+          <% adv_biz     = adv_user.business %>
+          <% adv_pct     = adv_biz.max_salary_advance_percentage.to_f.round(2) %>
+          <% adv_cur     = adv_biz.currency %>
+          <p class="form-hint form-hint--advance" id="advance-limit-hint">
+            <%= t("requests.new.advance_limit_#{@advance_limit.description_key}",
+                  percentage: adv_pct,
+                  max:        number_with_precision(@advance_limit.max_amount, precision: 2, delimiter: ","),
+                  currency:   adv_cur) %>
+            <% if @advance_limit.outstanding > 0 %>
+              &nbsp;
+              <%= t("requests.new.advance_outstanding",
+                    amount:   number_with_precision(@advance_limit.outstanding, precision: 2, delimiter: ","),
+                    currency: adv_cur) %>
+            <% end %>
+            <br>
+            <strong>
+              <%= t("requests.new.advance_available",
+                    amount:   number_with_precision(@advance_limit.available, precision: 2, delimiter: ","),
+                    currency: adv_cur) %>
+            </strong>
+          </p>
+        <% end %>
       </div>
 
       <%# Duration — shown for late_permission and early_leave requests %>

@@ -13,6 +13,7 @@ class EmployeeRequest < ApplicationRecord
 
   validates :request_type, :requested_for_date, :reason, presence: true
   validates :amount, presence: true, numericality: { greater_than: 0 }, if: :salary_advance?
+  validate :within_advance_limit, on: :create, if: :salary_advance?
   validates :duration_minutes,
             presence: true,
             on: :create,
@@ -56,6 +57,20 @@ class EmployeeRequest < ApplicationRecord
   # affects_payroll is always derived from request_type — never set by the caller.
   def derive_affects_payroll
     self.affects_payroll = !salary_advance?
+  end
+
+  def within_advance_limit
+    return unless amount.present? && user.present?
+
+    result = Salary::AdvanceEligibilityCalculator.for(user: user)
+    return unless result  # no limit configured — unrestricted
+
+    if amount.to_f > result.available
+      errors.add(:amount,
+                 I18n.t("requests.errors.exceeds_advance_limit",
+                        available: result.available,
+                        currency:  user.business.currency))
+    end
   end
 
   def shift_supports_request_type

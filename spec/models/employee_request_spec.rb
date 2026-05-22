@@ -217,6 +217,46 @@ RSpec.describe EmployeeRequest, type: :model do
     end
   end
 
+  describe "within_advance_limit" do
+    let(:business) { create(:business, max_salary_advance_percentage: 50) }
+    let(:user)     { create(:user, business: business) }
+
+    before { create(:salary_profile, :monthly, user: user, base_amount: 4_000) }
+
+    it "is valid when amount is within the available limit" do
+      req = build(:employee_request, :salary_advance, user: user, amount: 1_000)
+      expect(req).to be_valid
+    end
+
+    it "is invalid when amount exceeds the available limit" do
+      req = build(:employee_request, :salary_advance, user: user, amount: 2_500)
+      expect(req).not_to be_valid
+      expect(req.errors[:amount]).to be_present
+    end
+
+    it "is valid when business has no advance percentage configured" do
+      business.update!(max_salary_advance_percentage: nil)
+      req = build(:employee_request, :salary_advance, user: user, amount: 99_999)
+      expect(req).to be_valid
+    end
+
+    it "is valid when user has no salary profile" do
+      SalaryProfile.where(user: user).delete_all
+      req = build(:employee_request, :salary_advance, user: user, amount: 99_999)
+      expect(req).to be_valid
+    end
+
+    it "deducts outstanding advances before checking limit" do
+      existing = create(:employee_request, :salary_advance, :approved, user: user, amount: 1_500)
+      advance  = create(:advance, user: user, remaining_amount: 1_500, employee_request: existing)
+      existing.update!(status: "paid")
+      # max = 2_000; outstanding = 1_500; available = 500 → 600 should fail
+      req = build(:employee_request, :salary_advance, user: user, amount: 600)
+      expect(req).not_to be_valid
+      expect(req.errors[:amount]).to be_present
+    end
+  end
+
   describe "scopes" do
     let(:business)        { create(:business) }
     let(:branch)          { create(:branch, business: business) }

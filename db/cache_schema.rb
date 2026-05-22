@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_22_600000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_22_700000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -137,6 +137,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_600000) do
     t.string "default_locale", default: "en", null: false
     t.integer "max_early_leave_permission_minutes"
     t.integer "max_late_permission_minutes"
+    t.decimal "max_salary_advance_percentage", precision: 5, scale: 2
     t.string "name", null: false
     t.bigint "owner_id"
     t.text "settings"
