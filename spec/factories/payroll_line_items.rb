@@ -30,8 +30,8 @@ FactoryBot.define do
       review_status { :approved }
     end
 
-    trait :bonus do
-      item_type     { :bonus }
+    trait :cash_incentive do
+      item_type     { :cash_incentive }
       amount        { 300.0 }
       review_status { :approved }
     end

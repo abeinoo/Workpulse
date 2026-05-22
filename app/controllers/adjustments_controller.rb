@@ -22,11 +22,18 @@ class AdjustmentsController < ApplicationController
 
   def create
     @adjustment = PayrollAdjustment.new(adjustment_params)
-    @adjustment.business     = current_user.business
-    @adjustment.created_by   = current_user
-    @adjustment.review_status = current_user.owner? ? "approved" : "pending_review"
+    @adjustment.business    = current_user.business
+    @adjustment.created_by  = current_user
+    # already_paid cash incentives are auto-approved — the money is already out the door.
+    @adjustment.review_status = if @adjustment.already_paid?
+                                  "approved"
+                                elsif current_user.owner?
+                                  "approved"
+                                else
+                                  "pending_review"
+                                end
 
-    if current_user.owner?
+    if @adjustment.review_status == "approved"
       @adjustment.approved_by = current_user
       @adjustment.approved_at = Time.current
       @adjustment.reviewed_by = current_user
@@ -116,7 +123,9 @@ class AdjustmentsController < ApplicationController
 
   def adjustment_params
     params.require(:payroll_adjustment)
-          .permit(:adjustment_type, :amount, :reason, :user_id, :period_month, :period_year)
+          .permit(:adjustment_type, :amount, :reason, :user_id,
+                  :period_month, :period_year,
+                  :already_paid, :payment_method, :paid_at)
   end
 
   def filter_month

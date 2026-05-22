@@ -18,9 +18,9 @@ RSpec.describe Payroll::AdjustmentApplier do
   end
 
   describe ".call" do
-    context "when a bonus adjustment is applied" do
+    context "when a cash_incentive adjustment is applied" do
       let(:adjustment) do
-        create(:payroll_adjustment, :bonus,
+        create(:payroll_adjustment, :cash_incentive,
           payroll_period: period,
           user:           employee,
           created_by:     manager,
@@ -28,11 +28,11 @@ RSpec.describe Payroll::AdjustmentApplier do
         )
       end
 
-      it "creates a bonus line item linked to the adjustment" do
+      it "creates a cash_incentive line item linked to the adjustment" do
         described_class.call(adjustment: adjustment)
         li = entry.reload.payroll_line_items.find_by(source_type: "PayrollAdjustment", source_id: adjustment.id)
         expect(li).to be_present
-        expect(li.item_type).to eq("bonus")
+        expect(li.item_type).to eq("cash_incentive")
         expect(li.amount).to eq(500.0)
         expect(li.review_status).to eq("approved")
       end
@@ -73,7 +73,7 @@ RSpec.describe Payroll::AdjustmentApplier do
 
     context "when no payroll entry exists yet" do
       it "returns success without creating a line item" do
-        adjustment = create(:payroll_adjustment, :bonus,
+        adjustment = create(:payroll_adjustment, :cash_incentive,
           payroll_period: period,
           user:           create(:user, business: business),
           created_by:     manager

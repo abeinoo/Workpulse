@@ -25,8 +25,15 @@ module Attendance
       return err("No active shift found for today") if @branch && !assignment
 
       record = build_record(assignment)
-      record.save ? Result.new(success: true, record: record)
-                  : err(record.errors.full_messages.join(", "))
+      if record.save
+        Result.new(success: true, record: record)
+      else
+        err(record.errors.full_messages.join(", "))
+      end
+    rescue ActiveRecord::RecordNotUnique
+      # Concurrent check-in: the unique index on (user_id, work_date) caught a race.
+      # Treat identically to already_checked_in? returning true.
+      err(I18n.t("api.attendance.already_checked_in"))
     end
 
     private

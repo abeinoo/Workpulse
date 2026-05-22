@@ -15,7 +15,7 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
   end
 
   let(:period)     { create(:payroll_period, business: business, branch: branch) }
-  let(:adjustment) { create(:payroll_adjustment, :bonus, payroll_period: period, user: employee, created_by: manager) }
+  let(:adjustment) { create(:payroll_adjustment, :cash_incentive, payroll_period: period, user: employee, created_by: manager) }
 
   let(:area_manager) { create(:user, :area_manager, business: business) }
   let(:blank_record) { PayrollAdjustment.new(business: business) }
@@ -98,14 +98,14 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       end
 
       it "permits accountant who did create it" do
-        adj = create(:payroll_adjustment, :bonus, payroll_period: period, user: employee, created_by: accountant)
+        adj = create(:payroll_adjustment, :cash_incentive, payroll_period: period, user: employee, created_by: accountant)
         expect(subject.new(accountant, adj).destroy?).to be true
       end
     end
 
     context "when adjustment is already approved (not pending)" do
       let(:adjustment) do
-        create(:payroll_adjustment, :bonus, payroll_period: period, user: employee,
+        create(:payroll_adjustment, :cash_incentive, payroll_period: period, user: employee,
                created_by: manager, review_status: :approved)
       end
 
@@ -129,7 +129,7 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
     let(:other_period)      { create(:payroll_period, business: other_business) }
     let(:other_employee)    { create(:user, business: other_business) }
     let!(:other_adjustment) do
-      create(:payroll_adjustment, :bonus,
+      create(:payroll_adjustment, :cash_incentive,
         payroll_period: other_period,
         user:           other_employee,
         created_by:     create(:user, :super_admin, business: other_business)

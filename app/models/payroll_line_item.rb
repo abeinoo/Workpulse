@@ -4,25 +4,25 @@ class PayrollLineItem < ApplicationRecord
 
   ITEM_TYPES = %w[
     late_penalty early_leave_penalty overtime advance_deduction obligation_deduction
-    bonus commission reward
+    cash_incentive commission
     penalty manual_deduction manual_adjustment
   ].freeze
   # System-generated attendance items are auto-approved.
-  # Manager-submitted adjustment types (commission, reward, penalty, manual_deduction) start as pending_review.
-  REVIEW_REQUIRED_TYPES = %w[commission reward penalty manual_deduction].freeze
+  # Manager-submitted positive types start as pending_review (unless already_paid, which auto-approves).
+  # already_paid items skip review — the money is already out the door.
+  REVIEW_REQUIRED_TYPES = %w[commission cash_incentive penalty manual_deduction].freeze
 
   enum :item_type, {
-    late_penalty:        "late_penalty",
-    early_leave_penalty: "early_leave_penalty",
-    overtime:            "overtime",
-    advance_deduction:   "advance_deduction",
+    late_penalty:         "late_penalty",
+    early_leave_penalty:  "early_leave_penalty",
+    overtime:             "overtime",
+    advance_deduction:    "advance_deduction",
     obligation_deduction: "obligation_deduction",
-    bonus:               "bonus",
-    commission:          "commission",
-    reward:              "reward",
-    penalty:             "penalty",
-    manual_adjustment:   "manual_adjustment",
-    manual_deduction:    "manual_deduction"
+    cash_incentive:       "cash_incentive",
+    commission:           "commission",
+    penalty:              "penalty",
+    manual_adjustment:    "manual_adjustment",
+    manual_deduction:     "manual_deduction"
   }
 
   attribute :review_status, :string, default: "approved"

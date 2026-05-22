@@ -35,6 +35,7 @@ module Reports
         deductions:           entries.sum(:total_deductions).to_f.round(2),
         overtime:             entries.sum(:total_overtime).to_f.round(2),
         bonuses:              entries.sum(:total_bonuses).to_f.round(2),
+        already_paid_total:   entries.sum(:already_paid_total).to_f.round(2),
         advances_deducted:    entries.sum(:advances_deducted).to_f.round(2),
         obligations_deducted: entries.sum(:obligations_deducted).to_f.round(2),
         net_salary:           entries.sum(:net_salary).to_f.round(2)
@@ -52,6 +53,7 @@ module Reports
         total_deductions:     entry.total_deductions.to_f,
         total_overtime:       entry.total_overtime.to_f,
         total_bonuses:        entry.total_bonuses.to_f,
+        already_paid_total:   entry.already_paid_total.to_f,
         advances_deducted:    entry.advances_deducted.to_f,
         obligations_deducted: entry.obligations_deducted.to_f,
         net_salary:           entry.net_salary.to_f,

@@ -7,21 +7,38 @@ FactoryBot.define do
     business     { payroll_period.business }
     period_month { payroll_period.period_month }
     period_year  { payroll_period.period_year }
-    adjustment_type { :bonus }
+    adjustment_type { :cash_incentive }
     amount          { 500.0 }
-    reason          { "Performance bonus" }
+    reason          { "Performance incentive" }
     review_status   { :pending_review }
 
-    trait :bonus do
-      adjustment_type { :bonus }
+    trait :cash_incentive do
+      adjustment_type { :cash_incentive }
       amount          { 500.0 }
-      reason          { "Performance bonus" }
+      reason          { "Performance incentive" }
+    end
+
+    trait :commission do
+      adjustment_type { :commission }
+      amount          { 500.0 }
+      reason          { "Sales commission" }
     end
 
     trait :manual_deduction do
       adjustment_type { :manual_deduction }
       amount          { 200.0 }
       reason          { "Customer complaint penalty" }
+    end
+
+    trait :already_paid do
+      already_paid    { true }
+      payment_method  { "cash" }
+      paid_at         { 3.days.ago }
+      review_status   { :approved }
+    end
+
+    trait :approved do
+      review_status { :approved }
     end
   end
 end

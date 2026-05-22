@@ -328,7 +328,13 @@ en:
       overtime_pay: "Overtime Pay"
       bonuses: "Bonuses"
       advance_repayments: "Advance Repayments"
+      obligations_deducted: "Obligation Deductions"
       net_salary: "Net Salary"
+      gross_amount: "Gross Amount"
+      final_payable: "Final Payable"
+      already_paid_section: "Paid During Period"
+      already_paid_badge: "Paid During Period"
+      already_paid_note: "Excluded from final payable"
       base_salary: "Base Salary"
       additions_bonuses: "Additions & Bonuses"
       manual_deductions: "Manual Deductions"
@@ -355,9 +361,8 @@ en:
         early_leave_penalty: "Early Leave / Deficit Hours Penalty"
         overtime: "Overtime"
         advance_deduction: "Salary Advance Deduction"
-        bonus: "Bonus"
+        cash_incentive: "Cash Incentive"
         commission: "Commission"
-        reward: "Reward"
         penalty: "Manual Penalty"
         manual_adjustment: "Manual Adjustment"
         manual_deduction: "Manual Deduction"
@@ -469,9 +474,8 @@ en:
 
   adjustments:
     types:
-      bonus: "Bonus"
+      cash_incentive: "Cash Incentive"
       commission: "Commission"
-      reward: "Reward"
       penalty: "Penalty"
       manual_deduction: "Manual Deduction"
     index:
@@ -492,7 +496,7 @@ en:
       submit_review: "Submit for Review"
       employee_label: "Employee"
       back: "Back to Adjustments"
-      type_hint: "Bonus, commission, and reward add to salary. Penalty and manual deduction reduce it."
+      type_hint: "Cash incentive and commission add to salary. Penalty and manual deduction reduce it."
     employee: "Employee"
     amount: "Amount"
     type: "Type"
@@ -504,7 +508,7 @@ en:
     reason: "Reason"
     created_by: "Created By"
     actions: "Actions"
-    subtitle: "Bonuses, commissions, rewards, penalties, and deductions"
+    subtitle: "Cash incentives, commissions, penalties, and manual deductions"
     no_adjustments: "No adjustments found."
     approve: "Approve"
     reject: "Reject"
@@ -675,17 +679,37 @@ en:
     no_overtime: "No overtime"
 
   payroll_adjustments:
+    added: "Adjustment added."
+    submitted_for_review: "Adjustment submitted for review."
+    recorded_already_paid: "Already-paid amount recorded in payroll history."
+    types:
+      cash_incentive:   "Cash Incentive"
+      commission:       "Commission"
+      penalty:          "Penalty"
+      manual_deduction: "Manual Deduction"
+    payment_methods:
+      cash:          "Cash"
+      bank_transfer: "Bank Transfer"
+      check:         "Check"
+      other:         "Other"
     new:
-      title_bonus: "Add Bonus / Addition"
+      title: "Add Payroll Adjustment"
       title_deduction: "Add Manual Deduction"
       back: "Back"
       type: "Type"
-      bonus_option: "Bonus / Addition"
       deduction_option: "Manual Deduction"
       amount_label: "Amount"
       reason_label: "Reason / Description"
-      reason_placeholder: "e.g. Performance bonus for Q1"
+      reason_placeholder: "e.g. Daily incentive, Ramadan support, Q1 commission, performance reward"
+      cash_incentive_hint: "Use the reason field to describe the specific payment — e.g. \"Daily Incentive\", \"Ramadan Support\", \"Emergency Assistance\"."
       hint: "This adjustment will be submitted for super admin review before it affects the employee's payroll."
+      already_paid_label: "This incentive was already paid to the employee during the month"
+      already_paid_accounting_note: "Already-paid incentives appear on the payslip but are not added to the final payable amount."
+      paid_details_heading: "Payment details (for audit trail)"
+      payment_method_label: "Payment Method"
+      paid_at_label: "Paid At"
+      paid_at_hint: "When was this amount handed to the employee?"
+      submit: "Save Adjustment"
       save_approve: "Save & Approve"
       submit_review: "Submit for Review"
 
@@ -1240,6 +1264,8 @@ en:
       stale_timestamp: "Timestamp is outside the accepted 24-hour window."
       biometric_attendance_not_allowed: "This employee is not allowed to use biometric attendance."
       mobile_attendance_not_allowed: "Your account is not allowed to use mobile attendance. Please contact your manager."
+    attendance:
+      already_checked_in: "Already checked in today."
 
   flash:
     errors_one: "1 error prevented this from saving:"

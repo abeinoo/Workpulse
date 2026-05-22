@@ -29,15 +29,11 @@ module Payroll
           description:   @adjustment.reason,
           source_type:   "PayrollAdjustment",
           source_id:     @adjustment.id,
-          review_status: "approved"
+          review_status: "approved",
+          already_paid:  @adjustment.already_paid?
         )
 
-        if @adjustment.positive?
-          entry.increment!(:total_bonuses, @adjustment.amount)
-        else
-          entry.increment!(:total_deductions, @adjustment.amount)
-        end
-        entry.increment!(:net_salary, @adjustment.signed_amount)
+        entry.recalculate_totals!
 
         Result.new(success: true, line_item: li)
       end

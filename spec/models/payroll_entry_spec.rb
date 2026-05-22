@@ -58,4 +58,102 @@ RSpec.describe PayrollEntry, type: :model do
       expect(entry.total_adjustments).to eq(50.0)
     end
   end
+
+  describe "#recalculate_totals!" do
+    let(:entry) { create(:payroll_entry, base_salary: 8_800.0, net_salary: 8_800.0) }
+
+    context "with an already_paid cash incentive" do
+      before do
+        create(:payroll_line_item, payroll_entry: entry, item_type: "cash_incentive",
+               amount: 500.0, review_status: "approved", already_paid: true)
+      end
+
+      it "includes the incentive in total_bonuses" do
+        entry.recalculate_totals!
+        expect(entry.reload.total_bonuses).to eq(500.0)
+      end
+
+      it "records it in already_paid_total" do
+        entry.recalculate_totals!
+        expect(entry.reload.already_paid_total).to eq(500.0)
+      end
+
+      it "does not increase net_salary" do
+        entry.recalculate_totals!
+        expect(entry.reload.net_salary).to eq(8_800.0)
+      end
+    end
+
+    context "with an unpaid cash incentive" do
+      before do
+        create(:payroll_line_item, payroll_entry: entry, item_type: "cash_incentive",
+               amount: 500.0, review_status: "approved", already_paid: false)
+      end
+
+      it "adds the incentive to net_salary" do
+        entry.recalculate_totals!
+        expect(entry.reload.net_salary).to eq(9_300.0)
+      end
+
+      it "keeps already_paid_total at zero" do
+        entry.recalculate_totals!
+        expect(entry.reload.already_paid_total).to eq(0.0)
+      end
+    end
+
+    context "after removing an already_paid adjustment" do
+      let!(:li) do
+        create(:payroll_line_item, payroll_entry: entry, item_type: "cash_incentive",
+               amount: 500.0, review_status: "approved", already_paid: true)
+      end
+
+      before { entry.recalculate_totals! }
+
+      it "zeroes out already_paid_total after the item is destroyed" do
+        li.destroy!
+        entry.recalculate_totals!
+        expect(entry.reload.already_paid_total).to eq(0.0)
+        expect(entry.reload.total_bonuses).to eq(0.0)
+        expect(entry.reload.net_salary).to eq(8_800.0)
+      end
+    end
+
+    context "with a mix of paid and unpaid incentives" do
+      before do
+        create(:payroll_line_item, payroll_entry: entry, item_type: "cash_incentive",
+               amount: 300.0, review_status: "approved", already_paid: true)
+        create(:payroll_line_item, payroll_entry: entry, item_type: "commission",
+               amount: 200.0, review_status: "approved", already_paid: false)
+      end
+
+      it "sums both into total_bonuses" do
+        entry.recalculate_totals!
+        expect(entry.reload.total_bonuses).to eq(500.0)
+      end
+
+      it "only tracks the paid one in already_paid_total" do
+        entry.recalculate_totals!
+        expect(entry.reload.already_paid_total).to eq(300.0)
+      end
+
+      it "adds only the unpaid amount to net_salary" do
+        entry.recalculate_totals!
+        expect(entry.reload.net_salary).to eq(9_000.0)  # 8800 + 200
+      end
+    end
+
+    context "with a rejected already_paid item" do
+      before do
+        create(:payroll_line_item, payroll_entry: entry, item_type: "cash_incentive",
+               amount: 500.0, review_status: "rejected", already_paid: true)
+      end
+
+      it "excludes rejected items from all totals" do
+        entry.recalculate_totals!
+        expect(entry.reload.total_bonuses).to eq(0.0)
+        expect(entry.reload.already_paid_total).to eq(0.0)
+        expect(entry.reload.net_salary).to eq(8_800.0)
+      end
+    end
+  end
 end

@@ -26,6 +26,7 @@ module Api
         result = Payroll::AdjustmentApplier.call(adjustment: adjustment)
         return render_error(result.error) unless result.success?
 
+        log_adjustment_action!(:adjustment_added, adjustment)
         render_success(adjustment_json(adjustment), status: :created)
       end
 
@@ -33,8 +34,11 @@ module Api
         adjustment = policy_scope(PayrollAdjustment).find(params[:id])
         authorize adjustment
 
-        Payroll::AdjustmentRemover.call(adjustment: adjustment)
-        adjustment.destroy!
+        ActiveRecord::Base.transaction do
+          log_adjustment_action!(:adjustment_removed, adjustment)
+          Payroll::AdjustmentRemover.call(adjustment: adjustment)
+          adjustment.destroy!
+        end
         render_success({ message: "Adjustment removed" })
       end
 
@@ -53,6 +57,20 @@ module Api
           user_id:        adjustment.user_id,
           created_by_id:  adjustment.created_by_id,
           payroll_period_id: adjustment.payroll_period_id
+        )
+      end
+
+      def log_adjustment_action!(action, adjustment)
+        PayrollAuditLog.create!(
+          payroll_period: @period,
+          actor:          current_user,
+          action_type:    action,
+          metadata:       {
+            adjustment_id:   adjustment.id,
+            adjustment_type: adjustment.adjustment_type,
+            amount:          adjustment.amount,
+            user_id:         adjustment.user_id
+          }.to_json
         )
       end
     end

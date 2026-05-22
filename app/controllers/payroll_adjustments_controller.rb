@@ -18,15 +18,24 @@ class PayrollAdjustmentsController < ApplicationController
     @adjustment.period_month   = @period.period_month
     @adjustment.period_year    = @period.period_year
     @adjustment.created_by     = current_user
-    # Super admins' adjustments are auto-approved; managers' require review.
-    @adjustment.review_status  = current_user.owner? ? "approved" : "pending_review"
+    # already_paid items are auto-approved — the money is already out the door.
+    # Otherwise: super admins auto-approve; managers require review.
+    @adjustment.review_status = if @adjustment.already_paid?
+                                  "approved"
+                                elsif current_user.owner?
+                                  "approved"
+                                else
+                                  "pending_review"
+                                end
 
     authorize @adjustment
 
     if @adjustment.save
       materialise_line_item!(@adjustment, entry)
+      log_adjustment_action!(:adjustment_added, @adjustment)
       redirect_to payroll_period_payroll_entry_path(@period, entry),
-                  notice: current_user.owner? ? "Adjustment added." : "Adjustment submitted for review."
+                  notice: @adjustment.already_paid? ? t("payroll_adjustments.recorded_already_paid") :
+                          (current_user.owner? ? t("payroll_adjustments.added") : t("payroll_adjustments.submitted_for_review"))
     else
       @entry = entry
       render :new, status: :unprocessable_entity
@@ -43,6 +52,7 @@ class PayrollAdjustmentsController < ApplicationController
         reviewed_at:   Time.current
       )
       sync_line_item!(@adjustment, "approved")
+      log_adjustment_action!(:adjustment_approved, @adjustment)
     end
 
     redirect_back fallback_location: entry_path_for(@adjustment),
@@ -62,6 +72,7 @@ class PayrollAdjustmentsController < ApplicationController
         review_notes:  params[:review_notes]
       )
       sync_line_item!(@adjustment, "rejected")
+      log_adjustment_action!(:adjustment_rejected, @adjustment)
     end
 
     redirect_back fallback_location: entry_path_for(@adjustment),
@@ -76,6 +87,7 @@ class PayrollAdjustmentsController < ApplicationController
     entry  = PayrollEntry.find_by(payroll_period: @period, user: @adjustment.user)
     ActiveRecord::Base.transaction do
       line_item_for(@adjustment)&.destroy!
+      log_adjustment_action!(:adjustment_removed, @adjustment)
       @adjustment.destroy!
       entry&.recalculate_totals!
     end
@@ -98,7 +110,8 @@ class PayrollAdjustmentsController < ApplicationController
   end
 
   def adjustment_params
-    params.require(:payroll_adjustment).permit(:adjustment_type, :amount, :reason)
+    params.require(:payroll_adjustment)
+          .permit(:adjustment_type, :amount, :reason, :already_paid, :payment_method, :paid_at)
   end
 
   # Creates a PayrollLineItem for a review-time adjustment so it immediately
@@ -110,7 +123,8 @@ class PayrollAdjustmentsController < ApplicationController
       description:   adjustment.reason,
       source_type:   "PayrollAdjustment",
       source_id:     adjustment.id,
-      review_status: adjustment.review_status
+      review_status: adjustment.review_status,
+      already_paid:  adjustment.already_paid?
     )
     entry.recalculate_totals!
   end
@@ -126,5 +140,20 @@ class PayrollAdjustmentsController < ApplicationController
 
   def line_item_for(adjustment)
     PayrollLineItem.find_by(source_type: "PayrollAdjustment", source_id: adjustment.id)
+  end
+
+  def log_adjustment_action!(action, adjustment)
+    PayrollAuditLog.create!(
+      payroll_period: @period,
+      actor:          current_user,
+      action_type:    action,
+      metadata:       {
+        adjustment_id:   adjustment.id,
+        adjustment_type: adjustment.adjustment_type,
+        amount:          adjustment.amount,
+        already_paid:    adjustment.already_paid?,
+        user_id:         adjustment.user_id
+      }.to_json
+    )
   end
 end

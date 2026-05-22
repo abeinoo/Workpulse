@@ -50,6 +50,12 @@
   <%# ─────────────────────────────────────────────────────────────────────── %>
   <%# 2. Salary breakdown                                                     %>
   <%# ─────────────────────────────────────────────────────────────────────── %>
+  <%
+    already_paid_items = @additions.select(&:already_paid?)
+    has_already_paid   = @entry.already_paid_total > 0
+    gross_amount       = @entry.base_salary.to_f + @entry.total_overtime.to_f + @entry.total_bonuses.to_f -
+                         @entry.total_deductions.to_f - @entry.advances_deducted.to_f - @entry.obligations_deducted.to_f
+  %>
   <div class="payslip-breakdown" style="margin-bottom: 1.5rem;">
     <div class="payslip-breakdown__row">
       <span class="payslip-breakdown__label"><%= t("payroll.entry.base_salary") %></span>
@@ -79,8 +85,49 @@
         <span class="payslip-breakdown__value text-danger">− <%= format_currency(@entry.advances_deducted) %></span>
       </div>
     <% end %>
+    <% if @entry.obligations_deducted > 0 %>
+      <div class="payslip-breakdown__row">
+        <span class="payslip-breakdown__label"><%= t("payroll.entry.obligations_deducted") %></span>
+        <span class="payslip-breakdown__value text-danger">− <%= format_currency(@entry.obligations_deducted) %></span>
+      </div>
+    <% end %>
+
+    <% if has_already_paid %>
+      <%# Subtotal before already-paid offset %>
+      <div class="payslip-breakdown__row payslip-breakdown__row--subtotal">
+        <span class="payslip-breakdown__label"><%= t("payroll.entry.gross_amount") %></span>
+        <span class="payslip-breakdown__value"><%= format_currency(gross_amount) %></span>
+      </div>
+
+      <%# Already-paid section — indented, per-item breakdown %>
+      <div class="payslip-breakdown__already-paid">
+        <div class="payslip-breakdown__already-paid-header">
+          <%= t("payroll.entry.already_paid_section") %>
+        </div>
+        <% already_paid_items.each do |li| %>
+          <div class="payslip-breakdown__already-paid-row">
+            <span class="payslip-breakdown__already-paid-label">
+              <%= t("payroll.entry.item_types.#{li.item_type}") %>
+              <% if li.source_type == "PayrollAdjustment" %>
+                <% adj = PayrollAdjustment.find_by(id: li.source_id) %>
+                <% if adj&.paid_at %>
+                  <span class="payslip-breakdown__already-paid-meta">
+                    <%= adj.paid_at.in_time_zone.strftime("%-d %b") %>
+                    &middot; <%= t("payroll_adjustments.payment_methods.#{adj.payment_method}") if adj.payment_method %>
+                  </span>
+                <% end %>
+              <% end %>
+            </span>
+            <span class="payslip-breakdown__already-paid-amount">− <%= format_currency(li.amount.abs) %></span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
     <div class="payslip-breakdown__row payslip-breakdown__row--total">
-      <span class="payslip-breakdown__label"><%= t("payroll.entry.net_salary") %></span>
+      <span class="payslip-breakdown__label">
+        <%= has_already_paid ? t("payroll.entry.final_payable") : t("payroll.entry.net_salary") %>
+      </span>
       <span class="payslip-breakdown__value"><%= format_currency(@entry.net_salary) %></span>
     </div>
   </div>
@@ -206,7 +253,7 @@
       <h2 class="section-heading" style="margin: 0;"><%= t("payroll.entry.additions_bonuses") %></h2>
       <% if can_manage && @period.reviewable? %>
         <%= link_to t("payroll.entry.add_btn"),
-              new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :bonus),
+              new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :cash_incentive),
               class: "btn btn-sm btn-primary" %>
       <% end %>
     </div>
@@ -225,11 +272,23 @@
           <tbody>
             <% @additions.each do |item| %>
               <tr>
-                <td><%= t("payroll.entry.item_types.#{item.item_type}") %></td>
+                <td>
+                  <%= t("payroll.entry.item_types.#{item.item_type}") %>
+                  <% if item.already_paid? %>
+                    &nbsp;<span class="badge badge-warning" style="font-size:10px;vertical-align:middle;">
+                      <%= t("payroll.entry.already_paid_badge") %>
+                    </span>
+                  <% end %>
+                </td>
                 <td class="td-secondary"><%= item.description.presence || "—" %></td>
-                <td class="text-right <%= item.pending_review? ? 'text-muted' : 'text-success' %>"
+                <td class="text-right <%= item.pending_review? ? 'text-muted' : (item.already_paid? ? 'text-warning' : 'text-success') %>"
                     style="<%= 'text-decoration: line-through;' if item.rejected? %>">
                   + <%= format_currency(item.amount) %>
+                  <% if item.already_paid? %>
+                    <span style="font-size:10px;color:var(--text-2);display:block;">
+                      <%= t("payroll.entry.already_paid_note") %>
+                    </span>
+                  <% end %>
                 </td>
                 <td>
                   <span class="badge <%= line_item_review_badge_class(item) %>">
@@ -399,6 +458,10 @@
     border-bottom: 1px solid var(--border);
   }
   .payslip-breakdown__row:last-child { border-bottom: none; }
+  .payslip-breakdown__row--subtotal {
+    border-top: 2px solid var(--border);
+    font-weight: 600;
+  }
   .payslip-breakdown__row--total {
     background: var(--surface-2, #f8f9fa);
     font-weight: 700;
@@ -408,6 +471,42 @@
   }
   .payslip-breakdown__label { color: var(--text-2); font-size: var(--text-sm); }
   .payslip-breakdown__value { font-weight: 500; font-size: var(--text-sm); }
+
+  /* Already-paid block */
+  .payslip-breakdown__already-paid {
+    background: var(--bg-warning-subtle, #fffbeb);
+    border-top: 1px solid var(--warning-border, #fde68a);
+    border-bottom: 1px solid var(--warning-border, #fde68a);
+  }
+  .payslip-breakdown__already-paid-header {
+    padding: 0.4rem 1.25rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--warning, #b45309);
+  }
+  .payslip-breakdown__already-paid-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.35rem 1.25rem 0.35rem 2rem;
+    border-top: 1px solid var(--warning-border, #fde68a);
+  }
+  .payslip-breakdown__already-paid-label {
+    font-size: var(--text-sm);
+    color: var(--text-2);
+  }
+  .payslip-breakdown__already-paid-meta {
+    font-size: 0.72rem;
+    color: var(--text-3, var(--text-2));
+    margin-left: 0.4rem;
+  }
+  .payslip-breakdown__already-paid-amount {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--warning, #b45309);
+  }
 
   /* Section headings */
   .section-heading {

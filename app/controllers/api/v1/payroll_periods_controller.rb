@@ -127,7 +127,8 @@ module Api
         entry.slice(
           :id, :user_id, :salary_type, :base_salary,
           :working_days, :days_worked, :total_deductions,
-          :total_overtime, :total_bonuses, :advances_deducted, :obligations_deducted, :net_salary,
+          :total_overtime, :total_bonuses, :already_paid_total,
+          :advances_deducted, :obligations_deducted, :net_salary,
           :status
         )
       end

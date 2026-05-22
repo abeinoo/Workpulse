@@ -35,10 +35,13 @@ module Payroll
       total_deductions     = att_deductions + adj_deductions
       total_overtime       = line_items.select { |i| i[:item_type] == "overtime" }.sum { |i| i[:amount] }
       total_bonuses        = sum_positives(adj_items)
+      already_paid_total   = adj_items.select { |i| i[:already_paid] && i[:amount].to_f > 0 }.sum { |i| i[:amount].to_f }
       advances_deducted    = advance_result.total_amount
       obligations_deducted = obligation_result.total_amount
+      # already_paid bonuses appear in total_bonuses (for gross reporting) but are
+      # subtracted here so they don't inflate the actual payout amount.
       net_salary           = base_salary - total_deductions + total_overtime + total_bonuses \
-                             - advances_deducted - obligations_deducted
+                             - already_paid_total - advances_deducted - obligations_deducted
 
       ActiveRecord::Base.transaction do
         entry = @period.payroll_entries.create!(
@@ -50,6 +53,7 @@ module Payroll
           total_deductions:     total_deductions.round(2),
           total_overtime:       total_overtime.round(2),
           total_bonuses:        total_bonuses.round(2),
+          already_paid_total:   already_paid_total.round(2),
           advances_deducted:    advances_deducted.round(2),
           obligations_deducted: obligations_deducted.round(2),
           net_salary:           net_salary.round(2)
@@ -148,14 +152,21 @@ module Payroll
           user:         @user,
           review_status: "approved"
         )
-        .map do |adj|
+        .filter_map do |adj|
+          type = adj.line_item_type
+          # Skip if the resolved type is not a recognised PayrollLineItem type.
+          # This guards against DB rows that predate a migration or contain
+          # data-entry errors — they are skipped rather than crashing regeneration.
+          next unless PayrollLineItem::ITEM_TYPES.include?(type)
+
           {
-            item_type:     adj.line_item_type,
+            item_type:     type,
             amount:        adj.signed_amount,
             description:   adj.reason,
             source_type:   "PayrollAdjustment",
             source_id:     adj.id,
-            review_status: "approved"
+            review_status: "approved",
+            already_paid:  adj.already_paid?
           }
         end
     end

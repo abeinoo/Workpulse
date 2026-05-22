@@ -288,6 +288,200 @@ RSpec.describe Payroll::EntryCalculator do
     end
   end
 
+  describe "already_paid cash incentive — financial integrity" do
+    # Baseline: full month of perfect attendance → net = base = 8800
+    before do
+      (period_start..period_end).reject { |d| d.saturday? || d.sunday? }.first(22).each do |date|
+        create_record(date, worked: 480)
+      end
+    end
+
+    context "when already_paid: true" do
+      let!(:adj) do
+        create(:payroll_adjustment, :cash_incentive, :already_paid,
+               payroll_period: period, user: user, business: business,
+               amount: 500.0)
+      end
+
+      it "includes the incentive in total_bonuses for gross reporting" do
+        entry = run
+        expect(entry.total_bonuses).to eq(500.0)
+      end
+
+      it "records already_paid_total" do
+        entry = run
+        expect(entry.already_paid_total).to eq(500.0)
+      end
+
+      it "does NOT add the incentive to net_salary" do
+        entry = run
+        expect(entry.net_salary).to eq(8_800.0)
+      end
+
+      it "creates a line item flagged already_paid: true" do
+        entry = run
+        li = entry.payroll_line_items.find_by(item_type: "cash_incentive")
+        expect(li).to be_present
+        expect(li.already_paid).to be true
+      end
+    end
+
+    context "when already_paid: false (normal unpaid incentive)" do
+      let!(:adj) do
+        create(:payroll_adjustment, :cash_incentive, :approved,
+               payroll_period: period, user: user, business: business,
+               amount: 500.0, already_paid: false)
+      end
+
+      it "adds the incentive to net_salary" do
+        entry = run
+        expect(entry.net_salary).to eq(9_300.0)
+      end
+
+      it "keeps already_paid_total at zero" do
+        entry = run
+        expect(entry.already_paid_total).to eq(0.0)
+      end
+    end
+
+    context "mixed: one already_paid incentive and one unpaid commission" do
+      let!(:paid_adj) do
+        create(:payroll_adjustment, :cash_incentive, :already_paid,
+               payroll_period: period, user: user, business: business,
+               amount: 300.0)
+      end
+
+      let!(:unpaid_adj) do
+        create(:payroll_adjustment, :commission, :approved,
+               payroll_period: period, user: user, business: business,
+               amount: 200.0)
+      end
+
+      it "includes both in total_bonuses" do
+        entry = run
+        expect(entry.total_bonuses).to eq(500.0)
+      end
+
+      it "stores only the paid amount in already_paid_total" do
+        entry = run
+        expect(entry.already_paid_total).to eq(300.0)
+      end
+
+      it "adds only the unpaid amount to net_salary" do
+        entry = run
+        expect(entry.net_salary).to eq(9_000.0)  # 8800 + 200 (300 already paid)
+      end
+    end
+
+    context "pending adjustment is not included at all" do
+      let!(:adj) do
+        create(:payroll_adjustment, :cash_incentive,
+               payroll_period: period, user: user, business: business,
+               amount: 500.0, already_paid: true, review_status: :pending_review)
+      end
+
+      it "does not affect total_bonuses or net_salary" do
+        entry = run
+        expect(entry.total_bonuses).to eq(0.0)
+        expect(entry.already_paid_total).to eq(0.0)
+        expect(entry.net_salary).to eq(8_800.0)
+      end
+    end
+  end
+
+  describe "regeneration safety — legacy adjustment types" do
+    # These tests guard against payroll regeneration crashing when historical
+    # PayrollAdjustment records carry legacy types (bonus, reward, eid_bonus)
+    # that were removed from the enum. Rails type-casts unknown enum values to nil,
+    # so the raw DB string must be read defensively and mapped to a current type.
+
+    before do
+      (period_start..period_end).reject { |d| d.saturday? || d.sunday? }.first(22).each do |date|
+        create_record(date, worked: 480)
+      end
+    end
+
+    context "when a PayrollAdjustment has a legacy 'bonus' type in the DB" do
+      before do
+        adj = create(:payroll_adjustment, :cash_incentive, :approved,
+                     payroll_period: period, user: user, business: business, amount: 200.0)
+        PayrollAdjustment.where(id: adj.id).update_all(adjustment_type: "bonus")
+      end
+
+      it "completes regeneration without raising" do
+        expect { run }.not_to raise_error
+      end
+
+      it "maps the bonus to a cash_incentive line item" do
+        entry = run
+        expect(entry.payroll_line_items.where(item_type: "cash_incentive").count).to eq(1)
+      end
+
+      it "adds the bonus amount to net_salary" do
+        entry = run
+        expect(entry.net_salary).to be_within(0.01).of(9_000.0)  # 8800 + 200
+      end
+    end
+
+    context "when a PayrollAdjustment has a legacy 'reward' type in the DB" do
+      before do
+        adj = create(:payroll_adjustment, :cash_incentive, :approved,
+                     payroll_period: period, user: user, business: business, amount: 150.0)
+        PayrollAdjustment.where(id: adj.id).update_all(adjustment_type: "reward")
+      end
+
+      it "completes regeneration and maps reward to cash_incentive" do
+        entry = run
+        expect(entry.payroll_line_items.where(item_type: "cash_incentive").count).to eq(1)
+      end
+    end
+
+    context "when a PayrollAdjustment has a completely unknown type" do
+      before do
+        adj = create(:payroll_adjustment, :cash_incentive, :approved,
+                     payroll_period: period, user: user, business: business, amount: 100.0)
+        PayrollAdjustment.where(id: adj.id).update_all(adjustment_type: "totally_unknown_type")
+      end
+
+      it "skips the unresolvable adjustment without crashing" do
+        expect { run }.not_to raise_error
+      end
+
+      it "creates a valid entry with no line item for the skipped adjustment" do
+        entry = run
+        expect(entry).to be_persisted
+        expect(entry.payroll_line_items.where(item_type: "totally_unknown_type")).to be_empty
+      end
+
+      it "does not count the skipped adjustment toward net_salary" do
+        entry = run
+        expect(entry.net_salary).to be_within(0.01).of(8_800.0)
+      end
+    end
+
+    context "when mixed: one legacy bonus and one current commission" do
+      before do
+        legacy = create(:payroll_adjustment, :cash_incentive, :approved,
+                        payroll_period: period, user: user, business: business, amount: 300.0)
+        PayrollAdjustment.where(id: legacy.id).update_all(adjustment_type: "bonus")
+
+        create(:payroll_adjustment, :commission, :approved,
+               payroll_period: period, user: user, business: business, amount: 200.0)
+      end
+
+      it "includes both adjustments in net_salary" do
+        entry = run
+        expect(entry.net_salary).to be_within(0.01).of(9_300.0)  # 8800 + 300 + 200
+      end
+
+      it "creates line items for both" do
+        entry = run
+        expect(entry.payroll_line_items.where(item_type: "cash_incentive").count).to eq(1)
+        expect(entry.payroll_line_items.where(item_type: "commission").count).to eq(1)
+      end
+    end
+  end
+
   describe "daily salary employee" do
     let!(:daily_profile) do
       salary_profile.update!(active: false)

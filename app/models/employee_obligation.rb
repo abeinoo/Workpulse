@@ -56,12 +56,12 @@ class EmployeeObligation < ApplicationRecord
 
   # The amount to deduct this period — never exceeds the remaining balance.
   def installment_for_period
-    [ installment_amount.to_f, remaining_amount.to_f ].min.round(2)
+    [installment_amount, remaining_amount].min.round(2)
   end
 
   # Decrement balance; mark completed when zero. Called by ObligationDeduction before_create.
   def repay!(amount)
-    new_remaining = [ remaining_amount.to_f - amount.to_f, 0 ].max.round(2)
+    new_remaining = ([remaining_amount - amount, 0].max).round(2)
     update!(
       remaining_amount: new_remaining,
       status:           new_remaining <= 0 ? "completed" : status
@@ -70,7 +70,7 @@ class EmployeeObligation < ApplicationRecord
 
   # Restore balance when an ObligationDeduction snapshot is destroyed (on regeneration).
   def restore!(amount)
-    new_remaining = [ remaining_amount.to_f + amount.to_f, total_amount.to_f ].min.round(2)
+    new_remaining = ([remaining_amount + amount, total_amount].min).round(2)
     update!(
       remaining_amount: new_remaining,
       status:           (new_remaining > 0 && completed?) ? "active" : status
@@ -78,19 +78,20 @@ class EmployeeObligation < ApplicationRecord
   end
 
   def repaid_amount
-    (total_amount.to_f - remaining_amount.to_f).round(2)
+    (total_amount - remaining_amount).round(2)
   end
 
   def percent_repaid
-    return 100 if total_amount.to_f <= 0
-    ((repaid_amount / total_amount.to_f) * 100).round(1)
+    return 100 if total_amount <= 0
+    ((repaid_amount / total_amount) * 100).round(1)
   end
 
   # Returns the remainder after full installments, or 0.0 if evenly divisible.
-  # For 5000 / 900: remainder = 500.0 (last payment is smaller)
+  # BigDecimal modulo avoids Float precision errors (e.g. 1000 % 333.33 in Float).
   def final_installment_amount
-    return 0.0 unless total_amount.to_f > 0 && installment_amount.to_f > 0
-    (total_amount.to_f % installment_amount.to_f).round(2)
+    return 0.0 unless total_amount > 0 && installment_amount > 0
+    remainder = (total_amount % installment_amount).round(2)
+    remainder.zero? ? 0.0 : remainder
   end
 
   def even_installments?

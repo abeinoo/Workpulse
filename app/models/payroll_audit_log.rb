@@ -2,7 +2,7 @@ class PayrollAuditLog < ApplicationRecord
   belongs_to :payroll_period, optional: true
   belongs_to :actor, class_name: "User"
 
-  ACTION_TYPES = %w[generated regenerated submitted_for_review branch_review_completed finalized paid deleted].freeze
+  ACTION_TYPES = %w[generated regenerated submitted_for_review branch_review_completed finalized paid deleted adjustment_added adjustment_approved adjustment_rejected adjustment_removed].freeze
 
   enum :action_type, {
     generated:               "generated",
@@ -11,7 +11,11 @@ class PayrollAuditLog < ApplicationRecord
     branch_review_completed: "branch_review_completed",
     finalized:               "finalized",
     paid:                    "paid",
-    deleted:                 "deleted"
+    deleted:                 "deleted",
+    adjustment_added:        "adjustment_added",
+    adjustment_approved:     "adjustment_approved",
+    adjustment_rejected:     "adjustment_rejected",
+    adjustment_removed:      "adjustment_removed"
   }
 
   validates :action_type, inclusion: { in: ACTION_TYPES }

@@ -525,7 +525,8 @@ input[type="date"].form-control {
   accent-color: var(--accent);
 }
 
-.form-check-label {
+.form-check-label,
+.form-check__label {
   font-size: var(--text-sm);
   color: var(--text-2);
   cursor: pointer;
@@ -4135,4 +4136,72 @@ table {
   [dir="rtl"] .mgr-quick-action {
     flex-direction: row-reverse;
   }
+}
+
+/* ── Already-paid section (shared: payroll_adjustments + adjustments forms) ── */
+.cash-incentive-paid-section {
+  background: var(--navy-600);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+/* Cover both naming conventions: form-check__label (BEM) and form-check-label */
+.cash-incentive-paid-section .form-check__label,
+.cash-incentive-paid-section .form-check-label {
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Checkbox tick colour inside the section */
+.cash-incentive-paid-section .form-check input[type="checkbox"] {
+  border-color: var(--navy-400);
+  background: var(--navy-700);
+}
+
+.cash-incentive-paid-section .form-check input[type="checkbox"]:hover {
+  border-color: var(--accent);
+}
+
+.cash-incentive-paid-section .form-check input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.already-paid-accounting-note {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  margin: var(--space-2) 0 0;
+  line-height: 1.6;
+}
+
+.already-paid-card {
+  background: var(--warning-muted);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.already-paid-card__heading {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--warning);
+  margin-bottom: var(--space-3);
+}
+
+/* Inside the amber card, form labels and hints stay readable */
+.already-paid-card .form-label {
+  color: var(--text-1);
+}
+
+.already-paid-card .form-hint {
+  color: var(--text-2);
+}
+
+[dir="rtl"] .already-paid-accounting-note {
+  text-align: right;
 }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_22_300000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_22_500000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -207,12 +207,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_300000) do
 
   create_table "payroll_adjustments", force: :cascade do |t|
     t.string "adjustment_type", null: false
+    t.boolean "already_paid", default: false, null: false
     t.decimal "amount", precision: 12, scale: 2, null: false
     t.datetime "approved_at"
     t.integer "approved_by_id"
     t.integer "business_id", null: false
     t.datetime "created_at", null: false
     t.integer "created_by_id", null: false
+    t.datetime "paid_at"
+    t.string "payment_method"
     t.integer "payroll_period_id"
     t.integer "period_month", null: false
     t.integer "period_year", null: false
@@ -252,6 +255,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_300000) do
 
   create_table "payroll_entries", force: :cascade do |t|
     t.decimal "advances_deducted", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "already_paid_total", precision: 12, scale: 2, default: "0.0", null: false
     t.decimal "base_salary", precision: 12, scale: 2, null: false
     t.datetime "created_at", null: false
     t.integer "days_worked", default: 0, null: false
@@ -274,6 +278,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_300000) do
   end
 
   create_table "payroll_line_items", force: :cascade do |t|
+    t.boolean "already_paid", default: false, null: false
     t.decimal "amount", precision: 12, scale: 2, null: false
     t.datetime "created_at", null: false
     t.string "description"

@@ -328,7 +328,13 @@ ar:
       overtime_pay: "أجر العمل الإضافي"
       bonuses: "المكافآت"
       advance_repayments: "سداد السلف"
+      obligations_deducted: "خصومات الالتزامات"
       net_salary: "صافي الراتب"
+      gross_amount: "الإجمالي المستحق"
+      final_payable: "المبلغ المتبقي للصرف"
+      already_paid_section: "تم صرفه خلال الشهر"
+      already_paid_badge: "تم صرفه خلال الشهر"
+      already_paid_note: "غير مشمول في المبلغ المحوَّل"
       base_salary: "الراتب الأساسي"
       additions_bonuses: "الإضافات والمكافآت"
       manual_deductions: "الخصومات اليدوية"
@@ -355,9 +361,8 @@ ar:
         early_leave_penalty: "غرامة المغادرة / نقص الساعات"
         overtime: "أوفرتايم"
         advance_deduction: "خصم سلفة الراتب"
-        bonus: "مكافأة"
+        cash_incentive: "حافز نقدي"
         commission: "عمولة"
-        reward: "جائزة"
         penalty: "غرامة يدوية"
         manual_adjustment: "تسوية يدوية"
         manual_deduction: "خصم يدوي"
@@ -469,9 +474,8 @@ ar:
 
   adjustments:
     types:
-      bonus: "مكافأة"
+      cash_incentive: "حافز نقدي"
       commission: "عمولة"
-      reward: "جائزة"
       penalty: "غرامة"
       manual_deduction: "خصم يدوي"
     index:
@@ -492,7 +496,7 @@ ar:
       submit_review: "إرسال للمراجعة"
       employee_label: "الموظف"
       back: "الرجوع للتسويات"
-      type_hint: "المكافأة والعمولة والجائزة تُضاف للراتب. الغرامة والخصم اليدوي يُقلِّصانه."
+      type_hint: "الحافز النقدي والعمولة يُضافان للراتب. الغرامة والخصم اليدوي يُقلِّصانه."
     employee: "الموظف"
     amount: "المبلغ"
     type: "النوع"
@@ -504,7 +508,7 @@ ar:
     reason: "السبب"
     created_by: "أنشأها"
     actions: "الإجراءات"
-    subtitle: "مكافآت وعمولات وجوائز وغرامات وخصومات"
+    subtitle: "حوافز نقدية وعمولات وغرامات وخصومات يدوية"
     no_adjustments: "لا توجد تسويات."
     approve: "موافقة"
     reject: "رفض"
@@ -675,17 +679,37 @@ ar:
     no_overtime: "لا وقت إضافي"
 
   payroll_adjustments:
+    added: "تمت إضافة التسوية."
+    submitted_for_review: "تم إرسال التسوية للمراجعة."
+    recorded_already_paid: "تم تسجيل المبلغ المدفوع مسبقاً في سجل الرواتب."
+    types:
+      cash_incentive:   "حافز نقدي"
+      commission:       "عمولة"
+      penalty:          "غرامة"
+      manual_deduction: "خصم يدوي"
+    payment_methods:
+      cash:          "نقداً"
+      bank_transfer: "تحويل بنكي"
+      check:         "شيك"
+      other:         "أخرى"
     new:
-      title_bonus: "إضافة مكافأة / إضافة"
+      title: "إضافة تسوية رواتب"
       title_deduction: "إضافة خصم يدوي"
       back: "رجوع"
       type: "النوع"
-      bonus_option: "مكافأة / إضافة"
       deduction_option: "خصم يدوي"
       amount_label: "المبلغ"
       reason_label: "السبب / الوصف"
-      reason_placeholder: "مثال: مكافأة أداء الربع الأول"
+      reason_placeholder: "مثال: حافز يومي، دعم رمضان، عمولة الربع الأول، مساعدة طارئة"
+      cash_incentive_hint: "استخدم حقل السبب لوصف نوع الدفع — مثل: «حافز يومي»، «دعم رمضان»، «مساعدة طارئة»."
       hint: "ستُرسَل هذه التسوية للمسؤول للمراجعة قبل أن تؤثر على راتب الموظف."
+      already_paid_label: "تم صرف هذا الحافز مسبقًا خلال الشهر"
+      already_paid_accounting_note: "الحافز المصروف مسبقًا يظهر في كشف الراتب لكنه لا يُضاف إلى صافي المبلغ المستحق."
+      paid_details_heading: "تفاصيل الدفع (للسجل المحاسبي)"
+      payment_method_label: "طريقة الدفع"
+      paid_at_label: "تاريخ الدفع"
+      paid_at_hint: "متى تم تسليم المبلغ للموظف؟"
+      submit: "حفظ التسوية"
       save_approve: "حفظ واعتماد"
       submit_review: "إرسال للمراجعة"
 
@@ -1242,6 +1266,8 @@ ar:
       stale_timestamp: "الطابع الزمني خارج نافذة القبول (24 ساعة)."
       biometric_attendance_not_allowed: "هذا الموظف غير مسموح له باستخدام جهاز البصمة."
       mobile_attendance_not_allowed: "حسابك غير مسموح له بتسجيل الحضور من الهاتف. تواصل مع مديرك."
+    attendance:
+      already_checked_in: "تم تسجيل الحضور مسبقاً اليوم."
 
   flash:
     errors_one: "خطأ واحد حال دون الحفظ:"

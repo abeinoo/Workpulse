@@ -20,8 +20,8 @@ RSpec.describe PayrollAdjustment, type: :model do
   end
 
   describe "#signed_amount" do
-    it "returns positive amount for bonus" do
-      adjustment.adjustment_type = :bonus
+    it "returns positive amount for cash_incentive" do
+      adjustment.adjustment_type = :cash_incentive
       adjustment.amount = 300.0
       expect(adjustment.signed_amount).to eq(300.0)
     end
@@ -30,6 +30,41 @@ RSpec.describe PayrollAdjustment, type: :model do
       adjustment.adjustment_type = :manual_deduction
       adjustment.amount = 200.0
       expect(adjustment.signed_amount).to eq(-200.0)
+    end
+  end
+
+  describe "#line_item_type" do
+    it "returns the current adjustment_type for normal records" do
+      adjustment.adjustment_type = :cash_incentive
+      expect(adjustment.line_item_type).to eq("cash_incentive")
+    end
+
+    it "returns commission unchanged" do
+      adjustment.adjustment_type = :commission
+      expect(adjustment.line_item_type).to eq("commission")
+    end
+
+    it "maps legacy 'bonus' to 'cash_incentive' via raw DB value" do
+      # Simulate a DB row that predates the enum consolidation.
+      # write_attribute bypasses the enum type-cast so the raw string is stored.
+      adjustment.save!
+      adjustment.class.where(id: adjustment.id).update_all(adjustment_type: "bonus")
+      reloaded = PayrollAdjustment.find(adjustment.id)
+      expect(reloaded.line_item_type).to eq("cash_incentive")
+    end
+
+    it "maps legacy 'reward' to 'cash_incentive'" do
+      adjustment.save!
+      adjustment.class.where(id: adjustment.id).update_all(adjustment_type: "reward")
+      reloaded = PayrollAdjustment.find(adjustment.id)
+      expect(reloaded.line_item_type).to eq("cash_incentive")
+    end
+
+    it "maps legacy 'eid_bonus' to 'cash_incentive'" do
+      adjustment.save!
+      adjustment.class.where(id: adjustment.id).update_all(adjustment_type: "eid_bonus")
+      reloaded = PayrollAdjustment.find(adjustment.id)
+      expect(reloaded.line_item_type).to eq("cash_incentive")
     end
   end
 

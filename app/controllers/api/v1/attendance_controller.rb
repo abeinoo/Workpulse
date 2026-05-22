@@ -41,8 +41,10 @@ module Api
       end
 
       # Today's attendance status — used by the mobile app on load.
+      # Uses business timezone so employees in UTC+3 after midnight UTC see today correctly.
       def today
-        record = AttendanceRecord.find_by(user: current_user, date: Date.current)
+        today_date = BusinessDay.work_date_for(Time.current, context: current_business)
+        record = AttendanceRecord.find_by(user: current_user, work_date: today_date)
         render_success(record ? attendance_json(record) : nil)
       end
 

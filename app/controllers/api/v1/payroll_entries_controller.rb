@@ -48,12 +48,13 @@ module Api
 
         ActiveRecord::Base.transaction do
           entry.payroll_line_items.create!(
-            item_type:   "bonus",
-            amount:      amount.round(2),
-            description: description.presence || "Manual bonus"
+            item_type:     "cash_incentive",
+            amount:        amount.round(2),
+            description:   description.presence || "Manual incentive",
+            review_status: "approved",
+            already_paid:  false
           )
-          entry.increment!(:total_bonuses, amount.round(2))
-          entry.increment!(:net_salary,    amount.round(2))
+          entry.recalculate_totals!
         end
       end
 
@@ -61,7 +62,8 @@ module Api
         data = entry.slice(
           :id, :user_id, :salary_type, :base_salary,
           :working_days, :days_worked, :total_deductions,
-          :total_overtime, :total_bonuses, :advances_deducted, :obligations_deducted,
+          :total_overtime, :total_bonuses, :already_paid_total,
+          :advances_deducted, :obligations_deducted,
           :net_salary, :status, :notes
         ).merge(
           payroll_period_id: entry.payroll_period_id,
@@ -82,7 +84,7 @@ module Api
       def line_item_json(li)
         li.slice(
           :id, :item_type, :amount, :description,
-          :source_type, :source_id,
+          :source_type, :source_id, :already_paid,
           :review_status, :reviewed_at, :review_notes
         ).merge(reviewed_by_id: li.reviewed_by_id)
       end
@@ -94,17 +96,18 @@ module Api
                       entry.payroll_period.period_start,
                       entry.payroll_period.period_end
                     )
+                    .includes(shift_assignment: :shift)
         {
-          total_worked_minutes:   records.sum(:worked_minutes),
-          total_overtime_minutes: records.where("worked_minutes > 0").sum { |r|
-                                    shift = r.shift_assignment&.shift
-                                    next 0 unless shift
-                                    [ r.worked_minutes - shift.duration_minutes, 0 ].max
-                                  },
-          total_late_minutes:     records.sum(:late_minutes),
+          total_worked_minutes:      records.sum(:worked_minutes),
+          total_overtime_minutes:    records.select { |r| r.worked_minutes.to_i > 0 }.sum { |r|
+                                       shift = r.shift_assignment&.shift
+                                       next 0 unless shift
+                                       [ r.worked_minutes - shift.duration_minutes, 0 ].max
+                                     },
+          total_late_minutes:        records.sum(:late_minutes),
           total_early_leave_minutes: records.sum(:early_leave_minutes),
-          days_present:           records.count { |r| r.present? || r.late? || r.early_leave? },
-          days_absent:            records.count(&:absent?)
+          days_present:              records.count { |r| r.present? || r.late? || r.early_leave? },
+          days_absent:               records.count(&:absent?)
         }
       end
     end

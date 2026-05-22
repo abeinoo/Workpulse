@@ -18,14 +18,7 @@ module Payroll
 
       ActiveRecord::Base.transaction do
         li.destroy!
-
-        if @adjustment.bonus?
-          entry.decrement!(:total_bonuses, @adjustment.amount)
-          entry.decrement!(:net_salary,    @adjustment.amount)
-        else
-          entry.decrement!(:total_deductions, @adjustment.amount)
-          entry.increment!(:net_salary,       @adjustment.amount)
-        end
+        entry.recalculate_totals!
       end
     end
   end

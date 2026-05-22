@@ -1,0 +1,50 @@
+<%#
+  Shared partial: already-paid section for PayrollAdjustment forms.
+  Locals:
+    f            - form builder
+    adjustment   - the @adjustment object (for re-render state)
+    selected_type - string, current adjustment_type value (determines initial visibility)
+%>
+<div class="cash-incentive-paid-section"
+     data-payroll-adjustment-form-target="alreadyPaidSection"
+     style="<%= selected_type.to_s == 'cash_incentive' ? '' : 'display:none;' %>">
+
+  <div class="form-check">
+    <%= f.check_box :already_paid,
+          class: "form-check__input",
+          data: { payroll_adjustment_form_target: "alreadyPaidCheckbox",
+                  action: "change->payroll-adjustment-form#togglePaidDetails" } %>
+    <%= f.label :already_paid, t("payroll_adjustments.new.already_paid_label"),
+          class: "form-check__label" %>
+  </div>
+
+  <p class="already-paid-accounting-note">
+    <%= t("payroll_adjustments.new.already_paid_accounting_note") %>
+  </p>
+
+  <div data-payroll-adjustment-form-target="paidDetails"
+       style="<%= adjustment.already_paid? ? '' : 'display:none;' %>">
+    <div class="already-paid-card">
+      <p class="already-paid-card__heading">
+        <%= t("payroll_adjustments.new.paid_details_heading") %>
+      </p>
+
+      <div class="form-group">
+        <%= f.label :payment_method, t("payroll_adjustments.new.payment_method_label"), class: "form-label" %>
+        <%= f.select :payment_method,
+              PayrollAdjustment::PAYMENT_METHODS.map { |m| [t("payroll_adjustments.payment_methods.#{m}"), m] },
+              { selected: adjustment.payment_method.presence || "cash", include_blank: false },
+              class: "form-control" %>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0;">
+        <%= f.label :paid_at, t("payroll_adjustments.new.paid_at_label"), class: "form-label" %>
+        <%= f.datetime_local_field :paid_at,
+              class: "form-control",
+              value: (adjustment.paid_at || Time.current).strftime("%Y-%m-%dT%H:%M") %>
+        <p class="form-hint"><%= t("payroll_adjustments.new.paid_at_hint") %></p>
+      </div>
+    </div>
+  </div>
+
+</div>
