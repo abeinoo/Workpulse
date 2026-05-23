@@ -100,6 +100,17 @@
           <tr><td colspan="5" class="td-empty"><%= t("admin.payroll_periods.show.entries_empty") %></td></tr>
         <% end %>
       </tbody>
+      <% unless @entries.empty? %>
+        <tfoot>
+          <tr class="totals-row">
+            <td><strong><%= t("payroll.show.totals_label") %></strong></td>
+            <td class="td-secondary"><strong><%= format_currency(@entries.sum(&:base_salary)) %></strong></td>
+            <td class="td-secondary"><strong><%= format_currency(@entries.sum(&:total_deductions)) %></strong></td>
+            <td><strong><%= format_currency(@entries.sum(&:net_salary)) %></strong></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      <% end %>
     </table>
   </div>
 

@@ -52,10 +52,22 @@
   <% if @branch_reviews_for_manager&.any? %>
     <% all_complete = @branch_reviews_for_manager.all?(&:completed?) %>
     <div class="alert <%= all_complete ? 'alert-success' : 'alert-warning' %>" style="margin-bottom: 1rem;">
-      <% if all_complete %>
-        <%= t("payroll.show.area_all_reviewed") %>
+      <% if @branch_reviews_for_manager.size == 1 %>
+        <%= all_complete ? t("payroll.show.area_all_reviewed") : t("payroll.show.branch_review_notice") %>
       <% else %>
-        <%= t("payroll.show.branch_review_notice") %>
+        <div style="display: flex; flex-direction: column; gap: 0.375rem;">
+          <% @branch_reviews_for_manager.each do |br| %>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+              <span><%= br.branch.name %></span>
+              <span class="badge <%= br.completed? ? 'badge-success' : 'badge-warning' %>">
+                <%= t("payroll.branch_review_statuses.#{br.status}") %>
+              </span>
+            </div>
+          <% end %>
+        </div>
+        <% unless all_complete %>
+          <p style="margin: 0.5rem 0 0; font-size: var(--text-sm);"><%= t("payroll.show.branch_review_notice") %></p>
+        <% end %>
       <% end %>
     </div>
   <% end %>
@@ -65,9 +77,10 @@
       <thead>
         <tr>
           <th><%= t("payroll.employee") %></th>
-          <th><%= t("payroll.base_salary") %></th>
-          <th><%= t("payroll.deductions") %></th>
-          <th><%= t("payroll.entries.net") %></th>
+          <th class="text-right"><%= t("payroll.show.days_col") %></th>
+          <th class="text-right"><%= t("payroll.base_salary") %></th>
+          <th class="text-right"><%= t("payroll.deductions") %></th>
+          <th class="text-right"><%= t("payroll.entries.net") %></th>
           <th><%= t("payroll.show.review_col") %></th>
           <th></th>
         </tr>
@@ -76,9 +89,16 @@
         <% @entries.each do |entry| %>
           <tr>
             <td><%= entry.user.full_name %></td>
-            <td class="td-secondary"><%= format_currency(entry.base_salary) %></td>
-            <td class="td-secondary"><%= format_currency(entry.total_deductions) %></td>
-            <td><strong><%= format_currency(entry.net_salary) %></strong></td>
+            <td class="text-right td-secondary">
+              <% if entry.days_worked < entry.working_days %>
+                <span class="text-warning"><%= entry.days_worked %></span><span class="td-secondary"> / <%= entry.working_days %></span>
+              <% else %>
+                <span class="td-secondary"><%= entry.days_worked %> / <%= entry.working_days %></span>
+              <% end %>
+            </td>
+            <td class="text-right td-secondary"><%= format_currency(entry.base_salary) %></td>
+            <td class="text-right <%= entry.total_deductions > 0 ? 'text-danger' : 'td-secondary' %>"><%= format_currency(entry.total_deductions) %></td>
+            <td class="text-right"><strong><%= format_currency(entry.net_salary) %></strong></td>
             <td>
               <% pending = @pending_counts[entry.id] %>
               <% if pending && pending > 0 %>
@@ -93,9 +113,20 @@
           </tr>
         <% end %>
         <% if @entries.empty? %>
-          <tr><td colspan="6" class="td-empty"><%= t("payroll.show.entries_empty") %></td></tr>
+          <tr><td colspan="7" class="td-empty"><%= t("payroll.show.entries_empty") %></td></tr>
         <% end %>
       </tbody>
+      <% unless @entries.empty? %>
+        <tfoot>
+          <tr class="totals-row">
+            <td colspan="2"><strong><%= t("payroll.show.totals_label") %></strong></td>
+            <td class="text-right td-secondary"><strong><%= format_currency(@entries.sum(&:base_salary)) %></strong></td>
+            <td class="text-right text-danger"><strong><%= format_currency(@entries.sum(&:total_deductions)) %></strong></td>
+            <td class="text-right"><strong><%= format_currency(@entries.sum(&:net_salary)) %></strong></td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      <% end %>
     </table>
   </div>
 

@@ -105,8 +105,9 @@ ar:
     check_in_for_yourself: "سجّل حضورك:"
     shift_no_branch_warning: "لديك وردية نشطة ولكن لا يوجد فرع مُعيَّن. تواصل مع المسؤول لإضافة فرع لتعيين الوردية."
     mobile_attendance_disabled: "البصمة من التطبيق غير مفعلة لهذا الحساب."
-    missing_checkout_alert_one: "موظف واحد لم يسجّل انصرافه من أمس."
-    missing_checkout_alert_other: "%{count} موظفين لم يسجّلوا انصرافهم من أمس."
+    missing_checkout_alert:
+      one: "موظف واحد لم يسجّل انصرافه من أمس."
+      other: "%{count} موظفين لم يسجّلوا انصرافهم من أمس."
     view_attendance: "عرض الحضور"
     full_log: "السجل الكامل"
     view_more: "عرض %{count} المزيد →"
@@ -272,6 +273,7 @@ ar:
       base: "الأساسي"
       additions_col: "الإضافات"
       net_col: "صافي الراتب"
+      pending_your_review: "يتطلب مراجعتك"
       empty_employee: "ستظهر كشوف راتبك هنا بعد أن يعتمد مديرك رواتب كل شهر."
       no_records: "لا سجلات رواتب بعد"
     show:
@@ -296,6 +298,8 @@ ar:
       review_col: "المراجعة"
       pending_badge: "%{count} معلّق"
       reviewed_badge: "مراجَع"
+      totals_label: "الإجمالي"
+      days_col: "الأيام"
     new:
       title: "فترة رواتب جديدة"
       page_title: "فترة رواتب جديدة — ووركبلس"
@@ -470,8 +474,9 @@ ar:
     advance_note: "سيُنشأ سجل سلفة ويُخصم من راتب الشهر القادم."
     mark_paid_confirm: "تأكيد الصرف"
     export_csv: "تصدير CSV"
-    pending_disbursement_one: "سلفة راتب واحدة معتمدة من المديرين بانتظار الصرف."
-    pending_disbursement_other: "%{count} سلف رواتب معتمدة من المديرين بانتظار الصرف."
+    pending_disbursement:
+      one: "سلفة راتب واحدة معتمدة من المديرين بانتظار الصرف."
+      other: "%{count} سلف رواتب معتمدة من المديرين بانتظار الصرف."
     errors:
       exceeds_monthly_limit: "يتجاوز الحد الشهري (%{remaining} دقيقة متبقية من أصل %{limit})"
       unavailable_for_hour_based: "غير متاح للموظفين المعيَّنين على ورديات مرنة (بالساعة)"
@@ -521,8 +526,9 @@ ar:
     remove_confirm: "هل تريد حذف هذه التسوية؟"
     approve_confirm: "الموافقة على هذه التسوية؟"
     reject_confirm: "رفض هذه التسوية؟"
-    pending_one: "تسوية واحدة بانتظار مراجعتك"
-    pending_other: "%{count} تسويات بانتظار مراجعتك"
+    pending:
+      one: "تسوية واحدة بانتظار مراجعتك"
+      other: "%{count} تسويات بانتظار مراجعتك"
 
   shift_assignments:
     index:
@@ -602,8 +608,6 @@ ar:
       title: "تعديل الوردية"
       page_title: "تعديل الوردية — ووركبلس"
       submit: "تحديث الوردية"
-    show:
-      page_title: "%{name} — ووركبلس"
     confirm:
       delete: "هل تريد حذف %{name}؟ لا يمكن التراجع عن هذا الإجراء."
       remove_penalty: "هل تريد حذف قاعدة الغرامة هذه؟"
@@ -915,6 +919,7 @@ ar:
       show:
         title: "الفرع"
         page_title: "%{name} — ووركبلس"
+        manager: "المدير"
       new:
         title: "فرع جديد"
         page_title: "فرع جديد — ووركبلس"
@@ -933,7 +938,7 @@ ar:
       no_branches: "لا توجد فروع."
       active: "نشط"
       inactive: "غير نشط"
-      edit: "تعديل"
+      edit_action: "تعديل"
       delete: "حذف"
       employees_count: "الموظفون"
       checked_in_today: "حضروا اليوم"
@@ -1102,6 +1107,8 @@ ar:
         page_title: "%{name} — ووركبلس"
         permissions_title: "الصلاحيات"
         users_title: "المستخدمون المعيَّنون"
+        user_name: "الاسم"
+        user_role: "الدور"
         select_user: "— اختر مستخدماً للتعيين —"
         assign_btn: "تعيين"
         remove_btn: "إزالة"
@@ -1117,6 +1124,10 @@ ar:
         select_all: "تحديد الكل"
         clear_all: "إلغاء الكل"
         select_group: "الكل"
+        search_placeholder: "ابحث عن صلاحية…"
+        scope_label: "النطاق:"
+        no_results: "لا توجد صلاحيات تطابق بحثك."
+        requires: "يتطلب:"
       groups:
         employees: "الموظفون"
         attendance: "الحضور"
@@ -1151,6 +1162,12 @@ ar:
         manage_branches: "إدارة الفروع"
         manage_obligations: "إدارة التزامات الموظفين"
         manage_roles: "إدارة أدوار الصلاحيات"
+        pay_advances: "صرف السلف"
+      scopes:
+        self_only: "بيانات شخصية فقط"
+        managed_employees_only: "الموظفون المُداروا"
+        branch_only: "الفرع فقط"
+        business_wide: "جميع المنشأة"
       permission_descriptions:
         view_employees: "الاطلاع على قائمة الموظفين وملفاتهم"
         manage_employees: "إنشاء الموظفين وتعديلهم وإلغاء تفعيلهم"

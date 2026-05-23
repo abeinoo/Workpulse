@@ -12,6 +12,10 @@ class PayrollEntriesController < ApplicationController
     @attendance        = load_attendance_stats
     @salary_profile    = SalaryProfile.current_for(@entry.user)
     @permission_lookup = load_permission_lookup
+
+    paid_adj_ids = @additions.select { |li| li.already_paid? && li.source_type == "PayrollAdjustment" }
+                             .map(&:source_id).compact
+    @paid_adjustments = paid_adj_ids.any? ? PayrollAdjustment.where(id: paid_adj_ids).index_by(&:id) : {}
   end
 
   private

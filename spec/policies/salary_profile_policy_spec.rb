@@ -116,6 +116,17 @@ RSpec.describe SalaryProfilePolicy, type: :model do
       expect(scope).not_to include(other_profile)
     end
 
+    it "excludes profiles for employees in a different branch of the same business" do
+      other_branch   = create(:branch, business: business)
+      other_mgr      = create(:user, :branch_manager, business: business)
+      cross_emp      = create(:user, business: business)
+      cross_profile  = create(:salary_profile, user: cross_emp)
+      create(:user_branch, user: cross_emp, branch: other_branch)
+      # manager is only in `branch`, not other_branch — must not see cross_emp's profile
+      scope = SalaryProfilePolicy::Scope.new(manager, SalaryProfile).resolve
+      expect(scope).not_to include(cross_profile)
+    end
+
     it "returns only own profile for employee" do
       scope = SalaryProfilePolicy::Scope.new(employee, SalaryProfile).resolve
       expect(scope).to include(active_profile)

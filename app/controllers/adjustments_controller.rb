@@ -108,17 +108,7 @@ class AdjustmentsController < ApplicationController
   end
 
   def manageable_employees
-    if current_user.owner? || current_user.can?(:manage_adjustments)
-      current_user.business.users.active.order(:first_name, :last_name)
-    elsif current_user.manages_area?
-      User.joins(:user_branches)
-          .where(user_branches: { branch_id: current_user.area_managed_branch_ids })
-          .active.order(:first_name, :last_name).distinct
-    elsif current_user.manages_branch?
-      current_user.managed_employees.active.order(:first_name, :last_name)
-    else
-      User.none
-    end
+    EmployeeScope.new(current_user).relation.active.order(:first_name, :last_name)
   end
 
   def adjustment_params

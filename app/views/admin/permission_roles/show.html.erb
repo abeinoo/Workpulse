@@ -33,6 +33,7 @@
     <div class="permission-groups permission-groups--readonly">
       <% PermissionRole::PERMISSION_GROUPS.each do |group, perms| %>
         <% group_perms_granted = perms.count { |p| @permission_role.has_permission?(p) } %>
+        <% next if group_perms_granted == 0 %>
         <div class="permission-group">
           <div class="permission-group__header">
             <h3 class="permission-group__title">
@@ -45,13 +46,19 @@
           </div>
           <div class="permission-group__perms">
             <% perms.each do |perm| %>
-              <div class="permission-badge <%= @permission_role.has_permission?(perm) ? 'permission-badge--granted' : 'permission-badge--denied' %>">
-                <% if @permission_role.has_permission?(perm) %>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                <% else %>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                <% end %>
+              <% granted = @permission_role.has_permission?(perm) %>
+              <% next unless granted %>
+              <div class="permission-badge permission-badge--granted">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
                 <%= t("admin.permission_roles.permissions.#{perm}") %>
+                <% if PermissionRole::SCOPABLE_PERMISSIONS.include?(perm) %>
+                  <% scope_val = @permission_role.scope_for(perm) %>
+                  <% if scope_val.present? %>
+                    <span class="permission-scope-chip permission-scope-chip--<%= scope_val %>">
+                      <%= t("admin.permission_roles.scopes.#{scope_val}") %>
+                    </span>
+                  <% end %>
+                <% end %>
               </div>
             <% end %>
           </div>

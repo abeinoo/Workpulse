@@ -72,23 +72,18 @@ class ShiftAssignmentsController < ApplicationController
 
   def load_form_data
     @shifts = Shift.for_business(current_user.business).active.order(:name)
-    owner_id = current_user.business.owner_id
     if current_user.owner?
       @employees = User.where(business: current_user.business)
-                       .where.not(id: owner_id)
-                       .where(active: true)
+                       .where.not(id: current_user.business.owner_id)
+                       .active
                        .order(:first_name, :last_name)
       @branches = Branch.for_business(current_user.business).active.order(:name)
     else
-      managed_branch_ids = current_user.managed_branch_ids
-
-      @employees = User.joins(:user_branches)
-                       .where(user_branches: { branch_id: managed_branch_ids })
-                       .where.not(id: owner_id)
-                       .where(active: true)
-                       .distinct
-                       .order(:first_name, :last_name)
-      @branches = Branch.where(id: managed_branch_ids).active.order(:name)
+      @employees = EmployeeScope.new(current_user).relation.active.order(:first_name, :last_name)
+      branch_ids = current_user.managed_branch_ids +
+                   current_user.area_managed_branch_ids +
+                   current_user.user_branches.pluck(:branch_id)
+      @branches = Branch.where(id: branch_ids.uniq).active.order(:name)
     end
   end
 

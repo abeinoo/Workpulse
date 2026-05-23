@@ -10,6 +10,13 @@ class PayrollPeriodsController < ApplicationController
                       .where(user: current_user, payroll_period: @periods)
                       .index_by(&:payroll_period_id)
     end
+
+    if current_user.manages_branch?
+      @pending_review_period_ids = PayrollPeriodBranchReview
+        .where(branch_id: current_user.managed_branch_ids, status: :pending)
+        .where(payroll_period_id: @periods.select(:id))
+        .pluck(:payroll_period_id).to_set
+    end
   end
 
   def show
@@ -124,6 +131,8 @@ class PayrollPeriodsController < ApplicationController
 
   def manager_branch_reviews
     return nil unless current_user.manages_branch?
-    @period.payroll_period_branch_reviews.where(branch_id: current_user.managed_branch_ids)
+    @period.payroll_period_branch_reviews
+           .includes(:branch)
+           .where(branch_id: current_user.managed_branch_ids)
   end
 end

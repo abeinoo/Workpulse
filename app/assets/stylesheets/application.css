@@ -676,6 +676,16 @@ tbody tr {
 tbody tr:last-child { border-bottom: none; }
 tbody tr:hover { background: var(--navy-600); }
 
+tfoot tr.totals-row {
+  border-top: 2px solid var(--border);
+  background: var(--surface-2, rgba(0,0,0,0.03));
+}
+tfoot tr.totals-row td {
+  padding: var(--space-3) var(--space-4);
+  vertical-align: middle;
+  font-size: var(--text-sm);
+}
+
 tbody td {
   padding: var(--space-3) var(--space-4);
   color: var(--text-1);
@@ -1019,6 +1029,17 @@ tbody td {
   padding-top: var(--space-6);
   border-top: 1px solid var(--border);
   flex-wrap: wrap;
+}
+
+.form-actions--sticky {
+  position: sticky;
+  bottom: 0;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
+  z-index: 20;
 }
 
 /* ============================================================
@@ -3718,11 +3739,20 @@ table {
 }
 
 /* Permission groups (form + show) */
+/* ── Permission Role form ──────────────────────────────────────────────────── */
+
 .permission-groups-header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.permission-groups-header__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 
 .form-section-title {
@@ -3730,15 +3760,57 @@ table {
   font-weight: 600;
   color: var(--text-1);
   margin: 0;
-  flex: 1;
 }
 
+/* Search box */
+.permission-search {
+  position: relative;
+  margin-bottom: var(--space-4);
+}
+
+.permission-search__input {
+  padding-left: var(--space-8);
+  width: 100%;
+}
+
+.permission-search__icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+[dir="rtl"] .permission-search__input {
+  padding-left: var(--space-3);
+  padding-right: var(--space-8);
+}
+[dir="rtl"] .permission-search__icon {
+  left: auto;
+  right: var(--space-3);
+}
+
+.permission-no-results {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+/* Groups layout — responsive grid: 3-col desktop, 2-col tablet, 1-col mobile */
 .permission-groups {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  align-items: start;
 }
 
+@media (max-width: 1100px) {
+  .permission-groups { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Collapsible group (uses <details>/<summary>) */
 .permission-group {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -3751,7 +3823,33 @@ table {
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
   background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  gap: var(--space-3);
+}
+
+.permission-group__header::-webkit-details-marker { display: none; }
+
+.permission-group__header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.permission-group__chevron {
+  color: var(--text-3);
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+details[open] .permission-group__chevron {
+  transform: rotate(0deg);
+}
+details:not([open]) .permission-group__chevron {
+  transform: rotate(-90deg);
 }
 
 .permission-group__title {
@@ -3775,50 +3873,57 @@ table {
   font-size: var(--text-xs);
   color: var(--text-3);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .permission-group__select-all:hover {
   color: var(--text-2);
 }
 
+/* Cards stack vertically within each group column */
 .permission-group__perms {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
 }
 
-/* Permission toggle (checkbox row) */
-.permission-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+/* Individual permission card */
+.permission-card {
   padding: var(--space-3) var(--space-4);
-  cursor: pointer;
   border-bottom: 1px solid var(--border-subtle, color-mix(in srgb, var(--border) 50%, transparent));
   transition: background var(--transition);
 }
 
-.permission-toggle:last-child {
-  border-bottom: none;
-}
-
-.permission-toggle:hover {
+.permission-card:hover {
   background: var(--surface-2);
 }
 
+.permission-card__top {
+  display: flex;
+}
+
+.permission-card__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+  width: 100%;
+}
+
+.permission-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
 .permission-toggle__input {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   margin-top: 2px;
   accent-color: var(--accent);
   flex-shrink: 0;
   cursor: pointer;
-}
-
-.permission-toggle__label {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .permission-toggle__name {
@@ -3833,7 +3938,98 @@ table {
   line-height: 1.4;
 }
 
-/* Permission badges (show page) */
+/* Dependency hint */
+.permission-deps {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding-left: calc(15px + var(--space-3));
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.permission-deps svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.permission-dep-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+[dir="rtl"] .permission-deps {
+  padding-left: 0;
+  padding-right: calc(15px + var(--space-3));
+}
+
+/* Pulse animations when dependencies are auto-enabled or auto-disabled */
+@keyframes dep-enable-pulse {
+  0%   { background: rgba(84,198,249,0.0); }
+  30%  { background: rgba(84,198,249,0.14); }
+  100% { background: transparent; }
+}
+
+@keyframes dep-disable-pulse {
+  0%   { background: rgba(245,158,11,0.0); }
+  30%  { background: rgba(245,158,11,0.12); }
+  100% { background: transparent; }
+}
+
+.permission-card--auto-enabled {
+  animation: dep-enable-pulse 1.4s ease-out forwards;
+}
+
+.permission-card--auto-disabled {
+  animation: dep-disable-pulse 1.4s ease-out forwards;
+}
+
+/* Scope selector row */
+.permission-scope-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-left: calc(15px + var(--space-3));
+}
+
+.permission-scope-row__label {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.permission-scope-select {
+  font-size: var(--text-xs);
+  padding: 2px var(--space-2);
+  height: auto;
+  min-height: unset;
+  flex: 1;
+}
+
+.form-control--xs {
+  padding: 3px var(--space-2);
+  font-size: var(--text-xs);
+  height: auto;
+  min-height: unset;
+}
+
+[dir="rtl"] .permission-scope-row {
+  padding-left: 0;
+  padding-right: calc(15px + var(--space-3));
+}
+
+/* ── Permission badges (show page) ─────────────────────────────────────────── */
+
 .permission-groups--readonly .permission-group__perms {
   display: flex;
   flex-wrap: wrap;
@@ -3859,6 +4055,39 @@ table {
 .permission-badge--denied {
   background: var(--surface-2);
   color: var(--text-3);
+}
+
+/* Scope chip inside a permission badge */
+.permission-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-left: var(--space-1);
+}
+
+.permission-scope-chip--self_only {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-3);
+}
+
+.permission-scope-chip--managed_employees_only {
+  background: rgba(84, 198, 249, 0.15);
+  color: var(--accent);
+}
+
+.permission-scope-chip--branch_only {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+}
+
+.permission-scope-chip--business_wide {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
 }
 
 /* User assign inline form */
@@ -3934,14 +4163,23 @@ table {
 /* RTL support */
 [dir="rtl"] .permission-role-card__actions,
 [dir="rtl"] .permission-groups-header,
+[dir="rtl"] .permission-groups-header__actions,
 [dir="rtl"] .permission-group__header,
+[dir="rtl"] .permission-group__header-left,
+[dir="rtl"] .permission-card__toggle,
 [dir="rtl"] .page-header__actions,
 [dir="rtl"] .inline-form {
   flex-direction: row-reverse;
 }
 
-[dir="rtl"] .permission-toggle {
-  flex-direction: row-reverse;
+[dir="rtl"] .permission-groups-header__actions {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+[dir="rtl"] .permission-scope-chip {
+  margin-left: 0;
+  margin-right: var(--space-1);
 }
 
 @media (max-width: 640px) {
@@ -3949,7 +4187,7 @@ table {
     grid-template-columns: 1fr;
   }
 
-  .permission-group__perms {
+  .permission-groups {
     grid-template-columns: 1fr;
   }
 

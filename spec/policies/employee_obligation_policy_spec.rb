@@ -6,7 +6,7 @@ RSpec.describe EmployeeObligationPolicy, type: :model do
   let(:employee) { create(:user, business: business) }
 
   let(:manage_obligations_role) do
-    create(:permission_role, permissions: %w[manage_obligations], business: business)
+    create(:permission_role, permissions: %w[view_employees manage_obligations], business: business)
   end
   let(:manager_user) do
     create(:user, business: business, permission_role: manage_obligations_role)

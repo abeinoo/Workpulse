@@ -22,6 +22,12 @@ class User < ApplicationRecord
   scope :active,   -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
 
+  # Thin delegate to EmployeeScope — kept for backward compatibility with existing
+  # callers. New code should use EmployeeScope.new(manager).relation directly.
+  def self.managed_by(manager)
+    EmployeeScope.new(manager).relation
+  end
+
   normalizes :email,               with: ->(e) { e.blank? ? nil : e.strip.downcase }
   normalizes :phone_number,        with: ->(phone) {
     digits = phone.to_s.gsub(/\D/, "")
@@ -92,7 +98,7 @@ class User < ApplicationRecord
   end
 
   def management_access?
-    owner? || manages_area? || manages_branch? ||
+    owner? || manages_area? || manages_branch? || managed_employees.exists? ||
       can?(:view_attendance) || can?(:view_payroll) || can?(:approve_requests) ||
       can?(:assign_shifts) || can?(:view_employees) || can?(:manage_employees)
   end
@@ -102,6 +108,15 @@ class User < ApplicationRecord
     return false unless permission_role
 
     permission_role.has_permission?(permission)
+  end
+
+  # Returns the explicitly configured data scope for a permission, or nil if unset.
+  # nil signals "no override" — the caller falls back to the relationship hierarchy.
+  # Owners are exempted: they always get business_wide regardless.
+  def scope_for(permission)
+    return "business_wide" if owner?
+
+    permission_role&.scope_for(permission)
   end
 
   private

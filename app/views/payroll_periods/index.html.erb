@@ -77,10 +77,13 @@
           <% @periods.each do |period| %>
             <tr>
               <td><%= link_to period.period_label, payroll_period_path(period), class: "link" %></td>
-              <td>
+              <td style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <span class="badge <%= period_status_badge_class(period) %>">
                   <%= t("payroll.statuses.#{period.status}") %>
                 </span>
+                <% if @pending_review_period_ids&.include?(period.id) %>
+                  <span class="badge badge-warning"><%= t("payroll.index.pending_your_review") %></span>
+                <% end %>
               </td>
               <td class="td-actions">
                 <%= link_to t("payroll.view"), payroll_period_path(period), class: "link-muted" %>

@@ -84,32 +84,33 @@ RSpec.describe Attendance::CheckInService do
   end
 
   describe "geolocation enforcement" do
+    let(:geo_user) { create(:user, business: business) }
     let(:geo_branch) do
       create(:branch, :with_geolocation, business: business,
              latitude: 24.7136, longitude: 46.6753, radius_meters: 100)
     end
 
     before do
-      create(:shift_assignment, user: user, branch: geo_branch, shift: shift,
+      create(:shift_assignment, user: geo_user, branch: geo_branch, shift: shift,
              effective_from: 1.month.ago.to_date)
-      create(:user_branch, user: user, branch: geo_branch)
+      create(:user_branch, user: geo_user, branch: geo_branch)
     end
 
     it "succeeds when coordinates are inside the allowed radius" do
-      result = described_class.call(user: user, branch: geo_branch,
+      result = described_class.call(user: geo_user, branch: geo_branch,
                                     latitude: 24.7136, longitude: 46.6753)
       expect(result).to be_success
     end
 
     it "fails when coordinates are outside the allowed radius" do
-      result = described_class.call(user: user, branch: geo_branch,
+      result = described_class.call(user: geo_user, branch: geo_branch,
                                     latitude: 25.0000, longitude: 47.0000)
       expect(result).not_to be_success
       expect(result.error).to eq("You are outside the allowed check-in area")
     end
 
     it "fails when coordinates are missing" do
-      result = described_class.call(user: user, branch: geo_branch)
+      result = described_class.call(user: geo_user, branch: geo_branch)
       expect(result).not_to be_success
     end
   end

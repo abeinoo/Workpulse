@@ -17,7 +17,7 @@
       <span class="badge <%= @branch.active? ? 'badge-success' : 'badge-neutral' %>">
         <%= @branch.active? ? t("admin.branches.active") : t("admin.branches.inactive") %>
       </span>
-      <%= link_to t("admin.branches.edit"), edit_admin_branch_path(@branch), class: "btn btn-ghost btn-sm" %>
+      <%= link_to t("admin.branches.edit_action"), edit_admin_branch_path(@branch), class: "btn btn-ghost btn-sm" %>
       <%= button_to t("admin.branches.delete"), admin_branch_path(@branch), method: :delete,
             class: "btn btn-danger btn-sm",
             data: { turbo_confirm: t("forms.confirm_delete", name: @branch.name) } %>

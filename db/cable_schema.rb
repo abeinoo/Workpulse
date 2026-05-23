@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_22_700000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_23_200001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -65,6 +65,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_700000) do
     t.index ["user_id", "status"], name: "index_attendance_records_on_user_id_and_status"
     t.index ["user_id", "work_date"], name: "index_attendance_records_on_user_id_and_work_date", unique: true
     t.index ["user_id"], name: "index_attendance_records_on_user_id"
+  end
+
+  create_table "audit_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "actor_id", null: false
+    t.bigint "auditable_id", null: false
+    t.string "auditable_type", null: false
+    t.bigint "business_id", null: false
+    t.jsonb "changes_json", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.index ["actor_id"], name: "index_audit_logs_on_actor_id"
+    t.index ["auditable_type", "auditable_id"], name: "index_audit_logs_on_auditable"
+    t.index ["business_id"], name: "index_audit_logs_on_business_id"
+    t.index ["created_at"], name: "index_audit_logs_on_created_at"
   end
 
   create_table "biometric_devices", force: :cascade do |t|
@@ -352,6 +367,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_700000) do
     t.datetime "created_at", null: false
     t.text "description"
     t.string "name", null: false
+    t.jsonb "permission_scopes", default: {}, null: false
     t.jsonb "permissions", default: [], null: false
     t.datetime "updated_at", null: false
     t.index ["business_id", "name"], name: "index_permission_roles_on_business_id_and_name", unique: true
@@ -612,6 +628,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_22_700000) do
   add_foreign_key "attendance_records", "branches"
   add_foreign_key "attendance_records", "shift_assignments"
   add_foreign_key "attendance_records", "users"
+  add_foreign_key "audit_logs", "businesses"
+  add_foreign_key "audit_logs", "users", column: "actor_id"
   add_foreign_key "biometric_devices", "businesses"
   add_foreign_key "biometric_punch_logs", "attendance_records"
   add_foreign_key "biometric_punch_logs", "biometric_devices"

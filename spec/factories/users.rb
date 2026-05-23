@@ -41,7 +41,14 @@ FactoryBot.define do
     trait :accountant do
       after(:create) do |u|
         role = PermissionRole.find_or_create_by!(business: u.business, name: "Finance #{u.business_id}") do |r|
-          r.permissions = %w[view_payroll manage_payroll manage_adjustments view_requests pay_advances]
+          r.permissions       = %w[view_payroll manage_payroll manage_adjustments view_requests pay_advances]
+          r.permission_scopes = {
+            "view_payroll"       => "business_wide",
+            "manage_payroll"     => "business_wide",
+            "manage_adjustments" => "business_wide",
+            "view_requests"      => "business_wide",
+            "pay_advances"       => "business_wide"
+          }
         end
         u.update_column(:permission_role_id, role.id)
       end

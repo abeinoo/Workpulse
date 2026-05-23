@@ -103,7 +103,8 @@ class Admin::PermissionRolesController < Admin::BaseController
   end
 
   def permission_role_params
-    params.require(:permission_role).permit(:name, :description, permissions: [])
+    params.require(:permission_role)
+          .permit(:name, :description, permissions: [], permission_scopes: {})
   end
 
   def require_roles_management_access!

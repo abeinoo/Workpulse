@@ -5,8 +5,12 @@ RSpec.describe Attendance::CheckOutService do
   let(:branch)   { create(:branch, business: business) }
   let(:user)     { create(:user, business: business) }
   let(:shift)    { create(:shift, :fixed_time, business: business) }
+  # Use yesterday at 09:00 so check_in_at is always before today's travel_to targets
+  # (15:00 and 17:00) regardless of what time of day the test suite runs.
   let!(:open_record) do
-    create(:attendance_record, user: user, branch: branch, shift: shift)
+    create(:attendance_record, user: user, branch: branch, shift: shift,
+           check_in_at: 1.day.ago.change(hour: 9, min: 0, sec: 0),
+           work_date:   Date.yesterday, date: Date.yesterday)
   end
 
   def call(latitude: nil, longitude: nil)

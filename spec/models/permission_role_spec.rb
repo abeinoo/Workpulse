@@ -61,9 +61,48 @@ RSpec.describe PermissionRole, type: :model do
       end
 
       it "deduplicates repeated permission values" do
-        role = build(:permission_role, permissions: %w[view_employees view_employees manage_payroll])
+        role = build(:permission_role, permissions: %w[view_employees view_employees view_payroll])
         expect(role).to be_valid
-        expect(role.permissions).to eq(%w[view_employees manage_payroll])
+        expect(role.permissions).to eq(%w[view_employees view_payroll])
+      end
+    end
+
+    describe "dependency validation" do
+      it "is valid when all dependencies are satisfied" do
+        role = build(:permission_role, permissions: %w[view_attendance manage_attendance])
+        expect(role).to be_valid
+      end
+
+      it "is invalid when a dependency is missing" do
+        role = build(:permission_role, permissions: %w[manage_attendance])
+        expect(role).not_to be_valid
+        expect(role.errors[:permissions].join).to match(/requires.*view_attendance/i)
+      end
+
+      it "reports all missing dependencies in one pass" do
+        role = build(:permission_role, permissions: %w[manage_employees manage_salary_profiles])
+        # manage_employees requires view_employees; manage_salary_profiles also requires view_employees
+        expect(role).not_to be_valid
+        expect(role.errors[:permissions].size).to be >= 2
+      end
+
+      it "is valid when the dependent permission is not present" do
+        role = build(:permission_role, permissions: %w[view_attendance])
+        expect(role).to be_valid
+      end
+
+      PermissionRole::PERMISSION_DEPENDENCIES.each do |perm, deps|
+        it "#{perm} requires #{deps.join(', ')}" do
+          role = build(:permission_role, permissions: [perm])
+          expect(role).not_to be_valid
+          deps.each do |dep|
+            role_with_dep = build(:permission_role, permissions: [perm, dep])
+            # Only valid once ALL deps (not just this one) are present
+            if PermissionRole::PERMISSION_DEPENDENCIES[perm].all? { |d| [perm, dep].include?(d) }
+              expect(role_with_dep).to be_valid
+            end
+          end
+        end
       end
     end
   end
@@ -97,6 +136,29 @@ RSpec.describe PermissionRole, type: :model do
 
     it "returns false for a permission not in the list" do
       expect(role.has_permission?(:finalize_payroll)).to be false
+    end
+  end
+
+  describe "#scope_for" do
+    it "returns nil when no scope is configured for the permission" do
+      role = build(:permission_role, permissions: %w[view_payroll])
+      expect(role.scope_for(:view_payroll)).to be_nil
+    end
+
+    it "returns the configured scope string" do
+      role = build(:permission_role,
+                   permissions:       %w[view_payroll],
+                   permission_scopes: { "view_payroll" => "managed_employees_only" })
+      expect(role.scope_for(:view_payroll)).to eq("managed_employees_only")
+    end
+
+    it "strips scope entries for permissions that are not granted (before_validation)" do
+      role = build(:permission_role,
+                   permissions:       %w[view_attendance],
+                   permission_scopes: { "view_attendance" => "self_only",
+                                        "view_payroll"    => "business_wide" })
+      role.valid?
+      expect(role.permission_scopes.keys).to contain_exactly("view_attendance")
     end
   end
 

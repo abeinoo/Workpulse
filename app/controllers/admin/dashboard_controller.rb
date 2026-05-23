@@ -11,6 +11,6 @@ class Admin::DashboardController < Admin::BaseController
                                            .order(period_year: :desc, period_month: :desc)
                                            .includes(:branch)
                                            .limit(5)
-    @recent_employees = business.users.order(created_at: :desc).limit(5)
+    @recent_employees = business.users.includes(:permission_role).order(created_at: :desc).limit(5)
   end
 end

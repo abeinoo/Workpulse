@@ -3,6 +3,7 @@ module Attendance
   # for every field that changes. All changes happen in a single transaction.
   # Status is never user-editable — it is always re-derived from times after every save.
   class AdjustmentService
+    include AuditLoggable
     Result = Struct.new(:success, :record, :error, keyword_init: true) do
       def success? = success
     end
@@ -29,7 +30,8 @@ module Attendance
         apply_field_changes
         recompute_derived_fields
         @record.save!
-        # Adjustments are saved automatically via autosave on the has_many association
+        # Field-level entries saved automatically via autosave on has_many.
+        emit_audit_log
       end
 
       Result.new(success: true, record: @record)
@@ -97,13 +99,29 @@ module Attendance
     def serialize(field, value)
       return "" if value.nil?
       if %w[check_in_at check_out_at].include?(field)
+        return "" if value.respond_to?(:blank?) && value.blank?
         t = value.respond_to?(:to_time) ? value.to_time : Time.zone.parse(value.to_s)
+        return "" if t.nil?
         t.iso8601
       else
         value.to_s
       end
     rescue ArgumentError, TypeError
       value.to_s
+    end
+
+    def emit_audit_log
+      changed_fields = @record.attendance_adjustments.map do |adj|
+        [adj.field_name, [adj.old_value, adj.new_value]]
+      end.to_h
+
+      log_audit(
+        actor:     @adjusted_by,
+        auditable: @record,
+        action:    "edit_attendance",
+        changes:   changed_fields,
+        metadata:  { reason: @reason, status: @record.status }
+      )
     end
 
     def err(message)

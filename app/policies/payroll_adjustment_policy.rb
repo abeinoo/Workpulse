@@ -1,10 +1,10 @@
 class PayrollAdjustmentPolicy < ApplicationPolicy
   def index?
-    same_business? && (can?(:view_payroll) || owner? || manages_area? || manages_branch?)
+    same_business? && (can?(:view_payroll) || owner? || manages_area? || manages_branch? || direct_manager?)
   end
 
   def new?
-    same_business? && (owner? || manages_area? || manages_branch?)
+    same_business? && (owner? || manages_area? || manages_branch? || direct_manager?)
   end
 
   def create?  = can_manage_adjustment?
@@ -20,27 +20,21 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.owner? || user.can?(:view_payroll)
-        scope.where(business: user.business)
-      elsif user.manages_area?
-        scope.where(business: user.business, user_id: employees_in_area)
-      elsif user.manages_branch?
-        scope.where(business: user.business, user_id: employees_in_branches)
+      business_scoped = scope.where(business: user.business)
+
+      if user.owner?
+        business_scoped
+      elsif user.can?(:view_payroll)
+        if (configured = user.scope_for(:view_payroll))
+          filter_by_data_scope(business_scoped, configured)
+        else
+          business_scoped.where(user_id: EmployeeScope.new(user).relation.select(:id))
+        end
+      elsif user.management_access?
+        business_scoped.where(user_id: EmployeeScope.new(user).relation.select(:id))
       else
-        scope.where(user_id: user.id, business: user.business)
+        business_scoped.where(user_id: user.id)
       end
-    end
-
-    private
-
-    def employees_in_area
-      User.joins(:user_branches).where(user_branches: { branch_id: user.area_managed_branch_ids }).select(:id)
-    end
-
-    def employees_in_branches
-      User.joins(:user_branches)
-          .where(user_branches: { branch_id: user.managed_branch_ids })
-          .select(:id)
     end
   end
 
@@ -48,16 +42,16 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
 
   def can_manage_adjustment?
     return false unless same_business?
+    return true if owner?
+    return false unless record.user
 
-    if can?(:manage_adjustments) || owner?
-      true
-    elsif manages_area?
-      employee_in_area?
-    elsif manages_branch?
-      employee_in_branch?
-    else
-      false
-    end
+    # Permission-holders (e.g. Finance) can adjust for any same-business employee.
+    return true if can?(:manage_adjustments)
+
+    # Relationship-based managers are scoped to their managed employees only.
+    return false unless manages_area? || manages_branch? || direct_manager?
+
+    employee_under_management?
   end
 
   def can_review?
@@ -65,13 +59,12 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
     can?(:approve_adjustments) || owner?
   end
 
-  def employee_in_branch?
+  def employee_under_management?
     return false unless record.user
-    (user.managed_branch_ids & record.user.branch_ids).any?
+    EmployeeScope.new(user).includes?(record.user_id)
   end
 
-  def employee_in_area?
-    return false unless record.user
-    (user.area_managed_branch_ids & record.user.branch_ids).any?
+  def direct_manager?
+    user.managed_employees.exists?
   end
 end

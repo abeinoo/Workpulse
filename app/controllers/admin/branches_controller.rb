@@ -9,7 +9,7 @@ class Admin::BranchesController < Admin::BaseController
     authorize @branch
     today = Date.current
 
-    @employees = @branch.users.where(active: true).order(:first_name, :last_name)
+    @employees = @branch.users.where(active: true).includes(:permission_role).order(:first_name, :last_name)
     @branch_manager = @branch.branch_manager
 
     @today_records = @branch.attendance_records

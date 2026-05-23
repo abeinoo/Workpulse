@@ -153,5 +153,37 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       expect(scope).to include(my_adjustment)
       expect(scope).not_to include(other_adjustment)
     end
+
+    describe "branch_manager scope isolation" do
+      let(:other_branch)    { create(:branch, business: business) }
+      let(:other_mgr)       { create(:user, :branch_manager, business: business) }
+      let(:other_emp)       { create(:user, business: business) }
+      let(:other_adj_period) { create(:payroll_period, business: business, branch: other_branch,
+                                      period_year: 2025, period_month: 3) }
+      let!(:other_branch_adj) do
+        create(:user_branch, user: other_emp, branch: other_branch)
+        other_branch.update_column(:branch_manager_id, other_mgr.id)
+        create(:user_branch, user: other_mgr, branch: other_branch)
+        create(:payroll_adjustment, :cash_incentive,
+               payroll_period: other_adj_period,
+               user:           other_emp,
+               created_by:     other_mgr)
+      end
+
+      it "includes adjustments for employees in their own branch" do
+        scope = described_class::Scope.new(manager, PayrollAdjustment).resolve
+        expect(scope).to include(my_adjustment)
+      end
+
+      it "excludes adjustments for employees in a different branch" do
+        scope = described_class::Scope.new(manager, PayrollAdjustment).resolve
+        expect(scope).not_to include(other_branch_adj)
+      end
+
+      it "excludes adjustments from other businesses" do
+        scope = described_class::Scope.new(manager, PayrollAdjustment).resolve
+        expect(scope).not_to include(other_adjustment)
+      end
+    end
   end
 end

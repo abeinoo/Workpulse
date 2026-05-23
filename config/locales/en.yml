@@ -105,8 +105,9 @@ en:
     check_in_for_yourself: "Check in for yourself:"
     shift_no_branch_warning: "You have an active shift but no branch assigned. Contact your admin to add a branch to your shift assignment."
     mobile_attendance_disabled: "Mobile attendance is disabled for your account."
-    missing_checkout_alert_one: "1 employee has a missing check-out from yesterday."
-    missing_checkout_alert_other: "%{count} employees have a missing check-out from yesterday."
+    missing_checkout_alert:
+      one: "1 employee has a missing check-out from yesterday."
+      other: "%{count} employees have a missing check-out from yesterday."
     view_attendance: "View attendance"
     full_log: "Full log"
     view_more: "View %{count} more →"
@@ -272,6 +273,7 @@ en:
       base: "Base"
       additions_col: "Additions"
       net_col: "Net salary"
+      pending_your_review: "Needs your review"
       empty_employee: "Your payslips will appear here once your manager finalizes each month's payroll."
       no_records: "No payroll records yet"
     show:
@@ -296,6 +298,8 @@ en:
       review_col: "Review"
       pending_badge: "%{count} pending"
       reviewed_badge: "Reviewed"
+      totals_label: "Total"
+      days_col: "Days"
     new:
       title: "New Payroll Period"
       page_title: "New Payroll Period — WorkPulse"
@@ -470,8 +474,9 @@ en:
     advance_note: "An Advance record will be created and deducted from their next payroll run."
     mark_paid_confirm: "Mark as Paid / Disbursed"
     export_csv: "Export CSV"
-    pending_disbursement_one: "1 salary advance approved by managers and awaiting disbursement."
-    pending_disbursement_other: "%{count} salary advances approved by managers and awaiting disbursement."
+    pending_disbursement:
+      one: "1 salary advance approved by managers and awaiting disbursement."
+      other: "%{count} salary advances approved by managers and awaiting disbursement."
     errors:
       exceeds_monthly_limit: "exceeds the monthly limit (%{remaining} minutes remaining out of %{limit})"
       unavailable_for_hour_based: "is not available for employees assigned to hour-based (flexible) shifts"
@@ -521,8 +526,9 @@ en:
     remove_confirm: "Remove this adjustment?"
     approve_confirm: "Approve this adjustment?"
     reject_confirm: "Reject this adjustment?"
-    pending_one: "1 adjustment awaiting your review"
-    pending_other: "%{count} adjustments awaiting your review"
+    pending:
+      one: "1 adjustment awaiting your review"
+      other: "%{count} adjustments awaiting your review"
 
   shift_assignments:
     index:
@@ -602,8 +608,6 @@ en:
       title: "Edit Shift"
       page_title: "Edit Shift — WorkPulse"
       submit: "Update Shift"
-    show:
-      page_title: "%{name} — WorkPulse"
     confirm:
       delete: "Delete %{name}? This cannot be undone."
       remove_penalty: "Remove this penalty rule?"
@@ -915,6 +919,7 @@ en:
       show:
         title: "Branch"
         page_title: "%{name} — WorkPulse"
+        manager: "Manager"
       new:
         title: "New Branch"
         page_title: "New Branch — WorkPulse"
@@ -933,7 +938,7 @@ en:
       no_branches: "No branches found."
       active: "Active"
       inactive: "Inactive"
-      edit: "Edit"
+      edit_action: "Edit"
       delete: "Delete"
       employees_count: "Employees"
       checked_in_today: "Checked In Today"
@@ -1101,6 +1106,8 @@ en:
         page_title: "%{name} — WorkPulse"
         permissions_title: "Permissions"
         users_title: "Assigned Users"
+        user_name: "Name"
+        user_role: "Role"
         select_user: "— Select a user to assign —"
         assign_btn: "Assign"
         remove_btn: "Remove"
@@ -1116,6 +1123,10 @@ en:
         select_all: "Select all"
         clear_all: "Clear all"
         select_group: "All"
+        search_placeholder: "Search permissions…"
+        scope_label: "Scope:"
+        no_results: "No permissions match your search."
+        requires: "Requires:"
       groups:
         employees: "Employees"
         attendance: "Attendance"
@@ -1150,6 +1161,12 @@ en:
         manage_branches: "Manage Branches"
         manage_obligations: "Manage Employee Obligations"
         manage_roles: "Manage Permission Roles"
+        pay_advances: "Pay Advances"
+      scopes:
+        self_only: "Self only"
+        managed_employees_only: "Managed employees"
+        branch_only: "Branch only"
+        business_wide: "Business-wide"
       permission_descriptions:
         view_employees: "See the employee list and profiles"
         manage_employees: "Create, edit, and deactivate employees"

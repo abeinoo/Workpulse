@@ -1,4 +1,8 @@
-<%= form_with model: [ :admin, permission_role ], data: { controller: "permission-role-form" } do |f| %>
+<%= form_with model: [ :admin, permission_role ],
+             data: {
+               controller: "permission-role-form",
+               "permission-role-form-deps-value": PermissionRole::PERMISSION_DEPENDENCIES.to_json
+             } do |f| %>
   <%= render "shared/error_messages", resource: permission_role %>
 
   <div class="form-section">
@@ -22,62 +26,114 @@
   <div class="form-section">
     <div class="permission-groups-header">
       <h2 class="form-section-title"><%= t("admin.permission_roles.form.permissions_title") %></h2>
-      <button type="button" class="btn btn-ghost btn-sm"
-              data-action="permission-role-form#selectAll">
-        <%= t("admin.permission_roles.form.select_all") %>
-      </button>
-      <button type="button" class="btn btn-ghost btn-sm"
-              data-action="permission-role-form#clearAll">
-        <%= t("admin.permission_roles.form.clear_all") %>
-      </button>
+      <div class="permission-groups-header__actions">
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-action="permission-role-form#selectAll">
+          <%= t("admin.permission_roles.form.select_all") %>
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-action="permission-role-form#clearAll">
+          <%= t("admin.permission_roles.form.clear_all") %>
+        </button>
+      </div>
+    </div>
+
+    <%# Search box %>
+    <div class="permission-search">
+      <input type="text"
+             class="form-control form-control--sm permission-search__input"
+             placeholder="<%= t("admin.permission_roles.form.search_placeholder") %>"
+             data-action="input->permission-role-form#filterPermissions"
+             data-permission-role-form-target="searchInput"
+             autocomplete="off">
+      <svg class="permission-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </div>
 
     <%# Hidden field ensures an empty array is sent when all checkboxes are unchecked %>
     <%= f.hidden_field :permissions, value: "", name: "permission_role[permissions][]" %>
 
-    <div class="permission-groups">
+    <div class="permission-groups" data-permission-role-form-target="groupsContainer">
       <% PermissionRole::PERMISSION_GROUPS.each do |group, perms| %>
-        <div class="permission-group" data-permission-role-form-target="group">
-          <div class="permission-group__header">
-            <h3 class="permission-group__title">
-              <%= t("admin.permission_roles.groups.#{group}") %>
-            </h3>
-            <label class="permission-group__select-all">
+        <details class="permission-group" open data-permission-role-form-target="group">
+          <summary class="permission-group__header">
+            <div class="permission-group__header-left">
+              <svg class="permission-group__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+              <h3 class="permission-group__title">
+                <%= t("admin.permission_roles.groups.#{group}") %>
+              </h3>
+            </div>
+            <label class="permission-group__select-all" onclick="event.preventDefault(); event.stopPropagation();">
               <input type="checkbox"
                      class="permission-group__toggle"
                      data-action="change->permission-role-form#toggleGroup"
                      data-permission-role-form-target="groupToggle">
               <span><%= t("admin.permission_roles.form.select_group") %></span>
             </label>
-          </div>
+          </summary>
 
           <div class="permission-group__perms">
             <% perms.each do |perm| %>
-              <label class="permission-toggle">
-                <%= check_box_tag "permission_role[permissions][]",
-                      perm,
-                      permission_role.has_permission?(perm),
-                      id: "perm_#{perm}",
-                      class: "permission-toggle__input",
-                      data: { action: "change->permission-role-form#updateGroupToggle",
-                              "permission-role-form-target": "checkbox" } %>
-                <span class="permission-toggle__label">
-                  <span class="permission-toggle__name">
-                    <%= t("admin.permission_roles.permissions.#{perm}") %>
-                  </span>
-                  <span class="permission-toggle__desc">
-                    <%= t("admin.permission_roles.permission_descriptions.#{perm}", default: "") %>
-                  </span>
-                </span>
-              </label>
+              <div class="permission-card" data-perm-name="<%= t("admin.permission_roles.permissions.#{perm}").downcase %>">
+                <div class="permission-card__top">
+                  <label class="permission-card__toggle">
+                    <%= check_box_tag "permission_role[permissions][]",
+                          perm,
+                          permission_role.has_permission?(perm),
+                          id: "perm_#{perm}",
+                          class: "permission-toggle__input",
+                          data: { action: "change->permission-role-form#onPermissionChange",
+                                  "permission-role-form-target": "checkbox",
+                                  perm: perm } %>
+                    <div class="permission-card__info">
+                      <span class="permission-toggle__name">
+                        <%= t("admin.permission_roles.permissions.#{perm}") %>
+                      </span>
+                      <span class="permission-toggle__desc">
+                        <%= t("admin.permission_roles.permission_descriptions.#{perm}", default: "") %>
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                <% deps = PermissionRole::PERMISSION_DEPENDENCIES[perm] || [] %>
+                <% if deps.any? %>
+                  <div class="permission-deps">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                    <%= t("admin.permission_roles.form.requires") %>
+                    <% deps.each do |dep| %>
+                      <span class="permission-dep-tag"><%= t("admin.permission_roles.permissions.#{dep}") %></span>
+                    <% end %>
+                  </div>
+                <% end %>
+
+                <% if PermissionRole::SCOPABLE_PERMISSIONS.include?(perm) %>
+                  <div class="permission-scope-row"
+                       data-permission-role-form-target="scopeRow"
+                       data-for-perm="<%= perm %>"
+                       style="<%= permission_role.has_permission?(perm) ? '' : 'display:none' %>">
+                    <span class="permission-scope-row__label"><%= t("admin.permission_roles.form.scope_label") %></span>
+                    <%= select_tag "permission_role[permission_scopes][#{perm}]",
+                          options_for_select(
+                            PermissionRole::SCOPE_OPTIONS.map { |s| [t("admin.permission_roles.scopes.#{s}"), s] },
+                            permission_role.scope_for(perm)
+                          ),
+                          class: "form-control form-control--xs permission-scope-select",
+                          data: { "permission-role-form-target": "scopeSelect" } %>
+                  </div>
+                <% end %>
+              </div>
             <% end %>
           </div>
-        </div>
+        </details>
       <% end %>
+    </div>
+
+    <div class="permission-no-results" data-permission-role-form-target="noResults" style="display:none">
+      <%= t("admin.permission_roles.form.no_results") %>
     </div>
   </div>
 
-  <div class="form-actions">
+  <div class="form-actions form-actions--sticky">
     <%= f.submit t("forms.save"), class: "btn btn-primary" %>
     <%= link_to t("forms.cancel"), admin_permission_roles_path, class: "btn btn-secondary" %>
   </div>

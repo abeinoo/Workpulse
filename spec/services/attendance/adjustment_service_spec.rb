@@ -1,13 +1,13 @@
 require "rails_helper"
 
 RSpec.describe Attendance::AdjustmentService do
-  let(:business) { create(:business, timezone: "Asia/Riyadh") }
+  let(:business) { create(:business, timezone: "UTC") }
   let(:branch)   { create(:branch, business: business) }
   let(:manager)  { create(:user, :branch_manager, business: business) }
   let!(:record)  do
     create(:attendance_record, :checked_out, branch: branch,
-           check_in_at:  Time.zone.today.change(hour: 9, min: 30),
-           check_out_at: Time.zone.today.change(hour: 17, min: 0))
+           check_in_at:  Time.current.change(hour: 9, min: 30, sec: 0),
+           check_out_at: Time.current.change(hour: 17, min: 0, sec: 0))
   end
 
   def call(params)

@@ -9,6 +9,7 @@ module Requests
   #           Creates the Advance record so the amount is deducted in the next
   #           payroll generation run.
   class Approver
+    include AuditLoggable
     Result = Struct.new(:success, :request, :error, keyword_init: true) do
       def success? = success
     end
@@ -66,6 +67,14 @@ module Requests
 
       Payroll::PermissionApplier.call(@request)
 
+      log_audit(
+        actor:     @reviewed_by,
+        auditable: @request,
+        action:    "approve",
+        changes:   { status: ["pending", "approved"] },
+        metadata:  { request_type: @request.request_type, response_note: @response_note }
+      )
+
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
@@ -79,6 +88,14 @@ module Requests
         reviewed_by:   @reviewed_by,
         reviewed_at:   Time.current,
         response_note: @response_note
+      )
+
+      log_audit(
+        actor:     @reviewed_by,
+        auditable: @request,
+        action:    "reject",
+        changes:   { status: ["pending", "rejected"] },
+        metadata:  { request_type: @request.request_type, response_note: @response_note }
       )
 
       Result.new(success: true, request: @request)
@@ -98,6 +115,13 @@ module Requests
           remaining_amount: @request.amount,
           status:           "active",
           issued_at:        Time.current
+        )
+        log_audit(
+          actor:     @reviewed_by,
+          auditable: @request,
+          action:    "pay",
+          changes:   { status: ["approved", "paid"] },
+          metadata:  { amount: @request.amount }
         )
       end
 

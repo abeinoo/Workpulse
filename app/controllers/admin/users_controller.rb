@@ -5,7 +5,7 @@ class Admin::UsersController < Admin::BaseController
     authorize User
     @users = policy_scope(User)
                .where.not(id: current_user.id)
-               .includes(:manager)
+               .includes(:manager, :permission_role)
                .order(:first_name, :last_name)
   end
 

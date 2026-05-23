@@ -709,7 +709,21 @@ puts "Payroll period (draft): #{period_curr.period_label}"
       view_requests approve_requests
       view_shifts manage_shifts assign_shifts
       view_reports export_reports
-    ]
+    ],
+    permission_scopes: {
+      "view_employees"   => "business_wide",
+      "manage_employees" => "business_wide",
+      "manage_salary_profiles" => "business_wide",
+      "view_attendance"  => "business_wide",
+      "manage_attendance" => "business_wide",
+      "view_payroll"     => "business_wide",
+      "manage_payroll"   => "business_wide",
+      "manage_adjustments" => "business_wide",
+      "view_requests"    => "business_wide",
+      "approve_requests" => "business_wide",
+      "view_shifts"      => "business_wide",
+      "assign_shifts"    => "business_wide"
+    }
   },
   {
     name:        "View Only",
@@ -717,12 +731,20 @@ puts "Payroll period (draft): #{period_curr.period_label}"
     permissions: %w[
       view_employees view_attendance view_payroll
       view_requests view_shifts view_reports
-    ]
+    ],
+    permission_scopes: {
+      "view_employees"  => "business_wide",
+      "view_attendance" => "business_wide",
+      "view_payroll"    => "business_wide",
+      "view_requests"   => "business_wide",
+      "view_shifts"     => "business_wide"
+    }
   }
 ].each do |attrs|
   PermissionRole.find_or_create_by!(business: business, name: attrs[:name]) do |r|
-    r.description = attrs[:description]
-    r.permissions = attrs[:permissions]
+    r.description      = attrs[:description]
+    r.permissions      = attrs[:permissions]
+    r.permission_scopes = attrs[:permission_scopes]
   end
 end
 puts "Permission roles: #{PermissionRole.where(business: business).count} roles (owner can rename/delete/add freely)"

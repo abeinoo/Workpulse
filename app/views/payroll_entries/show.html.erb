@@ -2,7 +2,7 @@
 
   <div class="page-header">
     <div>
-      <%= link_to t("payroll.entry.back"), payroll_periods_path, class: "back-link" %>
+      <%= link_to t("payroll.entry.back"), payroll_period_path(@period), class: "back-link" %>
       <% if current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll) %>
         <h1 class="page-title"><%= @entry.user.full_name %></h1>
         <p class="page-subtitle"><%= @period.period_label %> &middot; <%= @period.branch&.name || t("payroll.all_branches") %></p>
@@ -109,7 +109,7 @@
             <span class="payslip-breakdown__already-paid-label">
               <%= t("payroll.entry.item_types.#{li.item_type}") %>
               <% if li.source_type == "PayrollAdjustment" %>
-                <% adj = PayrollAdjustment.find_by(id: li.source_id) %>
+                <% adj = @paid_adjustments[li.source_id] %>
                 <% if adj&.paid_at %>
                   <span class="payslip-breakdown__already-paid-meta">
                     <%= adj.paid_at.in_time_zone.strftime("%-d %b") %>

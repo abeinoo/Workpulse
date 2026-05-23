@@ -128,9 +128,14 @@ RSpec.describe ShiftAssignment, type: :model do
         end
 
         context "when the new shift is hour_based" do
-          before { assign(morning, branch: branch_a) }
+          # Use a fresh branch so the morning assignment doesn't hit no_overlapping_assignment
+          # (branch_a already has the flexible assignment from the outer before).
+          let(:branch_c) { create(:branch, business: business) }
+          before { assign(morning, branch: branch_c) }
 
           it "does not flag a conflict for the hour_based new assignment" do
+            # build_assign defaults to branch_b which has no existing assignments;
+            # no_overlapping_shift_time skips because the new shift is hour_based.
             expect(build_assign(flexible)).to be_valid
           end
         end
@@ -203,12 +208,14 @@ RSpec.describe ShiftAssignment, type: :model do
         expect(non_overlap).to be_valid
       end
 
-      it "allows an overlapping assignment for a different branch" do
-        other_branch = create(:branch, business: business)
+      it "allows an overlapping date range for a different branch (no_overlapping_assignment is branch-scoped)" do
+        other_branch  = create(:branch, business: business)
+        evening_shift = create(:shift, :fixed_time, business: business,
+                               start_time: Time.zone.parse("18:00"), end_time: Time.zone.parse("22:00"))
         no_conflict = build(:shift_assignment,
                             user:           user,
                             branch:         other_branch,
-                            shift:          shift,
+                            shift:          evening_shift,
                             effective_from: Date.new(2025, 3, 1))
         expect(no_conflict).to be_valid
       end

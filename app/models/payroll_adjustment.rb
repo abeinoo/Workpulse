@@ -20,8 +20,12 @@ class PayrollAdjustment < ApplicationRecord
     cash_incentive:   "cash_incentive",
     commission:       "commission",
     penalty:          "penalty",
-    manual_deduction: "manual_deduction"
-  }
+    manual_deduction: "manual_deduction",
+    # Legacy DB values — readable but blocked on write by the ADJUSTMENT_TYPES inclusion validation below
+    bonus:            "bonus",
+    reward:           "reward",
+    eid_bonus:        "eid_bonus"
+  }, validate: false
 
   enum :review_status, {
     pending_review: "pending_review",
@@ -45,10 +49,6 @@ class PayrollAdjustment < ApplicationRecord
   scope :approved,      ->              { where(review_status: "approved") }
   scope :already_paid,  ->              { where(already_paid: true) }
 
-  def positive?
-    POSITIVE_TYPES.include?(adjustment_type)
-  end
-
   def signed_amount
     positive? ? amount : -amount
   end
@@ -60,12 +60,13 @@ class PayrollAdjustment < ApplicationRecord
     "eid_bonus" => "cash_incentive"
   }.freeze
 
-  # Maps to the matching PayrollLineItem item_type.
-  # Reads the raw DB column so legacy rows (bonus/reward/eid_bonus) that haven't
-  # been migrated yet still resolve to a valid item_type instead of nil.
+  def positive?
+    POSITIVE_TYPES.include?(line_item_type)
+  end
+
+  # Maps to the matching PayrollLineItem item_type, normalising legacy DB values.
   def line_item_type
-    raw = read_attribute(:adjustment_type)
-    LEGACY_TYPE_MAP.fetch(raw, adjustment_type)
+    LEGACY_TYPE_MAP.fetch(adjustment_type.to_s, adjustment_type.to_s)
   end
 
   private
