@@ -1,23 +1,26 @@
 class PayrollLineItemPolicy < ApplicationPolicy
   def approve? = (can?(:approve_adjustments) || owner?) && same_business_entry?
   def reject?  = (can?(:approve_adjustments) || owner?) && same_business_entry?
-  def waive?   = overriding?
+  def waive? = overriding?
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.owner? || user.can?(:view_payroll)
-        scope.joins(payroll_entry: :payroll_period)
-             .where(payroll_periods: { business_id: user.business_id })
-      elsif user.manages_area?
-        managed_emp_ids = UserBranch.where(branch_id: user.area_managed_branch_ids).select(:user_id)
-        scope.joins(payroll_entry: :payroll_period)
-             .where(payroll_periods: { business_id: user.business_id })
-             .where(payroll_entries: { user_id: managed_emp_ids })
-      elsif user.manages_branch?
-        managed_emp_ids = UserBranch.where(branch_id: user.managed_branch_ids).select(:user_id)
-        scope.joins(payroll_entry: :payroll_period)
-             .where(payroll_periods: { business_id: user.business_id })
-             .where(payroll_entries: { user_id: managed_emp_ids })
+      business_items = scope.joins(payroll_entry: :payroll_period)
+                            .where(payroll_periods: { business_id: user.business_id })
+
+      if user.owner?
+        business_items
+      elsif user.can?(:view_payroll)
+        configured = user.scope_for(:view_payroll)
+        emp_ids    = if configured
+                       EmployeeScope.new(user).for_scope(configured).select(:id)
+                     else
+                       EmployeeScope.new(user).relation.select(:id)
+                     end
+        business_items.where(payroll_entries: { user_id: emp_ids })
+      elsif user.management_access?
+        emp_ids = EmployeeScope.new(user).relation.select(:id)
+        business_items.where(payroll_entries: { user_id: emp_ids })
       else
         scope.joins(:payroll_entry).where(payroll_entries: { user_id: user.id })
       end
@@ -28,15 +31,15 @@ class PayrollLineItemPolicy < ApplicationPolicy
 
   def overriding?
     return false unless same_business_entry?
-    can?(:approve_adjustments) || owner? || direct_manager_of_employee?
+    can?(:approve_adjustments) || owner? || manages_employee_in_scope?
   end
 
   def same_business_entry?
     record.payroll_entry&.payroll_period&.business_id == user.business_id
   end
 
-  def direct_manager_of_employee?
-    employee_branch_ids = record.payroll_entry.user.branch_ids
-    (user.managed_branch_ids & employee_branch_ids).any?
+  def manages_employee_in_scope?
+    return false unless record.payroll_entry&.user
+    EmployeeScope.new(user).includes?(record.payroll_entry.user_id)
   end
 end

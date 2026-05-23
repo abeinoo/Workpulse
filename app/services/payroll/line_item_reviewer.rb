@@ -51,6 +51,8 @@ module Payroll
         @line_item.payroll_entry.recalculate_totals!
       end
 
+      write_waive_audit if waive?
+
       Result.new(success: true, line_item: @line_item)
     rescue => e
       err(e.message)
@@ -74,6 +76,27 @@ module Payroll
       when "reject"  then "rejected"
       when "waive"   then "waived"
       end
+    end
+
+    def write_waive_audit
+      entry  = @line_item.payroll_entry
+      period = entry.payroll_period
+      PayrollAuditLog.create!(
+        payroll_period: period,
+        actor:          @reviewed_by,
+        action_type:    "line_item_waived",
+        metadata:       {
+          line_item_id:     @line_item.id,
+          item_type:        @line_item.item_type,
+          employee_id:      entry.user_id,
+          payroll_entry_id: entry.id,
+          previous_amount:  @line_item.amount.to_f,
+          new_amount:       0.0,
+          reason:           @notes
+        }.to_json
+      )
+    rescue => e
+      Rails.logger.error("[PayrollAuditLog] line_item_waived write failed: #{e.message}")
     end
 
     def err(msg)

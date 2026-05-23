@@ -20,10 +20,19 @@ class EmployeeRequestPolicy < ApplicationPolicy
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.owner? || user.can?(:view_requests)
+      if user.owner?
         scope.for_business(user.business)
+      elsif user.can?(:view_requests)
+        configured = user.scope_for(:view_requests)
+        base       = scope.for_business(user.business)
+        if configured
+          filter_by_data_scope(base, configured)
+        else
+          base.where(user_id: EmployeeScope.new(user).relation.select(:id))
+        end
       else
-        scope.where(user_id: [ user.id ] + user.managed_employee_ids)
+        emp_ids = EmployeeScope.new(user).relation.select(:id)
+        scope.where(user_id: user.id).or(scope.where(user_id: emp_ids))
       end
     end
   end
@@ -35,6 +44,7 @@ class EmployeeRequestPolicy < ApplicationPolicy
   end
 
   def manages_requester?
-    record.user&.manager_id == user.id
+    return false unless record.user
+    EmployeeScope.new(user).includes?(record.user_id)
   end
 end

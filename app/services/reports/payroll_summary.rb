@@ -1,17 +1,22 @@
 module Reports
   # Aggregates a PayrollPeriod into summary totals + per-employee rows.
   # Used by both the JSON endpoint and the CSV exporter.
+  #
+  # Pass `entries:` to supply a pre-scoped relation (e.g. from policy_scope) so
+  # that totals and rows reflect only the records the caller is authorised to see.
+  # When omitted the full period entry set is used (owner / admin callers).
   class PayrollSummary
-    def self.call(period:)
-      new(period: period).call
+    def self.call(period:, entries: nil)
+      new(period: period, entries: entries).call
     end
 
-    def initialize(period:)
-      @period = period
+    def initialize(period:, entries: nil)
+      @period  = period
+      @entries = entries
     end
 
     def call
-      entries = @period.payroll_entries.includes(:user).order("users.last_name")
+      entries = resolved_entries
 
       {
         period_id:    @period.id,
@@ -27,6 +32,10 @@ module Reports
     end
 
     private
+
+    def resolved_entries
+      (@entries || @period.payroll_entries).includes(:user).order("users.last_name")
+    end
 
     def build_totals(entries)
       {

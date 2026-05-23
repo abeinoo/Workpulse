@@ -2,18 +2,19 @@ require "csv"
 
 module Reports
   class PayrollCsvExporter
-    def self.call(period:, business: nil)
-      new(period: period, business: business).call
+    def self.call(period:, business: nil, entries: nil)
+      new(period: period, business: business, entries: entries).call
     end
 
-    def initialize(period:, business: nil)
+    def initialize(period:, business: nil, entries: nil)
       @period   = period
+      @entries  = entries
       @business = business || period.business
       @currency = @business&.currency || "SAR"
     end
 
     def call
-      summary = PayrollSummary.call(period: @period)
+      summary = PayrollSummary.call(period: @period, entries: @entries)
 
       CSV.generate(headers: true) do |csv|
         csv << ["Currency: #{@currency}"]

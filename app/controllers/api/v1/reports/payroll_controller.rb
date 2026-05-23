@@ -3,15 +3,17 @@ module Api
     module Reports
       class PayrollController < BaseController
         def summary
-          period = find_period
+          period  = find_period
           authorize period, :show?
-          render_success(::Reports::PayrollSummary.call(period: period))
+          entries = scoped_entries(period)
+          render_success(::Reports::PayrollSummary.call(period: period, entries: entries))
         end
 
         def export
-          period = find_period
+          period  = find_period
           authorize period, :show?
-          csv = ::Reports::PayrollCsvExporter.call(period: period, business: current_user.business)
+          entries = scoped_entries(period)
+          csv = ::Reports::PayrollCsvExporter.call(period: period, business: current_user.business, entries: entries)
           send_data csv,
                     filename:    "payroll_#{period.period_label.parameterize}.csv",
                     type:        "text/csv",
@@ -22,6 +24,10 @@ module Api
 
         def find_period
           policy_scope(PayrollPeriod).find(params[:payroll_period_id])
+        end
+
+        def scoped_entries(period)
+          policy_scope(PayrollEntry).where(payroll_period: period)
         end
       end
     end

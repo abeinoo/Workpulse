@@ -121,8 +121,10 @@ class DashboardController < ApplicationController
       .where(user_id: managed_ids, date: Date.yesterday, status: "incomplete")
       .includes(:user)
 
+    scope_ids = EmployeeScope.new(current_user).relation.select(:id)
     @pending_requests = EmployeeRequest
-      .where(user_id: managed_ids, status: "pending")
+      .pending
+      .where(user_id: scope_ids)
       .includes(:user)
       .order(created_at: :asc)
 
@@ -135,19 +137,17 @@ class DashboardController < ApplicationController
   end
 
   def load_accountant_data
-    business = current_user.business
-    @draft_periods = PayrollPeriod
-      .where(business: business, status: :draft)
+    @draft_periods = policy_scope(PayrollPeriod)
+      .where(status: :draft)
       .includes(:branch)
       .order(period_year: :desc, period_month: :desc)
       .limit(5)
-    @approved_periods = PayrollPeriod
-      .where(business: business, status: :finalized)
+    @approved_periods = policy_scope(PayrollPeriod)
+      .where(status: :finalized)
       .includes(:branch)
       .order(period_year: :desc, period_month: :desc)
       .limit(5)
-    @recent_periods = PayrollPeriod
-      .where(business: business)
+    @recent_periods = policy_scope(PayrollPeriod)
       .includes(:branch)
       .order(period_year: :desc, period_month: :desc)
       .limit(8)

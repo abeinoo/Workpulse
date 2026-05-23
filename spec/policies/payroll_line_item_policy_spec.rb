@@ -125,5 +125,66 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
       expect(scope).to include(line_item)
       expect(scope).not_to include(other_line_item)
     end
+
+    describe "branch_manager scope — EmployeeScope delegation" do
+      it "includes line items for employees assigned to their branch via user_branches" do
+        scope = described_class::Scope.new(manager, PayrollLineItem).resolve
+        expect(scope).to include(line_item)
+      end
+
+      it "excludes line items for employees in a different branch" do
+        other_branch = create(:branch, business: business)
+        other_emp    = create(:user, business: business)
+        create(:user_branch, user: other_emp, branch: other_branch)
+        other_entry = create(:payroll_entry, payroll_period: period, user: other_emp)
+        other_item  = create(:payroll_line_item, :late_penalty, payroll_entry: other_entry)
+
+        scope = described_class::Scope.new(manager, PayrollLineItem).resolve
+        expect(scope).not_to include(other_item)
+      end
+
+      it "includes line items for direct reports not in user_branches (EmployeeScope direct-report path)" do
+        # Direct reports of a branch manager are visible via manager_id even without a user_branch row.
+        direct_report       = create(:user, business: business, manager: manager)
+        direct_report_entry = create(:payroll_entry, payroll_period: period, user: direct_report)
+        direct_report_item  = create(:payroll_line_item, :late_penalty, payroll_entry: direct_report_entry)
+
+        scope = described_class::Scope.new(manager, PayrollLineItem).resolve
+        expect(scope).to include(direct_report_item)
+      end
+
+      it "excludes items from a completely different business" do
+        scope = described_class::Scope.new(manager, PayrollLineItem).resolve
+        expect(scope).not_to include(other_line_item)
+      end
+    end
+
+    describe "view_payroll scope respects scope_for configuration" do
+      it "business_wide scope (accountant default) sees all business items" do
+        scope = described_class::Scope.new(accountant, PayrollLineItem).resolve
+        expect(scope).to include(line_item)
+        expect(scope).not_to include(other_line_item)
+      end
+
+      it "managed_employees_only scope limits to EmployeeScope hierarchy" do
+        scoped_manager = create(:user, business: business)
+        # Give the user view_payroll with managed_employees_only scope
+        role = create(:permission_role, business: business,
+                      permissions: %w[view_payroll],
+                      permission_scopes: { "view_payroll" => "managed_employees_only" })
+        scoped_manager.update_column(:permission_role_id, role.id)
+        branch_a = create(:branch, business: business)
+        branch_a.update_column(:branch_manager_id, scoped_manager.id)
+        managed_emp   = create(:user, business: business)
+        create(:user_branch, user: managed_emp, branch: branch_a)
+        managed_entry = create(:payroll_entry, payroll_period: period, user: managed_emp)
+        managed_item  = create(:payroll_line_item, :late_penalty, payroll_entry: managed_entry)
+
+        scope = described_class::Scope.new(scoped_manager, PayrollLineItem).resolve
+        expect(scope).to include(managed_item)
+        # employee from branch (from outer `before`) is not in scoped_manager's branches
+        expect(scope).not_to include(line_item)
+      end
+    end
   end
 end
