@@ -51,7 +51,7 @@
 
     <% if current_user.can?(:view_payroll) || current_user.owner? || current_user.manages_branch? || current_user.manages_area? %>
       <%= link_to payroll_periods_path,
-            class: "sidebar__nav-item #{controller_name == 'payroll_periods' || controller_name == 'payroll_entries' && !request.path.start_with?('/admin') ? 'is-active' : ''}",
+            class: "sidebar__nav-item #{controller_name.in?(%w[payroll_periods payroll_entries payroll_adjustments payroll_line_items]) ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         <%= t("nav.payroll") %>
@@ -124,15 +124,6 @@
               data: { action: "click->sidebar#close" } do %>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
           <%= t("nav.attendance_import") %>
-        <% end %>
-      <% end %>
-
-      <% if current_user.owner? || current_user.can?(:view_payroll) %>
-        <%= link_to admin_payroll_periods_path,
-              class: "sidebar__nav-item #{request.path.start_with?('/admin/payroll') ? 'is-active' : ''}",
-              data: { action: "click->sidebar#close" } do %>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-          <%= t("nav.payroll") %>
         <% end %>
       <% end %>
 

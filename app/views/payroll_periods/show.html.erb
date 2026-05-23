@@ -15,6 +15,7 @@
         <span class="badge badge-warning"><%= t("payroll.show.pending_count", count: @total_pending) %></span>
       <% end %>
 
+      <%# Submit for review (payroll manager / owner, draft only) %>
       <% if policy(@period).submit_for_review? && @period.draft? %>
         <%= button_to t("payroll.submit_for_review"),
               submit_for_review_payroll_period_path(@period),
@@ -37,7 +38,16 @@
         <% end %>
       <% end %>
 
-      <%# Super admin: finalize %>
+      <%# Regenerate (owner only, draft only) %>
+      <% if policy(@period).regenerate? && @period.draft? %>
+        <%= button_to t("payroll.regenerate"),
+              regenerate_payroll_period_path(@period),
+              method: :patch,
+              class: "btn btn-secondary btn-sm",
+              data: { turbo_confirm: t("payroll.confirm.regenerate") } %>
+      <% end %>
+
+      <%# Finalize (owner / finalize_payroll role, after reviews complete) %>
       <% if policy(@period).finalize? && (@period.branch_review_completed? || @period.under_review?) %>
         <%= button_to t("payroll.finalize"),
               finalize_payroll_period_path(@period),
@@ -45,10 +55,28 @@
               class: "btn btn-accent",
               data: { turbo_confirm: @period.under_review? ? t("payroll.confirm.finalize_under_review") : t("payroll.confirm.finalize") } %>
       <% end %>
+
+      <%# Mark as Paid (owner only, finalized only) %>
+      <% if policy(@period).mark_paid? && @period.finalized? %>
+        <%= button_to t("payroll.mark_paid"),
+              mark_paid_payroll_period_path(@period),
+              method: :patch,
+              class: "btn btn-primary",
+              data: { turbo_confirm: t("payroll.confirm.mark_paid") } %>
+      <% end %>
+
+      <%# Delete (owner only, draft only) %>
+      <% if policy(@period).destroy? %>
+        <%= button_to t("payroll.delete"),
+              payroll_period_path(@period),
+              method: :delete,
+              class: "btn btn-danger btn-sm",
+              data: { turbo_confirm: t("payroll.confirm.delete") } %>
+      <% end %>
     </div>
   </div>
 
-  <%# Branch review status for branch managers %>
+  <%# Branch review status notice for branch managers (their branches only) %>
   <% if @branch_reviews_for_manager&.any? %>
     <% all_complete = @branch_reviews_for_manager.all?(&:completed?) %>
     <div class="alert <%= all_complete ? 'alert-success' : 'alert-warning' %>" style="margin-bottom: 1rem;">
@@ -72,6 +100,42 @@
     </div>
   <% end %>
 
+  <%# Full branch review progress table (owner only) %>
+  <% if current_user.owner? && @all_branch_reviews&.any? %>
+    <div class="section-card" style="margin-bottom: 1.5rem;">
+      <h3 class="section-title"><%= t("payroll.show.branch_review_progress") %></h3>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("payroll.branch") %></th>
+              <th><%= t("payroll.show.reviewer") %></th>
+              <th><%= t("payroll.status") %></th>
+              <th><%= t("payroll.show.completed") %></th>
+              <th><%= t("payroll.show.notes") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @all_branch_reviews.each do |br| %>
+              <tr>
+                <td><%= br.branch.name %></td>
+                <td><%= br.reviewer.full_name %></td>
+                <td>
+                  <span class="badge <%= br.completed? ? 'badge-success' : 'badge-warning' %>">
+                    <%= t("payroll.branch_review_statuses.#{br.status}") %>
+                  </span>
+                </td>
+                <td class="td-secondary"><%= br.completed_at&.strftime("%b %d, %Y %H:%M") || "—" %></td>
+                <td class="td-secondary"><%= br.notes.presence || "—" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Payroll entries table %>
   <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
@@ -129,5 +193,36 @@
       <% end %>
     </table>
   </div>
+
+  <%# Audit log (owner only) %>
+  <% if current_user.owner? && @audit_logs&.any? %>
+    <div class="section-card" style="margin-top: 2rem;">
+      <h3 class="section-title"><%= t("payroll.show.audit_history") %></h3>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("payroll.actions") %></th>
+              <th><%= t("payroll.show.actor") %></th>
+              <th><%= t("payroll.show.from_col") %></th>
+              <th><%= t("payroll.show.to_col") %></th>
+              <th><%= t("payroll.show.date_col") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @audit_logs.each do |log| %>
+              <tr>
+                <td><%= t("payroll.audit_log_action_types.#{log.action_type}") %></td>
+                <td><%= log.actor.full_name %></td>
+                <td class="td-secondary"><%= log.from_status ? t("payroll.statuses.#{log.from_status}") : "—" %></td>
+                <td class="td-secondary"><%= log.to_status ? t("payroll.statuses.#{log.to_status}") : "—" %></td>
+                <td class="td-secondary"><%= log.created_at.strftime("%b %d, %Y %H:%M") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
 
 </div>

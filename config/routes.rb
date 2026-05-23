@@ -106,16 +106,6 @@ Rails.application.routes.draw do
 
     resources :biometric_punch_logs, only: [ :index, :show ]
 
-    resources :payroll_periods, only: [ :index, :show ] do
-      member do
-        patch :finalize
-        patch :mark_paid
-        patch :regenerate
-        delete :destroy
-      end
-      resources :payroll_entries, only: [ :index, :show, :update ]
-    end
-
     resources :permission_roles do
       member do
         post   :assign_user
@@ -165,11 +155,13 @@ Rails.application.routes.draw do
     end
   end
 
-  resources :payroll_periods, only: [ :index, :show, :new, :create ] do
+  resources :payroll_periods, only: [ :index, :show, :new, :create, :destroy ] do
     member do
       patch :submit_for_review
       patch :complete_branch_review
       patch :finalize
+      patch :mark_paid
+      patch :regenerate
     end
     resources :payroll_entries, only: [ :show ] do
       resources :payroll_line_items, only: [] do

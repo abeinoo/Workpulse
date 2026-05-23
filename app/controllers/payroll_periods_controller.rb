@@ -43,6 +43,14 @@ class PayrollPeriodsController < ApplicationController
     @total_pending = @pending_counts.values.sum
 
     @branch_reviews_for_manager = manager_branch_reviews
+
+    # Owners see the full branch review table and audit log
+    if current_user.owner?
+      @all_branch_reviews = @period.payroll_period_branch_reviews
+                                   .includes(:branch, :reviewer)
+                                   .order("branches.name")
+      @audit_logs = @period.payroll_audit_logs.includes(:actor).order(created_at: :asc)
+    end
   end
 
   def new
@@ -121,6 +129,48 @@ class PayrollPeriodsController < ApplicationController
     else
       redirect_to payroll_period_path(@period), alert: result.error
     end
+  end
+
+  def mark_paid
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :mark_paid?
+
+    result = Payroll::Approver.advance(period: @period, by: current_user)
+    if result.success?
+      redirect_to payroll_period_path(@period), notice: t("flash.period_paid")
+    else
+      redirect_to payroll_period_path(@period), alert: result.error
+    end
+  end
+
+  def regenerate
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :regenerate?
+
+    result = Payroll::Regenerator.call(period: @period, regenerated_by: current_user)
+    if result.success?
+      redirect_to payroll_period_path(result.period), notice: t("flash.payroll_regenerated")
+    else
+      redirect_to payroll_period_path(@period), alert: result.error
+    end
+  end
+
+  def destroy
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :destroy?
+
+    PayrollAuditLog.create!(
+      payroll_period: @period,
+      actor:          current_user,
+      action_type:    :deleted,
+      from_status:    @period.status,
+      to_status:      nil,
+      metadata:       JSON.generate(period_label: @period.period_label, deleted_at: Time.current.iso8601)
+    )
+    @period.destroy!
+    redirect_to payroll_periods_path, notice: t("flash.payroll_period_deleted")
+  rescue StandardError => e
+    redirect_to payroll_period_path(@period), alert: e.message
   end
 
   private
