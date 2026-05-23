@@ -5,7 +5,11 @@ en:
   nav:
     dashboard: "Dashboard"
     shifts: "Shifts"
+    shift_assignments: "Shift Assignments"
+    shift_types: "Shift Types"
     attendance: "Attendance"
+    attendance_logs: "Attendance Logs"
+    attendance_import: "Attendance Import"
     my_attendance: "My Attendance"
     requests: "Requests"
     adjustments: "Adjustments"
@@ -580,12 +584,12 @@ en:
       hour_based: "Flexible Hours"
     overnight_badge: "Overnight"
     index:
-      title: "Shifts"
-      page_title: "Shifts — WorkPulse"
+      title: "Shift Types"
+      page_title: "Shift Types — WorkPulse"
     show:
       title: "Shift Details"
       page_title: "%{name} — WorkPulse"
-      back: "Shifts"
+      back: "Shift Types"
       no_rules: "No penalty rules have been configured for this shift."
     name: "Name"
     type: "Type"
@@ -663,6 +667,75 @@ en:
     deduction_types:
       fixed_amount: "Fixed Amount"
       percentage_of_daily: "% of Daily Rate"
+
+  attendance_imports:
+    new:
+      title: "Attendance Import"
+      page_title: "Attendance Import — WorkPulse"
+    show:
+      page_title: "Import #%{id} — WorkPulse"
+      back: "Attendance Import"
+      pending_title: "Import Preview"
+      completed_title: "Import Complete"
+      total_rows: "Total rows"
+      valid_rows: "Rows to import"
+      invalid_rows: "Rows with errors"
+      imported_rows: "Imported"
+      status: "Status"
+      imported_by: "Imported by"
+      imported_at: "Imported at"
+      confirm_hint:
+        one: "1 row will be created. Review below, then confirm."
+        other: "%{count} rows will be created. Review below, then confirm."
+      confirm_btn: "Confirm Import"
+      cancel_btn: "Cancel"
+      no_valid_rows: "No valid rows found. Please fix the errors and upload a new file."
+      download_failed: "Download failed rows CSV"
+      valid_rows_title:
+        one: "1 row to import"
+        other: "%{count} rows to import"
+      error_rows_title:
+        one: "1 row with errors (will be skipped)"
+        other: "%{count} rows with errors (will be skipped)"
+    template:
+      download: "Download Template"
+    upload:
+      description: "Upload a CSV file exported from your biometric device or HR system. Valid rows are imported immediately; invalid rows are skipped and listed below for correction."
+      drag_hint: "Drag and drop a CSV file here, or click Browse"
+      no_file: "No file selected"
+      browse: "Browse"
+      required_columns: "Required columns"
+      optional_columns: "Optional column"
+      datetime_format: "Datetime format"
+      submit: "Upload & Preview"
+    preview:
+      employee: "Employee"
+      employee_code: "Employee Code"
+      work_date: "Work Date"
+      check_in: "Check In"
+      check_out: "Check Out"
+      error: "Error(s)"
+    history:
+      title: "Import History"
+      filename: "File"
+      imported_by: "Imported By"
+      total_rows: "Total"
+      imported_rows: "Imported"
+      failed_rows: "Failed"
+      status: "Status"
+      imported_at: "Date"
+    statuses:
+      pending: "Pending"
+      completed: "Completed"
+      failed: "Failed"
+    errors:
+      no_file: "Please select a CSV file to upload."
+      invalid_type: "Only CSV files are accepted (.csv)."
+      invalid_headers: "Cannot read file: %{error}"
+    flash:
+      confirmed:
+        one: "1 attendance record imported successfully."
+        other: "%{count} attendance records imported successfully."
 
   salary_profiles:
     new:
@@ -813,8 +886,8 @@ en:
       manage_employees_sub: "View, add, and edit employee records"
       branches_link: "Branches"
       branches_sub: "Manage branch locations"
-      shifts_schedules: "Shifts & Schedules"
-      shifts_schedules_sub: "Configure work shifts and penalty rules"
+      shifts_schedules: "Shift Types"
+      shifts_schedules_sub: "Configure shift types and penalty rules"
       attendance_records: "Attendance Records"
       attendance_records_sub: "Review and adjust check-in/out logs"
     users:
@@ -967,7 +1040,7 @@ en:
       no_checkins: "No check-ins yet today"
       no_checkins_hint: "Records will appear as employees clock in."
       shift_assignments: "Shift Assignments"
-      manage_shifts: "Manage shifts"
+      manage_shifts: "Shift Types"
       shift: "Shift"
       working_hours: "Working Hours"
       penalty_rules_col: "Penalty Rules"
@@ -1152,9 +1225,9 @@ en:
         approve_adjustments: "Approve Adjustments"
         view_requests: "View Requests"
         approve_requests: "Approve / Reject Requests"
-        view_shifts: "View Shifts"
-        manage_shifts: "Manage Shifts"
-        assign_shifts: "Assign Shifts"
+        view_shifts: "View Shift Types"
+        manage_shifts: "Manage Shift Types"
+        assign_shifts: "Assign Shifts to Employees"
         view_reports: "View Reports"
         export_reports: "Export Reports"
         manage_settings: "Manage Business Settings"
@@ -1181,8 +1254,8 @@ en:
         approve_adjustments: "Approve or reject pending adjustments"
         view_requests: "View all employee requests"
         approve_requests: "Approve or reject employee requests"
-        view_shifts: "View shift schedules"
-        manage_shifts: "Create and edit shift configurations"
+        view_shifts: "View shift type configurations"
+        manage_shifts: "Create and edit shift type configurations"
         assign_shifts: "Assign employees to shifts"
         view_reports: "Access attendance and payroll reports"
         export_reports: "Export reports to CSV"

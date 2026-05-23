@@ -107,6 +107,15 @@ module ApplicationHelper
     end
   end
 
+  def import_status_badge(status)
+    case status.to_s
+    when "completed" then "badge-success"
+    when "pending"   then "badge-warning"
+    when "failed"    then "badge-neutral"
+    else                  "badge-neutral"
+    end
+  end
+
   def obligation_status_badge(status)
     case status.to_s
     when "active"    then "badge-success"

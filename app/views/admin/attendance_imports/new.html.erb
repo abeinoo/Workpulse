@@ -1,0 +1,114 @@
+<% content_for :title, t("attendance_imports.new.page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("attendance_imports.new.title") %></h1>
+    <%= link_to t("attendance_imports.template.download"),
+          template_admin_attendance_imports_path,
+          class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <%# ── Upload card ─────────────────────────────────────────────────────────── %>
+
+  <div class="form-card" style="margin-bottom: 2rem;">
+
+    <p class="text-muted" style="margin-bottom: 1.25rem;">
+      <%= t("attendance_imports.upload.description") %>
+    </p>
+
+    <%= form_with url: admin_attendance_imports_path, method: :post,
+                  multipart: true, data: { controller: "file-upload" } do |f| %>
+
+      <div class="file-upload-area"
+           data-file-upload-target="dropzone"
+           data-action="dragover->file-upload#dragover dragleave->file-upload#dragleave drop->file-upload#drop">
+
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true" style="margin-bottom: 0.75rem; opacity: 0.5;">
+          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+        </svg>
+
+        <p class="file-upload-area__hint"><%= t("attendance_imports.upload.drag_hint") %></p>
+        <p class="file-upload-area__filename" data-file-upload-target="label">
+          <%= t("attendance_imports.upload.no_file") %>
+        </p>
+
+        <label class="btn btn-ghost btn-sm" style="margin-top: 0.75rem; cursor: pointer;">
+          <%= t("attendance_imports.upload.browse") %>
+          <%= f.file_field :file, accept: ".csv,text/csv",
+                class: "visually-hidden",
+                data: { file_upload_target: "input", action: "change->file-upload#pick" } %>
+        </label>
+      </div>
+
+      <div class="info-card" style="margin: 1rem 0 1.25rem;">
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance_imports.upload.required_columns") %></span>
+          <code>employee_code, check_in_at</code>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance_imports.upload.optional_columns") %></span>
+          <code>check_out_at</code>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance_imports.upload.datetime_format") %></span>
+          <code>YYYY-MM-DD HH:MM</code>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <%= f.submit t("attendance_imports.upload.submit"), class: "btn btn-primary" %>
+      </div>
+
+    <% end %>
+  </div>
+
+  <%# ── Import history ──────────────────────────────────────────────────────── %>
+
+  <% if @recent_imports.any? %>
+    <h2 class="section-title"><%= t("attendance_imports.history.title") %></h2>
+
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("attendance_imports.history.filename") %></th>
+            <th><%= t("attendance_imports.history.imported_by") %></th>
+            <th><%= t("attendance_imports.history.total_rows") %></th>
+            <th><%= t("attendance_imports.history.imported_rows") %></th>
+            <th><%= t("attendance_imports.history.failed_rows") %></th>
+            <th><%= t("attendance_imports.history.status") %></th>
+            <th><%= t("attendance_imports.history.imported_at") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @recent_imports.each do |log| %>
+            <tr>
+              <td class="td-mono"><%= log.filename %></td>
+              <td class="td-secondary"><%= log.imported_by.full_name %></td>
+              <td class="td-secondary"><%= log.total_rows %></td>
+              <td class="td-secondary"><%= log.imported_rows %></td>
+              <td class="<%= log.failed_rows_count > 0 ? 'text-danger' : 'td-secondary' %>">
+                <%= log.failed_rows_count %>
+              </td>
+              <td>
+                <span class="badge <%= import_status_badge(log.status) %>">
+                  <%= t("attendance_imports.statuses.#{log.status}") %>
+                </span>
+              </td>
+              <td class="td-secondary"><%= l(log.created_at, format: :short) %></td>
+              <td class="td-actions">
+                <%= link_to t("forms.view"), admin_attendance_import_path(log), class: "link-muted" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+</div>

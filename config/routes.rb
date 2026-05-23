@@ -88,6 +88,16 @@ Rails.application.routes.draw do
 
     resources :attendance_records, only: [ :index, :show, :update ]
 
+    resources :attendance_imports, only: [ :new, :create, :show ] do
+      member do
+        patch :confirm
+        get   :failed_rows
+      end
+      collection do
+        get :template
+      end
+    end
+
     resources :biometric_devices do
       member do
         patch :regenerate_token

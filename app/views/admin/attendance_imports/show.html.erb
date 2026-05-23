@@ -1,0 +1,177 @@
+<% content_for :title, t("attendance_imports.show.page_title", id: @import.id) %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <%= link_to new_admin_attendance_import_path, class: "back-link" do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <%= t("attendance_imports.show.back") %>
+    <% end %>
+
+    <h1 class="page-title">
+      <% if @import.pending? %>
+        <%= t("attendance_imports.show.pending_title") %>
+      <% else %>
+        <%= t("attendance_imports.show.completed_title") %>
+      <% end %>
+    </h1>
+    <p class="page-subtitle"><%= @import.filename %></p>
+  </div>
+
+  <%# ── Summary strip ───────────────────────────────────────────────────────── %>
+
+  <div class="info-card" style="margin-bottom: 1.5rem;">
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance_imports.show.total_rows") %></span>
+      <span><%= @import.total_rows %></span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance_imports.show.valid_rows") %></span>
+      <span class="<%= @import.valid_preview_rows.size > 0 ? 'text-success' : '' %>">
+        <%= @import.valid_preview_rows.size %>
+      </span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance_imports.show.invalid_rows") %></span>
+      <span class="<%= @import.invalid_preview_rows.size > 0 ? 'text-danger' : '' %>">
+        <%= @import.invalid_preview_rows.size %>
+      </span>
+    </div>
+    <% if @import.completed? %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance_imports.show.imported_rows") %></span>
+        <span class="text-success"><%= @import.imported_rows %></span>
+      </div>
+    <% end %>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance_imports.show.status") %></span>
+      <span class="badge <%= import_status_badge(@import.status) %>">
+        <%= t("attendance_imports.statuses.#{@import.status}") %>
+      </span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance_imports.show.imported_by") %></span>
+      <span><%= @import.imported_by.full_name %></span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance_imports.show.imported_at") %></span>
+      <span><%= l(@import.created_at, format: :long) %></span>
+    </div>
+  </div>
+
+  <%# ── Confirm / download strip (pending) ─────────────────────────────────── %>
+
+  <% if @import.pending? %>
+    <% if @import.valid_preview_rows.any? %>
+      <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+        <%= t("attendance_imports.show.confirm_hint",
+              count: @import.valid_preview_rows.size) %>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 2rem;">
+        <%= button_to t("attendance_imports.show.confirm_btn"),
+              confirm_admin_attendance_import_path(@import),
+              method: :patch,
+              class: "btn btn-primary" %>
+        <%= link_to t("attendance_imports.show.cancel_btn"),
+              new_admin_attendance_import_path,
+              class: "btn btn-ghost" %>
+      </div>
+    <% else %>
+      <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+        <%= t("attendance_imports.show.no_valid_rows") %>
+      </div>
+      <%= link_to t("attendance_imports.show.cancel_btn"),
+            new_admin_attendance_import_path, class: "btn btn-ghost",
+            style: "margin-bottom: 2rem; display: inline-block;" %>
+    <% end %>
+  <% end %>
+
+  <%# ── Download failed rows (completed) ───────────────────────────────────── %>
+
+  <% if @import.completed? && @import.any_failed? %>
+    <div style="margin-bottom: 2rem;">
+      <%= link_to t("attendance_imports.show.download_failed"),
+            failed_rows_admin_attendance_import_path(@import),
+            class: "btn btn-ghost btn-sm" %>
+    </div>
+  <% end %>
+
+  <%# ── Valid rows preview table ────────────────────────────────────────────── %>
+
+  <% if @import.valid_preview_rows.any? %>
+    <h2 class="section-title">
+      <%= t("attendance_imports.show.valid_rows_title",
+            count: @import.valid_preview_rows.size) %>
+    </h2>
+
+    <div class="table-wrap table-wrap--cards" style="margin-bottom: 2rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th><%= t("attendance_imports.preview.employee") %></th>
+            <th><%= t("attendance_imports.preview.work_date") %></th>
+            <th><%= t("attendance_imports.preview.check_in") %></th>
+            <th><%= t("attendance_imports.preview.check_out") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @import.valid_preview_rows.each do |row| %>
+            <tr>
+              <td class="td-secondary"><%= row["row"] %></td>
+              <td>
+                <%= row["employee_name"] %>
+                <span class="td-secondary"> #<%= row["employee_code"] %></span>
+              </td>
+              <td class="td-secondary"><%= row["work_date"] %></td>
+              <td class="td-secondary"><%= row["check_in_at"] %></td>
+              <td class="td-secondary"><%= row["check_out_at"].presence || "—" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <%# ── Invalid rows / errors table ─────────────────────────────────────────── %>
+
+  <% all_errors = @import.invalid_preview_rows + @import.failed_import_rows %>
+  <% if all_errors.any? %>
+    <h2 class="section-title text-danger">
+      <%= t("attendance_imports.show.error_rows_title", count: all_errors.size) %>
+    </h2>
+
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th><%= t("attendance_imports.preview.employee_code") %></th>
+            <th><%= t("attendance_imports.preview.check_in") %></th>
+            <th><%= t("attendance_imports.preview.check_out") %></th>
+            <th><%= t("attendance_imports.preview.error") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% all_errors.each do |row| %>
+            <tr>
+              <td class="td-secondary"><%= row["row"] %></td>
+              <td class="td-secondary"><%= row["employee_code"] %></td>
+              <td class="td-secondary"><%= row["check_in_at"] %></td>
+              <td class="td-secondary"><%= row["check_out_at"].presence || "—" %></td>
+              <td class="text-danger">
+                <% errs = row["errors"].presence || [ row["error"] ] %>
+                <%= errs.compact.join(" · ") %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+</div>

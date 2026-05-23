@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_23_200001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_23_300001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -39,6 +39,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_23_200001) do
     t.index ["adjusted_by_id"], name: "index_attendance_adjustments_on_adjusted_by_id"
     t.index ["attendance_record_id", "created_at"], name: "idx_on_attendance_record_id_created_at_e057bc440f"
     t.index ["attendance_record_id"], name: "index_attendance_adjustments_on_attendance_record_id"
+  end
+
+  create_table "attendance_import_logs", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "failed_rows_count", default: 0, null: false
+    t.string "filename", null: false
+    t.bigint "imported_by_id", null: false
+    t.integer "imported_rows", default: 0, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_rows", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "created_at"], name: "index_attendance_import_logs_on_business_id_and_created_at"
+    t.index ["business_id"], name: "index_attendance_import_logs_on_business_id"
+    t.index ["imported_by_id"], name: "index_attendance_import_logs_on_imported_by_id"
   end
 
   create_table "attendance_records", force: :cascade do |t|
@@ -625,6 +641,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_23_200001) do
   add_foreign_key "advances", "users"
   add_foreign_key "attendance_adjustments", "attendance_records"
   add_foreign_key "attendance_adjustments", "users", column: "adjusted_by_id"
+  add_foreign_key "attendance_import_logs", "businesses"
+  add_foreign_key "attendance_import_logs", "users", column: "imported_by_id"
   add_foreign_key "attendance_records", "branches"
   add_foreign_key "attendance_records", "shift_assignments"
   add_foreign_key "attendance_records", "users"

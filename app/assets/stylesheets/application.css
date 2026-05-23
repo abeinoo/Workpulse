@@ -4457,3 +4457,81 @@ details:not([open]) .permission-group__chevron {
 [dir="rtl"] .already-paid-accounting-note {
   text-align: right;
 }
+
+/* ── Alert boxes ────────────────────────────────────────────────────────────── */
+.alert {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.alert-info {
+  background: var(--accent-muted);
+  border: 1px solid rgba(84, 198, 249, 0.25);
+  color: var(--accent);
+}
+.alert-warning {
+  background: var(--warning-muted);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--warning);
+}
+.alert-success {
+  background: var(--success-muted);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: var(--success);
+}
+.alert-danger {
+  background: var(--danger-muted, rgba(239, 68, 68, 0.08));
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--danger);
+}
+
+/* ── File upload area ───────────────────────────────────────────────────────── */
+.file-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+  cursor: default;
+}
+.file-upload-area--active,
+.file-upload-area:has(input:focus-visible) {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+}
+.file-upload-area__hint {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  margin: 0 0 0.25rem;
+}
+.file-upload-area__filename {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+.file-upload-area__filename--selected {
+  color: var(--accent);
+}
+
+/* ── Utility ────────────────────────────────────────────────────────────────── */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.td-mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+}

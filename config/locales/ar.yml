@@ -5,7 +5,11 @@ ar:
   nav:
     dashboard: "لوحة التحكم"
     shifts: "الورديات"
+    shift_assignments: "تعيينات الورديات"
+    shift_types: "أنواع الورديات"
     attendance: "الحضور"
+    attendance_logs: "سجلات الحضور والانصراف"
+    attendance_import: "استيراد سجلات الحضور"
     my_attendance: "حضوري"
     requests: "الطلبات"
     adjustments: "التسويات"
@@ -532,22 +536,22 @@ ar:
 
   shift_assignments:
     index:
-      title: "توزيع الورديات"
-      page_title: "توزيع الورديات — ووركبلس"
+      title: "تعيينات الورديات"
+      page_title: "تعيينات الورديات — ووركبلس"
     new:
       title: "تعيين وردية"
       page_title: "تعيين وردية — ووركبلس"
       submit: "حفظ التعيين"
-      back: "الرجوع لتوزيع الورديات"
+      back: "الرجوع لتعيينات الورديات"
     edit:
       title: "تعديل التعيين"
       page_title: "تعديل التعيين — ووركبلس"
       submit: "تحديث التعيين"
-      back: "الرجوع لتوزيع الورديات"
+      back: "الرجوع لتعيينات الورديات"
     end:
       page_title: "إنهاء التعيين — ووركبلس"
       title: "إنهاء التعيين"
-      back: "الرجوع لتوزيع الورديات"
+      back: "الرجوع لتعيينات الورديات"
       end_date_label: "تاريخ الإنهاء"
       end_date_hint: "يصبح التعيين غير نشط بعد هذا التاريخ. تُحفظ جميع سجلات الحضور والرواتب التاريخية."
       confirm_btn: "تأكيد الإنهاء"
@@ -580,12 +584,12 @@ ar:
       hour_based: "وردية مرنة"
     overnight_badge: "ليلية"
     index:
-      title: "الورديات"
-      page_title: "الورديات — ووركبلس"
+      title: "أنواع الورديات"
+      page_title: "أنواع الورديات — ووركبلس"
     show:
       title: "تفاصيل الوردية"
       page_title: "%{name} — ووركبلس"
-      back: "الورديات"
+      back: "أنواع الورديات"
       no_rules: "لم تُضَف أي قواعد غرامات لهذه الوردية."
     name: "الاسم"
     type: "النوع"
@@ -663,6 +667,75 @@ ar:
     deduction_types:
       fixed_amount: "مبلغ ثابت"
       percentage_of_daily: "% من اليومية"
+
+  attendance_imports:
+    new:
+      title: "استيراد سجلات الحضور"
+      page_title: "استيراد سجلات الحضور — ووركبلس"
+    show:
+      page_title: "استيراد رقم %{id} — ووركبلس"
+      back: "استيراد سجلات الحضور"
+      pending_title: "معاينة الاستيراد"
+      completed_title: "اكتمل الاستيراد"
+      total_rows: "إجمالي الصفوف"
+      valid_rows: "الصفوف الصالحة"
+      invalid_rows: "صفوف بها أخطاء"
+      imported_rows: "تم استيرادها"
+      status: "الحالة"
+      imported_by: "استورد بواسطة"
+      imported_at: "وقت الاستيراد"
+      confirm_hint:
+        one: "سيتم إنشاء سجل واحد. راجع البيانات أدناه ثم أكّد."
+        other: "سيتم إنشاء %{count} سجلاً. راجع البيانات أدناه ثم أكّد."
+      confirm_btn: "تأكيد الاستيراد"
+      cancel_btn: "إلغاء"
+      no_valid_rows: "لا توجد صفوف صالحة. يرجى تصحيح الأخطاء ورفع ملف جديد."
+      download_failed: "تنزيل صفوف الأخطاء (CSV)"
+      valid_rows_title:
+        one: "صف واحد سيتم استيراده"
+        other: "%{count} صفوف ستُستورد"
+      error_rows_title:
+        one: "صف واحد به خطأ (سيُتخطّى)"
+        other: "%{count} صفوف بها أخطاء (ستُتخطّى)"
+    template:
+      download: "تنزيل النموذج"
+    upload:
+      description: "ارفع ملف CSV مُصدَّرًا من جهازك البيومتري أو نظام الموارد البشرية. تُستورد الصفوف الصحيحة مباشرةً، وتُتخطّى الصفوف غير الصحيحة مع عرض تفاصيل الأخطاء."
+      drag_hint: "اسحب وأفلت ملف CSV هنا، أو اضغط استعراض"
+      no_file: "لم يُختر ملف"
+      browse: "استعراض"
+      required_columns: "الأعمدة المطلوبة"
+      optional_columns: "العمود الاختياري"
+      datetime_format: "صيغة التاريخ والوقت"
+      submit: "رفع ومعاينة"
+    preview:
+      employee: "الموظف"
+      employee_code: "كود الموظف"
+      work_date: "تاريخ العمل"
+      check_in: "الدخول"
+      check_out: "الخروج"
+      error: "الأخطاء"
+    history:
+      title: "سجل الاستيرادات"
+      filename: "الملف"
+      imported_by: "استورد بواسطة"
+      total_rows: "الإجمالي"
+      imported_rows: "المُستورَد"
+      failed_rows: "الفاشل"
+      status: "الحالة"
+      imported_at: "التاريخ"
+    statuses:
+      pending: "قيد الانتظار"
+      completed: "مكتمل"
+      failed: "فشل"
+    errors:
+      no_file: "يرجى اختيار ملف CSV للرفع."
+      invalid_type: "يُقبل ملفات CSV فقط (.csv)."
+      invalid_headers: "تعذّر قراءة الملف: %{error}"
+    flash:
+      confirmed:
+        one: "تم استيراد سجل حضور واحد بنجاح."
+        other: "تم استيراد %{count} سجل حضور بنجاح."
 
   salary_profiles:
     new:
@@ -813,8 +886,8 @@ ar:
       manage_employees_sub: "عرض وإضافة وتعديل بيانات الموظفين"
       branches_link: "الفروع"
       branches_sub: "إدارة مواقع الفروع"
-      shifts_schedules: "الورديات والجداول"
-      shifts_schedules_sub: "إعداد الورديات وقواعد الغرامات"
+      shifts_schedules: "أنواع الورديات"
+      shifts_schedules_sub: "إعداد أنواع الورديات وقواعد الغرامات"
       attendance_records: "سجلات الحضور"
       attendance_records_sub: "مراجعة وتعديل سجلات الدخول والخروج"
     users:
@@ -966,8 +1039,8 @@ ar:
       late: "تأخير"
       no_checkins: "لا سجلات دخول اليوم"
       no_checkins_hint: "ستظهر السجلات عند تسجيل الموظفين حضورهم."
-      shift_assignments: "توزيع الورديات"
-      manage_shifts: "إدارة الورديات"
+      shift_assignments: "تعيينات الورديات"
+      manage_shifts: "أنواع الورديات"
       shift: "الوردية"
       working_hours: "ساعات العمل"
       penalty_rules_col: "قواعد الغرامات"
@@ -1153,9 +1226,9 @@ ar:
         approve_adjustments: "الموافقة على التسويات"
         view_requests: "عرض الطلبات"
         approve_requests: "الموافقة على الطلبات أو رفضها"
-        view_shifts: "عرض الورديات"
-        manage_shifts: "إدارة الورديات"
-        assign_shifts: "تعيين الورديات"
+        view_shifts: "عرض أنواع الورديات"
+        manage_shifts: "إدارة أنواع الورديات"
+        assign_shifts: "تعيين الموظفين للورديات"
         view_reports: "عرض التقارير"
         export_reports: "تصدير التقارير"
         manage_settings: "إدارة إعدادات المنشأة"
@@ -1182,8 +1255,8 @@ ar:
         approve_adjustments: "الموافقة على التسويات أو رفضها"
         view_requests: "عرض جميع طلبات الموظفين"
         approve_requests: "الموافقة على طلبات الموظفين أو رفضها"
-        view_shifts: "عرض جداول الورديات"
-        manage_shifts: "إنشاء إعدادات الورديات وتعديلها"
+        view_shifts: "عرض إعدادات أنواع الورديات"
+        manage_shifts: "إنشاء أنواع الورديات وتعديلها"
         assign_shifts: "تعيين الموظفين للورديات"
         view_reports: "الوصول إلى تقارير الحضور والرواتب"
         export_reports: "تصدير التقارير بصيغة CSV"
