@@ -14,10 +14,24 @@ local:
 #   R2_BUCKET             — bucket name (e.g. "workpulse-storage")
 #   R2_ENDPOINT           — account endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 #
-# R2 notes:
-#   - region must be "auto" (R2 ignores region, but the SDK requires a value)
-#   - force_path_style: true is required (R2 does not support virtual-hosted-style URLs)
-#   - checksum_algorithm: ~ disables the x-amz-checksum-* headers that R2 rejects
+# R2 compatibility notes:
+#   region: "auto"        — R2 ignores region but the SDK requires a non-empty value
+#   force_path_style:true — R2 does not support virtual-hosted-style URLs
+#
+#   request_checksum_calculation: "when_required"
+#     aws-sdk-s3 >= 1.100 defaults to "when_supported", which makes the SDK
+#     middleware automatically inject an x-amz-checksum-crc32 header into every
+#     put_object call (because put_object "supports" flexible checksums).
+#     Rails' upload_with_single_part also sends Content-MD5 for integrity.
+#     R2 rejects the request when it sees more than one non-default checksum:
+#       Aws::S3::Errors::InvalidRequest: You can only specify one non-default
+#       checksum at a time
+#     Setting "when_required" stops the SDK from injecting checksums
+#     automatically; Content-MD5 continues to work normally.
+#
+#   upload.checksum_algorithm: ~
+#     Prevents Rails from passing checksum_algorithm: :crc32 at the API call
+#     level. Belt-and-suspenders alongside request_checksum_calculation.
 cloudflare:
   service: S3
   access_key_id:     <%= ENV["R2_ACCESS_KEY_ID"] %>
@@ -26,5 +40,7 @@ cloudflare:
   bucket:            <%= ENV["R2_BUCKET"] %>
   endpoint:          <%= ENV["R2_ENDPOINT"] %>
   force_path_style:  true
+  request_checksum_calculation: "when_required"
+  response_checksum_validation: "when_supported"
   upload:
     checksum_algorithm: ~
