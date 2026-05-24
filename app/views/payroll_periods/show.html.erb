@@ -79,13 +79,13 @@
   <%# Branch review status notice for branch managers (their branches only) %>
   <% if @branch_reviews_for_manager&.any? %>
     <% all_complete = @branch_reviews_for_manager.all?(&:completed?) %>
-    <div class="alert <%= all_complete ? 'alert-success' : 'alert-warning' %>" style="margin-bottom: 1rem;">
+    <div class="alert <%= all_complete ? 'alert-success' : 'alert-warning' %>">
       <% if @branch_reviews_for_manager.size == 1 %>
         <%= all_complete ? t("payroll.show.area_all_reviewed") : t("payroll.show.branch_review_notice") %>
       <% else %>
-        <div style="display: flex; flex-direction: column; gap: 0.375rem;">
+        <div class="branch-review-list">
           <% @branch_reviews_for_manager.each do |br| %>
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+            <div class="branch-review-row">
               <span><%= br.branch.name %></span>
               <span class="badge <%= br.completed? ? 'badge-success' : 'badge-warning' %>">
                 <%= t("payroll.branch_review_statuses.#{br.status}") %>
@@ -94,7 +94,7 @@
           <% end %>
         </div>
         <% unless all_complete %>
-          <p style="margin: 0.5rem 0 0; font-size: var(--text-sm);"><%= t("payroll.show.branch_review_notice") %></p>
+          <p class="mt-2 text-sm"><%= t("payroll.show.branch_review_notice") %></p>
         <% end %>
       <% end %>
     </div>
@@ -102,7 +102,7 @@
 
   <%# Full branch review progress table (owner only) %>
   <% if current_user.owner? && @all_branch_reviews&.any? %>
-    <div class="section-card" style="margin-bottom: 1.5rem;">
+    <div class="section-card">
       <h3 class="section-title"><%= t("payroll.show.branch_review_progress") %></h3>
       <div class="table-wrap table-wrap--cards">
         <table>
@@ -196,7 +196,7 @@
 
   <%# Audit log (owner only) %>
   <% if current_user.owner? && @audit_logs&.any? %>
-    <div class="section-card" style="margin-top: 2rem;">
+    <div class="section-card section-card--top">
       <h3 class="section-title"><%= t("payroll.show.audit_history") %></h3>
       <div class="table-wrap table-wrap--cards">
         <table>

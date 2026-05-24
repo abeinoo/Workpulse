@@ -27,7 +27,7 @@
         <%= label_tag "payroll_period[month]", t("payroll.new.month"), class: "form-label form-label--required" %>
         <%= select_tag "payroll_period[month]",
               options_for_select(
-                Date::MONTHNAMES.compact.each_with_index.map { |name, i| [name, i + 1] },
+                I18n.t("date.month_names").compact.each_with_index.map { |name, i| [name, i + 1] },
                 Date.current.month
               ),
               class: "form-control" %>

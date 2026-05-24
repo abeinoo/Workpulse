@@ -18,7 +18,7 @@
     <div class="filter-form__group">
       <%= f.label :period_month, t("adjustments.month"), class: "filter-form__label" %>
       <%= f.select :period_month,
-            (1..12).map { |m| [Date::MONTHNAMES[m], m] },
+            (1..12).map { |m| [I18n.t("date.month_names")[m], m] },
             { selected: params[:period_month]&.to_i || Date.current.month },
             class: "form-control form-control--sm" %>
     </div>
