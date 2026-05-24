@@ -77,6 +77,7 @@ Rails.application.routes.draw do
       resource  :password, only: [ :edit, :update ], controller: "user_passwords"
       member do
         patch :transfer_ownership
+        patch :toggle_active
       end
     end
 

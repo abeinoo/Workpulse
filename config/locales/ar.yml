@@ -923,6 +923,7 @@ ar:
       inactive: "غير نشط"
       deactivate: "تعطيل"
       activate: "تفعيل"
+      confirm_deactivate: "تعطيل هذا الموظف؟ لن يتمكن من تسجيل الدخول."
       remove: "حذف"
       delete: "حذف"
       direct_manager: "المدير المباشر"
@@ -1444,6 +1445,9 @@ ar:
     token_regenerated: "تمت إعادة توليد الرمز. حدّث إعدادات الجهاز بالرمز الجديد."
     mobile_attendance_disabled: "البصمة من التطبيق غير مفعلة لهذا الحساب."
     ownership_transferred: "تم نقل ملكية المنشأة بنجاح."
+    user_activated: "تم تفعيل %{name}."
+    user_deactivated: "تم تعطيل %{name}."
+    cannot_deactivate_owner: "لا يمكن تعطيل مالك المنشأة."
 
   pagination:
     label: "التنقل بين الصفحات"

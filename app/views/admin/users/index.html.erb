@@ -43,10 +43,18 @@
                 <% end %>
               </td>
               <td>
-                <% if user.active? %>
-                  <span class="badge badge-success"><%= t("admin.users.active") %></span>
+                <% if policy(user).toggle_active? %>
+                  <%= button_to toggle_active_admin_user_path(user),
+                        method: :patch,
+                        form: { class: "d-inline" },
+                        data: user.active? ? { turbo_confirm: t("admin.users.confirm_deactivate") } : {},
+                        class: "btn btn-sm #{user.active? ? 'btn-success' : 'btn-neutral'}" do %>
+                    <%= user.active? ? t("admin.users.active") : t("admin.users.inactive") %>
+                  <% end %>
                 <% else %>
-                  <span class="badge badge-neutral"><%= t("admin.users.inactive") %></span>
+                  <span class="badge <%= user.active? ? 'badge-success' : 'badge-neutral' %>">
+                    <%= user.active? ? t("admin.users.active") : t("admin.users.inactive") %>
+                  </span>
                 <% end %>
               </td>
               <td>

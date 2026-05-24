@@ -1,5 +1,5 @@
 class Admin::UsersController < Admin::BaseController
-  before_action :set_user, only: [ :show, :edit, :update, :destroy, :transfer_ownership ]
+  before_action :set_user, only: [ :show, :edit, :update, :destroy, :transfer_ownership, :toggle_active ]
 
   def index
     authorize User
@@ -71,6 +71,18 @@ class Admin::UsersController < Admin::BaseController
     authorize @user
     current_user.business.update!(owner: @user)
     redirect_to admin_user_path(@user), notice: t("flash.ownership_transferred")
+  end
+
+  def toggle_active
+    authorize @user
+
+    if @user.owner?
+      return redirect_to admin_users_path, alert: t("flash.cannot_deactivate_owner")
+    end
+
+    @user.update!(active: !@user.active?)
+    flash_key = @user.active? ? :user_activated : :user_deactivated
+    redirect_to admin_users_path, notice: t("flash.#{flash_key}", name: @user.full_name)
   end
 
   private

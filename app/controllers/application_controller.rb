@@ -6,6 +6,7 @@ class ApplicationController < ActionController::Base
 
   before_action :set_locale
   before_action :configure_permitted_parameters, if: :devise_controller?
+  before_action :ensure_active_user, if: :user_signed_in?
 
   rescue_from Pundit::NotAuthorizedError, with: :handle_pundit_unauthorized
 
@@ -31,6 +32,12 @@ class ApplicationController < ActionController::Base
 
   def configure_permitted_parameters
     devise_parameter_sanitizer.permit(:sign_in, keys: [:login])
+  end
+
+  def ensure_active_user
+    return if current_user.active?
+    sign_out current_user
+    redirect_to new_user_session_path, alert: t("devise.failure.inactive")
   end
 
   def after_sign_in_path_for(resource)

@@ -963,6 +963,7 @@ tbody td {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
 }
 
 .employee-cell__name {
@@ -1527,27 +1528,38 @@ body.is-authenticated {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* Compensate for fixed mobile-header height (including safe-area inset) */
+  padding-top: var(--mobile-header-h);
+  padding-top: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
   padding-bottom: var(--bottom-nav-h);
 }
 
 @media (min-width: 1024px) {
   .app-main {
     margin-left: var(--sidebar-w);
+    padding-top: 0;
     padding-bottom: 0;
   }
 }
 
 /* --- Mobile header --------------------------------------------------- */
+/* position:fixed removes it from flow — .app-main gets padding-top to compensate.
+   sticky was broken: overflow-x:hidden on .app-shell made it a new scroll container,
+   so sticky anchored to the shell (which doesn't scroll) instead of the viewport. */
 .mobile-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: var(--mobile-header-h);
-  padding: 0 var(--space-4);
+  /* Height + top grow to cover iPhone notch / Dynamic Island */
+  height: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-inline-start: max(var(--space-4), env(safe-area-inset-left, 0px));
+  padding-inline-end:   max(var(--space-4), env(safe-area-inset-right, 0px));
   background: var(--navy-800);
   border-bottom: 1px solid var(--border);
-  position: sticky;
+  position: fixed;
   top: 0;
+  inset-inline: 0;
   z-index: 100;
   flex-shrink: 0;
 }
@@ -3489,15 +3501,10 @@ body.is-authenticated {
 [dir="rtl"] .team-member--incomplete  { border-right-color: var(--warning); }
 [dir="rtl"] .team-member--absent      { border-right-color: var(--border); }
 
-/* Team member layout: flip flex order */
-[dir="rtl"] .team-member {
-  flex-direction: row-reverse;
-}
-
-/* TD-actions: in RTL move to start (left) */
+/* TD-actions: logical alignment in RTL */
 [dir="rtl"] .td-actions {
-  text-align: left;
-  justify-content: flex-start;
+  text-align: start;
+  justify-content: flex-end;
 }
 
 /* Table links: flip spacing direction */
@@ -3522,15 +3529,6 @@ body.is-authenticated {
   text-align: right;
 }
 
-/* Admin quick-link: flip row */
-[dir="rtl"] .admin-quick-link {
-  flex-direction: row-reverse;
-}
-
-/* Mgr quick-action: flip row */
-[dir="rtl"] .mgr-quick-action {
-  flex-direction: row-reverse;
-}
 
 /* Branch picker: flip layout */
 [dir="rtl"] .branch-picker {
@@ -3781,7 +3779,7 @@ table {
    data-label attributes on <td> elements automatically.
    ============================================================ */
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   /* Disable the scroll container; cards stack vertically instead */
   .table-wrap--cards {
     border: none;
@@ -3888,14 +3886,84 @@ table {
     display: none;
   }
 
-  /* RTL: flip label/value order */
+  /* RTL: direction:rtl inherited from <html dir="rtl"> already reverses flex-row
+     order — ::before label sits at inline-start (right), value at inline-end (left).
+     Explicit row-reverse would double-flip back to LTR. */
   [dir="rtl"] .table-wrap--cards tbody td {
-    flex-direction: row-reverse;
+    text-align: end;
+  }
+
+  [dir="rtl"] .table-wrap--cards tbody td::before {
+    text-align: start;
   }
 
   [dir="rtl"] .table-wrap--cards tbody td.td-actions {
-    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  /* Empty state cell: full-width block, suppress the ::before label */
+  .table-wrap--cards tbody td.td-empty {
+    display: block;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .table-wrap--cards tbody td.td-empty::before {
+    display: none;
+  }
+
+  /* Totals footer: collapse the table-footer-group so it participates
+     in the flex card stack, not a dangling raw table fragment */
+  .table-wrap--cards tfoot {
+    display: block;
+    margin-top: var(--space-2);
+  }
+
+  .table-wrap--cards tfoot tr.totals-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    justify-content: flex-end;
+    align-items: baseline;
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  /* Hide the colspan label cell and the trailing empty spacer cell */
+  .table-wrap--cards tfoot tr.totals-row td[colspan] {
+    display: none;
+  }
+
+  /* Value cells: stack label above value, no table borders */
+  .table-wrap--cards tfoot tr.totals-row td:not([colspan]) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    padding: 0;
+    border: none;
+    text-align: end;
+    gap: var(--space-1);
+    min-height: 0;
+    white-space: nowrap;
+  }
+
+  .table-wrap--cards tfoot tr.totals-row td:not([colspan])[data-label]::before {
+    content: attr(data-label);
+    font-size: var(--text-xs);
+    color: var(--text-2);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  [dir="rtl"] .table-wrap--cards tfoot tr.totals-row {
     justify-content: flex-start;
+  }
+
+  [dir="rtl"] .table-wrap--cards tfoot tr.totals-row td:not([colspan]) {
+    align-items: flex-start;
+    text-align: start;
   }
 }
 
@@ -4007,7 +4075,7 @@ table {
 .permission-groups-header__actions {
   display: flex;
   gap: var(--space-2);
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .form-section-title {
@@ -4505,21 +4573,9 @@ details:not([open]) .permission-group__chevron {
   color: var(--text-1);
 }
 
-/* RTL support */
-[dir="rtl"] .permission-role-card__actions,
-[dir="rtl"] .permission-groups-header,
-[dir="rtl"] .permission-groups-header__actions,
-[dir="rtl"] .permission-group__header,
-[dir="rtl"] .permission-group__header-left,
-[dir="rtl"] .permission-card__toggle,
-[dir="rtl"] .inline-form {
-  flex-direction: row-reverse;
-}
-
-[dir="rtl"] .permission-groups-header__actions {
-  margin-left: 0;
-  margin-right: auto;
-}
+/* RTL: direction:rtl from <html> naturally reverses flex row order; no
+   row-reverse override needed. margin-inline-start: auto on the base rule
+   already handles the push-to-end spacing in both directions. */
 
 [dir="rtl"] .permission-scope-chip {
   margin-left: 0;
@@ -4720,16 +4776,11 @@ details:not([open]) .permission-group__chevron {
   }
 }
 
-/* ── RTL mobile: mirror the 2-row team card correctly ── */
+/* ── RTL mobile: direction:rtl from <html> already reverses flex-row items.
+   Only override what direction alone can't handle (justify-content). ── */
 @media (max-width: 640px) {
-  [dir="rtl"] .team-member__right {
-    flex-direction: row-reverse;
-  }
   [dir="rtl"] .team-member__actions {
     justify-content: flex-start;
-  }
-  [dir="rtl"] .mgr-quick-action {
-    flex-direction: row-reverse;
   }
 }
 
@@ -4905,15 +4956,7 @@ details:not([open]) .permission-group__chevron {
   margin-top: var(--space-6);
 }
 
-/* Actions column: physical alignment flips in RTL */
-[dir="rtl"] .td-actions {
-  text-align: start;
-}
 
-/* Branch review row: direction-aware spacing */
-[dir="rtl"] .branch-review-row {
-  flex-direction: row-reverse;
-}
 
 /* ── Utility ────────────────────────────────────────────────────────────────── */
 .visually-hidden {

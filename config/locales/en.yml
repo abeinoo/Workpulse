@@ -923,6 +923,7 @@ en:
       inactive: "Inactive"
       deactivate: "Deactivate"
       activate: "Activate"
+      confirm_deactivate: "Deactivate this employee? They will not be able to log in."
       remove: "Remove"
       delete: "Delete"
       direct_manager: "Direct Manager"
@@ -1442,6 +1443,9 @@ en:
     token_regenerated: "Token regenerated. Update the device configuration with the new token."
     mobile_attendance_disabled: "Mobile attendance is disabled for your account."
     ownership_transferred: "Business ownership has been transferred successfully."
+    user_activated: "%{name} has been activated."
+    user_deactivated: "%{name} has been deactivated."
+    cannot_deactivate_owner: "The business owner cannot be deactivated."
 
   pagination:
     label: "Page navigation"

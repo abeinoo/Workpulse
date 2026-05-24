@@ -286,4 +286,63 @@ RSpec.describe "Admin::Users", type: :request do
       expect(target_user.reload.profile_photo).to be_attached
     end
   end
+
+  # ── PATCH /admin/users/:id/toggle_active ──────────────────────────────────
+  describe "PATCH /admin/users/:id/toggle_active" do
+    let!(:target_user) { create(:user, business: business, active: true) }
+
+    context "signed in as super_admin" do
+      before { sign_in super_admin }
+
+      it "deactivates an active user and redirects with notice" do
+        patch toggle_active_admin_user_path(target_user)
+        expect(target_user.reload.active).to be false
+        expect(response).to redirect_to(admin_users_path)
+        follow_redirect!
+        expect(response.body).to include(target_user.full_name)
+      end
+
+      it "reactivates an inactive user" do
+        target_user.update!(active: false)
+        patch toggle_active_admin_user_path(target_user)
+        expect(target_user.reload.active).to be true
+      end
+
+      it "prevents deactivating the business owner with a specific message" do
+        patch toggle_active_admin_user_path(super_admin)
+        expect(super_admin.reload.active).to be true
+        expect(response).to redirect_to(admin_users_path)
+        follow_redirect!
+        expect(response.body).to include(I18n.t("flash.cannot_deactivate_owner"))
+      end
+    end
+
+    context "signed in as a regular employee" do
+      before { sign_in employee }
+
+      it "is redirected (not authorized)" do
+        patch toggle_active_admin_user_path(target_user)
+        expect(response).to redirect_to(root_path)
+        expect(target_user.reload.active).to be true
+      end
+    end
+
+    context "not signed in" do
+      it "redirects to sign in" do
+        patch toggle_active_admin_user_path(target_user)
+        expect(response).to redirect_to(new_user_session_path)
+      end
+    end
+  end
+
+  # ── Inactive user session invalidation ───────────────────────────────────
+  describe "existing session blocked when user is deactivated" do
+    it "signs out and redirects to login when a signed-in user is deactivated" do
+      sign_in employee
+      employee.update_column(:active, false)
+
+      get admin_users_path
+      expect(response).to redirect_to(new_user_session_path)
+    end
+  end
 end

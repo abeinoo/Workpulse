@@ -97,6 +97,14 @@ class User < ApplicationRecord
     end
   end
 
+  def active_for_authentication?
+    super && active?
+  end
+
+  def inactive_message
+    active? ? super : :inactive
+  end
+
   def full_name
     "#{first_name} #{last_name}".strip
   end

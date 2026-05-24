@@ -6,6 +6,7 @@ class UserPolicy < ApplicationPolicy
   def destroy?        = can?(:manage_employees) || owner?
   def reset_password?       = can?(:manage_employees) || owner?
   def transfer_ownership?   = user.owner? && record != user
+  def toggle_active?        = can?(:manage_employees) || owner?
 
   class Scope < ApplicationPolicy::Scope
     def resolve

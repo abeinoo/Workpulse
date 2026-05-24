@@ -172,6 +172,23 @@ RSpec.describe User, type: :model do
     end
   end
 
+  # ── Devise authentication gate ────────────────────────────────────────────
+  describe "#active_for_authentication?" do
+    it "returns true for an active user" do
+      expect(build(:user, active: true).active_for_authentication?).to be true
+    end
+
+    it "returns false for an inactive user" do
+      expect(build(:user, active: false).active_for_authentication?).to be false
+    end
+  end
+
+  describe "#inactive_message" do
+    it "returns :inactive for a deactivated user" do
+      expect(build(:user, active: false).inactive_message).to eq(:inactive)
+    end
+  end
+
   # ── Scopes ────────────────────────────────────────────────────────────────
   describe "scopes" do
     let!(:active_user)   { create(:user) }
