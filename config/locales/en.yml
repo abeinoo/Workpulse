@@ -899,6 +899,7 @@ en:
       show:
         title: "Employee"
         page_title: "%{name} — WorkPulse"
+        documents: "Documents"
       new:
         title: "Add Employee"
         page_title: "Add Employee — WorkPulse"
@@ -984,6 +985,12 @@ en:
         attendance_sources_hint: "Control how this employee may record attendance. At least one source should be enabled for employees with shift assignments."
         allow_mobile_attendance: "Allow Mobile Attendance"
         allow_biometric_attendance: "Allow Biometric Attendance"
+        profile_photo: "Profile Photo"
+        profile_photo_hint: "PNG, JPG, or WebP · max 5 MB"
+        national_id_front: "National ID — Front"
+        national_id_back: "National ID — Back"
+        national_id_hint: "PNG, JPG, WebP, or PDF · max 10 MB"
+        documents_section: "Documents"
     branches:
       index:
         title: "Branches"
@@ -1093,6 +1100,7 @@ en:
         attendance: "Attendance"
         payroll: "Payroll"
         language: "Language"
+        branding: "Branding"
       timezone_label: "Timezone"
       timezone_hint: "Used for all attendance, payroll, and business-day calculations. Stored as an IANA timezone identifier (e.g. Asia/Riyadh)."
       business_day_label: "Business Day Start Hour"
@@ -1106,6 +1114,10 @@ en:
       max_advance_percentage_label: "Max Salary Advance (%)"
       max_advance_percentage_hint: "Maximum percentage of salary an employee may request as an advance. Leave blank for no limit."
       max_advance_percentage_placeholder: "e.g. 30"
+      logo_label: "Business Logo"
+      logo_hint: "PNG, JPG, WebP, or SVG · max 5 MB"
+      stamp_label: "Official Stamp"
+      stamp_hint: "PNG, JPG, or WebP · max 5 MB · used on payroll documents"
     payroll_periods:
       index:
         title: "Payroll Periods"
@@ -1347,6 +1359,10 @@ en:
     submit: "Submit"
     add: "Add"
     remove: "Remove"
+    choose_image: "Choose Image"
+    choose_file: "Choose File"
+    remove_image: "Remove"
+    open: "Open"
     "yes": "Yes"
     "no": "No"
     none: "None"
@@ -1378,6 +1394,7 @@ en:
     employee_created: "Employee created successfully."
     employee_updated: "Employee updated successfully."
     employee_removed: "Employee removed."
+    cannot_delete_self: "You cannot delete your own account."
     branch_created: "Branch created."
     branch_updated: "Branch updated."
     branch_removed: "Branch removed."

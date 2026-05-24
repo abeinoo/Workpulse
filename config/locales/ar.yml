@@ -899,6 +899,7 @@ ar:
       show:
         title: "الموظف"
         page_title: "%{name} — ووركبلس"
+        documents: "الوثائق"
       new:
         title: "إضافة موظف"
         page_title: "إضافة موظف — ووركبلس"
@@ -984,6 +985,12 @@ ar:
         attendance_sources_hint: "حدّد كيف يُسمح لهذا الموظف بتسجيل حضوره. يجب تفعيل مصدر واحد على الأقل للموظفين الذين لديهم وردية."
         allow_mobile_attendance: "السماح بالحضور من الموبايل"
         allow_biometric_attendance: "السماح بالحضور من جهاز البصمة"
+        profile_photo: "الصورة الشخصية"
+        profile_photo_hint: "PNG أو JPG أو WebP · الحد الأقصى 5 ميغابايت"
+        national_id_front: "الهوية الوطنية — الوجه الأمامي"
+        national_id_back: "الهوية الوطنية — الوجه الخلفي"
+        national_id_hint: "PNG أو JPG أو WebP أو PDF · الحد الأقصى 10 ميغابايت"
+        documents_section: "الوثائق"
     branches:
       index:
         title: "الفروع"
@@ -1093,6 +1100,7 @@ ar:
         attendance: "الحضور"
         payroll: "الرواتب"
         language: "اللغة"
+        branding: "الهوية البصرية"
       timezone_label: "المنطقة الزمنية"
       timezone_hint: "تُستخدم لجميع حسابات الحضور والرواتب وأيام العمل."
       business_day_label: "ساعة بداية يوم العمل"
@@ -1106,6 +1114,10 @@ ar:
       max_advance_percentage_label: "الحد الأقصى لسلفة الراتب (%)"
       max_advance_percentage_hint: "أقصى نسبة مئوية من الراتب يمكن للموظف طلبها كسلفة. اتركه فارغاً لرفع الحد."
       max_advance_percentage_placeholder: "مثال: 30"
+      logo_label: "شعار المنشأة"
+      logo_hint: "PNG أو JPG أو WebP أو SVG · الحد الأقصى 5 ميغابايت"
+      stamp_label: "الختم الرسمي"
+      stamp_hint: "PNG أو JPG أو WebP · الحد الأقصى 5 ميغابايت · يُستخدم في مستندات الرواتب"
     payroll_periods:
       index:
         title: "فترات الرواتب"
@@ -1349,6 +1361,10 @@ ar:
     submit: "إرسال"
     add: "إضافة"
     remove: "إزالة"
+    choose_image: "اختر صورة"
+    choose_file: "اختر ملفاً"
+    remove_image: "حذف"
+    open: "فتح"
     "yes": "نعم"
     "no": "لا"
     none: "لا شيء"
@@ -1380,6 +1396,7 @@ ar:
     employee_created: "تم إنشاء الموظف بنجاح."
     employee_updated: "تم تحديث بيانات الموظف."
     employee_removed: "تم حذف الموظف."
+    cannot_delete_self: "لا يمكنك حذف حسابك الخاص."
     branch_created: "تم إنشاء الفرع."
     branch_updated: "تم تحديث الفرع."
     branch_removed: "تم حذف الفرع."
