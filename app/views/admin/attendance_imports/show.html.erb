@@ -45,6 +45,20 @@
         <span class="info-card__label"><%= t("attendance_imports.show.imported_rows") %></span>
         <span class="text-success"><%= @import.imported_rows %></span>
       </div>
+      <% if @import.metadata["created_records"] %>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance_imports.show.created_records") %></span>
+          <span class="td-secondary"><%= @import.metadata["created_records"] %></span>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance_imports.show.updated_records") %></span>
+          <span class="td-secondary"><%= @import.metadata["updated_records"] %></span>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance_imports.show.skipped_records") %></span>
+          <span class="td-secondary"><%= @import.metadata["skipped_records"] %></span>
+        </div>
+      <% end %>
     <% end %>
     <div class="info-card__row">
       <span class="info-card__label"><%= t("attendance_imports.show.status") %></span>
@@ -117,6 +131,7 @@
             <th><%= t("attendance_imports.preview.work_date") %></th>
             <th><%= t("attendance_imports.preview.check_in") %></th>
             <th><%= t("attendance_imports.preview.check_out") %></th>
+            <th><%= t("attendance_imports.preview.punches") %></th>
           </tr>
         </thead>
         <tbody>
@@ -130,6 +145,7 @@
               <td class="td-secondary"><%= row["work_date"] %></td>
               <td class="td-secondary"><%= row["check_in_at"] %></td>
               <td class="td-secondary"><%= row["check_out_at"].presence || "—" %></td>
+              <td class="td-secondary"><%= row["punch_count"] %></td>
             </tr>
           <% end %>
         </tbody>
@@ -151,8 +167,8 @@
           <tr>
             <th>#</th>
             <th><%= t("attendance_imports.preview.employee_code") %></th>
-            <th><%= t("attendance_imports.preview.check_in") %></th>
-            <th><%= t("attendance_imports.preview.check_out") %></th>
+            <th><%= t("attendance_imports.preview.event_time") %></th>
+            <th><%= t("attendance_imports.preview.work_date") %></th>
             <th><%= t("attendance_imports.preview.error") %></th>
           </tr>
         </thead>
@@ -161,8 +177,10 @@
             <tr>
               <td class="td-secondary"><%= row["row"] %></td>
               <td class="td-secondary"><%= row["employee_code"] %></td>
-              <td class="td-secondary"><%= row["check_in_at"] %></td>
-              <td class="td-secondary"><%= row["check_out_at"].presence || "—" %></td>
+              <td class="td-secondary td-mono">
+                <%= row["time"].presence || row["check_in_at"].presence || "—" %>
+              </td>
+              <td class="td-secondary"><%= row["work_date"].presence || "—" %></td>
               <td class="text-danger">
                 <% errs = row["errors"].presence || [ row["error"] ] %>
                 <%= errs.compact.join(" · ") %>

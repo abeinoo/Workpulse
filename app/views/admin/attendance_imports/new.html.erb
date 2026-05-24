@@ -47,15 +47,15 @@
       <div class="info-card" style="margin: 1rem 0 1.25rem;">
         <div class="info-card__row">
           <span class="info-card__label"><%= t("attendance_imports.upload.required_columns") %></span>
-          <code>employee_code, check_in_at</code>
+          <code>employee_code, time</code>
         </div>
         <div class="info-card__row">
-          <span class="info-card__label"><%= t("attendance_imports.upload.optional_columns") %></span>
-          <code>check_out_at</code>
+          <span class="info-card__label"><%= t("attendance_imports.upload.pairing_rule") %></span>
+          <span class="td-secondary"><%= t("attendance_imports.upload.pairing_hint") %></span>
         </div>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("attendance_imports.upload.datetime_format") %></span>
-          <code>YYYY-MM-DD HH:MM</code>
+          <code>YYYY-MM-DD HH:MM:SS</code>
         </div>
       </div>
 

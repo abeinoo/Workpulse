@@ -71,10 +71,11 @@ class Admin::AttendanceImportsController < Admin::BaseController
 
     all_invalid = @import.invalid_preview_rows + @import.failed_import_rows
     csv_data = CSV.generate(headers: true) do |csv|
-      csv << [ "row", "employee_code", "check_in_at", "check_out_at", "errors" ]
+      csv << [ "row", "employee_code", "time", "work_date", "errors" ]
       all_invalid.each do |row|
-        errs = (row["errors"].presence || [ row["error"] ]).compact.join("; ")
-        csv << [ row["row"], row["employee_code"], row["check_in_at"], row["check_out_at"], errs ]
+        errs      = (row["errors"].presence || [ row["error"] ]).compact.join("; ")
+        time_field = row["time"].presence || row["check_in_at"]
+        csv << [ row["row"], row["employee_code"], time_field, row["work_date"], errs ]
       end
     end
 
@@ -88,10 +89,12 @@ class Admin::AttendanceImportsController < Admin::BaseController
     authorize AttendanceImportLog, :template?
 
     csv_data = CSV.generate(headers: true) do |csv|
-      csv << [ "employee_code", "check_in_at", "check_out_at" ]
-      csv << [ "EMP001", "2025-01-15 09:00", "2025-01-15 17:00" ]
-      csv << [ "EMP002", "2025-01-15 08:30", "2025-01-15 16:30" ]
-      csv << [ "EMP003", "2025-01-15 07:45", "" ]
+      csv << [ "employee_code", "time" ]
+      csv << [ "EMP001", "2025-01-15 09:00:00" ]
+      csv << [ "EMP001", "2025-01-15 17:00:00" ]
+      csv << [ "EMP002", "2025-01-15 08:30:00" ]
+      csv << [ "EMP002", "2025-01-15 16:30:00" ]
+      csv << [ "EMP003", "2025-01-15 07:45:00" ]
     end
 
     send_data csv_data,

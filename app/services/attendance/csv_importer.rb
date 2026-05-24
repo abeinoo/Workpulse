@@ -1,17 +1,30 @@
 require "csv"
 
 module Attendance
-  # Parses and imports attendance records from a CSV file.
+  # Parses and imports attendance records from a CSV file containing sequential
+  # punch events (one "time" column per row).
   #
   # Two-phase operation:
-  #   1. parse(csv_data, business:)  — validates rows, returns ParseResult for preview
-  #   2. execute(import_log)         — commits valid rows from a pending import log
+  #   1. parse(csv_data, business:)  — validates events, groups/pairs into records,
+  #                                    returns ParseResult for preview
+  #   2. execute(import_log)         — commits valid paired rows from a pending import log
   #
-  # CSV columns: employee_code (required), check_in_at (required), check_out_at (optional)
-  # Datetime formats accepted: "YYYY-MM-DD HH:MM", "YYYY-MM-DD HH:MM:SS",
-  #                            "DD/MM/YYYY HH:MM", "DD/MM/YYYY HH:MM:SS"
+  # CSV format:
+  #   employee_code,time
+  #   EMP001,2026-05-24 09:01:00
+  #   EMP001,2026-05-24 17:04:00
+  #
+  # Pairing logic (per employee per work_date):
+  #   Events sorted chronologically. 0-indexed: even positions (0,2,4...) = check-in,
+  #   odd positions (1,3,5...) = check-out. The resulting AttendanceRecord uses
+  #   the first event as check_in and the last OUT event as check_out.
+  #
+  # work_date is computed with BusinessDay.work_date_for so overnight-shift employees
+  # whose post-midnight events fall before business_day_start_hour are attributed to
+  # the correct work date.
   class CsvImporter
-    REQUIRED_COLUMNS = %w[employee_code check_in_at].freeze
+    REQUIRED_COLUMNS = %w[employee_code time].freeze
+    LEGACY_COLUMNS   = %w[check_in_at check_out_at].freeze
     DATETIME_FORMATS = [
       "%Y-%m-%d %H:%M",
       "%Y-%m-%d %H:%M:%S",
@@ -40,13 +53,23 @@ module Attendance
     def parse(csv_data)
       table = CSV.parse(
         csv_data.encode("UTF-8", invalid: :replace, undef: :replace, replace: ""),
-        headers:           true,
-        skip_blanks:       true,
-        strip:             true
+        headers:     true,
+        skip_blanks: true,
+        strip:       true
       )
 
-      # Normalise headers to lowercase, stripped
       headers = table.headers.map { |h| h.to_s.strip.downcase }
+
+      if (LEGACY_COLUMNS & headers).any?
+        return ParseResult.new(
+          rows:          [],
+          total_rows:    0,
+          headers_valid: false,
+          header_error:  "Old format detected (check_in_at / check_out_at columns). " \
+                         "Please use the new format: employee_code, time"
+        )
+      end
+
       missing = REQUIRED_COLUMNS - headers
       if missing.any?
         return ParseResult.new(
@@ -57,11 +80,58 @@ module Attendance
         )
       end
 
-      rows = table.each_with_index.map { |row, i| validate_row(row, i + 2) }
+      total_punch_events = 0
+      invalid_rows       = []
+      valid_punches      = []
+
+      table.each_with_index do |row, i|
+        row_number    = i + 2
+        employee_code = row["employee_code"]&.strip
+        time_str      = row["time"]&.strip
+        total_punch_events += 1
+
+        errs      = []
+        user      = nil
+        timestamp = nil
+
+        if employee_code.blank?
+          errs << "employee_code is required"
+        else
+          user = @business.users.find_by(employee_code: employee_code)
+          errs << "Employee '#{employee_code}' not found" unless user
+        end
+
+        if time_str.blank?
+          errs << "time is required"
+        else
+          timestamp = try_parse(time_str)
+          errs << "time '#{time_str}' is not a valid datetime" unless timestamp
+        end
+
+        if errs.any?
+          invalid_rows << {
+            "row"           => row_number,
+            "employee_code" => employee_code.presence || "",
+            "time"          => time_str.presence || "",
+            "valid"         => false,
+            "errors"        => errs
+          }
+        else
+          valid_punches << {
+            row_number:    row_number,
+            employee_code: employee_code,
+            user:          user,
+            timestamp:     timestamp
+          }
+        end
+      end
+
+      paired_rows = pair_punches(valid_punches)
+      all_rows    = (paired_rows + invalid_rows).sort_by { |r| r["row"] }
 
       ParseResult.new(
-        rows:          rows,
-        total_rows:    rows.size,
+        rows:          all_rows,
+        total_rows:    total_punch_events,
         headers_valid: true,
         header_error:  nil
       )
@@ -71,7 +141,9 @@ module Attendance
 
     def execute(import_log)
       valid_rows    = import_log.valid_preview_rows
-      imported      = 0
+      created       = 0
+      updated       = 0
+      skipped       = 0
       runtime_fails = []
 
       valid_rows.each do |row|
@@ -79,15 +151,15 @@ module Attendance
           user       = @business.users.find_by!(employee_code: row["employee_code"])
           check_in   = parse_datetime(row["check_in_at"])
           check_out  = row["check_out_at"].present? ? parse_datetime(row["check_out_at"]) : nil
-          work_date  = check_in.to_date
+          work_date  = Date.parse(row["work_date"])
 
           shift_assignment = ShiftAssignment
                                .where(user_id: user.id)
                                .active_on(work_date)
                                .first
 
-          record    = AttendanceRecord.find_or_initialize_by(user_id: user.id, work_date: work_date)
-          is_new    = record.new_record?
+          record = AttendanceRecord.find_or_initialize_by(user_id: user.id, work_date: work_date)
+          is_new  = record.new_record?
 
           if is_new
             record.date                = work_date
@@ -97,20 +169,30 @@ module Attendance
             record.early_leave_minutes = 0
           end
 
-          # Merge: take earliest check_in
+          prev_in  = record.check_in_at
+          prev_out = record.check_out_at
+
           record.check_in_at = check_in if is_new || check_in < record.check_in_at
 
-          # Merge: take latest check_out
           if check_out.present? && (record.check_out_at.nil? || check_out > record.check_out_at)
             record.check_out_at = check_out
           end
 
-          # Recalculate derived fields from merged timestamps
+          timestamps_changed = is_new ||
+                               record.check_in_at  != prev_in  ||
+                               record.check_out_at != prev_out
+
           record.status         = derive_status(record.check_out_at)
           record.worked_minutes = worked_minutes(record.check_in_at, record.check_out_at)
           record.save!
 
-          imported += 1
+          if is_new
+            created += 1
+          elsif timestamps_changed
+            updated += 1
+          else
+            skipped += 1
+          end
         rescue => e
           runtime_fails << row.merge("error" => e.message)
         end
@@ -118,58 +200,55 @@ module Attendance
 
       total_failed = import_log.failed_rows_count + runtime_fails.size
       import_log.update!(
-        status:           "completed",
-        imported_rows:    imported,
+        status:            "completed",
+        imported_rows:     created + updated,
         failed_rows_count: total_failed,
-        metadata:         import_log.metadata.merge("failed" => runtime_fails)
+        metadata:          import_log.metadata.merge(
+          "failed"          => runtime_fails,
+          "created_records" => created,
+          "updated_records" => updated,
+          "skipped_records" => skipped
+        )
       )
     end
 
     private
 
-    def validate_row(row, row_number)
-      employee_code = row["employee_code"]&.strip
-      check_in_str  = row["check_in_at"]&.strip
-      check_out_str = row["check_out_at"]&.strip
-
-      errs         = []
-      user         = nil
-      check_in_at  = nil
-      check_out_at = nil
-
-      if employee_code.blank?
-        errs << "employee_code is required"
-      else
-        user = @business.users.find_by(employee_code: employee_code)
-        errs << "Employee '#{employee_code}' not found" unless user
+    # Groups punch events by (user_id, work_date) using BusinessDay logic,
+    # sorts chronologically, deduplicates exact timestamps, then pairs:
+    #   index 0 → check-in, index 1 → check-out, index 2 → check-in, …
+    # The record uses the first event as check_in and the last OUT event
+    # (last odd-indexed position) as check_out.
+    def pair_punches(punches)
+      groups = punches.group_by do |p|
+        work_date = BusinessDay.work_date_for(p[:timestamp], context: @business)
+        [ p[:user].id, work_date ]
       end
 
-      if check_in_str.blank?
-        errs << "check_in_at is required"
-      else
-        check_in_at = try_parse(check_in_str)
-        errs << "check_in_at '#{check_in_str}' is not a valid datetime" unless check_in_at
-      end
+      groups.map do |(user_id, work_date), group|
+        user   = group.first[:user]
+        sorted = group.sort_by { |p| p[:timestamp] }
+                      .uniq { |p| p[:timestamp] }
 
-      if check_out_str.present?
-        check_out_at = try_parse(check_out_str)
-        if check_out_at.nil?
-          errs << "check_out_at '#{check_out_str}' is not a valid datetime"
-        elsif check_in_at && check_out_at <= check_in_at
-          errs << "check_out_at must be after check_in_at"
-        end
-      end
+        check_in = sorted.first[:timestamp]
 
-      {
-        "row"           => row_number,
-        "employee_code" => employee_code,
-        "employee_name" => user&.full_name,
-        "check_in_at"   => check_in_str,
-        "check_out_at"  => check_out_str.presence,
-        "work_date"     => check_in_at&.to_date&.to_s,
-        "valid"         => errs.empty?,
-        "errors"        => errs
-      }
+        # Last OUT is at the last odd 0-based index (1, 3, 5...).
+        # For n events: last odd index = n-1 if n is even, n-2 if n is odd.
+        last_out_idx = sorted.size.even? ? sorted.size - 1 : sorted.size - 2
+        check_out    = last_out_idx >= 1 ? sorted[last_out_idx][:timestamp] : nil
+
+        {
+          "row"           => sorted.first[:row_number],
+          "employee_code" => sorted.first[:employee_code],
+          "employee_name" => user.full_name,
+          "check_in_at"   => check_in.strftime("%Y-%m-%d %H:%M:%S"),
+          "check_out_at"  => check_out&.strftime("%Y-%m-%d %H:%M:%S"),
+          "work_date"     => work_date.to_s,
+          "punch_count"   => sorted.size,
+          "valid"         => true,
+          "errors"        => []
+        }
+      end
     end
 
     def try_parse(str)
