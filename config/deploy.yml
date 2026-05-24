@@ -1,119 +1,78 @@
-# Name of your application. Used to uniquely configure containers.
+# ─────────────────────────────────────────────────────────────────────────────
+# Kamal deployment configuration — workpulse.info (135.181.46.35)
+# Docs: https://kamal-deploy.org
+#
+# First deploy:  kamal setup && kamal deploy
+# Later deploys: kamal deploy
+# View logs:     kamal logs
+# Rails console: kamal console
+# ─────────────────────────────────────────────────────────────────────────────
+
 service: work_pulse
 
-# Name of the container image (use your-user/app-name on external registries).
-image: work_pulse
+# Container image on GitHub Container Registry (ghcr.io).
+# Format: ghcr.io/<github-owner>/<repo>  (must be lowercase)
+image: ghcr.io/abeinoo/workpulse
 
-# Deploy to these servers.
+# ── Production server ─────────────────────────────────────────────────────────
 servers:
   web:
-    - 192.168.0.1
-  # job:
-  #   hosts:
-  #     - 192.168.0.1
-  #   cmd: bin/jobs
+    - 135.181.46.35
 
-# Enable SSL auto certification via Let's Encrypt and allow for multiple apps on a single web server.
-# If used with Cloudflare, set encryption mode in SSL/TLS setting to "Full" to enable CF-to-app encryption.
-#
-# Using an SSL proxy like this requires turning on config.assume_ssl and config.force_ssl in production.rb!
-#
-# Don't use this when deploying to multiple web servers (then you have to terminate SSL at your load balancer).
-#
-# proxy:
-#   ssl: true
-#   host: app.example.com
+# ── Thruster proxy with Let's Encrypt SSL ────────────────────────────────────
+# Cloudflare DNS: set SSL/TLS encryption mode to "Full" (not Full Strict) so
+# Cloudflare → origin TLS works without a trusted certificate on the origin.
+proxy:
+  ssl: true
+  host: workpulse.info
 
-# Where you keep your container images.
+# ── Docker registry — GitHub Container Registry ──────────────────────────────
+# Authentication uses a GitHub PAT with write:packages scope.
+# Generate at: https://github.com/settings/tokens (classic token)
+# Add as KAMAL_REGISTRY_PASSWORD in .kamal/secrets (read from env).
 registry:
-  # Alternatives: hub.docker.com / registry.digitalocean.com / ghcr.io / ...
-  server: localhost:5555
+  server: ghcr.io
+  username: abeinoo
+  password:
+    - KAMAL_REGISTRY_PASSWORD
 
-  # Needed for authenticated registries.
-  # username: your-user
-
-  # Always use an access token rather than real password when possible.
-  # password:
-  #   - KAMAL_REGISTRY_PASSWORD
-
-# Inject ENV variables into containers (secrets come from .kamal/secrets).
+# ── Environment variables ─────────────────────────────────────────────────────
 env:
   secret:
-    - RAILS_MASTER_KEY
+    - RAILS_MASTER_KEY        # 32-hex content of config/master.key
+    - R2_ACCESS_KEY_ID        # Cloudflare R2 API token (Access Key ID)
+    - R2_SECRET_ACCESS_KEY    # Cloudflare R2 API token (Secret)
+    - R2_BUCKET               # R2 bucket name
+    - R2_ENDPOINT             # https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+    - DATABASE_URL            # postgres://work_pulse:<password>@<host>/work_pulse_production
+
   clear:
-    # Run the Solid Queue Supervisor inside the web server's Puma process to do jobs.
-    # When you start using multiple servers, you should split out job processing to a dedicated machine.
-    SOLID_QUEUE_IN_PUMA: true
+    RAILS_ENV:           production
+    SOLID_QUEUE_IN_PUMA: "true"
+    RAILS_MAX_THREADS:   "5"
+    WEB_CONCURRENCY:     "2"
+    JOB_CONCURRENCY:     "2"
+    APP_HOST:            workpulse.info
+    RAILS_LOG_LEVEL:     info
 
-    # Set number of processes dedicated to Solid Queue (default: 1)
-    # JOB_CONCURRENCY: 3
-
-    # Set number of cores available to the application on each server (default: 1).
-    # WEB_CONCURRENCY: 2
-
-    # Match this to any external database server to configure Active Record correctly
-    # Use work_pulse-db for a db accessory server on same machine via local kamal docker network.
-    # DB_HOST: 192.168.0.2
-
-    # Log everything from Rails
-    # RAILS_LOG_LEVEL: debug
-
-# Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
-# "bin/kamal logs -r job" will tail logs from the first server in the job section.
+# ── Kamal CLI aliases ─────────────────────────────────────────────────────────
 aliases:
   console: app exec --interactive --reuse "bin/rails console"
-  shell: app exec --interactive --reuse "bash"
-  logs: app logs -f
-  dbc: app exec --interactive --reuse "bin/rails dbconsole --include-password"
+  shell:   app exec --interactive --reuse "bash"
+  logs:    app logs -f
+  dbc:     app exec --interactive --reuse "bin/rails dbconsole --include-password"
+  migrate: app exec "bin/rails db:migrate"
 
-# Use a persistent storage volume for sqlite database files and local Active Storage files.
-# Recommended to change this to a mounted volume path that is backed up off server.
+# ── Persistent storage ────────────────────────────────────────────────────────
+# Files go to Cloudflare R2 in production, but keep a local volume for
+# tmp/cache/bootsnap so restarts don't lose ephemeral files.
 volumes:
   - "work_pulse_storage:/rails/storage"
 
-# Bridge fingerprinted assets, like JS and CSS, between versions to avoid
-# hitting 404 on in-flight requests. Combines all files from new and old
-# version inside the asset_path.
+# ── Asset bridging ────────────────────────────────────────────────────────────
 asset_path: /rails/public/assets
 
-# Configure the image builder.
+# ── Builder ───────────────────────────────────────────────────────────────────
 builder:
+  # Hetzner servers are amd64; this Mac may be arm64 — always cross-compile.
   arch: amd64
-
-  # # Build image via remote server (useful for faster amd64 builds on arm64 computers)
-  # remote: ssh://docker@docker-builder-server
-  #
-  # # Pass arguments and secrets to the Docker build process
-  # args:
-  #   RUBY_VERSION: 4.0.3
-  # secrets:
-  #   - GITHUB_TOKEN
-  #   - RAILS_MASTER_KEY
-
-# Use a different ssh user than root
-# ssh:
-#   user: app
-
-# Use accessory services (secrets come from .kamal/secrets).
-# accessories:
-#   db:
-#     image: mysql:8.0
-#     host: 192.168.0.2
-#     # Change to 3306 to expose port to the world instead of just local network.
-#     port: "127.0.0.1:3306:3306"
-#     env:
-#       clear:
-#         MYSQL_ROOT_HOST: '%'
-#       secret:
-#         - MYSQL_ROOT_PASSWORD
-#     files:
-#       - config/mysql/production.cnf:/etc/mysql/my.cnf
-#       - db/production.sql:/docker-entrypoint-initdb.d/setup.sql
-#     directories:
-#       - data:/var/lib/mysql
-#   redis:
-#     image: valkey/valkey:8
-#     host: 192.168.0.2
-#     port: 6379
-#     directories:
-#       - data:/data

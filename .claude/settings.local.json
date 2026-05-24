@@ -4,7 +4,10 @@
       "Bash(bundle exec *)",
       "Bash(ruby -c /Users/mrsool/RubymineProjects/WorkPulse/db/seeds.rb)",
       "Bash(bin/rails runner ' *)",
-      "Bash(psql -c '\\\\l')"
+      "Bash(psql -c '\\\\l')",
+      "Bash(sed -n '984,990p' /Users/mrsool/RubymineProjects/WorkPulse/config/locales/ar.yml)",
+      "Bash(sed -n '1091,1112p' /Users/mrsool/RubymineProjects/WorkPulse/config/locales/ar.yml)",
+      "Bash(sed -n '1339,1362p' /Users/mrsool/RubymineProjects/WorkPulse/config/locales/ar.yml)"
     ]
   }
 }
