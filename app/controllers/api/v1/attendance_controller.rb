@@ -69,11 +69,11 @@ module Api
 
       def attendance_json(record)
         record.slice(
-          :id, :date, :status,
+          :id, :work_date, :date, :status,
           :check_in_at,  :check_in_latitude,  :check_in_longitude,
           :check_out_at, :check_out_latitude,  :check_out_longitude,
           :worked_minutes, :late_minutes, :early_leave_minutes
-        )
+        ).merge(timezone: current_business.timezone)
       end
 
       def require_mobile_attendance_allowed!

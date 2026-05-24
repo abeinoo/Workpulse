@@ -100,6 +100,46 @@ RSpec.describe Attendance::TimeCalculator do
     end
   end
 
+  # January dates: Africa/Cairo is EET (UTC+2, no DST).
+  # In summer, Cairo observes EEST (UTC+3) which would shift these UTC values by one extra hour.
+  describe "non-UTC business timezone (Africa/Cairo, UTC+2 in winter)" do
+    let(:cairo_business) { create(:business, timezone: "Africa/Cairo") }
+    let(:cairo_branch)   { create(:branch, business: cairo_business) }
+
+    describe ".late_minutes with UTC+2 timezone" do
+      let(:shift) { build(:shift, :fixed_time, start_time: Time.zone.parse("09:00"), business: cairo_business) }
+
+      it "returns 0 when check_in_at is 07:00 UTC (= 09:00 Cairo EET)" do
+        check_in = Time.utc(2026, 1, 24, 7, 0, 0)
+        expect(described_class.late_minutes(shift, check_in, cairo_branch)).to eq(0)
+      end
+
+      it "returns 30 when check_in_at is 07:30 UTC (= 09:30 Cairo EET)" do
+        check_in = Time.utc(2026, 1, 24, 7, 30, 0)
+        expect(described_class.late_minutes(shift, check_in, cairo_branch)).to eq(30)
+      end
+
+      it "returns 0 when check_in_at is 06:45 UTC (= 08:45 Cairo EET, early)" do
+        check_in = Time.utc(2026, 1, 24, 6, 45, 0)
+        expect(described_class.late_minutes(shift, check_in, cairo_branch)).to eq(0)
+      end
+    end
+
+    describe ".early_leave_minutes with UTC+2 timezone" do
+      let(:shift) { build(:shift, :fixed_time, end_time: Time.zone.parse("17:00"), business: cairo_business) }
+
+      it "returns 0 when check_out_at is 15:00 UTC (= 17:00 Cairo EET, on time)" do
+        check_out = Time.utc(2026, 1, 24, 15, 0, 0)
+        expect(described_class.early_leave_minutes(shift, check_out, 480, cairo_branch)).to eq(0)
+      end
+
+      it "returns 120 when check_out_at is 13:00 UTC (= 15:00 Cairo EET, 2h early)" do
+        check_out = Time.utc(2026, 1, 24, 13, 0, 0)
+        expect(described_class.early_leave_minutes(shift, check_out, 360, cairo_branch)).to eq(120)
+      end
+    end
+  end
+
   describe ".derive_status" do
     it "returns 'late' when late_minutes > 0" do
       expect(described_class.derive_status(30, 0)).to eq("late")

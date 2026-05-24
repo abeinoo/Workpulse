@@ -156,6 +156,11 @@ RSpec.describe EmployeeObligation, type: :model do
       obligation = build(:employee_obligation, total_amount: 1000, remaining_amount: 600)
       expect(obligation.repaid_amount).to eq(400.0)
     end
+
+    it "returns 0.0 when total_amount is nil (unsaved form)" do
+      obligation = EmployeeObligation.new
+      expect(obligation.repaid_amount).to eq(0.0)
+    end
   end
 
   describe "#percent_repaid" do
@@ -167,6 +172,57 @@ RSpec.describe EmployeeObligation, type: :model do
     it "returns 100 when total_amount is zero" do
       obligation = build(:employee_obligation, total_amount: 0, remaining_amount: 0)
       expect(obligation.percent_repaid).to eq(100)
+    end
+
+    it "returns 100 when total_amount is nil (unsaved form)" do
+      obligation = EmployeeObligation.new
+      expect(obligation.percent_repaid).to eq(100)
+    end
+  end
+
+  describe "#final_installment_amount" do
+    it "returns the remainder after full installments" do
+      obligation = build(:employee_obligation, total_amount: 5000, installment_amount: 900)
+      # 5000 / 900 = 5 full + 500 remainder
+      expect(obligation.final_installment_amount).to eq(500.0)
+    end
+
+    it "returns 0.0 when evenly divisible" do
+      obligation = build(:employee_obligation, total_amount: 3000, installment_amount: 500)
+      expect(obligation.final_installment_amount).to eq(0.0)
+    end
+
+    it "returns 0.0 when total_amount is nil (unsaved form, no crash)" do
+      obligation = EmployeeObligation.new
+      expect(obligation.final_installment_amount).to eq(0.0)
+    end
+
+    it "returns 0.0 when installment_amount is nil (unsaved form, no crash)" do
+      obligation = EmployeeObligation.new(total_amount: 1000)
+      expect(obligation.final_installment_amount).to eq(0.0)
+    end
+
+    it "returns 0.0 when both amounts are nil (unsaved form, no crash)" do
+      obligation = EmployeeObligation.new
+      expect { obligation.final_installment_amount }.not_to raise_error
+    end
+  end
+
+  describe "#even_installments?" do
+    it "returns true when total is exactly divisible by installment" do
+      obligation = build(:employee_obligation, total_amount: 3000, installment_amount: 500)
+      expect(obligation.even_installments?).to be true
+    end
+
+    it "returns false when there is a remainder" do
+      obligation = build(:employee_obligation, total_amount: 5000, installment_amount: 900)
+      expect(obligation.even_installments?).to be false
+    end
+
+    it "returns true (no crash) when amounts are nil (unsaved form)" do
+      obligation = EmployeeObligation.new
+      expect { obligation.even_installments? }.not_to raise_error
+      expect(obligation.even_installments?).to be true
     end
   end
 

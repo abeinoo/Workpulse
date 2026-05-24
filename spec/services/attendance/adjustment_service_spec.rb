@@ -128,6 +128,62 @@ RSpec.describe Attendance::AdjustmentService do
     end
   end
 
+  describe "timezone-aware string parsing" do
+    # Reproduces the production bug: a Cairo (UTC+2) manager submits a bare datetime string
+    # without an offset. The service must parse it in the business timezone, not UTC.
+    # Use January dates so Africa/Cairo is UTC+2 (EET, no DST). In summer, Cairo
+    # observes EEST (+03:00), which would shift the expected UTC values by an extra hour.
+    context "when business is in Africa/Cairo (UTC+2, January dates)" do
+      let(:cairo_business) { create(:business, timezone: "Africa/Cairo") }
+      let(:cairo_branch)   { create(:branch, business: cairo_business) }
+      let!(:cairo_record) do
+        create(:attendance_record, :checked_out, branch: cairo_branch,
+               check_in_at:  Time.utc(2026, 1, 24, 7, 0, 0),   # 09:00 Cairo (EET, UTC+2)
+               check_out_at: Time.utc(2026, 1, 24, 15, 0, 0),  # 17:00 Cairo (EET, UTC+2)
+               work_date:    Date.new(2026, 1, 24),
+               date:         Date.new(2026, 1, 24))
+      end
+
+      def call_cairo(params)
+        described_class.call(record: cairo_record, adjusted_by: manager, params: params)
+      end
+
+      it "stores the correct UTC value when a bare local-time string is submitted" do
+        # Manager types "09:30" meaning 09:30 Cairo (EET) = 07:30 UTC
+        result = call_cairo(check_in_at: "2026-01-24 09:30:00", reason: "Corrected")
+        expect(result).to be_success
+        expect(cairo_record.reload.check_in_at.utc).to be_within(1.second).of(Time.utc(2026, 1, 24, 7, 30, 0))
+      end
+
+      it "accepts an ISO8601 string with explicit UTC offset and stores the correct UTC value" do
+        # Frontend sends UTC explicitly: 07:30Z = 09:30 Cairo (EET)
+        result = call_cairo(check_in_at: "2026-01-24T07:30:00Z", reason: "Corrected")
+        expect(result).to be_success
+        expect(cairo_record.reload.check_in_at.utc).to be_within(1.second).of(Time.utc(2026, 1, 24, 7, 30, 0))
+      end
+
+      it "accepts an ISO8601 string with Cairo EET offset and stores the correct UTC value" do
+        result = call_cairo(check_in_at: "2026-01-24T09:30:00+02:00", reason: "Corrected")
+        expect(result).to be_success
+        expect(cairo_record.reload.check_in_at.utc).to be_within(1.second).of(Time.utc(2026, 1, 24, 7, 30, 0))
+      end
+
+      it "detects a real change when the string differs from the stored UTC time" do
+        # 09:30 Cairo (EET) = 07:30 UTC; stored is 07:00 UTC → change expected
+        expect {
+          call_cairo(check_in_at: "2026-01-24 09:30:00", reason: "Corrected")
+        }.to change(AttendanceAdjustment, :count).by(1)
+      end
+
+      it "detects no change when the string represents the same moment as the stored time" do
+        # 09:00 Cairo (EET) = 07:00 UTC; stored is 07:00 UTC → no change
+        result = call_cairo(check_in_at: "2026-01-24 09:00:00", reason: "Unchanged")
+        expect(result).not_to be_success
+        expect(result.error).to include("No changes detected")
+      end
+    end
+  end
+
   describe "validation failures" do
     it "returns failure when reason is blank" do
       result = call(check_in_at: record.check_in_at - 10.minutes, reason: "")

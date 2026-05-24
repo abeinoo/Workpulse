@@ -62,7 +62,9 @@ module Attendance
     def apply_field_changes
       ADJUSTABLE_FIELDS.each do |field|
         next unless @params.key?(field.to_sym)
-        @record.assign_attributes(field => @params[field.to_sym])
+        value = @params[field.to_sym]
+        value = parse_in_business_tz(value) if value.is_a?(String)
+        @record.assign_attributes(field => value)
       end
     end
 
@@ -93,21 +95,36 @@ module Attendance
       end
     end
 
-    # Normalize field values to a stable string for audit diff + change detection.
-    # Datetime fields → ISO8601 (via Time.zone.parse so strings and Time objects match).
-    # Other fields (enum strings like status) → plain to_s.
+    # Normalize field values to a stable UTC ISO8601 string for audit diff + change detection.
+    # Both old (DB Time object) and new (String or Time param) are normalized to UTC so
+    # comparison is timezone-independent. Bare datetime strings are assumed to be in the
+    # business timezone; ISO8601 strings with an explicit offset are parsed respecting that offset.
     def serialize(field, value)
       return "" if value.nil?
       if %w[check_in_at check_out_at].include?(field)
         return "" if value.respond_to?(:blank?) && value.blank?
-        t = value.respond_to?(:to_time) ? value.to_time : Time.zone.parse(value.to_s)
+        t = value.is_a?(String) ? parse_in_business_tz(value) : value.to_time
         return "" if t.nil?
-        t.iso8601
+        t.utc.iso8601
       else
         value.to_s
       end
     rescue ArgumentError, TypeError
       value.to_s
+    end
+
+    # Parse a timestamp string in the business timezone so managers who type local times
+    # (e.g. "09:30:00") get the correct UTC equivalent stored. ISO8601 strings with an
+    # explicit offset ("2026-05-24T07:30:00Z", "…+02:00") have their offset respected.
+    def parse_in_business_tz(value)
+      return nil if value.blank?
+      business.timezone_object.parse(value.to_s)
+    rescue ArgumentError, TypeError
+      nil
+    end
+
+    def business
+      @business ||= @record.branch&.business || @record.user.business
     end
 
     def emit_audit_log

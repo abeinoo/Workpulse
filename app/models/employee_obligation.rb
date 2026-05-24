@@ -78,19 +78,18 @@ class EmployeeObligation < ApplicationRecord
   end
 
   def repaid_amount
-    (total_amount - remaining_amount).round(2)
+    (total_amount.to_f - remaining_amount.to_f).round(2)
   end
 
   def percent_repaid
-    return 100 if total_amount <= 0
-    ((repaid_amount / total_amount) * 100).round(1)
+    return 100 if total_amount.to_f <= 0
+    ((repaid_amount / total_amount.to_f) * 100).round(1)
   end
 
   # Returns the remainder after full installments, or 0.0 if evenly divisible.
-  # BigDecimal modulo avoids Float precision errors (e.g. 1000 % 333.33 in Float).
   def final_installment_amount
-    return 0.0 unless total_amount > 0 && installment_amount > 0
-    remainder = (total_amount % installment_amount).round(2)
+    return 0.0 unless total_amount.to_f > 0 && installment_amount.to_f > 0
+    remainder = (total_amount.to_f % installment_amount.to_f).round(2)
     remainder.zero? ? 0.0 : remainder
   end
 
