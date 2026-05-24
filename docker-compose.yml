@@ -45,8 +45,16 @@ services:
 
       # Logging
       RAILS_LOG_LEVEL:      ${RAILS_LOG_LEVEL:-info}
+
+      # Cloudflare R2 — ActiveStorage in production uses the :cloudflare service.
+      # Create API tokens in the Cloudflare dashboard → R2 → Manage API tokens.
+      R2_ACCESS_KEY_ID:     ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET:            ${R2_BUCKET}
+      R2_ENDPOINT:          ${R2_ENDPOINT}
+
     volumes:
-      # Persistent storage for Active Storage uploads
+      # Fallback local storage volume (used for tmp/cache only — uploads go to R2).
       - rails_storage:/rails/storage
 
 volumes:
