@@ -9,7 +9,8 @@
     </div>
   </div>
 
-  <%= form_with model: @business, url: admin_settings_path, method: :patch, class: "form-card" do |f| %>
+  <%= form_with model: @business, url: admin_settings_path, method: :patch,
+                multipart: true, class: "form-card" do |f| %>
 
     <%= render "shared/error_messages", object: @business %>
 
@@ -91,6 +92,95 @@
               step: "0.01",
               placeholder: t("admin.settings.max_advance_percentage_placeholder") %>
         <p class="form-hint"><%= t("admin.settings.max_advance_percentage_hint") %></p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <%# ── Branding ────────────────────────────────────────────────────── %>
+    <h2 class="section-title"><%= t("admin.settings.sections.branding") %></h2>
+
+    <div class="form-grid">
+      <%# Logo upload %>
+      <div class="form-group">
+        <%= f.label :logo, t("admin.settings.logo_label"), class: "form-label" %>
+
+        <div class="upload-field" data-controller="image-upload">
+          <div class="upload-field__preview">
+            <% logo_src = @business.logo.attached? ? logo_url(@business, size: :thumb) : nil %>
+            <img src="<%= logo_src %>"
+                 class="logo-img logo-img--thumb"
+                 alt=""
+                 data-image-upload-target="img"
+                 <%= "hidden" unless logo_src %>>
+            <div class="avatar avatar-placeholder"
+                 data-image-upload-target="placeholder"
+                 <%= "hidden" if logo_src %>>
+              <%= @business.name.first(2).upcase %>
+            </div>
+
+            <div class="upload-field__controls">
+              <label class="btn btn-ghost btn-sm upload-field__choose">
+                <%= t("forms.choose_image") %>
+                <%= f.file_field :logo,
+                      accept: "image/png,image/jpeg,image/webp,image/svg+xml",
+                      class: "upload-field__input",
+                      data: { "image-upload-target": "input", action: "change->image-upload#change" } %>
+              </label>
+              <button type="button"
+                      class="btn btn-ghost btn-sm text-danger"
+                      data-image-upload-target="removeBtn"
+                      data-action="image-upload#remove"
+                      <%= "hidden" unless @business.logo.attached? %>>
+                <%= t("forms.remove_image") %>
+              </button>
+              <%= f.hidden_field :remove_logo, value: "0",
+                    data: { "image-upload-target": "removeFlag" } %>
+            </div>
+          </div>
+          <p class="upload-field__hint"><%= t("admin.settings.logo_hint") %></p>
+        </div>
+      </div>
+
+      <%# Stamp image upload %>
+      <div class="form-group">
+        <%= f.label :stamp_image, t("admin.settings.stamp_label"), class: "form-label" %>
+
+        <div class="upload-field" data-controller="image-upload">
+          <div class="upload-field__preview">
+            <% stamp_src = @business.stamp_image.attached? ? stamp_image_url(@business, size: :thumb) : nil %>
+            <img src="<%= stamp_src %>"
+                 class="logo-img logo-img--thumb"
+                 alt=""
+                 data-image-upload-target="img"
+                 <%= "hidden" unless stamp_src %>>
+            <div class="upload-field__doc-placeholder"
+                 data-image-upload-target="placeholder"
+                 <%= "hidden" if stamp_src %>>
+              &#9993;
+            </div>
+
+            <div class="upload-field__controls">
+              <label class="btn btn-ghost btn-sm upload-field__choose">
+                <%= t("forms.choose_image") %>
+                <%= f.file_field :stamp_image,
+                      accept: "image/png,image/jpeg,image/webp",
+                      class: "upload-field__input",
+                      data: { "image-upload-target": "input", action: "change->image-upload#change" } %>
+              </label>
+              <button type="button"
+                      class="btn btn-ghost btn-sm text-danger"
+                      data-image-upload-target="removeBtn"
+                      data-action="image-upload#remove"
+                      <%= "hidden" unless @business.stamp_image.attached? %>>
+                <%= t("forms.remove_image") %>
+              </button>
+              <%= f.hidden_field :remove_stamp_image, value: "0",
+                    data: { "image-upload-target": "removeFlag" } %>
+            </div>
+          </div>
+          <p class="upload-field__hint"><%= t("admin.settings.stamp_hint") %></p>
+        </div>
       </div>
     </div>
 

@@ -5,7 +5,14 @@ class Admin::SettingsController < Admin::BaseController
 
   def update
     @business = current_user.business
-    if @business.update(settings_params)
+
+    p = settings_params
+    removals = p.extract!(:remove_logo, :remove_stamp_image)
+
+    if @business.update(p)
+      %i[logo stamp_image].each do |name|
+        @business.public_send(name).purge if removals["remove_#{name}"] == "1"
+      end
       redirect_to admin_settings_path, notice: t("flash.settings_updated")
     else
       render :show, status: :unprocessable_entity
@@ -15,6 +22,11 @@ class Admin::SettingsController < Admin::BaseController
   private
 
   def settings_params
-    params.require(:business).permit(:timezone, :working_days_per_month, :business_day_start_hour, :default_locale, :currency, :max_salary_advance_percentage)
+    params.require(:business).permit(
+      :timezone, :working_days_per_month, :business_day_start_hour,
+      :default_locale, :currency, :max_salary_advance_percentage,
+      :logo, :stamp_image,
+      :remove_logo, :remove_stamp_image
+    )
   end
 end
