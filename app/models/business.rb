@@ -1,4 +1,17 @@
 class Business < ApplicationRecord
+  include Attachable
+
+  has_one_attached :logo
+  has_one_attached :stamp_image
+
+  validates_attachment :logo,
+    content_types: Attachable::LOGO_CONTENT_TYPES,
+    max_size:      Attachable::DEFAULT_LOGO_SIZE
+
+  validates_attachment :stamp_image,
+    content_types: Attachable::IMAGE_CONTENT_TYPES,
+    max_size:      Attachable::DEFAULT_MAX_SIZE
+
   CURRENCIES = {
     "SAR" => { name: "Saudi Riyal",     symbol: "ر.س", symbol_en: "SAR" },
     "EGP" => { name: "Egyptian Pound",  symbol: "ج.م", symbol_en: "EGP" },

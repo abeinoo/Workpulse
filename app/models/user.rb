@@ -1,5 +1,33 @@
 class User < ApplicationRecord
+  include Attachable
+
   devise :database_authenticatable, :registerable, :recoverable, :rememberable
+
+  has_one_attached :avatar
+  has_one_attached :id_card
+  has_one_attached :profile_photo
+  has_one_attached :national_id_front
+  has_one_attached :national_id_back
+
+  validates_attachment :avatar,
+    content_types: Attachable::IMAGE_CONTENT_TYPES,
+    max_size:      Attachable::DEFAULT_MAX_SIZE
+
+  validates_attachment :id_card,
+    content_types: Attachable::DOCUMENT_CONTENT_TYPES,
+    max_size:      Attachable::DEFAULT_DOCUMENT_SIZE
+
+  validates_attachment :profile_photo,
+    content_types: Attachable::IMAGE_CONTENT_TYPES,
+    max_size:      Attachable::DEFAULT_MAX_SIZE
+
+  validates_attachment :national_id_front,
+    content_types: Attachable::DOCUMENT_CONTENT_TYPES,
+    max_size:      Attachable::DEFAULT_DOCUMENT_SIZE
+
+  validates_attachment :national_id_back,
+    content_types: Attachable::DOCUMENT_CONTENT_TYPES,
+    max_size:      Attachable::DEFAULT_DOCUMENT_SIZE
 
   belongs_to :business
   belongs_to :manager,          class_name: "User", optional: true
