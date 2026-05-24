@@ -27,9 +27,7 @@
             <tr>
               <td>
                 <div class="employee-cell">
-                  <div class="avatar">
-                    <%= user.full_name.split.map(&:first).first(2).join.upcase %>
-                  </div>
+                  <%= user_avatar_tag(user, size: :thumb) %>
                   <div>
                     <div class="employee-cell__name"><%= user.full_name %></div>
                     <div class="employee-cell__sub"><%= user.email.presence || user.phone_number %></div>
@@ -55,11 +53,13 @@
                 <div class="td-actions">
                   <%= link_to t("admin.users.view"), admin_user_path(user), class: "btn btn-ghost btn-sm" %>
                   <%= link_to t("admin.users.edit_action"), edit_admin_user_path(user), class: "btn btn-secondary btn-sm" %>
-                  <%= button_to t("admin.users.delete"),
-                        admin_user_path(user),
-                        method: :delete,
-                        data: { turbo_confirm: t("forms.confirm_delete") },
-                        class: "btn btn-danger btn-sm" %>
+                  <% unless user == current_user %>
+                    <%= button_to t("admin.users.delete"),
+                          admin_user_path(user),
+                          method: :delete,
+                          data: { turbo_confirm: t("forms.confirm_delete") },
+                          class: "btn btn-danger btn-sm" %>
+                  <% end %>
                 </div>
               </td>
             </tr>

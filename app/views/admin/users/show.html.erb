@@ -9,9 +9,7 @@
   <div class="card">
     <div class="card-header">
       <div class="employee-cell">
-        <div class="avatar" style="width:48px;height:48px;font-size:1rem;">
-          <%= @user.full_name.split.map(&:first).first(2).join.upcase %>
-        </div>
+        <%= user_avatar_tag(@user, size: :default) %>
         <div>
           <h1 style="font-size:var(--text-xl);margin-bottom:2px;"><%= @user.full_name %></h1>
           <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;"><%= @user.permission_role&.name || (@user.owner? ? t("admin.users.super_admin_role") : "—") %></p>
@@ -115,6 +113,31 @@
             class: "btn btn-danger" %>
     </div>
   </div>
+
+  <%# Documents — national ID front & back %>
+  <% if @user.national_id_front.attached? || @user.national_id_back.attached? %>
+    <div class="card" style="margin-top: var(--space-6);">
+      <div class="card-header">
+        <h2 class="card-title" style="font-size: var(--text-lg);">
+          <%= t("admin.users.show.documents") %>
+        </h2>
+      </div>
+      <div class="attachment-grid">
+        <% if @user.national_id_front.attached? %>
+          <div class="attachment-item">
+            <p class="attachment-item__label"><%= t("admin.users.form.national_id_front") %></p>
+            <%= national_id_viewer_tag(@user, :national_id_front) %>
+          </div>
+        <% end %>
+        <% if @user.national_id_back.attached? %>
+          <div class="attachment-item">
+            <p class="attachment-item__label"><%= t("admin.users.form.national_id_back") %></p>
+            <%= national_id_viewer_tag(@user, :national_id_back) %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
 
   <%# Ownership Transfer — only the current owner sees this, and only for other users %>
   <% if policy(@user).transfer_ownership? %>

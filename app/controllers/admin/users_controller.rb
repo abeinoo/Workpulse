@@ -4,8 +4,7 @@ class Admin::UsersController < Admin::BaseController
   def index
     authorize User
     @users = policy_scope(User)
-               .where.not(id: current_user.id)
-               .includes(:manager, :permission_role)
+               .includes(:manager, :permission_role, profile_photo_attachment: :blob)
                .order(:first_name, :last_name)
   end
 
@@ -16,7 +15,11 @@ class Admin::UsersController < Admin::BaseController
   end
 
   def create
-    @user = current_user.business.users.new(user_params)
+    p = user_params
+    p.delete(:remove_profile_photo)
+    p.delete(:remove_national_id_front)
+    p.delete(:remove_national_id_back)
+    @user = current_user.business.users.new(p)
     authorize @user
 
     if @user.save
@@ -41,7 +44,13 @@ class Admin::UsersController < Admin::BaseController
   def update
     authorize @user
 
-    if @user.update(user_params)
+    p = user_params
+    removals = p.extract!(:remove_profile_photo, :remove_national_id_front, :remove_national_id_back)
+
+    if @user.update(p)
+      %i[profile_photo national_id_front national_id_back].each do |name|
+        @user.public_send(name).purge if removals["remove_#{name}"] == "1"
+      end
       redirect_to admin_users_path, notice: t("flash.employee_updated")
     else
       load_managers
@@ -51,6 +60,9 @@ class Admin::UsersController < Admin::BaseController
 
   def destroy
     authorize @user
+    if @user == current_user
+      return redirect_to admin_users_path, alert: t("flash.cannot_delete_self")
+    end
     @user.destroy
     redirect_to admin_users_path, notice: t("flash.employee_removed")
   end
@@ -80,7 +92,9 @@ class Admin::UsersController < Admin::BaseController
       :permission_role_id,
       :identity_card_number, :identity_card_expiry_date,
       :allow_mobile_attendance, :allow_biometric_attendance,
-      :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship
+      :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship,
+      :profile_photo, :national_id_front, :national_id_back,
+      :remove_profile_photo, :remove_national_id_front, :remove_national_id_back
     )
   end
 end

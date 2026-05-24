@@ -1,6 +1,48 @@
-<%= form_with model: [:admin, user], class: "form-card" do |f| %>
+<%= form_with model: [:admin, user], multipart: true, class: "form-card" do |f| %>
 
   <%= render "users/shared/error_messages", resource: user %>
+
+  <%# ── Profile Photo ───────────────────────────────────────────────── %>
+  <div class="form-group form-group--full">
+    <%= f.label :profile_photo, t("admin.users.form.profile_photo"), class: "form-label" %>
+
+    <div class="upload-field" data-controller="image-upload">
+      <div class="upload-field__preview">
+        <% photo_url = user.profile_photo.attached? ? profile_photo_url(user, size: :thumb) : nil %>
+        <img src="<%= photo_url %>"
+             class="avatar-img"
+             style="width: 64px; height: 64px;"
+             alt=""
+             data-image-upload-target="img"
+             <%= "hidden" unless photo_url %>>
+        <div class="avatar avatar-placeholder"
+             data-image-upload-target="placeholder"
+             <%= "hidden" if photo_url %>>
+          <%= user.persisted? ? (user.first_name.to_s.first.upcase.presence || "?") : "?" %>
+        </div>
+
+        <div class="upload-field__controls">
+          <label class="btn btn-ghost btn-sm upload-field__choose">
+            <%= t("forms.choose_image") %>
+            <%= f.file_field :profile_photo,
+                  accept: "image/png,image/jpeg,image/webp",
+                  class: "upload-field__input",
+                  data: { "image-upload-target": "input", action: "change->image-upload#change" } %>
+          </label>
+          <button type="button"
+                  class="btn btn-ghost btn-sm text-danger"
+                  data-image-upload-target="removeBtn"
+                  data-action="image-upload#remove"
+                  <%= "hidden" unless user.profile_photo.attached? %>>
+            <%= t("forms.remove_image") %>
+          </button>
+          <%= f.hidden_field :remove_profile_photo, value: "0",
+                data: { "image-upload-target": "removeFlag" } %>
+        </div>
+      </div>
+      <p class="upload-field__hint"><%= t("admin.users.form.profile_photo_hint") %></p>
+    </div>
+  </div>
 
   <div class="form-grid">
     <div class="form-group">
@@ -140,6 +182,116 @@
           <%= f.check_box :allow_biometric_attendance %>
           <span class="form-check-label"><%= t("admin.users.form.allow_biometric_attendance") %></span>
         </label>
+      </div>
+    </div>
+  </div>
+
+  <%# ── ID Documents ────────────────────────────────────────────────── %>
+  <div class="divider"></div>
+  <h2 class="section-title"><%= t("admin.users.form.documents_section") %></h2>
+
+  <div class="form-grid">
+    <%# National ID front %>
+    <div class="form-group">
+      <%= f.label :national_id_front, t("admin.users.form.national_id_front"), class: "form-label" %>
+
+      <div class="upload-field" data-controller="image-upload">
+        <div class="upload-field__preview">
+          <% front_url = user.national_id_front.attached? ? national_id_url(user, :national_id_front, size: :thumb) : nil %>
+          <img src="<%= front_url %>"
+               class="upload-field__doc-thumb"
+               alt=""
+               data-image-upload-target="img"
+               <%= "hidden" unless front_url %>>
+          <div class="upload-field__doc-placeholder"
+               data-image-upload-target="placeholder"
+               <%= "hidden" if front_url %>>
+            <% if user.national_id_front.attached? && user.national_id_front.blob.content_type == "application/pdf" %>
+              PDF
+            <% else %>
+              &#128196;
+            <% end %>
+          </div>
+          <% if user.national_id_front.attached? && !front_url %>
+            <span class="upload-field__filename" data-image-upload-target="filename">
+              <%= user.national_id_front.blob.filename %>
+            </span>
+          <% else %>
+            <span class="upload-field__filename" data-image-upload-target="filename" hidden></span>
+          <% end %>
+
+          <div class="upload-field__controls">
+            <label class="btn btn-ghost btn-sm upload-field__choose">
+              <%= t("forms.choose_file") %>
+              <%= f.file_field :national_id_front,
+                    accept: "image/png,image/jpeg,image/webp,application/pdf",
+                    class: "upload-field__input",
+                    data: { "image-upload-target": "input", action: "change->image-upload#change" } %>
+            </label>
+            <button type="button"
+                    class="btn btn-ghost btn-sm text-danger"
+                    data-image-upload-target="removeBtn"
+                    data-action="image-upload#remove"
+                    <%= "hidden" unless user.national_id_front.attached? %>>
+              <%= t("forms.remove_image") %>
+            </button>
+            <%= f.hidden_field :remove_national_id_front, value: "0",
+                  data: { "image-upload-target": "removeFlag" } %>
+          </div>
+        </div>
+        <p class="upload-field__hint"><%= t("admin.users.form.national_id_hint") %></p>
+      </div>
+    </div>
+
+    <%# National ID back %>
+    <div class="form-group">
+      <%= f.label :national_id_back, t("admin.users.form.national_id_back"), class: "form-label" %>
+
+      <div class="upload-field" data-controller="image-upload">
+        <div class="upload-field__preview">
+          <% back_url = user.national_id_back.attached? ? national_id_url(user, :national_id_back, size: :thumb) : nil %>
+          <img src="<%= back_url %>"
+               class="upload-field__doc-thumb"
+               alt=""
+               data-image-upload-target="img"
+               <%= "hidden" unless back_url %>>
+          <div class="upload-field__doc-placeholder"
+               data-image-upload-target="placeholder"
+               <%= "hidden" if back_url %>>
+            <% if user.national_id_back.attached? && user.national_id_back.blob.content_type == "application/pdf" %>
+              PDF
+            <% else %>
+              &#128196;
+            <% end %>
+          </div>
+          <% if user.national_id_back.attached? && !back_url %>
+            <span class="upload-field__filename" data-image-upload-target="filename">
+              <%= user.national_id_back.blob.filename %>
+            </span>
+          <% else %>
+            <span class="upload-field__filename" data-image-upload-target="filename" hidden></span>
+          <% end %>
+
+          <div class="upload-field__controls">
+            <label class="btn btn-ghost btn-sm upload-field__choose">
+              <%= t("forms.choose_file") %>
+              <%= f.file_field :national_id_back,
+                    accept: "image/png,image/jpeg,image/webp,application/pdf",
+                    class: "upload-field__input",
+                    data: { "image-upload-target": "input", action: "change->image-upload#change" } %>
+            </label>
+            <button type="button"
+                    class="btn btn-ghost btn-sm text-danger"
+                    data-image-upload-target="removeBtn"
+                    data-action="image-upload#remove"
+                    <%= "hidden" unless user.national_id_back.attached? %>>
+              <%= t("forms.remove_image") %>
+            </button>
+            <%= f.hidden_field :remove_national_id_back, value: "0",
+                  data: { "image-upload-target": "removeFlag" } %>
+          </div>
+        </div>
+        <p class="upload-field__hint"><%= t("admin.users.form.national_id_hint") %></p>
       </div>
     </div>
   </div>
