@@ -26,8 +26,8 @@ Rails.application.configure do
 
   # Thruster / Nginx sits in front of Puma and terminates SSL.
   config.assume_ssl = true
-  config.force_ssl  = true
-
+  config.force_ssl  = false
+  config.action_controller.forgery_protection_origin_check = false
   # The /up health-check endpoint must be reachable over plain HTTP so the
   # Docker HEALTHCHECK and load-balancer probes work before TLS is set up.
   config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
