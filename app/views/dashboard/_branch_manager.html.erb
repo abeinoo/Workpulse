@@ -287,7 +287,13 @@
             end
           %>
           <div class="team-member team-member--<%= status_key %>">
-            <div class="team-member__avatar"><%= emp.first_name.first.upcase %></div>
+            <div class="team-member__avatar">
+              <% if (photo_url = profile_photo_url(emp, size: :thumb)) %>
+                <img src="<%= photo_url %>" alt="" class="team-member__avatar__img">
+              <% else %>
+                <%= emp.first_name.first.upcase %>
+              <% end %>
+            </div>
 
             <div class="team-member__info">
               <p class="team-member__name"><%= emp.full_name %></p>

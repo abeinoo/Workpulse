@@ -175,9 +175,7 @@
 
   <div class="sidebar__footer">
     <div class="sidebar__user">
-      <div class="sidebar__user-avatar">
-        <%= (current_user.first_name.presence || current_user.email&.first || "?").upcase.first %>
-      </div>
+      <%= sidebar_user_avatar_tag(current_user) %>
       <div class="sidebar__user-info">
         <p class="sidebar__user-name"><%= current_user.full_name %></p>
         <p class="sidebar__user-role">

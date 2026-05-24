@@ -9,12 +9,14 @@ class Admin::BranchesController < Admin::BaseController
     authorize @branch
     today = Date.current
 
-    @employees = @branch.users.where(active: true).includes(:permission_role).order(:first_name, :last_name)
+    @employees = @branch.users.where(active: true)
+                             .includes(:permission_role, profile_photo_attachment: :blob)
+                             .order(:first_name, :last_name)
     @branch_manager = @branch.branch_manager
 
     @today_records = @branch.attendance_records
                              .for_date(today)
-                             .includes(:user, shift_assignment: :shift)
+                             .includes({ user: { profile_photo_attachment: :blob } }, shift_assignment: :shift)
     @today_records_by_user = @today_records.index_by(&:user_id)
 
     today_arr = @today_records_by_user.values
@@ -27,25 +29,25 @@ class Admin::BranchesController < Admin::BaseController
     }
 
     @shift_assignments = @branch.shift_assignments.current
-                                 .includes(:user, shift: :penalty_rules)
+                                 .includes({ user: { profile_photo_attachment: :blob } }, shift: :penalty_rules)
                                  .order(:id)
 
     @payroll_period = @branch.payroll_periods
                               .where(period_month: today.month, period_year: today.year)
-                              .includes(payroll_entries: :user)
+                              .includes(payroll_entries: { user: { profile_photo_attachment: :blob } })
                               .first
 
     branch_user_ids = UserBranch.where(branch: @branch).select(:user_id)
 
     @pending_requests = EmployeeRequest
                           .where(user_id: branch_user_ids, status: :pending)
-                          .includes(:user)
+                          .includes(user: { profile_photo_attachment: :blob })
                           .order(created_at: :desc)
                           .limit(10)
 
     @recent_requests = EmployeeRequest
                          .where(user_id: branch_user_ids, status: [ :approved, :rejected ])
-                         .includes(:user, :reviewed_by)
+                         .includes({ user: { profile_photo_attachment: :blob } }, :reviewed_by)
                          .order(updated_at: :desc)
                          .limit(10)
   end

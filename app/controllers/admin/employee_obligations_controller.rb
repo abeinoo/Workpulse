@@ -4,7 +4,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   def index
     authorize EmployeeObligation
     @obligations = policy_scope(EmployeeObligation)
-                     .includes(:user, :created_by)
+                     .includes({ user: { profile_photo_attachment: :blob } }, :created_by)
                      .order(created_at: :desc)
     @obligations = @obligations.where(user_id: params[:user_id]) if params[:user_id].present?
     @obligations = @obligations.where(status: params[:status])   if params[:status].present?

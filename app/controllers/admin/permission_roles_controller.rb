@@ -12,7 +12,7 @@ class Admin::PermissionRolesController < Admin::BaseController
 
   def show
     authorize @permission_role
-    @users = @permission_role.users.order(:first_name, :last_name)
+    @users = @permission_role.users.includes(profile_photo_attachment: :blob).order(:first_name, :last_name)
     @available_users = current_user.business.users
                                    .where(permission_role_id: [ nil, @permission_role.id ])
                                    .where.not(id: current_user.business.owner_id)

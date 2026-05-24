@@ -21,7 +21,7 @@
           <tr>
             <td>
               <div class="employee-cell">
-                <div class="avatar"><%= record.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                <%= user_avatar_tag(record.user, size: :thumb) %>
                 <span class="employee-cell__name">
                   <%= link_to record.user.full_name, admin_user_path(record.user), class: "link" %>
                 </span>

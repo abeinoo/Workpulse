@@ -32,7 +32,7 @@
       <div class="dashboard-section">
         <div class="dashboard-section__header">
           <h2 class="dashboard-section__title"><%= t("admin.dashboard.recent_payroll") %></h2>
-          <%= link_to t("admin.dashboard.view_all"), admin_payroll_periods_path, class: "link-muted" %>
+          <%= link_to t("admin.dashboard.view_all"), payroll_periods_path, class: "link-muted" %>
         </div>
         <div class="table-wrap table-wrap--cards">
           <table>
@@ -46,7 +46,7 @@
             <tbody>
               <% @recent_payroll_periods.each do |period| %>
                 <tr>
-                  <td><%= link_to period.period_label, admin_payroll_period_path(period), class: "link" %></td>
+                  <td><%= link_to period.period_label, payroll_period_path(period), class: "link" %></td>
                   <td class="td-secondary"><%= period.branch&.name || t("payroll.all_branches") %></td>
                   <td>
                     <span class="badge <%= period.paid? ? 'badge-success' : period.finalized? ? 'badge-accent' : 'badge-neutral' %>">

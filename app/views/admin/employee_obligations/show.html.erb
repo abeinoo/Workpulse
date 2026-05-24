@@ -108,7 +108,7 @@
             <tbody>
               <% schedule.each_with_index do |entry, i| %>
                 <tr>
-                  <td><%= Date::MONTHNAMES[entry[:month]] %> <%= entry[:year] %></td>
+                  <td><%= I18n.t("date.month_names")[entry[:month]] %> <%= entry[:year] %></td>
                   <td>
                     <%= number_with_precision(entry[:amount], precision: 2, delimiter: ",") %>
                     <% if i == schedule.size - 1 && !@obligation.even_installments? %>

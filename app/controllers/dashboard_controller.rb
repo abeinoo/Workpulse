@@ -98,6 +98,7 @@ class DashboardController < ApplicationController
     # Full team: all active employees directly managed by this manager
     @managed_employees = current_user.managed_employees
                                      .where(active: true)
+                                     .includes(profile_photo_attachment: :blob)
                                      .order(:first_name, :last_name)
 
     managed_ids = @managed_employees.map(&:id)

@@ -1,6 +1,6 @@
 <div class="dashboard-section__header">
-  <h2 class="dashboard-section__title"><%= t("admin.branches.payroll_section", month: Date.current.strftime("%B"), year: Date.current.year) %></h2>
-  <%= link_to t("admin.branches.view_all_payroll"), admin_payroll_periods_path, class: "link-muted" %>
+  <h2 class="dashboard-section__title"><%= t("admin.branches.payroll_section", month: I18n.t("date.month_names")[Date.current.month], year: Date.current.year) %></h2>
+  <%= link_to t("admin.branches.view_all_payroll"), payroll_periods_path, class: "link-muted" %>
 </div>
 
 <% if @payroll_period %>
@@ -52,7 +52,7 @@
             <tr>
               <td>
                 <div class="employee-cell">
-                  <div class="avatar"><%= entry.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                  <%= user_avatar_tag(entry.user, size: :thumb) %>
                   <span><%= link_to entry.user.full_name, admin_user_path(entry.user), class: "link" %></span>
                 </div>
               </td>
@@ -88,13 +88,13 @@
   </div>
 
   <div style="margin-top: var(--space-4);">
-    <%= link_to t("admin.branches.view_payroll"), admin_payroll_period_path(@payroll_period), class: "btn btn-ghost btn-sm" %>
+    <%= link_to t("admin.branches.view_payroll"), payroll_period_path(@payroll_period), class: "btn btn-ghost btn-sm" %>
   </div>
 <% else %>
   <div class="empty-state">
     <p class="empty-state__title"><%= t("admin.branches.no_payroll") %></p>
     <p class="empty-state__text">
-      <%= t("admin.branches.no_payroll_hint", month: Date.current.strftime("%B"), year: Date.current.year) %>
+      <%= t("admin.branches.no_payroll_hint", month: I18n.t("date.month_names")[Date.current.month], year: Date.current.year) %>
     </p>
   </div>
 <% end %>

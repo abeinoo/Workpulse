@@ -44,7 +44,7 @@
             <tr>
               <td>
                 <div class="employee-cell">
-                  <div class="avatar"><%= obligation.user.full_name.split.map(&:first).first(2).join.upcase %></div>
+                  <%= user_avatar_tag(obligation.user, size: :thumb) %>
                   <div>
                     <div class="employee-cell__name"><%= obligation.user.full_name %></div>
                     <div class="employee-cell__sub"><%= t("admin.employee_obligations.start_period") %>: <%= obligation.start_label %></div>
