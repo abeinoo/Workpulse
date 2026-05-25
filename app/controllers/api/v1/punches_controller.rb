@@ -71,20 +71,21 @@ module Api
       end
 
       def punch_response(result)
+        tz = current_business.timezone_object
         {
           action:            result.action,
           work_date:         result.log&.work_date,
-          punched_at:        result.log&.punched_at,
-          attendance_record: result.record ? record_json(result.record) : nil
+          punched_at:        result.log&.punched_at&.in_time_zone(tz)&.iso8601,
+          attendance_record: result.record ? record_json(result.record, tz) : nil
         }
       end
 
-      def record_json(record)
+      def record_json(record, tz = current_business.timezone_object)
         {
           id:           record.id,
           work_date:    record.work_date,
-          check_in_at:  record.check_in_at,
-          check_out_at: record.check_out_at,
+          check_in_at:  record.check_in_at&.in_time_zone(tz)&.iso8601,
+          check_out_at: record.check_out_at&.in_time_zone(tz)&.iso8601,
           status:       record.status
         }
       end

@@ -60,10 +60,13 @@ module Api
       end
 
       def record_json(record, include_adjustments: false)
+        tz = current_business.timezone_object
         data = record.slice(
           :id, :user_id, :branch_id, :date, :status,
-          :check_in_at, :check_out_at,
           :worked_minutes, :late_minutes, :early_leave_minutes
+        ).merge(
+          check_in_at:  record.check_in_at&.in_time_zone(tz)&.iso8601,
+          check_out_at: record.check_out_at&.in_time_zone(tz)&.iso8601
         )
 
         if include_adjustments
