@@ -28,10 +28,10 @@
               </div>
             </td>
             <td class="td-secondary">
-              <%= record.check_in_at ? record.check_in_at.strftime("%H:%M") : "—" %>
+              <%= record.check_in_at ? record.check_in_at.in_time_zone.strftime("%H:%M") : "—" %>
             </td>
             <td class="td-secondary">
-              <%= record.check_out_at ? record.check_out_at.strftime("%H:%M") : "—" %>
+              <%= record.check_out_at ? record.check_out_at.in_time_zone.strftime("%H:%M") : "—" %>
             </td>
             <td>
               <% status_class = case record.status

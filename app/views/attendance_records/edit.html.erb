@@ -30,14 +30,14 @@
         <%= f.label :check_in_at, t("attendance.records.check_in_time"), class: "form-label" %>
         <%= f.datetime_local_field :check_in_at,
               class: "form-control",
-              value: @record.check_in_at&.strftime("%Y-%m-%dT%H:%M") %>
+              value: @record.check_in_at&.in_time_zone&.strftime("%Y-%m-%dT%H:%M") %>
       </div>
 
       <div class="form-group">
         <%= f.label :check_out_at, t("attendance.records.check_out_time"), class: "form-label" %>
         <%= f.datetime_local_field :check_out_at,
               class: "form-control",
-              value: @record.check_out_at&.strftime("%Y-%m-%dT%H:%M") %>
+              value: @record.check_out_at&.in_time_zone&.strftime("%Y-%m-%dT%H:%M") %>
         <p class="form-hint"><%= t("attendance.records.checkout_hint") %></p>
       </div>
 

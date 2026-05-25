@@ -44,10 +44,10 @@
             <% end %>
           </p>
           <p class="attendance-hero__times">
-            <span><%= t("dashboard.time_in") %> <strong><%= @my_today_record.check_in_at.strftime("%H:%M") %></strong></span>
+            <span><%= t("dashboard.time_in") %> <strong><%= @my_today_record.check_in_at.in_time_zone.strftime("%H:%M") %></strong></span>
             <% if @my_today_record.checked_out? %>
               <span class="attendance-hero__sep">&middot;</span>
-              <span><%= t("dashboard.time_out") %> <strong><%= @my_today_record.check_out_at.strftime("%H:%M") %></strong></span>
+              <span><%= t("dashboard.time_out") %> <strong><%= @my_today_record.check_out_at.in_time_zone.strftime("%H:%M") %></strong></span>
             <% end %>
           </p>
         </div>
@@ -299,9 +299,9 @@
               <p class="team-member__name"><%= emp.full_name %></p>
               <% if rec %>
                 <p class="team-member__times">
-                  <%= t("dashboard.time_in") %> <strong><%= rec.check_in_at.strftime("%H:%M") %></strong>
+                  <%= t("dashboard.time_in") %> <strong><%= rec.check_in_at.in_time_zone.strftime("%H:%M") %></strong>
                   <% if rec.checked_out? %>
-                    &middot; <%= t("dashboard.time_out") %> <strong><%= rec.check_out_at.strftime("%H:%M") %></strong>
+                    &middot; <%= t("dashboard.time_out") %> <strong><%= rec.check_out_at.in_time_zone.strftime("%H:%M") %></strong>
                   <% else %>
                     &middot; <span class="team-member__no-out"><%= t("dashboard.team.no_checkout") %></span>
                   <% end %>

@@ -4,13 +4,23 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
   stale_when_importmap_changes
 
-  before_action :set_locale
-  before_action :configure_permitted_parameters, if: :devise_controller?
-  before_action :ensure_active_user, if: :user_signed_in?
+  before_action  :set_locale
+  around_action  :set_business_timezone, if: :user_signed_in?
+  before_action  :configure_permitted_parameters, if: :devise_controller?
+  before_action  :ensure_active_user, if: :user_signed_in?
 
   rescue_from Pundit::NotAuthorizedError, with: :handle_pundit_unauthorized
 
   protected
+
+  def set_business_timezone
+    tz = current_user.business&.timezone_object
+    if tz
+      Time.use_zone(tz) { yield }
+    else
+      yield
+    end
+  end
 
   def set_locale
     # Priority: 1) user preference  2) session (set immediately on switch)

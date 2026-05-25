@@ -110,9 +110,13 @@ RSpec.describe "API V1 Attendance", type: :request do
       end
 
       it "returns check_out_at with Cairo timezone offset after check-out" do
-        post "/api/v1/attendance/check_in", params: { branch_id: cairo_branch.id }, as: :json
+        # Check in at 06:15 UTC = 09:15 Cairo
+        travel_to Time.utc(2026, 5, 25, 6, 15) do
+          post "/api/v1/attendance/check_in", params: { branch_id: cairo_branch.id }, as: :json
+          expect(response).to have_http_status(:created)
+        end
 
-        # Check out 8 hours later (14:15 UTC = 17:15 Cairo)
+        # Check out 8 hours later: 14:15 UTC = 17:15 Cairo
         travel_to Time.utc(2026, 5, 25, 14, 15) do
           post "/api/v1/attendance/check_out", params: { branch_id: cairo_branch.id }, as: :json
           check_out_str = response.parsed_body.dig("data", "check_out_at")

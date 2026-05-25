@@ -301,8 +301,8 @@
             <%# Check In %>
             <td class="attn-time-cell">
               <% if rec.check_in_at %>
-                <span class="attn-time"><%= rec.check_in_at.strftime("%H:%M") %></span>
-                <span class="attn-time-date td-secondary"><%= rec.check_in_at.strftime("%b %-d") %></span>
+                <span class="attn-time"><%= rec.check_in_at.in_time_zone.strftime("%H:%M") %></span>
+                <span class="attn-time-date td-secondary"><%= rec.check_in_at.in_time_zone.strftime("%b %-d") %></span>
               <% else %>
                 <span class="td-secondary">—</span>
               <% end %>
@@ -311,8 +311,8 @@
             <%# Check Out %>
             <td class="attn-time-cell">
               <% if rec.check_out_at %>
-                <span class="attn-time"><%= rec.check_out_at.strftime("%H:%M") %></span>
-                <span class="attn-time-date td-secondary"><%= rec.check_out_at.strftime("%b %-d") %></span>
+                <span class="attn-time"><%= rec.check_out_at.in_time_zone.strftime("%H:%M") %></span>
+                <span class="attn-time-date td-secondary"><%= rec.check_out_at.in_time_zone.strftime("%b %-d") %></span>
               <% else %>
                 <span class="badge badge-neutral badge-xs"><%= t("attendance.records.open") %></span>
               <% end %>

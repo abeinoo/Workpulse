@@ -40,11 +40,11 @@
     </div>
     <div class="info-card__row">
       <span class="info-card__label"><%= t("attendance.check_in_at") %></span>
-      <span><%= @record.check_in_at&.strftime("%b %-d, %Y %H:%M") || "—" %></span>
+      <span><%= @record.check_in_at&.in_time_zone&.strftime("%b %-d, %Y %H:%M") || "—" %></span>
     </div>
     <div class="info-card__row">
       <span class="info-card__label"><%= t("attendance.check_out_at") %></span>
-      <span><%= @record.check_out_at&.strftime("%b %-d, %Y %H:%M") || "—" %></span>
+      <span><%= @record.check_out_at&.in_time_zone&.strftime("%b %-d, %Y %H:%M") || "—" %></span>
     </div>
     <% if @record.worked_minutes %>
       <div class="info-card__row">
