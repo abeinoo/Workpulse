@@ -76,6 +76,21 @@ module ApplicationHelper
     end
   end
 
+  # Inline SVG icon for an adjustment type — used in the new adj-type-badge pill.
+  def adj_type_icon(type)
+    svg = case type.to_s
+          when "cash_incentive"
+            '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>'
+          when "commission"
+            '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'
+          when "penalty"
+            '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'
+          else
+            '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>'
+          end
+    raw(%(<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">#{svg}</svg>))
+  end
+
   def adjustment_status_badge_class(adj)
     case adj.review_status
     when "approved"      then "badge-success"

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_23_400001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_25_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -271,9 +271,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_23_400001) do
     t.decimal "amount", precision: 12, scale: 2, null: false
     t.datetime "approved_at"
     t.integer "approved_by_id"
+    t.string "bulk_batch_id"
     t.integer "business_id", null: false
     t.datetime "created_at", null: false
     t.integer "created_by_id", null: false
+    t.string "import_source", default: "manual", null: false
     t.datetime "paid_at"
     t.string "payment_method"
     t.integer "payroll_period_id"
@@ -289,6 +291,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_23_400001) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["approved_by_id"], name: "index_payroll_adjustments_on_approved_by_id"
+    t.index ["bulk_batch_id"], name: "index_payroll_adjustments_on_bulk_batch_id"
     t.index ["business_id", "period_year", "period_month", "user_id"], name: "index_payroll_adjustments_on_period_and_user"
     t.index ["business_id"], name: "index_payroll_adjustments_on_business_id"
     t.index ["created_by_id"], name: "index_payroll_adjustments_on_created_by_id"

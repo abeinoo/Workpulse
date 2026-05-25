@@ -1,117 +1,532 @@
 <% content_for :title, t("adjustments.index.page_title") %>
 
-<div class="page-header">
-  <div>
-    <h1 class="page-title"><%= t("adjustments.index.title") %></h1>
-    <p class="page-subtitle"><%= t("adjustments.subtitle") %></p>
-  </div>
-  <% if policy(PayrollAdjustment.new(business: current_user.business)).new? %>
-    <%= link_to t("adjustments.new.title"),
-          new_adjustment_path(period_month: params[:period_month], period_year: params[:period_year]),
-          class: "btn btn-primary" %>
-  <% end %>
-</div>
+<div class="adj-page">
 
-<%# Month filter %>
-<div class="filter-bar">
-  <%= form_with url: adjustments_path, method: :get, local: true, class: "filter-form" do |f| %>
-    <div class="filter-form__group">
-      <%= f.label :period_month, t("adjustments.month"), class: "filter-form__label" %>
-      <%= f.select :period_month,
-            (1..12).map { |m| [I18n.t("date.month_names")[m], m] },
-            { selected: params[:period_month]&.to_i || Date.current.month },
-            class: "form-control form-control--sm" %>
+  <%# ── Page header ──────────────────────────────────────────────────────────── %>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("adjustments.index.title") %></h1>
+      <p class="page-subtitle"><%= t("adjustments.subtitle") %></p>
     </div>
-    <div class="filter-form__group">
-      <%= f.label :period_year, t("adjustments.year"), class: "filter-form__label" %>
-      <%= f.select :period_year,
-            ((Date.current.year - 2)..(Date.current.year + 1)).map { |y| [y, y] },
-            { selected: params[:period_year]&.to_i || Date.current.year },
-            class: "form-control form-control--sm" %>
-    </div>
-    <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
-  <% end %>
-</div>
-
-<% if @adjustments.empty? %>
-  <div class="empty-state">
-    <p><%= t("adjustments.no_adjustments") %></p>
-  </div>
-<% else %>
-  <%# Pending approvals banner — super admin only %>
-  <% pending = @adjustments.select(&:pending_review?) %>
-  <% if pending.any? && current_user.owner? %>
-    <div class="alert alert-warning" style="margin-bottom: var(--space-5);">
-      <strong><%= t("adjustments.pending", count: pending.size) %></strong>
-    </div>
-  <% end %>
-
-  <div class="table-wrap table-wrap--cards">
-    <table>
-      <thead>
-        <tr>
-          <th><%= t("adjustments.employee") %></th>
-          <th><%= t("adjustments.type") %></th>
-          <th><%= t("adjustments.amount") %></th>
-          <th><%= t("adjustments.reason") %></th>
-          <th><%= t("adjustments.created_by") %></th>
-          <th><%= t("adjustments.status") %></th>
-          <th><%= t("adjustments.actions") %></th>
-        </tr>
-      </thead>
-      <tbody>
-        <% @adjustments.each do |adj| %>
-          <tr>
-            <td><%= adj.user.full_name %></td>
-            <td>
-              <span class="badge <%= adjustment_type_badge_class(adj) %>">
-                <%= t("adjustments.types.#{adj.adjustment_type}") %>
-              </span>
-            </td>
-            <td>
-              <span class="<%= adj.positive? ? 'text-success' : 'text-danger' %>">
-                <%= adj.positive? ? "+" : "-" %><%= format_currency(adj.amount) %>
-              </span>
-            </td>
-            <td><%= truncate(adj.reason, length: 60) %></td>
-            <td>
-              <%= adj.created_by.full_name %>
-              <span class="text-muted text-sm"><%= adj.created_at.strftime("%b %-d") %></span>
-            </td>
-            <td>
-              <span class="badge <%= adjustment_status_badge_class(adj) %>">
-                <%= t("payroll.entry.review_statuses.#{adj.review_status}") %>
-              </span>
-              <% if adj.approved? && adj.approved_by %>
-                <div class="text-muted text-sm">by <%= adj.approved_by.full_name %></div>
-              <% elsif adj.rejected? && adj.rejected_by %>
-                <div class="text-muted text-sm">by <%= adj.rejected_by.full_name %></div>
-              <% end %>
-            </td>
-            <td class="td-actions">
-              <% if adj.pending_review? && policy(adj).approve? %>
-                <%= button_to t("adjustments.approve"),
-                      approve_adjustment_path(adj),
-                      method: :patch,
-                      class: "btn btn-sm btn-success",
-                      data: { turbo_confirm: t("adjustments.approve_confirm") } %>
-                <%= button_to t("adjustments.reject"),
-                      reject_adjustment_path(adj),
-                      method: :patch,
-                      class: "btn btn-sm btn-danger",
-                      data: { turbo_confirm: t("adjustments.reject_confirm") } %>
-              <% end %>
-              <% if policy(adj).destroy? %>
-                <%= button_to t("adjustments.remove"),
-                      adjustment_path(adj),
-                      method: :delete,
-                      class: "btn btn-sm btn-ghost",
-                      data: { turbo_confirm: t("adjustments.remove_confirm") } %>
-              <% end %>
-            </td>
-          </tr>
+    <div class="page-header__actions">
+      <%# Period switcher — always visible %>
+      <%= form_with url: adjustments_path, method: :get, local: true, class: "adj-period-form" do |f| %>
+        <%= f.select :period_month,
+              (1..12).map { |m| [I18n.t("date.month_names")[m], m] },
+              { selected: @filter_month },
+              class: "form-control form-control--sm adj-period-select" %>
+        <%= f.select :period_year,
+              ((Date.current.year - 2)..(Date.current.year + 1)).map { |y| [y, y] },
+              { selected: @filter_year },
+              class: "form-control form-control--sm adj-period-select" %>
+        <%# Preserve other filters when changing period %>
+        <%= hidden_field_tag :adjustment_type, params[:adjustment_type] %>
+        <%= hidden_field_tag :review_status,   params[:review_status] %>
+        <%= hidden_field_tag :user_id,         params[:user_id] %>
+        <%= hidden_field_tag :branch_id,       params[:branch_id] %>
+        <%= hidden_field_tag :q,               params[:q] %>
+        <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if policy(PayrollAdjustment.new(business: current_user.business)).new? %>
+        <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year),
+              class: "btn btn-primary" do %>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <%= t("adjustments.index.title") %>
         <% end %>
-      </tbody>
-    </table>
+      <% end %>
+    </div>
   </div>
-<% end %>
+
+  <%# ── Pending approvals banner ─────────────────────────────────────────────── %>
+  <% if @summary.pending_count > 0 && current_user.owner? %>
+    <div class="alert alert-warning adj-pending-banner">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <strong><%= t("adjustments.pending", count: @summary.pending_count) %></strong>
+    </div>
+  <% end %>
+
+  <%# ── Summary stats strip ───────────────────────────────────────────────────── %>
+  <div class="adj-stats">
+    <div class="adj-stat-card">
+      <div class="adj-stat-card__icon adj-stat-card__icon--total">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <div class="adj-stat-card__body">
+        <div class="adj-stat-card__value"><%= @summary.total_count %></div>
+        <div class="adj-stat-card__label"><%= t("adjustments.stats.total") %></div>
+      </div>
+      <% if @summary.trend_delta %>
+        <div class="adj-stat-card__trend <%= @summary.trend_delta >= 0 ? 'adj-stat-card__trend--up' : 'adj-stat-card__trend--down' %>">
+          <% if @summary.trend_delta > 0 %>
+            ▲ +<%= @summary.trend_delta %>
+          <% elsif @summary.trend_delta < 0 %>
+            ▼ <%= @summary.trend_delta %>
+          <% else %>
+            ─
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="adj-stat-card adj-stat-card--bonus">
+      <div class="adj-stat-card__icon adj-stat-card__icon--bonus">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+          <polyline points="17 6 23 6 23 12"/>
+        </svg>
+      </div>
+      <div class="adj-stat-card__body">
+        <div class="adj-stat-card__value adj-stat-card__value--positive"><%= format_currency(@summary.bonus_total) %></div>
+        <div class="adj-stat-card__label"><%= t("adjustments.stats.bonuses") %></div>
+      </div>
+    </div>
+
+    <div class="adj-stat-card adj-stat-card--deduction">
+      <div class="adj-stat-card__icon adj-stat-card__icon--deduction">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/>
+          <polyline points="17 18 23 18 23 12"/>
+        </svg>
+      </div>
+      <div class="adj-stat-card__body">
+        <div class="adj-stat-card__value adj-stat-card__value--negative"><%= format_currency(@summary.deduction_total) %></div>
+        <div class="adj-stat-card__label"><%= t("adjustments.stats.deductions") %></div>
+      </div>
+    </div>
+
+    <div class="adj-stat-card">
+      <div class="adj-stat-card__icon adj-stat-card__icon--employees">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div class="adj-stat-card__body">
+        <div class="adj-stat-card__value"><%= @summary.employees_affected %></div>
+        <div class="adj-stat-card__label"><%= t("adjustments.stats.employees") %></div>
+      </div>
+    </div>
+
+    <div class="adj-stat-card <%= @summary.pending_count > 0 ? 'adj-stat-card--pending-active' : '' %>">
+      <div class="adj-stat-card__icon adj-stat-card__icon--pending">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="adj-stat-card__body">
+        <div class="adj-stat-card__value <%= @summary.pending_count > 0 ? 'text-warning' : '' %>">
+          <%= @summary.pending_count %>
+        </div>
+        <div class="adj-stat-card__label"><%= t("adjustments.stats.pending") %></div>
+      </div>
+    </div>
+  </div>
+
+  <%# ── Two-column: quick actions + insights ────────────────────────────────── %>
+  <div class="adj-meta-row">
+
+    <%# Quick actions — visible only to users who can create %>
+    <% if policy(PayrollAdjustment.new(business: current_user.business)).new? %>
+      <div class="adj-quick-actions">
+        <h3 class="adj-section-title"><%= t("adjustments.quick_actions.heading") %></h3>
+        <div class="adj-qa-grid">
+          <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year,
+                        "payroll_adjustment[adjustment_type]": "cash_incentive"),
+                class: "adj-qa-btn adj-qa-btn--bonus" do %>
+            <span class="adj-qa-btn__icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                <polyline points="17 6 23 6 23 12"/>
+              </svg>
+            </span>
+            <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.new_bonus") %></span>
+          <% end %>
+
+          <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year,
+                        "payroll_adjustment[adjustment_type]": "manual_deduction"),
+                class: "adj-qa-btn adj-qa-btn--deduction" do %>
+            <span class="adj-qa-btn__icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/>
+                <polyline points="17 18 23 18 23 12"/>
+              </svg>
+            </span>
+            <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.new_deduction") %></span>
+          <% end %>
+
+          <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year,
+                        "payroll_adjustment[adjustment_type]": "commission"),
+                class: "adj-qa-btn adj-qa-btn--commission" do %>
+            <span class="adj-qa-btn__icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="1" x2="12" y2="23"/>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </span>
+            <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.new_commission") %></span>
+          <% end %>
+
+          <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year,
+                        "payroll_adjustment[adjustment_type]": "penalty"),
+                class: "adj-qa-btn adj-qa-btn--penalty" do %>
+            <span class="adj-qa-btn__icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </span>
+            <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.new_penalty") %></span>
+          <% end %>
+
+          <%= link_to bulk_adjustments_path, class: "adj-qa-btn adj-qa-btn--bulk" do %>
+            <span class="adj-qa-btn__icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="9" y1="21" x2="9" y2="9"/>
+              </svg>
+            </span>
+            <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.bulk_entry") %></span>
+          <% end %>
+
+          <%= link_to import_bulk_adjustments_path, class: "adj-qa-btn adj-qa-btn--import" do %>
+            <span class="adj-qa-btn__icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </span>
+            <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.bulk_import") %></span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# Insights panel %>
+    <% if @summary.total_count > 0 %>
+      <div class="adj-insights">
+        <h3 class="adj-section-title"><%= t("adjustments.insights.heading") %></h3>
+        <div class="adj-insights-list">
+
+          <% if @summary.most_adjusted_user %>
+            <div class="adj-insight-row">
+              <span class="adj-insight-row__label"><%= t("adjustments.insights.most_adjusted") %></span>
+              <span class="adj-insight-row__value"><%= @summary.most_adjusted_user.full_name %></span>
+            </div>
+          <% end %>
+
+          <% if @summary.highest_bonus_adj %>
+            <div class="adj-insight-row">
+              <span class="adj-insight-row__label"><%= t("adjustments.insights.highest_bonus") %></span>
+              <span class="adj-insight-row__value adj-insight-row__value--positive">
+                <%= format_currency(@summary.highest_bonus_adj.amount) %>
+                <span class="adj-insight-row__sub"><%= @summary.highest_bonus_adj.user.full_name %></span>
+              </span>
+            </div>
+          <% end %>
+
+          <% if @summary.highest_deduction_adj %>
+            <div class="adj-insight-row">
+              <span class="adj-insight-row__label"><%= t("adjustments.insights.highest_deduction") %></span>
+              <span class="adj-insight-row__value adj-insight-row__value--negative">
+                <%= format_currency(@summary.highest_deduction_adj.amount) %>
+                <span class="adj-insight-row__sub"><%= @summary.highest_deduction_adj.user.full_name %></span>
+              </span>
+            </div>
+          <% end %>
+
+          <% if @summary.trend_delta %>
+            <div class="adj-insight-row">
+              <span class="adj-insight-row__label"></span>
+              <span class="adj-insight-row__value">
+                <% if @summary.trend_delta > 0 %>
+                  <span class="text-warning"><%= t("adjustments.insights.trend_up", n: @summary.trend_delta) %></span>
+                <% elsif @summary.trend_delta < 0 %>
+                  <span class="text-success"><%= t("adjustments.insights.trend_down", n: @summary.trend_delta) %></span>
+                <% else %>
+                  <span class="td-secondary"><%= t("adjustments.insights.trend_flat") %></span>
+                <% end %>
+              </span>
+            </div>
+          <% end %>
+
+        </div>
+      </div>
+    <% end %>
+
+  </div>
+
+  <%# ── Filter section ────────────────────────────────────────────────────────── %>
+  <div class="adj-filter-section" data-controller="collapsible"
+       data-collapsible-open-value="<%= @active_filters ? 'true' : 'false' %>">
+
+    <div class="adj-filter-header">
+      <span class="adj-filter-header__title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+        <%= t("adjustments.index.filter_toggle") %>
+        <% if @active_filters %>
+          <span class="adj-filter-header__active-dot" aria-label="filters active"></span>
+        <% end %>
+      </span>
+      <button type="button" class="adj-filter-toggle btn btn-ghost btn-sm"
+              data-action="collapsible#toggle"
+              data-collapsible-target="trigger"
+              aria-expanded="<%= @active_filters ? 'true' : 'false' %>">
+        <svg class="adj-filter-toggle__chevron" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="adj-filter-body" data-collapsible-target="content">
+      <%= form_with url: adjustments_path, method: :get, local: true,
+            class: "adj-filter-form",
+            data: { controller: "auto-submit", auto_submit_delay_value: 0 } do |f| %>
+
+        <%# Preserve period across filter changes %>
+        <%= hidden_field_tag :period_month, @filter_month %>
+        <%= hidden_field_tag :period_year,  @filter_year %>
+
+        <div class="adj-filter-grid">
+          <div class="form-group">
+            <%= f.label :adjustment_type, t("adjustments.type"), class: "form-label" %>
+            <%= f.select :adjustment_type,
+                  [[t("adjustments.index.filter_all_types"), ""]] +
+                    PayrollAdjustment::ADJUSTMENT_TYPES.map { |type|
+                      [t("adjustments.types.#{type}"), type]
+                    },
+                  { selected: @filters[:adjustment_type] },
+                  class: "form-control form-control--sm" %>
+          </div>
+
+          <div class="form-group">
+            <%= f.label :review_status, t("adjustments.status"), class: "form-label" %>
+            <%= f.select :review_status,
+                  [[t("adjustments.index.filter_all_statuses"), ""],
+                   [t("payroll.entry.review_statuses.pending_review"), "pending_review"],
+                   [t("payroll.entry.review_statuses.approved"),       "approved"],
+                   [t("payroll.entry.review_statuses.rejected"),       "rejected"]],
+                  { selected: @filters[:review_status] },
+                  class: "form-control form-control--sm" %>
+          </div>
+
+          <% if @employees.any? %>
+            <div class="form-group">
+              <%= f.label :user_id, t("adjustments.employee"), class: "form-label" %>
+              <%= f.select :user_id,
+                    [[t("adjustments.index.filter_all_employees"), ""]] +
+                      @employees.map { |u| [u.full_name, u.id] },
+                    { selected: @filters[:user_id] },
+                    class: "form-control form-control--sm" %>
+            </div>
+          <% end %>
+
+          <% if @branches.any? %>
+            <div class="form-group">
+              <%= f.label :branch_id, t("admin.branches.index.title"), class: "form-label" %>
+              <%= f.select :branch_id,
+                    [[t("adjustments.index.filter_all_branches"), ""]] +
+                      @branches.map { |b| [b.name, b.id] },
+                    { selected: @filters[:branch_id] },
+                    class: "form-control form-control--sm" %>
+            </div>
+          <% end %>
+
+          <div class="form-group adj-filter-search">
+            <%= f.label :q, t("forms.search"), class: "form-label" %>
+            <div class="search-input-wrap">
+              <svg class="search-input-wrap__icon" width="14" height="14" viewBox="0 0 24 24"
+                   fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <%= f.text_field :q,
+                    value: @filters[:q],
+                    placeholder: t("adjustments.index.search_placeholder"),
+                    class: "form-control form-control--sm search-input-wrap__input",
+                    data: { action: "input->auto-submit#schedule" } %>
+            </div>
+          </div>
+        </div>
+
+        <div class="adj-filter-actions">
+          <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
+          <% if @active_filters %>
+            <%= link_to t("adjustments.index.filter_clear"),
+                  adjustments_path(period_month: @filter_month, period_year: @filter_year),
+                  class: "btn btn-ghost btn-sm" %>
+          <% end %>
+        </div>
+
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Adjustments table / empty state ──────────────────────────────────────── %>
+  <% if @adjustments.empty? %>
+    <div class="adj-empty">
+      <div class="adj-empty__icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+          <line x1="9" y1="9" x2="15" y2="9"/>
+          <line x1="9" y1="12" x2="13" y2="12"/>
+        </svg>
+      </div>
+      <p class="adj-empty__title">
+        <%= @active_filters ? t("adjustments.no_adjustments") : t("adjustments.no_adjustments") %>
+      </p>
+      <p class="adj-empty__hint">
+        <%= @active_filters ? t("adjustments.no_adjustments_hint") : t("adjustments.subtitle") %>
+      </p>
+      <% if policy(PayrollAdjustment.new(business: current_user.business)).new? && !@active_filters %>
+        <%= link_to t("adjustments.no_adjustments_cta"),
+              new_adjustment_path(period_month: @filter_month, period_year: @filter_year),
+              class: "btn btn-primary" %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("adjustments.employee") %></th>
+            <th><%= t("adjustments.type") %></th>
+            <th class="text-right"><%= t("adjustments.amount") %></th>
+            <th><%= t("adjustments.reason") %></th>
+            <th><%= t("adjustments.created_by") %></th>
+            <th><%= t("adjustments.status") %></th>
+            <th><%= t("adjustments.date") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @adjustments.each do |adj| %>
+            <tr class="adj-row">
+              <%# Employee %>
+              <td>
+                <div class="employee-cell">
+                  <%= user_avatar_tag(adj.user, size: :thumb) %>
+                  <div>
+                    <div class="employee-cell__name"><%= adj.user.full_name %></div>
+                    <div class="employee-cell__sub">
+                      <%= I18n.t("date.month_names")[adj.period_month] %> <%= adj.period_year %>
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <%# Type badge with icon %>
+              <td>
+                <span class="adj-type-badge adj-type-badge--<%= adj.adjustment_type.tr('_', '-') %>">
+                  <%= adj_type_icon(adj.adjustment_type) %>
+                  <%= t("adjustments.types.#{adj.adjustment_type}") %>
+                </span>
+              </td>
+
+              <%# Amount — signed, colored %>
+              <td class="text-right">
+                <span class="adj-amount <%= adj.positive? ? 'adj-amount--positive' : 'adj-amount--negative' %>">
+                  <%= adj.positive? ? "+" : "−" %><%= format_currency(adj.amount) %>
+                </span>
+                <% if adj.already_paid? %>
+                  <div class="adj-already-paid-note">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <%= t("payroll_adjustments.new.already_paid_label").split(" ").first(2).join(" ") %>
+                  </div>
+                <% end %>
+              </td>
+
+              <%# Reason %>
+              <td class="td-secondary adj-reason"><%= truncate(adj.reason, length: 55) %></td>
+
+              <%# Created by + date %>
+              <td>
+                <div class="adj-creator">
+                  <span class="adj-creator__name"><%= adj.created_by.full_name %></span>
+                </div>
+              </td>
+
+              <%# Status badge + reviewer %>
+              <td>
+                <span class="badge <%= adjustment_status_badge_class(adj) %>">
+                  <%= t("payroll.entry.review_statuses.#{adj.review_status}") %>
+                </span>
+                <% if adj.approved? && adj.approved_by %>
+                  <div class="adj-reviewer td-secondary"><%= adj.approved_by.full_name %></div>
+                <% elsif adj.rejected? && adj.rejected_by %>
+                  <div class="adj-reviewer td-secondary"><%= adj.rejected_by.full_name %></div>
+                <% end %>
+              </td>
+
+              <%# Date %>
+              <td class="td-secondary adj-date">
+                <%= l(adj.created_at, format: :short) %>
+              </td>
+
+              <%# Actions %>
+              <td class="td-actions">
+                <% if adj.pending_review? && policy(adj).approve? %>
+                  <%= button_to t("adjustments.approve"),
+                        approve_adjustment_path(adj),
+                        method: :patch,
+                        class: "btn btn-sm btn-success",
+                        data: { turbo_confirm: t("adjustments.approve_confirm") } %>
+                  <%= button_to t("adjustments.reject"),
+                        reject_adjustment_path(adj),
+                        method: :patch,
+                        class: "btn btn-sm btn-danger",
+                        data: { turbo_confirm: t("adjustments.reject_confirm") } %>
+                <% end %>
+                <% if policy(adj).destroy? %>
+                  <%= button_to t("adjustments.remove"),
+                        adjustment_path(adj),
+                        method: :delete,
+                        class: "btn btn-sm btn-ghost",
+                        data: { turbo_confirm: t("adjustments.remove_confirm") } %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+</div>

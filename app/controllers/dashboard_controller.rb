@@ -18,16 +18,15 @@ class DashboardController < ApplicationController
   private
 
   def load_super_admin_data
-    business = current_user.business
-    @stats = {
-      employees:        business.users.count,
-      branches:         business.branches.active.count,
-      pending_requests: EmployeeRequest.for_business(business).pending.count
-    }
-    @recent_payroll_periods = PayrollPeriod
-      .where(business: business)
-      .order(period_year: :desc, period_month: :desc)
-      .limit(4)
+    data = Dashboard::OwnerData.call(current_user.business)
+
+    @stats                  = data.stats
+    @trends                 = data.trends
+    @active_now             = data.active_now
+    @branch_snapshots       = data.branch_snapshots
+    @today_records_by_user  = data.today_records_by_user
+    @recent_payroll_periods = data.recent_payroll_periods
+    @missing_checkouts      = data.missing_checkouts
   end
 
   def load_area_manager_data

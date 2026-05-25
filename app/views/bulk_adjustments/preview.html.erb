@@ -1,0 +1,147 @@
+<% content_for :title, t("bulk_adjustments.import.preview_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <%= link_to import_bulk_adjustments_path, class: "back-link" do %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <%= t("bulk_adjustments.import.back_to_upload") %>
+    <% end %>
+    <h1 class="page-title"><%= t("bulk_adjustments.import.preview_title") %></h1>
+  </div>
+
+  <%# ── Summary strip ──────────────────────────────────────────────────────── %>
+  <div class="info-card import-info-card">
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("bulk_adjustments.import.total_rows") %></span>
+      <span><%= @parse_result.total_rows %></span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("bulk_adjustments.import.valid_rows") %></span>
+      <span class="<%= @parse_result.valid_count > 0 ? 'text-success' : '' %>">
+        <%= @parse_result.valid_count %>
+      </span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("bulk_adjustments.import.invalid_rows") %></span>
+      <span class="<%= @parse_result.invalid_count > 0 ? 'text-danger' : '' %>">
+        <%= @parse_result.invalid_count %>
+      </span>
+    </div>
+    <% if @parse_result.valid_count > 0 %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("bulk_adjustments.import.total_amount") %></span>
+        <span><%= format_currency(@parse_result.valid_rows.sum(&:amount)) %></span>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Confirm form (only when there are valid rows) ──────────────────────── %>
+  <% if @parse_result.valid_count > 0 %>
+    <div class="import-confirm-actions">
+      <%= form_with url: confirm_import_bulk_adjustments_path, method: :post do |f| %>
+        <%= hidden_field_tag :rows_json,     @valid_rows_json %>
+        <%= hidden_field_tag :period_month,  @default_month %>
+        <%= hidden_field_tag :period_year,   @default_year %>
+        <%= f.submit t("bulk_adjustments.import.confirm_btn",
+                       count: @parse_result.valid_count), class: "btn btn-primary" %>
+        <%= link_to t("bulk_adjustments.import.cancel_btn"),
+              import_bulk_adjustments_path, class: "btn btn-ghost" %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="alert alert-warning">
+      <%= t("bulk_adjustments.import.no_valid_rows") %>
+    </div>
+    <div class="import-confirm-actions">
+      <%= link_to t("bulk_adjustments.import.cancel_btn"),
+            import_bulk_adjustments_path, class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+
+  <%# ── Valid rows preview ───────────────────────────────────────────────────── %>
+  <% if @parse_result.valid_rows.any? %>
+    <h2 class="section-title">
+      <%= t("bulk_adjustments.import.valid_rows_title", count: @parse_result.valid_count) %>
+    </h2>
+    <div class="table-wrap table-wrap--cards import-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th><%= t("adjustments.employee") %></th>
+            <th><%= t("adjustments.type") %></th>
+            <th class="text-right"><%= t("adjustments.amount") %></th>
+            <th><%= t("adjustments.reason") %></th>
+            <th><%= t("adjustments.period") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @parse_result.valid_rows.each do |row| %>
+            <% user = User.find_by(id: row.user) %>
+            <tr>
+              <td class="td-secondary"><%= row.row_number %></td>
+              <td>
+                <% if user %>
+                  <div class="adj-creator__name"><%= user.full_name %></div>
+                  <div class="td-secondary" style="font-size: var(--text-xs)"><%= row.employee_code %></div>
+                <% else %>
+                  <span class="td-secondary"><%= row.employee_code %></span>
+                <% end %>
+              </td>
+              <td>
+                <span class="adj-type-badge adj-type-badge--<%= row.adjustment_type.tr('_', '-') %>">
+                  <%= t("adjustments.types.#{row.adjustment_type}") %>
+                </span>
+              </td>
+              <td class="text-right">
+                <span class="<%= PayrollAdjustment::POSITIVE_TYPES.include?(row.adjustment_type) ? 'adj-amount--positive' : 'adj-amount--negative' %>">
+                  <%= format_currency(row.amount) %>
+                </span>
+              </td>
+              <td class="td-secondary"><%= truncate(row.reason, length: 55) %></td>
+              <td class="td-secondary">
+                <%= I18n.t("date.month_names")[row.period_month] %> <%= row.period_year %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <%# ── Error rows ──────────────────────────────────────────────────────────── %>
+  <% if @parse_result.invalid_rows.any? %>
+    <h2 class="section-title text-danger">
+      <%= t("bulk_adjustments.import.error_rows_title", count: @parse_result.invalid_count) %>
+    </h2>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th><%= t("adjustments.employee") %></th>
+            <th class="text-right"><%= t("adjustments.amount") %></th>
+            <th><%= t("adjustments.reason") %></th>
+            <th><%= t("bulk_adjustments.import.errors_col") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @parse_result.invalid_rows.each do |row| %>
+            <tr>
+              <td class="td-secondary"><%= row.row_number %></td>
+              <td class="td-secondary"><%= row.employee_code %></td>
+              <td class="text-right td-secondary"><%= row.amount > 0 ? format_currency(row.amount) : "—" %></td>
+              <td class="td-secondary"><%= truncate(row.reason.to_s, length: 40).presence || "—" %></td>
+              <td class="text-danger"><%= row.errors.join(" · ") %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+</div>

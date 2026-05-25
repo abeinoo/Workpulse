@@ -131,6 +131,16 @@ Rails.application.routes.draw do
     end
   end
 
+  # ── Bulk Adjustments (multi-row entry + CSV import) ──────────────────────
+  resource :bulk_adjustments, only: [] do
+    get  :new,            path: "new"
+    post :create,         path: "new"
+    get  :import,         path: "import"
+    post :preview_import, path: "import/preview"
+    post :confirm_import, path: "import/confirm"
+    get  :template,       path: "import/template"
+  end
+
   # ── Branch Manager + Employee (shared web routes) ─────────────────────────
   resources :shifts,            only: [ :show ]
   resources :shift_assignments, only: [ :index, :new, :create, :edit, :update ] do

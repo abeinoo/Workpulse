@@ -48,6 +48,14 @@ class PayrollAdjustment < ApplicationRecord
   scope :pending,       ->              { where(review_status: "pending_review") }
   scope :approved,      ->              { where(review_status: "approved") }
   scope :already_paid,  ->              { where(already_paid: true) }
+  scope :by_type,       ->(type)        { where(adjustment_type: type) if type.present? }
+  scope :by_status,     ->(status)      { where(review_status: status) if status.present? }
+  scope :for_user,      ->(uid)         { where(user_id: uid) if uid.present? }
+  scope :for_branch,    ->(branch_id)   { joins(user: :user_branches).where(user_branches: { branch_id: branch_id }) if branch_id.present? }
+  scope :search_reason, ->(q)           { where("reason ILIKE ?", "%#{q}%") if q.present? }
+  scope :for_batch,     ->(batch_id)    { where(bulk_batch_id: batch_id) if batch_id.present? }
+
+  IMPORT_SOURCES = %w[manual csv_import].freeze
 
   def signed_amount
     positive? ? amount : -amount

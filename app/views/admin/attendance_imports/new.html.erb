@@ -11,9 +11,9 @@
 
   <%# ── Upload card ─────────────────────────────────────────────────────────── %>
 
-  <div class="form-card" style="margin-bottom: 2rem;">
+  <div class="form-card">
 
-    <p class="text-muted" style="margin-bottom: 1.25rem;">
+    <p class="import-description">
       <%= t("attendance_imports.upload.description") %>
     </p>
 
@@ -26,7 +26,7 @@
 
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-             aria-hidden="true" style="margin-bottom: 0.75rem; opacity: 0.5;">
+             aria-hidden="true" class="import-upload-icon">
           <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
           <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
         </svg>
@@ -36,7 +36,7 @@
           <%= t("attendance_imports.upload.no_file") %>
         </p>
 
-        <label class="btn btn-ghost btn-sm" style="margin-top: 0.75rem; cursor: pointer;">
+        <label class="btn btn-ghost btn-sm import-browse-label">
           <%= t("attendance_imports.upload.browse") %>
           <%= f.file_field :file, accept: ".csv,text/csv",
                 class: "visually-hidden",
@@ -44,7 +44,7 @@
         </label>
       </div>
 
-      <div class="info-card" style="margin: 1rem 0 1.25rem;">
+      <div class="info-card import-info-card">
         <div class="info-card__row">
           <span class="info-card__label"><%= t("attendance_imports.upload.required_columns") %></span>
           <code>employee_code, time</code>

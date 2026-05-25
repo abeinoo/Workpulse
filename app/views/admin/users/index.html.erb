@@ -10,6 +10,15 @@
     <% end %>
   </div>
 
+  <div class="filter-tabs">
+    <%= link_to t("admin.users.filter_active"),
+          admin_users_path(status: "active"),
+          class: "filter-tab #{"filter-tab--active" if @status_filter == "active"}" %>
+    <%= link_to t("admin.users.filter_inactive"),
+          admin_users_path(status: "inactive"),
+          class: "filter-tab #{"filter-tab--active" if @status_filter == "inactive"}" %>
+  </div>
+
   <% if @users.any? %>
     <div class="table-wrap table-wrap--cards">
       <table>
@@ -24,12 +33,17 @@
         </thead>
         <tbody>
           <% @users.each do |user| %>
-            <tr>
+            <tr class="<%= "user-row--inactive" unless user.active? %>">
               <td>
                 <div class="employee-cell">
                   <%= user_avatar_tag(user, size: :thumb) %>
                   <div>
-                    <div class="employee-cell__name"><%= user.full_name %></div>
+                    <div class="employee-cell__name">
+                      <%= user.full_name %>
+                      <% unless user.active? %>
+                        <span class="inactive-badge"><%= t("admin.users.inactive") %></span>
+                      <% end %>
+                    </div>
                     <div class="employee-cell__sub"><%= user.email.presence || user.phone_number %></div>
                   </div>
                 </div>

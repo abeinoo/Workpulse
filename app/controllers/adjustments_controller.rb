@@ -3,11 +3,46 @@ class AdjustmentsController < ApplicationController
   before_action :set_adjustment, only: [ :approve, :reject, :destroy ]
 
   def index
-    @adjustments = policy_scope(PayrollAdjustment)
-                     .includes(:user, :created_by, :approved_by, :rejected_by)
-                     .for_period(filter_year, filter_month)
-                     .order(created_at: :desc)
     authorize PayrollAdjustment.new(business: current_user.business)
+
+    # Expose filter params as an instance variable so views can read them directly.
+    # filter_params is private and Rails does not expose private methods to views.
+    @filters = filter_params
+
+    base_scope = policy_scope(PayrollAdjustment)
+                   .includes(:user, :created_by, :approved_by, :rejected_by,
+                              user: { profile_photo_attachment: :blob })
+
+    # Period scope — used for summary stats (always full period, unfiltered by UI)
+    @period_scope = base_scope.for_period(filter_year, filter_month)
+
+    # Last-period scope for trend comparison
+    lm = filter_month == 1 ? 12 : filter_month - 1
+    ly = filter_month == 1 ? filter_year - 1 : filter_year
+    last_period_scope = base_scope.for_period(ly, lm)
+
+    @summary = Adjustments::SummaryData.new(@period_scope, last_period_scope).call
+
+    # Apply UI filters on top of the period scope
+    @adjustments = @period_scope
+                     .by_type(@filters[:adjustment_type])
+                     .by_status(@filters[:review_status])
+                     .for_user(@filters[:user_id])
+                     .then { |s|
+                       @filters[:branch_id].present? ?
+                         s.for_branch(@filters[:branch_id]) : s
+                     }
+                     .search_reason(@filters[:q])
+                     .order(created_at: :desc)
+
+    # Filter bar data
+    @branches   = Branch.for_business(current_user.business).active.order(:name)
+    @employees  = manageable_employees
+
+    # Current filter state exposed for view
+    @filter_month   = filter_month
+    @filter_year    = filter_year
+    @active_filters = @filters.values.any?(&:present?)
   end
 
   def new
@@ -22,9 +57,8 @@ class AdjustmentsController < ApplicationController
 
   def create
     @adjustment = PayrollAdjustment.new(adjustment_params)
-    @adjustment.business    = current_user.business
-    @adjustment.created_by  = current_user
-    # already_paid cash incentives are auto-approved — the money is already out the door.
+    @adjustment.business   = current_user.business
+    @adjustment.created_by = current_user
     @adjustment.review_status = if @adjustment.already_paid?
                                   "approved"
                                 elsif current_user.owner?
@@ -88,10 +122,10 @@ class AdjustmentsController < ApplicationController
 
   def destroy
     authorize @adjustment
-    period_month = @adjustment.period_month
-    period_year  = @adjustment.period_year
+    month = @adjustment.period_month
+    year  = @adjustment.period_year
     @adjustment.destroy!
-    redirect_to adjustments_path(period_month: period_month, period_year: period_year),
+    redirect_to adjustments_path(period_month: month, period_year: year),
                 notice: t("flash.adjustment_removed")
   end
 
@@ -102,7 +136,7 @@ class AdjustmentsController < ApplicationController
   end
 
   def load_form_data
-    @employees = manageable_employees
+    @employees    = manageable_employees
     @period_month = @adjustment.period_month || target_month
     @period_year  = @adjustment.period_year  || target_year
   end
@@ -118,19 +152,23 @@ class AdjustmentsController < ApplicationController
                   :already_paid, :payment_method, :paid_at)
   end
 
+  def filter_params
+    params.permit(:adjustment_type, :review_status, :user_id, :branch_id, :q)
+  end
+
   def filter_month
-    params[:period_month]&.to_i || Date.current.month
+    params[:period_month]&.to_i.presence || Date.current.month
   end
 
   def filter_year
-    params[:period_year]&.to_i || Date.current.year
+    params[:period_year]&.to_i.presence || Date.current.year
   end
 
   def target_month
-    params[:period_month]&.to_i || Date.current.month
+    params[:period_month]&.to_i.presence || Date.current.month
   end
 
   def target_year
-    params[:period_year]&.to_i || Date.current.year
+    params[:period_year]&.to_i.presence || Date.current.year
   end
 end

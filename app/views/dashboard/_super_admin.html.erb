@@ -1,28 +1,413 @@
-<div class="admin-page">
+<%# ── Owner / Business Control Center ─────────────────────────────────────── %>
 
-  <div class="dashboard__greeting">
-    <p class="dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
-    <h1 class="dashboard__greeting-name"><%= t("greeting.hello", name: current_user.first_name) %></h1>
+<div class="owner-dashboard">
+
+  <%# ── Header: greeting + date pill ────────────────────────────────────── %>
+  <div class="owner-dashboard__header">
+    <div class="owner-dashboard__greeting">
+      <p class="owner-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
+      <h1 class="owner-dashboard__greeting-name"><%= current_user.first_name %></h1>
+      <p class="owner-dashboard__greeting-sub"><%= current_user.business.name %></p>
+    </div>
+    <div class="owner-dashboard__date-block">
+      <span class="owner-dashboard__today-label"><%= t("dashboard.today") %></span>
+      <span class="owner-dashboard__date"><%= l(Date.current, format: :long) %></span>
+    </div>
   </div>
 
-  <div class="stats-grid">
-    <div class="stat-card">
-      <p class="stat-card__label"><%= t("dashboard.stats.employees") %></p>
-      <p class="stat-card__value"><%= @stats[:employees] %></p>
+  <%# ── Alert: missing checkouts from yesterday ─────────────────────────── %>
+  <% if @missing_checkouts.any? %>
+    <div class="alert-bar alert-bar--warning">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span><%= t("dashboard.missing_checkout_alert", count: @missing_checkouts.count) %></span>
+      <% @missing_checkouts.first(3).each do |rec| %>
+        <%= link_to rec.user.full_name, edit_attendance_record_path(rec), class: "alert-bar__link" %>
+      <% end %>
     </div>
-    <div class="stat-card">
-      <p class="stat-card__label"><%= t("dashboard.stats.active_branches") %></p>
-      <p class="stat-card__value"><%= @stats[:branches] %></p>
+  <% end %>
+
+  <%# ── §1 Stats strip ─────────────────────────────────────────────────── %>
+  <div class="owner-stats-grid">
+
+    <div class="stat-card stat-card--success">
+      <div class="stat-card__icon-row">
+        <p class="stat-card__label"><%= t("dashboard.stats.checked_in_today") %></p>
+        <svg class="stat-card__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      </div>
+      <p class="stat-card__value"><%= @stats[:checked_in] %></p>
+      <p class="stat-card__sub"><%= t("dashboard.owner.of_n_employees", count: @stats[:total_employees]) %></p>
     </div>
+
+    <div class="stat-card stat-card--accent">
+      <div class="stat-card__icon-row">
+        <p class="stat-card__label"><%= t("dashboard.stats.active_now") %></p>
+        <svg class="stat-card__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <p class="stat-card__value"><%= @stats[:active_now] %></p>
+      <p class="stat-card__sub"><%= t("dashboard.owner.working_now") %></p>
+    </div>
+
+    <div class="stat-card stat-card--warning">
+      <div class="stat-card__icon-row">
+        <p class="stat-card__label"><%= t("dashboard.stats.late_today") %></p>
+        <svg class="stat-card__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <p class="stat-card__value"><%= @stats[:late_count] %></p>
+      <p class="stat-card__sub"><%= t("dashboard.owner.checked_in_late") %></p>
+    </div>
+
+    <div class="stat-card stat-card--danger">
+      <div class="stat-card__icon-row">
+        <p class="stat-card__label"><%= t("dashboard.stats.absent_today") %></p>
+        <svg class="stat-card__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      </div>
+      <p class="stat-card__value"><%= @stats[:absent] %></p>
+      <p class="stat-card__sub"><%= t("dashboard.owner.no_record_today") %></p>
+    </div>
+
     <div class="stat-card">
-      <p class="stat-card__label"><%= t("dashboard.stats.pending_requests") %></p>
+      <div class="stat-card__icon-row">
+        <p class="stat-card__label"><%= t("dashboard.stats.checked_out_today") %></p>
+        <svg class="stat-card__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </div>
+      <p class="stat-card__value"><%= @stats[:checked_out] %></p>
+      <p class="stat-card__sub"><%= t("dashboard.owner.completed_shifts") %></p>
+    </div>
+
+    <div class="stat-card <%= @stats[:pending_requests] > 0 ? 'stat-card--alert' : '' %>">
+      <div class="stat-card__icon-row">
+        <p class="stat-card__label"><%= t("dashboard.stats.pending_requests") %></p>
+        <svg class="stat-card__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
       <p class="stat-card__value"><%= @stats[:pending_requests] %></p>
+      <p class="stat-card__sub"><%= t("dashboard.owner.needs_review") %></p>
+    </div>
+
+  </div>
+
+  <%# ── §2 Trend bar (δ vs yesterday) ─────────────────────────────────── %>
+  <%
+    att_delta  = @trends[:attendance_delta]
+    late_delta = @trends[:late_delta]
+    avg_mins   = @stats[:avg_work_mins]
+    busiest    = @trends[:busiest_branch]
+  %>
+  <div class="trend-bar">
+    <%# Attendance delta %>
+    <%
+      att_cls = att_delta > 0 ? 'up' : att_delta < 0 ? 'down' : 'same'
+      att_arrow = att_delta > 0 ? '↑' : att_delta < 0 ? '↓' : '→'
+    %>
+    <span class="trend-chip trend-chip--<%= att_cls %>">
+      <%= att_arrow %> <%= att_delta.abs %>
+      <span class="trend-chip__label"><%= t("dashboard.trends.vs_yesterday_checkin") %></span>
+    </span>
+
+    <div class="trend-bar__divider" aria-hidden="true"></div>
+
+    <%# Late delta %>
+    <%
+      late_cls   = late_delta > 0 ? 'warn' : late_delta < 0 ? 'up' : 'same'
+      late_arrow = late_delta > 0 ? '↑' : late_delta < 0 ? '↓' : '→'
+    %>
+    <span class="trend-chip trend-chip--<%= late_cls %>">
+      <%= late_arrow %> <%= late_delta.abs %>
+      <span class="trend-chip__label"><%= t("dashboard.stats.late_today").downcase %></span>
+    </span>
+
+    <% if busiest %>
+      <div class="trend-bar__divider" aria-hidden="true"></div>
+      <span class="trend-chip trend-chip--same">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <%= busiest.name %>
+        <span class="trend-chip__label">(<%= @trends[:busiest_active] %> <%= t("dashboard.owner.working_now").downcase %>)</span>
+      </span>
+    <% end %>
+
+    <% if avg_mins %>
+      <span class="trend-bar__avg">
+        <%= t("dashboard.trends.avg_work") %>: <strong><%= format("%dh %02dm", avg_mins / 60, avg_mins % 60) %></strong>
+      </span>
+    <% end %>
+  </div>
+
+  <%# ── §3 Who is Here Now ─────────────────────────────────────────────── %>
+  <div class="owner-section">
+    <div class="owner-section__header">
+      <h2 class="owner-section__title"><%= t("dashboard.owner.section_who_here") %></h2>
+      <%= link_to t("dashboard.full_log"), attendance_records_path, class: "owner-section__link" %>
+    </div>
+
+    <% if @active_now.any? %>
+      <div class="who-here-grid">
+        <% @active_now.each do |record| %>
+          <%
+            emp         = record.user
+            minutes_in  = record.check_in_at ? ((Time.current - record.check_in_at) / 60).round : 0
+            hours_in    = minutes_in / 60
+            mins_remain = minutes_in % 60
+            is_out      = record.checked_out?
+            is_late     = record.status == "late"
+          %>
+          <div class="who-here-card who-here-card--<%= is_out ? 'out' : is_late ? 'late' : 'active' %>">
+            <div class="who-here-card__top">
+              <div class="who-here-card__avatar">
+                <% if (photo_url = profile_photo_url(emp, size: :thumb)) %>
+                  <img src="<%= photo_url %>" alt="" class="who-here-card__avatar-img" loading="lazy">
+                <% else %>
+                  <span class="who-here-card__initials"><%= emp.first_name.first.upcase %></span>
+                <% end %>
+              </div>
+              <span class="who-here-badge who-here-badge--<%= is_out ? 'out' : is_late ? 'late' : 'active' %>">
+                <% if is_out %>
+                  <%= t("dashboard.owner.status_out") %>
+                <% elsif is_late %>
+                  <%= t("attendance.statuses.late") %>
+                <% else %>
+                  <%= t("dashboard.owner.status_active") %>
+                <% end %>
+              </span>
+            </div>
+            <div class="who-here-card__body">
+              <p class="who-here-card__name"><%= emp.full_name %></p>
+              <p class="who-here-card__branch"><%= record.branch&.name || t("dashboard.owner.no_branch") %></p>
+              <div class="who-here-card__times">
+                <span class="who-here-card__checkin">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <%= record.check_in_at.strftime("%H:%M") %>
+                </span>
+                <% if is_out %>
+                  <span class="who-here-card__duration">
+                    <%= t("dashboard.time_out") %> <%= record.check_out_at.strftime("%H:%M") %>
+                  </span>
+                <% elsif minutes_in > 0 %>
+                  <span class="who-here-card__duration">
+                    <%= t("dashboard.owner.duration", hours: hours_in, minutes: mins_remain) %>
+                  </span>
+                <% end %>
+              </div>
+              <% if is_late && record.late_minutes.to_i > 0 %>
+                <p class="who-here-card__late-note">
+                  <%= t("dashboard.owner.late_by", minutes: record.late_minutes) %>
+                </p>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="owner-empty">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <p><%= t("dashboard.owner.no_one_here") %></p>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── §4 + §5 Attendance Summary & Branch Performance ─────────────────── %>
+  <div class="owner-two-col">
+
+    <%# Left: Attendance summary ring + stat list ───────────────────────── %>
+    <div class="owner-section">
+      <div class="owner-section__header">
+        <h2 class="owner-section__title"><%= t("dashboard.owner.section_today_summary") %></h2>
+      </div>
+
+      <div class="summary-stats">
+
+        <div class="summary-stat--large">
+          <div class="summary-stat__ring" style="--pct: <%= @stats[:attendance_pct] %>">
+            <span class="summary-stat__ring-value"><%= @stats[:attendance_pct] %>%</span>
+          </div>
+          <p class="summary-stat__label"><%= t("dashboard.stats.attendance_pct") %></p>
+        </div>
+
+        <div class="summary-stat-list">
+          <div class="summary-stat-row">
+            <span class="summary-stat-row__label"><%= t("dashboard.stats.on_time_pct") %></span>
+            <span class="summary-stat-row__value text-success"><%= @stats[:on_time_pct] %>%</span>
+          </div>
+          <div class="summary-stat-row">
+            <span class="summary-stat-row__label"><%= t("dashboard.stats.checked_in_today") %></span>
+            <span class="summary-stat-row__value"><%= @stats[:checked_in] %></span>
+          </div>
+          <div class="summary-stat-row">
+            <span class="summary-stat-row__label"><%= t("dashboard.stats.checked_out_today") %></span>
+            <span class="summary-stat-row__value"><%= @stats[:checked_out] %></span>
+          </div>
+          <div class="summary-stat-row">
+            <span class="summary-stat-row__label"><%= t("dashboard.stats.late_today") %></span>
+            <span class="summary-stat-row__value text-warning"><%= @stats[:late_count] %></span>
+          </div>
+          <div class="summary-stat-row">
+            <span class="summary-stat-row__label"><%= t("dashboard.stats.absent_today") %></span>
+            <span class="summary-stat-row__value text-danger"><%= @stats[:absent] %></span>
+          </div>
+          <div class="summary-stat-row">
+            <span class="summary-stat-row__label"><%= t("dashboard.stats.active_branches") %></span>
+            <span class="summary-stat-row__value"><%= @stats[:branches] %></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <%# Right: Branch performance ───────────────────────────────────────── %>
+    <div class="owner-section">
+      <div class="owner-section__header">
+        <h2 class="owner-section__title"><%= t("dashboard.owner.section_branch_performance") %></h2>
+        <%= link_to t("dashboard.owner.manage_branches"), admin_branches_path, class: "owner-section__link" %>
+      </div>
+
+      <% if @branch_snapshots.any? %>
+        <div class="branch-snapshots">
+          <% @branch_snapshots.each do |snap| %>
+            <div class="branch-snapshot">
+              <div class="branch-snapshot__header">
+                <span class="branch-snapshot__name"><%= snap[:branch].name %></span>
+                <span class="branch-snapshot__pct <%= snap[:att_pct] >= 80 ? 'text-success' : snap[:att_pct] >= 50 ? 'text-warning' : 'text-danger' %>">
+                  <%= snap[:att_pct] %>%
+                </span>
+              </div>
+              <div class="branch-snapshot__bar">
+                <div class="branch-snapshot__bar-fill branch-snapshot__bar-fill--<%= snap[:att_pct] >= 80 ? 'success' : snap[:att_pct] >= 50 ? 'warning' : 'danger' %>"
+                     style="width: <%= snap[:att_pct] %>%"></div>
+              </div>
+              <div class="branch-snapshot__stats">
+                <span class="branch-snapshot__stat" title="<%= t('dashboard.stats.employees') %>">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                  <%= snap[:employees] %>
+                </span>
+                <span class="branch-snapshot__stat branch-snapshot__stat--success" title="<%= t('dashboard.stats.checked_in_today') %>">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                  <%= snap[:attended] %>
+                </span>
+                <span class="branch-snapshot__stat branch-snapshot__stat--accent" title="<%= t('dashboard.stats.active_now') %>">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <%= snap[:active_now] %>
+                </span>
+                <span class="branch-snapshot__stat branch-snapshot__stat--warning" title="<%= t('dashboard.stats.late_today') %>">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <%= snap[:late] %>
+                </span>
+                <span class="branch-snapshot__stat branch-snapshot__stat--danger" title="<%= t('dashboard.stats.absent_today') %>">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <%= snap[:absent] %>
+                </span>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="owner-empty">
+          <p><%= t("dashboard.owner.no_branches") %></p>
+        </div>
+      <% end %>
+    </div>
+
+  </div>
+
+  <%# ── §6 Quick actions grid ──────────────────────────────────────────── %>
+  <div class="owner-section">
+    <div class="owner-section__header">
+      <h2 class="owner-section__title"><%= t("dashboard.owner.section_quick_actions") %></h2>
+    </div>
+    <div class="owner-quick-actions">
+
+      <%= link_to new_admin_user_path, class: "owner-quick-action" do %>
+        <div class="owner-quick-action__icon owner-quick-action__icon--success">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        </div>
+        <div class="owner-quick-action__text">
+          <p class="owner-quick-action__label"><%= t("dashboard.owner.qa_add_employee") %></p>
+          <p class="owner-quick-action__sub"><%= t("dashboard.owner.qa_add_employee_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to admin_users_path, class: "owner-quick-action" do %>
+        <div class="owner-quick-action__icon owner-quick-action__icon--accent">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="owner-quick-action__text">
+          <p class="owner-quick-action__label"><%= t("dashboard.owner.qa_employees") %></p>
+          <p class="owner-quick-action__sub"><%= t("dashboard.owner.qa_employees_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to attendance_records_path, class: "owner-quick-action" do %>
+        <div class="owner-quick-action__icon owner-quick-action__icon--neutral">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div class="owner-quick-action__text">
+          <p class="owner-quick-action__label"><%= t("dashboard.quick_actions.attendance_log") %></p>
+          <p class="owner-quick-action__sub"><%= t("dashboard.owner.qa_attendance_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to employee_requests_path, class: "owner-quick-action" do %>
+        <div class="owner-quick-action__icon <%= @stats[:pending_requests] > 0 ? 'owner-quick-action__icon--warning' : 'owner-quick-action__icon--neutral' %>">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div class="owner-quick-action__text">
+          <p class="owner-quick-action__label">
+            <%= t("dashboard.quick_actions.all_requests") %>
+            <% if @stats[:pending_requests] > 0 %>
+              <span class="owner-quick-action__badge"><%= @stats[:pending_requests] %></span>
+            <% end %>
+          </p>
+          <p class="owner-quick-action__sub"><%= t("dashboard.owner.qa_requests_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to new_payroll_period_path, class: "owner-quick-action" do %>
+        <div class="owner-quick-action__icon owner-quick-action__icon--success">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="owner-quick-action__text">
+          <p class="owner-quick-action__label"><%= t("dashboard.owner.qa_create_payroll") %></p>
+          <p class="owner-quick-action__sub"><%= t("dashboard.owner.qa_payroll_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to new_adjustment_path, class: "owner-quick-action" do %>
+        <div class="owner-quick-action__icon owner-quick-action__icon--danger">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="9" y1="9" x2="15" y2="9"/></svg>
+        </div>
+        <div class="owner-quick-action__text">
+          <p class="owner-quick-action__label"><%= t("dashboard.owner.qa_deduction") %></p>
+          <p class="owner-quick-action__sub"><%= t("dashboard.owner.qa_deduction_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to new_admin_attendance_import_path, class: "owner-quick-action" do %>
+        <div class="owner-quick-action__icon owner-quick-action__icon--neutral">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        </div>
+        <div class="owner-quick-action__text">
+          <p class="owner-quick-action__label"><%= t("dashboard.owner.qa_import") %></p>
+          <p class="owner-quick-action__sub"><%= t("dashboard.owner.qa_import_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to admin_branches_path, class: "owner-quick-action" do %>
+        <div class="owner-quick-action__icon owner-quick-action__icon--neutral">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <div class="owner-quick-action__text">
+          <p class="owner-quick-action__label"><%= t("dashboard.owner.qa_branches") %></p>
+          <p class="owner-quick-action__sub"><%= t("dashboard.owner.qa_branches_sub") %></p>
+        </div>
+      <% end %>
+
     </div>
   </div>
 
+  <%# ── §7 Recent payroll periods ─────────────────────────────────────── %>
   <% if @recent_payroll_periods.any? %>
-    <div class="dashboard-section">
-      <h2 class="dashboard-section__title"><%= t("dashboard.sections.recent_payroll_periods") %></h2>
+    <div class="owner-section">
+      <div class="owner-section__header">
+        <h2 class="owner-section__title"><%= t("dashboard.sections.recent_payroll_periods") %></h2>
+        <%= link_to t("dashboard.view_all"), payroll_periods_path, class: "owner-section__link" %>
+      </div>
       <div class="table-wrap table-wrap--cards">
         <table>
           <thead>
@@ -35,7 +420,9 @@
           <tbody>
             <% @recent_payroll_periods.each do |period| %>
               <tr>
-                <td><%= period.period_label %></td>
+                <td>
+                  <%= link_to period.period_label, payroll_period_path(period), class: "link-muted" %>
+                </td>
                 <td class="td-secondary"><%= period.branch&.name || t("payroll.all_branches") %></td>
                 <td>
                   <span class="badge <%= period.paid? ? 'badge-success' : period.finalized? ? 'badge-accent' : 'badge-neutral' %>">
@@ -49,16 +436,6 @@
       </div>
     </div>
   <% end %>
-
-  <div class="quick-links">
-    <%= link_to admin_users_path, class: "admin-quick-link" do %>
-      <div>
-        <p class="admin-quick-link__label"><%= t("admin.users.index.title") %></p>
-        <p class="admin-quick-link__sub"><%= t("admin.users.index.add") %></p>
-      </div>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-    <% end %>
-  </div>
 
 </div>
 

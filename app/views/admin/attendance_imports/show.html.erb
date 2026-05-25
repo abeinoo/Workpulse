@@ -23,7 +23,7 @@
 
   <%# ── Summary strip ───────────────────────────────────────────────────────── %>
 
-  <div class="info-card" style="margin-bottom: 1.5rem;">
+  <div class="info-card import-info-card">
     <div class="info-card__row">
       <span class="info-card__label"><%= t("attendance_imports.show.total_rows") %></span>
       <span><%= @import.total_rows %></span>
@@ -80,12 +80,12 @@
 
   <% if @import.pending? %>
     <% if @import.valid_preview_rows.any? %>
-      <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+      <div class="alert alert-info">
         <%= t("attendance_imports.show.confirm_hint",
               count: @import.valid_preview_rows.size) %>
       </div>
 
-      <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 2rem;">
+      <div class="import-confirm-actions">
         <%= button_to t("attendance_imports.show.confirm_btn"),
               confirm_admin_attendance_import_path(@import),
               method: :patch,
@@ -95,19 +95,20 @@
               class: "btn btn-ghost" %>
       </div>
     <% else %>
-      <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+      <div class="alert alert-warning">
         <%= t("attendance_imports.show.no_valid_rows") %>
       </div>
-      <%= link_to t("attendance_imports.show.cancel_btn"),
-            new_admin_attendance_import_path, class: "btn btn-ghost",
-            style: "margin-bottom: 2rem; display: inline-block;" %>
+      <div class="import-confirm-actions">
+        <%= link_to t("attendance_imports.show.cancel_btn"),
+              new_admin_attendance_import_path, class: "btn btn-ghost" %>
+      </div>
     <% end %>
   <% end %>
 
   <%# ── Download failed rows (completed) ───────────────────────────────────── %>
 
   <% if @import.completed? && @import.any_failed? %>
-    <div style="margin-bottom: 2rem;">
+    <div class="import-download-wrap">
       <%= link_to t("attendance_imports.show.download_failed"),
             failed_rows_admin_attendance_import_path(@import),
             class: "btn btn-ghost btn-sm" %>
@@ -122,7 +123,7 @@
             count: @import.valid_preview_rows.size) %>
     </h2>
 
-    <div class="table-wrap table-wrap--cards" style="margin-bottom: 2rem;">
+    <div class="table-wrap table-wrap--cards import-table-wrap">
       <table>
         <thead>
           <tr>

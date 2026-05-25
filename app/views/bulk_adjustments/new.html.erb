@@ -1,0 +1,329 @@
+<% content_for :title, t("bulk_adjustments.new.page_title") %>
+
+<div class="admin-page bulk-adj-page">
+
+  <%# ── Header ────────────────────────────────────────────────────────────── %>
+  <div class="page-header">
+    <div>
+      <%= link_to adjustments_path, class: "back-link" do %>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        <%= t("bulk_adjustments.back") %>
+      <% end %>
+      <h1 class="page-title"><%= t("bulk_adjustments.new.title") %></h1>
+      <p class="page-subtitle"><%= t("bulk_adjustments.new.subtitle") %></p>
+    </div>
+    <div class="page-header__actions">
+      <%= link_to import_bulk_adjustments_path, class: "btn btn-ghost btn-sm" do %>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+        </svg>
+        <%= t("bulk_adjustments.switch_to_csv") %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Row-level errors from a previous submit ────────────────────────────── %>
+  <% if @row_errors.any? %>
+    <div class="alert alert-warning">
+      <strong><%= t("bulk_adjustments.validation_failed") %></strong>
+      <ul class="bulk-adj-error-list">
+        <% @row_errors.each_value do |err| %>
+          <li><%= err.messages.join(" · ") %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%# ── Form ───────────────────────────────────────────────────────────────── %>
+  <%= form_with url: bulk_adjustments_path, method: :post,
+        data: {
+          controller:                        "bulk-adjustment-form",
+          "bulk-adjustment-form-positive-types-value": PayrollAdjustment::POSITIVE_TYPES.to_json,
+          "mass-reason-prompt":              t("bulk_adjustments.mass_reason_prompt"),
+          "mass-amount-prompt":              t("bulk_adjustments.mass_amount_prompt")
+        } do |f| %>
+
+    <%# Period + mass-set controls ─────────────────────────────────────────── %>
+    <div class="bulk-adj-toolbar">
+      <div class="bulk-adj-toolbar__period">
+        <label class="form-label"><%= t("adjustments.period") %></label>
+        <div class="bulk-adj-period-row">
+          <%= select_tag "bulk_adjustment[period_month]",
+                options_for_select((1..12).map { |m| [I18n.t("date.month_names")[m], m] }, @default_month),
+                class: "form-control form-control--sm" %>
+          <%= select_tag "bulk_adjustment[period_year]",
+                options_for_select(((Date.current.year - 2)..(Date.current.year + 1)).map { |y| [y, y] }, @default_year),
+                class: "form-control form-control--sm" %>
+        </div>
+      </div>
+
+      <div class="bulk-adj-toolbar__mass">
+        <label class="form-label"><%= t("bulk_adjustments.mass_set_type") %></label>
+        <select class="form-control form-control--sm"
+                data-action="change->bulk-adjustment-form#massSetType">
+          <option value=""><%= t("bulk_adjustments.choose_type") %></option>
+          <% PayrollAdjustment::ADJUSTMENT_TYPES.each do |type| %>
+            <option value="<%= type %>"><%= t("adjustments.types.#{type}") %></option>
+          <% end %>
+        </select>
+      </div>
+
+      <div class="bulk-adj-toolbar__actions">
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-action="click->bulk-adjustment-form#massSetReason">
+          <%= t("bulk_adjustments.set_all_reason") %>
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-action="click->bulk-adjustment-form#massSetAmount">
+          <%= t("bulk_adjustments.set_all_amount") %>
+        </button>
+      </div>
+    </div>
+
+    <%# ── Spreadsheet table ──────────────────────────────────────────────── %>
+    <div class="bulk-adj-sheet section-card">
+      <div class="bulk-adj-sheet__scroll"
+           data-action="keydown->bulk-adjustment-form#handleKeydown paste->bulk-adjustment-form#handlePaste">
+        <table class="bulk-adj-table">
+          <thead>
+            <tr>
+              <th class="bulk-adj-th--employee"><%= t("adjustments.employee") %></th>
+              <th class="bulk-adj-th--type"><%= t("adjustments.type") %></th>
+              <th class="bulk-adj-th--amount"><%= t("adjustments.amount") %></th>
+              <th class="bulk-adj-th--reason"><%= t("adjustments.reason") %></th>
+              <th class="bulk-adj-th--actions"></th>
+            </tr>
+          </thead>
+
+          <tbody data-bulk-adjustment-form-target="body">
+            <%# 3 starter rows on fresh load, or re-render with errors %>
+            <% start_rows = [@row_errors.any? ? 0 : 3, 0].max %>
+            <% start_rows.times do |i| %>
+              <% idx = i %>
+              <tr data-bulk-row>
+                <td class="bulk-adj-td--employee">
+                  <select name="bulk_adjustment[rows][<%= idx %>][user_id]"
+                          class="form-control form-control--sm"
+                          data-field="employee_select">
+                    <option value=""><%= t("bulk_adjustments.select_employee") %></option>
+                    <% @employees.each do |emp| %>
+                      <option value="<%= emp.id %>"
+                              data-code="<%= emp.employee_code %>">
+                        <%= emp.full_name %>
+                      </option>
+                    <% end %>
+                  </select>
+                </td>
+                <td class="bulk-adj-td--type">
+                  <select name="bulk_adjustment[rows][<%= idx %>][adjustment_type]"
+                          class="form-control form-control--sm"
+                          data-field="adjustment_type"
+                          data-action="change->bulk-adjustment-form#updateTotals">
+                    <% PayrollAdjustment::ADJUSTMENT_TYPES.each do |type| %>
+                      <option value="<%= type %>" <%= "selected" if type == @default_type %>>
+                        <%= t("adjustments.types.#{type}") %>
+                      </option>
+                    <% end %>
+                  </select>
+                </td>
+                <td class="bulk-adj-td--amount">
+                  <input type="number" step="0.01" min="0.01"
+                         name="bulk_adjustment[rows][<%= idx %>][amount]"
+                         class="form-control form-control--sm bulk-adj-amount-input"
+                         placeholder="0.00"
+                         data-field="amount"
+                         data-action="input->bulk-adjustment-form#updateTotals">
+                </td>
+                <td class="bulk-adj-td--reason">
+                  <input type="text"
+                         name="bulk_adjustment[rows][<%= idx %>][reason]"
+                         class="form-control form-control--sm"
+                         placeholder="<%= t('bulk_adjustments.reason_placeholder') %>"
+                         data-field="reason">
+                </td>
+                <td class="bulk-adj-td--actions">
+                  <button type="button" class="bulk-adj-row-btn bulk-adj-row-btn--dup"
+                          data-action="click->bulk-adjustment-form#duplicateRow"
+                          title="<%= t('bulk_adjustments.duplicate_row') %>">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="bulk-adj-row-btn bulk-adj-row-btn--remove"
+                          data-action="click->bulk-adjustment-form#removeRow"
+                          title="<%= t('bulk_adjustments.remove_row') %>">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+        <%# Empty state inside the table %>
+        <div class="bulk-adj-empty" data-bulk-adjustment-form-target="emptyState" <%= "hidden" if start_rows > 0 %>>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+          <p><%= t("bulk_adjustments.empty_state") %></p>
+        </div>
+      </div>
+
+      <%# Add row button %>
+      <div class="bulk-adj-sheet__footer">
+        <button type="button" class="btn btn-ghost btn-sm bulk-adj-add-btn"
+                data-action="click->bulk-adjustment-form#addRow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <%= t("bulk_adjustments.add_row") %>
+        </button>
+      </div>
+    </div>
+
+    <%# ── Row template (hidden, used by Stimulus) ─────────────────────────── %>
+    <template data-bulk-adjustment-form-target="template">
+      <tr data-bulk-row>
+        <td class="bulk-adj-td--employee">
+          <select name="bulk_adjustment[rows][NEW_INDEX][user_id]"
+                  class="form-control form-control--sm"
+                  data-field="employee_select">
+            <option value=""><%= t("bulk_adjustments.select_employee") %></option>
+            <% @employees.each do |emp| %>
+              <option value="<%= emp.id %>" data-code="<%= emp.employee_code %>">
+                <%= emp.full_name %>
+              </option>
+            <% end %>
+          </select>
+        </td>
+        <td class="bulk-adj-td--type">
+          <select name="bulk_adjustment[rows][NEW_INDEX][adjustment_type]"
+                  class="form-control form-control--sm"
+                  data-field="adjustment_type"
+                  data-action="change->bulk-adjustment-form#updateTotals">
+            <% PayrollAdjustment::ADJUSTMENT_TYPES.each do |type| %>
+              <option value="<%= type %>" <%= "selected" if type == @default_type %>>
+                <%= t("adjustments.types.#{type}") %>
+              </option>
+            <% end %>
+          </select>
+        </td>
+        <td class="bulk-adj-td--amount">
+          <input type="number" step="0.01" min="0.01"
+                 name="bulk_adjustment[rows][NEW_INDEX][amount]"
+                 class="form-control form-control--sm bulk-adj-amount-input"
+                 placeholder="0.00"
+                 data-field="amount"
+                 data-action="input->bulk-adjustment-form#updateTotals">
+        </td>
+        <td class="bulk-adj-td--reason">
+          <input type="text"
+                 name="bulk_adjustment[rows][NEW_INDEX][reason]"
+                 class="form-control form-control--sm"
+                 placeholder="<%= t('bulk_adjustments.reason_placeholder') %>"
+                 data-field="reason">
+        </td>
+        <td class="bulk-adj-td--actions">
+          <button type="button" class="bulk-adj-row-btn bulk-adj-row-btn--dup"
+                  data-action="click->bulk-adjustment-form#duplicateRow"
+                  title="<%= t('bulk_adjustments.duplicate_row') %>">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <button type="button" class="bulk-adj-row-btn bulk-adj-row-btn--remove"
+                  data-action="click->bulk-adjustment-form#removeRow"
+                  title="<%= t('bulk_adjustments.remove_row') %>">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </td>
+      </tr>
+    </template>
+
+    <%# ── Live totals bar ────────────────────────────────────────────────── %>
+    <div class="bulk-adj-totals">
+      <div class="bulk-adj-totals__item">
+        <span class="bulk-adj-totals__label"><%= t("bulk_adjustments.totals.rows") %></span>
+        <span class="bulk-adj-totals__value"
+              data-bulk-adjustment-form-target="totalRows">0</span>
+      </div>
+      <div class="bulk-adj-totals__divider" aria-hidden="true"></div>
+      <div class="bulk-adj-totals__item">
+        <span class="bulk-adj-totals__label"><%= t("bulk_adjustments.totals.bonuses") %></span>
+        <span class="bulk-adj-totals__value bulk-adj-totals__value--positive"
+              data-bulk-adjustment-form-target="totalBonus">0.00</span>
+      </div>
+      <div class="bulk-adj-totals__divider" aria-hidden="true"></div>
+      <div class="bulk-adj-totals__item">
+        <span class="bulk-adj-totals__label"><%= t("bulk_adjustments.totals.deductions") %></span>
+        <span class="bulk-adj-totals__value bulk-adj-totals__value--negative"
+              data-bulk-adjustment-form-target="totalDeduction">0.00</span>
+      </div>
+    </div>
+
+    <%# ── Review section (hidden until user clicks Review) ──────────────── %>
+    <div class="bulk-adj-review section-card" hidden
+         data-bulk-adjustment-form-target="reviewSection">
+      <h3 class="section-title"><%= t("bulk_adjustments.review.heading") %></h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("adjustments.type") %></th>
+              <th><%= t("bulk_adjustments.review.row_count") %></th>
+              <th class="text-right"><%= t("adjustments.amount") %></th>
+            </tr>
+          </thead>
+          <tbody data-bulk-adjustment-form-target="reviewBody"></tbody>
+        </table>
+      </div>
+      <div class="bulk-adj-review__actions">
+        <button type="button" class="btn btn-primary"
+                data-action="click->bulk-adjustment-form#confirmSubmit">
+          <%= t("bulk_adjustments.review.confirm_submit") %>
+        </button>
+        <button type="button" class="btn btn-ghost"
+                data-action="click->bulk-adjustment-form#hideReview">
+          <%= t("bulk_adjustments.review.back_to_edit") %>
+        </button>
+      </div>
+    </div>
+
+    <%# ── Sticky action bar (mobile) ────────────────────────────────────── %>
+    <div class="page-actions page-actions--sticky">
+      <button type="button" class="btn btn-secondary"
+              data-action="click->bulk-adjustment-form#showReview"
+              data-bulk-adjustment-form-target="submitBtn">
+        <%= t("bulk_adjustments.review_and_submit") %>
+      </button>
+      <%= link_to t("forms.cancel"), adjustments_path, class: "btn btn-ghost" %>
+    </div>
+
+    <%# ── Desktop submit (below table) ─────────────────────────────────── %>
+    <div class="form-actions bulk-adj-desktop-actions">
+      <button type="button" class="btn btn-primary"
+              data-action="click->bulk-adjustment-form#showReview">
+        <%= t("bulk_adjustments.review_and_submit") %>
+      </button>
+      <%= link_to t("forms.cancel"), adjustments_path, class: "btn btn-ghost" %>
+    </div>
+
+  <% end %>
+</div>

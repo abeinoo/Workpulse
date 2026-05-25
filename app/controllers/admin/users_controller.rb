@@ -3,9 +3,15 @@ class Admin::UsersController < Admin::BaseController
 
   def index
     authorize User
-    @users = policy_scope(User)
-               .includes(:manager, :permission_role, profile_photo_attachment: :blob)
-               .order(:first_name, :last_name)
+    @status_filter = params[:status].presence_in(%w[active inactive]) || "active"
+    scope = policy_scope(User)
+              .includes(:manager, :permission_role, profile_photo_attachment: :blob)
+              .order(:first_name, :last_name)
+    @users = case @status_filter
+             when "active"   then scope.where(active: true)
+             when "inactive" then scope.where(active: false)
+             else                 scope
+             end
   end
 
   def new
