@@ -58,6 +58,23 @@
               class: "form-control #{'is-error' if @business.errors[:business_day_start_hour].any?}" %>
         <p class="form-hint"><%= t("admin.settings.business_day_hint") %></p>
       </div>
+
+      <div class="form-group">
+        <%= f.label :overtime_grace_minutes, t("admin.settings.overtime_grace_label"), class: "form-label" %>
+        <div class="input-with-suffix">
+          <%= f.number_field :overtime_grace_minutes,
+                class: "form-control #{'is-error' if @business.errors[:overtime_grace_minutes].any?}",
+                min: 0,
+                max: 480,
+                step: 1,
+                placeholder: "0" %>
+          <span class="input-suffix"><%= t("admin.settings.overtime_grace_suffix") %></span>
+        </div>
+        <p class="form-hint"><%= t("admin.settings.overtime_grace_hint") %></p>
+        <% if @business.errors[:overtime_grace_minutes].any? %>
+          <p class="form-error"><%= @business.errors[:overtime_grace_minutes].first %></p>
+        <% end %>
+      </div>
     </div>
 
     <div class="divider"></div>

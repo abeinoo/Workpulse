@@ -116,9 +116,10 @@ module Payroll
         end
 
         overtime = Salary::OvertimeCalculator.calculate(
-          record:     record,
-          daily_rate: daily_rate,
-          multiplier: overtime_multiplier
+          record:        record,
+          daily_rate:    daily_rate,
+          multiplier:    overtime_multiplier,
+          grace_minutes: @business.overtime_grace_minutes.to_i
         )
         items << item("overtime", overtime.overtime_pay, record, "Overtime #{record.work_date}") if overtime.overtime_pay > 0
 

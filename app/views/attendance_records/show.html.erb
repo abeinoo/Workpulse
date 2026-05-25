@@ -23,7 +23,7 @@
         <p class="page-subtitle"><%= @record.user.full_name %><% if @record.branch %> &mdash; <%= @record.branch.name %><% end %></p>
       <% end %>
     </div>
-    <div style="display:flex;gap:0.5rem;align-items:center">
+    <div class="page-header__actions">
       <% if @record.overnight? %>
         <span class="badge badge-neutral">⇌ <%= t("attendance.records.overnight") %></span>
       <% end %>

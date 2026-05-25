@@ -514,6 +514,46 @@ input[type="date"].form-control {
   color-scheme: dark;
 }
 
+/* Input with inline suffix label (e.g. "minutes", "days") */
+.input-with-suffix {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+.input-with-suffix .form-control {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  flex: 1;
+}
+.input-suffix {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  background: var(--navy-500);
+  border: 1px solid var(--border);
+  border-inline-start: none;
+  border-start-end-radius: var(--radius);
+  border-end-end-radius: var(--radius);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+  user-select: none;
+}
+[dir="rtl"] .input-with-suffix .form-control {
+  border-start-end-radius: var(--radius);
+  border-end-end-radius: var(--radius);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+[dir="rtl"] .input-suffix {
+  border-inline-start: 1px solid var(--border);
+  border-inline-end: none;
+  border-start-start-radius: var(--radius);
+  border-end-start-radius: var(--radius);
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
 /* Checkbox / Remember me */
 .form-check {
   display: flex;
@@ -6301,6 +6341,173 @@ details:not([open]) .permission-group__chevron {
   .bulk-adj-totals__divider { display: none; }
   .bulk-adj-totals__value { font-size: var(--text-base); }
 }
+
+/* ============================================================
+   ATTENDANCE RECORDS PAGE
+   ============================================================ */
+
+/* ── KPI strip ─────────────────────────────────────────────────────────────── */
+.attn-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+@media (min-width: 480px) { .attn-kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 960px) { .attn-kpi-grid { grid-template-columns: repeat(6, 1fr); } }
+
+/* Smaller value text on narrow KPI cells */
+@media (max-width: 959px) {
+  .attn-kpi-grid .stat-card__value { font-size: var(--text-2xl); }
+}
+
+/* "h" / "m" unit suffix */
+.attn-kpi-unit {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text-2);
+  margin-inline-start: 1px;
+}
+
+/* Live pulsing dot */
+.attn-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  margin-inline-end: var(--space-1);
+  animation: attn-pulse 2s ease-in-out infinite;
+}
+@keyframes attn-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* ── Filter active count badge ─────────────────────────────────────────────── */
+.attn-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--navy-900);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+/* ── Status badges ─────────────────────────────────────────────────────────── */
+.attn-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.attn-status-badge--present     { background: var(--success-muted);  color: var(--success); }
+.attn-status-badge--late        { background: var(--warning-muted);  color: var(--warning); }
+.attn-status-badge--early_leave { background: var(--accent-muted);   color: var(--accent); }
+.attn-status-badge--incomplete  { background: var(--navy-500);        color: var(--text-2); }
+.attn-status-badge--absent      { background: var(--danger-muted);   color: var(--danger); }
+
+/* ── Time cells ────────────────────────────────────────────────────────────── */
+.attn-time-cell {
+  font-variant-numeric: tabular-nums;
+}
+.attn-time {
+  font-weight: 500;
+  color: var(--text-1);
+  display: block;
+}
+.attn-time-date {
+  font-size: var(--text-xs);
+  display: block;
+}
+
+/* ── Worked hours ──────────────────────────────────────────────────────────── */
+.attn-worked {
+  font-weight: 600;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Late pill ─────────────────────────────────────────────────────────────── */
+.attn-late-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1em 0.55em;
+  border-radius: var(--radius-full);
+  background: var(--warning-muted);
+  color: var(--warning);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── No-shift placeholder ──────────────────────────────────────────────────── */
+.attn-no-shift { color: var(--text-3); }
+
+/* ── Employee cell (extends existing .employee-cell) ──────────────────────── */
+.employee-cell__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────────────── */
+.attn-empty {
+  text-align: center;
+  padding: var(--space-16) var(--space-6);
+}
+.attn-empty__icon {
+  color: var(--text-3);
+  margin-bottom: var(--space-4);
+  display: flex;
+  justify-content: center;
+}
+.attn-empty__title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-2);
+  margin-bottom: var(--space-2);
+}
+.attn-empty__hint {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  margin-bottom: var(--space-4);
+}
+.attn-empty__action { margin-top: var(--space-2); }
+
+/* ── Filter form ───────────────────────────────────────────────────────────── */
+.attn-filter-form .filter-bar__toggles { margin-top: var(--space-3); }
+
+/* ── Mobile overrides ─────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .attn-kpi-grid { gap: var(--space-2); }
+  .attn-kpi-grid .stat-card { padding: var(--space-3); }
+  .attn-kpi-grid .stat-card__value { font-size: var(--text-xl); }
+
+  /* Stack time + date vertically inside cards */
+  .table-wrap--cards .attn-time-cell {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+}
+
+/* ── RTL ──────────────────────────────────────────────────────────────────── */
+[dir="rtl"] .attn-live-dot { margin-inline-start: var(--space-1); margin-inline-end: 0; }
+[dir="rtl"] .attn-kpi-unit { margin-inline-end: 1px; margin-inline-start: 0; }
 
 /* ── Utility ────────────────────────────────────────────────────────────────── */
 .visually-hidden {

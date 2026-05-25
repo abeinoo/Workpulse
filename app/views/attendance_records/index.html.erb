@@ -1,116 +1,220 @@
 <% content_for :title, t("attendance.admin_index.page_title") %>
 
-<% can_manage = current_user.owner? || current_user.manages_area? || current_user.manages_branch? || current_user.can?(:view_attendance) %>
-
 <div class="admin-page">
 
+  <%# ── Page header ──────────────────────────────────────────────────────── %>
   <div class="page-header">
     <div>
       <h1 class="page-title"><%= t("attendance.admin_index.title") %></h1>
-      <% if can_manage && params[:user_id].present? && @records.any? %>
+      <% if @can_manage && params[:user_id].present? && @records.any? %>
         <p class="page-subtitle">
           <%= t("attendance.records.showing_for", name: @records.first.user.full_name) %>
           &ensp;
           <%= link_to t("attendance.records.clear_filter"), attendance_records_path, class: "link" %>
         </p>
+      <% else %>
+        <p class="page-subtitle"><%= l(@today, format: :long) %></p>
       <% end %>
     </div>
-  </div>
-
-  <%# ── Filter bar — visible to managers only ──────────────────────────── %>
-  <% if can_manage %>
-    <%= form_with url: attendance_records_path, method: :get, local: true, class: "filter-bar" do |f| %>
-      <div class="filter-bar__fields">
-
-        <%# Employee search %>
-        <div class="filter-bar__field">
-          <%= f.label :q, t("attendance.records.filter_employee"), class: "filter-bar__label" %>
-          <%= f.search_field :q, value: params[:q],
-                placeholder: t("attendance.records.search_placeholder"),
-                class: "filter-bar__input" %>
-        </div>
-
-        <%# Branch filter %>
-        <% if @filter_branches.any? %>
-          <div class="filter-bar__field">
-            <%= f.label :branch_id, t("attendance.branch"), class: "filter-bar__label" %>
-            <%= f.select :branch_id,
-                  options_for_select(
-                    [[t("attendance.records.all_branches"), ""]] +
-                      @filter_branches.map { |b| [b.name, b.id] },
-                    params[:branch_id]
-                  ),
-                  {},
-                  class: "filter-bar__select" %>
-          </div>
+    <% if @can_manage %>
+      <div class="page-header__actions">
+        <%= link_to new_admin_attendance_import_path, class: "btn btn-ghost btn-sm" do %>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <%= t("attendance.records.import_btn") %>
         <% end %>
-
-        <%# Shift filter %>
-        <% if @filter_shifts.any? %>
-          <div class="filter-bar__field">
-            <%= f.label :shift_id, t("attendance.shift"), class: "filter-bar__label" %>
-            <%= f.select :shift_id,
-                  options_for_select(
-                    [[t("attendance.records.all_shifts"), ""]] +
-                      @filter_shifts.map { |s| [s.name, s.id] },
-                    params[:shift_id]
-                  ),
-                  {},
-                  class: "filter-bar__select" %>
-          </div>
-        <% end %>
-
-        <%# Status filter %>
-        <div class="filter-bar__field">
-          <%= f.label :status, t("attendance.status"), class: "filter-bar__label" %>
-          <%= f.select :status,
-                options_for_select(
-                  [[t("attendance.records.all_statuses"), ""]] +
-                    AttendanceRecord.statuses.keys.map { |s|
-                      [t("attendance.statuses.#{s}", default: s.humanize), s]
-                    },
-                  params[:status]
-                ),
-                {},
-                class: "filter-bar__select" %>
-        </div>
-
-        <%# Date range %>
-        <div class="filter-bar__field">
-          <%= f.label :date_from, t("attendance.records.date_from"), class: "filter-bar__label" %>
-          <%= f.date_field :date_from, value: params[:date_from], class: "filter-bar__input" %>
-        </div>
-        <div class="filter-bar__field">
-          <%= f.label :date_to, t("attendance.records.date_to"), class: "filter-bar__label" %>
-          <%= f.date_field :date_to, value: params[:date_to], class: "filter-bar__input" %>
-        </div>
-
-      </div>
-
-      <%# Toggle flags — use check_box_tag (no hidden "0" field, clean uncheck behavior) %>
-      <div class="filter-bar__toggles">
-        <label class="filter-toggle">
-          <%= check_box_tag :late, "1", params[:late] == "1" %>
-          <span><%= t("attendance.records.filter_late") %></span>
-        </label>
-        <label class="filter-toggle">
-          <%= check_box_tag :missing_checkout, "1", params[:missing_checkout] == "1" %>
-          <span><%= t("attendance.records.filter_missing_checkout") %></span>
-        </label>
-        <label class="filter-toggle">
-          <%= check_box_tag :overnight, "1", params[:overnight] == "1" %>
-          <span><%= t("attendance.records.filter_overnight") %></span>
-        </label>
-      </div>
-
-      <div class="filter-bar__actions">
-        <%= f.submit t("forms.filter"), class: "btn btn-sm btn-primary" %>
-        <%= link_to t("attendance.records.clear"), attendance_records_path, class: "btn btn-sm btn-ghost" %>
       </div>
     <% end %>
+  </div>
+
+  <%# ── Today KPI strip ─────────────────────────────────────────────────── %>
+  <% if @can_manage %>
+    <div class="attn-kpi-grid">
+
+      <div class="stat-card stat-card--success">
+        <div class="stat-card__label"><%= t("attendance.records.kpi.checked_in") %></div>
+        <div class="stat-card__value"><%= @today_stats.checked_in %></div>
+        <div class="stat-card__sub"><%= t("attendance.records.kpi.today") %></div>
+      </div>
+
+      <div class="stat-card stat-card--accent">
+        <div class="stat-card__label"><%= t("attendance.records.kpi.working_now") %></div>
+        <div class="stat-card__value"><%= @today_stats.working_now %></div>
+        <div class="stat-card__sub">
+          <span class="attn-live-dot" aria-hidden="true"></span>
+          <%= t("attendance.records.kpi.live") %>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card__label"><%= t("attendance.records.kpi.checked_out") %></div>
+        <div class="stat-card__value"><%= @today_stats.checked_out %></div>
+        <div class="stat-card__sub"><%= t("attendance.records.kpi.today") %></div>
+      </div>
+
+      <div class="stat-card stat-card--warning">
+        <div class="stat-card__label"><%= t("attendance.records.kpi.late_today") %></div>
+        <div class="stat-card__value"><%= @today_stats.late_count %></div>
+        <div class="stat-card__sub"><%= t("attendance.records.kpi.employees") %></div>
+      </div>
+
+      <div class="stat-card stat-card--danger">
+        <div class="stat-card__label"><%= t("attendance.records.kpi.absent_today") %></div>
+        <div class="stat-card__value"><%= @today_stats.absent_count %></div>
+        <div class="stat-card__sub"><%= t("attendance.records.kpi.employees") %></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card__label"><%= t("attendance.records.kpi.total_hours") %></div>
+        <% total_h = @today_stats.total_worked_minutes / 60
+           total_m = @today_stats.total_worked_minutes % 60 %>
+        <div class="stat-card__value"><%= total_h %><span class="attn-kpi-unit">h</span></div>
+        <div class="stat-card__sub"><%= total_m %>m <%= t("attendance.records.kpi.worked") %></div>
+      </div>
+
+    </div>
   <% end %>
 
-  <%# ── Results summary ────────────────────────────────────────────────── %>
+  <%# ── Filter section (collapsible) ───────────────────────────────────── %>
+  <% if @can_manage %>
+    <div class="adj-filter-section"
+         data-controller="collapsible"
+         data-collapsible-open-value="<%= @active_filter_count.to_i > 0 ? 'true' : 'true' %>">
+
+      <div class="adj-filter-header"
+           data-action="click->collapsible#toggle"
+           data-collapsible-target="trigger">
+        <span class="adj-filter-header__title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+          <%= t("attendance.records.filter_title") %>
+          <% if @active_filter_count.to_i > 0 %>
+            <span class="attn-filter-count"><%= @active_filter_count %></span>
+          <% end %>
+        </span>
+        <button type="button" class="adj-filter-toggle btn btn-ghost btn-sm"
+                aria-expanded="true" aria-label="<%= t("forms.toggle_filters") %>">
+          <svg class="adj-filter-toggle__chevron" width="14" height="14" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="adj-filter-body" data-collapsible-target="content">
+        <%= form_with url: attendance_records_path, method: :get, local: true,
+              class: "attn-filter-form" do |f| %>
+
+          <div class="adj-filter-grid">
+
+            <%# Search %>
+            <div class="form-group adj-filter-search">
+              <%= f.label :q, t("attendance.records.filter_employee"), class: "form-label" %>
+              <div class="search-input-wrap">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     class="search-input-wrap__icon" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <%= f.search_field :q, value: params[:q],
+                      placeholder: t("attendance.records.search_placeholder"),
+                      class: "filter-bar__input search-input-wrap__input" %>
+              </div>
+            </div>
+
+            <%# Branch %>
+            <% if @filter_branches.any? %>
+              <div class="form-group">
+                <%= f.label :branch_id, t("attendance.branch"), class: "form-label" %>
+                <%= f.select :branch_id,
+                      options_for_select(
+                        [[t("attendance.records.all_branches"), ""]] +
+                          @filter_branches.map { |b| [b.name, b.id] },
+                        params[:branch_id]
+                      ),
+                      {},
+                      class: "filter-bar__select" %>
+              </div>
+            <% end %>
+
+            <%# Shift %>
+            <% if @filter_shifts.any? %>
+              <div class="form-group">
+                <%= f.label :shift_id, t("attendance.shift"), class: "form-label" %>
+                <%= f.select :shift_id,
+                      options_for_select(
+                        [[t("attendance.records.all_shifts"), ""]] +
+                          @filter_shifts.map { |s| [s.name, s.id] },
+                        params[:shift_id]
+                      ),
+                      {},
+                      class: "filter-bar__select" %>
+              </div>
+            <% end %>
+
+            <%# Status %>
+            <div class="form-group">
+              <%= f.label :status, t("attendance.status"), class: "form-label" %>
+              <%= f.select :status,
+                    options_for_select(
+                      [[t("attendance.records.all_statuses"), ""]] +
+                        AttendanceRecord.statuses.keys.map { |s|
+                          [t("attendance.statuses.#{s}", default: s.humanize), s]
+                        },
+                      params[:status]
+                    ),
+                    {},
+                    class: "filter-bar__select" %>
+            </div>
+
+            <%# Date from %>
+            <div class="form-group">
+              <%= f.label :date_from, t("attendance.records.date_from"), class: "form-label" %>
+              <%= f.date_field :date_from, value: params[:date_from], class: "filter-bar__input" %>
+            </div>
+
+            <%# Date to %>
+            <div class="form-group">
+              <%= f.label :date_to, t("attendance.records.date_to"), class: "form-label" %>
+              <%= f.date_field :date_to, value: params[:date_to], class: "filter-bar__input" %>
+            </div>
+
+          </div>
+
+          <div class="filter-bar__toggles">
+            <label class="filter-toggle">
+              <%= check_box_tag :late, "1", params[:late] == "1" %>
+              <span><%= t("attendance.records.filter_late") %></span>
+            </label>
+            <label class="filter-toggle">
+              <%= check_box_tag :missing_checkout, "1", params[:missing_checkout] == "1" %>
+              <span><%= t("attendance.records.filter_missing_checkout") %></span>
+            </label>
+            <label class="filter-toggle">
+              <%= check_box_tag :overnight, "1", params[:overnight] == "1" %>
+              <span><%= t("attendance.records.filter_overnight") %></span>
+            </label>
+          </div>
+
+          <div class="adj-filter-actions">
+            <%= f.submit t("forms.filter"), class: "btn btn-sm btn-primary" %>
+            <%= link_to t("attendance.records.clear"), attendance_records_path,
+                  class: "btn btn-sm btn-ghost" %>
+          </div>
+
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Results meta ─────────────────────────────────────────────────────── %>
   <% if @total_count > 0 %>
     <p class="table-meta">
       <%= t("attendance.records.page_info",
@@ -120,85 +224,165 @@
     </p>
   <% end %>
 
-  <%# ── Sortable helper ────────────────────────────────────────────────── %>
+  <%# ── Sortable header helper ──────────────────────────────────────────── %>
   <% sort_link = ->(col, label) {
     next_dir = (params[:sort] == col && params[:dir] == "asc") ? "desc" : "asc"
-    icon = params[:sort] == col ? (params[:dir] == "asc" ? " ↑" : " ↓") : ""
-    link_to "#{label}#{icon}".html_safe,
+    arrow = params[:sort] == col ? (params[:dir] == "asc" ? " ↑" : " ↓") : ""
+    link_to "#{label}#{arrow}".html_safe,
             attendance_records_path(request.query_parameters.merge(sort: col, dir: next_dir, page: 1)),
             class: "th-sort-link"
   } %>
 
+  <%# ── Records table ────────────────────────────────────────────────────── %>
   <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
         <tr>
-          <% if can_manage %>
+          <% if @can_manage %>
             <th><%= t("attendance.employee") %></th>
           <% end %>
           <th><%= sort_link.call("work_date", t("attendance.work_date")) %></th>
           <th><%= t("attendance.branch") %></th>
+          <th><%= t("attendance.shift") %></th>
           <th><%= sort_link.call("check_in_at", t("attendance.check_in_at")) %></th>
           <th><%= t("attendance.check_out_at") %></th>
+          <th><%= t("attendance.records.worked") %></th>
+          <th><%= t("attendance.records.late_min") %></th>
           <th><%= sort_link.call("status", t("attendance.status")) %></th>
-          <% if can_manage %>
+          <% if @can_manage %>
             <th></th>
           <% end %>
         </tr>
       </thead>
       <tbody>
         <% @records.each do |rec| %>
+          <% initials = rec.user.full_name.split.first(2).map { |w| w[0] }.join.upcase %>
           <tr>
-            <% if can_manage %>
+
+            <%# Employee %>
+            <% if @can_manage %>
               <td>
-                <% if (current_user.manages_branch? || current_user.manages_area?) && params[:user_id].blank? %>
-                  <%= link_to attendance_records_path(user_id: rec.user_id), class: "link" do %>
-                    <%= rec.user.full_name %>
-                    <% if rec.user.employee_code.present? %>
-                      <span class="text-muted text-sm">&nbsp;#<%= rec.user.employee_code %></span>
+                <div class="employee-cell">
+                  <div class="avatar avatar--sm"><%= initials %></div>
+                  <div class="employee-cell__info">
+                    <% if (current_user.manages_branch? || current_user.manages_area?) && params[:user_id].blank? %>
+                      <%= link_to attendance_records_path(user_id: rec.user_id), class: "employee-cell__name link" do %>
+                        <%= rec.user.full_name %>
+                      <% end %>
+                    <% else %>
+                      <span class="employee-cell__name"><%= rec.user.full_name %></span>
                     <% end %>
-                  <% end %>
-                <% else %>
-                  <%= rec.user.full_name %>
-                  <% if rec.user.employee_code.present? %>
-                    <span class="text-muted text-sm">&nbsp;#<%= rec.user.employee_code %></span>
-                  <% end %>
-                <% end %>
+                    <% if rec.user.employee_code.present? %>
+                      <span class="employee-cell__sub">#<%= rec.user.employee_code %></span>
+                    <% end %>
+                  </div>
+                </div>
               </td>
             <% end %>
-            <td class="td-secondary">
+
+            <%# Date %>
+            <td class="td-secondary attn-time-cell">
               <%= rec.work_date.strftime("%b %-d, %Y") %>
               <% if rec.overnight? %>
-                <span class="badge badge-neutral" title="<%= t("attendance.records.overnight_title") %>">⇌ <%= t("attendance.records.overnight") %></span>
+                <span class="badge badge-neutral badge-xs" title="<%= t("attendance.records.overnight_title") %>">
+                  ⇌ <%= t("attendance.records.overnight") %>
+                </span>
               <% end %>
             </td>
+
+            <%# Branch %>
             <td class="td-secondary"><%= rec.branch&.name || "—" %></td>
+
+            <%# Shift %>
             <td class="td-secondary">
-              <%= rec.check_in_at&.strftime("%b %-d %H:%M") || "—" %>
+              <%= rec.shift&.name || content_tag(:span, "—", class: "attn-no-shift") %>
             </td>
-            <td class="td-secondary">
-              <%= rec.check_out_at&.strftime("%b %-d %H:%M") || "—" %>
-              <% unless rec.checked_out? %>
+
+            <%# Check In %>
+            <td class="attn-time-cell">
+              <% if rec.check_in_at %>
+                <span class="attn-time"><%= rec.check_in_at.strftime("%H:%M") %></span>
+                <span class="attn-time-date td-secondary"><%= rec.check_in_at.strftime("%b %-d") %></span>
+              <% else %>
+                <span class="td-secondary">—</span>
+              <% end %>
+            </td>
+
+            <%# Check Out %>
+            <td class="attn-time-cell">
+              <% if rec.check_out_at %>
+                <span class="attn-time"><%= rec.check_out_at.strftime("%H:%M") %></span>
+                <span class="attn-time-date td-secondary"><%= rec.check_out_at.strftime("%b %-d") %></span>
+              <% else %>
                 <span class="badge badge-neutral badge-xs"><%= t("attendance.records.open") %></span>
               <% end %>
             </td>
+
+            <%# Worked %>
             <td>
-              <span class="badge <%= rec.present? ? 'badge-success' : rec.late? ? 'badge-warning' : rec.early_leave? ? 'badge-accent' : 'badge-neutral' %>">
+              <% if rec.worked_minutes.to_i > 0 %>
+                <span class="attn-worked">
+                  <%= rec.worked_minutes / 60 %>h
+                  <% if (rec.worked_minutes % 60) > 0 %><%= rec.worked_minutes % 60 %>m<% end %>
+                </span>
+              <% else %>
+                <span class="td-secondary">—</span>
+              <% end %>
+            </td>
+
+            <%# Late %>
+            <td>
+              <% if rec.late_minutes.to_i > 0 %>
+                <span class="attn-late-pill"><%= rec.late_minutes %>m</span>
+              <% else %>
+                <span class="td-secondary">—</span>
+              <% end %>
+            </td>
+
+            <%# Status %>
+            <td>
+              <span class="attn-status-badge attn-status-badge--<%= rec.status %>">
                 <%= t("attendance.statuses.#{rec.status}", default: rec.status.humanize) %>
               </span>
             </td>
-            <% if can_manage %>
+
+            <%# Actions %>
+            <% if @can_manage %>
               <td class="td-actions">
-                <%= link_to t("attendance.records.view"), attendance_record_path(rec), class: "table-link" %>
+                <%= link_to t("attendance.records.view"),
+                      attendance_record_path(rec), class: "table-link" %>
                 <% if AttendanceRecordPolicy.new(current_user, rec).update? %>
-                  <%= link_to t("attendance.records.edit"), edit_attendance_record_path(rec), class: "table-link table-link--primary" %>
+                  <%= link_to t("attendance.records.edit"),
+                        edit_attendance_record_path(rec), class: "table-link table-link--primary" %>
                 <% end %>
               </td>
             <% end %>
+
           </tr>
         <% end %>
+
         <% if @records.empty? %>
-          <tr><td colspan="8" class="td-empty"><%= t("attendance.no_records") %></td></tr>
+          <tr>
+            <td colspan="<%= @can_manage ? 10 : 8 %>" class="td-empty">
+              <div class="attn-empty">
+                <div class="attn-empty__icon" aria-hidden="true">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                </div>
+                <p class="attn-empty__title"><%= t("attendance.no_records") %></p>
+                <% if @active_filter_count.to_i > 0 %>
+                  <p class="attn-empty__hint"><%= t("attendance.records.no_results_hint") %></p>
+                  <%= link_to t("attendance.records.clear"), attendance_records_path,
+                        class: "btn btn-ghost btn-sm attn-empty__action" %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
         <% end %>
       </tbody>
     </table>
@@ -217,7 +401,9 @@
          end_page   = [start_page + 4, @total_pages].min %>
 
       <% if start_page > 1 %>
-        <%= link_to "1", attendance_records_path(request.query_parameters.merge(page: 1)), class: "pagination__btn" %>
+        <%= link_to "1",
+              attendance_records_path(request.query_parameters.merge(page: 1)),
+              class: "pagination__btn" %>
         <span class="pagination__ellipsis">…</span>
       <% end %>
 

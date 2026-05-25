@@ -102,7 +102,8 @@ module Api
           total_overtime_minutes:    records.select { |r| r.worked_minutes.to_i > 0 }.sum { |r|
                                        shift = r.shift_assignment&.shift
                                        next 0 unless shift
-                                       [ r.worked_minutes - shift.duration_minutes, 0 ].max
+                                       grace = current_user.business.overtime_grace_minutes.to_i
+                                       [ r.worked_minutes - shift.duration_minutes - grace, 0 ].max
                                      },
           total_late_minutes:        records.sum(:late_minutes),
           total_early_leave_minutes: records.sum(:early_leave_minutes),

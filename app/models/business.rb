@@ -50,6 +50,8 @@ class Business < ApplicationRecord
   validates :currency, inclusion: { in: CURRENCIES.keys }, allow_blank: false
   validates :max_salary_advance_percentage,
             numericality: { greater_than: 0, less_than_or_equal_to: 100 }, allow_nil: true
+  validates :overtime_grace_minutes,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 480 }
 
   def timezone_object
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]

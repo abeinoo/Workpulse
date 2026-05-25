@@ -5,26 +5,39 @@ class AttendanceRecordsController < ApplicationController
   PER_PAGE = 50
 
   def index
+    @can_manage = current_user.owner? || current_user.manages_area? ||
+                  current_user.manages_branch? || current_user.can?(:view_attendance)
+
+    # KPI stats: unfiltered today snapshot (respects policy scope)
+    biz_today = Time.current.in_time_zone(current_user.business.timezone_object).to_date
+    @today = biz_today
+    @today_stats = Attendance::DailyStats.call(
+      scope: policy_scope(AttendanceRecord),
+      today: biz_today
+    )
+
     scope = policy_scope(AttendanceRecord)
               .includes(:branch, :user, shift_assignment: :shift)
 
-    manager = current_user.owner? || current_user.manages_area? || current_user.manages_branch? || current_user.can?(:view_attendance)
-    scope = apply_filters(scope) if manager
+    scope = apply_filters(scope) if @can_manage
 
-    @total_count  = scope.count
-    @page         = [ (params[:page] || 1).to_i, 1 ].max
-    @total_pages  = [ (@total_count.to_f / PER_PAGE).ceil, 1 ].max
-    @page         = [ @page, @total_pages ].min
+    @active_filter_count = count_active_filters if @can_manage
+
+    @total_count = scope.count
+    @page        = [ (params[:page] || 1).to_i, 1 ].max
 
     sort_col = %w[work_date check_in_at status].include?(params[:sort]) ? params[:sort] : "work_date"
     sort_dir = params[:dir] == "asc" ? "asc" : "desc"
+
+    @total_pages = [ (@total_count.to_f / PER_PAGE).ceil, 1 ].max
+    @page        = [ @page, @total_pages ].min
 
     @records = scope.order("#{sort_col} #{sort_dir}, check_in_at DESC")
                     .offset((@page - 1) * PER_PAGE)
                     .limit(PER_PAGE)
 
-    @filter_branches = manager ? visible_branches : Branch.none
-    @filter_shifts   = manager ? current_user.business.shifts.active.order(:name) : Shift.none
+    @filter_branches = @can_manage ? visible_branches : Branch.none
+    @filter_shifts   = @can_manage ? current_user.business.shifts.active.order(:name) : Shift.none
   end
 
   def show
@@ -61,7 +74,6 @@ class AttendanceRecordsController < ApplicationController
   end
 
   def apply_filters(scope)
-    # Employee filter: specific user_id or free-text search
     if params[:user_id].present?
       filter_user = resolve_filter_user(params[:user_id])
       scope = scope.where(user_id: filter_user.id) if filter_user
@@ -73,8 +85,8 @@ class AttendanceRecordsController < ApplicationController
       )
     end
 
-    scope = scope.where(branch_id: params[:branch_id])  if params[:branch_id].present?
-    scope = scope.where(status: params[:status])         if params[:status].present?
+    scope = scope.where(branch_id: params[:branch_id])      if params[:branch_id].present?
+    scope = scope.where(status: params[:status])             if params[:status].present?
     scope = scope.where("work_date >= ?", params[:date_from]) if params[:date_from].present?
     scope = scope.where("work_date <= ?", params[:date_to])   if params[:date_to].present?
 
@@ -83,16 +95,20 @@ class AttendanceRecordsController < ApplicationController
                    .where(shift_assignments: { shift_id: params[:shift_id] })
     end
 
-    scope = scope.where(status: "late")   if params[:late] == "1"
-    scope = scope.where(check_out_at: nil) if params[:missing_checkout] == "1"
+    scope = scope.where(status: "late")     if params[:late] == "1"
+    scope = scope.where(check_out_at: nil)  if params[:missing_checkout] == "1"
 
     if params[:overnight] == "1"
-      # Overnight: check_out_at exists on a later calendar day than the work_date
       scope = scope.where.not(check_out_at: nil)
                    .where("DATE(check_out_at) > work_date")
     end
 
     scope
+  end
+
+  def count_active_filters
+    %i[q user_id branch_id status date_from date_to shift_id].count { |k| params[k].present? } +
+      %w[late missing_checkout overnight].count { |k| params[k] == "1" }
   end
 
   def resolve_filter_user(user_id)

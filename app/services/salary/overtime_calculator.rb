@@ -1,18 +1,31 @@
 module Salary
   # Computes overtime minutes and the corresponding pay for one attendance record.
-  # Overtime = minutes worked beyond the scheduled shift duration.
+  #
+  # Overtime = minutes worked beyond (scheduled_duration + grace_minutes).
+  # grace_minutes is the business-level threshold: employees must exceed this many
+  # minutes past shift end before any overtime begins counting.
+  #
+  # Formula:
+  #   overtime = max(worked - scheduled - grace, 0)
+  #
+  # Examples (grace = 30 min, 8-hour shift):
+  #   worked 490 min (10 past end) → 0 overtime
+  #   worked 511 min (31 past end) → 1 min overtime
+  #
   # Pay = overtime_hours * hourly_rate * shift.overtime_rate_multiplier
   class OvertimeCalculator
     OvertimeResult = Struct.new(:overtime_minutes, :overtime_pay, keyword_init: true)
 
-    def self.calculate(record:, daily_rate:, multiplier: nil)
-      new(record: record, daily_rate: daily_rate, multiplier: multiplier).calculate
+    def self.calculate(record:, daily_rate:, multiplier: nil, grace_minutes: 0)
+      new(record: record, daily_rate: daily_rate, multiplier: multiplier,
+          grace_minutes: grace_minutes).calculate
     end
 
-    def initialize(record:, daily_rate:, multiplier: nil)
-      @record      = record
-      @daily_rate  = daily_rate.to_f
-      @multiplier  = multiplier&.to_f
+    def initialize(record:, daily_rate:, multiplier: nil, grace_minutes: 0)
+      @record        = record
+      @daily_rate    = daily_rate.to_f
+      @multiplier    = multiplier&.to_f
+      @grace_minutes = grace_minutes.to_i
     end
 
     def calculate
@@ -37,7 +50,7 @@ module Salary
       scheduled = shift.duration_minutes.to_i
       return 0 if scheduled.zero?
 
-      [ worked - scheduled, 0 ].max
+      [ worked - scheduled - @grace_minutes, 0 ].max
     end
 
     def overtime_pay(shift, overtime_mins)

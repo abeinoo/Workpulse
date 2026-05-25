@@ -25,6 +25,7 @@ class Admin::SettingsController < Admin::BaseController
     params.require(:business).permit(
       :timezone, :working_days_per_month, :business_day_start_hour,
       :default_locale, :currency, :max_salary_advance_percentage,
+      :overtime_grace_minutes,
       :logo, :stamp_image,
       :remove_logo, :remove_stamp_image
     )
