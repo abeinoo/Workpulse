@@ -12,7 +12,16 @@
         <%= user_avatar_tag(@user, size: :default) %>
         <div>
           <h1 style="font-size:var(--text-xl);margin-bottom:2px;"><%= @user.full_name %></h1>
-          <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;"><%= @user.permission_role&.name || (@user.owner? ? t("admin.users.super_admin_role") : "—") %></p>
+          <p style="font-size:var(--text-sm);color:var(--text-2);margin:0;">
+            <% if @user.job_title.present? %>
+              <%= @user.job_title %>
+              <% if @user.department.present? %>
+                &middot; <%= @user.department %>
+              <% end %>
+            <% else %>
+              <%= @user.permission_role&.name || (@user.owner? ? t("admin.users.super_admin_role") : "—") %>
+            <% end %>
+          </p>
         </div>
       </div>
       <% if @user.active? %>
@@ -20,6 +29,20 @@
       <% else %>
         <span class="badge badge-neutral"><%= t("admin.users.inactive") %></span>
       <% end %>
+    </div>
+
+    <%# Profile completion bar %>
+    <% pct = @user.profile_completion_percentage %>
+    <% grade = @user.profile_completion_grade %>
+    <div class="profile-completion" title="<%= t("admin.users.profile_completion.title") %>">
+      <div class="profile-completion__header">
+        <span class="profile-completion__label"><%= t("admin.users.profile_completion.label") %></span>
+        <span class="profile-completion__pct profile-completion__pct--<%= grade %>"><%= pct %>%</span>
+      </div>
+      <div class="profile-completion__bar">
+        <div class="profile-completion__fill profile-completion__fill--<%= grade %>"
+             style="width:<%= pct %>%;"></div>
+      </div>
     </div>
 
     <dl class="data-list">
@@ -35,6 +58,35 @@
         <dt class="data-list__label"><%= t("admin.users.employee_code") %></dt>
         <dd class="data-list__value"><%= @user.employee_code.presence || "—" %></dd>
       </div>
+      <% if @user.job_title.present? || @user.department.present? || @user.hire_date.present? || @user.employment_type.present? %>
+        <div class="data-list__item data-list__item--section-header">
+          <dt class="data-list__label data-list__label--section"><%= t("admin.users.employment_info") %></dt>
+        </div>
+        <% if @user.job_title.present? %>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("admin.users.job_title") %></dt>
+            <dd class="data-list__value"><%= @user.job_title %></dd>
+          </div>
+        <% end %>
+        <% if @user.department.present? %>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("admin.users.department") %></dt>
+            <dd class="data-list__value"><%= @user.department %></dd>
+          </div>
+        <% end %>
+        <% if @user.hire_date.present? %>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("admin.users.hire_date") %></dt>
+            <dd class="data-list__value"><%= @user.hire_date.strftime("%d %b %Y") %></dd>
+          </div>
+        <% end %>
+        <% if @user.employment_type.present? %>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("admin.users.employment_type") %></dt>
+            <dd class="data-list__value"><%= t("admin.users.employment_types.#{@user.employment_type}") %></dd>
+          </div>
+        <% end %>
+      <% end %>
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.users.direct_manager") %></dt>
         <dd class="data-list__value">

@@ -42,6 +42,7 @@ class PayrollAdjustment < ApplicationRecord
   validates :payment_method, inclusion: { in: PAYMENT_METHODS }, allow_nil: true
   validate  :already_paid_only_for_positive, if: -> { already_paid? }
   validate  :period_not_locked, on: :create
+  validate  :user_belongs_to_business
 
   scope :for_period,    ->(year, month) { where(period_year: year, period_month: month) }
   scope :for_business,  ->(biz)         { where(business: biz) }
@@ -81,6 +82,11 @@ class PayrollAdjustment < ApplicationRecord
 
   def already_paid_only_for_positive
     errors.add(:already_paid, "is only valid for cash incentive adjustments") unless cash_incentive?
+  end
+
+  def user_belongs_to_business
+    return unless user && business
+    errors.add(:user, "does not belong to this business") if user.business_id != business_id
   end
 
   def period_not_locked

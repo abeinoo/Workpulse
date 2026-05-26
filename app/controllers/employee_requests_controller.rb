@@ -113,7 +113,7 @@ class EmployeeRequestsController < ApplicationController
                   notice: t("flash.advances_paid_#{result.paid_count == 1 ? 'one' : 'other'}", count: result.paid_count)
     else
       redirect_to employee_requests_path,
-                  alert: "Some advances could not be processed: #{result.errors.join("; ")}"
+                  alert: t("flash.advances_partial_failure", errors: result.errors.join("; "))
     end
   end
 

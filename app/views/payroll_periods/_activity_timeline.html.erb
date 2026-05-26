@@ -1,0 +1,46 @@
+<div class="section-card section-card--top">
+  <h3 class="section-title"><%= t("payroll.show.activity_title") %></h3>
+  <div class="payroll-timeline">
+    <% @audit_logs.each do |log| %>
+      <%
+        dot_class = case log.action_type
+                    when "finalized", "paid"
+                      "payroll-timeline__dot--done"
+                    when "submitted_for_review", "branch_review_completed"
+                      "payroll-timeline__dot--live"
+                    when "deleted", "adjustment_rejected", "adjustment_removed"
+                      "payroll-timeline__dot--warn"
+                    else
+                      ""
+                    end
+        meta = log.metadata_hash
+      %>
+      <div class="payroll-timeline__entry">
+        <div class="payroll-timeline__dot <%= dot_class %>"></div>
+        <div class="payroll-timeline__action">
+          <%= t("payroll.audit_log_action_types.#{log.action_type}") %>
+          <% if meta["count"].present? && meta["bulk_approved"] %>
+            <span class="payroll-timeline__count-badge">×<%= meta["count"] %></span>
+          <% end %>
+        </div>
+        <div class="payroll-timeline__meta">
+          <span class="payroll-timeline__actor">
+            <%= user_avatar_tag(log.actor, size: :thumb, class: "payroll-timeline__actor-avatar") %>
+            <%= log.actor.full_name %>
+          </span>
+          &middot; <%= local_datetime(log.created_at) %>
+          <% if log.from_status && log.to_status %>
+            &middot;
+            <span class="badge badge-neutral" style="font-size: 10px; padding: 1px 6px;">
+              <%= t("payroll.statuses.#{log.from_status}") %>
+            </span>
+            →
+            <span class="badge <%= period_status_badge_class(log.to_status) %>" style="font-size: 10px; padding: 1px 6px;">
+              <%= t("payroll.statuses.#{log.to_status}") %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

@@ -13,7 +13,7 @@ class Users::RegistrationsController < Devise::RegistrationsController
 
     if result.success?
       sign_in(result.user)
-      redirect_to root_path, notice: "Welcome! You have registered successfully."
+      redirect_to root_path, notice: t("flash.welcome_registered")
     else
       build_resource({})
       resource.errors.add(:base, result.error)

@@ -36,7 +36,7 @@
           <%= @request.paid? ? t("requests.disbursed") : t("requests.reviewed") %>
         </span>
         <span>
-          <%= @request.reviewed_at.strftime("%b %-d, %Y %H:%M") %>
+          <%= local_datetime(@request.reviewed_at) %>
           <% if @request.reviewed_by %>
             by <%= @request.reviewed_by.full_name %>
           <% end %>

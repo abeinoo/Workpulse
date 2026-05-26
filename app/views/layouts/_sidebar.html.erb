@@ -58,6 +58,32 @@
       <% end %>
     <% end %>
 
+    <% if current_user.owner? || current_user.manages_branch? || current_user.manages_area? || current_user.can?(:view_payroll) %>
+      <%= link_to operations_dashboard_path,
+            class: "sidebar__nav-item #{controller_name == 'operations_dashboard' ? 'is-active' : ''}",
+            data: { action: "click->sidebar#close" } do %>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <%= t("nav.operations") %>
+      <% end %>
+    <% end %>
+
+    <%# Notification bell with unread badge — count cached per user, expires on write %>
+    <% unread_notif = Rails.cache.fetch("notif_unread/#{current_user.id}", expires_in: 2.minutes) {
+         current_user.notifications.unread.count
+       } %>
+    <%= link_to notifications_path,
+          class: "sidebar__nav-item #{controller_name == 'notifications' ? 'is-active' : ''} #{'has-unread' if unread_notif > 0}",
+          data: { action: "click->sidebar#close" } do %>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 01-3.46 0"/>
+      </svg>
+      <%= t("nav.notifications") %>
+      <% if unread_notif > 0 %>
+        <span class="sidebar-notif-badge"><%= unread_notif > 99 ? "99+" : unread_notif %></span>
+      <% end %>
+    <% end %>
+
     <% unless current_user.management_access? %>
       <%= link_to attendance_records_path,
             class: "sidebar__nav-item #{controller_name == 'attendance_records' ? 'is-active' : ''}",

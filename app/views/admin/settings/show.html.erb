@@ -114,6 +114,40 @@
 
     <div class="divider"></div>
 
+    <%# ── Automation ─────────────────────────────────────────────────────── %>
+    <h2 class="section-title"><%= t("admin.settings.sections.automation") %></h2>
+
+    <div class="settings-info-box">
+      <p class="form-hint"><%= t("admin.settings.auto_payroll_info") %></p>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :payroll_auto_generate_day, t("admin.settings.auto_generate_day_label"), class: "form-label" %>
+        <%= f.select :payroll_auto_generate_day,
+              [[t("admin.settings.auto_generate_disabled"), nil]] +
+              (1..28).map { |d| [t("admin.settings.auto_generate_day_option", day: d), d] },
+              {},
+              class: "form-control #{'is-error' if @business.errors[:payroll_auto_generate_day].any?}" %>
+        <p class="form-hint"><%= t("admin.settings.auto_generate_day_hint") %></p>
+        <% if @business.errors[:payroll_auto_generate_day].any? %>
+          <p class="form-error"><%= @business.errors[:payroll_auto_generate_day].first %></p>
+        <% end %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :payroll_cutoff_day, t("admin.settings.payroll_cutoff_day_label"), class: "form-label" %>
+        <%= f.select :payroll_cutoff_day,
+              [[t("admin.settings.cutoff_end_of_month"), 0]] +
+              (1..28).map { |d| [t("admin.settings.cutoff_day_option", day: d), d] },
+              {},
+              class: "form-control #{'is-error' if @business.errors[:payroll_cutoff_day].any?}" %>
+        <p class="form-hint"><%= t("admin.settings.payroll_cutoff_day_hint") %></p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
     <%# ── Branding ────────────────────────────────────────────────────── %>
     <h2 class="section-title"><%= t("admin.settings.sections.branding") %></h2>
 

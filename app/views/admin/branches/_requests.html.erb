@@ -39,7 +39,7 @@
             <td class="td-secondary" style="max-width: 220px; white-space: normal;">
               <%= truncate(request.reason, length: 80) %>
             </td>
-            <td class="td-secondary"><%= request.created_at.strftime("%b %d") %></td>
+            <td class="td-secondary"><%= local_short_date(request.created_at) %></td>
             <td class="td-actions">
               <% if policy(request).approve? %>
                 <%= button_to t("requests.approve"),

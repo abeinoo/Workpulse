@@ -236,7 +236,7 @@
                   </span>
                 </td>
                 <td class="td-secondary"><%= truncate(adj.reason, length: 50) %></td>
-                <td class="td-secondary"><%= adj.created_at.strftime("%b %-d") %></td>
+                <td class="td-secondary"><%= local_short_date(adj.created_at) %></td>
                 <td class="td-actions">
                   <% if policy(adj).destroy? %>
                     <%= button_to t("adjustments.remove"),

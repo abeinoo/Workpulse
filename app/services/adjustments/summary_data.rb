@@ -54,12 +54,13 @@ module Adjustments
 
     def most_adjusted_user
       row = @scope
+              .unscope(:includes)
               .select("user_id, COUNT(*) AS adj_count")
               .group(:user_id)
               .order(Arel.sql("COUNT(*) DESC"))
               .limit(1)
               .first
-      row&.user
+      row ? User.find_by(id: row.user_id) : nil
     end
 
     def highest_of(direction)

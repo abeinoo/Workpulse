@@ -36,8 +36,9 @@ module ApplicationHelper
     end
   end
 
-  def period_status_badge_class(period)
-    case period.status
+  def period_status_badge_class(period_or_status)
+    status = period_or_status.respond_to?(:status) ? period_or_status.status : period_or_status.to_s
+    case status
     when "paid"                    then "badge-success"
     when "finalized"               then "badge-accent"
     when "branch_review_completed" then "badge-warning"
@@ -110,6 +111,22 @@ module ApplicationHelper
     end
   end
 
+  SOURCE_ICONS = {
+    "mobile"           => "📱",
+    "biometric_device" => "🖐️",
+    "import"           => "📥",
+    "admin_manual"     => "✍️",
+    "api"              => "⚙️"
+  }.freeze
+
+  def attendance_source_badge(source, html_class: "attn-source-badge")
+    return "" if source.blank?
+    icon  = SOURCE_ICONS.fetch(source, "•")
+    label = t("attendance.sources.#{source}", default: source.humanize)
+    content_tag(:span, "#{icon} #{label}".html_safe,
+                class: "#{html_class} attn-source-badge--#{source.tr('_', '-')}")
+  end
+
   def punch_log_badge_class(action)
     case action
     when "check_in", "check_in_updated" then "badge-success"
@@ -141,6 +158,46 @@ module ApplicationHelper
     end
   end
 
+  # ── Centralized time/date display ─────────────────────────────────────────
+  # All attendance/payroll times must go through these helpers so timezone
+  # conversions are consistent and format changes only need to happen here.
+
+  def current_business_timezone
+    @_biz_tz ||= current_user&.business&.timezone_object || Time.zone
+  end
+
+  # "14:30"
+  def local_time(value, fallback: "—")
+    return fallback if value.nil?
+    value.in_time_zone(current_business_timezone).strftime("%H:%M")
+  end
+
+  # "Jun 5, 2026 14:30"
+  def local_datetime(value, fallback: "—")
+    return fallback if value.nil?
+    value.in_time_zone(current_business_timezone).strftime("%b %-d, %Y %H:%M")
+  end
+
+  # "Jun 5, 2026"  — works for both Date and Time values
+  def local_date(value, fallback: "—")
+    return fallback if value.nil?
+    d = value.respond_to?(:in_time_zone) ? value.in_time_zone(current_business_timezone).to_date : value
+    d.strftime("%b %-d, %Y")
+  end
+
+  # "%-d %b" short form — "5 Jun"
+  def local_short_date(value, fallback: "—")
+    return fallback if value.nil?
+    d = value.respond_to?(:in_time_zone) ? value.in_time_zone(current_business_timezone).to_date : value
+    d.strftime("%-d %b")
+  end
+
+  # For datetime-local HTML inputs — must show local time, not UTC
+  def local_datetime_input(value, default: nil)
+    t = value || default || Time.current
+    t.in_time_zone(current_business_timezone).strftime("%Y-%m-%dT%H:%M")
+  end
+
   # Formats a monetary amount using the current user's business currency.
   # In Arabic locale: "1,500 ر.س"; in English: "SAR 1,500.00"
   # precision: keyword controls decimal places (default 2; pass 0 for whole numbers).
@@ -165,5 +222,21 @@ module ApplicationHelper
     parts << "#{hours}h" if hours > 0
     parts << "#{mins}m"  if mins  > 0
     parts.join(" ")
+  end
+
+  # Returns a CSS modifier key for a branch health score (0–100).
+  def branch_health_grade(score)
+    case score
+    when 85..100 then "excellent"
+    when 65..84  then "good"
+    when 45..64  then "fair"
+    else              "poor"
+    end
+  end
+
+  # Returns a CSS modifier for a performance grade symbol.
+  def performance_grade_class(grade)
+    { excellent: "success", good: "accent", fair: "warning", poor: "danger" }
+      .fetch(grade.to_sym, "neutral")
   end
 end

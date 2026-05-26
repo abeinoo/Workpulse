@@ -27,6 +27,7 @@ module Attendance
 
       record.assign_attributes(
         check_out_at:        now,
+        check_out_source:    "mobile",
         check_out_latitude:  @latitude,
         check_out_longitude: @longitude,
         worked_minutes:      worked_mins,

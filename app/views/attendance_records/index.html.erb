@@ -174,6 +174,21 @@
                     class: "filter-bar__select" %>
             </div>
 
+            <%# Source %>
+            <div class="form-group">
+              <%= f.label :source, t("attendance.records.filter_source"), class: "form-label" %>
+              <%= f.select :source,
+                    options_for_select(
+                      [[t("attendance.records.all_sources"), ""]] +
+                        @filter_sources.map { |s|
+                          [t("attendance.sources.#{s}", default: s.humanize), s]
+                        },
+                      params[:source]
+                    ),
+                    {},
+                    class: "filter-bar__select" %>
+            </div>
+
             <%# Date from %>
             <div class="form-group">
               <%= f.label :date_from, t("attendance.records.date_from"), class: "form-label" %>
@@ -303,6 +318,9 @@
               <% if rec.check_in_at %>
                 <span class="attn-time"><%= rec.check_in_at.in_time_zone.strftime("%H:%M") %></span>
                 <span class="attn-time-date td-secondary"><%= rec.check_in_at.in_time_zone.strftime("%b %-d") %></span>
+                <% if rec.check_in_source.present? %>
+                  <%= attendance_source_badge(rec.check_in_source, html_class: "attn-source-badge attn-source-badge--xs") %>
+                <% end %>
               <% else %>
                 <span class="td-secondary">—</span>
               <% end %>
@@ -313,6 +331,9 @@
               <% if rec.check_out_at %>
                 <span class="attn-time"><%= rec.check_out_at.in_time_zone.strftime("%H:%M") %></span>
                 <span class="attn-time-date td-secondary"><%= rec.check_out_at.in_time_zone.strftime("%b %-d") %></span>
+                <% if rec.check_out_source.present? %>
+                  <%= attendance_source_badge(rec.check_out_source, html_class: "attn-source-badge attn-source-badge--xs") %>
+                <% end %>
               <% else %>
                 <span class="badge badge-neutral badge-xs"><%= t("attendance.records.open") %></span>
               <% end %>

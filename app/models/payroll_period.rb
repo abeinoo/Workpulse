@@ -8,6 +8,7 @@ class PayrollPeriod < ApplicationRecord
   has_many   :payroll_adjustments,           dependent: :nullify
   has_many   :payroll_audit_logs,            dependent: :nullify
   has_many   :obligation_deductions,         dependent: :destroy
+  has_many   :payroll_snapshots,             dependent: :destroy
 
   STATUSES = %w[draft under_review branch_review_completed finalized paid].freeze
 
@@ -48,5 +49,20 @@ class PayrollPeriod < ApplicationRecord
   def all_branches_reviewed?
     payroll_period_branch_reviews.any? &&
       payroll_period_branch_reviews.where(status: "pending").none?
+  end
+
+  # Locking: finalized and paid periods are immutable.
+  def locked?
+    finalized? || paid?
+  end
+
+  def editable?
+    !locked?
+  end
+
+  # Reason key used for i18n flash messages.
+  def lock_reason
+    return nil unless locked?
+    paid? ? :paid : :finalized
   end
 end

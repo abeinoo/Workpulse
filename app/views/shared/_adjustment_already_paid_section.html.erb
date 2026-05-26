@@ -41,7 +41,7 @@
         <%= f.label :paid_at, t("payroll_adjustments.new.paid_at_label"), class: "form-label" %>
         <%= f.datetime_local_field :paid_at,
               class: "form-control",
-              value: (adjustment.paid_at || Time.current).strftime("%Y-%m-%dT%H:%M") %>
+              value: local_datetime_input(adjustment.paid_at) %>
         <p class="form-hint"><%= t("payroll_adjustments.new.paid_at_hint") %></p>
       </div>
     </div>

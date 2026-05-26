@@ -1,11 +1,12 @@
-<div class="admin-page">
+<div class="admin-page has-sticky-actions">
 
+  <%# ── Page header ────────────────────────────────────────────────────────── %>
   <div class="page-header">
     <div>
       <%= link_to t("payroll.entry.back"), payroll_period_path(@period), class: "back-link" %>
       <% if current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll) %>
         <h1 class="page-title"><%= @entry.user.full_name %></h1>
-        <p class="page-subtitle"><%= @period.period_label %> &middot; <%= @period.branch&.name || t("payroll.all_branches") %></p>
+        <p class="page-subtitle"><%= @period.period_label %></p>
       <% else %>
         <h1 class="page-title"><%= @period.period_label %></h1>
         <p class="page-subtitle"><%= t("payroll.entry.payslip") %></p>
@@ -16,9 +17,30 @@
     </span>
   </div>
 
-  <%# ─────────────────────────────────────────────────────────────────────── %>
-  <%# 1. Attendance summary stats (only for employees with tracked attendance) %>
-  <%# ─────────────────────────────────────────────────────────────────────── %>
+  <%# ── Period lock notice ─────────────────────────────────────────────────── %>
+  <% if @period.locked? %>
+    <div class="payroll-lock-banner">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+      <span><%= t("payroll.locked.#{@period.lock_reason}") %></span>
+    </div>
+  <% end %>
+
+  <%# ── Mobile sticky action bar (approve/reject pending items) ───────────── %>
+  <% can_manage = current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll) %>
+  <% if can_manage && @period.reviewable? %>
+    <div class="page-actions page-actions--sticky">
+      <% if can_manage %>
+        <%= link_to t("payroll.entry.add_btn") + " " + t("payroll.entry.additions_bonuses"),
+              new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :cash_incentive),
+              class: "btn btn-sm btn-success" %>
+        <%= link_to t("payroll.entry.add_btn") + " " + t("payroll.entry.manual_deductions"),
+              new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :deduction),
+              class: "btn btn-sm btn-danger btn-sm" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Attendance summary stats ───────────────────────────────────────────── %>
   <% if @attendance_records.any? %>
     <div class="stats-grid" style="margin-bottom: 1.5rem;">
       <div class="stat-card">
@@ -47,9 +69,7 @@
     </div>
   <% end %>
 
-  <%# ─────────────────────────────────────────────────────────────────────── %>
-  <%# 2. Salary breakdown                                                     %>
-  <%# ─────────────────────────────────────────────────────────────────────── %>
+  <%# ── Salary breakdown ───────────────────────────────────────────────────── %>
   <%
     already_paid_items = @additions.select(&:already_paid?)
     has_already_paid   = @entry.already_paid_total > 0
@@ -93,13 +113,10 @@
     <% end %>
 
     <% if has_already_paid %>
-      <%# Subtotal before already-paid offset %>
       <div class="payslip-breakdown__row payslip-breakdown__row--subtotal">
         <span class="payslip-breakdown__label"><%= t("payroll.entry.gross_amount") %></span>
         <span class="payslip-breakdown__value"><%= format_currency(gross_amount) %></span>
       </div>
-
-      <%# Already-paid section — indented, per-item breakdown %>
       <div class="payslip-breakdown__already-paid">
         <div class="payslip-breakdown__already-paid-header">
           <%= t("payroll.entry.already_paid_section") %>
@@ -132,9 +149,7 @@
     </div>
   </div>
 
-  <%# ─────────────────────────────────────────────────────────────────────── %>
-  <%# 3. Deductions breakdown                                                 %>
-  <%# ─────────────────────────────────────────────────────────────────────── %>
+  <%# ── Deductions ─────────────────────────────────────────────────────────── %>
   <% if @deductions.any? %>
     <h2 class="section-heading"><%= t("payroll.deductions") %></h2>
     <div class="table-wrap table-wrap--cards" style="margin-bottom: 1.5rem;">
@@ -146,7 +161,7 @@
             <th><%= t("payroll.entry.date_col") %></th>
             <th class="text-right"><%= t("requests.amount") %></th>
             <th><%= t("payroll.entry.review_status") %></th>
-            <% if current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll) %>
+            <% if can_manage %>
               <th><%= t("attendance.actions") %></th>
             <% end %>
           </tr>
@@ -161,20 +176,27 @@
               struck = item.waived? || item.rejected?
             %>
             <tr>
-              <td><%= t("payroll.entry.item_types.#{item.item_type}") %></td>
-              <td class="td-secondary"><%= item.description.presence || "—" %></td>
-              <td class="td-secondary"><%= source_date&.strftime("%-d %b") || "—" %></td>
+              <td data-label="<%= t('payroll.entry.type_col') %>">
+                <%= t("payroll.entry.item_types.#{item.item_type}") %>
+              </td>
+              <td class="td-secondary" data-label="<%= t('payroll.entry.description_col') %>">
+                <%= item.description.presence || "—" %>
+              </td>
+              <td class="td-secondary" data-label="<%= t('payroll.entry.date_col') %>">
+                <%= source_date&.strftime("%-d %b") || "—" %>
+              </td>
               <td class="text-right<%= struck ? ' text-muted' : ' text-danger' %>"
-                  style="<%= 'text-decoration: line-through;' if struck %>">
+                  style="<%= 'text-decoration: line-through;' if struck %>"
+                  data-label="<%= t('requests.amount') %>">
                 − <%= format_currency(item.amount.abs) %>
               </td>
-              <td>
+              <td data-label="<%= t('payroll.entry.review_status') %>">
                 <span class="badge <%= deduction_status_badge_class(item) %>">
                   <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                 </span>
               </td>
-              <% if current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll) %>
-                <td class="td-actions">
+              <% if can_manage %>
+                <td class="td-actions" data-label="<%= t('attendance.actions') %>">
                   <% if @period.reviewable? %>
                     <% if item.pending_review? && policy(item).approve? %>
                       <%= button_to t("payroll.entry.approve"),
@@ -199,16 +221,16 @@
                       </details>
                     <% end %>
                   <% elsif item.reviewed_at %>
-                    <span class="td-secondary" style="font-size: 0.75rem;"><%= item.reviewed_at.strftime("%b %-d") %></span>
+                    <span class="td-secondary" style="font-size: 0.75rem;"><%= local_short_date(item.reviewed_at) %></span>
                   <% end %>
                 </td>
               <% end %>
             </tr>
 
-            <%# Permission reduction note for late/early-leave penalty items %>
+            <%# Permission reduction note %>
             <% if %w[late_penalty early_leave_penalty].include?(item.item_type) && item.permission_minutes.to_i > 0 %>
               <tr class="permission-note-row">
-                <td colspan="<%= (current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll)) ? 6 : 5 %>">
+                <td colspan="<%= can_manage ? 6 : 5 %>">
                   <span class="permission-note permission-note--covered">
                     ✓ <%= t("payroll.entry.permission_granted", minutes: item.permission_minutes) %>
                     &middot;
@@ -221,14 +243,14 @@
               </tr>
             <% end %>
 
-            <%# Waive / rejection note visible to everyone including employees %>
+            <%# Waive / rejection note %>
             <% if item.review_notes.present? %>
               <tr class="deduction-note-row">
-                <td colspan="<%= (current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll)) ? 6 : 5 %>">
+                <td colspan="<%= can_manage ? 6 : 5 %>">
                   <span class="deduction-note">
                     <% if item.waived? %>
                       <%= t("payroll.entry.waived_by", name: item.reviewed_by&.full_name || t("forms.none")) %>
-                      <%= "on #{item.reviewed_at.strftime('%b %-d')}" if item.reviewed_at %> —
+                      <%= "on #{local_short_date(item.reviewed_at)}" if item.reviewed_at %> —
                     <% elsif item.rejected? %>
                       <%= t("payroll.entry.rejected") %> —
                     <% end %>
@@ -243,10 +265,7 @@
     </div>
   <% end %>
 
-  <%# ─────────────────────────────────────────────────────────────────────── %>
-  <%# 4. Additions / bonuses breakdown                                        %>
-  <%# ─────────────────────────────────────────────────────────────────────── %>
-  <% can_manage = current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll) %>
+  <%# ── Additions / bonuses ────────────────────────────────────────────────── %>
   <% show_additions_section = @additions.any? || (can_manage && @period.reviewable?) %>
   <% if show_additions_section %>
     <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 1.75rem 0 0.6rem;">
@@ -254,7 +273,7 @@
       <% if can_manage && @period.reviewable? %>
         <%= link_to t("payroll.entry.add_btn"),
               new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :cash_incentive),
-              class: "btn btn-sm btn-primary" %>
+              class: "btn btn-sm btn-success" %>
       <% end %>
     </div>
     <% if @additions.any? %>
@@ -272,7 +291,7 @@
           <tbody>
             <% @additions.each do |item| %>
               <tr>
-                <td>
+                <td data-label="<%= t('payroll.entry.type_col') %>">
                   <%= t("payroll.entry.item_types.#{item.item_type}") %>
                   <% if item.already_paid? %>
                     &nbsp;<span class="badge badge-warning" style="font-size:10px;vertical-align:middle;">
@@ -280,9 +299,12 @@
                     </span>
                   <% end %>
                 </td>
-                <td class="td-secondary"><%= item.description.presence || "—" %></td>
+                <td class="td-secondary" data-label="<%= t('payroll.entry.description_col') %>">
+                  <%= item.description.presence || "—" %>
+                </td>
                 <td class="text-right <%= item.pending_review? ? 'text-muted' : (item.already_paid? ? 'text-warning' : 'text-success') %>"
-                    style="<%= 'text-decoration: line-through;' if item.rejected? %>">
+                    style="<%= 'text-decoration: line-through;' if item.rejected? %>"
+                    data-label="<%= t('requests.amount') %>">
                   + <%= format_currency(item.amount) %>
                   <% if item.already_paid? %>
                     <span style="font-size:10px;color:var(--text-2);display:block;">
@@ -290,13 +312,13 @@
                     </span>
                   <% end %>
                 </td>
-                <td>
+                <td data-label="<%= t('payroll.entry.review_status') %>">
                   <span class="badge <%= line_item_review_badge_class(item) %>">
                     <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                   </span>
                 </td>
                 <% if current_user.owner? %>
-                  <td class="td-actions">
+                  <td class="td-actions" data-label="<%= t('attendance.actions') %>">
                     <% if item.pending_review? && @period.reviewable? %>
                       <%= button_to t("payroll.entry.approve"),
                             approve_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
@@ -305,7 +327,7 @@
                             reject_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
                             method: :patch, class: "btn btn-sm btn-danger" %>
                     <% elsif item.reviewed_at %>
-                      <span class="td-secondary" style="font-size: 0.75rem;"><%= item.reviewed_at.strftime("%b %-d") %></span>
+                      <span class="td-secondary" style="font-size: 0.75rem;"><%= local_short_date(item.reviewed_at) %></span>
                     <% end %>
                   </td>
                 <% end %>
@@ -317,16 +339,14 @@
     <% end %>
   <% end %>
 
-  <%# ─────────────────────────────────────────────────────────────────────── %>
-  <%# 4b. Pending manual deductions (manager-created, awaiting super admin)  %>
-  <%# ─────────────────────────────────────────────────────────────────────── %>
+  <%# ── Manual deductions (manager-created) ───────────────────────────────── %>
   <% if can_manage && @period.reviewable? %>
     <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 1.75rem 0 0.6rem;">
       <h2 class="section-heading" style="margin: 0;"><%= t("payroll.entry.manual_deductions") %></h2>
       <% if current_user.manages_branch? || current_user.owner? %>
         <%= link_to t("payroll.entry.add_btn"),
               new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :deduction),
-              class: "btn btn-sm btn-primary" %>
+              class: "btn btn-sm btn-danger" %>
       <% end %>
     </div>
     <% manual = @manual_deductions %>
@@ -344,18 +364,21 @@
           <tbody>
             <% manual.each do |item| %>
               <tr>
-                <td class="td-secondary"><%= item.description.presence || "—" %></td>
+                <td class="td-secondary" data-label="<%= t('payroll.entry.description_col') %>">
+                  <%= item.description.presence || "—" %>
+                </td>
                 <td class="text-right <%= item.approved? ? 'text-danger' : 'text-muted' %>"
-                    style="<%= 'text-decoration: line-through;' if item.rejected? || item.waived? %>">
+                    style="<%= 'text-decoration: line-through;' if item.rejected? || item.waived? %>"
+                    data-label="<%= t('requests.amount') %>">
                   − <%= format_currency(item.amount.abs) %>
                 </td>
-                <td>
+                <td data-label="<%= t('payroll.entry.review_status') %>">
                   <span class="badge <%= deduction_status_badge_class(item) %>">
                     <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                   </span>
                 </td>
                 <% if current_user.owner? %>
-                  <td class="td-actions">
+                  <td class="td-actions" data-label="<%= t('attendance.actions') %>">
                     <% if item.pending_review? && @period.reviewable? && policy(item).approve? %>
                       <%= button_to t("payroll.entry.approve"),
                             approve_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
@@ -372,17 +395,19 @@
         </table>
       </div>
     <% else %>
-      <p style="color: var(--text-2); font-size: var(--text-sm); margin-bottom: 1.5rem;"><%= t("payroll.entry.no_manual_deductions") %></p>
+      <p style="color: var(--text-2); font-size: var(--text-sm); margin-bottom: 1.5rem;">
+        <%= t("payroll.entry.no_manual_deductions") %>
+      </p>
     <% end %>
   <% end %>
 
   <% if @deductions.empty? && @additions.empty? && !can_manage %>
-    <p style="text-align: center; color: var(--text-2); padding: 2rem 0;"><%= t("payroll.entry.no_deductions") %></p>
+    <p style="text-align: center; color: var(--text-2); padding: 2rem 0;">
+      <%= t("payroll.entry.no_deductions") %>
+    </p>
   <% end %>
 
-  <%# ─────────────────────────────────────────────────────────────────────── %>
-  <%# 5. Detailed attendance records                                          %>
-  <%# ─────────────────────────────────────────────────────────────────────── %>
+  <%# ── Detailed attendance records ────────────────────────────────────────── %>
   <% if @attendance_records.any? %>
     <h2 class="section-heading"><%= t("payroll.entry.attendance_records") %></h2>
     <div class="table-wrap table-wrap--cards">
@@ -403,32 +428,42 @@
         <tbody>
           <% @attendance_records.each do |rec| %>
             <%
-              shift         = rec.shift_assignment&.shift
-              ot_minutes    = shift ? [ rec.worked_minutes.to_i - shift.duration_minutes, 0 ].max : 0
+              shift      = rec.shift_assignment&.shift
+              ot_minutes = shift ? [ rec.worked_minutes.to_i - shift.duration_minutes, 0 ].max : 0
+              late_perm  = @permission_lookup[["late_permission",  rec.work_date]].to_i
+              early_perm = @permission_lookup[["early_leave",      rec.work_date]].to_i
+              total_perm = late_perm + early_perm
             %>
             <tr class="<%= rec.absent? ? 'row-absent' : '' %>">
-              <td class="attendance-date"><%= rec.date.strftime("%-d %b") %></td>
-              <td class="td-secondary"><%= rec.check_in_at ? rec.check_in_at.in_time_zone.strftime("%H:%M") : "—" %></td>
-              <td class="td-secondary"><%= rec.check_out_at ? rec.check_out_at.in_time_zone.strftime("%H:%M") : "—" %></td>
-              <td class="text-right td-secondary"><%= rec.worked_minutes ? format_minutes(rec.worked_minutes) : "—" %></td>
-              <td class="text-right <%= ot_minutes > 0 ? 'text-success' : 'td-secondary' %>">
+              <td class="attendance-date" data-label="<%= t('payroll.entry.date_col') %>">
+                <%= rec.date.strftime("%-d %b") %>
+              </td>
+              <td class="td-secondary" data-label="<%= t('payroll.entry.check_in') %>">
+                <%= rec.check_in_at ? rec.check_in_at.in_time_zone.strftime("%H:%M") : "—" %>
+              </td>
+              <td class="td-secondary" data-label="<%= t('payroll.entry.check_out') %>">
+                <%= rec.check_out_at ? rec.check_out_at.in_time_zone.strftime("%H:%M") : "—" %>
+              </td>
+              <td class="text-right td-secondary" data-label="<%= t('payroll.entry.worked') %>">
+                <%= rec.worked_minutes ? format_minutes(rec.worked_minutes) : "—" %>
+              </td>
+              <td class="text-right <%= ot_minutes > 0 ? 'text-success' : 'td-secondary' %>"
+                  data-label="<%= t('payroll.entry.overtime_col') %>">
                 <%= ot_minutes > 0 ? format_minutes(ot_minutes) : "—" %>
               </td>
-              <td class="text-right <%= rec.late_minutes > 0 ? 'text-warning' : 'td-secondary' %>">
+              <td class="text-right <%= rec.late_minutes > 0 ? 'text-warning' : 'td-secondary' %>"
+                  data-label="<%= t('payroll.entry.late_col') %>">
                 <%= rec.late_minutes > 0 ? "#{rec.late_minutes} min" : "—" %>
               </td>
-              <td class="text-right <%= rec.early_leave_minutes > 0 ? 'text-warning' : 'td-secondary' %>">
+              <td class="text-right <%= rec.early_leave_minutes > 0 ? 'text-warning' : 'td-secondary' %>"
+                  data-label="<%= t('payroll.entry.early_leave_col') %>">
                 <%= rec.early_leave_minutes > 0 ? "#{rec.early_leave_minutes} min" : "—" %>
               </td>
-              <%
-                late_perm  = @permission_lookup[["late_permission",  rec.work_date]].to_i
-                early_perm = @permission_lookup[["early_leave",      rec.work_date]].to_i
-                total_perm = late_perm + early_perm
-              %>
-              <td class="text-right <%= total_perm > 0 ? 'text-success' : 'td-secondary' %>">
+              <td class="text-right <%= total_perm > 0 ? 'text-success' : 'td-secondary' %>"
+                  data-label="<%= t('payroll.entry.permission_col') %>">
                 <%= total_perm > 0 ? "#{total_perm} min" : "—" %>
               </td>
-              <td>
+              <td data-label="<%= t('attendance.status') %>">
                 <span class="badge <%= attendance_status_badge_class(rec) %>">
                   <%= t("attendance.statuses.#{rec.status}") %>
                 </span>
@@ -474,9 +509,9 @@
 
   /* Already-paid block */
   .payslip-breakdown__already-paid {
-    background: var(--bg-warning-subtle, #fffbeb);
-    border-top: 1px solid var(--warning-border, #fde68a);
-    border-bottom: 1px solid var(--warning-border, #fde68a);
+    background: var(--warning-muted);
+    border-top: 1px solid rgba(245, 158, 11, 0.3);
+    border-bottom: 1px solid rgba(245, 158, 11, 0.3);
   }
   .payslip-breakdown__already-paid-header {
     padding: 0.4rem 1.25rem;
@@ -484,29 +519,18 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--warning, #b45309);
+    color: var(--warning);
   }
   .payslip-breakdown__already-paid-row {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     padding: 0.35rem 1.25rem 0.35rem 2rem;
-    border-top: 1px solid var(--warning-border, #fde68a);
+    border-top: 1px solid rgba(245, 158, 11, 0.2);
   }
-  .payslip-breakdown__already-paid-label {
-    font-size: var(--text-sm);
-    color: var(--text-2);
-  }
-  .payslip-breakdown__already-paid-meta {
-    font-size: 0.72rem;
-    color: var(--text-3, var(--text-2));
-    margin-left: 0.4rem;
-  }
-  .payslip-breakdown__already-paid-amount {
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--warning, #b45309);
-  }
+  .payslip-breakdown__already-paid-label { font-size: var(--text-sm); color: var(--text-2); }
+  .payslip-breakdown__already-paid-meta { font-size: 0.72rem; color: var(--text-3); margin-inline-start: 0.4rem; }
+  .payslip-breakdown__already-paid-amount { font-size: var(--text-sm); font-weight: 500; color: var(--warning); }
 
   /* Section headings */
   .section-heading {
@@ -518,7 +542,7 @@
     margin: 1.75rem 0 0.6rem;
   }
 
-  /* Deduction / permission note sub-rows */
+  /* Note sub-rows */
   .deduction-note-row td, .permission-note-row td { padding-top: 0 !important; padding-bottom: 0.4rem; }
   .deduction-note { font-size: 0.8rem; color: var(--text-muted, var(--text-2)); }
   .permission-note { font-size: 0.8rem; }
@@ -543,11 +567,4 @@
   .attendance-table td, .attendance-table th { white-space: nowrap; }
   .attendance-date { font-weight: 500; }
   .row-absent td { opacity: 0.55; }
-
-  /* Utility text colours (if not already in app CSS) */
-  .text-success { color: var(--success) !important; }
-  .text-danger  { color: var(--danger)  !important; }
-  .text-warning { color: var(--warning) !important; }
-  .text-muted   { color: var(--text-2)  !important; }
-  .text-right   { text-align: right; }
 </style>

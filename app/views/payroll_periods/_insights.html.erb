@@ -1,0 +1,143 @@
+<%# ── Payroll Insights ──────────────────────────────────────────────────────── %>
+<%
+  ins_change    = @insights.payroll_change
+  ins_trend     = @insights.net_payroll_trend(months: 6)
+  ins_top_ot    = @insights.top_overtime(limit: 3)
+  ins_top_ded   = @insights.top_deductions(limit: 3)
+  ins_lateness  = @insights.branch_lateness_ranking(limit: 5)
+  ins_incomplete = @insights.incomplete_checkouts_count
+  ins_abnormal  = @insights.abnormal_overtime_entries
+
+  has_insights = ins_change ||
+                 ins_trend.any? { |pt| pt[:net] } ||
+                 ins_top_ot.any? ||
+                 ins_top_ded.any? ||
+                 ins_lateness.any? ||
+                 ins_incomplete > 0
+%>
+<% if has_insights %>
+  <div class="payroll-insights">
+    <div class="payroll-insights__header">
+      <span class="payroll-insights__title"><%= t("payroll.show.insights_title") %></span>
+    </div>
+    <div class="payroll-insights-grid">
+
+      <%# ── Net vs Previous Month ─────────────────────────────────────────── %>
+      <% if ins_change %>
+        <%
+          pct        = ins_change[:change_pct]
+          chip_class = pct > 0 ? "trend-chip--up" : (pct < 0 ? "trend-chip--down" : "trend-chip--same")
+          pct_label  = pct > 0 ? "+#{pct}%" : "#{pct}%"
+        %>
+        <div class="payroll-insight-card">
+          <div class="payroll-insight-card__heading"><%= t("payroll.show.insights_net_change") %></div>
+          <div class="payroll-insight-card__main">
+            <span class="trend-chip <%= chip_class %>"><%= pct_label %></span>
+          </div>
+          <div class="adj-insights-list">
+            <div class="adj-insight-row">
+              <span class="adj-insight-row__label"><%= t("payroll.show.insights_this_month") %></span>
+              <span class="adj-insight-row__value"><%= format_currency(ins_change[:current], precision: 0) %></span>
+            </div>
+            <div class="adj-insight-row">
+              <span class="adj-insight-row__label"><%= t("payroll.show.insights_prev_month") %></span>
+              <span class="adj-insight-row__value"><span class="adj-insight-row__sub"><%= format_currency(ins_change[:previous], precision: 0) %></span></span>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%# ── 6-Month Net Trend ─────────────────────────────────────────────── %>
+      <% if ins_trend.any? { |pt| pt[:net] } %>
+        <%
+          trend_max = ins_trend.map { |pt| pt[:net].to_f }.max.to_f
+          chart_max_px = 40
+        %>
+        <div class="payroll-insight-card">
+          <div class="payroll-insight-card__heading"><%= t("payroll.show.insights_trend") %></div>
+          <div class="payroll-trend-chart">
+            <% ins_trend.each do |pt| %>
+              <%
+                bar_h = if pt[:net] && trend_max > 0
+                          [(pt[:net].to_f / trend_max * chart_max_px).round, 3].max
+                        else
+                          0
+                        end
+              %>
+              <div class="payroll-trend-bar-wrap">
+                <div class="payroll-trend-bar <%= pt[:is_current] ? 'payroll-trend-bar--current' : '' %>"
+                     style="height: <%= bar_h %>px;"></div>
+                <div class="payroll-trend-bar__month"><%= pt[:label] %></div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%# ── Top Overtime ───────────────────────────────────────────────────── %>
+      <% if ins_top_ot.any? %>
+        <div class="payroll-insight-card">
+          <div class="payroll-insight-card__heading"><%= t("payroll.show.insights_top_ot") %></div>
+          <div class="adj-insights-list">
+            <% ins_top_ot.each do |entry| %>
+              <div class="adj-insight-row">
+                <span class="adj-insight-row__label"><%= entry.user.full_name %></span>
+                <span class="adj-insight-row__value adj-insight-row__value--positive">+ <%= format_currency(entry.total_overtime, precision: 0) %></span>
+              </div>
+            <% end %>
+          </div>
+          <% if ins_abnormal.any? %>
+            <div class="payroll-insight-card__footnote">
+              <span class="trend-chip trend-chip--warn"><%= t("payroll.show.insights_abnormal_ot", count: ins_abnormal.size) %></span>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%# ── Top Deductions ─────────────────────────────────────────────────── %>
+      <% if ins_top_ded.any? %>
+        <div class="payroll-insight-card">
+          <div class="payroll-insight-card__heading"><%= t("payroll.show.insights_top_deductions") %></div>
+          <div class="adj-insights-list">
+            <% ins_top_ded.each do |entry| %>
+              <div class="adj-insight-row">
+                <span class="adj-insight-row__label"><%= entry.user.full_name %></span>
+                <span class="adj-insight-row__value adj-insight-row__value--negative">− <%= format_currency(entry.total_deductions, precision: 0) %></span>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%# ── Branch Lateness Ranking ─────────────────────────────────────────── %>
+      <% if ins_lateness.any? %>
+        <div class="payroll-insight-card">
+          <div class="payroll-insight-card__heading"><%= t("payroll.show.insights_lateness") %></div>
+          <div class="adj-insights-list">
+            <% ins_lateness.each do |b| %>
+              <div class="adj-insight-row">
+                <span class="adj-insight-row__label"><%= b[:branch] %></span>
+                <span class="adj-insight-row__value <%= b[:avg_late_minutes] > 30 ? 'adj-insight-row__value--negative' : '' %>">
+                  <%= b[:avg_late_minutes] %> <%= t("payroll.show.insights_min") %>
+                  <span class="adj-insight-row__sub"><%= t("payroll.show.insights_employees_count", count: b[:employee_count]) %></span>
+                </span>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%# ── Incomplete Checkouts ─────────────────────────────────────────────── %>
+      <% if ins_incomplete > 0 %>
+        <div class="payroll-insight-card payroll-insight-card--warn">
+          <div class="payroll-insight-card__heading"><%= t("payroll.show.insights_incomplete") %></div>
+          <div class="payroll-insight-card__main">
+            <span class="payroll-insight-card__big-value"><%= ins_incomplete %></span>
+          </div>
+          <p class="payroll-insight-card__hint"><%= t("payroll.show.insights_incomplete_hint") %></p>
+        </div>
+      <% end %>
+
+    </div>
+  </div>
+<% end %>

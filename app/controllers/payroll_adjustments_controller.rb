@@ -2,6 +2,7 @@ class PayrollAdjustmentsController < ApplicationController
   before_action :authenticate_user!
   before_action :set_period
   before_action :set_adjustment, only: [ :approve, :reject, :destroy ]
+  before_action :enforce_period_editable, only: [ :new, :create, :destroy ]
 
   def new
     @entry      = policy_scope(PayrollEntry).where(payroll_period: @period).find(params[:payroll_entry_id])
@@ -56,7 +57,7 @@ class PayrollAdjustmentsController < ApplicationController
     end
 
     redirect_back fallback_location: entry_path_for(@adjustment),
-                  notice: "Adjustment approved."
+                  notice: t("flash.adjustment_approved")
   rescue => e
     redirect_back fallback_location: payroll_period_path(@period), alert: e.message
   end
@@ -76,7 +77,7 @@ class PayrollAdjustmentsController < ApplicationController
     end
 
     redirect_back fallback_location: entry_path_for(@adjustment),
-                  notice: "Adjustment rejected."
+                  notice: t("flash.adjustment_rejected")
   rescue => e
     redirect_back fallback_location: payroll_period_path(@period), alert: e.message
   end
@@ -91,13 +92,19 @@ class PayrollAdjustmentsController < ApplicationController
       @adjustment.destroy!
       entry&.recalculate_totals!
     end
-    redirect_back fallback_location: path, notice: "Adjustment removed."
+    redirect_back fallback_location: path, notice: t("flash.adjustment_removed")
   end
 
   private
 
   def set_period
     @period = policy_scope(PayrollPeriod).find(params[:payroll_period_id])
+  end
+
+  def enforce_period_editable
+    return unless @period.locked?
+    redirect_to payroll_period_path(@period),
+                alert: t("payroll.locked.#{@period.lock_reason}")
   end
 
   def set_adjustment

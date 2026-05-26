@@ -80,6 +80,46 @@
             placeholder: "EMP-001" %>
     </div>
 
+    <%# ── Employment Info ──────────────────────────────────────────────── %>
+    <div class="form-group form-group--full">
+      <p class="form-label" style="margin-bottom: var(--space-2);">
+        <%= t("admin.users.form.employment_info") %>
+      </p>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :job_title, t("admin.users.form.job_title"), class: "form-label" %>
+      <%= f.text_field :job_title,
+            class: "form-control",
+            placeholder: t("admin.users.form.job_title_placeholder") %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :department, t("admin.users.form.department"), class: "form-label" %>
+      <%= f.text_field :department,
+            class: "form-control",
+            list: "department-suggestions",
+            autocomplete: "off",
+            placeholder: t("admin.users.form.department_placeholder") %>
+      <datalist id="department-suggestions">
+        <% Array(t("admin.users.form.department_options")).each do |opt| %>
+          <option value="<%= opt %>">
+        <% end %>
+      </datalist>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :hire_date, t("admin.users.form.hire_date"), class: "form-label" %>
+      <%= f.date_field :hire_date, class: "form-control" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :employment_type, t("admin.users.form.employment_type"), class: "form-label" %>
+      <%= f.select :employment_type,
+            User::EMPLOYMENT_TYPES.map { |t_val| [t("admin.users.employment_types.#{t_val}"), t_val] },
+            { include_blank: "— #{t("admin.users.form.select_employment_type")} —" },
+            class: "form-control" %>
+    </div>
 
     <div class="form-group">
       <%= f.label :permission_role_id, t("admin.users.form.permission_role"), class: "form-label" %>

@@ -65,6 +65,9 @@ module Attendance
         value = @params[field.to_sym]
         value = parse_in_business_tz(value) if value.is_a?(String)
         @record.assign_attributes(field => value)
+        # Track that this field was last set by a manual admin edit
+        source_field = field == "check_in_at" ? :check_in_source : :check_out_source
+        @record.assign_attributes(source_field => "admin_manual") if value.present?
       end
     end
 

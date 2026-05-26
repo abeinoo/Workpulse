@@ -67,6 +67,7 @@ module Attendance
         date:               wd,
         work_date:          wd,
         check_in_at:        now,
+        check_in_source:    "mobile",
         check_in_latitude:  @latitude,
         check_in_longitude: @longitude,
         late_minutes:       late_mins,

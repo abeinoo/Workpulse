@@ -3,8 +3,10 @@ class AttendanceRecord < ApplicationRecord
   belongs_to :branch,           optional: true
   belongs_to :shift_assignment, optional: true
   has_many   :attendance_adjustments, dependent: :destroy
+  has_many   :biometric_punch_logs, dependent: :destroy
 
   STATUSES = %w[incomplete present late early_leave absent].freeze
+  SOURCES  = %w[mobile biometric_device import admin_manual api].freeze
 
   enum :status, {
     incomplete:  "incomplete",
@@ -42,5 +44,11 @@ class AttendanceRecord < ApplicationRecord
 
   def total_penalty_minutes
     late_minutes.to_i + early_leave_minutes.to_i
+  end
+
+  # Returns the effective source for display: check_in_source preferred, falls back to check_out_source.
+  # Returns nil for legacy records created before source tracking was added.
+  def primary_source
+    check_in_source.presence || check_out_source.presence
   end
 end

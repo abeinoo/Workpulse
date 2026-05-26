@@ -108,6 +108,7 @@ class Admin::UsersController < Admin::BaseController
       :first_name, :last_name, :phone_number, :email,
       :employee_code, :active, :manager_id,
       :permission_role_id,
+      :job_title, :department, :hire_date, :employment_type,
       :identity_card_number, :identity_card_expiry_date,
       :allow_mobile_attendance, :allow_biometric_attendance,
       :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship,

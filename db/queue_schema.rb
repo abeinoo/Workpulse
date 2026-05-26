@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_27_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -90,9 +90,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.datetime "check_in_at", null: false
     t.decimal "check_in_latitude", precision: 10, scale: 8
     t.decimal "check_in_longitude", precision: 11, scale: 8
+    t.string "check_in_source"
     t.datetime "check_out_at"
     t.decimal "check_out_latitude", precision: 10, scale: 8
     t.decimal "check_out_longitude", precision: 11, scale: 8
+    t.string "check_out_source"
     t.datetime "created_at", null: false
     t.date "date", null: false
     t.integer "early_leave_minutes", default: 0, null: false
@@ -105,8 +107,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.integer "worked_minutes"
     t.index ["branch_id", "date"], name: "index_attendance_records_on_branch_id_and_date"
     t.index ["branch_id"], name: "index_attendance_records_on_branch_id"
+    t.index ["check_in_source"], name: "index_attendance_records_on_check_in_source"
     t.index ["shift_assignment_id"], name: "index_attendance_records_on_shift_assignment_id"
+    t.index ["user_id", "status"], name: "idx_att_records_user_status"
     t.index ["user_id", "status"], name: "index_attendance_records_on_user_id_and_status"
+    t.index ["user_id", "work_date"], name: "idx_att_records_user_date"
     t.index ["user_id", "work_date"], name: "index_attendance_records_on_user_id_and_work_date", unique: true
     t.index ["user_id"], name: "index_attendance_records_on_user_id"
   end
@@ -200,6 +205,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.string "name", null: false
     t.integer "overtime_grace_minutes", default: 0, null: false
     t.bigint "owner_id"
+    t.integer "payroll_auto_generate_day", comment: "day-of-month to auto-generate (nil = disabled, 1-28)"
+    t.integer "payroll_cutoff_day", default: 0, null: false, comment: "attendance cutoff day for prior month (0 = end-of-month)"
     t.text "settings"
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
@@ -253,6 +260,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.index ["user_id"], name: "index_employee_requests_on_user_id"
   end
 
+  create_table "notifications", force: :cascade do |t|
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.jsonb "data", default: {}, null: false
+    t.string "event_type", null: false
+    t.bigint "notifiable_id"
+    t.string "notifiable_type"
+    t.datetime "read_at"
+    t.string "severity", default: "info", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["event_type"], name: "index_notifications_on_event_type"
+    t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
+    t.index ["user_id", "created_at"], name: "index_notifications_on_user_id_and_created_at"
+    t.index ["user_id", "read_at"], name: "index_notifications_on_user_id_and_read_at"
+    t.index ["user_id"], name: "index_notifications_on_user_id"
+  end
+
   create_table "obligation_deductions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.decimal "deducted_amount", precision: 12, scale: 2, null: false
@@ -296,6 +322,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.index ["business_id", "period_year", "period_month", "user_id"], name: "index_payroll_adjustments_on_period_and_user"
     t.index ["business_id"], name: "index_payroll_adjustments_on_business_id"
     t.index ["created_by_id"], name: "index_payroll_adjustments_on_created_by_id"
+    t.index ["payroll_period_id", "review_status"], name: "idx_payroll_adj_period_status"
     t.index ["payroll_period_id", "user_id"], name: "index_payroll_adjustments_on_payroll_period_id_and_user_id"
     t.index ["payroll_period_id"], name: "index_payroll_adjustments_on_payroll_period_id"
     t.index ["rejected_by_id"], name: "index_payroll_adjustments_on_rejected_by_id"
@@ -357,6 +384,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.bigint "source_id"
     t.string "source_type"
     t.datetime "updated_at", null: false
+    t.index ["payroll_entry_id", "review_status"], name: "idx_payroll_line_items_entry_status"
     t.index ["payroll_entry_id"], name: "index_payroll_line_items_on_payroll_entry_id"
     t.index ["review_status"], name: "index_payroll_line_items_on_review_status"
     t.index ["reviewed_by_id"], name: "index_payroll_line_items_on_reviewed_by_id"
@@ -392,10 +420,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.datetime "updated_at", null: false
     t.integer "working_days", null: false
     t.index ["branch_id"], name: "index_payroll_periods_on_branch_id"
+    t.index ["business_id", "period_year", "period_month"], name: "idx_payroll_periods_business_ym", unique: true
     t.index ["business_id", "period_year", "period_month"], name: "index_payroll_periods_unique", unique: true
     t.index ["business_id"], name: "index_payroll_periods_on_business_id"
     t.index ["finalized_by_id"], name: "index_payroll_periods_on_finalized_by_id"
     t.index ["generated_by_id"], name: "index_payroll_periods_on_generated_by_id"
+  end
+
+  create_table "payroll_snapshots", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "employee_count", default: 0, null: false
+    t.jsonb "employee_details", default: {}, null: false
+    t.bigint "payroll_period_id", null: false
+    t.bigint "taken_by_id", null: false
+    t.decimal "total_base", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "total_bonuses", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "total_deductions", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "total_net", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "total_overtime", precision: 12, scale: 2, default: "0.0", null: false
+    t.string "trigger", default: "pre_regenerate", null: false
+    t.datetime "updated_at", null: false
+    t.index ["payroll_period_id", "created_at"], name: "index_payroll_snapshots_on_payroll_period_id_and_created_at"
+    t.index ["payroll_period_id"], name: "index_payroll_snapshots_on_payroll_period_id"
+    t.index ["taken_by_id"], name: "index_payroll_snapshots_on_taken_by_id"
   end
 
   create_table "penalty_rules", force: :cascade do |t|
@@ -641,15 +688,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.boolean "allow_mobile_attendance", default: true, null: false
     t.integer "business_id"
     t.datetime "created_at", null: false
+    t.string "department"
     t.string "email"
     t.string "emergency_contact_name"
     t.string "emergency_contact_phone"
     t.string "emergency_contact_relationship"
     t.string "employee_code"
+    t.string "employment_type"
     t.string "encrypted_password", default: "", null: false
     t.string "first_name"
+    t.date "hire_date"
     t.date "identity_card_expiry_date"
     t.string "identity_card_number"
+    t.string "job_title"
     t.string "last_name"
     t.integer "manager_id"
     t.integer "permission_role_id"
@@ -660,6 +711,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
     t.string "reset_password_token"
     t.datetime "updated_at", null: false
     t.index "business_id, lower((employee_code)::text)", name: "index_users_on_business_id_and_lower_employee_code", unique: true, where: "((employee_code IS NOT NULL) AND ((employee_code)::text <> ''::text))"
+    t.index ["business_id", "department"], name: "index_users_on_business_id_and_department"
     t.index ["business_id"], name: "index_users_on_business_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["identity_card_number"], name: "index_users_on_identity_card_number", unique: true
@@ -696,6 +748,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
   add_foreign_key "employee_obligations", "users", column: "created_by_id"
   add_foreign_key "employee_requests", "users"
   add_foreign_key "employee_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "notifications", "users"
   add_foreign_key "obligation_deductions", "employee_obligations"
   add_foreign_key "obligation_deductions", "payroll_periods"
   add_foreign_key "payroll_adjustments", "businesses"
@@ -718,6 +771,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_035156) do
   add_foreign_key "payroll_periods", "businesses"
   add_foreign_key "payroll_periods", "users", column: "finalized_by_id"
   add_foreign_key "payroll_periods", "users", column: "generated_by_id"
+  add_foreign_key "payroll_snapshots", "payroll_periods"
+  add_foreign_key "payroll_snapshots", "users", column: "taken_by_id"
   add_foreign_key "penalty_rules", "shifts"
   add_foreign_key "permission_roles", "businesses"
   add_foreign_key "salary_profiles", "users"

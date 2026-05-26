@@ -46,9 +46,20 @@ class User < ApplicationRecord
   has_many :advances,              dependent: :destroy
   has_many :payroll_entries,       dependent: :destroy
   has_many :employee_obligations,  dependent: :destroy, foreign_key: :user_id
+  has_many :notifications,         dependent: :destroy
+
+  EMPLOYMENT_TYPES = %w[full_time part_time contract intern].freeze
+
+  enum :employment_type, {
+    full_time: "full_time",
+    part_time: "part_time",
+    contract:  "contract",
+    intern:    "intern"
+  }, prefix: :employment, validate: { allow_nil: true }
 
   scope :active,   -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
+  scope :by_department, ->(dept) { where(department: dept) }
 
   # Thin delegate to EmployeeScope — kept for backward compatibility with existing
   # callers. New code should use EmployeeScope.new(manager).relation directly.
@@ -107,6 +118,28 @@ class User < ApplicationRecord
 
   def full_name
     "#{first_name} #{last_name}".strip
+  end
+
+  PROFILE_COMPLETION_FIELDS = [
+    :phone_number, :email, :job_title, :department,
+    :hire_date, :employment_type,
+    :emergency_contact_name, :emergency_contact_phone,
+    :identity_card_number
+  ].freeze
+
+  def profile_completion_percentage
+    filled = PROFILE_COMPLETION_FIELDS.count { |f| send(f).present? }
+    photo_filled = profile_photo.attached? ? 1 : 0
+    total = PROFILE_COMPLETION_FIELDS.size + 1
+    ((filled + photo_filled) * 100.0 / total).round
+  end
+
+  def profile_completion_grade
+    pct = profile_completion_percentage
+    if pct >= 90 then :complete
+    elsif pct >= 60 then :partial
+    else :incomplete
+    end
   end
 
   def managed_employee_ids

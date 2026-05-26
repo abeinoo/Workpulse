@@ -1,5 +1,13 @@
 <% content_for :title, t("auth.sign_in.page_title") %>
 
+<div class="auth-locale-switcher">
+  <% I18n.available_locales.each do |loc| %>
+    <%= button_to t("locale.#{loc}"), set_locale_path, method: :patch,
+          params: { locale: loc },
+          class: "auth-locale-btn #{"auth-locale-btn--active" if I18n.locale == loc}" %>
+  <% end %>
+</div>
+
 <div class="auth-wrapper">
 
   <div class="auth-logo">

@@ -3,7 +3,8 @@ class PayrollPeriodPolicy < ApplicationPolicy
   def show?              = can?(:view_payroll) || managing? || visible_to_employee?
   def create?            = can?(:manage_payroll) || owner?
   def submit_for_review? = can?(:manage_payroll) || owner?
-  def regenerate?        = owner?
+  def regenerate?           = can?(:manage_payroll) || owner?
+  def approve_all_pending?  = can?(:manage_payroll) || owner?
   def finalize?          = can?(:finalize_payroll) || owner?
   def mark_paid?         = owner?
   def destroy?           = owner? && record.draft?

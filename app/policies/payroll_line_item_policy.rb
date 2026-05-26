@@ -1,7 +1,7 @@
 class PayrollLineItemPolicy < ApplicationPolicy
-  def approve? = (can?(:approve_adjustments) || owner?) && same_business_entry?
-  def reject?  = (can?(:approve_adjustments) || owner?) && same_business_entry?
-  def waive? = overriding?
+  def approve? = !period_locked? && (can?(:approve_adjustments) || owner?) && same_business_entry?
+  def reject?  = !period_locked? && (can?(:approve_adjustments) || owner?) && same_business_entry?
+  def waive?   = !period_locked? && overriding?
 
   class Scope < ApplicationPolicy::Scope
     def resolve
@@ -28,6 +28,10 @@ class PayrollLineItemPolicy < ApplicationPolicy
   end
 
   private
+
+  def period_locked?
+    record.payroll_entry&.payroll_period&.locked?
+  end
 
   def overriding?
     return false unless same_business_entry?

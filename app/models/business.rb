@@ -52,6 +52,15 @@ class Business < ApplicationRecord
             numericality: { greater_than: 0, less_than_or_equal_to: 100 }, allow_nil: true
   validates :overtime_grace_minutes,
             numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 480 }
+  validates :payroll_auto_generate_day,
+            numericality: { only_integer: true, greater_than_or_equal_to: 1, less_than_or_equal_to: 28 },
+            allow_nil: true
+  validates :payroll_cutoff_day,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 28 }
+
+  def auto_payroll_enabled?
+    payroll_auto_generate_day.present?
+  end
 
   def timezone_object
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]

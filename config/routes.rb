@@ -166,6 +166,19 @@ Rails.application.routes.draw do
     end
   end
 
+  get  "payroll_dashboard",    to: "payroll_dashboard#index",    as: :payroll_dashboard
+  get  "operations_dashboard", to: "operations_dashboard#index", as: :operations_dashboard
+
+  # ── Notification center ───────────────────────────────────────────────────
+  resources :notifications, only: [ :index ] do
+    collection do
+      patch :mark_all_read
+    end
+    member do
+      patch :mark_read
+    end
+  end
+
   resources :payroll_periods, only: [ :index, :show, :new, :create, :destroy ] do
     member do
       patch :submit_for_review
@@ -173,6 +186,7 @@ Rails.application.routes.draw do
       patch :finalize
       patch :mark_paid
       patch :regenerate
+      patch :approve_all_pending
     end
     resources :payroll_entries, only: [ :show ] do
       resources :payroll_line_items, only: [] do
@@ -193,6 +207,7 @@ Rails.application.routes.draw do
   end
 
   patch "preferences/locale", to: "preferences#update", as: :user_locale
+  patch "locale", to: "locale#update", as: :set_locale
 
   # ── Profile (employee self-service) ───────────────────────────────────────
   namespace :profile do

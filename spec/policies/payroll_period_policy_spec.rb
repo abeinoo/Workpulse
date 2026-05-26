@@ -76,6 +76,14 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
     end
   end
 
+  describe "regenerate?" do
+    it "permits super_admin"   do expect(subject.new(super_admin, period).regenerate?).to be true  end
+    it "permits accountant"    do expect(subject.new(accountant,  period).regenerate?).to be true  end
+    it "denies area_manager"   do expect(subject.new(area_mgr,    period).regenerate?).to be false end
+    it "denies branch_manager" do expect(subject.new(manager,     period).regenerate?).to be false end
+    it "denies employee"       do expect(subject.new(employee,    period).regenerate?).to be false end
+  end
+
   describe "finalize?" do
     it "permits super_admin"   do expect(subject.new(super_admin, period).finalize?).to be true  end
     it "denies accountant"     do expect(subject.new(accountant,  period).finalize?).to be false end

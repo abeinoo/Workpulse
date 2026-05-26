@@ -57,9 +57,11 @@ module Api
       end
 
       def parse_timestamp
-        Time.zone.parse(punch_params[:timestamp].to_s)
-      rescue ArgumentError, TypeError
-        nil
+        Attendance::TimestampParser.parse(
+          punch_params[:timestamp].to_s,
+          source:   :biometric_device,
+          business: current_business
+        )
       end
 
       def stale_timestamp?(ts)

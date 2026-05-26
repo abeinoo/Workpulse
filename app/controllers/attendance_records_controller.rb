@@ -38,6 +38,7 @@ class AttendanceRecordsController < ApplicationController
 
     @filter_branches = @can_manage ? visible_branches : Branch.none
     @filter_shifts   = @can_manage ? current_user.business.shifts.active.order(:name) : Shift.none
+    @filter_sources  = AttendanceRecord::SOURCES
   end
 
   def show
@@ -85,8 +86,9 @@ class AttendanceRecordsController < ApplicationController
       )
     end
 
-    scope = scope.where(branch_id: params[:branch_id])      if params[:branch_id].present?
-    scope = scope.where(status: params[:status])             if params[:status].present?
+    scope = scope.where(branch_id: params[:branch_id])        if params[:branch_id].present?
+    scope = scope.where(status: params[:status])               if params[:status].present?
+    scope = scope.where(check_in_source: params[:source])      if params[:source].present?
     scope = scope.where("work_date >= ?", params[:date_from]) if params[:date_from].present?
     scope = scope.where("work_date <= ?", params[:date_to])   if params[:date_to].present?
 
@@ -99,15 +101,19 @@ class AttendanceRecordsController < ApplicationController
     scope = scope.where(check_out_at: nil)  if params[:missing_checkout] == "1"
 
     if params[:overnight] == "1"
+      tz_name = current_user.business.timezone
       scope = scope.where.not(check_out_at: nil)
-                   .where("DATE(check_out_at) > work_date")
+                   .where(
+                     "CAST(check_out_at AT TIME ZONE 'UTC' AT TIME ZONE ? AS date) > work_date",
+                     tz_name
+                   )
     end
 
     scope
   end
 
   def count_active_filters
-    %i[q user_id branch_id status date_from date_to shift_id].count { |k| params[k].present? } +
+    %i[q user_id branch_id status source date_from date_to shift_id].count { |k| params[k].present? } +
       %w[late missing_checkout overnight].count { |k| params[k] == "1" }
   end
 

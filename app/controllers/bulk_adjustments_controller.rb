@@ -149,11 +149,9 @@ class BulkAdjustmentsController < ApplicationController
   private
 
   def authorize_bulk!
-    policy = PayrollAdjustmentPolicy.new(current_user,
-                                          PayrollAdjustment.new(business: current_user.business))
-    unless policy.new?
-      redirect_to adjustments_path, alert: t("errors.not_authorized")
-    end
+    authorize PayrollAdjustment.new(business: current_user.business), :new?
+  rescue Pundit::NotAuthorizedError
+    redirect_to adjustments_path, alert: t("errors.not_authorized")
   end
 
   def manageable_employees

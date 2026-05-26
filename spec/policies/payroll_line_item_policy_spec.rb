@@ -187,4 +187,33 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
       end
     end
   end
+
+  # ── Payroll locking: finalized / paid periods ─────────────────────────────
+  describe "locking" do
+    let(:finalized_period) { create(:payroll_period, :finalized, business: business) }
+    let(:finalized_entry) do
+      create(:payroll_entry, payroll_period: finalized_period, user: create(:user, business: business))
+    end
+    let(:locked_item) do
+      create(:payroll_line_item, :late_penalty, payroll_entry: finalized_entry)
+    end
+
+    it "blocks approve? on a finalized period" do
+      expect(described_class.new(super_admin, locked_item).approve?).to be false
+    end
+
+    it "blocks reject? on a finalized period" do
+      expect(described_class.new(super_admin, locked_item).reject?).to be false
+    end
+
+    it "blocks waive? on a finalized period" do
+      expect(described_class.new(super_admin, locked_item).waive?).to be false
+    end
+
+    it "permits approve? on a draft period" do
+      draft_entry = create(:payroll_entry, payroll_period: period, user: create(:user, business: business))
+      draft_item  = create(:payroll_line_item, :late_penalty, payroll_entry: draft_entry)
+      expect(described_class.new(super_admin, draft_item).approve?).to be true
+    end
+  end
 end

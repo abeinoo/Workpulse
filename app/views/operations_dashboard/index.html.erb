@@ -1,0 +1,250 @@
+<% content_for :title, t("ops_dashboard.page_title") %>
+
+<div class="admin-page ops-dash">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("ops_dashboard.title") %></h1>
+      <p class="page-subtitle"><%= t("ops_dashboard.subtitle", date: l(@today, format: :long)) %></p>
+    </div>
+    <div class="page-actions">
+      <%= link_to t("ops_dashboard.payroll_dashboard_link"), payroll_dashboard_path,
+            class: "btn btn-ghost btn-sm" %>
+    </div>
+  </div>
+
+  <%# ── Recommendations ─────────────────────────────────────────────────── %>
+  <% if @recommendations.any? %>
+    <div class="ops-recommendations">
+      <% @recommendations.first(4).each do |rec| %>
+        <div class="ops-rec ops-rec--<%= rec.severity %>">
+          <div class="ops-rec__icon">
+            <% if rec.severity == :danger || rec.severity.to_s == "danger" %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <% elsif rec.severity == :warning || rec.severity.to_s == "warning" %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <% else %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+            <% end %>
+          </div>
+          <div class="ops-rec__content">
+            <p class="ops-rec__title"><%= rec.title %></p>
+            <p class="ops-rec__body"><%= rec.body %></p>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── KPI strip ───────────────────────────────────────────────────────── %>
+  <div class="ops-kpi-strip">
+    <div class="ops-kpi ops-kpi--success">
+      <span class="ops-kpi__value"><%= @checked_in_count %></span>
+      <span class="ops-kpi__label"><%= t("ops_dashboard.checked_in") %></span>
+    </div>
+    <div class="ops-kpi ops-kpi--info">
+      <span class="ops-kpi__value"><%= @active_now_count %></span>
+      <span class="ops-kpi__label"><%= t("ops_dashboard.active_now") %></span>
+    </div>
+    <div class="ops-kpi ops-kpi--warning">
+      <span class="ops-kpi__value"><%= @late_today.size %></span>
+      <span class="ops-kpi__label"><%= t("ops_dashboard.late_today") %></span>
+    </div>
+    <div class="ops-kpi ops-kpi--danger">
+      <span class="ops-kpi__value"><%= @missing_checkouts.size %></span>
+      <span class="ops-kpi__label"><%= t("ops_dashboard.missing_checkouts") %></span>
+    </div>
+    <div class="ops-kpi ops-kpi--neutral">
+      <span class="ops-kpi__value"><%= @total_employees %></span>
+      <span class="ops-kpi__label"><%= t("ops_dashboard.total_employees") %></span>
+    </div>
+    <div class="ops-kpi ops-kpi--warning">
+      <span class="ops-kpi__value"><%= @pending_adjustments_count + @pending_line_items_count %></span>
+      <span class="ops-kpi__label"><%= t("ops_dashboard.pending_approvals") %></span>
+    </div>
+  </div>
+
+  <div class="ops-dash__grid">
+
+    <%# ── Late employees ────────────────────────────────────────────────── %>
+    <div class="ops-panel">
+      <div class="ops-panel__header">
+        <h2 class="ops-panel__title"><%= t("ops_dashboard.late_today_title") %></h2>
+        <span class="badge badge--warning"><%= @late_today.size %></span>
+      </div>
+      <% if @late_today.empty? %>
+        <p class="ops-panel__empty"><%= t("ops_dashboard.no_late_today") %></p>
+      <% else %>
+        <ul class="ops-employee-list">
+          <% @late_today.each do |rec| %>
+            <li class="ops-employee-item">
+              <%= user_avatar_tag(rec.user, size: 32, class: "ops-employee-item__avatar") %>
+              <div class="ops-employee-item__info">
+                <span class="ops-employee-item__name"><%= rec.user.full_name %></span>
+                <span class="ops-employee-item__sub"><%= t("ops_dashboard.late_by_minutes", mins: rec.late_minutes.to_i) %></span>
+              </div>
+              <span class="badge badge--warning badge--sm"><%= rec.late_minutes.to_i %> m</span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+
+    <%# ── Missing checkouts ─────────────────────────────────────────────── %>
+    <div class="ops-panel">
+      <div class="ops-panel__header">
+        <h2 class="ops-panel__title"><%= t("ops_dashboard.missing_checkouts_title") %></h2>
+        <span class="badge badge--danger"><%= @missing_checkouts.size %></span>
+      </div>
+      <% if @missing_checkouts.empty? %>
+        <p class="ops-panel__empty"><%= t("ops_dashboard.no_missing_checkouts") %></p>
+      <% else %>
+        <ul class="ops-employee-list">
+          <% @missing_checkouts.each do |rec| %>
+            <li class="ops-employee-item">
+              <%= user_avatar_tag(rec.user, size: 32, class: "ops-employee-item__avatar") %>
+              <div class="ops-employee-item__info">
+                <span class="ops-employee-item__name"><%= "#{rec.user.first_name} #{rec.user.last_name}" %></span>
+                <span class="ops-employee-item__sub">
+                  <%= t("ops_dashboard.checked_in_at",
+                        time: l(rec.check_in_at.in_time_zone(current_user.business.timezone_object), format: :time)) %>
+                </span>
+              </div>
+              <span class="badge badge--danger badge--sm"><%= l(rec.date, format: :short) %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+
+    <%# ── Branch health grid ─────────────────────────────────────────────── %>
+    <div class="ops-panel ops-panel--wide">
+      <div class="ops-panel__header">
+        <h2 class="ops-panel__title"><%= t("ops_dashboard.branch_health_title") %></h2>
+      </div>
+      <% if @branch_health.empty? %>
+        <p class="ops-panel__empty"><%= t("ops_dashboard.no_branches") %></p>
+      <% else %>
+        <div class="ops-branch-grid">
+          <% @branch_health.each do |bh| %>
+            <div class="ops-branch-card ops-branch-card--<%= branch_health_grade(bh[:health_score]) %>">
+              <div class="ops-branch-card__name"><%= bh[:branch].name %></div>
+              <div class="ops-branch-card__score">
+                <span class="ops-branch-card__score-val"><%= bh[:health_score] %></span>
+                <span class="ops-branch-card__score-unit">/ 100</span>
+              </div>
+              <div class="ops-branch-card__stats">
+                <span><%= t("ops_dashboard.branch_checkedin", n: bh[:checked_in_today]) %></span>
+                <span><%= t("ops_dashboard.branch_late", n: bh[:late_month]) %></span>
+                <span><%= t("ops_dashboard.branch_absent", n: bh[:absent_month]) %></span>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <%# ── Payroll status ──────────────────────────────────────────────────── %>
+    <div class="ops-panel">
+      <div class="ops-panel__header">
+        <h2 class="ops-panel__title"><%= t("ops_dashboard.payroll_status_title") %></h2>
+        <%= link_to t("ops_dashboard.view_all"), payroll_periods_path, class: "ops-panel__link" %>
+      </div>
+      <% if @pending_periods.empty? %>
+        <p class="ops-panel__empty"><%= t("ops_dashboard.no_pending_payroll") %></p>
+      <% else %>
+        <ul class="ops-payroll-list">
+          <% @pending_periods.each do |period| %>
+            <li class="ops-payroll-item">
+              <%= link_to period.period_label, payroll_period_path(period),
+                    class: "ops-payroll-item__label" %>
+              <span class="badge badge--<%= period_status_badge_class(period) %>">
+                <%= t("payroll.status.#{period.status}") %>
+              </span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+
+    <%# ── Attendance anomalies ────────────────────────────────────────────── %>
+    <div class="ops-panel">
+      <div class="ops-panel__header">
+        <h2 class="ops-panel__title"><%= t("ops_dashboard.anomaly_users_title") %></h2>
+        <span class="badge badge--warning"><%= @anomaly_users.size %></span>
+      </div>
+      <% if @anomaly_users.empty? %>
+        <p class="ops-panel__empty"><%= t("ops_dashboard.no_anomalies") %></p>
+      <% else %>
+        <ul class="ops-employee-list">
+          <% @anomaly_users.each do |au| %>
+            <li class="ops-employee-item">
+              <%= user_avatar_tag(au[:user], size: 32, class: "ops-employee-item__avatar") %>
+              <div class="ops-employee-item__info">
+                <span class="ops-employee-item__name"><%= "#{au[:user].first_name} #{au[:user].last_name}" %></span>
+                <span class="ops-employee-item__sub">
+                  <%= au[:codes].map { |c| t("attendance.anomalies.codes.#{c}", default: c.to_s.humanize) }.first(2).join(", ") %>
+                </span>
+              </div>
+              <span class="badge badge--<%= au[:highest_severity] %>"><%= au[:anomaly_count] %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+
+    <%# ── Performance ranking ─────────────────────────────────────────────── %>
+    <div class="ops-panel ops-panel--wide">
+      <div class="ops-panel__header">
+        <h2 class="ops-panel__title"><%= t("ops_dashboard.performance_title") %></h2>
+      </div>
+      <div class="ops-perf-grid">
+        <div class="ops-perf-section">
+          <h3 class="ops-perf-section__title ops-perf-section__title--top">
+            <%= t("ops_dashboard.top_performers") %>
+          </h3>
+          <% if @perf_results[:top].empty? %>
+            <p class="ops-panel__empty"><%= t("ops_dashboard.no_perf_data") %></p>
+          <% else %>
+            <ul class="ops-employee-list">
+              <% @perf_results[:top].each_with_index do |p, i| %>
+                <li class="ops-employee-item">
+                  <span class="ops-rank-badge">#<%= i + 1 %></span>
+                  <%= user_avatar_tag(p[:user], size: 30, class: "ops-employee-item__avatar") %>
+                  <div class="ops-employee-item__info">
+                    <span class="ops-employee-item__name"><%= "#{p[:user].first_name} #{p[:user].last_name}" %></span>
+                    <span class="ops-employee-item__sub"><%= t("performance.grade.#{p[:grade]}") %></span>
+                  </div>
+                  <span class="ops-score-badge ops-score-badge--<%= p[:grade] %>"><%= p[:score] %></span>
+                </li>
+              <% end %>
+            </ul>
+          <% end %>
+        </div>
+        <div class="ops-perf-section">
+          <h3 class="ops-perf-section__title ops-perf-section__title--risk">
+            <%= t("ops_dashboard.at_risk_employees") %>
+          </h3>
+          <% if @perf_results[:at_risk].empty? %>
+            <p class="ops-panel__empty"><%= t("ops_dashboard.no_at_risk") %></p>
+          <% else %>
+            <ul class="ops-employee-list">
+              <% @perf_results[:at_risk].each do |p| %>
+                <li class="ops-employee-item">
+                  <%= user_avatar_tag(p[:user], size: 30, class: "ops-employee-item__avatar") %>
+                  <div class="ops-employee-item__info">
+                    <span class="ops-employee-item__name"><%= "#{p[:user].first_name} #{p[:user].last_name}" %></span>
+                    <span class="ops-employee-item__sub"><%= t("performance.grade.#{p[:grade]}") %></span>
+                  </div>
+                  <span class="ops-score-badge ops-score-badge--poor"><%= p[:score] %></span>
+                </li>
+              <% end %>
+            </ul>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+  </div><%# /.ops-dash__grid %>
+
+</div><%# /.admin-page %>

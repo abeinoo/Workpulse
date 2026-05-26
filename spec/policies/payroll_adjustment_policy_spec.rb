@@ -186,4 +186,48 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       end
     end
   end
+
+  # ── Payroll locking: finalized / paid periods ─────────────────────────────
+  describe "locking (finalized period)" do
+    let(:finalized_period) do
+      create(:payroll_period, :finalized, business: business)
+    end
+    let(:locked_adj) do
+      create(:payroll_adjustment, :cash_incentive,
+             payroll_period: finalized_period,
+             user:           employee,
+             created_by:     super_admin)
+    end
+
+    it "blocks create? on a finalized period even for super_admin" do
+      locked_adj.review_status = "pending_review"
+      expect(described_class.new(super_admin, locked_adj).create?).to be false
+    end
+
+    it "blocks destroy? on a finalized period" do
+      locked_adj.update_column(:review_status, "pending_review")
+      expect(described_class.new(super_admin, locked_adj).destroy?).to be false
+    end
+
+    it "still allows create? on a draft period" do
+      draft_adj = PayrollAdjustment.new(business: business, payroll_period: period, user: employee)
+      expect(described_class.new(super_admin, draft_adj).create?).to be true
+    end
+  end
+
+  describe "locking (paid period)" do
+    let(:paid_period) { create(:payroll_period, :paid, business: business) }
+    let(:paid_adj) do
+      create(:payroll_adjustment, :cash_incentive,
+             payroll_period: paid_period,
+             user:           employee,
+             created_by:     super_admin,
+             review_status:  :pending_review)
+    end
+
+    it "blocks create? on a paid period" do
+      new_adj = PayrollAdjustment.new(business: business, payroll_period: paid_period, user: employee)
+      expect(described_class.new(super_admin, new_adj).create?).to be false
+    end
+  end
 end

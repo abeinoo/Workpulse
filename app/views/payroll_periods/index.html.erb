@@ -9,7 +9,7 @@
 
   <% unless current_user.management_access? %>
 
-    <%# ── Employee view: one card per payroll period ─────────────────────── %>
+    <%# ── Employee view: payslip cards ────────────────────────────────────── %>
     <% if @periods.empty? %>
       <div class="empty-state">
         <p class="empty-state__title"><%= t("payroll.index.no_records") %></p>
@@ -63,12 +63,98 @@
 
   <% else %>
 
-    <%# ── Manager / Admin view: table ────────────────────────────────────── %>
+    <%# ── Management / Admin view ──────────────────────────────────────────── %>
+
+    <%# KPI summary strip %>
+    <% if @summary %>
+      <div class="payroll-kpi-grid">
+        <div class="payroll-kpi-card">
+          <div class="payroll-kpi-card__label"><%= t("payroll.index.kpi_total") %></div>
+          <div class="payroll-kpi-card__value"><%= @summary[:total] %></div>
+        </div>
+        <div class="payroll-kpi-card payroll-kpi-card--review">
+          <div class="payroll-kpi-card__label"><%= t("payroll.index.kpi_draft") %></div>
+          <div class="payroll-kpi-card__value <%= @summary[:draft] > 0 ? 'payroll-kpi-card__value--warning' : '' %>">
+            <%= @summary[:draft] %>
+          </div>
+        </div>
+        <div class="payroll-kpi-card payroll-kpi-card--review">
+          <div class="payroll-kpi-card__label"><%= t("payroll.index.kpi_review") %></div>
+          <div class="payroll-kpi-card__value <%= @summary[:under_review] > 0 ? 'payroll-kpi-card__value--warning' : '' %>">
+            <%= @summary[:under_review] %>
+          </div>
+        </div>
+        <div class="payroll-kpi-card payroll-kpi-card--active">
+          <div class="payroll-kpi-card__label"><%= t("payroll.index.kpi_finalized") %></div>
+          <div class="payroll-kpi-card__value payroll-kpi-card__value--accent">
+            <%= @summary[:finalized] %>
+          </div>
+        </div>
+        <div class="payroll-kpi-card payroll-kpi-card--paid">
+          <div class="payroll-kpi-card__label"><%= t("payroll.index.kpi_paid") %></div>
+          <div class="payroll-kpi-card__value payroll-kpi-card__value--success">
+            <%= @summary[:paid] %>
+          </div>
+        </div>
+        <div class="payroll-kpi-card">
+          <div class="payroll-kpi-card__label"><%= t("payroll.index.net_total_col") %></div>
+          <div class="payroll-kpi-card__value payroll-kpi-card__value--accent" style="font-size: var(--text-lg);">
+            <%= format_currency(@period_net_totals.values.sum, precision: 0) %>
+          </div>
+          <div class="payroll-kpi-card__sub"><%= t("payroll.index.filter_apply") %> <%= t("payroll.index.filter_all_statuses").downcase %></div>
+        </div>
+      </div>
+    <% end %>
+
+    <%# Filter bar %>
+    <%= form_with url: payroll_periods_path, method: :get, local: true do |f| %>
+      <div class="payroll-filters">
+        <div class="payroll-filter-group">
+          <label class="payroll-filter-label"><%= t("payroll.index.filter_status") %></label>
+          <select name="status" class="payroll-filter-select">
+            <option value=""><%= t("payroll.index.filter_all_statuses") %></option>
+            <% PayrollPeriod.statuses.each_key do |s| %>
+              <option value="<%= s %>" <%= "selected" if @filter_status == s %>><%= t("payroll.statuses.#{s}") %></option>
+            <% end %>
+          </select>
+        </div>
+        <div class="payroll-filter-group">
+          <label class="payroll-filter-label"><%= t("payroll.index.filter_year") %></label>
+          <select name="year" class="payroll-filter-select">
+            <option value=""><%= t("payroll.index.filter_all_years") %></option>
+            <% @available_years.each do |y| %>
+              <option value="<%= y %>" <%= "selected" if @filter_year == y %>><%= y %></option>
+            <% end %>
+          </select>
+        </div>
+        <div class="payroll-filter-group">
+          <label class="payroll-filter-label"><%= t("payroll.index.filter_month") %></label>
+          <select name="month" class="payroll-filter-select">
+            <option value=""><%= t("payroll.index.filter_all_months") %></option>
+            <% (1..12).each do |m| %>
+              <option value="<%= m %>" <%= "selected" if @filter_month == m %>><%= I18n.t("date.month_names")[m] %></option>
+            <% end %>
+          </select>
+        </div>
+        <div class="payroll-filter-actions">
+          <%= f.submit t("payroll.index.filter_apply"), class: "btn btn-secondary btn-sm" %>
+          <% if @filter_status || @filter_year || @filter_month %>
+            <%= link_to t("payroll.index.filter_clear"), payroll_periods_path, class: "btn btn-ghost btn-sm" %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# Desktop: enhanced table %>
     <div class="table-wrap table-wrap--cards">
       <table>
         <thead>
           <tr>
             <th><%= t("payroll.period") %></th>
+            <th class="text-right"><%= t("payroll.index.employees_col") %></th>
+            <th class="text-right"><%= t("payroll.deductions") %></th>
+            <th class="text-right"><%= t("payroll.index.overtime_col") %></th>
+            <th class="text-right"><%= t("payroll.index.net_total_col") %></th>
             <th><%= t("payroll.status") %></th>
             <th></th>
           </tr>
@@ -76,8 +162,29 @@
         <tbody>
           <% @periods.each do |period| %>
             <tr>
-              <td><%= link_to period.period_label, payroll_period_path(period), class: "link" %></td>
-              <td class="td-badges">
+              <td data-label="<%= t('payroll.period') %>">
+                <%= link_to period.period_label, payroll_period_path(period), class: "link" %>
+                <% if period.generated_by %>
+                  <div class="td-secondary" style="font-size: var(--text-xs); margin-top: 2px;">
+                    <%= t("payroll.show.generated_by") %>: <%= period.generated_by.full_name %>
+                  </div>
+                <% end %>
+              </td>
+              <td class="text-right td-secondary" data-label="<%= t('payroll.index.employees_col') %>">
+                <%= @employee_counts[period.id].to_i %>
+              </td>
+              <td class="text-right <%= @period_deductions[period.id].to_f > 0 ? 'text-danger' : 'td-secondary' %>"
+                  data-label="<%= t('payroll.deductions') %>">
+                <%= @period_deductions[period.id].to_f > 0 ? format_currency(@period_deductions[period.id], precision: 0) : "—" %>
+              </td>
+              <td class="text-right <%= @period_overtime[period.id].to_f > 0 ? 'text-success' : 'td-secondary' %>"
+                  data-label="<%= t('payroll.index.overtime_col') %>">
+                <%= @period_overtime[period.id].to_f > 0 ? format_currency(@period_overtime[period.id], precision: 0) : "—" %>
+              </td>
+              <td class="text-right" data-label="<%= t('payroll.index.net_total_col') %>">
+                <strong><%= format_currency(@period_net_totals[period.id].to_f, precision: 0) %></strong>
+              </td>
+              <td class="td-badges" data-label="<%= t('payroll.status') %>">
                 <span class="badge <%= period_status_badge_class(period) %>">
                   <%= t("payroll.statuses.#{period.status}") %>
                 </span>
@@ -85,19 +192,29 @@
                   <span class="badge badge-warning"><%= t("payroll.index.pending_your_review") %></span>
                 <% end %>
               </td>
-              <td class="td-actions">
+              <td class="td-actions" data-label="">
                 <%= link_to t("payroll.view"), payroll_period_path(period), class: "link-muted" %>
               </td>
             </tr>
           <% end %>
           <% if @periods.empty? %>
-            <tr><td colspan="3" class="td-empty"><%= t("payroll.no_periods") %></td></tr>
+            <tr><td colspan="7" class="td-empty"><%= t("payroll.no_periods") %></td></tr>
           <% end %>
         </tbody>
+        <% unless @periods.empty? %>
+          <tfoot>
+            <tr class="totals-row">
+              <td colspan="4"><strong><%= t("payroll.show.totals_label") %></strong></td>
+              <td class="text-right">
+                <strong><%= format_currency(@period_net_totals.values.sum, precision: 0) %></strong>
+              </td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        <% end %>
       </table>
     </div>
 
   <% end %>
 
 </div>
-

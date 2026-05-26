@@ -172,10 +172,14 @@ module Attendance
           prev_in  = record.check_in_at
           prev_out = record.check_out_at
 
-          record.check_in_at = check_in if is_new || check_in < record.check_in_at
+          if is_new || check_in < record.check_in_at
+            record.check_in_at     = check_in
+            record.check_in_source = "import"
+          end
 
           if check_out.present? && (record.check_out_at.nil? || check_out > record.check_out_at)
-            record.check_out_at = check_out
+            record.check_out_at     = check_out
+            record.check_out_source = "import"
           end
 
           timestamps_changed = is_new ||
@@ -194,6 +198,7 @@ module Attendance
             skipped += 1
           end
         rescue => e
+          Rails.logger.warn("[CsvImporter] Row parse error business=#{@business.id}: #{e.class}: #{e.message}")
           runtime_fails << row.merge("error" => e.message)
         end
       end

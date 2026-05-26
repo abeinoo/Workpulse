@@ -1,0 +1,194 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("payroll_dashboard.title") %></h1>
+      <p class="page-subtitle"><%= t("payroll_dashboard.subtitle") %></p>
+    </div>
+    <%= link_to t("payroll_dashboard.all_periods"), payroll_periods_path, class: "btn btn-secondary btn-sm" %>
+  </div>
+
+  <%# ── Health score + KPI strip ────────────────────────────────────────────── %>
+  <div class="pdash-kpi-row">
+    <div class="pdash-health pdash-health--<%= @health[:label] %>">
+      <div class="pdash-health__score"><%= @health[:score] %></div>
+      <div class="pdash-health__label"><%= t("payroll_dashboard.health_score") %></div>
+      <div class="pdash-health__sub"><%= t("payroll_dashboard.health_#{@health[:label]}") %></div>
+    </div>
+    <% if @recent_label %>
+      <div class="pdash-kpi-card">
+        <div class="pdash-kpi-card__label"><%= t("payroll_dashboard.latest_net") %></div>
+        <div class="pdash-kpi-card__value"><%= format_currency(@recent_net, precision: 0) %></div>
+        <div class="pdash-kpi-card__sub"><%= @recent_label %></div>
+      </div>
+      <div class="pdash-kpi-card">
+        <div class="pdash-kpi-card__label"><%= t("payroll_dashboard.latest_employees") %></div>
+        <div class="pdash-kpi-card__value"><%= @recent_employees %></div>
+        <div class="pdash-kpi-card__sub"><%= t("payroll_dashboard.employees_paid") %></div>
+      </div>
+      <div class="pdash-kpi-card">
+        <div class="pdash-kpi-card__label"><%= t("payroll_dashboard.latest_overtime") %></div>
+        <div class="pdash-kpi-card__value pdash-kpi-card__value--<%= @recent_overtime > 0 ? 'success' : 'muted' %>">
+          <%= @recent_overtime > 0 ? format_currency(@recent_overtime, precision: 0) : "—" %>
+        </div>
+        <div class="pdash-kpi-card__sub"><%= @recent_label %></div>
+      </div>
+      <div class="pdash-kpi-card">
+        <div class="pdash-kpi-card__label"><%= t("payroll_dashboard.latest_deductions") %></div>
+        <div class="pdash-kpi-card__value pdash-kpi-card__value--<%= @recent_deductions > 0 ? 'danger' : 'muted' %>">
+          <%= @recent_deductions > 0 ? format_currency(@recent_deductions, precision: 0) : "—" %>
+        </div>
+        <div class="pdash-kpi-card__sub"><%= @recent_label %></div>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Smart recommendations ──────────────────────────────────────────────────── %>
+  <% if @recommendations.any? %>
+    <div class="pdash-recommendations">
+      <% @recommendations.first(4).each do |rec| %>
+        <div class="pdash-rec pdash-rec--<%= rec.severity %>">
+          <p class="pdash-rec__title"><%= rec.title %></p>
+          <p class="pdash-rec__body"><%= rec.body %></p>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Trend charts ─────────────────────────────────────────────────────────── %>
+  <% if @trend.any? %>
+    <div class="pdash-charts-row">
+
+      <%# Net payroll trend %>
+      <div class="section-card pdash-chart-card">
+        <h3 class="section-title"><%= t("payroll_dashboard.net_trend_title") %></h3>
+        <%
+          net_values   = @trend.map { |m| m[:net] }.compact
+          net_max      = net_values.max || 1
+        %>
+        <div class="pdash-bar-chart">
+          <% @trend.each do |m| %>
+            <div class="pdash-bar-wrap">
+              <% if m[:net] %>
+                <div class="pdash-bar <%= m[:net] == net_values.max ? 'pdash-bar--peak' : '' %>"
+                     style="height: <%= [(m[:net] / net_max * 100).round, 4].max %>%;"
+                     title="<%= m[:label] %>: <%= format_currency(m[:net], precision: 0) %>"></div>
+              <% else %>
+                <div class="pdash-bar pdash-bar--empty" style="height: 4%;"></div>
+              <% end %>
+              <div class="pdash-bar__label"><%= m[:label] %></div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Overtime trend %>
+      <div class="section-card pdash-chart-card">
+        <h3 class="section-title"><%= t("payroll_dashboard.ot_trend_title") %></h3>
+        <%
+          ot_values = @trend.map { |m| m[:overtime] }.compact
+          ot_max    = ot_values.max || 1
+        %>
+        <div class="pdash-bar-chart">
+          <% @trend.each do |m| %>
+            <div class="pdash-bar-wrap">
+              <% if m[:overtime] && m[:overtime] > 0 %>
+                <div class="pdash-bar pdash-bar--overtime"
+                     style="height: <%= [(m[:overtime] / ot_max * 100).round, 4].max %>%;"
+                     title="<%= m[:label] %>: <%= format_currency(m[:overtime], precision: 0) %>"></div>
+              <% else %>
+                <div class="pdash-bar pdash-bar--empty" style="height: 4%;"></div>
+              <% end %>
+              <div class="pdash-bar__label"><%= m[:label] %></div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+    </div>
+  <% end %>
+
+  <%# ── Branch cost breakdown ──────────────────────────────────────────────── %>
+  <% if @branch_costs&.any? %>
+    <div class="section-card">
+      <h3 class="section-title"><%= t("payroll_dashboard.branch_cost_title", label: @recent_label) %></h3>
+      <%
+        branch_max = @branch_costs.map { |b| b[:total] }.max || 1
+      %>
+      <div class="pdash-branch-list">
+        <% @branch_costs.each do |b| %>
+          <div class="pdash-branch-row">
+            <div class="pdash-branch-row__name"><%= b[:name] %></div>
+            <div class="pdash-branch-row__bar-wrap">
+              <div class="pdash-branch-row__bar"
+                   style="width: <%= [(b[:total] / branch_max * 100).round, 2].max %>%;"></div>
+            </div>
+            <div class="pdash-branch-row__value"><%= format_currency(b[:total], precision: 0) %></div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Top employees ──────────────────────────────────────────────────────── %>
+  <% if @top_employees&.any? %>
+    <div class="section-card">
+      <h3 class="section-title"><%= t("payroll_dashboard.top_employees_title", label: @recent_label) %></h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("payroll_dashboard.col_employee") %></th>
+              <th class="text-right"><%= t("payroll_dashboard.col_base") %></th>
+              <th class="text-right"><%= t("payroll_dashboard.col_overtime") %></th>
+              <th class="text-right"><%= t("payroll_dashboard.col_deductions") %></th>
+              <th class="text-right"><%= t("payroll_dashboard.col_net") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @top_employees.each do |entry| %>
+              <tr>
+                <td>
+                  <div class="employee-cell">
+                    <%= user_avatar_tag(entry.user, size: :thumb) %>
+                    <div class="employee-cell__info">
+                      <div class="employee-cell__name"><%= entry.user.full_name %></div>
+                    </div>
+                  </div>
+                </td>
+                <td class="text-right td-secondary"><%= format_currency(entry.base_salary, precision: 0) %></td>
+                <td class="text-right <%= entry.total_overtime > 0 ? 'text-success' : 'td-secondary' %>">
+                  <%= entry.total_overtime > 0 ? "+ #{format_currency(entry.total_overtime, precision: 0)}" : "—" %>
+                </td>
+                <td class="text-right <%= entry.total_deductions > 0 ? 'text-danger' : 'td-secondary' %>">
+                  <%= entry.total_deductions > 0 ? "− #{format_currency(entry.total_deductions, precision: 0)}" : "—" %>
+                </td>
+                <td class="text-right"><strong><%= format_currency(entry.net_salary, precision: 0) %></strong></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Pending periods ────────────────────────────────────────────────────── %>
+  <% if @pending_periods.any? %>
+    <div class="section-card">
+      <h3 class="section-title"><%= t("payroll_dashboard.pending_title") %></h3>
+      <div class="pdash-pending-list">
+        <% @pending_periods.each do |period| %>
+          <div class="pdash-pending-row">
+            <div class="pdash-pending-row__period">
+              <%= link_to period.period_label, payroll_period_path(period), class: "link-accent" %>
+            </div>
+            <span class="badge <%= period_status_badge_class(period) %>">
+              <%= t("payroll.statuses.#{period.status}") %>
+            </span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+</div>

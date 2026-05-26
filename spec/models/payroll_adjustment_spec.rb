@@ -17,6 +17,18 @@ RSpec.describe PayrollAdjustment, type: :model do
     it "rejects unknown adjustment_type" do
       expect { adjustment.adjustment_type = "unknown" }.to raise_error(ArgumentError)
     end
+
+    describe "user_belongs_to_business" do
+      it "is valid when user belongs to the same business" do
+        expect(adjustment).to be_valid
+      end
+
+      it "is invalid when user belongs to a different business" do
+        adjustment.user = create(:user, business: create(:business))
+        expect(adjustment).not_to be_valid
+        expect(adjustment.errors[:user]).to be_present
+      end
+    end
   end
 
   describe "#signed_amount" do

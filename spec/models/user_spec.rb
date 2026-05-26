@@ -371,4 +371,102 @@ RSpec.describe User, type: :model do
       expect(employee.manages_area?).to be false
     end
   end
+
+  describe "#profile_completion_percentage" do
+    let(:business) { create(:business) }
+
+    it "returns 0 when only required fields are set" do
+      user = build_stubbed(:user,
+        business:                business,
+        phone_number:            nil,
+        email:                   nil,
+        job_title:               nil,
+        department:              nil,
+        hire_date:               nil,
+        employment_type:         nil,
+        emergency_contact_name:  nil,
+        emergency_contact_phone: nil,
+        identity_card_number:    nil
+      )
+      allow(user.profile_photo).to receive(:attached?).and_return(false)
+      expect(user.profile_completion_percentage).to eq(0)
+    end
+
+    it "returns 100 when all completion fields are set" do
+      user = build_stubbed(:user,
+        business:                business,
+        phone_number:            "+966500000001",
+        email:                   "full@example.com",
+        job_title:               "Engineer",
+        department:              "Engineering",
+        hire_date:               Date.new(2024, 1, 1),
+        employment_type:         "full_time",
+        emergency_contact_name:  "Dad",
+        emergency_contact_phone: "+966500000002",
+        identity_card_number:    "A12345678"
+      )
+      allow(user.profile_photo).to receive(:attached?).and_return(true)
+      expect(user.profile_completion_percentage).to eq(100)
+    end
+
+    it "returns a percentage proportional to filled fields" do
+      user = build_stubbed(:user,
+        business:                business,
+        phone_number:            "+966500000001",
+        email:                   nil,
+        job_title:               "Engineer",
+        department:              nil,
+        hire_date:               nil,
+        employment_type:         nil,
+        emergency_contact_name:  nil,
+        emergency_contact_phone: nil,
+        identity_card_number:    nil
+      )
+      allow(user.profile_photo).to receive(:attached?).and_return(false)
+      # 2 of 10 filled = 20%
+      expect(user.profile_completion_percentage).to eq(20)
+    end
+
+    it "returns between 0 and 100" do
+      user = build_stubbed(:user, business: business)
+      allow(user.profile_photo).to receive(:attached?).and_return(false)
+      expect(user.profile_completion_percentage).to be_between(0, 100)
+    end
+  end
+
+  describe "#profile_completion_grade" do
+    let(:business) { create(:business) }
+
+    it "returns :complete for >= 90%" do
+      user = build_stubbed(:user, business: business)
+      allow(user).to receive(:profile_completion_percentage).and_return(95)
+      expect(user.profile_completion_grade).to eq(:complete)
+    end
+
+    it "returns :partial for 60-89%" do
+      user = build_stubbed(:user, business: business)
+      allow(user).to receive(:profile_completion_percentage).and_return(70)
+      expect(user.profile_completion_grade).to eq(:partial)
+    end
+
+    it "returns :incomplete for < 60%" do
+      user = build_stubbed(:user, business: business)
+      allow(user).to receive(:profile_completion_percentage).and_return(30)
+      expect(user.profile_completion_grade).to eq(:incomplete)
+    end
+  end
+
+  describe "employment_type enum" do
+    it "accepts valid employment types" do
+      User::EMPLOYMENT_TYPES.each do |type|
+        user = build_stubbed(:user, employment_type: type)
+        expect(user.employment_type).to eq(type)
+      end
+    end
+
+    it "allows nil employment_type" do
+      user = build_stubbed(:user, employment_type: nil)
+      expect(user.employment_type).to be_nil
+    end
+  end
 end

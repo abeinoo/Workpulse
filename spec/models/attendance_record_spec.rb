@@ -81,6 +81,35 @@ RSpec.describe AttendanceRecord, type: :model do
       record = build(:attendance_record)
       expect(record.overnight?).to be false
     end
+
+    it "uses business timezone for midnight boundary (Riyadh UTC+3)" do
+      # work_date = May 15; checkout at 21:30 UTC = 00:30 May 16 in Riyadh → overnight
+      riyadh_biz = create(:business, timezone: "Asia/Riyadh")
+      riyadh_branch = create(:branch, business: riyadh_biz)
+      record = build(
+        :attendance_record,
+        branch:      riyadh_branch,
+        work_date:   Date.new(2026, 5, 15),
+        check_in_at: Time.utc(2026, 5, 15, 8, 0, 0),
+        check_out_at: Time.utc(2026, 5, 15, 21, 30, 0)
+      )
+      expect(record.overnight?).to be true
+    end
+
+    it "is false when checkout looks like next UTC day but is same business-TZ day (Cairo UTC+2)" do
+      # checkout at 22:30 UTC = 00:30 next day in Cairo → overnight
+      # this is a separate confirmation that Cairo (UTC+2) also triggers correctly
+      cairo_biz    = create(:business, timezone: "Africa/Cairo")
+      cairo_branch = create(:branch, business: cairo_biz)
+      record = build(
+        :attendance_record,
+        branch:      cairo_branch,
+        work_date:   Date.new(2026, 5, 15),
+        check_in_at: Time.utc(2026, 5, 15, 8, 0, 0),
+        check_out_at: Time.utc(2026, 5, 15, 22, 30, 0)
+      )
+      expect(record.overnight?).to be true
+    end
   end
 
   describe "#checked_out?" do

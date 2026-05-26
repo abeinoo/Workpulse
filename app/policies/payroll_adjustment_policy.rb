@@ -7,11 +7,16 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
     same_business? && (owner? || manages_area? || manages_branch? || direct_manager?)
   end
 
-  def create?  = can_manage_adjustment?
+  def create?
+    return false if period_locked?
+    can_manage_adjustment?
+  end
+
   def approve? = can_review?
   def reject?  = can_review?
 
   def destroy?
+    return false if period_locked?
     return false unless record.pending_review?
     return false unless same_business?
 
@@ -39,6 +44,11 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
   end
 
   private
+
+  def period_locked?
+    period = record.respond_to?(:payroll_period) ? record.payroll_period : nil
+    period&.locked?
+  end
 
   def can_manage_adjustment?
     return false unless same_business?

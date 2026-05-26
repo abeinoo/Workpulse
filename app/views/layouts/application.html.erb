@@ -45,6 +45,22 @@
           <a href="<%= root_path %>" class="mobile-header__brand">
             <span class="text-white">Work</span><span class="text-accent">Pulse</span>
           </a>
+          <%# Notification bell with unread badge %>
+          <% if user_signed_in? %>
+            <% unread = Rails.cache.fetch("notif_unread/#{current_user.id}", expires_in: 2.minutes) {
+                 current_user.notifications.unread.count
+               } %>
+            <%= link_to notifications_path, class: "mobile-header__notif-btn #{'has-unread' if unread > 0}",
+                  aria: { label: t("notifications.title") } do %>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 01-3.46 0"/>
+              </svg>
+              <% if unread > 0 %>
+                <span class="notif-badge"><%= unread > 99 ? "99+" : unread %></span>
+              <% end %>
+            <% end %>
+          <% end %>
           <span class="mobile-header__spacer"></span>
         </header>
 

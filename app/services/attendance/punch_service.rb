@@ -76,6 +76,7 @@ module Attendance
         shift_assignment: @assignment,
         date:             @work_date,
         check_in_at:      @punched_at,
+        check_in_source:  "biometric_device",
         late_minutes:     late_mins,
         status:           late_mins > 0 ? "late" : "incomplete"
       )
@@ -90,9 +91,10 @@ module Attendance
       late_mins = Attendance::TimeCalculator.late_minutes(shift, @punched_at, branch)
 
       record.assign_attributes(
-        check_in_at:  @punched_at,
-        late_minutes: late_mins,
-        status:       late_mins > 0 ? "late" : record.status
+        check_in_at:     @punched_at,
+        check_in_source: "biometric_device",
+        late_minutes:    late_mins,
+        status:          late_mins > 0 ? "late" : record.status
       )
 
       save_record(record, action: "check_in_updated")
@@ -116,6 +118,7 @@ module Attendance
 
       record.assign_attributes(
         check_out_at:        @punched_at,
+        check_out_source:    "biometric_device",
         worked_minutes:      worked_mins,
         early_leave_minutes: early_leave_mins,
         status:              status
@@ -130,6 +133,7 @@ module Attendance
         Result.new(success: true, action: action, record: record, log: log)
       else
         error_msg = record.errors.full_messages.join(", ")
+        Rails.logger.warn("[PunchService] Save failed device=#{@device&.id} employee=#{@employee&.id}: #{error_msg}")
         log = record_punch!(action: "error", error: error_msg)
         Result.new(success: false, action: "error", record: record, log: log, error: error_msg)
       end

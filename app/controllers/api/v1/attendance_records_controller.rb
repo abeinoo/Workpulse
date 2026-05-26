@@ -42,11 +42,11 @@ module Api
       end
 
       def filter_start
-        params[:start_date] ? Date.parse(params[:start_date]) : current_business_date.beginning_of_month
+        params[:start_date] ? (Date.parse(params[:start_date]) rescue current_business_date.beginning_of_month) : current_business_date.beginning_of_month
       end
 
       def filter_end
-        params[:end_date] ? Date.parse(params[:end_date]) : current_business_date.end_of_month
+        params[:end_date] ? (Date.parse(params[:end_date]) rescue current_business_date.end_of_month) : current_business_date.end_of_month
       end
 
       # Today's date in the business timezone. Using Date.current (UTC) would give the wrong

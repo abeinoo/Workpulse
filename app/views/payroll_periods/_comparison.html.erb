@@ -1,0 +1,61 @@
+<% comparison = @insights.comparison %>
+<% if comparison %>
+  <div class="payroll-comparison">
+    <div class="payroll-comparison__header">
+      <span class="payroll-comparison__title">
+        <%= t("payroll.show.comparison_title", label: comparison[:prev_period_label]) %>
+      </span>
+    </div>
+    <div class="payroll-comparison-grid">
+      <%
+        metrics = [
+          { key: :employees, label: t("payroll.show.comparison_employees") },
+          { key: :net,        label: t("payroll.show.comparison_net") },
+          { key: :overtime,   label: t("payroll.show.comparison_overtime") },
+          { key: :deductions, label: t("payroll.show.comparison_deductions") },
+          { key: :bonuses,    label: t("payroll.show.comparison_bonuses") },
+        ]
+      %>
+      <% metrics.each do |m| %>
+        <% delta = comparison[m[:key]] %>
+        <%
+          pct        = delta[:pct]
+          trend_up   = pct && pct > 0
+          inverted   = m[:key] == :deductions
+          chip_class = if pct.nil?
+                         "payroll-delta-chip--neutral"
+                       elsif trend_up
+                         inverted ? "payroll-delta-chip--bad" : "payroll-delta-chip--good"
+                       else
+                         inverted ? "payroll-delta-chip--good" : "payroll-delta-chip--bad"
+                       end
+        %>
+        <div class="payroll-comparison-card">
+          <div class="payroll-comparison-card__label"><%= m[:label] %></div>
+          <div class="payroll-comparison-card__current">
+            <% if delta[:currency] %>
+              <%= format_currency(delta[:current], precision: 0) %>
+            <% else %>
+              <%= delta[:current] %>
+            <% end %>
+          </div>
+          <div class="payroll-comparison-card__footer">
+            <% if pct %>
+              <span class="payroll-delta-chip <%= chip_class %>">
+                <%= trend_up ? "+" : "" %><%= pct %>%
+              </span>
+            <% end %>
+            <span class="payroll-comparison-card__prev">
+              <%= t("payroll.show.comparison_prev") %>:
+              <% if delta[:currency] %>
+                <%= format_currency(delta[:previous], precision: 0) %>
+              <% else %>
+                <%= delta[:previous] %>
+              <% end %>
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

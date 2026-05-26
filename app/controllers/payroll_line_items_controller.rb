@@ -14,7 +14,7 @@ class PayrollLineItemsController < ApplicationController
 
     if result.success?
       redirect_to payroll_period_payroll_entry_path(@period, @entry),
-                  notice: "Deduction approved."
+                  notice: t("flash.deduction_approved")
     else
       redirect_to payroll_period_payroll_entry_path(@period, @entry),
                   alert: result.error
@@ -33,7 +33,7 @@ class PayrollLineItemsController < ApplicationController
 
     if result.success?
       redirect_to payroll_period_payroll_entry_path(@period, @entry),
-                  notice: "Deduction rejected and reversed from net salary."
+                  notice: t("flash.deduction_rejected")
     else
       redirect_to payroll_period_payroll_entry_path(@period, @entry),
                   alert: result.error
@@ -52,7 +52,7 @@ class PayrollLineItemsController < ApplicationController
 
     if result.success?
       redirect_to payroll_period_payroll_entry_path(@period, @entry),
-                  notice: "Deduction waived and removed from net salary."
+                  notice: t("flash.deduction_waived")
     else
       redirect_to payroll_period_payroll_entry_path(@period, @entry),
                   alert: result.error
