@@ -1867,6 +1867,10 @@ ar:
     formats:
       long: "%-d %B %Y"
 
+  time:
+    formats:
+      time: "%-H:%M"
+
   locale:
     en: "English"
     ar: "العربية"
