@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_27_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_27_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -486,12 +486,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_000003) do
   create_table "shift_assignments", force: :cascade do |t|
     t.integer "branch_id"
     t.datetime "created_at", null: false
+    t.bigint "created_by_id"
     t.date "effective_from", null: false
     t.date "effective_to"
+    t.bigint "ended_by_id"
     t.integer "shift_id", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["branch_id"], name: "index_shift_assignments_on_branch_id"
+    t.index ["created_by_id"], name: "index_shift_assignments_on_created_by_id"
+    t.index ["ended_by_id"], name: "index_shift_assignments_on_ended_by_id"
     t.index ["shift_id"], name: "index_shift_assignments_on_shift_id"
     t.index ["user_id", "branch_id"], name: "index_shift_assignments_on_user_id_and_branch_id"
     t.index ["user_id", "effective_from"], name: "index_shift_assignments_on_user_id_and_effective_from"
@@ -779,6 +783,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_000003) do
   add_foreign_key "shift_assignments", "branches"
   add_foreign_key "shift_assignments", "shifts"
   add_foreign_key "shift_assignments", "users"
+  add_foreign_key "shift_assignments", "users", column: "created_by_id"
+  add_foreign_key "shift_assignments", "users", column: "ended_by_id"
   add_foreign_key "shifts", "businesses"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

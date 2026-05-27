@@ -4,7 +4,29 @@ class ShiftAssignmentPolicy < ApplicationPolicy
   def create?         = can?(:assign_shifts) || owner? || manages_area? || manages_branch? || direct_manager?
   def update?         = can?(:assign_shifts) || owner? || manages_area? || manages_branch? || direct_manager?
   def end_assignment? = can?(:assign_shifts) || owner? || managing_branch? || managing_area? || direct_manager?
-  def destroy?        = owner?
+
+  # Hard-delete is only permitted when the assignment has no attendance records
+  # referencing it (so the FK is never violated and history is never silently
+  # erased).  Business owners and permission-role :assign_shifts users may delete.
+  def destroy?
+    return false unless can?(:assign_shifts) || owner?
+    record.deletable?
+  end
+
+  # Bulk-assign: create new assignments for multiple employees in one step.
+  def bulk_assign?
+    can?(:assign_shifts) || owner? || manages_area? || manages_branch? || direct_manager?
+  end
+
+  # Bulk-end: same actors who can end individual assignments.
+  def bulk_end?
+    can?(:assign_shifts) || owner? || manages_area? || manages_branch? || direct_manager?
+  end
+
+  # Bulk-delete: restricted to owners and assign_shifts role (same as destroy?).
+  def bulk_delete?
+    can?(:assign_shifts) || owner?
+  end
 
   class Scope < ApplicationPolicy::Scope
     def resolve

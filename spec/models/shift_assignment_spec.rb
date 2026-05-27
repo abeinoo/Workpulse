@@ -222,6 +222,11 @@ RSpec.describe ShiftAssignment, type: :model do
     end
   end
 
+  describe "associations" do
+    it { is_expected.to belong_to(:created_by).class_name("User").optional }
+    it { is_expected.to belong_to(:ended_by).class_name("User").optional }
+  end
+
   describe "scopes" do
     let(:business)    { create(:business) }
     let(:user)        { create(:user,   business: business) }
@@ -238,7 +243,7 @@ RSpec.describe ShiftAssignment, type: :model do
              effective_from: 6.months.ago.to_date,
              effective_to:   2.months.ago.to_date)
     end
-    let!(:future) do
+    let!(:future_record) do
       create(:shift_assignment, user: create(:user, business: business),
              branch: branch, shift: shift,
              effective_from: 1.month.from_now.to_date,
@@ -248,14 +253,134 @@ RSpec.describe ShiftAssignment, type: :model do
     describe ".active_on" do
       it "returns assignments active on the given date" do
         expect(ShiftAssignment.active_on(Date.current)).to include(active_now)
-        expect(ShiftAssignment.active_on(Date.current)).not_to include(past, future)
+        expect(ShiftAssignment.active_on(Date.current)).not_to include(past, future_record)
       end
     end
 
     describe ".current" do
       it "returns assignments active today" do
         expect(ShiftAssignment.current).to include(active_now)
-        expect(ShiftAssignment.current).not_to include(past, future)
+        expect(ShiftAssignment.current).not_to include(past, future_record)
+      end
+    end
+
+    describe ".upcoming" do
+      it "returns only assignments that start in the future" do
+        expect(ShiftAssignment.upcoming).to     include(future_record)
+        expect(ShiftAssignment.upcoming).not_to include(active_now, past)
+      end
+    end
+
+    describe ".expired" do
+      it "returns only assignments with an effective_to in the past" do
+        expect(ShiftAssignment.expired).to     include(past)
+        expect(ShiftAssignment.expired).not_to include(active_now, future_record)
+      end
+    end
+  end
+
+  describe "status helpers" do
+    let(:business) { create(:business) }
+    let(:user)     { create(:user, business: business) }
+    let(:branch)   { create(:branch, business: business) }
+    let(:shift)    { create(:shift, business: business) }
+
+    def make_assignment(from:, to: nil)
+      build(:shift_assignment, user: user, branch: branch, shift: shift,
+            effective_from: from, effective_to: to)
+    end
+
+    describe "#future?" do
+      it "returns true when effective_from is after today"  do
+        expect(make_assignment(from: 2.days.from_now.to_date)).to be_future
+      end
+
+      it "returns false when effective_from is today" do
+        expect(make_assignment(from: Date.current)).not_to be_future
+      end
+
+      it "returns false when effective_from is in the past" do
+        expect(make_assignment(from: 1.week.ago.to_date)).not_to be_future
+      end
+    end
+
+    describe "#current?" do
+      it "returns true for an open-ended assignment that started in the past" do
+        expect(make_assignment(from: 1.month.ago.to_date)).to be_current
+      end
+
+      it "returns true when today is before the effective_to date" do
+        expect(make_assignment(from: 1.month.ago.to_date,
+                               to:   1.month.from_now.to_date)).to be_current
+      end
+
+      it "returns false when effective_to has already passed" do
+        expect(make_assignment(from: 2.months.ago.to_date,
+                               to:   1.week.ago.to_date)).not_to be_current
+      end
+
+      it "returns false when effective_from is still in the future" do
+        expect(make_assignment(from: 3.days.from_now.to_date)).not_to be_current
+      end
+    end
+
+    describe "#historical?" do
+      it "returns true when effective_to is in the past" do
+        expect(make_assignment(from: 2.months.ago.to_date,
+                               to:   1.week.ago.to_date)).to be_historical
+      end
+
+      it "returns false when effective_to is nil (open-ended)" do
+        expect(make_assignment(from: 1.month.ago.to_date)).not_to be_historical
+      end
+
+      it "returns false when effective_to is today or in the future" do
+        expect(make_assignment(from: 1.month.ago.to_date,
+                               to:   Date.current)).not_to be_historical
+      end
+    end
+  end
+
+  describe "#deletable? and #has_attendance_records?" do
+    let(:business)    { create(:business) }
+    let(:user)        { create(:user, business: business) }
+    let(:branch)      { create(:branch, business: business) }
+    let(:shift)       { create(:shift, business: business) }
+    let(:assignment)  { create(:shift_assignment, user: user, branch: branch, shift: shift,
+                               effective_from: 1.month.from_now.to_date) }
+
+    context "when no attendance records reference the assignment" do
+      it "#has_attendance_records? returns false" do
+        expect(assignment.has_attendance_records?).to be false
+      end
+
+      it "#deletable? returns true" do
+        expect(assignment.deletable?).to be true
+      end
+    end
+
+    context "when an attendance record references the assignment" do
+      before do
+        AttendanceRecord.create!(
+          user:             user,
+          branch:           branch,
+          shift_assignment: assignment,
+          work_date:        Date.current,
+          date:             Date.current,
+          check_in_at:      Time.zone.parse("#{Date.current} 09:00:00"),
+          check_in_source:  "biometric_device",
+          late_minutes:     0,
+          early_leave_minutes: 0,
+          status:           "incomplete"
+        )
+      end
+
+      it "#has_attendance_records? returns true" do
+        expect(assignment.has_attendance_records?).to be true
+      end
+
+      it "#deletable? returns false" do
+        expect(assignment.deletable?).to be false
       end
     end
   end

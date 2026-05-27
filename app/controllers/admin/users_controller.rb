@@ -40,6 +40,13 @@ class Admin::UsersController < Admin::BaseController
     authorize @user
     @active_salary_profile = @user.active_salary_profile
     @salary_profiles = @user.salary_profiles.order(effective_from: :desc)
+
+    # Shift assignment history — ordered most-recent first.
+    # Scoped to user; no policy scope needed since admin already has full access.
+    @shift_assignments = @user.shift_assignments
+                              .includes(:shift, :branch, :created_by, :ended_by)
+                              .order(effective_from: :desc)
+                              .limit(20)
   end
 
   def edit

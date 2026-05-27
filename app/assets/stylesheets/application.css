@@ -7991,3 +7991,443 @@ details:not([open]) .permission-group__chevron {
 .attn-source-badge--api              { color: var(--text-3); border-color: var(--border); }
 
 [dir="rtl"] .attn-source-badge { direction: rtl; }
+
+/* ============================================================
+   SHIFT ASSIGNMENT BULK ACTIONS
+   ============================================================ */
+
+/* Narrow checkbox column */
+.td-check {
+  width: 36px;
+  padding-inline: var(--space-2) !important;
+  vertical-align: middle;
+}
+.td-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent, #60a5fa);
+}
+
+/* Extra-small badge modifier (overnight label) */
+.badge--xs {
+  font-size: 10px;
+  padding: 1px 5px;
+  margin-inline-start: var(--space-1);
+  vertical-align: middle;
+}
+
+/* ── Bulk action bar ─────────────────────────────────────────────────────── */
+/* Sticky bar that slides up from the page bottom whenever rows are checked. */
+.bulk-action-bar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  margin-block: var(--space-3);
+  background: var(--surface-1, #1e293b);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.bulk-action-bar__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px 10px;
+  background: var(--accent-muted, rgba(96,165,250,0.15));
+  color: var(--accent, #60a5fa);
+  border-radius: 99px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bulk-action-bar__sep {
+  flex: 1;
+}
+
+.bulk-action-bar .btn[aria-disabled="true"],
+.bulk-action-bar .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+[dir="rtl"] .bulk-action-bar { direction: rtl; }
+
+/* ── Modal overlay ───────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.modal-card {
+  background: var(--surface-1, #1e293b);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  padding: var(--space-6);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-card__title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: var(--space-5);
+}
+
+[dir="rtl"] .modal-overlay { direction: rtl; }
+
+/* ── Detail list (used in confirm_delete view) ───────────────────────────── */
+.detail-list {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: var(--space-5);
+}
+
+.detail-list__row {
+  display: grid;
+  grid-template-columns: 10rem 1fr;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+}
+
+.detail-list__row:last-child { border-bottom: none; }
+
+.detail-list__row dt {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  padding-top: 2px;
+}
+
+.detail-list__row dd {
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  margin: 0;
+}
+
+[dir="rtl"] .detail-list__row { direction: rtl; }
+[dir="rtl"] .detail-list__row dt { text-align: start; }
+
+@media (max-width: 480px) {
+  .detail-list__row { grid-template-columns: 1fr; gap: var(--space-1); }
+  .modal-card { padding: var(--space-4); }
+  .bulk-action-bar { gap: var(--space-2); padding: var(--space-2) var(--space-3); }
+}
+
+/* ============================================================
+   SHIFT ASSIGNMENTS — POLISH PASS
+   Mobile card layout, timeline bar, empty states, preview panel
+   ============================================================ */
+
+/* ── Assignment timeline bar ─────────────────────────────────────────────── */
+/*
+  A thin horizontal bar that visualises the assignment window as a fraction
+  of a reference period (fixed at 365 days).  Rendered inside a <td> in the
+  index table and also shown in the confirm_delete detail list.
+*/
+.sa-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 80px;
+}
+
+.sa-timeline__track {
+  position: relative;
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.sa-timeline__fill {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}
+
+.sa-timeline__fill--active   { background: var(--success); }
+.sa-timeline__fill--upcoming { background: var(--accent); }
+.sa-timeline__fill--ended    { background: var(--text-3); }
+.sa-timeline__fill--open     { background: var(--success); }   /* no end date = open */
+
+.sa-timeline__label {
+  font-size: 10px;
+  color: var(--text-3);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* ── Conflict preview panel (inside bulk-assign modal) ───────────────────── */
+.conflict-preview {
+  margin: var(--space-4) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  font-size: var(--text-sm);
+}
+
+.conflict-preview__header {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.conflict-preview__stat { display: flex; align-items: center; gap: var(--space-1); }
+.conflict-preview__stat--ok   { color: var(--success); }
+.conflict-preview__stat--warn { color: var(--warning); }
+
+.conflict-preview__list {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.conflict-preview__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+}
+
+.conflict-preview__row:last-child { border-bottom: none; }
+
+.conflict-preview__row--ok   { color: var(--text-2); }
+.conflict-preview__row--warn { color: var(--warning); }
+
+.conflict-preview__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.conflict-preview__dot--ok   { background: var(--success); }
+.conflict-preview__dot--warn { background: var(--warning); }
+
+.conflict-preview__reason {
+  color: var(--text-3);
+  font-size: 11px;
+  display: block;
+}
+
+/* Loading skeleton inside preview panel */
+.conflict-preview__loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.conflict-preview__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--surface-3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Empty states (three variants) ──────────────────────────────────────── */
+/*
+  .sa-empty-state               — generic wrapper
+  .sa-empty-state--no-results   — filter produced nothing
+  .sa-empty-state--all-expired  — tab = expired and everything is ended
+*/
+.sa-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12) var(--space-6);
+  text-align: center;
+  gap: var(--space-3);
+}
+
+.sa-empty-state__icon {
+  width: 48px;
+  height: 48px;
+  color: var(--text-3);
+  margin-bottom: var(--space-2);
+  opacity: 0.6;
+}
+
+.sa-empty-state__title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.sa-empty-state__sub {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  max-width: 360px;
+  line-height: 1.55;
+}
+
+.sa-empty-state__actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+
+/* ── Mobile responsive: card mode ────────────────────────────────────────── */
+/*
+  Below 768 px the table collapses into vertical "cards", one per row.
+  Each <td> renders its column label via the data-label attribute.
+  The employee cell gets sticky positioning so it's always visible when
+  the user scrolls horizontally on intermediate widths (480-768).
+*/
+@media (max-width: 768px) {
+
+  /* Hide standard table header — labels come from data-label on each cell */
+  .table-wrap--cards thead {
+    display: none;
+  }
+
+  .table-wrap--cards tbody tr {
+    display: block;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    margin-bottom: var(--space-3);
+    padding: var(--space-1) 0;
+    overflow: hidden;
+  }
+
+  .table-wrap--cards tbody td {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    font-size: var(--text-sm);
+  }
+
+  .table-wrap--cards tbody td:last-child {
+    border-bottom: none;
+  }
+
+  /* data-label pseudo-element: column name on the left */
+  .table-wrap--cards tbody td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    min-width: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding-top: 2px;
+    flex-shrink: 0;
+  }
+
+  /* Checkbox cell: no label, full-width tap target */
+  .table-wrap--cards tbody td.td-check {
+    justify-content: flex-start;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-wrap--cards tbody td.td-check::before {
+    display: none;
+  }
+
+  /* Actions row — stack links vertically */
+  .table-wrap--cards tbody td.td-actions {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .table-wrap--cards tbody td.td-actions::before {
+    display: none;
+  }
+
+  /* Bulk action bar: stack vertically on small screens */
+  .bulk-action-bar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .bulk-action-bar__sep {
+    display: none;   /* no spacer; buttons wrap naturally */
+  }
+
+  /* KPI grid: 2 columns on mobile */
+  .attn-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Filter grid: single column */
+  .adj-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Timeline: hide on very small rows (still shown in card mode via data-label) */
+  .sa-timeline__track { min-width: 60px; }
+}
+
+@media (max-width: 480px) {
+  .attn-kpi-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Modal takes full screen height on phones */
+  .modal-card {
+    max-height: 95vh;
+    border-radius: var(--radius-lg);
+  }
+
+  /* Bulk bar fills the full width */
+  .bulk-action-bar {
+    left: 0;
+    right: 0;
+    border-radius: 0;
+  }
+}
+
+/* RTL mobile overrides */
+[dir="rtl"] .table-wrap--cards tbody td[data-label]::before {
+  text-align: start;
+}
+
+[dir="rtl"] .conflict-preview { direction: rtl; }
+[dir="rtl"] .sa-timeline { direction: rtl; }

@@ -1,0 +1,78 @@
+<% content_for :title, t("shift_assignments.delete.page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <%= link_to t("shift_assignments.delete.back"), shift_assignments_path, class: "back-link" %>
+    <h1 class="page-title"><%= t("shift_assignments.delete.title") %></h1>
+  </div>
+
+  <div class="form-card" style="max-width: 36rem;">
+
+    <%# ── Assignment summary ──────────────────────────────────────────────── %>
+    <dl class="detail-list">
+      <div class="detail-list__row">
+        <dt><%= t("shift_assignments.employee") %></dt>
+        <dd>
+          <div class="employee-cell">
+            <%= user_avatar_tag(@assignment.user, size: :thumb) %>
+            <div>
+              <div class="employee-cell__name"><%= @assignment.user.full_name %></div>
+              <div class="employee-cell__sub"><%= @assignment.user.employee_code %></div>
+            </div>
+          </div>
+        </dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("shift_assignments.shift") %></dt>
+        <dd><%= @assignment.shift.name %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("shift_assignments.branch") %></dt>
+        <dd><%= @assignment.branch_name || "—" %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("shift_assignments.from_date") %></dt>
+        <dd><%= local_date(@assignment.effective_from) %></dd>
+      </div>
+      <% if @assignment.effective_to %>
+        <div class="detail-list__row">
+          <dt><%= t("shift_assignments.to_date") %></dt>
+          <dd><%= local_date(@assignment.effective_to) %></dd>
+        </div>
+      <% end %>
+    </dl>
+
+    <%# ── Safety notices ──────────────────────────────────────────────────── %>
+    <% if @assignment.future? %>
+      <div class="alert alert-warning">
+        <p><%= t("shift_assignments.delete.future_warning") %></p>
+      </div>
+    <% elsif @assignment.current? %>
+      <div class="alert alert-warning">
+        <p><%= t("shift_assignments.delete.active_warning") %></p>
+        <p class="mt-2">
+          <%= link_to t("shift_assignments.end.action_btn"),
+                confirm_end_shift_assignment_path(@assignment),
+                class: "link" %>
+        </p>
+      </div>
+    <% end %>
+
+    <div class="alert alert-info">
+      <p><%= t("shift_assignments.delete.no_records_note") %></p>
+    </div>
+
+    <%# ── Confirm / cancel actions ────────────────────────────────────────── %>
+    <div class="form-actions" style="margin-top: var(--space-5);">
+      <%= button_to t("shift_assignments.delete.confirm_btn"),
+            shift_assignment_path(@assignment, return_tab: params[:return_tab]),
+            method: :delete,
+            class: "btn btn-danger",
+            form: { data: { turbo_confirm: t("forms.are_you_sure") } } %>
+      <%= link_to t("forms.cancel"), shift_assignments_path, class: "btn btn-ghost" %>
+    </div>
+
+  </div>
+
+</div>

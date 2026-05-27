@@ -1,24 +1,71 @@
 class ShiftAssignment < ApplicationRecord
   belongs_to :user
   belongs_to :shift
-  belongs_to :branch, optional: true
+  belongs_to :branch,     optional: true
+  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :ended_by,   class_name: "User", optional: true
 
   validates :effective_from, presence: true
   validate  :effective_to_after_effective_from
   validate  :no_overlapping_assignment
   validate  :no_overlapping_shift_time
 
+  # ── Scopes ──────────────────────────────────────────────────────────────────
+
   scope :active_on, ->(date) {
     where("effective_from <= ?", date)
       .where("effective_to IS NULL OR effective_to >= ?", date)
   }
-  scope :current, -> { active_on(Date.current) }
+  scope :current,  -> { active_on(Date.current) }
+  scope :upcoming, -> { where("effective_from > ?", Date.current) }
+  scope :expired,  -> {
+    where("effective_to IS NOT NULL AND effective_to < ?", Date.current)
+  }
   scope :for_business, ->(business) {
     joins(:user).where(users: { business_id: business.id })
   }
 
   delegate :name, to: :shift,  prefix: true
   delegate :name, to: :branch, prefix: true, allow_nil: true
+
+  # ── Status helpers ───────────────────────────────────────────────────────────
+
+  # Assignment starts in the future (before today — no punches yet).
+  def future?
+    effective_from > Date.current
+  end
+
+  # Assignment is currently active (covers today).
+  def current?
+    effective_from <= Date.current &&
+      (effective_to.nil? || effective_to >= Date.current)
+  end
+
+  # Assignment has fully ended (effective_to is in the past).
+  def historical?
+    effective_to.present? && effective_to < Date.current
+  end
+
+  # True when at least one AttendanceRecord was matched against this assignment.
+  #
+  # Fast path: when the index action SELECTs the EXISTS subquery as `has_attendance`
+  # (to avoid N+1 queries), we read that preloaded value directly via `self[:has_attendance]`.
+  # Slow path: any other context (form renders, API, specs) fires one DB query per call
+  # and caches the result in an instance variable so repeated calls in the same request
+  # don't pile up queries.
+  def has_attendance_records?
+    if has_attribute?(:has_attendance)
+      ActiveModel::Type::Boolean.new.cast(self[:has_attendance])
+    else
+      @has_attendance_records_cache ||= AttendanceRecord.where(shift_assignment_id: id).exists?
+    end
+  end
+
+  # An assignment is deletable (hard-delete) only when no attendance record
+  # references it — this preserves the shift→attendance FK integrity.
+  def deletable?
+    !has_attendance_records?
+  end
 
   private
 

@@ -294,6 +294,83 @@
     <% end %>
   </div>
 
+  <%# ── Shift Assignment History ─────────────────────────────────────────── %>
+  <div class="card" style="margin-top: var(--space-6);">
+    <div class="card-header">
+      <h2 class="card-title" style="font-size: var(--text-lg);">
+        <%= t("admin.users.show.shift_assignments_title") %>
+      </h2>
+      <%= link_to t("admin.users.show.view_all_assignments"),
+            shift_assignments_path(q: @user.employee_code),
+            class: "btn btn-sm btn-ghost" %>
+    </div>
+
+    <% if @shift_assignments.any? %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("shift_assignments.shift") %></th>
+              <th><%= t("shift_assignments.branch") %></th>
+              <th><%= t("shift_assignments.from_date") %></th>
+              <th><%= t("shift_assignments.to_date") %></th>
+              <th><%= t("shift_assignments.status") %></th>
+              <th><%= t("shift_assignments.created_by") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @shift_assignments.each do |a| %>
+              <%
+                status_key = a.future? ? "upcoming" : (a.current? ? "active" : "ended")
+                badge_cls  = { "active" => "badge-success",
+                               "upcoming" => "badge-accent",
+                               "ended"   => "badge-neutral" }[status_key]
+              %>
+              <tr>
+                <td data-label="<%= t("shift_assignments.shift") %>">
+                  <%= link_to a.shift.name, shift_path(a.shift), class: "link-muted" %>
+                </td>
+                <td class="td-secondary" data-label="<%= t("shift_assignments.branch") %>">
+                  <%= a.branch_name || "—" %>
+                </td>
+                <td class="td-secondary" data-label="<%= t("shift_assignments.from_date") %>">
+                  <%= local_date(a.effective_from) %>
+                </td>
+                <td class="td-secondary" data-label="<%= t("shift_assignments.to_date") %>">
+                  <%= a.effective_to ? local_date(a.effective_to) : "—" %>
+                </td>
+                <td data-label="<%= t("shift_assignments.status") %>">
+                  <span class="badge <%= badge_cls %>">
+                    <%= t("shift_assignments.#{status_key}") %>
+                  </span>
+                </td>
+                <td class="td-secondary"
+                    data-label="<%= t("shift_assignments.created_by") %>">
+                  <% if a.created_by %>
+                    <span title="<%= local_date(a.created_at) %>">
+                      <%= a.created_by.full_name %>
+                    </span>
+                  <% else %>
+                    <span class="text-muted">—</span>
+                  <% end %>
+                  <% if a.ended_by %>
+                    <span class="text-muted" style="font-size:11px;display:block;">
+                      <%= t("admin.users.show.ended_by", name: a.ended_by.full_name) %>
+                    </span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <p style="padding: var(--space-4); color: var(--text-2);">
+        <%= t("admin.users.show.no_shift_assignments") %>
+      </p>
+    <% end %>
+  </div>
+
   <%# Active Obligations %>
   <% active_obligations = @user.employee_obligations.where(status: %w[active paused]).order(created_at: :desc) %>
   <% if active_obligations.any? %>
