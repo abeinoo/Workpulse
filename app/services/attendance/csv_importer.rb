@@ -197,9 +197,9 @@ module Attendance
                                record.check_out_at != prev_out
 
           if timestamps_changed
-            # Recompute all derived fields using the canonical pipeline —
-            # identical to AdjustmentService#recompute_derived_fields.
-            recompute_derived_fields(record)
+            # Delegate to the shared RecordRecomputer so the exact same
+            # TimeCalculator logic runs here and in HistoricalBackfill.
+            RecordRecomputer.recompute!(record)
             record.save!
 
             if is_new
@@ -238,39 +238,6 @@ module Attendance
     end
 
     private
-
-    # ── Canonical derived-field recomputation ─────────────────────────────────
-    #
-    # Mirrors AdjustmentService#recompute_derived_fields exactly.
-    # Guards against nil shift/branch (branchless employees, no assignment) so
-    # that missing config degrades gracefully to 0 rather than raising.
-    def recompute_derived_fields(record)
-      shift  = record.shift   # delegates to shift_assignment&.shift
-      branch = record.branch
-
-      late_mins = shift ? TimeCalculator.late_minutes(shift, record.check_in_at, branch) : 0
-      record.late_minutes = late_mins
-
-      if record.check_in_at.present? && record.check_out_at.present?
-        worked_mins = ((record.check_out_at - record.check_in_at) / 60).to_i
-        record.worked_minutes = worked_mins
-
-        # early_leave_minutes for fixed_time shifts requires branch for timezone;
-        # hour_based shifts only need worked vs required hours.
-        early_mins = if shift && (shift.hour_based? || branch.present?)
-          TimeCalculator.early_leave_minutes(shift, record.check_out_at, worked_mins, branch)
-        else
-          0
-        end
-        record.early_leave_minutes = early_mins
-        record.status = TimeCalculator.derive_status(late_mins, early_mins)
-      else
-        # No checkout yet — record is still open
-        record.worked_minutes      = nil
-        record.early_leave_minutes = 0
-        record.status              = late_mins > 0 ? "late" : "incomplete"
-      end
-    end
 
     # ── Post-import payroll refresh ───────────────────────────────────────────
 
