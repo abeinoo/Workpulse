@@ -4,16 +4,18 @@ RSpec.describe Attendance::CsvImporter do
   let(:business) { create(:business, timezone: "UTC") }
   let(:branch)   { create(:branch, business: business) }
 
-  def make_employee(code:, biz: business)
+  # ── Helpers ────────────────────────────────────────────────────────────────
+
+  # Creates a user with a shift assignment.
+  # shift_trait: any FactoryBot shift trait (:fixed_time, :hour_based, :overnight, …)
+  def make_employee(code:, biz: business, shift_trait: :fixed_time)
     user  = create(:user, business: biz, employee_code: code)
-    shift = create(:shift, :fixed_time, business: biz)
+    shift = create(:shift, shift_trait, business: biz)
     b     = biz == business ? branch : create(:branch, business: biz)
     create(:shift_assignment, user: user, branch: b, shift: shift,
            effective_from: 1.year.ago.to_date)
     user
   end
-
-  # ── CSV helpers ────────────────────────────────────────────────────────────
 
   def build_csv(*rows)
     header = "employee_code,time\n"
@@ -522,6 +524,467 @@ RSpec.describe Attendance::CsvImporter do
       paired = result.rows.select { |r| r["valid"] }
       expect(paired.size).to            eq(1)
       expect(paired.first["punch_count"]).to eq(2)
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # REGRESSION: Canonical pipeline parity
+  #
+  # These specs verify that CSV imports use the same TimeCalculator logic as
+  # PunchService, CheckInService, CheckOutService, and AdjustmentService so that
+  # late_minutes, early_leave_minutes, worked_minutes, and status are identical
+  # regardless of how the attendance record was created.
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  describe "penalty field computation — canonical pipeline parity" do
+    # Shift factory :fixed_time → start_time 09:00, end_time 17:00
+    # These tests rely on a UTC business so times are unambiguous.
+
+    it "sets zero penalties for on-time full-shift import" do
+      employee = make_employee(code: "CANON001")
+      work_day = Date.current
+
+      csv = build_csv(
+        { code: "CANON001", time: "#{work_day} 09:00" },
+        { code: "CANON001", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.late_minutes).to        eq(0)
+      expect(record.early_leave_minutes).to eq(0)
+      expect(record.worked_minutes).to      eq(480)
+      expect(record.status).to              eq("present")
+    end
+
+    # ── Lateness ─────────────────────────────────────────────────────────────
+
+    it "sets late_minutes when check-in is after shift start" do
+      employee = make_employee(code: "LATE001")  # shift 09:00–17:00
+      work_day = Date.current
+
+      csv = build_csv(
+        { code: "LATE001", time: "#{work_day} 09:30" },  # 30 minutes late
+        { code: "LATE001", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.late_minutes).to        eq(30)
+      expect(record.early_leave_minutes).to eq(0)
+      expect(record.worked_minutes).to      eq(450)
+      expect(record.status).to              eq("late")
+    end
+
+    it "sets status to 'late' for a single late punch with no checkout" do
+      employee = make_employee(code: "LATEIN001")  # shift 09:00–17:00
+      work_day = Date.current
+
+      # Before fix: status was always "incomplete" for single-punch imports.
+      # Now it must reflect lateness just like PunchService does.
+      csv = build_csv({ code: "LATEIN001", time: "#{work_day} 09:45" })  # 45 minutes late
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.late_minutes).to   eq(45)
+      expect(record.worked_minutes).to be_nil
+      expect(record.status).to         eq("late")
+    end
+
+    it "does not set late_minutes for an early check-in (before shift start)" do
+      employee = make_employee(code: "EARLY_IN001")  # shift 09:00–17:00
+      work_day = Date.current
+
+      csv = build_csv(
+        { code: "EARLY_IN001", time: "#{work_day} 08:30" },  # 30 min early → not late
+        { code: "EARLY_IN001", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.late_minutes).to eq(0)
+      expect(record.status).to       eq("present")
+    end
+
+    # ── Early leave ───────────────────────────────────────────────────────────
+
+    it "sets early_leave_minutes when check-out is before shift end" do
+      employee = make_employee(code: "EARLYOUT001")  # shift 09:00–17:00
+      work_day = Date.current
+
+      csv = build_csv(
+        { code: "EARLYOUT001", time: "#{work_day} 09:00" },
+        { code: "EARLYOUT001", time: "#{work_day} 16:00" }  # 60 minutes early
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.late_minutes).to        eq(0)
+      expect(record.early_leave_minutes).to eq(60)
+      expect(record.worked_minutes).to      eq(420)
+      expect(record.status).to              eq("early_leave")
+    end
+
+    it "sets status to 'late' (not 'early_leave') when both penalties apply" do
+      # TimeCalculator.derive_status: late takes precedence over early_leave
+      employee = make_employee(code: "BOTH001")  # shift 09:00–17:00
+      work_day = Date.current
+
+      csv = build_csv(
+        { code: "BOTH001", time: "#{work_day} 09:30" },  # 30 min late
+        { code: "BOTH001", time: "#{work_day} 16:00" }   # 60 min early leave
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.late_minutes).to        eq(30)
+      expect(record.early_leave_minutes).to eq(60)
+      expect(record.status).to              eq("late")
+    end
+
+    # ── Hour-based shifts ─────────────────────────────────────────────────────
+
+    it "computes early_leave_minutes against required_hours for hour-based shifts" do
+      # :hour_based shift has required_hours: 8.0, no start/end times
+      employee = make_employee(code: "HOUR001", shift_trait: :hour_based)
+      work_day = Date.current
+
+      # Works only 7 h (420 min) of the required 8 h (480 min) → 60 min shortfall
+      csv = build_csv(
+        { code: "HOUR001", time: "#{work_day} 09:00" },
+        { code: "HOUR001", time: "#{work_day} 16:00" }
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.worked_minutes).to      eq(420)
+      expect(record.early_leave_minutes).to eq(60)
+      expect(record.status).to              eq("early_leave")
+    end
+
+    it "sets zero early_leave_minutes for a full-hours hour-based shift" do
+      employee = make_employee(code: "HOUR002", shift_trait: :hour_based)
+      work_day = Date.current
+
+      # Exactly 8 hours → no shortfall
+      csv = build_csv(
+        { code: "HOUR002", time: "#{work_day} 09:00" },
+        { code: "HOUR002", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.worked_minutes).to      eq(480)
+      expect(record.early_leave_minutes).to eq(0)
+      expect(record.status).to              eq("present")
+    end
+
+    # ── Overnight shifts ──────────────────────────────────────────────────────
+
+    describe "overnight shift penalty computation" do
+      # :overnight factory trait → start_time 13:00, end_time 01:00 (next day)
+      let(:night_biz) { create(:business, timezone: "UTC", business_day_start_hour: 6) }
+
+      it "computes late_minutes for a late check-in on an overnight shift" do
+        employee = make_employee(code: "NLATE001", biz: night_biz, shift_trait: :overnight)
+
+        # Overnight shift starts 13:00; employee arrives at 13:30 → 30 min late
+        csv = "employee_code,time\n" \
+              "NLATE001,2026-05-24 13:30:00\n" \
+              "NLATE001,2026-05-25 01:00:00\n"
+
+        run_import(csv, biz: night_biz)
+
+        record = AttendanceRecord.find_by!(user: employee, work_date: Date.new(2026, 5, 24))
+        expect(record.late_minutes).to eq(30)
+        expect(record.status).to       eq("late")
+      end
+
+      it "computes early_leave_minutes for an early checkout on an overnight shift" do
+        employee = make_employee(code: "NEARLY001", biz: night_biz, shift_trait: :overnight)
+
+        # Shift: 13:00–01:00 (12 hours). Checkout at 00:00 → 60 min early.
+        csv = "employee_code,time\n" \
+              "NEARLY001,2026-05-24 13:00:00\n" \
+              "NEARLY001,2026-05-25 00:00:00\n"
+
+        run_import(csv, biz: night_biz)
+
+        record = AttendanceRecord.find_by!(user: employee, work_date: Date.new(2026, 5, 24))
+        expect(record.early_leave_minutes).to eq(60)
+        expect(record.status).to              eq("early_leave")
+      end
+
+      it "sets zero penalties for a full overnight shift" do
+        employee = make_employee(code: "NFULL001", biz: night_biz, shift_trait: :overnight)
+
+        # Shift: 13:00–01:00. Check-in 13:00, check-out 01:00 → no penalties.
+        csv = "employee_code,time\n" \
+              "NFULL001,2026-05-24 13:00:00\n" \
+              "NFULL001,2026-05-25 01:00:00\n"
+
+        run_import(csv, biz: night_biz)
+
+        record = AttendanceRecord.find_by!(user: employee, work_date: Date.new(2026, 5, 24))
+        expect(record.late_minutes).to        eq(0)
+        expect(record.early_leave_minutes).to eq(0)
+        expect(record.status).to              eq("present")
+        expect(record.worked_minutes).to      eq(720)
+      end
+    end
+
+    # ── Cross-timezone business ───────────────────────────────────────────────
+
+    describe "cross-timezone lateness detection" do
+      it "evaluates lateness in the business timezone, not UTC" do
+        # Business in Riyadh (UTC+3), shift 09:00–17:00 Riyadh local.
+        # CSV times are interpreted as Riyadh local → 09:30 Riyadh = late by 30 min.
+        tz_biz   = create(:business, timezone: "Asia/Riyadh")
+        employee = create(:user, business: tz_biz, employee_code: "TZLATE001")
+        b        = create(:branch, business: tz_biz)
+        shift    = create(:shift, :fixed_time, business: tz_biz)  # 09:00–17:00
+        create(:shift_assignment, user: employee, branch: b, shift: shift,
+               effective_from: 1.year.ago.to_date)
+
+        csv = "employee_code,time\nTZLATE001,2026-05-24 09:30:00\nTZLATE001,2026-05-24 17:00:00\n"
+        run_import(csv, biz: tz_biz)
+
+        record = AttendanceRecord.find_by!(user: employee, work_date: Date.new(2026, 5, 24))
+        expect(record.late_minutes).to eq(30)
+        expect(record.status).to       eq("late")
+      end
+    end
+
+    # ── Recomputation on update ───────────────────────────────────────────────
+
+    it "recomputes penalty fields when updating an existing record with a new check-out" do
+      # An existing record with a late check-in (set by biometric earlier).
+      # CSV adds a check-out that triggers early_leave — both fields must be correct.
+      employee = make_employee(code: "RECOMP001")  # shift 09:00–17:00
+      work_day = Date.current
+
+      create(:attendance_record,
+             user:             employee,
+             branch:           branch,
+             work_date:        work_day,
+             date:             work_day,
+             check_in_at:      Time.zone.parse("#{work_day} 09:30:00"),
+             check_out_at:     nil,
+             late_minutes:     30,
+             status:           "late",
+             shift_assignment: employee.shift_assignments.first)
+
+      # CSV check-in matches existing → not updated. Check-out 16:00 is new.
+      csv = build_csv(
+        { code: "RECOMP001", time: "#{work_day} 09:30" },
+        { code: "RECOMP001", time: "#{work_day} 16:00" }
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.late_minutes).to        eq(30)          # correctly preserved
+      expect(record.early_leave_minutes).to eq(60)          # newly computed
+      expect(record.worked_minutes).to      eq(390)         # 09:30–16:00 = 390 min
+      expect(record.status).to              eq("late")      # late takes precedence
+    end
+
+    it "does not update existing records when CSV adds no new information" do
+      # When an existing record is unchanged, worked_minutes / status must not
+      # be silently corrupted (the old importer did status = 'present' blindly).
+      employee = make_employee(code: "NOCHANGE001")  # shift 09:00–17:00
+      work_day = Date.current
+
+      create(:attendance_record,
+             user:             employee,
+             branch:           branch,
+             work_date:        work_day,
+             date:             work_day,
+             check_in_at:      Time.zone.parse("#{work_day} 09:30:00"),
+             check_out_at:     Time.zone.parse("#{work_day} 17:00:00"),
+             worked_minutes:   450,
+             late_minutes:     30,
+             early_leave_minutes: 0,
+             status:           "late",
+             shift_assignment: employee.shift_assignments.first)
+
+      # Identical punches — nothing should change
+      csv = build_csv(
+        { code: "NOCHANGE001", time: "#{work_day} 09:30" },
+        { code: "NOCHANGE001", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+
+      record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
+      expect(record.late_minutes).to   eq(30)
+      expect(record.status).to         eq("late")
+      expect(record.worked_minutes).to eq(450)
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # REGRESSION: Payroll regeneration after import
+  #
+  # When a CSV import creates or updates attendance records, any existing *draft*
+  # payroll period for the business+month must be regenerated so payslips reflect
+  # the newly-imported data. Non-draft (finalized, paid, under_review) periods
+  # must NOT be touched — they are immutable.
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  describe "payroll regeneration after import" do
+    it "regenerates an existing draft payroll period that covers the imported work_dates" do
+      employee = make_employee(code: "PAY001")
+      work_day = Date.current
+
+      create(:payroll_period, business: business,
+             period_year: work_day.year, period_month: work_day.month,
+             status: :draft)
+
+      expect(Payroll::PeriodGenerator).to receive(:call).with(
+        business:     business,
+        year:         work_day.year,
+        month:        work_day.month,
+        generated_by: anything
+      )
+
+      csv = build_csv(
+        { code: "PAY001", time: "#{work_day} 09:00" },
+        { code: "PAY001", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+    end
+
+    it "does not regenerate a finalized payroll period" do
+      make_employee(code: "PAY002")
+      work_day = Date.current
+
+      create(:payroll_period, business: business,
+             period_year: work_day.year, period_month: work_day.month,
+             status: :finalized)
+
+      expect(Payroll::PeriodGenerator).not_to receive(:call)
+
+      csv = build_csv(
+        { code: "PAY002", time: "#{work_day} 09:00" },
+        { code: "PAY002", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+    end
+
+    it "does not regenerate a paid payroll period" do
+      make_employee(code: "PAY003")
+      work_day = Date.current
+
+      create(:payroll_period, business: business,
+             period_year: work_day.year, period_month: work_day.month,
+             status: :paid)
+
+      expect(Payroll::PeriodGenerator).not_to receive(:call)
+
+      csv = build_csv(
+        { code: "PAY003", time: "#{work_day} 09:00" },
+        { code: "PAY003", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+    end
+
+    it "does not regenerate when no payroll period exists for the month" do
+      make_employee(code: "PAY004")
+      work_day = Date.current
+
+      expect(Payroll::PeriodGenerator).not_to receive(:call)
+
+      csv = build_csv(
+        { code: "PAY004", time: "#{work_day} 09:00" },
+        { code: "PAY004", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+    end
+
+    it "does not regenerate on re-import when all records are unchanged (skipped)" do
+      make_employee(code: "PAY005")
+      work_day = Date.current
+
+      create(:payroll_period, business: business,
+             period_year: work_day.year, period_month: work_day.month,
+             status: :draft)
+
+      csv = build_csv(
+        { code: "PAY005", time: "#{work_day} 09:00" },
+        { code: "PAY005", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)  # first import creates the record
+
+      # Second import is identical → all records skipped → no regeneration
+      expect(Payroll::PeriodGenerator).not_to receive(:call)
+      run_import(csv)
+    end
+
+    it "regenerates when an existing incomplete record gains a check-out from the import" do
+      employee = make_employee(code: "PAY006")
+      work_day = Date.current
+
+      create(:attendance_record,
+             user:             employee,
+             branch:           branch,
+             work_date:        work_day,
+             date:             work_day,
+             check_in_at:      Time.zone.parse("#{work_day} 09:00:00"),
+             check_out_at:     nil,
+             status:           "incomplete",
+             shift_assignment: employee.shift_assignments.first)
+
+      create(:payroll_period, business: business,
+             period_year: work_day.year, period_month: work_day.month,
+             status: :draft)
+
+      expect(Payroll::PeriodGenerator).to receive(:call)
+
+      csv = build_csv(
+        { code: "PAY006", time: "#{work_day} 09:00" },
+        { code: "PAY006", time: "#{work_day} 17:00" }  # adds the missing checkout
+      )
+      run_import(csv)
+    end
+
+    it "regenerates only once per month even when multiple employees are imported" do
+      make_employee(code: "PAY007")
+      make_employee(code: "PAY008")
+      work_day = Date.current
+
+      create(:payroll_period, business: business,
+             period_year: work_day.year, period_month: work_day.month,
+             status: :draft)
+
+      # Two employees imported in the same month → PeriodGenerator called exactly once
+      expect(Payroll::PeriodGenerator).to receive(:call).once
+
+      csv = build_csv(
+        { code: "PAY007", time: "#{work_day} 09:00" },
+        { code: "PAY007", time: "#{work_day} 17:00" },
+        { code: "PAY008", time: "#{work_day} 09:00" },
+        { code: "PAY008", time: "#{work_day} 17:00" }
+      )
+      run_import(csv)
+    end
+
+    it "regenerates separately for each distinct month when import spans multiple months" do
+      make_employee(code: "PAY009")
+      month1 = Date.new(2026, 4, 28)
+      month2 = Date.new(2026, 5, 2)
+
+      create(:payroll_period, business: business,
+             period_year: 2026, period_month: 4, status: :draft)
+      create(:payroll_period, business: business,
+             period_year: 2026, period_month: 5, status: :draft)
+
+      expect(Payroll::PeriodGenerator).to receive(:call).twice
+
+      csv = "employee_code,time\n" \
+            "PAY009,2026-04-28 09:00:00\n" \
+            "PAY009,2026-04-28 17:00:00\n" \
+            "PAY009,2026-05-02 09:00:00\n" \
+            "PAY009,2026-05-02 17:00:00\n"
+      run_import(csv)
     end
   end
 end

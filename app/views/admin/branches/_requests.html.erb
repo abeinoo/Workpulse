@@ -35,7 +35,7 @@
             <td>
               <span class="badge badge-warning"><%= t("requests.types.#{request.request_type}") %></span>
             </td>
-            <td class="td-secondary"><%= request.requested_for_date.strftime("%b %d, %Y") %></td>
+            <td class="td-secondary"><%= local_date(request.requested_for_date) %></td>
             <td class="td-secondary" style="max-width: 220px; white-space: normal;">
               <%= truncate(request.reason, length: 80) %>
             </td>
@@ -91,7 +91,7 @@
               </div>
             </td>
             <td class="td-secondary"><%= t("requests.types.#{request.request_type}") %></td>
-            <td class="td-secondary"><%= request.requested_for_date.strftime("%b %d, %Y") %></td>
+            <td class="td-secondary"><%= local_date(request.requested_for_date) %></td>
             <td>
               <span class="badge <%= request.approved? ? 'badge-success' : 'badge-danger' %>">
                 <%= t("requests.statuses.#{request.status}") %>

@@ -62,7 +62,7 @@
               </td>
               <td class="td-secondary"><%= log.biometric_device&.name || "—" %></td>
               <td class="td-secondary"><%= l(log.punched_at, format: :short) %></td>
-              <td class="td-secondary"><%= log.work_date&.strftime("%d %b %Y") || "—" %></td>
+              <td class="td-secondary"><%= local_date(log.work_date) %></td>
               <td>
                 <span class="badge <%= punch_log_badge_class(log.action) %>">
                   <%= t("admin.biometric_punch_logs.action.#{log.action}") %>

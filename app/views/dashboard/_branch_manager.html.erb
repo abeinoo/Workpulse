@@ -9,7 +9,7 @@
         <%= @managed_branches.map(&:name).to_sentence %>
       </p>
     </div>
-    <span class="mgr-dashboard__date"><%= Date.current.strftime("%b %-d, %Y") %></span>
+    <span class="mgr-dashboard__date"><%= I18n.l(Date.current) %></span>
   </div>
 
   <%# ── Biometric-only notice (manager, mobile disabled, shift active, not yet checked in) %>
@@ -44,10 +44,10 @@
             <% end %>
           </p>
           <p class="attendance-hero__times">
-            <span><%= t("dashboard.time_in") %> <strong><%= @my_today_record.check_in_at.in_time_zone.strftime("%H:%M") %></strong></span>
+            <span><%= t("dashboard.time_in") %> <strong><%= local_time(@my_today_record.check_in_at) %></strong></span>
             <% if @my_today_record.checked_out? %>
               <span class="attendance-hero__sep">&middot;</span>
-              <span><%= t("dashboard.time_out") %> <strong><%= @my_today_record.check_out_at.in_time_zone.strftime("%H:%M") %></strong></span>
+              <span><%= t("dashboard.time_out") %> <strong><%= local_time(@my_today_record.check_out_at) %></strong></span>
             <% end %>
           </p>
         </div>
@@ -174,7 +174,7 @@
               <p class="request-review-row__name"><%= req.user.full_name %></p>
               <p class="request-review-row__meta">
                 <span class="badge badge-neutral"><%= t("requests.types.#{req.request_type}") %></span>
-                <span class="request-review-row__date"><%= req.requested_for_date.strftime("%b %-d") %></span>
+                <span class="request-review-row__date"><%= local_short_date(req.requested_for_date) %></span>
               </p>
               <% if req.reason.present? %>
                 <p class="request-review-row__reason"><%= truncate(req.reason, length: 80) %></p>
@@ -299,9 +299,9 @@
               <p class="team-member__name"><%= emp.full_name %></p>
               <% if rec %>
                 <p class="team-member__times">
-                  <%= t("dashboard.time_in") %> <strong><%= rec.check_in_at.in_time_zone.strftime("%H:%M") %></strong>
+                  <%= t("dashboard.time_in") %> <strong><%= local_time(rec.check_in_at) %></strong>
                   <% if rec.checked_out? %>
-                    &middot; <%= t("dashboard.time_out") %> <strong><%= rec.check_out_at.in_time_zone.strftime("%H:%M") %></strong>
+                    &middot; <%= t("dashboard.time_out") %> <strong><%= local_time(rec.check_out_at) %></strong>
                   <% else %>
                     &middot; <span class="team-member__no-out"><%= t("dashboard.team.no_checkout") %></span>
                   <% end %>

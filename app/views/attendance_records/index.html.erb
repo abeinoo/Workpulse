@@ -297,7 +297,7 @@
 
             <%# Date %>
             <td class="td-secondary attn-time-cell">
-              <%= rec.work_date.strftime("%b %-d, %Y") %>
+              <%= local_date(rec.work_date) %>
               <% if rec.overnight? %>
                 <span class="badge badge-neutral badge-xs" title="<%= t("attendance.records.overnight_title") %>">
                   ⇌ <%= t("attendance.records.overnight") %>
@@ -316,8 +316,8 @@
             <%# Check In %>
             <td class="attn-time-cell">
               <% if rec.check_in_at %>
-                <span class="attn-time"><%= rec.check_in_at.in_time_zone.strftime("%H:%M") %></span>
-                <span class="attn-time-date td-secondary"><%= rec.check_in_at.in_time_zone.strftime("%b %-d") %></span>
+                <span class="attn-time"><%= local_time(rec.check_in_at) %></span>
+                <span class="attn-time-date td-secondary"><%= local_short_date(rec.check_in_at) %></span>
                 <% if rec.check_in_source.present? %>
                   <%= attendance_source_badge(rec.check_in_source, html_class: "attn-source-badge attn-source-badge--xs") %>
                 <% end %>
@@ -329,8 +329,8 @@
             <%# Check Out %>
             <td class="attn-time-cell">
               <% if rec.check_out_at %>
-                <span class="attn-time"><%= rec.check_out_at.in_time_zone.strftime("%H:%M") %></span>
-                <span class="attn-time-date td-secondary"><%= rec.check_out_at.in_time_zone.strftime("%b %-d") %></span>
+                <span class="attn-time"><%= local_time(rec.check_out_at) %></span>
+                <span class="attn-time-date td-secondary"><%= local_short_date(rec.check_out_at) %></span>
                 <% if rec.check_out_source.present? %>
                   <%= attendance_source_badge(rec.check_out_source, html_class: "attn-source-badge attn-source-badge--xs") %>
                 <% end %>

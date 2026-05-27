@@ -174,11 +174,11 @@
               <div class="who-here-card__times">
                 <span class="who-here-card__checkin">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  <%= record.check_in_at.in_time_zone.strftime("%H:%M") %>
+                  <%= local_time(record.check_in_at) %>
                 </span>
                 <% if is_out %>
                   <span class="who-here-card__duration">
-                    <%= t("dashboard.time_out") %> <%= record.check_out_at.in_time_zone.strftime("%H:%M") %>
+                    <%= t("dashboard.time_out") %> <%= local_time(record.check_out_at) %>
                   </span>
                 <% elsif minutes_in > 0 %>
                   <span class="who-here-card__duration">

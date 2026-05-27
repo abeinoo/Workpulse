@@ -30,6 +30,12 @@ ar:
     staff: "موظف"
     operations: "العمليات"
     notifications: "الإشعارات"
+    section_dashboard: "لوحة التحكم"
+    section_workforce: "القوى العاملة"
+    section_attendance: "الحضور"
+    section_payroll: "الرواتب"
+    section_requests: "الطلبات"
+    section_administration: "الإدارة"
 
   auth:
     sign_in:
@@ -839,6 +845,7 @@ ar:
         one: "صف واحد به أخطاء"
         other: "%{count} صفوف بها أخطاء"
       errors_col: "الأخطاء"
+      invalid_type: "يُقبل ملفات CSV فقط."
 
   shift_assignments:
     index:
@@ -1865,10 +1872,14 @@ ar:
       - "نوفمبر"
       - "ديسمبر"
     formats:
+      default: "%-d %b %Y"
+      short: "%-d %b"
       long: "%-d %B %Y"
 
   time:
     formats:
+      default: "%-d %b %Y %H:%M"
+      short: "%-d %b %H:%M"
       time: "%-H:%M"
 
   locale:

@@ -9,7 +9,7 @@
         <%= t("dashboard.area_manager_role") %> &mdash; <%= @managed_branches.map(&:name).to_sentence %>
       </p>
     </div>
-    <span class="mgr-dashboard__date"><%= Date.current.strftime("%b %-d, %Y") %></span>
+    <span class="mgr-dashboard__date"><%= I18n.l(Date.current) %></span>
   </div>
 
   <%# ── Stat cards ─────────────────────────────────────────────────── %>

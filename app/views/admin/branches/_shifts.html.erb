@@ -47,7 +47,7 @@
               <% end %>
             </td>
             <td class="td-secondary">
-              <%= assignment.effective_from.strftime("%b %d, %Y") %>
+              <%= local_date(assignment.effective_from) %>
             </td>
           </tr>
         <% end %>

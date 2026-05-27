@@ -151,7 +151,7 @@ class BulkAdjustmentsController < ApplicationController
   def authorize_bulk!
     authorize PayrollAdjustment.new(business: current_user.business), :new?
   rescue Pundit::NotAuthorizedError
-    redirect_to adjustments_path, alert: t("errors.not_authorized")
+    redirect_to adjustments_path, alert: t("flash.not_authorized")
   end
 
   def manageable_employees

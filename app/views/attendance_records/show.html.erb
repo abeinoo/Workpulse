@@ -18,7 +18,7 @@
 
   <div class="page-header">
     <div>
-      <h1 class="page-title"><%= @record.work_date.strftime("%B %-d, %Y") %></h1>
+      <h1 class="page-title"><%= local_date(@record.work_date) %></h1>
       <% if current_user.owner? || current_user.manages_branch? %>
         <p class="page-subtitle"><%= @record.user.full_name %><% if @record.branch %> &mdash; <%= @record.branch.name %><% end %></p>
       <% end %>
@@ -36,12 +36,12 @@
   <div class="info-card">
     <div class="info-card__row">
       <span class="info-card__label"><%= t("attendance.work_date") %></span>
-      <span><%= @record.work_date.strftime("%B %-d, %Y") %></span>
+      <span><%= local_date(@record.work_date) %></span>
     </div>
     <div class="info-card__row">
       <span class="info-card__label"><%= t("attendance.check_in_at") %></span>
       <span>
-        <%= @record.check_in_at&.in_time_zone&.strftime("%b %-d, %Y %H:%M") || "—" %>
+        <%= local_datetime(@record.check_in_at) %>
         <% if @record.check_in_source.present? %>
           <%= attendance_source_badge(@record.check_in_source) %>
         <% end %>
@@ -50,7 +50,7 @@
     <div class="info-card__row">
       <span class="info-card__label"><%= t("attendance.check_out_at") %></span>
       <span>
-        <%= @record.check_out_at&.in_time_zone&.strftime("%b %-d, %Y %H:%M") || "—" %>
+        <%= local_datetime(@record.check_out_at) %>
         <% if @record.check_out_source.present? %>
           <%= attendance_source_badge(@record.check_out_source) %>
         <% end %>

@@ -32,9 +32,9 @@
         <% @records.each do |rec| %>
           <tr>
             <td><%= rec.user.full_name %></td>
-            <td class="td-secondary"><%= rec.date.strftime("%b %-d, %Y") %></td>
-            <td class="td-secondary"><%= rec.check_in_at&.in_time_zone&.strftime("%H:%M") || "—" %></td>
-            <td class="td-secondary"><%= rec.check_out_at&.in_time_zone&.strftime("%H:%M") || "—" %></td>
+            <td class="td-secondary"><%= local_date(rec.date) %></td>
+            <td class="td-secondary"><%= local_time(rec.check_in_at) %></td>
+            <td class="td-secondary"><%= local_time(rec.check_out_at) %></td>
             <td>
               <span class="badge <%= rec.present? ? 'badge-success' : rec.late? ? 'badge-warning' : 'badge-neutral' %>">
                 <%= t("attendance.statuses.#{rec.status}", default: rec.status.humanize) %>

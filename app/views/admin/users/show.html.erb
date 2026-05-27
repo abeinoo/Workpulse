@@ -77,7 +77,7 @@
         <% if @user.hire_date.present? %>
           <div class="data-list__item">
             <dt class="data-list__label"><%= t("admin.users.hire_date") %></dt>
-            <dd class="data-list__value"><%= @user.hire_date.strftime("%d %b %Y") %></dd>
+            <dd class="data-list__value"><%= local_date(@user.hire_date) %></dd>
           </div>
         <% end %>
         <% if @user.employment_type.present? %>
@@ -122,7 +122,7 @@
       <% if @user.identity_card_expiry_date.present? %>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("admin.users.id_expiry") %></dt>
-          <dd class="data-list__value"><%= @user.identity_card_expiry_date.strftime("%d %b %Y") %></dd>
+          <dd class="data-list__value"><%= local_date(@user.identity_card_expiry_date) %></dd>
         </div>
       <% end %>
       <% if @user.emergency_contact_name.present? || @user.emergency_contact_phone.present? %>
@@ -243,7 +243,7 @@
         </div>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("salary_profiles.effective_from") %></dt>
-          <dd class="data-list__value"><%= @active_salary_profile.effective_from.strftime("%d %b %Y") %></dd>
+          <dd class="data-list__value"><%= local_date(@active_salary_profile.effective_from) %></dd>
         </div>
       </dl>
       <% if policy(@active_salary_profile).update? %>
@@ -277,7 +277,7 @@
                   <td data-label="<%= t('salary_profiles.type') %>"><%= t("salary_profiles.salary_types.#{profile.salary_type}") %></td>
                   <td data-label="<%= t('salary_profiles.base_salary') %>"><%= format_currency(profile.base_amount) %></td>
                   <td data-label="<%= t('salary_profiles.ot_multiplier') %>"><%= profile.overtime_multiplier ? "#{profile.overtime_multiplier}x" : "—" %></td>
-                  <td data-label="<%= t('salary_profiles.effective_from') %>"><%= profile.effective_from.strftime("%d %b %Y") %></td>
+                  <td data-label="<%= t('salary_profiles.effective_from') %>"><%= local_date(profile.effective_from) %></td>
                   <td data-label="<%= t('admin.users.status') %>">
                     <% if profile.active? %>
                       <span class="badge badge-success"><%= t("salary_profiles.active") %></span>

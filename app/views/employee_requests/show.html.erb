@@ -4,7 +4,7 @@
     <div>
       <%= link_to t("requests.show.back"), employee_requests_path, class: "back-link" %>
       <h1 class="page-title"><%= t("requests.types.#{@request.request_type}") %></h1>
-      <p class="page-subtitle"><%= @request.requested_for_date.strftime("%B %-d, %Y") %></p>
+      <p class="page-subtitle"><%= local_date(@request.requested_for_date) %></p>
     </div>
     <span class="badge <%= request_status_badge_class(@request) %>">
       <%= t("requests.statuses.#{@request.status}") %>

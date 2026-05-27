@@ -28,8 +28,8 @@
             <td><%= a.user.full_name %></td>
             <td class="td-secondary"><%= link_to a.shift.name, shift_path(a.shift), class: "link-muted" %></td>
             <td class="td-secondary"><%= a.branch_name || "—" %></td>
-            <td class="td-secondary"><%= a.effective_from.strftime("%b %-d, %Y") %></td>
-            <td class="td-secondary"><%= a.effective_to&.strftime("%b %-d, %Y") || "—" %></td>
+            <td class="td-secondary"><%= local_date(a.effective_from) %></td>
+            <td class="td-secondary"><%= local_date(a.effective_to) %></td>
             <td>
               <% if a.effective_to.nil? || a.effective_to >= Date.current %>
                 <span class="badge badge-success"><%= t("shift_assignments.active") %></span>

@@ -38,10 +38,10 @@
           <% end %>
         </p>
         <p class="attendance-hero__times">
-          <span><%= t("dashboard.time_in") %> &nbsp;<strong><%= @today_record.check_in_at.in_time_zone.strftime("%H:%M") %></strong></span>
+          <span><%= t("dashboard.time_in") %> &nbsp;<strong><%= local_time(@today_record.check_in_at) %></strong></span>
           <% if @today_record.checked_out? %>
             <span class="attendance-hero__sep">&middot;</span>
-            <span><%= t("dashboard.time_out") %> <strong><%= @today_record.check_out_at.in_time_zone.strftime("%H:%M") %></strong></span>
+            <span><%= t("dashboard.time_out") %> <strong><%= local_time(@today_record.check_out_at) %></strong></span>
             <% if @today_record.worked_minutes %>
               <span class="attendance-hero__sep">&middot;</span>
               <span class="attendance-hero__worked"><%= t("dashboard.worked", hours: @today_record.worked_minutes / 60, minutes: @today_record.worked_minutes % 60) %></span>
@@ -188,7 +188,7 @@
           <%= link_to employee_request_path(req), class: "request-row" do %>
             <div class="request-row__main">
               <span class="request-row__type"><%= t("requests.types.#{req.request_type}") %></span>
-              <span class="request-row__date"><%= req.requested_for_date.strftime("%b %-d") %></span>
+              <span class="request-row__date"><%= local_short_date(req.requested_for_date) %></span>
             </div>
             <span class="badge <%= req.approved? ? 'badge-success' : req.rejected? ? 'badge-danger' : 'badge-neutral' %>">
               <%= t("requests.statuses.#{req.status}") %>

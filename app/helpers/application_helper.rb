@@ -166,30 +166,36 @@ module ApplicationHelper
     @_biz_tz ||= current_user&.business&.timezone_object || Time.zone
   end
 
-  # "14:30"
+  # "14:30"  (locale-neutral: HH:MM is universal)
   def local_time(value, fallback: "—")
     return fallback if value.nil?
     value.in_time_zone(current_business_timezone).strftime("%H:%M")
   end
 
-  # "Jun 5, 2026 14:30"
+  # Locale-aware datetime: "Jun 5, 2026 14:30" / "5 يونيو 2026 14:30"
   def local_datetime(value, fallback: "—")
     return fallback if value.nil?
-    value.in_time_zone(current_business_timezone).strftime("%b %-d, %Y %H:%M")
+    I18n.l(value.in_time_zone(current_business_timezone))
+  rescue StandardError
+    fallback
   end
 
-  # "Jun 5, 2026"  — works for both Date and Time values
+  # Locale-aware date: "Jun 5, 2026" / "5 يونيو 2026"
   def local_date(value, fallback: "—")
     return fallback if value.nil?
     d = value.respond_to?(:in_time_zone) ? value.in_time_zone(current_business_timezone).to_date : value
-    d.strftime("%b %-d, %Y")
+    I18n.l(d)
+  rescue StandardError
+    fallback
   end
 
-  # "%-d %b" short form — "5 Jun"
+  # Short locale-aware date: "5 Jun" / "5 يون"
   def local_short_date(value, fallback: "—")
     return fallback if value.nil?
     d = value.respond_to?(:in_time_zone) ? value.in_time_zone(current_business_timezone).to_date : value
-    d.strftime("%-d %b")
+    I18n.l(d, format: :short)
+  rescue StandardError
+    fallback
   end
 
   # For datetime-local HTML inputs — must show local time, not UTC

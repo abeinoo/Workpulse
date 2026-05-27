@@ -38,7 +38,7 @@
               <td><%= req.user.full_name %></td>
             <% end %>
             <td><span class="badge badge-neutral"><%= t("requests.types.#{req.request_type}") %></span></td>
-            <td class="td-secondary"><%= req.requested_for_date.strftime("%b %-d, %Y") %></td>
+            <td class="td-secondary"><%= local_date(req.requested_for_date) %></td>
             <td class="td-secondary">
               <% if req.salary_advance? && req.amount.present? %>
                 <%= format_currency(req.amount, precision: 0) %>

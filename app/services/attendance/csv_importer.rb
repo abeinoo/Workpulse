@@ -22,6 +22,13 @@ module Attendance
   # work_date is computed with BusinessDay.work_date_for so overnight-shift employees
   # whose post-midnight events fall before business_day_start_hour are attributed to
   # the correct work date.
+  #
+  # Canonical pipeline guarantee:
+  #   execute uses the same TimeCalculator methods as PunchService, CheckInService,
+  #   CheckOutService, and AdjustmentService so that late_minutes, early_leave_minutes,
+  #   and status are always identical regardless of how a record was created.
+  #   After persisting records it also regenerates any existing *draft* payroll periods
+  #   whose month was touched by the import.
   class CsvImporter
     REQUIRED_COLUMNS = %w[employee_code time].freeze
     LEGACY_COLUMNS   = %w[check_in_at check_out_at].freeze
@@ -138,45 +145,48 @@ module Attendance
     end
 
     # ── Phase 2: commit ───────────────────────────────────────────────────────
-
+    #
+    # Uses the same canonical pipeline as PunchService / AdjustmentService:
+    #   - Shifts::AssignmentFinder for shift lookup
+    #   - TimeCalculator.late_minutes / early_leave_minutes / derive_status
+    #   - Payroll::PeriodGenerator for any draft payroll periods that are touched
     def execute(import_log)
-      valid_rows    = import_log.valid_preview_rows
-      created       = 0
-      updated       = 0
-      skipped       = 0
-      runtime_fails = []
+      valid_rows      = import_log.valid_preview_rows
+      created         = 0
+      updated         = 0
+      skipped         = 0
+      runtime_fails   = []
+      affected_months = []   # [[year, month], ...] for payroll regeneration
 
       valid_rows.each do |row|
         begin
-          user       = @business.users.find_by!(employee_code: row["employee_code"])
-          check_in   = parse_datetime(row["check_in_at"])
-          check_out  = row["check_out_at"].present? ? parse_datetime(row["check_out_at"]) : nil
-          work_date  = Date.parse(row["work_date"])
+          user      = @business.users.find_by!(employee_code: row["employee_code"])
+          check_in  = parse_datetime(row["check_in_at"])
+          check_out = row["check_out_at"].present? ? parse_datetime(row["check_out_at"]) : nil
+          work_date = Date.parse(row["work_date"])
 
-          shift_assignment = ShiftAssignment
-                               .where(user_id: user.id)
-                               .active_on(work_date)
-                               .first
+          # Use the canonical assignment finder (same as PunchService and CheckInService)
+          assignment = Shifts::AssignmentFinder.for(user: user, date: work_date)
 
           record = AttendanceRecord.find_or_initialize_by(user_id: user.id, work_date: work_date)
           is_new  = record.new_record?
 
           if is_new
-            record.date                = work_date
-            record.branch_id           = shift_assignment&.branch_id
-            record.shift_assignment    = shift_assignment
-            record.late_minutes        = 0
-            record.early_leave_minutes = 0
+            record.date             = work_date
+            record.branch           = assignment&.branch   # object, not just ID
+            record.shift_assignment = assignment
           end
 
           prev_in  = record.check_in_at
           prev_out = record.check_out_at
 
+          # Keep the earliest check-in across sources (CSV vs existing biometric/mobile)
           if is_new || check_in < record.check_in_at
             record.check_in_at     = check_in
             record.check_in_source = "import"
           end
 
+          # Keep the latest check-out across sources
           if check_out.present? && (record.check_out_at.nil? || check_out > record.check_out_at)
             record.check_out_at     = check_out
             record.check_out_source = "import"
@@ -186,19 +196,24 @@ module Attendance
                                record.check_in_at  != prev_in  ||
                                record.check_out_at != prev_out
 
-          record.status         = derive_status(record.check_out_at)
-          record.worked_minutes = worked_minutes(record.check_in_at, record.check_out_at)
-          record.save!
+          if timestamps_changed
+            # Recompute all derived fields using the canonical pipeline —
+            # identical to AdjustmentService#recompute_derived_fields.
+            recompute_derived_fields(record)
+            record.save!
 
-          if is_new
-            created += 1
-          elsif timestamps_changed
-            updated += 1
+            if is_new
+              created += 1
+            else
+              updated += 1
+            end
+            affected_months << [work_date.year, work_date.month]
           else
             skipped += 1
           end
+
         rescue => e
-          Rails.logger.warn("[CsvImporter] Row parse error business=#{@business.id}: #{e.class}: #{e.message}")
+          Rails.logger.warn("[CsvImporter] Row error business=#{@business.id}: #{e.class}: #{e.message}")
           runtime_fails << row.merge("error" => e.message)
         end
       end
@@ -215,9 +230,83 @@ module Attendance
           "skipped_records" => skipped
         )
       )
+
+      # Regenerate any existing *draft* payroll periods whose month was touched.
+      # Does NOT create new payroll periods — only recalculates existing ones so
+      # the freshly-imported attendance is reflected in pending payslips.
+      regenerate_affected_payrolls(affected_months.uniq, triggered_by: import_log.imported_by)
     end
 
     private
+
+    # ── Canonical derived-field recomputation ─────────────────────────────────
+    #
+    # Mirrors AdjustmentService#recompute_derived_fields exactly.
+    # Guards against nil shift/branch (branchless employees, no assignment) so
+    # that missing config degrades gracefully to 0 rather than raising.
+    def recompute_derived_fields(record)
+      shift  = record.shift   # delegates to shift_assignment&.shift
+      branch = record.branch
+
+      late_mins = shift ? TimeCalculator.late_minutes(shift, record.check_in_at, branch) : 0
+      record.late_minutes = late_mins
+
+      if record.check_in_at.present? && record.check_out_at.present?
+        worked_mins = ((record.check_out_at - record.check_in_at) / 60).to_i
+        record.worked_minutes = worked_mins
+
+        # early_leave_minutes for fixed_time shifts requires branch for timezone;
+        # hour_based shifts only need worked vs required hours.
+        early_mins = if shift && (shift.hour_based? || branch.present?)
+          TimeCalculator.early_leave_minutes(shift, record.check_out_at, worked_mins, branch)
+        else
+          0
+        end
+        record.early_leave_minutes = early_mins
+        record.status = TimeCalculator.derive_status(late_mins, early_mins)
+      else
+        # No checkout yet — record is still open
+        record.worked_minutes      = nil
+        record.early_leave_minutes = 0
+        record.status              = late_mins > 0 ? "late" : "incomplete"
+      end
+    end
+
+    # ── Post-import payroll refresh ───────────────────────────────────────────
+
+    def regenerate_affected_payrolls(affected_months, triggered_by:)
+      return if affected_months.empty?
+
+      affected_months.each do |year, month|
+        begin
+          period = PayrollPeriod.find_by(
+            business:     @business,
+            period_year:  year,
+            period_month: month,
+            status:       "draft"
+          )
+          next unless period
+
+          Payroll::PeriodGenerator.call(
+            business:     @business,
+            year:         year,
+            month:        month,
+            generated_by: triggered_by
+          )
+          Rails.logger.info(
+            "[CsvImporter] Regenerated payroll #{year}/#{month} for business=#{@business.id}"
+          )
+        rescue => e
+          # Payroll regeneration errors must never roll back a successful attendance import.
+          Rails.logger.warn(
+            "[CsvImporter] Payroll regeneration failed #{year}/#{month} " \
+            "business=#{@business.id}: #{e.class}: #{e.message}"
+          )
+        end
+      end
+    end
+
+    # ── Punch-pairing ─────────────────────────────────────────────────────────
 
     # Groups punch events by (user_id, work_date) using BusinessDay logic,
     # sorts chronologically, deduplicates exact timestamps, then pairs:
@@ -256,6 +345,8 @@ module Attendance
       end
     end
 
+    # ── Time parsing ──────────────────────────────────────────────────────────
+
     def try_parse(str)
       tz = ActiveSupport::TimeZone[@business.timezone] || ActiveSupport::TimeZone["UTC"]
       DATETIME_FORMATS.each do |fmt|
@@ -267,15 +358,6 @@ module Attendance
 
     def parse_datetime(str)
       try_parse(str) || raise("Cannot parse datetime: #{str}")
-    end
-
-    def derive_status(check_out_at)
-      check_out_at.present? ? "present" : "incomplete"
-    end
-
-    def worked_minutes(check_in_at, check_out_at)
-      return nil unless check_out_at
-      ((check_out_at - check_in_at) / 60).round
     end
   end
 end

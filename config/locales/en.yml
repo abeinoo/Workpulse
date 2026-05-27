@@ -30,6 +30,12 @@ en:
     staff: "Staff"
     operations: "Operations"
     notifications: "Notifications"
+    section_dashboard: "Dashboard"
+    section_workforce: "Workforce"
+    section_attendance: "Attendance"
+    section_payroll: "Payroll"
+    section_requests: "Requests"
+    section_administration: "Administration"
 
   auth:
     sign_in:
@@ -839,6 +845,7 @@ en:
         one: "1 Row With Errors"
         other: "%{count} Rows With Errors"
       errors_col: "Errors"
+      invalid_type: "Only CSV files are accepted."
 
   shift_assignments:
     index:
@@ -1884,10 +1891,14 @@ en:
               incompatible_with_hour_based: "Late arrival rules are not allowed for flexible (hour-based) shifts"
   date:
     formats:
+      default: "%b %-d, %Y"
+      short: "%-d %b"
       long: "%B %-d, %Y"
 
   time:
     formats:
+      default: "%b %-d, %Y %H:%M"
+      short: "%-d %b %H:%M"
       time: "%-H:%M"
 
   notifications:

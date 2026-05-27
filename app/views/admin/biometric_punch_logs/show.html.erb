@@ -45,7 +45,7 @@
       </div>
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.work_date") %></dt>
-        <dd class="data-list__value"><%= @log.work_date&.strftime("%d %b %Y") || "—" %></dd>
+        <dd class="data-list__value"><%= local_date(@log.work_date) %></dd>
       </div>
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.ip_address") %></dt>

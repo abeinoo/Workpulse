@@ -129,7 +129,7 @@
                 <% adj = @paid_adjustments[li.source_id] %>
                 <% if adj&.paid_at %>
                   <span class="payslip-breakdown__already-paid-meta">
-                    <%= adj.paid_at.in_time_zone.strftime("%-d %b") %>
+                    <%= local_short_date(adj.paid_at) %>
                     &middot; <%= t("payroll_adjustments.payment_methods.#{adj.payment_method}") if adj.payment_method %>
                   </span>
                 <% end %>
@@ -183,7 +183,7 @@
                 <%= item.description.presence || "—" %>
               </td>
               <td class="td-secondary" data-label="<%= t('payroll.entry.date_col') %>">
-                <%= source_date&.strftime("%-d %b") || "—" %>
+                <%= local_short_date(source_date) %>
               </td>
               <td class="text-right<%= struck ? ' text-muted' : ' text-danger' %>"
                   style="<%= 'text-decoration: line-through;' if struck %>"
@@ -436,13 +436,13 @@
             %>
             <tr class="<%= rec.absent? ? 'row-absent' : '' %>">
               <td class="attendance-date" data-label="<%= t('payroll.entry.date_col') %>">
-                <%= rec.date.strftime("%-d %b") %>
+                <%= local_short_date(rec.date) %>
               </td>
               <td class="td-secondary" data-label="<%= t('payroll.entry.check_in') %>">
-                <%= rec.check_in_at ? rec.check_in_at.in_time_zone.strftime("%H:%M") : "—" %>
+                <%= local_time(rec.check_in_at) %>
               </td>
               <td class="td-secondary" data-label="<%= t('payroll.entry.check_out') %>">
-                <%= rec.check_out_at ? rec.check_out_at.in_time_zone.strftime("%H:%M") : "—" %>
+                <%= local_time(rec.check_out_at) %>
               </td>
               <td class="text-right td-secondary" data-label="<%= t('payroll.entry.worked') %>">
                 <%= rec.worked_minutes ? format_minutes(rec.worked_minutes) : "—" %>
