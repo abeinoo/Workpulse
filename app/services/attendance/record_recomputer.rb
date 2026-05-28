@@ -50,10 +50,13 @@ module Attendance
 
     # Mutates record in place; returns true iff any field changed.
     def recompute!(record)
-      shift  = record.shift   # shift_assignment&.shift
-      branch = record.branch
+      shift        = record.shift   # shift_assignment&.shift
+      branch       = record.branch
+      rule_profile = record.shift_assignment&.rule_profile
 
-      new_late = shift ? TimeCalculator.late_minutes(shift, record.check_in_at, branch) : 0
+      new_late = shift ? TimeCalculator.late_minutes(
+        shift, record.check_in_at, branch, rule_profile: rule_profile
+      ) : 0
 
       if record.check_in_at.present? && record.check_out_at.present?
         worked_mins = ((record.check_out_at - record.check_in_at) / 60).to_i
@@ -61,7 +64,9 @@ module Attendance
         # early_leave_minutes: fixed-time shifts require branch for TZ lookup;
         # hour-based shifts only need worked vs required hours.
         new_early = if shift && (shift.hour_based? || branch.present?)
-          TimeCalculator.early_leave_minutes(shift, record.check_out_at, worked_mins, branch)
+          TimeCalculator.early_leave_minutes(
+            shift, record.check_out_at, worked_mins, branch, rule_profile: rule_profile
+          )
         else
           0
         end
@@ -106,7 +111,7 @@ module Attendance
       affected_periods = []   # [[business_id, year, month], ...]
 
       scope
-        .includes(:branch, :user, shift_assignment: { shift: :penalty_rules })
+        .includes(:branch, :user, shift_assignment: [ :rule_profile, { shift: :penalty_rules } ])
         .find_each do |record|
         begin
           if recompute!(record)

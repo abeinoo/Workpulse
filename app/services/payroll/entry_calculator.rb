@@ -89,7 +89,8 @@ module Payroll
       records.flat_map do |record|
         next [] if record.absent? || !record.checked_out?
 
-        items = []
+        items        = []
+        rule_profile = record.shift_assignment&.rule_profile
 
         # Partial permission reduction: approved late/early-leave requests reduce the
         # penalised minutes proportionally rather than waiving the penalty entirely.
@@ -99,9 +100,9 @@ module Payroll
         effective_early     = [ record.early_leave_minutes.to_i - early_leave_allowed, 0 ].max
 
         penalty = Attendance::PenaltyCalculator.calculate(
-          record:                    record,
-          daily_salary:              daily_rate,
-          late_minutes_override:     effective_late,
+          record:                       record,
+          daily_salary:                 daily_rate,
+          late_minutes_override:        effective_late,
           early_leave_minutes_override: effective_early
         )
 
@@ -119,7 +120,8 @@ module Payroll
           record:        record,
           daily_rate:    daily_rate,
           multiplier:    overtime_multiplier,
-          grace_minutes: @business.overtime_grace_minutes.to_i
+          grace_minutes: @business.overtime_grace_minutes.to_i,
+          rule_profile:  rule_profile
         )
         items << item("overtime", overtime.overtime_pay, record, "Overtime #{record.work_date}") if overtime.overtime_pay > 0
 

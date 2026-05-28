@@ -1,0 +1,91 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("shift_templates.index.title") %></h1>
+      <p class="page-subtitle"><%= t("shift_templates.index.subtitle") %></p>
+    </div>
+    <%= link_to t("shift_templates.index.new_template"),
+                new_admin_shift_template_path,
+                class: "btn btn-primary btn-sm" %>
+  </div>
+
+  <%# ── Tabs ── %>
+  <div class="tabs-bar">
+    <%= link_to t("shift_templates.index.tabs.active"),
+                admin_shift_templates_path(tab: "active"),
+                class: "tab-link #{'tab-link--active' if @tab == 'active'}" %>
+    <%= link_to t("shift_templates.index.tabs.archived"),
+                admin_shift_templates_path(tab: "archived"),
+                class: "tab-link #{'tab-link--active' if @tab == 'archived'}" %>
+  </div>
+
+  <% if @templates.empty? %>
+    <div class="empty-state">
+      <p class="empty-state-text">
+        <%= @tab == "archived" ? t("shift_templates.index.empty_archived") : t("shift_templates.index.empty") %>
+      </p>
+      <% if @tab == "active" %>
+        <%= link_to t("shift_templates.index.new_template"),
+                    new_admin_shift_template_path,
+                    class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="template-cards">
+      <% @templates.each do |template| %>
+        <div class="template-card">
+          <div class="template-card__header">
+            <div class="template-card__meta">
+              <h3 class="template-card__name">
+                <%= link_to template.name, admin_shift_template_path(template), class: "link" %>
+              </h3>
+              <% if template.archived? %>
+                <span class="status-badge status-badge--warning">
+                  <%= t("shift_templates.status.archived") %>
+                </span>
+              <% else %>
+                <span class="status-badge status-badge--success">
+                  <%= t("shift_templates.status.active") %>
+                </span>
+              <% end %>
+            </div>
+            <div class="template-card__actions">
+              <%= link_to t("shift_templates.show.edit"),
+                          edit_admin_shift_template_path(template),
+                          class: "link-muted" %>
+              <% if template.archived? %>
+                <%= button_to t("shift_templates.show.unarchive"),
+                              unarchive_admin_shift_template_path(template),
+                              method: :patch,
+                              class: "btn-inline link-muted" %>
+              <% else %>
+                <%= button_to t("shift_templates.show.archive"),
+                              archive_admin_shift_template_path(template),
+                              method: :patch,
+                              class: "btn-inline link-muted",
+                              data: { turbo_confirm: t("shift_templates.show.archive_confirm") } %>
+              <% end %>
+            </div>
+          </div>
+
+          <% if template.description.present? %>
+            <p class="template-card__desc"><%= template.description %></p>
+          <% end %>
+
+          <div class="template-card__footer">
+            <span class="template-card__count">
+              <%= t("shift_templates.index.entries_count", count: template.entries.size) %>
+            </span>
+            <% unless template.archived? %>
+              <%= link_to t("shift_templates.show.apply_template"),
+                          apply_admin_shift_template_path(template),
+                          class: "btn btn-sm btn-secondary" %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+</div>

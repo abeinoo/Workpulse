@@ -94,6 +94,61 @@ module ShiftAssignmentHelper
     ((elapsed.to_f / total) * 100).round
   end
 
+  # ── Temporary assignment expiry label ────────────────────────────────────────
+
+  # Returns a human-readable string describing how much time remains (or has
+  # elapsed) relative to an assignment's effective_to date.
+  # Returns nil when the assignment has no end date.
+  #
+  # Examples (EN):
+  #   "Expires today"          — effective_to == today
+  #   "Expires tomorrow"       — 1 day left
+  #   "Ends in 5 days"         — 2–7 days left
+  #   "Until 31 Mar 2026"      — 8+ days left
+  #   "Expired 3 days ago"     — already ended
+  def temporary_expiry_label(assignment)
+    return nil unless assignment.effective_to.present?
+    days = assignment.days_until_expiry
+    if days < 0
+      t("shift_assignments.temporary.expired_days_ago", count: days.abs)
+    elsif days == 0
+      t("shift_assignments.temporary.expires_today")
+    elsif days == 1
+      t("shift_assignments.temporary.expires_tomorrow")
+    elsif days <= 7
+      t("shift_assignments.temporary.expires_in_days", count: days)
+    else
+      t("shift_assignments.temporary.active_until", date: local_date(assignment.effective_to))
+    end
+  end
+
+  # ── Assignment type label + badge ────────────────────────────────────────────
+
+  # Returns a human-readable type label for an assignment:
+  #   template-sourced → template name (e.g. "Ramadan", "Summer Coverage")
+  #   manual temporary → "Temporary"
+  #   permanent        → "Permanent"
+  def assignment_type_label(assignment)
+    if assignment.source_template.present?
+      assignment.source_template.name
+    elsif assignment.temporary?
+      t("shift_assignments.type.temporary")
+    else
+      t("shift_assignments.type.permanent")
+    end
+  end
+
+  # Returns the CSS class for the assignment type badge.
+  def assignment_type_badge_class(assignment)
+    if assignment.source_template.present?
+      "badge-type-named"
+    elsif assignment.temporary?
+      "badge-type-temporary"
+    else
+      "badge-type-permanent"
+    end
+  end
+
   # ── Shift hours label ────────────────────────────────────────────────────────
 
   # "09:00 – 17:00" for fixed_time shifts (with overnight note when applicable).

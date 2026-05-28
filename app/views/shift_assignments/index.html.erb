@@ -21,14 +21,27 @@
   <%# ── Page header ─────────────────────────────────────────────────────────── %>
   <div class="page-header">
     <h1 class="page-title"><%= t("shift_assignments.index.title") %></h1>
-    <% if policy(ShiftAssignment).create? %>
+    <% if policy(ShiftAssignment).create? || policy(ShiftTemplate).index? %>
       <div class="page-header__actions">
-        <%= link_to new_shift_assignment_path, class: "btn btn-primary btn-sm" do %>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          <%= t("shift_assignments.new.title") %>
+        <% if policy(ShiftTemplate).index? %>
+          <%= link_to admin_shift_templates_path, class: "btn btn-ghost btn-sm" do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <%= t("shift_assignments.index.apply_template") %>
+          <% end %>
+        <% end %>
+        <% if policy(ShiftAssignment).create? %>
+          <%= link_to new_shift_assignment_path, class: "btn btn-primary btn-sm" do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <%= t("shift_assignments.new.title") %>
+          <% end %>
         <% end %>
       </div>
     <% end %>
@@ -64,6 +77,38 @@
       <%= link_to t("shift_assignments.tabs.#{tab}"),
             shift_assignments_path(request.query_parameters.merge(tab: tab, page: nil)),
             class: "filter-tab #{"filter-tab--active" if @tab == tab}" %>
+    <% end %>
+  </div>
+
+  <%# ── Quick type filter chips ────────────────────────────────────────────── %>
+  <div class="sa-quick-filters" role="group" aria-label="<%= t("shift_assignments.quick_filters.label") %>">
+    <%
+      at_none = params[:assignment_type].blank? && params[:source].blank? && params[:template_id].blank?
+    %>
+    <%= link_to t("shift_assignments.quick_filters.all"),
+          shift_assignments_path(request.query_parameters
+            .except("assignment_type", "source", "template_id")
+            .merge(page: nil)),
+          class: "sa-quick-filter #{at_none ? 'sa-quick-filter--active' : ''}" %>
+
+    <%= link_to t("shift_assignments.quick_filters.permanent"),
+          shift_assignments_path(request.query_parameters
+            .merge(assignment_type: "permanent", source: nil, template_id: nil, page: nil)),
+          class: "sa-quick-filter #{params[:assignment_type] == 'permanent' ? 'sa-quick-filter--active' : ''}" %>
+
+    <%= link_to t("shift_assignments.quick_filters.temporary"),
+          shift_assignments_path(request.query_parameters
+            .merge(assignment_type: "temporary", source: nil, template_id: nil, page: nil)),
+          class: "sa-quick-filter sa-quick-filter--amber #{params[:assignment_type] == 'temporary' ? 'sa-quick-filter--active' : ''}" %>
+
+    <% if @filter_templates.any? %>
+      <span class="sa-quick-filters__sep" aria-hidden="true"></span>
+      <% @filter_templates.each do |tmpl| %>
+        <%= link_to tmpl.name,
+              shift_assignments_path(request.query_parameters
+                .merge(template_id: tmpl.id, source: "template", assignment_type: nil, page: nil)),
+              class: "sa-quick-filter sa-quick-filter--named #{params[:template_id].to_s == tmpl.id.to_s ? 'sa-quick-filter--active' : ''}" %>
+      <% end %>
     <% end %>
   </div>
 
@@ -159,6 +204,35 @@
             <%= f.label :to, t("shift_assignments.index.to_label"), class: "form-label" %>
             <%= f.date_field :to, value: params[:to], class: "filter-bar__input" %>
           </div>
+
+          <%# Source %>
+          <div class="form-group">
+            <%= f.label :source, t("shift_assignments.index.source_label"), class: "form-label" %>
+            <%= f.select :source,
+                  options_for_select(
+                    [[t("shift_assignments.source.all"), ""],
+                     [t("shift_assignments.source.manual"), "manual"],
+                     [t("shift_assignments.source.template"), "template"]],
+                    params[:source]
+                  ),
+                  {},
+                  class: "filter-bar__select" %>
+          </div>
+
+          <%# Template %>
+          <% if @filter_templates.any? %>
+            <div class="form-group">
+              <%= f.label :template_id, t("shift_assignments.index.template_label"), class: "form-label" %>
+              <%= f.select :template_id,
+                    options_for_select(
+                      [[t("shift_assignments.index.all_templates"), ""]] +
+                        @filter_templates.map { |tmpl| [tmpl.name, tmpl.id] },
+                      params[:template_id]
+                    ),
+                    {},
+                    class: "filter-bar__select" %>
+            </div>
+          <% end %>
 
         </div>
 
@@ -404,7 +478,7 @@
   <%# timeline_pct is provided by ShiftAssignmentHelper (takes one assignment arg) %>
 
   <div class="table-wrap table-wrap--cards">
-    <% col_count = can_bulk ? 10 : 9 %>
+    <% col_count = can_bulk ? 11 : 10 %>
     <table>
       <thead>
         <tr>
@@ -418,6 +492,7 @@
           <% end %>
           <th><%= t("shift_assignments.employee") %></th>
           <th><%= t("shift_assignments.shift") %></th>
+          <th><%= t("shift_assignments.type.column_header") %></th>
           <th><%= t("shift_assignments.branch") %></th>
           <th><%= t("shift_assignments.status") %></th>
           <th><%= t("shift_assignments.from_date") %></th>
@@ -436,7 +511,7 @@
             fill_cls   = a.future? ? "upcoming" : (a.current? ? (a.effective_to.nil? ? "open" : "active") : "ended")
             pct        = timeline_pct(a)
           %>
-          <tr>
+          <tr class="<%= "sa-row--temporary" if a.temporary? %>">
             <% if can_bulk %>
               <td class="td-check">
                 <%#
@@ -467,14 +542,35 @@
               </div>
             </td>
 
-            <%# Shift with overnight badge %>
+            <%# Shift with overnight badge + template sub-line %>
             <td class="td-secondary" data-label="<%= t("shift_assignments.shift") %>">
-              <%= link_to shift.name, shift_path(shift), class: "link-muted" %>
-              <% if overnight %>
-                <span class="badge badge-warning badge--xs">
-                  <%= t("shifts.overnight_badge") %>
+              <div>
+                <%= link_to shift.name, shift_path(shift), class: "link-muted" %>
+                <% if overnight %>
+                  <span class="badge badge-warning badge--xs">
+                    <%= t("shifts.overnight_badge") %>
+                  </span>
+                <% end %>
+                <% if a.source_template %>
+                  <div class="sa-shift-template-name">
+                    <%= a.source_template.name %>
+                  </div>
+                <% end %>
+              </div>
+            </td>
+
+            <%# Assignment type cell: badge + expiry line %>
+            <td data-label="<%= t("shift_assignments.type.column_header") %>">
+              <div class="sa-type-cell">
+                <span class="badge <%= assignment_type_badge_class(a) %> badge--xs">
+                  <%= assignment_type_label(a) %>
                 </span>
-              <% end %>
+                <% if a.effective_to.present? %>
+                  <div class="sa-type-expiry <%= "sa-type-expiry--urgent" if a.expiring_soon? %>">
+                    <%= temporary_expiry_label(a) %>
+                  </div>
+                <% end %>
+              </div>
             </td>
 
             <td class="td-secondary" data-label="<%= t("shift_assignments.branch") %>">
@@ -489,6 +585,20 @@
               <span class="badge <%= badge_cls %>">
                 <%= t("shift_assignments.#{status_key}") %>
               </span>
+              <% if a.temporary? %>
+                <div class="temp-indicator">
+                  <span class="badge <%= a.expiring_soon? ? "badge-expiring" : "badge-temporary" %> badge--xs">
+                    <%= a.expiring_soon? ?
+                          t("shift_assignments.temporary.expiring_badge") :
+                          t("shift_assignments.temporary.badge") %>
+                  </span>
+                  <% if a.effective_to.present? %>
+                    <span class="temp-expiry-text <%= "temp-expiry-text--urgent" if a.expiring_soon? %>">
+                      <%= temporary_expiry_label(a) %>
+                    </span>
+                  <% end %>
+                </div>
+              <% end %>
             </td>
 
             <td class="td-secondary" data-label="<%= t("shift_assignments.from_date") %>">
@@ -530,6 +640,21 @@
                 </span>
               <% else %>
                 <span class="text-muted">—</span>
+              <% end %>
+              <% if a.source_template %>
+                <div class="sa-template-origin">
+                  <span class="badge badge-template badge--xs"
+                        title="<%= t("shift_assignments.via_template", name: a.source_template.name) %>">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                      <line x1="16" y1="2" x2="16" y2="6"/>
+                      <line x1="8" y1="2" x2="8" y2="6"/>
+                      <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    <%= a.source_template.name %>
+                  </span>
+                </div>
               <% end %>
             </td>
 

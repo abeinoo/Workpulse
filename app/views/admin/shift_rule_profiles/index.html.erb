@@ -1,0 +1,143 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("shift_rule_profiles.index.title") %></h1>
+      <p class="page-subtitle"><%= t("shift_rule_profiles.index.subtitle") %></p>
+    </div>
+    <% if policy(ShiftRuleProfile).create? %>
+      <div class="page-header__actions">
+        <%= link_to new_admin_shift_rule_profile_path, class: "btn btn-primary btn-sm" do %>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <%= t("shift_rule_profiles.index.new_profile") %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Concept explainer ── %>
+  <div class="concept-trio">
+    <div class="concept-trio__item">
+      <div class="concept-trio__icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div>
+        <div class="concept-trio__label"><%= t("shift_rule_profiles.concept.shift_type_label") %></div>
+        <div class="concept-trio__desc"><%= t("shift_rule_profiles.concept.shift_type_desc") %></div>
+      </div>
+    </div>
+    <div class="concept-trio__sep" aria-hidden="true">→</div>
+    <div class="concept-trio__item concept-trio__item--active">
+      <div class="concept-trio__icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+        </svg>
+      </div>
+      <div>
+        <div class="concept-trio__label"><%= t("shift_rule_profiles.concept.rule_label") %></div>
+        <div class="concept-trio__desc"><%= t("shift_rule_profiles.concept.rule_desc") %></div>
+      </div>
+    </div>
+    <div class="concept-trio__sep" aria-hidden="true">→</div>
+    <div class="concept-trio__item">
+      <div class="concept-trio__icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </div>
+      <div>
+        <div class="concept-trio__label"><%= t("shift_rule_profiles.concept.template_label") %></div>
+        <div class="concept-trio__desc"><%= t("shift_rule_profiles.concept.template_desc") %></div>
+      </div>
+    </div>
+  </div>
+
+  <% if @profiles.empty? %>
+    <div class="empty-state">
+      <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+      </svg>
+      <p class="empty-state__title"><%= t("shift_rule_profiles.index.empty") %></p>
+      <% if policy(ShiftRuleProfile).create? %>
+        <div class="empty-state__actions">
+          <%= link_to t("shift_rule_profiles.index.new_profile"),
+                      new_admin_shift_rule_profile_path,
+                      class: "btn btn-primary btn-sm" %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rule-profile-grid">
+      <% @profiles.each do |profile| %>
+        <div class="rule-profile-card">
+          <div class="rule-profile-card__header">
+            <div>
+              <div class="rule-profile-card__name">
+                <%= link_to profile.name, admin_shift_rule_profile_path(profile), class: "link-muted" %>
+              </div>
+              <% if profile.description.present? %>
+                <div class="rule-profile-card__desc text-muted text-sm"><%= profile.description %></div>
+              <% end %>
+            </div>
+            <span class="<%= profile.active? ? 'status-badge status-badge--success' : 'status-badge status-badge--warning' %>">
+              <%= profile.active? ? t("shift_rule_profiles.status.active") : t("shift_rule_profiles.status.inactive") %>
+            </span>
+          </div>
+
+          <div class="rule-profile-card__specs">
+            <% if profile.expected_work_hours.present? %>
+              <div class="rule-spec">
+                <span class="rule-spec__label"><%= t("shift_rule_profiles.fields.expected_work_hours") %></span>
+                <span class="rule-spec__value"><%= profile.expected_work_hours %>h</span>
+              </div>
+            <% end %>
+            <% if profile.late_grace_minutes.present? %>
+              <div class="rule-spec">
+                <span class="rule-spec__label"><%= t("shift_rule_profiles.fields.late_grace_minutes") %></span>
+                <span class="rule-spec__value"><%= profile.late_grace_minutes %> min</span>
+              </div>
+            <% end %>
+            <% if profile.early_leave_grace_minutes.present? %>
+              <div class="rule-spec">
+                <span class="rule-spec__label"><%= t("shift_rule_profiles.fields.early_leave_grace_minutes") %></span>
+                <span class="rule-spec__value"><%= profile.early_leave_grace_minutes %> min</span>
+              </div>
+            <% end %>
+            <div class="rule-spec">
+              <span class="rule-spec__label"><%= t("shift_rule_profiles.fields.overtime_enabled") %></span>
+              <span class="rule-spec__value">
+                <%= profile.overtime_enabled? ? t("forms.yes") : t("forms.no") %>
+                <% if profile.overtime_enabled? && profile.overtime_multiplier.present? %>
+                  (×<%= profile.overtime_multiplier %>)
+                <% end %>
+              </span>
+            </div>
+          </div>
+
+          <% if policy(profile).update? %>
+            <div class="rule-profile-card__actions">
+              <%= link_to t("forms.edit"), edit_admin_shift_rule_profile_path(profile),
+                          class: "btn-inline" %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+</div>

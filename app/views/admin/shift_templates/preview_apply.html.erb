@@ -1,0 +1,192 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("shift_templates.preview.title") %></h1>
+      <p class="page-subtitle"><%= @template.name %></p>
+    </div>
+    <%= link_to t("shift_templates.preview.back"),
+                apply_admin_shift_template_path(@template),
+                class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <%# ── Summary banner ── %>
+  <%
+    valid_count   = @preview_rows.count(&:valid?)
+    warning_count = @preview_rows.count(&:warning?)
+    blocked_count = @preview_rows.count(&:blocked?)
+  %>
+
+  <div class="preview-summary">
+    <div class="preview-stat preview-stat--valid">
+      <span class="preview-stat__num"><%= valid_count %></span>
+      <span><%= t("shift_templates.preview.will_create") %></span>
+    </div>
+    <% if warning_count > 0 %>
+      <div class="preview-stat preview-stat--warning">
+        <span class="preview-stat__num"><%= warning_count %></span>
+        <span><%= t("shift_templates.preview.with_warnings") %></span>
+      </div>
+    <% end %>
+    <% if blocked_count > 0 %>
+      <div class="preview-stat preview-stat--blocked">
+        <span class="preview-stat__num"><%= blocked_count %></span>
+        <span><%= t("shift_templates.preview.will_skip") %></span>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Warning banner ── %>
+  <% if blocked_count > 0 %>
+    <div class="alert alert-warning">
+      <%= t("shift_templates.preview.blocked_warning", count: blocked_count) %>
+    </div>
+  <% end %>
+
+  <%# ── Employee cards ── %>
+  <% if @preview_rows.empty? %>
+    <div class="empty-state">
+      <p class="empty-state-text"><%= t("shift_templates.preview.no_rows") %></p>
+    </div>
+  <% else %>
+    <%
+      rows_by_employee = @preview_rows.group_by(&:user)
+    %>
+    <div class="preview-employee-list">
+      <% rows_by_employee.each do |employee, rows| %>
+        <%
+          emp_valid   = rows.count(&:valid?)
+          emp_warning = rows.count(&:warning?)
+          emp_blocked = rows.count(&:blocked?)
+          has_issues  = emp_warning > 0 || emp_blocked > 0
+        %>
+        <div class="preview-employee-card <%= 'preview-employee-card--issues' if has_issues %>">
+
+          <div class="preview-employee-card__header">
+            <strong class="preview-employee-card__name"><%= employee.full_name %></strong>
+            <div class="preview-employee-card__badges">
+              <% if emp_valid > 0 %>
+                <span class="status-badge status-badge--success">
+                  <%= t("shift_templates.preview.assignments_count", count: emp_valid) %>
+                </span>
+              <% end %>
+              <% if emp_warning > 0 %>
+                <span class="status-badge status-badge--warning"
+                      title="<%= t("shift_templates.preview.with_warnings") %>">
+                  <%= t("shift_templates.preview.warnings_count", count: emp_warning) %>
+                </span>
+              <% end %>
+              <% if emp_blocked > 0 %>
+                <span class="status-badge status-badge--danger">
+                  <%= t("shift_templates.preview.skipped_count", count: emp_blocked) %>
+                </span>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="preview-assignment-list">
+            <% rows.each do |row| %>
+              <div class="preview-assignment preview-assignment--<%= row.status %>">
+
+                <%# Period ── calendar icon + date range %>
+                <div class="preview-assignment__period">
+                  <svg class="preview-assignment__icon" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  <span>
+                    <%= l(row.effective_from, format: :short) %>
+                    <% if row.effective_to != row.effective_from %>
+                      → <%= l(row.effective_to, format: :short) %>
+                    <% end %>
+                  </span>
+                </div>
+
+                <%# Shift name ── clock icon %>
+                <div class="preview-assignment__shift">
+                  <svg class="preview-assignment__icon" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  <%= row.entry.shift_name %>
+                </div>
+
+                <%# Scheduling Rule (if any) ── clipboard icon %>
+                <% if row.entry.rule_profile.present? %>
+                  <div class="preview-assignment__rule">
+                    <svg class="preview-assignment__icon" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                      <rect x="9" y="3" width="6" height="4" rx="1"/>
+                    </svg>
+                    <%= row.entry.rule_profile.name %>
+                  </div>
+                <% end %>
+
+                <%# Status badge ── right-aligned %>
+                <div class="preview-assignment__status">
+                  <% case row.status %>
+                  <% when :valid %>
+                    <span class="status-badge status-badge--success">
+                      <%= t("shift_templates.preview.valid") %>
+                    </span>
+                  <% when :warning %>
+                    <span class="status-badge status-badge--warning"
+                          title="<%= conflict_reason_label(row.conflict&.reason) %>">
+                      <%= t("shift_templates.preview.warning") %>
+                    </span>
+                    <span class="preview-assignment__conflict-reason">
+                      <%= conflict_reason_label(row.conflict&.reason) %>
+                    </span>
+                  <% when :blocked %>
+                    <span class="status-badge status-badge--danger"
+                          title="<%= conflict_reason_label(row.conflict&.reason) %>">
+                      <%= t("shift_templates.preview.blocked") %>
+                    </span>
+                    <span class="preview-assignment__conflict-reason">
+                      <%= conflict_reason_label(row.conflict&.reason) %>
+                    </span>
+                  <% end %>
+                </div>
+
+              </div>
+            <% end %>
+          </div>
+
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Confirm form ── %>
+  <% if valid_count > 0 || warning_count > 0 %>
+    <%= form_with url: apply_confirm_admin_shift_template_path(@template), method: :post do |f| %>
+      <% @employees.each do |emp| %>
+        <input type="hidden" name="employee_ids[]" value="<%= emp.id %>">
+      <% end %>
+
+      <div class="form-actions">
+        <%= f.submit t("shift_templates.preview.confirm",
+                       count: valid_count + warning_count),
+                     class: "btn btn-primary" %>
+        <%= link_to t("shift_templates.preview.back"),
+                    apply_admin_shift_template_path(@template),
+                    class: "btn btn-ghost" %>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="form-actions">
+      <%= link_to t("shift_templates.preview.back"),
+                  apply_admin_shift_template_path(@template),
+                  class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+
+</div>

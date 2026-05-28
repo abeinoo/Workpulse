@@ -50,14 +50,26 @@ class ShiftAssignmentsController < ApplicationController
     end
     base = base.where("effective_from >= ?", params[:from]) if params[:from].present?
     base = base.where("effective_from <= ?", params[:to])   if params[:to].present?
+    base = base.from_template                               if params[:source] == "template"
+    base = base.manual                                      if params[:source] == "manual"
+    base = base.for_template(params[:template_id])          if params[:template_id].present?
+    case params[:assignment_type]
+    when "permanent"
+      base = base.manual.where(effective_to: nil)
+    when "temporary"
+      base = base.where("effective_to IS NOT NULL OR source_template_id IS NOT NULL")
+    end
 
-    @active_filter_count = [ params[:q], params[:branch_id],
-                              params[:shift_type], params[:from], params[:to] ]
+    @active_filter_count = [ params[:q], params[:branch_id], params[:shift_type],
+                              params[:from], params[:to],
+                              params[:source], params[:template_id],
+                              params[:assignment_type] ]
                              .count(&:present?)
 
     # ── Filter drop-down data ─────────────────────────────────────────────────
-    @filter_branches = Branch.for_business(current_user.business).active.order(:name)
-    @filter_shifts   = Shift.for_business(current_user.business).active.order(:name)
+    @filter_branches  = Branch.for_business(current_user.business).active.order(:name)
+    @filter_shifts    = Shift.for_business(current_user.business).active.order(:name)
+    @filter_templates = ShiftTemplate.for_business(current_user.business).order(:name)
 
     # ── Pagination ────────────────────────────────────────────────────────────
     @page        = [ params[:page].to_i, 1 ].max
@@ -69,7 +81,7 @@ class ShiftAssignmentsController < ApplicationController
     # SELECT also inlines a sub-exists for has_attendance so that
     # policy(a).destroy? / a.deletable? never fires per-row queries.
     @assignments = base
-      .includes(:user, :shift, :branch, :created_by)
+      .includes(:user, :shift, :branch, :created_by, :source_template)
       .select(
         "shift_assignments.*",
         Arel.sql(
@@ -317,7 +329,8 @@ class ShiftAssignmentsController < ApplicationController
   end
 
   def load_form_data
-    @shifts = Shift.for_business(current_user.business).active.order(:name)
+    @shifts        = Shift.for_business(current_user.business).active.order(:name)
+    @rule_profiles = ShiftRuleProfile.for_business(current_user.business).active.order(:name)
     if current_user.owner?
       @employees = User.where(business: current_user.business)
                        .where.not(id: current_user.business.owner_id)
@@ -335,7 +348,8 @@ class ShiftAssignmentsController < ApplicationController
 
   def assignment_params
     params.require(:shift_assignment)
-          .permit(:user_id, :shift_id, :branch_id, :effective_from, :effective_to)
+          .permit(:user_id, :shift_id, :branch_id, :effective_from, :effective_to,
+                  :shift_rule_profile_id)
   end
 
   def update_params

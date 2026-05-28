@@ -136,9 +136,9 @@
              aria-hidden="true"></div>
 
         <%# Card %>
-        <div class="timeline-card timeline-card--<%= mod %>">
+        <div class="timeline-card timeline-card--<%= mod %><%= " timeline-card--temporary" if a.temporary? %>">
 
-          <%# ── Header: shift name + status + overnight ── %>
+          <%# ── Header: shift name + status + temporary + overnight ── %>
           <div class="timeline-card__header">
             <h3 class="timeline-card__title">
               <%= link_to shift.name, shift_path(shift),
@@ -149,6 +149,15 @@
               <span class="badge <%= timeline_status_badge(a) %>">
                 <%= timeline_status_label(a) %>
               </span>
+
+              <%# Temporary / expiring badge — replaces plain status context with urgency %>
+              <% if a.temporary? %>
+                <span class="badge <%= a.expiring_soon? ? "badge-expiring" : "badge-temporary" %> badge--xs">
+                  <%= a.expiring_soon? ?
+                        t("shift_timeline.expiring_soon_badge") :
+                        t("shift_timeline.temporary_badge") %>
+                </span>
+              <% end %>
 
               <% if shift.overnight? %>
                 <span class="timeline-overnight" aria-label="<%= t("shift_timeline.overnight_label") %>">
@@ -193,6 +202,35 @@
             </span>
 
           </div>
+
+          <%# ── Temporary expiry notice ── %>
+          <% if a.temporary? && a.effective_to.present? && (a.current? || a.future?) %>
+            <% nxt = @next_assignments&.[](a.id) %>
+            <div class="temp-expiry-notice <%= "temp-expiry-notice--urgent" if a.expiring_soon? %>">
+              <div class="temp-expiry-notice__row">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <strong><%= temporary_expiry_label(a) %></strong>
+              </div>
+              <% if nxt %>
+                <div class="temp-revert-note">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="9 10 4 15 9 20"/>
+                    <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
+                  </svg>
+                  <%= t("shift_timeline.reverts_to",
+                        shift: nxt.shift.name,
+                        date:  local_date(nxt.effective_from)) %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
 
           <%# ── Period with progress bar ── %>
           <div class="timeline-period">
@@ -254,6 +292,36 @@
                     <%= local_date(a.effective_to) %>
                   </time>
                 <% end %>
+              </span>
+            <% end %>
+
+            <% if a.source_template %>
+              <span class="timeline-audit-item timeline-audit-item--template">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <%= t("shift_timeline.via_template") %>:
+                <%= link_to a.source_template.name,
+                            admin_shift_template_path(a.source_template),
+                            class: "link-muted" %>
+              </span>
+            <% end %>
+
+            <% if a.rule_profile %>
+              <span class="timeline-audit-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1"/>
+                </svg>
+                <%= t("shift_timeline.scheduling_rule") %>:
+                <strong><%= a.rule_profile.name %></strong>
               </span>
             <% end %>
           </div>

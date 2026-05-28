@@ -270,6 +270,57 @@ RSpec.describe ShiftAssignmentHelper, type: :helper do
     end
   end
 
+  # ── temporary_expiry_label ────────────────────────────────────────────────
+
+  describe "#temporary_expiry_label" do
+    it "returns nil when the assignment has no effective_to" do
+      a = make_assignment(from: 10.days.ago.to_date, to: nil)
+      expect(helper.temporary_expiry_label(a)).to be_nil
+    end
+
+    it "returns 'Expires today' when effective_to is today" do
+      a = make_assignment(from: 10.days.ago.to_date, to: Date.current)
+      expect(helper.temporary_expiry_label(a)).to eq(
+        I18n.t("shift_assignments.temporary.expires_today")
+      )
+    end
+
+    it "returns 'Expires tomorrow' when 1 day remains" do
+      a = make_assignment(from: 10.days.ago.to_date, to: 1.day.from_now.to_date)
+      expect(helper.temporary_expiry_label(a)).to eq(
+        I18n.t("shift_assignments.temporary.expires_tomorrow")
+      )
+    end
+
+    it "returns 'Ends in N days' for 2–7 days remaining" do
+      a = make_assignment(from: 10.days.ago.to_date, to: 5.days.from_now.to_date)
+      result = helper.temporary_expiry_label(a)
+      expect(result).to include("5")
+    end
+
+    it "returns 'Until DATE' for 8+ days remaining" do
+      future_date = 30.days.from_now.to_date
+      a = make_assignment(from: 10.days.ago.to_date, to: future_date)
+      result = helper.temporary_expiry_label(a)
+      expect(result).to include(I18n.t("shift_assignments.temporary.active_until",
+                                        date: helper.local_date(future_date)).split(" ").last)
+    end
+
+    it "returns expired message when effective_to is in the past" do
+      a = make_assignment(from: 30.days.ago.to_date, to: 3.days.ago.to_date)
+      result = helper.temporary_expiry_label(a)
+      expect(result).to include("3")
+    end
+
+    %i[en ar].each do |locale|
+      it "renders without raising in #{locale}" do
+        I18n.locale = locale
+        a = make_assignment(from: 10.days.ago.to_date, to: 5.days.from_now.to_date)
+        expect { helper.temporary_expiry_label(a) }.not_to raise_error
+      end
+    end
+  end
+
   # ── Integration: consistent EN + AR rendering ─────────────────────────────
 
   describe "locale consistency" do

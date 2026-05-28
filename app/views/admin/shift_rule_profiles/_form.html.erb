@@ -1,0 +1,134 @@
+<%= form_with model: [:admin, profile], class: "form-card" do |f| %>
+
+  <%= render "shared/error_messages", resource: profile %>
+
+  <%# ── Identity ── %>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :name, t("shift_rule_profiles.fields.name"), class: "form-label form-label--required" %>
+      <%= f.text_field :name,
+            class: "form-control #{'is-error' if profile.errors[:name].any?}",
+            placeholder: t("shift_rule_profiles.form.name_placeholder") %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :description, t("shift_rule_profiles.fields.description"), class: "form-label" %>
+      <%= f.text_area :description,
+            class: "form-control",
+            rows: 2,
+            placeholder: t("shift_rule_profiles.form.description_placeholder") %>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── What a Scheduling Rule overrides ── %>
+  <div class="concept-hint-box">
+    <p><%= t("shift_rule_profiles.form.concept_note") %></p>
+    <ul class="concept-hint-box__list">
+      <li><%= t("shift_rule_profiles.form.concept_note_1") %></li>
+      <li><%= t("shift_rule_profiles.form.concept_note_2") %></li>
+      <li><%= t("shift_rule_profiles.form.concept_note_3") %></li>
+    </ul>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── Work-hour rules ── %>
+  <div class="form-section">
+    <h3 class="section-title"><%= t("shift_rule_profiles.form.work_hours_section") %></h3>
+    <p class="form-hint"><%= t("shift_rule_profiles.form.work_hours_hint") %></p>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :expected_work_hours, t("shift_rule_profiles.fields.expected_work_hours"), class: "form-label" %>
+        <%= f.number_field :expected_work_hours,
+              class: "form-control",
+              step: 0.5, min: 0.5, max: 24,
+              placeholder: t("shift_rule_profiles.form.optional_placeholder") %>
+        <p class="form-hint"><%= t("shift_rule_profiles.hints.expected_work_hours") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :break_minutes, t("shift_rule_profiles.fields.break_minutes"), class: "form-label" %>
+        <%= f.number_field :break_minutes,
+              class: "form-control",
+              min: 0,
+              placeholder: t("shift_rule_profiles.form.optional_placeholder") %>
+        <p class="form-hint"><%= t("shift_rule_profiles.hints.break_minutes") %></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── Grace windows ── %>
+  <div class="form-section">
+    <h3 class="section-title"><%= t("shift_rule_profiles.form.grace_section") %></h3>
+    <p class="form-hint"><%= t("shift_rule_profiles.form.grace_hint") %></p>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :late_grace_minutes, t("shift_rule_profiles.fields.late_grace_minutes"), class: "form-label" %>
+        <%= f.number_field :late_grace_minutes,
+              class: "form-control",
+              min: 0,
+              placeholder: t("shift_rule_profiles.form.optional_placeholder") %>
+        <p class="form-hint"><%= t("shift_rule_profiles.hints.late_grace_minutes") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :early_leave_grace_minutes, t("shift_rule_profiles.fields.early_leave_grace_minutes"), class: "form-label" %>
+        <%= f.number_field :early_leave_grace_minutes,
+              class: "form-control",
+              min: 0,
+              placeholder: t("shift_rule_profiles.form.optional_placeholder") %>
+        <p class="form-hint"><%= t("shift_rule_profiles.hints.early_leave_grace_minutes") %></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── Overtime policy ── %>
+  <div class="form-section">
+    <h3 class="section-title"><%= t("shift_rule_profiles.form.overtime_section") %></h3>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <div class="form-check">
+          <%= f.check_box :overtime_enabled, class: "form-check__input" %>
+          <%= f.label :overtime_enabled, t("shift_rule_profiles.fields.overtime_enabled"),
+                class: "form-check__label" %>
+        </div>
+        <p class="form-hint"><%= t("shift_rule_profiles.hints.overtime_enabled") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :overtime_multiplier, t("shift_rule_profiles.fields.overtime_multiplier"), class: "form-label" %>
+        <%= f.number_field :overtime_multiplier,
+              class: "form-control",
+              step: 0.25, min: 1,
+              placeholder: t("shift_rule_profiles.form.optional_placeholder") %>
+        <p class="form-hint"><%= t("shift_rule_profiles.hints.overtime_multiplier") %></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── Active toggle ── %>
+  <div class="form-group">
+    <div class="form-check">
+      <%= f.check_box :active, class: "form-check__input" %>
+      <%= f.label :active, t("shift_rule_profiles.fields.active"), class: "form-check__label" %>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit(profile.persisted? ? t("shift_rule_profiles.form.submit_update") : t("shift_rule_profiles.form.submit_create"),
+                 class: "btn btn-primary") %>
+    <%= link_to t("forms.cancel"), admin_shift_rule_profiles_path, class: "btn btn-ghost" %>
+  </div>
+
+<% end %>

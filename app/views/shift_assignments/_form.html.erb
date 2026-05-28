@@ -48,6 +48,17 @@
       <%= f.date_field :effective_to, class: "form-control" %>
       <p class="form-hint"><%= t("shift_assignments.form.end_hint") %></p>
     </div>
+
+    <% if @rule_profiles&.any? %>
+      <div class="form-group">
+        <%= f.label :shift_rule_profile_id, t("shift_assignments.form.rule_profile"), class: "form-label" %>
+        <%= f.select :shift_rule_profile_id,
+              @rule_profiles.map { |p| [p.name, p.id] },
+              { include_blank: t("shift_assignments.form.no_rule_profile") },
+              class: "form-control" %>
+        <p class="form-hint"><%= t("shift_assignments.form.rule_profile_hint") %></p>
+      </div>
+    <% end %>
   </div>
 
   <div class="form-actions">

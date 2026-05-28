@@ -1,9 +1,12 @@
 class ShiftAssignment < ApplicationRecord
   belongs_to :user
   belongs_to :shift
-  belongs_to :branch,     optional: true
-  belongs_to :created_by, class_name: "User", optional: true
-  belongs_to :ended_by,   class_name: "User", optional: true
+  belongs_to :branch,       optional: true
+  belongs_to :rule_profile, class_name: "ShiftRuleProfile",
+                            foreign_key: :shift_rule_profile_id, optional: true
+  belongs_to :created_by,      class_name: "User",          optional: true
+  belongs_to :ended_by,        class_name: "User",          optional: true
+  belongs_to :source_template, class_name: "ShiftTemplate", optional: true
 
   validates :effective_from, presence: true
   validate  :effective_to_after_effective_from
@@ -21,9 +24,12 @@ class ShiftAssignment < ApplicationRecord
   scope :expired,  -> {
     where("effective_to IS NOT NULL AND effective_to < ?", Date.current)
   }
-  scope :for_business, ->(business) {
+  scope :for_business,     ->(business) {
     joins(:user).where(users: { business_id: business.id })
   }
+  scope :from_template,    -> { where.not(source_template_id: nil) }
+  scope :manual,           -> { where(source_template_id: nil) }
+  scope :for_template,     ->(id) { where(source_template_id: id) }
 
   delegate :name, to: :shift,  prefix: true
   delegate :name, to: :branch, prefix: true, allow_nil: true
@@ -67,6 +73,39 @@ class ShiftAssignment < ApplicationRecord
     !has_attendance_records?
   end
 
+  def template_sourced?
+    source_template_id.present?
+  end
+
+  # An assignment is temporary when it has a defined end date (date-bounded)
+  # or was generated from a scheduling template (structured, not ad-hoc).
+  # Open-ended manual assignments are considered permanent.
+  def temporary?
+    effective_to.present? || source_template_id.present?
+  end
+
+  def active_temporary?
+    temporary? && current?
+  end
+
+  def expired_temporary?
+    temporary? && historical?
+  end
+
+  # Days remaining until effective_to. Negative means already passed.
+  # Returns nil when the assignment has no end date.
+  def days_until_expiry
+    return nil unless effective_to.present?
+    (effective_to - Date.current).to_i
+  end
+
+  # True when the assignment ends within 7 days (including today).
+  def expiring_soon?
+    days = days_until_expiry
+    return false if days.nil?
+    days.between?(0, 7)
+  end
+
   private
 
   def effective_to_after_effective_from
@@ -83,14 +122,18 @@ class ShiftAssignment < ApplicationRecord
     base_scope = branch_id ? base_scope.where(branch_id: branch_id)
                            : base_scope.where(branch_id: nil)
 
-    overlap = base_scope
+    overlapping = base_scope
       .where("effective_from <= ?", range_end)
       .where("effective_to IS NULL OR effective_to >= ?", effective_from)
       .exists?
 
-    msg = branch_id ? "Overlaps with an existing assignment for this user in this branch"
-                    : "Overlaps with an existing unassigned shift for this user"
-    errors.add(:base, msg) if overlap
+    return unless overlapping
+
+    if branch_id
+      errors.add(:base, I18n.t("shift_assignments.errors.overlapping_branch"))
+    else
+      errors.add(:base, I18n.t("shift_assignments.errors.overlapping_unassigned"))
+    end
   end
 
   # Prevents assigning two fixed-time shifts whose clock hours overlap on any

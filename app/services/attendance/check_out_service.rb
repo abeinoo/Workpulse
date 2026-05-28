@@ -23,7 +23,10 @@ module Attendance
       now              = Time.current
       worked_mins      = ((now - record.check_in_at) / 60).to_i
       shift            = record.shift_assignment&.shift
-      early_leave_mins = shift ? TimeCalculator.early_leave_minutes(shift, now, worked_mins, @branch) : 0
+      rule_profile     = record.shift_assignment&.rule_profile
+      early_leave_mins = shift ? TimeCalculator.early_leave_minutes(
+        shift, now, worked_mins, @branch, rule_profile: rule_profile
+      ) : 0
 
       record.assign_attributes(
         check_out_at:        now,

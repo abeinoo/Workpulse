@@ -152,10 +152,26 @@ class Admin::UsersController < Admin::BaseController
 
     # ── Eager-loaded paginated slice ──────────────────────────────────────
     @shift_assignments = base
-      .includes(:shift, :branch, :created_by, :ended_by)
+      .includes(:shift, :branch, :created_by, :ended_by, :source_template, :rule_profile)
       .order(effective_from: :desc)
       .offset((@timeline_page - 1) * TIMELINE_PER_PAGE)
       .limit(TIMELINE_PER_PAGE)
+
+    # ── Next-assignment lookup for active temporary assignments ───────────
+    # For each active assignment that has an end date, find the next one
+    # starting after it ends so we can show "Resumes: ShiftName from DATE".
+    active_bounded = @shift_assignments.select { |a| a.effective_to.present? && a.current? }
+    if active_bounded.any?
+      @next_assignments = active_bounded.each_with_object({}) do |a, hash|
+        hash[a.id] = @user.shift_assignments
+                          .where("effective_from > ?", a.effective_to)
+                          .includes(:shift)
+                          .order(:effective_from)
+                          .first
+      end
+    else
+      @next_assignments = {}
+    end
   end
 
   def load_managers

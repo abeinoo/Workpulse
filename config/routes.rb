@@ -121,6 +121,18 @@ Rails.application.routes.draw do
         patch :cancel
       end
     end
+
+    resources :shift_templates do
+      member do
+        patch :archive
+        patch :unarchive
+        get   :apply
+        post  :preview_apply
+        post  :apply_confirm
+      end
+    end
+
+    resources :shift_rule_profiles
   end
 
   # ── Standalone Adjustments (pre-payroll, manager creates / admin approves) ─

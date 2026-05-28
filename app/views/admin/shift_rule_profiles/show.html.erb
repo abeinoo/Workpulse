@@ -1,0 +1,112 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= @profile.name %></h1>
+      <% if @profile.description.present? %>
+        <p class="page-subtitle"><%= @profile.description %></p>
+      <% end %>
+    </div>
+    <div class="page-header__actions">
+      <%= link_to t("forms.edit"),
+                  edit_admin_shift_rule_profile_path(@profile),
+                  class: "btn btn-ghost btn-sm" %>
+      <%= link_to t("shift_rule_profiles.index.title"),
+                  admin_shift_rule_profiles_path,
+                  class: "btn btn-ghost btn-sm" %>
+    </div>
+  </div>
+
+  <div class="detail-meta">
+    <span class="<%= @profile.active? ? 'status-badge status-badge--success' : 'status-badge status-badge--warning' %>">
+      <%= @profile.active? ? t("shift_rule_profiles.status.active") : t("shift_rule_profiles.status.inactive") %>
+    </span>
+    <span class="text-muted text-sm">
+      <%= t("shift_rule_profiles.show.assignments_count", count: @profile.shift_assignments.count) %>
+    </span>
+  </div>
+
+  <%# ── Work-hour rules ── %>
+  <div class="section-card">
+    <h2 class="section-card__title"><%= t("shift_rule_profiles.show.work_hours_section") %></h2>
+    <div class="rule-detail-grid">
+      <div class="rule-detail-item">
+        <div class="rule-detail-item__label"><%= t("shift_rule_profiles.fields.expected_work_hours") %></div>
+        <div class="rule-detail-item__value">
+          <%= @profile.expected_work_hours.present? ? "#{@profile.expected_work_hours}h" : t("shift_rule_profiles.show.inherit_shift") %>
+        </div>
+        <div class="rule-detail-item__hint text-muted text-xs"><%= t("shift_rule_profiles.hints.expected_work_hours") %></div>
+      </div>
+
+      <div class="rule-detail-item">
+        <div class="rule-detail-item__label"><%= t("shift_rule_profiles.fields.break_minutes") %></div>
+        <div class="rule-detail-item__value">
+          <%= @profile.break_minutes.present? ? "#{@profile.break_minutes} min" : t("shift_rule_profiles.show.none") %>
+        </div>
+        <div class="rule-detail-item__hint text-muted text-xs"><%= t("shift_rule_profiles.hints.break_minutes") %></div>
+      </div>
+    </div>
+  </div>
+
+  <%# ── Grace windows ── %>
+  <div class="section-card">
+    <h2 class="section-card__title"><%= t("shift_rule_profiles.show.grace_section") %></h2>
+    <div class="rule-detail-grid">
+      <div class="rule-detail-item">
+        <div class="rule-detail-item__label"><%= t("shift_rule_profiles.fields.late_grace_minutes") %></div>
+        <div class="rule-detail-item__value">
+          <%= @profile.late_grace_minutes.present? ? "#{@profile.late_grace_minutes} min" : t("shift_rule_profiles.show.none") %>
+        </div>
+        <div class="rule-detail-item__hint text-muted text-xs"><%= t("shift_rule_profiles.hints.late_grace_minutes") %></div>
+      </div>
+
+      <div class="rule-detail-item">
+        <div class="rule-detail-item__label"><%= t("shift_rule_profiles.fields.early_leave_grace_minutes") %></div>
+        <div class="rule-detail-item__value">
+          <%= @profile.early_leave_grace_minutes.present? ? "#{@profile.early_leave_grace_minutes} min" : t("shift_rule_profiles.show.none") %>
+        </div>
+        <div class="rule-detail-item__hint text-muted text-xs"><%= t("shift_rule_profiles.hints.early_leave_grace_minutes") %></div>
+      </div>
+    </div>
+  </div>
+
+  <%# ── Overtime policy ── %>
+  <div class="section-card">
+    <h2 class="section-card__title"><%= t("shift_rule_profiles.show.overtime_section") %></h2>
+    <div class="rule-detail-grid">
+      <div class="rule-detail-item">
+        <div class="rule-detail-item__label"><%= t("shift_rule_profiles.fields.overtime_enabled") %></div>
+        <div class="rule-detail-item__value">
+          <% if @profile.overtime_enabled? %>
+            <span class="status-badge status-badge--success"><%= t("forms.yes") %></span>
+          <% else %>
+            <span class="status-badge status-badge--warning"><%= t("shift_rule_profiles.show.overtime_disabled") %></span>
+          <% end %>
+        </div>
+        <div class="rule-detail-item__hint text-muted text-xs"><%= t("shift_rule_profiles.hints.overtime_enabled") %></div>
+      </div>
+
+      <div class="rule-detail-item">
+        <div class="rule-detail-item__label"><%= t("shift_rule_profiles.fields.overtime_multiplier") %></div>
+        <div class="rule-detail-item__value">
+          <%= @profile.overtime_multiplier.present? ? "×#{@profile.overtime_multiplier}" : t("shift_rule_profiles.show.inherit_shift") %>
+        </div>
+        <div class="rule-detail-item__hint text-muted text-xs"><%= t("shift_rule_profiles.hints.overtime_multiplier") %></div>
+      </div>
+    </div>
+  </div>
+
+  <%# ── Delete zone ── %>
+  <% if policy(@profile).destroy? %>
+    <div class="section-card section-card--danger">
+      <h2 class="section-card__title"><%= t("shift_rule_profiles.show.delete_section") %></h2>
+      <p class="text-muted"><%= t("shift_rule_profiles.show.delete_hint") %></p>
+      <%= button_to t("forms.delete"),
+                    admin_shift_rule_profile_path(@profile),
+                    method: :delete,
+                    class: "btn btn-danger btn-sm",
+                    data: { turbo_confirm: t("shift_rule_profiles.show.delete_confirm") } %>
+    </div>
+  <% end %>
+
+</div>

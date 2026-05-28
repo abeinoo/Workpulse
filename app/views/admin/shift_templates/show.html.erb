@@ -1,0 +1,140 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= @template.name %></h1>
+      <% if @template.description.present? %>
+        <p class="page-subtitle"><%= @template.description %></p>
+      <% end %>
+    </div>
+    <div class="page-header__actions">
+      <%= link_to t("shift_templates.show.edit"),
+                  edit_admin_shift_template_path(@template),
+                  class: "btn btn-ghost btn-sm" %>
+      <% unless @template.archived? %>
+        <%= link_to t("shift_templates.show.apply_template"),
+                    apply_admin_shift_template_path(@template),
+                    class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Status + meta ── %>
+  <div class="detail-meta">
+    <span class="<%= @template.archived? ? 'status-badge status-badge--warning' : 'status-badge status-badge--success' %>">
+      <%= @template.archived? ? t("shift_templates.status.archived") : t("shift_templates.status.active") %>
+    </span>
+    <span class="text-muted text-sm">
+      <%= t("shift_templates.show.created_by", name: @template.created_by.full_name) %>
+    </span>
+  </div>
+
+  <%# ── Entries list ── %>
+  <div class="section-card">
+    <h2 class="section-card__title"><%= t("shift_templates.show.entries_title") %></h2>
+
+    <% if @entries.empty? %>
+      <p class="text-muted"><%= t("shift_templates.show.no_entries") %></p>
+    <% else %>
+      <div class="template-entries-list">
+        <% @entries.each do |entry| %>
+          <div class="template-entry-item">
+            <div class="template-entry-item__dates">
+              <span class="template-entry-item__from"><%= l(entry.starts_on, format: :short) %></span>
+              <% if entry.ends_on.present? && entry.ends_on != entry.starts_on %>
+                <span class="template-entry-item__arrow">→</span>
+                <span class="template-entry-item__to"><%= l(entry.ends_on, format: :short) %></span>
+              <% end %>
+            </div>
+            <div class="template-entry-item__shift"><%= entry.shift_name %></div>
+            <% if entry.rule_profile.present? %>
+              <div class="template-entry-item__rule text-muted text-sm">
+                <%= t("shift_templates.show.rule_profile_label") %>:
+                <strong><%= entry.rule_profile.name %></strong>
+              </div>
+            <% end %>
+            <div class="template-entry-item__span text-muted text-xs">
+              <%= t("shift_templates.show.day_span", count: entry.day_span) %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Coverage summary ── %>
+  <div class="section-card">
+    <h2 class="section-card__title"><%= t("shift_templates.show.coverage_summary") %></h2>
+    <div class="summary-stats">
+      <div class="summary-stat">
+        <div class="summary-stat__value"><%= @entries.size %></div>
+        <div class="summary-stat__label"><%= t("shift_templates.show.total_entries") %></div>
+      </div>
+      <div class="summary-stat">
+        <div class="summary-stat__value"><%= @entries.sum(&:day_span) %></div>
+        <div class="summary-stat__label"><%= t("shift_templates.show.total_days") %></div>
+      </div>
+      <div class="summary-stat">
+        <div class="summary-stat__value"><%= @entries.map(&:shift_id).uniq.size %></div>
+        <div class="summary-stat__label"><%= t("shift_templates.show.unique_shifts") %></div>
+      </div>
+    </div>
+  </div>
+
+  <%# ── Usage Analytics ── %>
+  <div class="section-card">
+    <h2 class="section-card__title"><%= t("shift_templates.show.analytics_title") %></h2>
+    <div class="summary-stats">
+      <div class="summary-stat">
+        <div class="summary-stat__value"><%= @analytics[:total] %></div>
+        <div class="summary-stat__label"><%= t("shift_templates.show.analytics_total") %></div>
+      </div>
+      <div class="summary-stat">
+        <div class="summary-stat__value"><%= @analytics[:active_count] %></div>
+        <div class="summary-stat__label"><%= t("shift_templates.show.analytics_active") %></div>
+      </div>
+      <div class="summary-stat">
+        <div class="summary-stat__value"><%= @analytics[:employees_affected] %></div>
+        <div class="summary-stat__label"><%= t("shift_templates.show.analytics_employees") %></div>
+      </div>
+      <div class="summary-stat">
+        <div class="summary-stat__value">
+          <% if @analytics[:last_applied_at] %>
+            <span class="text-sm"><%= local_date(@analytics[:last_applied_at]) %></span>
+          <% else %>
+            <span class="text-muted text-sm"><%= t("shift_templates.show.analytics_never") %></span>
+          <% end %>
+        </div>
+        <div class="summary-stat__label"><%= t("shift_templates.show.analytics_last_applied") %></div>
+      </div>
+    </div>
+    <% if @analytics[:total] > 0 %>
+      <div style="margin-top:var(--space-3)">
+        <%= link_to t("shift_templates.show.view_assignments"),
+                    shift_assignments_path(template_id: @template.id, source: "template"),
+                    class: "btn btn-ghost btn-sm" %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Archive / unarchive ── %>
+  <div class="section-card section-card--danger">
+    <% if @template.archived? %>
+      <h2 class="section-card__title"><%= t("shift_templates.show.unarchive_section") %></h2>
+      <p class="text-muted"><%= t("shift_templates.show.unarchive_hint") %></p>
+      <%= button_to t("shift_templates.show.unarchive"),
+                    unarchive_admin_shift_template_path(@template),
+                    method: :patch,
+                    class: "btn btn-secondary btn-sm" %>
+    <% else %>
+      <h2 class="section-card__title"><%= t("shift_templates.show.archive_section") %></h2>
+      <p class="text-muted"><%= t("shift_templates.show.archive_hint") %></p>
+      <%= button_to t("shift_templates.show.archive"),
+                    archive_admin_shift_template_path(@template),
+                    method: :patch,
+                    class: "btn btn-danger btn-sm",
+                    data: { turbo_confirm: t("shift_templates.show.archive_confirm") } %>
+    <% end %>
+  </div>
+
+</div>

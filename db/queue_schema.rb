@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_27_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_28_000007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -491,15 +491,70 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_100001) do
     t.date "effective_to"
     t.bigint "ended_by_id"
     t.integer "shift_id", null: false
+    t.bigint "shift_rule_profile_id"
+    t.bigint "source_template_id"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["branch_id"], name: "index_shift_assignments_on_branch_id"
     t.index ["created_by_id"], name: "index_shift_assignments_on_created_by_id"
     t.index ["ended_by_id"], name: "index_shift_assignments_on_ended_by_id"
     t.index ["shift_id"], name: "index_shift_assignments_on_shift_id"
+    t.index ["shift_rule_profile_id"], name: "index_shift_assignments_on_shift_rule_profile_id"
+    t.index ["source_template_id"], name: "index_shift_assignments_on_source_template_id"
     t.index ["user_id", "branch_id"], name: "index_shift_assignments_on_user_id_and_branch_id"
     t.index ["user_id", "effective_from"], name: "index_shift_assignments_on_user_id_and_effective_from"
     t.index ["user_id"], name: "index_shift_assignments_on_user_id"
+  end
+
+  create_table "shift_rule_profiles", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.integer "break_minutes"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.integer "early_leave_grace_minutes"
+    t.decimal "expected_work_hours", precision: 5, scale: 2
+    t.integer "late_grace_minutes"
+    t.string "name", null: false
+    t.boolean "overtime_enabled", default: true, null: false
+    t.decimal "overtime_multiplier", precision: 5, scale: 2
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_shift_rule_profiles_on_business_id_and_name", unique: true
+    t.index ["business_id"], name: "index_shift_rule_profiles_on_business_id"
+  end
+
+  create_table "shift_template_entries", force: :cascade do |t|
+    t.bigint "branch_id"
+    t.datetime "created_at", null: false
+    t.integer "effective_from_offset"
+    t.integer "effective_to_offset"
+    t.string "employee_role"
+    t.date "ends_on"
+    t.bigint "shift_id", null: false
+    t.bigint "shift_rule_profile_id"
+    t.bigint "shift_template_id", null: false
+    t.date "starts_on"
+    t.datetime "updated_at", null: false
+    t.integer "weekday"
+    t.index ["branch_id"], name: "index_shift_template_entries_on_branch_id"
+    t.index ["shift_id"], name: "index_shift_template_entries_on_shift_id"
+    t.index ["shift_rule_profile_id"], name: "index_shift_template_entries_on_shift_rule_profile_id"
+    t.index ["shift_template_id"], name: "index_shift_template_entries_on_shift_template_id"
+    t.index ["weekday"], name: "index_shift_template_entries_on_weekday"
+  end
+
+  create_table "shift_templates", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "archived_at"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_shift_templates_on_business_id_and_name", unique: true
+    t.index ["business_id"], name: "index_shift_templates_on_business_id"
+    t.index ["created_by_id"], name: "index_shift_templates_on_created_by_id"
   end
 
   create_table "shifts", force: :cascade do |t|
@@ -781,10 +836,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_27_100001) do
   add_foreign_key "permission_roles", "businesses"
   add_foreign_key "salary_profiles", "users"
   add_foreign_key "shift_assignments", "branches"
+  add_foreign_key "shift_assignments", "shift_rule_profiles"
+  add_foreign_key "shift_assignments", "shift_templates", column: "source_template_id"
   add_foreign_key "shift_assignments", "shifts"
   add_foreign_key "shift_assignments", "users"
   add_foreign_key "shift_assignments", "users", column: "created_by_id"
   add_foreign_key "shift_assignments", "users", column: "ended_by_id"
+  add_foreign_key "shift_rule_profiles", "businesses"
+  add_foreign_key "shift_template_entries", "branches"
+  add_foreign_key "shift_template_entries", "shift_rule_profiles"
+  add_foreign_key "shift_template_entries", "shift_templates"
+  add_foreign_key "shift_template_entries", "shifts"
+  add_foreign_key "shift_templates", "businesses"
+  add_foreign_key "shift_templates", "users", column: "created_by_id"
   add_foreign_key "shifts", "businesses"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

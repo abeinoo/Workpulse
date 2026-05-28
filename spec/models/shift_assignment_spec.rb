@@ -432,4 +432,131 @@ RSpec.describe ShiftAssignment, type: :model do
       expect(assignment.branch_name).to eq(assignment.branch.name)
     end
   end
+
+  # ── Temporary assignment helpers ──────────────────────────────────────────
+
+  describe "#temporary?" do
+    it "returns true when effective_to is present" do
+      a = build(:shift_assignment,
+                effective_from: 10.days.ago.to_date,
+                effective_to:   10.days.from_now.to_date)
+      expect(a.temporary?).to be true
+    end
+
+    it "returns true when source_template_id is present" do
+      business = create(:business)
+      template = create(:shift_template, business: business,
+                        created_by: create(:user, business: business))
+      a = build(:shift_assignment,
+                effective_from:    1.month.ago.to_date,
+                effective_to:      nil,
+                source_template:   template)
+      expect(a.temporary?).to be true
+    end
+
+    it "returns false for an open-ended assignment with no template" do
+      a = build(:shift_assignment, effective_from: 1.month.ago.to_date, effective_to: nil)
+      expect(a.temporary?).to be false
+    end
+  end
+
+  describe "#active_temporary?" do
+    it "returns true when temporary and currently active" do
+      a = build(:shift_assignment,
+                effective_from: 5.days.ago.to_date,
+                effective_to:   5.days.from_now.to_date)
+      expect(a.active_temporary?).to be true
+    end
+
+    it "returns false when temporary but in the future" do
+      a = build(:shift_assignment,
+                effective_from: 5.days.from_now.to_date,
+                effective_to:   30.days.from_now.to_date)
+      expect(a.active_temporary?).to be false
+    end
+
+    it "returns false when not temporary" do
+      a = build(:shift_assignment, effective_from: 5.days.ago.to_date, effective_to: nil)
+      expect(a.active_temporary?).to be false
+    end
+  end
+
+  describe "#expired_temporary?" do
+    it "returns true when temporary and historical" do
+      a = build(:shift_assignment,
+                effective_from: 30.days.ago.to_date,
+                effective_to:   5.days.ago.to_date)
+      expect(a.expired_temporary?).to be true
+    end
+
+    it "returns false when temporary but still active" do
+      a = build(:shift_assignment,
+                effective_from: 10.days.ago.to_date,
+                effective_to:   10.days.from_now.to_date)
+      expect(a.expired_temporary?).to be false
+    end
+  end
+
+  describe "#days_until_expiry" do
+    it "returns nil when effective_to is absent" do
+      a = build(:shift_assignment, effective_from: 1.month.ago.to_date, effective_to: nil)
+      expect(a.days_until_expiry).to be_nil
+    end
+
+    it "returns positive count when effective_to is in the future" do
+      a = build(:shift_assignment,
+                effective_from: 10.days.ago.to_date,
+                effective_to:   5.days.from_now.to_date)
+      expect(a.days_until_expiry).to eq(5)
+    end
+
+    it "returns 0 when effective_to is today" do
+      a = build(:shift_assignment,
+                effective_from: 10.days.ago.to_date,
+                effective_to:   Date.current)
+      expect(a.days_until_expiry).to eq(0)
+    end
+
+    it "returns negative count when effective_to is in the past" do
+      a = build(:shift_assignment,
+                effective_from: 30.days.ago.to_date,
+                effective_to:   3.days.ago.to_date)
+      expect(a.days_until_expiry).to eq(-3)
+    end
+  end
+
+  describe "#expiring_soon?" do
+    it "returns false when no effective_to" do
+      a = build(:shift_assignment, effective_from: 1.month.ago.to_date, effective_to: nil)
+      expect(a.expiring_soon?).to be false
+    end
+
+    it "returns true when expires in 7 days" do
+      a = build(:shift_assignment,
+                effective_from: 10.days.ago.to_date,
+                effective_to:   7.days.from_now.to_date)
+      expect(a.expiring_soon?).to be true
+    end
+
+    it "returns true when expires today" do
+      a = build(:shift_assignment,
+                effective_from: 10.days.ago.to_date,
+                effective_to:   Date.current)
+      expect(a.expiring_soon?).to be true
+    end
+
+    it "returns false when expires in 8 or more days" do
+      a = build(:shift_assignment,
+                effective_from: 10.days.ago.to_date,
+                effective_to:   8.days.from_now.to_date)
+      expect(a.expiring_soon?).to be false
+    end
+
+    it "returns false when already expired" do
+      a = build(:shift_assignment,
+                effective_from: 30.days.ago.to_date,
+                effective_to:   2.days.ago.to_date)
+      expect(a.expiring_soon?).to be false
+    end
+  end
 end

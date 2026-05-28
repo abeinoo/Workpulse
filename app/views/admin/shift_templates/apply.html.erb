@@ -1,0 +1,94 @@
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("shift_templates.apply.title") %></h1>
+      <p class="page-subtitle"><%= @template.name %></p>
+    </div>
+    <%= link_to t("forms.cancel"), admin_shift_template_path(@template), class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <%# ── Date coverage summary from entries ── %>
+  <% if @template.entries.any? %>
+    <div class="section-card">
+      <h2 class="section-card__title"><%= t("shift_templates.apply.schedule_summary") %></h2>
+      <p class="text-muted text-sm"><%= t("shift_templates.apply.schedule_hint") %></p>
+      <div class="template-entries-list template-entries-list--compact">
+        <% @template.entries.includes(:shift, :rule_profile).order(:starts_on).each do |entry| %>
+          <div class="template-entry-item template-entry-item--sm">
+            <div class="template-entry-item__dates">
+              <span class="template-entry-item__from"><%= l(entry.starts_on, format: :short) %></span>
+              <% if entry.ends_on.present? && entry.ends_on != entry.starts_on %>
+                <span class="template-entry-item__arrow">→</span>
+                <span class="template-entry-item__to"><%= l(entry.ends_on, format: :short) %></span>
+              <% end %>
+            </div>
+            <div class="template-entry-item__shift"><%= entry.shift_name %></div>
+            <% if entry.rule_profile.present? %>
+              <div class="template-entry-item__rule text-muted text-sm">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1"/>
+                </svg>
+                <%= entry.rule_profile.name %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# data-turbo="false": preview_apply renders a new page inline (not a redirect),
+      which Turbo 8 does not reliably replace — plain browser POST guarantees navigation. %>
+  <%= form_with url: preview_apply_admin_shift_template_path(@template), method: :post,
+                data: { turbo: false } do |f| %>
+
+    <%# ── Employee selector ── %>
+    <div class="section-card">
+      <div class="entries-header">
+        <h2 class="section-card__title"><%= t("shift_templates.apply.select_employees") %></h2>
+        <div class="flex gap-sm">
+          <button type="button"
+                  class="btn btn-ghost btn-xs"
+                  onclick="document.querySelectorAll('.employee-checkbox').forEach(cb => cb.checked = true)">
+            <%= t("shift_templates.apply.select_all") %>
+          </button>
+          <button type="button"
+                  class="btn btn-ghost btn-xs"
+                  onclick="document.querySelectorAll('.employee-checkbox').forEach(cb => cb.checked = false)">
+            <%= t("shift_templates.apply.deselect_all") %>
+          </button>
+        </div>
+      </div>
+
+      <% if @all_employees.empty? %>
+        <p class="text-muted"><%= t("shift_templates.apply.no_employees") %></p>
+      <% else %>
+        <div class="employee-checklist">
+          <% @all_employees.each do |employee| %>
+            <label class="employee-check-row">
+              <input type="checkbox"
+                     name="employee_ids[]"
+                     value="<%= employee.id %>"
+                     class="employee-checkbox"
+                     checked>
+              <span class="employee-check-name"><%= employee.full_name %></span>
+              <% if employee.employee_code.present? %>
+                <span class="employee-check-code text-muted text-sm"><%= employee.employee_code %></span>
+              <% end %>
+            </label>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("shift_templates.apply.preview"), class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"), admin_shift_template_path(@template), class: "btn btn-ghost" %>
+    </div>
+
+  <% end %>
+
+</div>

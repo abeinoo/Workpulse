@@ -57,7 +57,9 @@ module Attendance
     def build_record(assignment)
       now       = Time.current
       wd        = BusinessDay.work_date_for(now, context: business)
-      late_mins = assignment ? TimeCalculator.late_minutes(assignment.shift, now, @branch) : 0
+      late_mins = assignment ? TimeCalculator.late_minutes(
+        assignment.shift, now, @branch, rule_profile: assignment.rule_profile
+      ) : 0
       status    = late_mins > 0 ? "late" : "incomplete"
 
       AttendanceRecord.new(
