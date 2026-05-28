@@ -8431,3 +8431,385 @@ details:not([open]) .permission-group__chevron {
 
 [dir="rtl"] .conflict-preview { direction: rtl; }
 [dir="rtl"] .sa-timeline { direction: rtl; }
+
+/* ============================================================
+   EMPLOYEE SHIFT TIMELINE
+   Vertical timeline inside the admin user profile.
+   Classes: .shift-timeline, .timeline-item, .timeline-marker,
+            .timeline-card, .timeline-period, .timeline-overnight
+   ============================================================ */
+
+/* ── Outer wrapper ───────────────────────────────────────────────────────── */
+.shift-timeline {
+  /* lives inside a .card; no extra card chrome needed */
+}
+
+/* ── Filter toolbar ──────────────────────────────────────────────────────── */
+.timeline-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+  margin-bottom: var(--space-4);
+}
+
+.timeline-tabs {
+  display: flex;
+  gap: var(--space-1);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 3px;
+}
+
+.timeline-tab {
+  padding: 5px var(--space-3);
+  border-radius: calc(var(--radius) - 2px);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-2);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.timeline-tab:hover { color: var(--text-1); background: var(--surface-3); }
+
+.timeline-tab--active {
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+/* ── Collapsible filter bar ──────────────────────────────────────────────── */
+.timeline-filter-row {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.timeline-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.timeline-filter-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* ── Rail and item list ──────────────────────────────────────────────────── */
+.shift-timeline__list {
+  position: relative;
+  padding: var(--space-4) var(--space-4) var(--space-2) var(--space-8);
+}
+
+/* Vertical connector line running through all items */
+.shift-timeline__list::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(var(--space-4) + 6px);   /* 16+6 = 22px from edge */
+  top: calc(var(--space-4) + 14px);                 /* below first dot */
+  bottom: var(--space-8);
+  width: 2px;
+  background: var(--surface-3);
+  border-radius: 2px;
+}
+
+/* Empty state: no line needed */
+.shift-timeline__list--empty::before { display: none; }
+
+.timeline-item {
+  position: relative;
+  padding-bottom: var(--space-5);
+}
+.timeline-item:last-child { padding-bottom: 0; }
+
+/* ── Timeline dot ───────────────────────────────────────────────────────── */
+.timeline-marker {
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--space-8) + var(--space-4));  /* = -32+16 = -16px from item = 32-16=16px from list edge; center on line at 22px */
+  /* Adjusted to actually center: line at 22px → dot left edge at 22-6=16px from list → -32+16 = -16 from item */
+  top: 12px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  background: var(--text-3);
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.timeline-marker--active   { background: var(--success); box-shadow: 0 0 0 3px var(--success-muted); }
+.timeline-marker--upcoming { background: var(--accent);  box-shadow: 0 0 0 3px var(--accent-muted); }
+.timeline-marker--ended    { background: var(--text-3);  }
+
+/* ── Timeline card ──────────────────────────────────────────────────────── */
+.timeline-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.timeline-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+/* Accent left-border tint per status */
+.timeline-card--active {
+  border-inline-start: 3px solid var(--success);
+}
+.timeline-card--upcoming {
+  border-inline-start: 3px solid var(--accent);
+}
+
+/* Card header: shift name + badges row */
+.timeline-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.timeline-card__title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1.3;
+}
+
+.timeline-card__title a {
+  color: inherit;
+  text-decoration: none;
+}
+.timeline-card__title a:hover { color: var(--accent); }
+
+.timeline-card__badges {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Meta row: branch | hours | relative date */
+.timeline-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin-bottom: var(--space-3);
+}
+
+.timeline-meta-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.timeline-meta-item__icon {
+  width: 13px;
+  height: 13px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+/* ── Period progress bar ────────────────────────────────────────────────── */
+.timeline-period {
+  margin-bottom: var(--space-3);
+}
+
+.timeline-period__label {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  margin-bottom: var(--space-1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.timeline-period__pct {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.timeline-period__bar {
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.timeline-period__fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+.timeline-period__fill--active   { background: var(--success); }
+.timeline-period__fill--upcoming { background: var(--accent); }
+.timeline-period__fill--open     { background: var(--success); }
+.timeline-period__fill--ended    { background: var(--text-3); }
+
+/* ── Overnight badge ───────────────────────────────────────────────────── */
+.timeline-overnight {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warning);
+  background: var(--warning-muted);
+  border-radius: var(--radius-full);
+  padding: 1px 8px;
+  letter-spacing: 0.02em;
+}
+
+/* ── Audit footer ───────────────────────────────────────────────────────── */
+.timeline-card__audit {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.timeline-audit-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* ── Timeline pagination ───────────────────────────────────────────────── */
+.timeline-pagination {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+/* ── Empty states ──────────────────────────────────────────────────────── */
+.timeline-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12) var(--space-6);
+  text-align: center;
+  gap: var(--space-3);
+}
+
+.timeline-empty__icon {
+  width: 44px;
+  height: 44px;
+  color: var(--text-3);
+  opacity: 0.5;
+}
+
+.timeline-empty__title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.timeline-empty__sub {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  max-width: 320px;
+  line-height: 1.55;
+}
+
+.timeline-empty__actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+/* ── RTL ────────────────────────────────────────────────────────────────── */
+[dir="rtl"] .shift-timeline__list {
+  padding-inline-start: var(--space-8);
+  padding-inline-end: var(--space-4);
+}
+
+[dir="rtl"] .timeline-card--active   { border-inline-start: 3px solid var(--success); }
+[dir="rtl"] .timeline-card--upcoming { border-inline-start: 3px solid var(--accent); }
+
+[dir="rtl"] .timeline-marker {
+  inset-inline-start: calc(-1 * var(--space-8) + var(--space-4));
+}
+
+[dir="rtl"] .timeline-card__header { flex-direction: row-reverse; }
+[dir="rtl"] .timeline-card__meta   { flex-direction: row-reverse; }
+[dir="rtl"] .timeline-card__audit  { flex-direction: row-reverse; }
+[dir="rtl"] .timeline-tabs         { flex-direction: row-reverse; }
+
+/* ── Mobile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .shift-timeline__list {
+    padding-inline-start: var(--space-6);
+    padding-inline-end: var(--space-2);
+  }
+
+  .shift-timeline__list::before {
+    inset-inline-start: calc(var(--space-3) + 4px);
+  }
+
+  .timeline-marker {
+    inset-inline-start: calc(-1 * var(--space-6) + var(--space-3));
+    width: 12px;
+    height: 12px;
+    top: 14px;
+  }
+
+  .timeline-card {
+    padding: var(--space-3);
+  }
+
+  .timeline-card__header {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .timeline-card__meta {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .timeline-card__audit {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .timeline-tabs {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  .timeline-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .timeline-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 480px) {
+  .timeline-card__badges { justify-content: flex-start; }
+}

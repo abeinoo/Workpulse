@@ -36,17 +36,14 @@ class Admin::UsersController < Admin::BaseController
     end
   end
 
+  TIMELINE_PER_PAGE = 20
+
   def show
     authorize @user
     @active_salary_profile = @user.active_salary_profile
     @salary_profiles = @user.salary_profiles.order(effective_from: :desc)
 
-    # Shift assignment history — ordered most-recent first.
-    # Scoped to user; no policy scope needed since admin already has full access.
-    @shift_assignments = @user.shift_assignments
-                              .includes(:shift, :branch, :created_by, :ended_by)
-                              .order(effective_from: :desc)
-                              .limit(20)
+    load_shift_timeline
   end
 
   def edit
@@ -102,6 +99,63 @@ class Admin::UsersController < Admin::BaseController
 
   def set_user
     @user = current_user.business.users.find(params[:id])
+  end
+
+  # ── Shift timeline helpers ────────────────────────────────────────────────
+
+  # Populates all @timeline_* instance variables consumed by the partial.
+  # Supports: tab (active/upcoming/historical/all), branch_id, shift_id,
+  # from/to date range, and page.  All scoped strictly to @user.
+  def load_shift_timeline
+    @timeline_tab       = params[:timeline_tab].presence_in(
+                            %w[active upcoming historical all]
+                          ) || "all"
+    @timeline_branch_id = params[:timeline_branch_id].presence
+    @timeline_shift_id  = params[:timeline_shift_id].presence
+    @timeline_from      = params[:timeline_from].presence
+    @timeline_to        = params[:timeline_to].presence
+
+    # ── Base scope ────────────────────────────────────────────────────────
+    base = @user.shift_assignments
+
+    # ── Tab filter ────────────────────────────────────────────────────────
+    today = Date.current
+    base = case @timeline_tab
+           when "active"
+             base.current
+           when "upcoming"
+             base.upcoming
+           when "historical"
+             base.expired
+           else
+             base
+           end
+
+    # ── Column filters ────────────────────────────────────────────────────
+    base = base.where(branch_id: @timeline_branch_id)  if @timeline_branch_id
+    base = base.where(shift_id:  @timeline_shift_id)   if @timeline_shift_id
+    base = base.where("effective_from >= ?", @timeline_from) if @timeline_from.present?
+    base = base.where("effective_from <= ?", @timeline_to)   if @timeline_to.present?
+
+    @timeline_active_filters = [
+      @timeline_branch_id, @timeline_shift_id, @timeline_from, @timeline_to
+    ].count(&:present?)
+
+    # ── Filter drop-down data ─────────────────────────────────────────────
+    @timeline_branches = Branch.for_business(current_user.business).active.order(:name)
+    @timeline_shifts   = Shift.for_business(current_user.business).active.order(:name)
+
+    # ── Pagination ────────────────────────────────────────────────────────
+    @timeline_total = base.count
+    @timeline_pages = [(@timeline_total.to_f / TIMELINE_PER_PAGE).ceil, 1].max
+    @timeline_page  = [[params[:timeline_page].to_i, 1].max, @timeline_pages].min
+
+    # ── Eager-loaded paginated slice ──────────────────────────────────────
+    @shift_assignments = base
+      .includes(:shift, :branch, :created_by, :ended_by)
+      .order(effective_from: :desc)
+      .offset((@timeline_page - 1) * TIMELINE_PER_PAGE)
+      .limit(TIMELINE_PER_PAGE)
   end
 
   def load_managers

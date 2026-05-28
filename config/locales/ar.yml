@@ -965,6 +965,74 @@ ar:
       select_shift: "اختر الوردية —"
       select_branch: "اختر الفرع —"
 
+  # ── الجدول الزمني للورديات (ملف الموظف) ────────────────────────────────────
+  shift_timeline:
+    title: "الجدول الزمني للورديات"
+    subtitle: "سجل تعيينات الورديات الكاملة لهذا الموظف."
+
+    tabs:
+      active: "نشطة"
+      upcoming: "قادمة"
+      historical: "تاريخية"
+      all: "الكل"
+
+    filter:
+      branch_label: "الفرع"
+      shift_label: "الوردية"
+      from_label: "يبدأ من"
+      to_label: "يبدأ حتى"
+      all_branches: "جميع الفروع"
+      all_shifts: "جميع الورديات"
+      apply: "تطبيق"
+      clear: "مسح"
+      active_count:
+        one: "فلتر واحد"
+        other: "%{count} فلاتر"
+
+    period:
+      closed: "%{from} – %{to}"
+      open: "%{from} – مستمر"
+      open_ended: "مستمر"
+
+    starts_today: "يبدأ اليوم"
+    starts_in:
+      one: "يبدأ خلال يوم واحد"
+      other: "يبدأ خلال %{count} أيام"
+    started_today: "بدأ اليوم"
+    active_for:
+      one: "نشط منذ يوم"
+      other: "نشط منذ %{count} أيام"
+    ended_today: "انتهى اليوم"
+    ended_ago:
+      one: "انتهى منذ يوم"
+      other: "انتهى منذ %{count} أيام"
+
+    flexible_hours: "%{hours} ساعة مرنة"
+
+    created_by: "أُنشئ بواسطة"
+    ended_by: "أُنهي بواسطة"
+    no_audit: "النظام"
+
+    progress: "%{pct}% منقضي"
+    open_ended_bar: "مفتوح"
+
+    overnight_label: "ليلية"
+
+    showing: "عرض %{from}–%{to} من %{total}"
+
+    empty:
+      all_title: "لا توجد تعيينات ورديات بعد"
+      all_sub: "لم يُعيَّن هذا الموظف في أي وردية."
+      active_title: "لا توجد تعيينات نشطة"
+      active_sub: "لا توجد تعيينات ورديات نشطة حاليًا لهذا الموظف."
+      upcoming_title: "لا توجد تعيينات قادمة"
+      upcoming_sub: "لا توجد تعيينات ورديات مستقبلية لهذا الموظف."
+      historical_title: "لا توجد تعيينات تاريخية"
+      historical_sub: "لم يُعثر على تعيينات منتهية أو مغلقة."
+      filtered_title: "لا توجد نتائج تطابق الفلاتر"
+      filtered_sub: "جرّب مسح الفلاتر لعرض جميع التعيينات."
+      cta_assign: "تعيين وردية"
+
   shifts:
     types:
       fixed_time: "وردية ثابتة"

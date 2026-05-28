@@ -965,6 +965,84 @@ en:
       select_shift: "Select shift —"
       select_branch: "Select branch —"
 
+  # ── Shift Timeline (employee profile) ──────────────────────────────────────
+  shift_timeline:
+    title: "Shift Timeline"
+    subtitle: "Complete shift assignment history for this employee."
+
+    # Tabs
+    tabs:
+      active: "Active"
+      upcoming: "Upcoming"
+      historical: "Historical"
+      all: "All"
+
+    # Filter bar
+    filter:
+      branch_label: "Branch"
+      shift_label: "Shift"
+      from_label: "Start from"
+      to_label: "Start to"
+      all_branches: "All branches"
+      all_shifts: "All shifts"
+      apply: "Apply"
+      clear: "Clear"
+      active_count:
+        one: "1 filter"
+        other: "%{count} filters"
+
+    # Period labels
+    period:
+      closed: "%{from} – %{to}"
+      open: "%{from} – ongoing"
+      open_ended: "Ongoing"
+
+    # Relative dates
+    starts_today: "Starts today"
+    starts_in:
+      one: "Starts in 1 day"
+      other: "Starts in %{count} days"
+    started_today: "Started today"
+    active_for:
+      one: "Active for 1 day"
+      other: "Active for %{count} days"
+    ended_today: "Ended today"
+    ended_ago:
+      one: "Ended 1 day ago"
+      other: "Ended %{count} days ago"
+
+    # Shift hours
+    flexible_hours: "%{hours}h flexible"
+
+    # Audit trail
+    created_by: "Created by"
+    ended_by: "Ended by"
+    no_audit: "System"
+
+    # Progress bar
+    progress: "%{pct}% elapsed"
+    open_ended_bar: "Open-ended"
+
+    # Overnight
+    overnight_label: "Overnight"
+
+    # Pagination
+    showing: "Showing %{from}–%{to} of %{total}"
+
+    # Empty states
+    empty:
+      all_title: "No shift assignments yet"
+      all_sub: "This employee has not been assigned to any shift."
+      active_title: "No active assignments"
+      active_sub: "This employee has no currently active shift assignments."
+      upcoming_title: "No upcoming assignments"
+      upcoming_sub: "There are no future shift assignments for this employee."
+      historical_title: "No historical assignments"
+      historical_sub: "No expired or ended assignments found."
+      filtered_title: "No results match your filters"
+      filtered_sub: "Try clearing the filters to see all assignments."
+      cta_assign: "Assign Shift"
+
   shifts:
     types:
       fixed_time: "Fixed Schedule"

@@ -1,0 +1,373 @@
+<%#
+  Shift Timeline partial — rendered inside admin/users/show.html.erb
+  within a .card wrapper.
+
+  Expects (all set by Admin::UsersController#load_shift_timeline):
+    @shift_assignments  — paginated, eager-loaded ShiftAssignment relation
+    @timeline_tab       — "active" | "upcoming" | "historical" | "all"
+    @timeline_branch_id — filter param (or nil)
+    @timeline_shift_id  — filter param (or nil)
+    @timeline_from      — filter param (or nil)
+    @timeline_to        — filter param (or nil)
+    @timeline_active_filters — integer count of active column filters
+    @timeline_total     — total records for current scope
+    @timeline_pages     — total page count
+    @timeline_page      — current page (1-based)
+    @timeline_branches  — Branch AR relation for the filter drop-down
+    @timeline_shifts    — Shift AR relation for the filter drop-down
+    @user               — the User being viewed
+
+  All business logic is delegated to ShiftAssignmentHelper methods:
+    timeline_status_badge, timeline_status_label, timeline_status_modifier,
+    timeline_period_label, timeline_relative_date, timeline_pct,
+    timeline_shift_hours
+%>
+
+<%# ── Tab navigation ──────────────────────────────────────────────────────── %>
+<div class="timeline-toolbar">
+  <nav class="timeline-tabs" aria-label="<%= t("shift_timeline.title") %>">
+    <% %w[all active upcoming historical].each do |tab| %>
+      <%= link_to t("shift_timeline.tabs.#{tab}"),
+            admin_user_path(@user, request.query_parameters
+                                          .merge(timeline_tab: tab,
+                                                 timeline_page: nil)),
+            class: "timeline-tab #{"timeline-tab--active" if @timeline_tab == tab}" %>
+    <% end %>
+  </nav>
+
+  <%# Active filter indicator %>
+  <% if @timeline_active_filters > 0 %>
+    <span class="badge badge-accent" style="font-size:11px;">
+      <%= t("shift_timeline.filter.active_count", count: @timeline_active_filters) %>
+    </span>
+  <% end %>
+</div>
+
+<%# ── Filter bar ──────────────────────────────────────────────────────────── %>
+<div class="timeline-filter-row" id="timeline-filters">
+  <%= form_with url: admin_user_path(@user), method: :get, local: true do |f| %>
+    <%= hidden_field_tag :timeline_tab, @timeline_tab %>
+
+    <div class="timeline-filter-grid">
+
+      <%# Branch %>
+      <% if @timeline_branches.any? %>
+        <div class="form-group" style="margin:0">
+          <%= f.label :timeline_branch_id,
+                t("shift_timeline.filter.branch_label"),
+                class: "form-label" %>
+          <%= f.select :timeline_branch_id,
+                options_for_select(
+                  [[t("shift_timeline.filter.all_branches"), ""]] +
+                    @timeline_branches.map { |b| [b.name, b.id] },
+                  @timeline_branch_id
+                ),
+                {},
+                class: "filter-bar__select" %>
+        </div>
+      <% end %>
+
+      <%# Shift %>
+      <% if @timeline_shifts.any? %>
+        <div class="form-group" style="margin:0">
+          <%= f.label :timeline_shift_id,
+                t("shift_timeline.filter.shift_label"),
+                class: "form-label" %>
+          <%= f.select :timeline_shift_id,
+                options_for_select(
+                  [[t("shift_timeline.filter.all_shifts"), ""]] +
+                    @timeline_shifts.map { |s| [s.name, s.id] },
+                  @timeline_shift_id
+                ),
+                {},
+                class: "filter-bar__select" %>
+        </div>
+      <% end %>
+
+      <%# From date %>
+      <div class="form-group" style="margin:0">
+        <%= f.label :timeline_from,
+              t("shift_timeline.filter.from_label"),
+              class: "form-label" %>
+        <%= f.date_field :timeline_from,
+              value: @timeline_from,
+              class: "filter-bar__input" %>
+      </div>
+
+      <%# To date %>
+      <div class="form-group" style="margin:0">
+        <%= f.label :timeline_to,
+              t("shift_timeline.filter.to_label"),
+              class: "form-label" %>
+        <%= f.date_field :timeline_to,
+              value: @timeline_to,
+              class: "filter-bar__input" %>
+      </div>
+
+    </div>
+
+    <div class="timeline-filter-actions">
+      <%= f.submit t("shift_timeline.filter.apply"), class: "btn btn-primary btn-sm" %>
+      <%= link_to t("shift_timeline.filter.clear"),
+            admin_user_path(@user, timeline_tab: @timeline_tab),
+            class: "btn btn-ghost btn-sm" %>
+    </div>
+
+  <% end %>
+</div>
+
+<%# ── Timeline list ────────────────────────────────────────────────────────── %>
+<div class="shift-timeline__list <%= "shift-timeline__list--empty" if @shift_assignments.empty? %>">
+
+  <% if @shift_assignments.any? %>
+    <% @shift_assignments.each do |a| %>
+      <%
+        mod        = timeline_status_modifier(a)
+        shift      = a.shift
+        pct        = timeline_pct(a)
+        open_ended = a.effective_to.nil?
+        fill_mod   = open_ended ? "open" : mod
+      %>
+
+      <div class="timeline-item" id="assignment-<%= a.id %>">
+
+        <%# Dot on the rail %>
+        <div class="timeline-marker timeline-marker--<%= mod %>"
+             aria-hidden="true"></div>
+
+        <%# Card %>
+        <div class="timeline-card timeline-card--<%= mod %>">
+
+          <%# ── Header: shift name + status + overnight ── %>
+          <div class="timeline-card__header">
+            <h3 class="timeline-card__title">
+              <%= link_to shift.name, shift_path(shift),
+                    aria: { label: "#{shift.name} #{t('shift_timeline.title')}" } %>
+            </h3>
+
+            <div class="timeline-card__badges">
+              <span class="badge <%= timeline_status_badge(a) %>">
+                <%= timeline_status_label(a) %>
+              </span>
+
+              <% if shift.overnight? %>
+                <span class="timeline-overnight" aria-label="<%= t("shift_timeline.overnight_label") %>">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2.5"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                  </svg>
+                  <%= t("shift_timeline.overnight_label") %>
+                </span>
+              <% end %>
+
+              <span class="timeline-relative">
+                <%= timeline_relative_date(a) %>
+              </span>
+            </div>
+          </div>
+
+          <%# ── Meta row: branch, hours ── %>
+          <div class="timeline-card__meta">
+
+            <%# Branch %>
+            <span class="timeline-meta-item">
+              <svg class="timeline-meta-item__icon" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              <%= a.branch_name || "—" %>
+            </span>
+
+            <%# Shift hours %>
+            <span class="timeline-meta-item">
+              <svg class="timeline-meta-item__icon" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <%= timeline_shift_hours(shift) %>
+            </span>
+
+          </div>
+
+          <%# ── Period with progress bar ── %>
+          <div class="timeline-period">
+            <div class="timeline-period__label">
+              <span><%= timeline_period_label(a) %></span>
+              <span class="timeline-period__pct">
+                <% if open_ended %>
+                  <%= t("shift_timeline.open_ended_bar") %>
+                <% else %>
+                  <%= t("shift_timeline.progress", pct: pct) %>
+                <% end %>
+              </span>
+            </div>
+            <div class="timeline-period__bar"
+                 role="progressbar"
+                 aria-valuenow="<%= pct %>"
+                 aria-valuemin="0"
+                 aria-valuemax="100">
+              <div class="timeline-period__fill timeline-period__fill--<%= fill_mod %>"
+                   style="width:<%= pct %>%"></div>
+            </div>
+          </div>
+
+          <%# ── Audit footer ── %>
+          <div class="timeline-card__audit">
+            <% if a.created_by %>
+              <span class="timeline-audit-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <%= t("shift_timeline.created_by") %>:
+                <strong><%= a.created_by.full_name %></strong>
+                &middot;
+                <time datetime="<%= a.created_at.iso8601 %>" title="<%= local_datetime(a.created_at) %>">
+                  <%= local_date(a.created_at) %>
+                </time>
+              </span>
+            <% else %>
+              <span class="timeline-audit-item">
+                <%= t("shift_timeline.created_by") %>: <%= t("shift_timeline.no_audit") %>
+              </span>
+            <% end %>
+
+            <% if a.ended_by %>
+              <span class="timeline-audit-item">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/>
+                </svg>
+                <%= t("shift_timeline.ended_by") %>:
+                <strong><%= a.ended_by.full_name %></strong>
+                <% if a.effective_to %>
+                  &middot;
+                  <time datetime="<%= a.effective_to.iso8601 %>">
+                    <%= local_date(a.effective_to) %>
+                  </time>
+                <% end %>
+              </span>
+            <% end %>
+          </div>
+
+        </div><%# .timeline-card %>
+      </div><%# .timeline-item %>
+
+    <% end %>
+
+  <% else %>
+
+    <%# ── Empty state ── %>
+    <%
+      empty_key = if @timeline_active_filters > 0
+                    "filtered"
+                  else
+                    @timeline_tab == "all" ? "all" : @timeline_tab == "upcoming" ? "upcoming" :
+                      @timeline_tab == "historical" ? "historical" : "active"
+                  end
+    %>
+    <div class="timeline-empty">
+      <svg class="timeline-empty__icon" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.5"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <% if empty_key == "filtered" %>
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          <line x1="8" y1="11" x2="14" y2="11"/>
+        <% elsif empty_key == "upcoming" %>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+          <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
+        <% elsif empty_key == "historical" %>
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        <% else %>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+          <line x1="10" y1="15" x2="14" y2="15"/>
+        <% end %>
+      </svg>
+
+      <p class="timeline-empty__title">
+        <%= t("shift_timeline.empty.#{empty_key}_title") %>
+      </p>
+      <p class="timeline-empty__sub">
+        <%= t("shift_timeline.empty.#{empty_key}_sub") %>
+      </p>
+
+      <div class="timeline-empty__actions">
+        <% if empty_key == "filtered" %>
+          <%= link_to t("shift_timeline.filter.clear"),
+                admin_user_path(@user, timeline_tab: @timeline_tab),
+                class: "btn btn-ghost btn-sm" %>
+        <% elsif policy(ShiftAssignment).create? %>
+          <%= link_to t("shift_timeline.empty.cta_assign"),
+                new_shift_assignment_path,
+                class: "btn btn-primary btn-sm" %>
+        <% end %>
+      </div>
+    </div>
+
+  <% end %>
+</div>
+
+<%# ── Pagination ────────────────────────────────────────────────────────────── %>
+<% if @timeline_pages > 1 %>
+  <div class="timeline-pagination">
+    <nav class="pagination" aria-label="<%= t("pagination.label") %>">
+
+      <% if @timeline_page > 1 %>
+        <%= link_to t("pagination.prev"),
+              admin_user_path(@user,
+                request.query_parameters.merge(timeline_page: @timeline_page - 1)),
+              class: "pagination__btn pagination__btn--prev" %>
+      <% end %>
+
+      <%
+        start_p = [[(@timeline_page - 2), 1].max, [@timeline_pages - 4, 1].max].min
+        end_p   = [start_p + 4, @timeline_pages].min
+      %>
+
+      <% if start_p > 1 %>
+        <%= link_to "1",
+              admin_user_path(@user, request.query_parameters.merge(timeline_page: 1)),
+              class: "pagination__btn" %>
+        <span class="pagination__ellipsis">…</span>
+      <% end %>
+
+      <% (start_p..end_p).each do |p| %>
+        <%= link_to p.to_s,
+              admin_user_path(@user, request.query_parameters.merge(timeline_page: p)),
+              class: "pagination__btn #{"pagination__btn--active" if p == @timeline_page}" %>
+      <% end %>
+
+      <% if end_p < @timeline_pages %>
+        <span class="pagination__ellipsis">…</span>
+        <%= link_to @timeline_pages.to_s,
+              admin_user_path(@user,
+                request.query_parameters.merge(timeline_page: @timeline_pages)),
+              class: "pagination__btn" %>
+      <% end %>
+
+      <% if @timeline_page < @timeline_pages %>
+        <%= link_to t("pagination.next"),
+              admin_user_path(@user,
+                request.query_parameters.merge(timeline_page: @timeline_page + 1)),
+              class: "pagination__btn pagination__btn--next" %>
+      <% end %>
+
+    </nav>
+  </div>
+<% end %>

@@ -401,17 +401,7 @@
   <% end %>
 
   <%# ── Assignments table ───────────────────────────────────────────────────── %>
-  <%#
-    Helper: compute the timeline fill percentage for a given assignment.
-    We cap the reference window at 365 days; open-ended assignments show 100%.
-  %>
-  <% def timeline_pct(from, to)
-       return 100 if to.nil?
-       total = (to - from).to_i
-       return 100 if total <= 0
-       elapsed = (Date.current - from).to_i.clamp(0, total)
-       ((elapsed.to_f / total) * 100).round
-     end %>
+  <%# timeline_pct is provided by ShiftAssignmentHelper (takes one assignment arg) %>
 
   <div class="table-wrap table-wrap--cards">
     <% col_count = can_bulk ? 10 : 9 %>
@@ -444,7 +434,7 @@
             overnight  = shift.respond_to?(:overnight?) && shift.overnight?
             status_key = a.future? ? "upcoming" : (a.current? ? "active" : "ended")
             fill_cls   = a.future? ? "upcoming" : (a.current? ? (a.effective_to.nil? ? "open" : "active") : "ended")
-            pct        = timeline_pct(a.effective_from, a.effective_to)
+            pct        = timeline_pct(a)
           %>
           <tr>
             <% if can_bulk %>
