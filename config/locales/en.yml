@@ -188,6 +188,7 @@ en:
     there: "there"
     late_indicator: "Late"
     shift_progress: "%{pct}% through shift"
+    flexible_schedule: "Flexible schedule"
     shift_status:
       on_shift: "On Shift"
       upcoming: "Upcoming"

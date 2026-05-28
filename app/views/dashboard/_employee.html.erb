@@ -119,20 +119,24 @@
             <% end %>
           <% end %>
         </p>
-        <%# Shift progress bar — shown when checked in and shift times are known %>
+        <%# Shift progress bar — only for fixed-time shifts with both clock times present %>
         <% if !@today_record.checked_out? && @current_shift&.shift %>
-          <% shift     = @current_shift.shift %>
-          <% now_mins  = Time.current.in_time_zone(current_user.business.timezone).strftime("%H:%M").split(":").then { |h, m| h.to_i * 60 + m.to_i } %>
-          <% start_min = shift.start_time.hour * 60 + shift.start_time.min %>
-          <% end_min   = shift.end_time.hour   * 60 + shift.end_time.min %>
-          <% end_min  += 1440 if end_min <= start_min %>
-          <% duration  = (end_min - start_min).clamp(1, 1440) %>
-          <% elapsed   = (now_mins - start_min).clamp(0, duration) %>
-          <% pct       = ((elapsed.to_f / duration) * 100).round %>
-          <div class="shift-progress">
-            <div class="shift-progress__bar" style="width: <%= pct %>%"></div>
-          </div>
-          <p class="shift-progress__label"><%= t("dashboard.shift_progress", pct: pct) %></p>
+          <% shift = @current_shift.shift %>
+          <% if shift.timed? %>
+            <% now_mins  = Time.current.in_time_zone(current_user.business.timezone).strftime("%H:%M").split(":").then { |h, m| h.to_i * 60 + m.to_i } %>
+            <% start_min = shift.start_time.hour * 60 + shift.start_time.min %>
+            <% end_min   = shift.end_time.hour   * 60 + shift.end_time.min %>
+            <% end_min  += 1440 if end_min <= start_min %>
+            <% duration  = (end_min - start_min).clamp(1, 1440) %>
+            <% elapsed   = (now_mins - start_min).clamp(0, duration) %>
+            <% pct       = ((elapsed.to_f / duration) * 100).round %>
+            <div class="shift-progress">
+              <div class="shift-progress__bar" style="width: <%= pct %>%"></div>
+            </div>
+            <p class="shift-progress__label"><%= t("dashboard.shift_progress", pct: pct) %></p>
+          <% else %>
+            <p class="shift-progress__flexible"><%= t("dashboard.flexible_schedule") %></p>
+          <% end %>
         <% end %>
       </div>
       <div class="attendance-hero__icon">

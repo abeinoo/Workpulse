@@ -93,6 +93,35 @@ RSpec.describe Shift, type: :model do
     end
   end
 
+  describe "#timed?" do
+    it "returns true for a fixed_time shift with both clock times" do
+      expect(build(:shift, :fixed_time).timed?).to be true
+    end
+
+    it "returns true for an overnight shift" do
+      expect(build(:shift, :overnight).timed?).to be true
+    end
+
+    it "returns false for an hour_based (flexible) shift" do
+      expect(build(:shift, :hour_based).timed?).to be false
+    end
+
+    it "returns false when start_time is nil" do
+      shift = build(:shift, shift_type: :fixed_time, start_time: nil, end_time: Time.zone.parse("17:00"))
+      expect(shift.timed?).to be false
+    end
+
+    it "returns false when end_time is nil" do
+      shift = build(:shift, shift_type: :fixed_time, start_time: Time.zone.parse("09:00"), end_time: nil)
+      expect(shift.timed?).to be false
+    end
+
+    it "returns false when both times are nil (legacy record)" do
+      shift = build(:shift, shift_type: :fixed_time, start_time: nil, end_time: nil)
+      expect(shift.timed?).to be false
+    end
+  end
+
   describe "#duration_minutes" do
     context "fixed_time shift with 9-to-5 hours" do
       it "returns 480 minutes" do

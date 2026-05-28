@@ -34,6 +34,11 @@ class Shift < ApplicationRecord
     fixed_time? && start_time && end_time && end_time < start_time
   end
 
+  # True only when both clock times are present — guards callers from nil.hour.
+  def timed?
+    start_time.present? && end_time.present?
+  end
+
   def duration_minutes
     return required_hours * 60 if hour_based?
     return unless start_time && end_time

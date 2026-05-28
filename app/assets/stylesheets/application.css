@@ -2896,6 +2896,12 @@ body.is-authenticated {
   color: var(--text-2);
   margin: var(--space-1) 0 0;
 }
+.shift-progress__flexible {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  margin: var(--space-3) 0 0;
+  font-style: italic;
+}
 
 /* ── Late indicator badge ────────────────────────────────── */
 .emp-late-badge {

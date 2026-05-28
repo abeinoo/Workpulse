@@ -132,6 +132,7 @@ ar:
     there: "هناك"
     late_indicator: "متأخر"
     shift_progress: "%{pct}٪ من الوردية"
+    flexible_schedule: "جدول مرن"
     shift_status:
       on_shift: "في الوردية"
       upcoming: "وردية قادمة"
