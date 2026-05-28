@@ -1,17 +1,86 @@
 <div class="emp-dashboard">
 
+  <%# ── Missing punch-out warning (highest priority — shown at very top) ── %>
+  <% if @missing_checkout %>
+    <div class="missing-punch-alert" role="alert">
+      <div class="missing-punch-alert__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div class="missing-punch-alert__body">
+        <p class="missing-punch-alert__title"><%= t("dashboard.missing_checkout.title") %></p>
+        <p class="missing-punch-alert__text">
+          <%= t("dashboard.missing_checkout.body", time: local_time(@missing_checkout.check_in_at)) %>
+        </p>
+        <p class="missing-punch-alert__contact"><%= t("dashboard.missing_checkout.contact") %></p>
+      </div>
+      <div class="missing-punch-alert__cta">
+        <%= link_to t("dashboard.missing_checkout.cta"),
+              new_employee_request_path(request_type: "attendance_correction"),
+              class: "missing-punch-alert__btn" %>
+      </div>
+    </div>
+  <% end %>
+
   <%# ── Greeting ──────────────────────────────────────────────────── %>
   <div class="emp-dashboard__greeting">
-    <p class="emp-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
-    <h1 class="emp-dashboard__greeting-name">
-      <%= current_user.first_name.presence || "there" %>
-    </h1>
+    <div class="emp-dashboard__greeting-row">
+      <div>
+        <p class="emp-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
+        <h1 class="emp-dashboard__greeting-name">
+          <%= current_user.first_name.presence || t("dashboard.there") %>
+        </h1>
+      </div>
+      <div class="emp-dashboard__shift-pill">
+        <% if @current_shift %>
+          <span class="emp-shift-status-pill emp-shift-status-pill--on">
+            <span class="emp-shift-status-pill__dot"></span>
+            <%= t("dashboard.shift_status.on_shift") %>
+          </span>
+        <% elsif @upcoming_shifts.any? %>
+          <span class="emp-shift-status-pill emp-shift-status-pill--upcoming">
+            <%= t("dashboard.shift_status.upcoming") %>
+          </span>
+        <% else %>
+          <span class="emp-shift-status-pill emp-shift-status-pill--off">
+            <%= t("dashboard.shift_status.off_today") %>
+          </span>
+        <% end %>
+      </div>
+    </div>
+    <p class="emp-dashboard__greeting-date"><%= l(Date.current, format: :dashboard) %></p>
     <% if @current_shift %>
       <p class="emp-dashboard__greeting-sub">
-        <%= @current_shift.shift_name %> &mdash; <%= @current_shift.branch_name %>
+        <%= @current_shift.shift_name %>
+        <% if @current_shift.branch %>
+          &mdash; <%= @current_shift.branch_name %>
+        <% end %>
       </p>
     <% end %>
   </div>
+
+  <%# ── Temporary / Ramadan shift banner ─────────────────────────── %>
+  <% if @current_shift&.temporary? %>
+    <div class="emp-temp-shift-banner">
+      <div class="emp-temp-shift-banner__icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="emp-temp-shift-banner__body">
+        <strong class="emp-temp-shift-banner__label">
+          <%= @current_shift.source_template.present? ? @current_shift.source_template.name : t("dashboard.temp_shift.banner_label") %>
+        </strong>
+        <% if @current_shift.effective_to %>
+          <span class="emp-temp-shift-banner__meta">
+            <% days = @current_shift.days_until_expiry %>
+            <% if days == 0 %>
+              <%= t("dashboard.temp_shift.ends_today") %>
+            <% else %>
+              <%= t("dashboard.temp_shift.ends_in", days: days) %>
+            <% end %>
+          </span>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
 
   <%# ── Biometric-only notice (mobile disabled, shift active, not yet checked in) %>
   <% if !current_user.allow_mobile_attendance? && @current_shift && @today_record.nil? %>
@@ -31,7 +100,9 @@
         <p class="attendance-hero__label"><%= t("dashboard.today") %></p>
         <p class="attendance-hero__status">
           <% if @today_record.status == "present" %><%= t("attendance.statuses.present") %>
-          <% elsif @today_record.status == "late" %><%= t("attendance.status_late") %>
+          <% elsif @today_record.status == "late" %>
+            <%= t("attendance.status_late") %>
+            <span class="emp-late-badge"><%= t("dashboard.late_indicator") %></span>
           <% elsif @today_record.status == "early_leave" %><%= t("attendance.statuses.early_leave") %>
           <% elsif @today_record.status == "incomplete" %><%= t("attendance.statuses.incomplete") %>
           <% else %><%= t("attendance.statuses.#{@today_record.status}", default: @today_record.status.humanize) %>
@@ -48,6 +119,21 @@
             <% end %>
           <% end %>
         </p>
+        <%# Shift progress bar — shown when checked in and shift times are known %>
+        <% if !@today_record.checked_out? && @current_shift&.shift %>
+          <% shift     = @current_shift.shift %>
+          <% now_mins  = Time.current.in_time_zone(current_user.business.timezone).strftime("%H:%M").split(":").then { |h, m| h.to_i * 60 + m.to_i } %>
+          <% start_min = shift.start_time.hour * 60 + shift.start_time.min %>
+          <% end_min   = shift.end_time.hour   * 60 + shift.end_time.min %>
+          <% end_min  += 1440 if end_min <= start_min %>
+          <% duration  = (end_min - start_min).clamp(1, 1440) %>
+          <% elapsed   = (now_mins - start_min).clamp(0, duration) %>
+          <% pct       = ((elapsed.to_f / duration) * 100).round %>
+          <div class="shift-progress">
+            <div class="shift-progress__bar" style="width: <%= pct %>%"></div>
+          </div>
+          <p class="shift-progress__label"><%= t("dashboard.shift_progress", pct: pct) %></p>
+        <% end %>
       </div>
       <div class="attendance-hero__icon">
         <% if @today_record.checked_out? %>
@@ -148,6 +234,59 @@
   <% end %>
   <% end %>
 
+  <%# ── Upcoming Shifts ────────────────────────────────────────────── %>
+  <% if @upcoming_shifts.any? %>
+    <div class="emp-dashboard__section">
+      <div class="emp-dashboard__section-header">
+        <h2 class="emp-dashboard__section-title"><%= t("dashboard.upcoming_shifts.title") %></h2>
+        <%= link_to t("dashboard.view_all"), shift_assignments_path, class: "emp-dashboard__section-link" %>
+      </div>
+      <div class="emp-upcoming-list">
+        <% @upcoming_shifts.each do |assignment| %>
+          <div class="emp-upcoming-item <%= "emp-upcoming-item--temp" if assignment.temporary? %>">
+            <div class="emp-upcoming-item__main">
+              <span class="emp-upcoming-item__shift"><%= assignment.shift_name %></span>
+              <% if assignment.temporary? %>
+                <span class="badge badge-type-temporary badge--xs">
+                  <%= assignment.source_template.present? ? assignment.source_template.name : t("shift_assignments.type.temporary") %>
+                </span>
+              <% end %>
+            </div>
+            <div class="emp-upcoming-item__meta">
+              <% if assignment.branch %>
+                <span class="emp-upcoming-item__branch"><%= assignment.branch_name %></span>
+                <span class="emp-upcoming-item__sep">&middot;</span>
+              <% end %>
+              <span class="emp-upcoming-item__date"><%= local_short_date(assignment.effective_from) %></span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── This Month Stats ───────────────────────────────────────────── %>
+  <div class="emp-dashboard__section">
+    <div class="emp-dashboard__section-header">
+      <h2 class="emp-dashboard__section-title"><%= t("dashboard.month_stats.title") %></h2>
+      <%= link_to t("dashboard.view_all"), attendance_records_path, class: "emp-dashboard__section-link" %>
+    </div>
+    <div class="emp-month-stats">
+      <div class="emp-month-stat">
+        <span class="emp-month-stat__value"><%= @month_stats[:days_present] %></span>
+        <span class="emp-month-stat__label"><%= t("dashboard.month_stats.present") %></span>
+      </div>
+      <div class="emp-month-stat emp-month-stat--warn">
+        <span class="emp-month-stat__value"><%= @month_stats[:late_arrivals] %></span>
+        <span class="emp-month-stat__label"><%= t("dashboard.month_stats.late") %></span>
+      </div>
+      <div class="emp-month-stat emp-month-stat--danger">
+        <span class="emp-month-stat__value"><%= @month_stats[:absences] %></span>
+        <span class="emp-month-stat__label"><%= t("dashboard.month_stats.absences") %></span>
+      </div>
+    </div>
+  </div>
+
   <%# ── Quick Actions ──────────────────────────────────────────────── %>
   <div class="emp-dashboard__quick-actions">
     <%= link_to new_employee_request_path, class: "quick-action" do %>
@@ -176,6 +315,44 @@
     <% end %>
   </div>
 
+  <%# ── Latest Payroll ─────────────────────────────────────────────── %>
+  <% if @latest_payroll %>
+    <div class="emp-dashboard__section">
+      <div class="emp-dashboard__section-header">
+        <h2 class="emp-dashboard__section-title"><%= t("dashboard.latest_payroll") %></h2>
+        <%= link_to t("dashboard.view_all"), payroll_periods_path, class: "emp-dashboard__section-link" %>
+      </div>
+      <div class="payroll-summary-card">
+        <div class="payroll-summary-card__period">
+          <%= @latest_payroll.payroll_period.period_label %>
+          <span class="badge <%= @latest_payroll.payroll_period.paid? ? 'badge-success' : 'badge-neutral' %> ml-2">
+            <%= t("payroll.statuses.#{@latest_payroll.payroll_period.status}") %>
+          </span>
+        </div>
+        <div class="payroll-summary-card__row">
+          <span class="payroll-summary-card__label"><%= t("payroll.base_salary") %></span>
+          <span><%= format_currency(@latest_payroll.base_salary, precision: 0) %></span>
+        </div>
+        <% if @latest_payroll.total_overtime > 0 %>
+          <div class="payroll-summary-card__row payroll-summary-card__row--addition">
+            <span class="payroll-summary-card__label"><%= t("payroll.overtime") %></span>
+            <span>+ <%= format_currency(@latest_payroll.total_overtime, precision: 0) %></span>
+          </div>
+        <% end %>
+        <% if @latest_payroll.total_deductions > 0 %>
+          <div class="payroll-summary-card__row payroll-summary-card__row--deduction">
+            <span class="payroll-summary-card__label"><%= t("payroll.deductions") %></span>
+            <span>&minus; <%= format_currency(@latest_payroll.total_deductions, precision: 0) %></span>
+          </div>
+        <% end %>
+        <div class="payroll-summary-card__row payroll-summary-card__row--net">
+          <span class="payroll-summary-card__label"><%= t("payroll.net_salary") %></span>
+          <strong><%= format_currency(@latest_payroll.net_salary, precision: 0) %></strong>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
   <%# ── Recent Requests ────────────────────────────────────────────── %>
   <% if @recent_requests.any? %>
     <div class="emp-dashboard__section">
@@ -199,34 +376,23 @@
     </div>
   <% end %>
 
-  <%# ── Latest Payroll ─────────────────────────────────────────────── %>
-  <% if @latest_payroll %>
+  <%# ── Recent Notifications ───────────────────────────────────────── %>
+  <% if @recent_notifications.any? %>
     <div class="emp-dashboard__section">
       <div class="emp-dashboard__section-header">
-        <h2 class="emp-dashboard__section-title"><%= t("dashboard.latest_payroll") %></h2>
-        <%= link_to t("dashboard.view_all"), payroll_periods_path, class: "emp-dashboard__section-link" %>
+        <h2 class="emp-dashboard__section-title"><%= t("dashboard.notifications.title") %></h2>
+        <%= link_to t("dashboard.notifications.view_all"), notifications_path, class: "emp-dashboard__section-link" %>
       </div>
-      <div class="payroll-summary-card">
-        <div class="payroll-summary-card__period">
-          <%= @latest_payroll.payroll_period.period_label %>
-          <span class="badge <%= @latest_payroll.payroll_period.paid? ? 'badge-success' : 'badge-neutral' %> ml-2">
-            <%= t("payroll.statuses.#{@latest_payroll.payroll_period.status}") %>
-          </span>
-        </div>
-        <div class="payroll-summary-card__row">
-          <span class="payroll-summary-card__label"><%= t("payroll.base_salary") %></span>
-          <span><%= format_currency(@latest_payroll.base_salary, precision: 0) %></span>
-        </div>
-        <% if @latest_payroll.total_deductions > 0 %>
-          <div class="payroll-summary-card__row payroll-summary-card__row--deduction">
-            <span class="payroll-summary-card__label"><%= t("payroll.deductions") %></span>
-            <span>&minus; <%= format_currency(@latest_payroll.total_deductions, precision: 0) %></span>
+      <div class="emp-notif-list">
+        <% @recent_notifications.each do |notif| %>
+          <div class="emp-notif-item emp-notif-item--<%= notif.severity %>">
+            <div class="emp-notif-item__dot"></div>
+            <div class="emp-notif-item__body">
+              <span class="emp-notif-item__title"><%= notif.title %></span>
+              <span class="emp-notif-item__time"><%= local_time(notif.created_at) %></span>
+            </div>
           </div>
         <% end %>
-        <div class="payroll-summary-card__row payroll-summary-card__row--net">
-          <span class="payroll-summary-card__label"><%= t("payroll.net_salary") %></span>
-          <strong><%= format_currency(@latest_payroll.net_salary, precision: 0) %></strong>
-        </div>
       </div>
     </div>
   <% end %>

@@ -155,7 +155,9 @@ class DashboardController < ApplicationController
 
   def load_employee_data
     @today_record    = AttendanceRecord.find_by(user: current_user, date: Date.current)
-    @current_shift   = ShiftAssignment.current.find_by(user: current_user)
+    @current_shift   = ShiftAssignment.current
+                                      .includes(:shift, :branch, :source_template)
+                                      .find_by(user: current_user)
 
     # Attendance eligibility is shift-driven. Branch context comes exclusively from
     # active ShiftAssignments — no fallback to permanent user_branches.
@@ -172,12 +174,42 @@ class DashboardController < ApplicationController
         []
       end
 
+    # Warn if the employee left an open check-in from yesterday.
+    @missing_checkout = AttendanceRecord.find_by(
+      user: current_user, date: Date.yesterday, status: "incomplete"
+    )
+
+    # Next 3 future shift assignments (excludes today/ongoing).
+    @upcoming_shifts = ShiftAssignment
+      .where(user: current_user)
+      .where("effective_from > ?", Date.current)
+      .order(:effective_from)
+      .includes(:shift, :branch, :source_template)
+      .limit(3)
+
+    # Month-to-date attendance counts.
+    month_records = AttendanceRecord.where(
+      user: current_user,
+      date: Date.current.beginning_of_month..Date.current
+    )
+    @month_stats = {
+      days_present:  month_records.where(status: %w[present late early_leave]).count,
+      late_arrivals: month_records.where(status: "late").count,
+      absences:      month_records.where(status: "absent").count,
+    }
+
     @recent_requests = current_user.employee_requests
                                    .order(created_at: :desc)
                                    .limit(3)
-    @latest_payroll  = current_user.payroll_entries
-                                   .joins(:payroll_period)
-                                   .order("payroll_periods.period_year DESC, payroll_periods.period_month DESC")
-                                   .first
+
+    # Only show payroll from finalized/paid periods — never show draft payroll.
+    @latest_payroll = current_user.payroll_entries
+                                  .employee_visible
+                                  .joins(:payroll_period)
+                                  .order("payroll_periods.period_year DESC, payroll_periods.period_month DESC")
+                                  .first
+
+    # Recent unread notifications for alert feed.
+    @recent_notifications = current_user.notifications.unread.recent.limit(5)
   end
 end

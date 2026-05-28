@@ -185,6 +185,32 @@ en:
       qa_import_sub: "Upload CSV data"
       qa_branches: "Branches"
       qa_branches_sub: "Manage office branches"
+    there: "there"
+    late_indicator: "Late"
+    shift_progress: "%{pct}% through shift"
+    shift_status:
+      on_shift: "On Shift"
+      upcoming: "Upcoming"
+      off_today: "Off Today"
+    missing_checkout:
+      title: "Missing Clock-Out"
+      body: "You forgot to clock out yesterday at %{time}."
+      contact: "Please contact your manager."
+      cta: "Request Attendance Correction"
+    temp_shift:
+      banner_label: "Temporary Assignment"
+      ends_in: "Ends in %{days} days"
+      ends_today: "Ends today"
+    upcoming_shifts:
+      title: "Upcoming Shifts"
+    month_stats:
+      title: "This Month"
+      present: "Days Attended"
+      late: "Late Arrivals"
+      absences: "Absences"
+    notifications:
+      title: "Notifications"
+      view_all: "View all"
     trends:
       vs_yesterday_checkin: "vs. yesterday"
       avg_work: "Avg. work"
@@ -352,6 +378,7 @@ en:
 
   payroll:
     base_salary: "Base salary"
+    overtime: "Overtime"
     deductions: "Deductions"
     net_salary: "Net salary"
     period: "Period"
@@ -2110,6 +2137,7 @@ en:
       default: "%b %-d, %Y"
       short: "%-d %b"
       long: "%B %-d, %Y"
+      dashboard: "%A, %B %-d"
 
   time:
     formats:

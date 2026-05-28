@@ -156,4 +156,37 @@ RSpec.describe PayrollEntry, type: :model do
       end
     end
   end
+
+  describe ".employee_visible scope" do
+    let(:business) { create(:business) }
+    let(:user)     { create(:user, business: business) }
+
+    let(:draft_period)     { create(:payroll_period, :draft,         business: business, period_year: 2026, period_month: 1) }
+    let(:review_period)    { create(:payroll_period, :under_review,  business: business, period_year: 2026, period_month: 2) }
+    let(:finalized_period) { create(:payroll_period, :finalized,     business: business, period_year: 2026, period_month: 3) }
+    let(:paid_period)      { create(:payroll_period, :paid,          business: business, period_year: 2026, period_month: 4) }
+
+    let!(:draft_entry)     { create(:payroll_entry, payroll_period: draft_period,     user: user) }
+    let!(:review_entry)    { create(:payroll_entry, payroll_period: review_period,    user: user) }
+    let!(:finalized_entry) { create(:payroll_entry, payroll_period: finalized_period, user: user) }
+    let!(:paid_entry)      { create(:payroll_entry, payroll_period: paid_period,      user: user) }
+
+    subject(:visible) { PayrollEntry.employee_visible }
+
+    it "includes entries from finalized periods" do
+      expect(visible).to include(finalized_entry)
+    end
+
+    it "includes entries from paid periods" do
+      expect(visible).to include(paid_entry)
+    end
+
+    it "excludes entries from draft periods" do
+      expect(visible).not_to include(draft_entry)
+    end
+
+    it "excludes entries from under_review periods" do
+      expect(visible).not_to include(review_entry)
+    end
+  end
 end

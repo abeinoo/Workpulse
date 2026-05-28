@@ -7,6 +7,11 @@ class PayrollEntry < ApplicationRecord
 
   enum :status, { draft: "draft", approved: "approved", disputed: "disputed" }
 
+  # Entries in finalized or paid periods — the only entries employees may see.
+  scope :employee_visible, -> {
+    joins(:payroll_period).where(payroll_periods: { status: %w[finalized paid] })
+  }
+
   validates :user_id, uniqueness: { scope: :payroll_period_id }
   validates :base_salary, :net_salary, presence: true
   validates :working_days, :days_worked,

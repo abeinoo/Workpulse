@@ -129,6 +129,32 @@ ar:
     view_attendance: "عرض الحضور"
     full_log: "السجل الكامل"
     view_more: "عرض %{count} المزيد →"
+    there: "هناك"
+    late_indicator: "متأخر"
+    shift_progress: "%{pct}٪ من الوردية"
+    shift_status:
+      on_shift: "في الوردية"
+      upcoming: "وردية قادمة"
+      off_today: "إجازة اليوم"
+    missing_checkout:
+      title: "انصراف مفقود"
+      body: "نسيت تسجيل انصرافك أمس في %{time}."
+      contact: "الرجاء التواصل مع مديرك."
+      cta: "طلب تعديل الحضور"
+    temp_shift:
+      banner_label: "تعيين مؤقت"
+      ends_in: "ينتهي خلال %{days} أيام"
+      ends_today: "ينتهي اليوم"
+    upcoming_shifts:
+      title: "الورديات القادمة"
+    month_stats:
+      title: "هذا الشهر"
+      present: "أيام الحضور"
+      late: "تأخيرات"
+      absences: "غيابات"
+    notifications:
+      title: "الإشعارات"
+      view_all: "عرض الكل"
     area_manager_role: "مدير المنطقة"
     team:
       not_clocked_in: "لم يسجّل حضوره"
@@ -352,6 +378,7 @@ ar:
 
   payroll:
     base_salary: "الراتب الأساسي"
+    overtime: "العمل الإضافي"
     deductions: "الخصومات"
     net_salary: "صافي الراتب"
     period: "الفترة"
@@ -2080,6 +2107,7 @@ ar:
       default: "%-d %b %Y"
       short: "%-d %b"
       long: "%-d %B %Y"
+      dashboard: "%-d %B"
 
   time:
     formats:
