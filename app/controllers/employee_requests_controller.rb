@@ -19,12 +19,19 @@ class EmployeeRequestsController < ApplicationController
   def show
     @request = policy_scope(EmployeeRequest).find(params[:id])
     authorize @request
+    if @request.punch_correction?
+      @attendance_record = AttendanceRecord.find_by(
+        user:      @request.user,
+        work_date: @request.requested_for_date
+      )
+    end
   end
 
   def new
     @for_user              = resolve_for_user
     @request               = EmployeeRequest.new
     authorize @request
+    prefill_from_params(@request)
     target_user            = @for_user || current_user
     @managed_employees     = managed_employees_for_form
     @permission_limits     = permission_limits_for(target_user)
@@ -57,7 +64,8 @@ class EmployeeRequestsController < ApplicationController
     result = Requests::Approver.approve(
       request:       @request,
       reviewed_by:   current_user,
-      response_note: params[:response_note]
+      response_note: params[:response_note],
+      approved_time: params[:approved_time]
     )
 
     if result.success?
@@ -164,7 +172,23 @@ class EmployeeRequestsController < ApplicationController
 
   def request_params
     params.require(:employee_request)
-          .permit(:request_type, :requested_for_date, :reason, :amount, :duration_minutes)
+          .permit(:request_type, :requested_for_date, :reason, :amount, :duration_minutes,
+                  :correction_type, :proposed_time)
+  end
+
+  def prefill_from_params(request)
+    if params[:request_type].in?(EmployeeRequest::REQUEST_TYPES)
+      request.request_type = params[:request_type]
+    end
+    if params[:requested_for_date].present?
+      request.requested_for_date = params[:requested_for_date]
+    end
+    if params[:correction_type].in?(EmployeeRequest::CORRECTION_TYPES)
+      request.correction_type = params[:correction_type]
+    end
+    if params[:proposed_time].present?
+      request.proposed_time = params[:proposed_time]
+    end
   end
 
   def salary_advances_csv

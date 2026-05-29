@@ -14,8 +14,9 @@ module Requests
       def success? = success
     end
 
-    def self.approve(request:, reviewed_by:, response_note: nil)
-      new(request: request, reviewed_by: reviewed_by, response_note: response_note).approve
+    def self.approve(request:, reviewed_by:, response_note: nil, approved_time: nil)
+      new(request: request, reviewed_by: reviewed_by, response_note: response_note,
+          approved_time: approved_time).approve
     end
 
     def self.reject(request:, reviewed_by:, response_note: nil)
@@ -49,35 +50,17 @@ module Requests
       BulkResult.new(paid_count: paid, errors: errs)
     end
 
-    def initialize(request:, reviewed_by:, response_note: nil)
+    def initialize(request:, reviewed_by:, response_note: nil, approved_time: nil)
       @request       = request
       @reviewed_by   = reviewed_by
       @response_note = response_note
+      @approved_time = approved_time
     end
 
     def approve
       return err("Request is already #{@request.status}") unless @request.pending?
 
-      @request.update!(
-        status:        "approved",
-        reviewed_by:   @reviewed_by,
-        reviewed_at:   Time.current,
-        response_note: @response_note
-      )
-
-      Payroll::PermissionApplier.call(@request)
-
-      log_audit(
-        actor:     @reviewed_by,
-        auditable: @request,
-        action:    "approve",
-        changes:   { status: ["pending", "approved"] },
-        metadata:  { request_type: @request.request_type, response_note: @response_note }
-      )
-
-      Result.new(success: true, request: @request)
-    rescue ActiveRecord::RecordInvalid => e
-      err(e.record.errors.full_messages.join(", "))
+      @request.punch_correction? ? approve_punch_correction : approve_standard
     end
 
     def reject
@@ -131,6 +114,70 @@ module Requests
     end
 
     private
+
+    def approve_standard
+      @request.update!(
+        status:        "approved",
+        reviewed_by:   @reviewed_by,
+        reviewed_at:   Time.current,
+        response_note: @response_note
+      )
+
+      Payroll::PermissionApplier.call(@request)
+
+      log_audit(
+        actor:     @reviewed_by,
+        auditable: @request,
+        action:    "approve",
+        changes:   { status: ["pending", "approved"] },
+        metadata:  { request_type: @request.request_type, response_note: @response_note }
+      )
+
+      Result.new(success: true, request: @request)
+    rescue ActiveRecord::RecordInvalid => e
+      err(e.record.errors.full_messages.join(", "))
+    end
+
+    def approve_punch_correction
+      applier_error = nil
+
+      ActiveRecord::Base.transaction do
+        update_attrs = {
+          status:        "approved",
+          reviewed_by:   @reviewed_by,
+          reviewed_at:   Time.current,
+          response_note: @response_note
+        }
+        update_attrs[:approved_time] = @approved_time if @approved_time.present?
+        @request.update!(update_attrs)
+
+        result = Requests::PunchCorrectionApplier.call(request: @request)
+        unless result.success?
+          applier_error = result.error
+          raise ActiveRecord::Rollback
+        end
+      end
+
+      return err(applier_error) if applier_error
+
+      log_audit(
+        actor:     @reviewed_by,
+        auditable: @request,
+        action:    "approve",
+        changes:   { status: ["pending", "approved"] },
+        metadata:  {
+          request_type:    @request.request_type,
+          correction_type: @request.correction_type,
+          approved_time:   @request.approved_time,
+          proposed_time:   @request.proposed_time,
+          response_note:   @response_note
+        }
+      )
+
+      Result.new(success: true, request: @request)
+    rescue ActiveRecord::RecordInvalid => e
+      err(e.record.errors.full_messages.join(", "))
+    end
 
     def payable?
       @request.salary_advance? && @request.approved? && @request.advance.nil?

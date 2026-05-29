@@ -24,6 +24,22 @@
         <span><%= format_currency(@request.amount) %></span>
       </div>
     <% end %>
+    <% if @request.punch_correction? %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("requests.show.correction_type") %></span>
+        <span><%= t("requests.correction_types.#{@request.correction_type}") %></span>
+      </div>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("requests.show.proposed_time") %></span>
+        <span><%= @request.proposed_time %></span>
+      </div>
+      <% if @request.approved_time.present? %>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("requests.show.approved_time") %></span>
+          <span><%= @request.approved_time %></span>
+        </div>
+      <% end %>
+    <% end %>
     <% if @request.reason.present? %>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("requests.reason") %></span>
@@ -51,14 +67,90 @@
     <% end %>
   </div>
 
+  <%# Punch correction: original attendance data + audit trail ── %>
+  <% if @request.punch_correction? %>
+    <div class="info-card" style="margin-top: 1rem;">
+      <p class="info-card__section-title"><%= t("requests.show.original_attendance") %></p>
+      <% if @attendance_record %>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("requests.show.original_check_in") %></span>
+          <span><%= @attendance_record.check_in_at ? local_time(@attendance_record.check_in_at) : "—" %></span>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("requests.show.original_check_out") %></span>
+          <span><%= @attendance_record.check_out_at ? local_time(@attendance_record.check_out_at) : t("requests.show.missing") %></span>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance.status") %></span>
+          <span><%= t("attendance.statuses.#{@attendance_record.status}", default: @attendance_record.status.humanize) %></span>
+        </div>
+      <% else %>
+        <p class="info-card__empty"><%= t("requests.show.no_attendance_record") %></p>
+      <% end %>
+    </div>
+
+    <%# Audit trail once approved ── %>
+    <% if @request.approved? && @request.original_check_in_at.present? %>
+      <div class="info-card" style="margin-top: 1rem;">
+        <p class="info-card__section-title"><%= t("requests.show.audit_trail") %></p>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("requests.show.original_check_in") %></span>
+          <span><%= local_time(@request.original_check_in_at) %></span>
+        </div>
+        <% if @request.original_check_out_at.present? %>
+          <div class="info-card__row">
+            <span class="info-card__label"><%= t("requests.show.original_check_out") %></span>
+            <span><%= local_time(@request.original_check_out_at) %></span>
+          </div>
+        <% end %>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("requests.show.approved_time") %></span>
+          <span><%= @request.approved_time.presence || @request.proposed_time %></span>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+
   <%# Manager approves/rejects pending requests %>
   <% if @request.pending? && policy(@request).approve? %>
-    <div class="form-actions" style="margin-top: 1rem;">
-      <%= button_to t("requests.approve"), approve_employee_request_path(@request),
-            method: :patch, class: "btn btn-primary" %>
-      <%= button_to t("requests.reject"), reject_employee_request_path(@request),
-            method: :patch, class: "btn btn-danger" %>
-    </div>
+    <% if @request.punch_correction? %>
+      <%# Punch correction: full approval form with editable approved_time %>
+      <div class="form-card" style="margin-top: 1rem;">
+        <p class="form-card__title"><%= t("requests.show.review_correction") %></p>
+        <%= form_with url: approve_employee_request_path(@request), method: :patch, local: true do |f| %>
+          <div class="form-grid">
+            <div class="form-group">
+              <%= label_tag :approved_time, t("requests.show.approved_time_label"), class: "form-label" %>
+              <%= time_field_tag :approved_time,
+                    @request.proposed_time&.strftime("%H:%M"),
+                    class: "form-control" %>
+              <p class="form-hint"><%= t("requests.show.approved_time_hint") %></p>
+            </div>
+            <div class="form-group form-group--full">
+              <%= label_tag :response_note, t("requests.show.response_note_label"), class: "form-label" %>
+              <%= text_area_tag :response_note, nil, rows: 2, class: "form-control",
+                    placeholder: t("requests.show.response_note_placeholder") %>
+            </div>
+          </div>
+          <div class="form-actions">
+            <%= f.submit t("requests.approve"), class: "btn btn-primary" %>
+            <%= link_to t("requests.reject"),
+                  reject_employee_request_path(@request),
+                  method: :patch,
+                  data: { turbo_method: :patch,
+                          turbo_confirm: t("requests.confirm_reject") },
+                  class: "btn btn-danger" %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="form-actions" style="margin-top: 1rem;">
+        <%= button_to t("requests.approve"), approve_employee_request_path(@request),
+              method: :patch, class: "btn btn-primary" %>
+        <%= button_to t("requests.reject"), reject_employee_request_path(@request),
+              method: :patch, class: "btn btn-danger" %>
+      </div>
+    <% end %>
   <% end %>
 
   <%# Accountant/admin marks approved salary advance as paid %>

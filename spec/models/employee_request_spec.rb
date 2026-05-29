@@ -38,6 +38,54 @@ RSpec.describe EmployeeRequest, type: :model do
     end
   end
 
+  describe "punch_correction validations" do
+    it "is valid with all required fields" do
+      req = build(:employee_request, :punch_correction)
+      expect(req).to be_valid
+    end
+
+    it "is invalid without correction_type" do
+      req = build(:employee_request, :punch_correction, correction_type: nil)
+      expect(req).not_to be_valid
+      expect(req.errors[:correction_type]).to be_present
+    end
+
+    it "is invalid without proposed_time" do
+      req = build(:employee_request, :punch_correction, proposed_time: nil)
+      expect(req).not_to be_valid
+      expect(req.errors[:proposed_time]).to be_present
+    end
+
+    it "is invalid without reason" do
+      req = build(:employee_request, :punch_correction, reason: nil)
+      expect(req).not_to be_valid
+      expect(req.errors[:reason]).to be_present
+    end
+
+    it "is invalid without requested_for_date" do
+      req = build(:employee_request, :punch_correction, requested_for_date: nil)
+      expect(req).not_to be_valid
+      expect(req.errors[:requested_for_date]).to be_present
+    end
+
+    it "does not require duration_minutes" do
+      req = build(:employee_request, :punch_correction, duration_minutes: nil)
+      expect(req).to be_valid
+    end
+
+    it "does not require amount" do
+      req = build(:employee_request, :punch_correction, amount: nil)
+      expect(req).to be_valid
+    end
+
+    it "accepts all four correction_type values" do
+      EmployeeRequest::CORRECTION_TYPES.each do |ct|
+        req = build(:employee_request, :punch_correction, correction_type: ct)
+        expect(req).to be_valid, "expected #{ct} to be valid"
+      end
+    end
+  end
+
   describe "affects_payroll derivation" do
     it "is false for salary_advance" do
       req = create(:employee_request, :salary_advance)
@@ -52,6 +100,11 @@ RSpec.describe EmployeeRequest, type: :model do
     it "is true for early_leave" do
       req = create(:employee_request, :early_leave)
       expect(req.affects_payroll).to be true
+    end
+
+    it "is false for punch_correction" do
+      req = create(:employee_request, :punch_correction)
+      expect(req.affects_payroll).to be false
     end
   end
 

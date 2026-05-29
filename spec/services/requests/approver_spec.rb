@@ -156,4 +156,75 @@ RSpec.describe Requests::Approver do
       end
     end
   end
+
+  # ──────────────────────────────────────────────────────────────
+  # Punch correction approval
+  # ──────────────────────────────────────────────────────────────
+  describe ".approve — punch_correction request" do
+    let(:employee)  { create(:user, business: business) }
+    let(:work_date) { Date.current - 1.day }
+    # business default timezone is Asia/Riyadh (UTC+3): 09:00 Riyadh = 06:00 UTC
+    let(:check_in_local) { ActiveSupport::TimeZone["Asia/Riyadh"].local(work_date.year, work_date.month, work_date.day, 9, 0, 0) }
+    let!(:attendance_record) do
+      create(:attendance_record,
+             user:           employee,
+             date:           work_date,
+             work_date:      work_date,
+             check_in_at:    check_in_local,
+             check_out_at:   nil,
+             status:         "incomplete",
+             worked_minutes: nil)
+    end
+    let!(:request) do
+      create(:employee_request, :punch_correction,
+             user:               employee,
+             correction_type:    "missing_check_out",
+             requested_for_date: work_date,
+             proposed_time:      "17:00")
+    end
+
+    it "returns success" do
+      result = described_class.approve(request: request, reviewed_by: manager)
+      expect(result).to be_success
+    end
+
+    it "transitions the request to approved" do
+      described_class.approve(request: request, reviewed_by: manager)
+      expect(request.reload.status).to eq("approved")
+    end
+
+    it "sets check_out_at to 17:00 in the business timezone (Riyadh)" do
+      described_class.approve(request: request, reviewed_by: manager)
+      check_out_local = attendance_record.reload.check_out_at.in_time_zone("Asia/Riyadh")
+      expect(check_out_local.hour).to eq(17)
+      expect(check_out_local.min).to eq(0)
+    end
+
+    it "stores approved_time string when manager provides a different time" do
+      described_class.approve(
+        request:       request,
+        reviewed_by:   manager,
+        approved_time: "16:45"
+      )
+      expect(request.reload.approved_time).to eq("16:45")
+      check_out_local = attendance_record.reload.check_out_at.in_time_zone("Asia/Riyadh")
+      expect(check_out_local.hour).to eq(16)
+      expect(check_out_local.min).to eq(45)
+    end
+
+    it "rolls back if PunchCorrectionApplier fails" do
+      allow(Requests::PunchCorrectionApplier).to receive(:call).and_return(
+        Requests::PunchCorrectionApplier::Result.new(success: false, error: "test error")
+      )
+      result = described_class.approve(request: request, reviewed_by: manager)
+      expect(result).not_to be_success
+      expect(request.reload.status).to eq("pending")
+    end
+
+    it "does not call Payroll::PermissionApplier" do
+      allow(Payroll::PermissionApplier).to receive(:call)
+      described_class.approve(request: request, reviewed_by: manager)
+      expect(Payroll::PermissionApplier).not_to have_received(:call)
+    end
+  end
 end

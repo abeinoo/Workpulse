@@ -8,14 +8,14 @@
       </div>
       <div class="missing-punch-alert__body">
         <p class="missing-punch-alert__title"><%= t("dashboard.missing_checkout.title") %></p>
-        <p class="missing-punch-alert__text">
-          <%= t("dashboard.missing_checkout.body", time: local_time(@missing_checkout.check_in_at)) %>
-        </p>
-        <p class="missing-punch-alert__contact"><%= t("dashboard.missing_checkout.contact") %></p>
       </div>
       <div class="missing-punch-alert__cta">
         <%= link_to t("dashboard.missing_checkout.cta"),
-              new_employee_request_path(request_type: "attendance_correction"),
+              new_employee_request_path(
+                request_type:       "punch_correction",
+                requested_for_date: Date.yesterday,
+                correction_type:    "missing_check_out"
+              ),
               class: "missing-punch-alert__btn" %>
       </div>
     </div>

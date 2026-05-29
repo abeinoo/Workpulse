@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_28_000007) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_29_073228) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -244,8 +244,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_000007) do
   create_table "employee_requests", force: :cascade do |t|
     t.boolean "affects_payroll", default: false, null: false
     t.decimal "amount", precision: 12, scale: 2
+    t.string "approved_time"
+    t.string "correction_type"
     t.datetime "created_at", null: false
     t.integer "duration_minutes"
+    t.datetime "original_check_in_at"
+    t.datetime "original_check_out_at"
+    t.string "proposed_time"
     t.text "reason", null: false
     t.string "request_type", null: false
     t.date "requested_for_date", null: false
