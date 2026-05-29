@@ -437,4 +437,149 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       end
     end
   end
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Test I — Payroll records vs payroll analytics separation.
+  #   Viewing payroll records (`view_payroll`) and viewing payroll analytics
+  #   (`view_payroll_analytics`) are two distinct capabilities. A records-only
+  #   user must NOT see organization-wide aggregates, KPI cards, filters,
+  #   the payroll dashboard, or analytics API endpoints.
+  # ────────────────────────────────────────────────────────────────────────────
+  describe "Test I — payroll records vs analytics separation" do
+    # Both users get business_wide scope so they can see the test entry.
+    # The test is about analytics visibility, not data scoping.
+    def payroll_user(*perms)
+      role = PermissionRole.create!(
+        business:           business,
+        name:               "PRole-#{SecureRandom.hex(4)}",
+        permissions:        perms.map(&:to_s),
+        permission_scopes:  perms.map(&:to_s).index_with { "business_wide" }
+      )
+      create(:user, business: business, permission_role: role)
+    end
+
+    let(:records_only) { payroll_user(:view_payroll) }
+    let(:analyst)      { payroll_user(:view_payroll, :view_payroll_analytics) }
+    let!(:period)      { create(:payroll_period, business: business) }
+    let!(:other_user)  { create(:user, business: business) }
+    let!(:entry)       { create(:payroll_entry, payroll_period: period, user: other_user,
+                                base_salary: 5000, total_overtime: 200,
+                                total_deductions: 100, net_salary: 5100) }
+
+    it "records-only user can access /payroll_periods" do
+      expect(get_html(records_only, payroll_periods_path)).to have_http_status(:ok)
+    end
+
+    it "records-only user does NOT see the KPI summary strip" do
+      body = get_html(records_only, payroll_periods_path).body
+      expect(body).not_to include("payroll-kpi-grid"),
+        "records-only user must not see organization-wide KPI summary cards"
+    end
+
+    it "records-only user does NOT see the payroll filter bar" do
+      body = get_html(records_only, payroll_periods_path).body
+      expect(body).not_to include("payroll-filters"),
+        "records-only user must not have access to analytics filters"
+    end
+
+    it "records-only user does NOT see the period totals footer row" do
+      body = get_html(records_only, payroll_periods_path).body
+      expect(body).not_to include("totals-row"),
+        "records-only user must not see the grand-total footer row"
+    end
+
+    it "records-only user does NOT see the aggregate columns on the period table" do
+      body = get_html(records_only, payroll_periods_path).body
+      expect(body).not_to include(I18n.t("payroll.index.employees_col"))
+      expect(body).not_to include(I18n.t("payroll.index.net_total_col"))
+    end
+
+    it "records-only user does NOT see period overview metrics on show" do
+      body = get_html(records_only, payroll_period_path(period)).body
+      expect(body).not_to include("payroll-overview"),
+        "records-only user must not see period-level financial aggregates"
+    end
+
+    it "records-only user does NOT see anomaly alerts on show" do
+      body = get_html(records_only, payroll_period_path(period)).body
+      expect(body).not_to include("payroll-alerts")
+    end
+
+    it "records-only user is denied the payroll dashboard" do
+      expect(get_html(records_only, payroll_dashboard_path).status).to be_in([302, 403])
+    end
+
+    it "records-only user is denied the API analytics summary endpoint" do
+      sign_in records_only
+      get "/api/v1/reports/payroll/summary", params: { payroll_period_id: period.id }, as: :json
+      expect(response.status).to be_in([401, 403])
+    end
+
+    it "records-only user is denied the CSV export endpoint" do
+      sign_in records_only
+      get "/api/v1/reports/payroll/export.csv", params: { payroll_period_id: period.id }
+      expect(response.status).to be_in([401, 403])
+    end
+
+    it "records-only user does NOT receive entry_count aggregate in API index" do
+      sign_in records_only
+      get "/api/v1/payroll_periods", as: :json
+      expect(response).to have_http_status(:ok)
+      response.parsed_body["data"].each do |p|
+        expect(p).not_to have_key("entry_count"),
+          "entry_count is an aggregate — must be hidden from records-only users"
+      end
+    end
+
+    # ── Analyst (records + analytics) sees everything ──
+    it "analyst sees the KPI summary strip" do
+      expect(get_html(analyst, payroll_periods_path).body).to include("payroll-kpi-grid")
+    end
+
+    it "analyst sees the filter bar" do
+      expect(get_html(analyst, payroll_periods_path).body).to include("payroll-filters")
+    end
+
+    it "analyst sees period overview metrics on show" do
+      expect(get_html(analyst, payroll_period_path(period)).body).to include("payroll-overview")
+    end
+
+    it "analyst can access the payroll dashboard" do
+      expect(get_html(analyst, payroll_dashboard_path)).to have_http_status(:ok)
+    end
+
+    it "analyst can hit the API analytics summary endpoint" do
+      sign_in analyst
+      get "/api/v1/reports/payroll/summary", params: { payroll_period_id: period.id }, as: :json
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "analyst receives entry_count aggregate in API index" do
+      sign_in analyst
+      get "/api/v1/payroll_periods", as: :json
+      response.parsed_body["data"].each do |p|
+        expect(p).to have_key("entry_count")
+      end
+    end
+
+    # ── Toggle test: revoke analytics live, aggregates disappear next request ──
+    it "revoking view_payroll_analytics live removes analytics from the very next request" do
+      sign_in analyst
+      get payroll_periods_path
+      expect(response.body).to include("payroll-kpi-grid")
+
+      analyst.permission_role.update!(permissions: %w[view_payroll])
+      get payroll_periods_path
+      expect(response.body).not_to include("payroll-kpi-grid"),
+        "KPI strip must vanish on the next request after the permission is revoked"
+    end
+
+    # ── Dependency check: cannot grant analytics without view_payroll ──
+    it "the permission role validates that view_payroll_analytics requires view_payroll" do
+      role = PermissionRole.new(business: business, name: "Bad-#{rand(10000)}",
+                                permissions: %w[view_payroll_analytics])
+      expect(role).not_to be_valid
+      expect(role.errors[:permissions].join).to include("view_payroll")
+    end
+  end
 end

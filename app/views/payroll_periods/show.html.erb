@@ -386,7 +386,8 @@
           </tr>
         <% end %>
       </tbody>
-      <% unless @entries.empty? %>
+      <%# Totals row is analytics — only renders when @overview was loaded %>
+      <% if @overview && @entries.any? %>
         <tfoot>
           <tr class="totals-row">
             <td colspan="<%= current_user.can?(:view_payroll) ? 3 : 2 %>">

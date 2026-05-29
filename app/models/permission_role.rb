@@ -5,7 +5,7 @@ class PermissionRole < ApplicationRecord
   PERMISSION_GROUPS = {
     employees:      %w[view_employees manage_employees manage_salary_profiles],
     attendance:     %w[view_attendance manage_attendance manage_devices],
-    payroll:        %w[view_payroll manage_payroll finalize_payroll pay_advances],
+    payroll:        %w[view_payroll view_payroll_analytics manage_payroll finalize_payroll pay_advances],
     adjustments:    %w[manage_adjustments approve_adjustments],
     requests:       %w[view_requests approve_requests],
     shifts:         %w[view_shifts manage_shifts assign_shifts],
@@ -37,6 +37,7 @@ class PermissionRole < ApplicationRecord
     "manage_salary_profiles" => %w[view_employees],
     "manage_payroll"         => %w[view_payroll],
     "finalize_payroll"       => %w[view_payroll],
+    "view_payroll_analytics" => %w[view_payroll],
     "pay_advances"           => %w[view_requests],
     "manage_adjustments"     => %w[view_payroll],
     "approve_adjustments"    => %w[view_payroll],

@@ -5,30 +5,34 @@ class PayrollPeriodsController < ApplicationController
     base_scope = policy_scope(PayrollPeriod)
 
     if current_user.can?(:view_payroll)
-      # Summary stats always reflect the full unfiltered scope
-      @summary       = build_index_summary(base_scope)
-      @available_years = base_scope.distinct.order(period_year: :desc).pluck(:period_year)
+      # Analytics-gated: KPI strip, filters, and per-period aggregate columns
+      # all require `view_payroll_analytics`. Without it, a viewer just sees a
+      # plain list of the periods they're authorized to access.
+      if current_user.can?(:view_payroll_analytics)
+        @summary         = build_index_summary(base_scope)
+        @available_years = base_scope.distinct.order(period_year: :desc).pluck(:period_year)
 
-      # Filter params
-      @filter_status = params[:status].presence
-      @filter_year   = params[:year].to_i.nonzero?
-      @filter_month  = params[:month].to_i.nonzero?
+        @filter_status = params[:status].presence
+        @filter_year   = params[:year].to_i.nonzero?
+        @filter_month  = params[:month].to_i.nonzero?
 
-      filtered = base_scope
-      filtered = filtered.where(status: @filter_status) if @filter_status
-      filtered = filtered.where(period_year:  @filter_year)  if @filter_year
-      filtered = filtered.where(period_month: @filter_month) if @filter_month
-      @periods = filtered.order(period_year: :desc, period_month: :desc)
+        filtered = base_scope
+        filtered = filtered.where(status: @filter_status)     if @filter_status
+        filtered = filtered.where(period_year:  @filter_year) if @filter_year
+        filtered = filtered.where(period_month: @filter_month) if @filter_month
+        @periods = filtered.order(period_year: :desc, period_month: :desc)
 
-      # Batch-load per-period aggregates to avoid N+1 on the table
-      period_ids = @periods.pluck(:id)
-      if period_ids.any?
-        @employee_counts   = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).count
-        @period_net_totals = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:net_salary)
-        @period_deductions = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:total_deductions)
-        @period_overtime   = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:total_overtime)
+        period_ids = @periods.pluck(:id)
+        if period_ids.any?
+          @employee_counts   = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).count
+          @period_net_totals = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:net_salary)
+          @period_deductions = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:total_deductions)
+          @period_overtime   = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:total_overtime)
+        else
+          @employee_counts = @period_net_totals = @period_deductions = @period_overtime = {}
+        end
       else
-        @employee_counts = @period_net_totals = @period_deductions = @period_overtime = {}
+        @periods = base_scope.order(period_year: :desc, period_month: :desc)
       end
     else
       @periods = base_scope.order(period_year: :desc, period_month: :desc)
@@ -70,16 +74,10 @@ class PayrollPeriodsController < ApplicationController
 
     @branch_reviews_for_manager = manager_branch_reviews
 
-    # Overview totals, alerts, insights, and user→branch lookup for management
+    # Non-analytical management data (always loaded for any viewer with
+    # `view_payroll`) — these are operational lookups, not financial aggregates.
     if current_user.can?(:view_payroll)
-      @overview          = build_period_overview(@entries)
       @user_branch_names = load_user_branch_names(@entries.map(&:user_id))
-      @insights          = Payroll::InsightsPresenter.new(period: @period, entries: @entries)
-      @anomalies         = Payroll::AnomalyDetector.new(
-                             period:        @period,
-                             entries:       @entries,
-                             pending_count: @total_pending
-                           ).detect
       @last_regenerate   = @period.payroll_audit_logs
                                   .where(action_type: :regenerated)
                                   .includes(:actor)
@@ -87,6 +85,19 @@ class PayrollPeriodsController < ApplicationController
                                   .first
       @audit_logs        = @period.payroll_audit_logs.includes(:actor).order(created_at: :asc)
       @last_snapshot     = @period.payroll_snapshots.order(created_at: :desc).first
+    end
+
+    # Analytics-gated: KPI cards, insights, anomalies, period totals.
+    # Without `view_payroll_analytics` a viewer sees the per-employee rows
+    # they're authorized to see, but no organization-wide aggregates.
+    if current_user.can?(:view_payroll_analytics)
+      @overview  = build_period_overview(@entries)
+      @insights  = Payroll::InsightsPresenter.new(period: @period, entries: @entries)
+      @anomalies = Payroll::AnomalyDetector.new(
+                     period:        @period,
+                     entries:       @entries,
+                     pending_count: @total_pending
+                   ).detect
     end
 
     if current_user.can?(:manage_payroll)

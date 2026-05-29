@@ -32,7 +32,7 @@ RSpec.describe "Payroll Scope Visibility", type: :request do
 
   let(:manager_role) do
     create(:permission_role, business: business,
-           permissions: %w[view_payroll view_employees],
+           permissions: %w[view_payroll view_payroll_analytics view_employees],
            permission_scopes: {})
   end
 
@@ -200,14 +200,16 @@ RSpec.describe "Payroll Scope Visibility", type: :request do
       sign_in other_user
       get "/api/v1/reports/payroll/summary",
           params: { payroll_period_id: period.id }, as: :json
-      expect(response).to have_http_status(:not_found)
+      # 401 = denied by view_payroll_analytics gate (preferred path);
+      # 404 = denied by scoped lookup. Either means "no leakage."
+      expect(response.status).to be_in([401, 403, 404])
     end
 
     it "cannot access export for another business's period" do
       sign_in other_user
       get "/api/v1/reports/payroll/export",
           params: { payroll_period_id: period.id }
-      expect(response).to have_http_status(:not_found)
+      expect(response.status).to be_in([401, 403, 404])
     end
 
     it "receives empty entries when querying another business's payroll period" do

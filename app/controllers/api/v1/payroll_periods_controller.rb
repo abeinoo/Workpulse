@@ -117,7 +117,8 @@ module Api
             }
           end
         else
-          data[:entry_count] = period.payroll_entries.size
+          # entry_count is an aggregate — only expose to analytics consumers.
+          data[:entry_count] = period.payroll_entries.size if current_user.can?(:view_payroll_analytics)
         end
 
         data
