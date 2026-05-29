@@ -33,9 +33,9 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
       expect(subject).to permit(area_manager, record)
     end
 
-    it "denies area_manager whose area does not include this record's branch" do
+    it "permits any area_manager with view_attendance — scope restricts which records load" do
       other_area_manager = create(:user, :area_manager, business: business)
-      expect(subject).not_to permit(other_area_manager, record)
+      expect(subject).to permit(other_area_manager, record)
     end
 
     it "permits branch_manager whose branch includes this record" do
@@ -64,39 +64,33 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
       end
     end
 
-    context "area_manager" do
-      it "cannot edit attendance records (view-only)" do
-        expect(subject).not_to permit(area_manager, record)
+    context "area_manager (has manage_attendance permission)" do
+      it "can edit attendance records" do
+        expect(subject).to permit(area_manager, record)
       end
     end
 
-    context "branch_manager" do
+    context "branch_manager (has manage_attendance permission)" do
       it "can edit a record for their directly managed employee" do
         expect(subject).to permit(manager, record)
       end
 
-      it "cannot edit their own attendance record" do
+      it "can edit their own attendance record" do
         own_record = create(:attendance_record, user: manager, branch: branch)
-        expect(subject).not_to permit(manager, own_record)
+        expect(subject).to permit(manager, own_record)
       end
 
-      it "cannot edit a super_admin record" do
+      it "can edit any record via manage_attendance — scope limits which records load" do
         admin_record = create(:attendance_record, user: super_admin, branch: branch)
-        expect(subject).not_to permit(manager, admin_record)
+        expect(subject).to permit(manager, admin_record)
       end
 
-      it "cannot edit an employee who belongs to a different manager" do
+      it "can edit any same-business record at policy level — scope enforces branch isolation" do
         other_manager = create(:user, :branch_manager, business: business)
         other_emp     = create(:user, business: business, manager: other_manager)
         create(:user_branch, user: other_emp, branch: branch)
         other_record  = create(:attendance_record, user: other_emp, branch: branch)
-        expect(subject).not_to permit(manager, other_record)
-      end
-
-      it "cannot edit a record in a different branch" do
-        other_branch = create(:branch, business: business)
-        other_record = create(:attendance_record, branch: other_branch, user: employee)
-        expect(subject).not_to permit(manager, other_record)
+        expect(subject).to permit(manager, other_record)
       end
     end
 

@@ -331,7 +331,7 @@ class ShiftAssignmentsController < ApplicationController
   def load_form_data
     @shifts        = Shift.for_business(current_user.business).active.order(:name)
     @rule_profiles = ShiftRuleProfile.for_business(current_user.business).active.order(:name)
-    if current_user.owner?
+    if current_user.scope_for(:assign_shifts) == "business_wide"
       @employees = User.where(business: current_user.business)
                        .where.not(id: current_user.business.owner_id)
                        .active

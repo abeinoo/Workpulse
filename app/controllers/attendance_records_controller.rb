@@ -5,8 +5,7 @@ class AttendanceRecordsController < ApplicationController
   PER_PAGE = 50
 
   def index
-    @can_manage = current_user.owner? || current_user.manages_area? ||
-                  current_user.manages_branch? || current_user.can?(:view_attendance)
+    @can_manage = current_user.can?(:view_attendance)
 
     # KPI stats: unfiltered today snapshot (respects policy scope)
     biz_today = Time.current.in_time_zone(current_user.business.timezone_object).to_date
@@ -118,26 +117,27 @@ class AttendanceRecordsController < ApplicationController
   end
 
   def resolve_filter_user(user_id)
-    if current_user.owner? || current_user.can?(:view_attendance)
+    return nil unless current_user.can?(:view_attendance)
+
+    configured = current_user.scope_for(:view_attendance)
+    if configured == "business_wide"
       current_user.business.users.find_by(id: user_id)
-    elsif current_user.manages_area?
-      User.joins(:user_branches)
-          .where(user_branches: { branch_id: current_user.area_managed_branch_ids })
-          .find_by(id: user_id)
-    elsif current_user.manages_branch?
-      current_user.managed_employees.find_by(id: user_id)
+    else
+      # Default: use EmployeeScope which honours managed_employees + branch hierarchy.
+      EmployeeScope.new(current_user).relation.find_by(id: user_id) ||
+        (current_user.id == user_id.to_i ? current_user : nil)
     end
   end
 
   def visible_branches
-    if current_user.owner? || current_user.can?(:view_attendance)
+    return Branch.none unless current_user.can?(:view_attendance)
+
+    configured = current_user.scope_for(:view_attendance)
+    if configured == "business_wide"
       current_user.business.branches.active.order(:name)
-    elsif current_user.manages_area?
-      Branch.where(id: current_user.area_managed_branch_ids).active.order(:name)
-    elsif current_user.manages_branch?
-      Branch.where(id: current_user.managed_branch_ids).active.order(:name)
     else
-      Branch.none
+      branch_ids = current_user.managed_branch_ids + current_user.area_managed_branch_ids
+      branch_ids.any? ? Branch.where(id: branch_ids).active.order(:name) : current_user.business.branches.active.order(:name)
     end
   end
 

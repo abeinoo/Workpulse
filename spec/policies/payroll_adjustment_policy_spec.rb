@@ -35,8 +35,8 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       expect(subject.new(area_manager, blank_record).new?).to be true
     end
 
-    it "denies accountant" do
-      expect(subject.new(accountant, blank_record).new?).to be false
+    it "permits accountant with manage_adjustments" do
+      expect(subject.new(accountant, blank_record).new?).to be true
     end
 
     it "denies employee" do
@@ -68,18 +68,18 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       expect(subject.new(super_admin, adjustment).reject?).to be true
     end
 
-    it "denies branch_manager" do
-      expect(subject.new(manager, adjustment).approve?).to be false
-      expect(subject.new(manager, adjustment).reject?).to be false
+    it "permits branch_manager with approve_adjustments" do
+      expect(subject.new(manager, adjustment).approve?).to be true
+      expect(subject.new(manager, adjustment).reject?).to be true
     end
 
-    it "denies area_manager" do
-      expect(subject.new(area_manager, adjustment).approve?).to be false
-      expect(subject.new(area_manager, adjustment).reject?).to be false
+    it "permits area_manager with approve_adjustments" do
+      expect(subject.new(area_manager, adjustment).approve?).to be true
+      expect(subject.new(area_manager, adjustment).reject?).to be true
     end
 
-    it "denies accountant" do
-      expect(subject.new(accountant, adjustment).approve?).to be false
+    it "permits accountant with approve_adjustments" do
+      expect(subject.new(accountant, adjustment).approve?).to be true
     end
   end
 
@@ -93,8 +93,8 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
         expect(subject.new(manager, adjustment).destroy?).to be true
       end
 
-      it "denies accountant who did not create it" do
-        expect(subject.new(accountant, adjustment).destroy?).to be false
+      it "permits accountant with manage_adjustments regardless of creator" do
+        expect(subject.new(accountant, adjustment).destroy?).to be true
       end
 
       it "permits accountant who did create it" do

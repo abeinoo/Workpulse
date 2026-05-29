@@ -2,13 +2,13 @@
 
   <div class="page-header">
     <h1 class="page-title"><%= t("requests.index.title") %></h1>
-    <% unless current_user.owner? || current_user.can?(:pay_advances) %>
+    <% unless current_user.can?(:pay_advances) %>
       <%= link_to t("requests.new.title"), new_employee_request_path, class: "btn btn-primary btn-sm" %>
     <% end %>
   </div>
 
   <%# ── Accountant/Admin: salary advance management panel ─────────────────── %>
-  <% if current_user.owner? || current_user.can?(:pay_advances) %>
+  <% if current_user.can?(:pay_advances) %>
     <% advances_pending = @requests.select { |r| r.salary_advance? && r.approved? } %>
     <% if advances_pending.any? %>
       <div class="alert-banner alert-banner--warning" style="margin-bottom: 1.5rem;">
@@ -21,7 +21,7 @@
     <table>
       <thead>
         <tr>
-          <% if current_user.owner? || current_user.manages_area? || current_user.manages_branch? || current_user.can?(:view_requests) %>
+          <% if current_user.can?(:view_requests) || current_user.can?(:approve_requests) %>
             <th><%= t("requests.employee") %></th>
           <% end %>
           <th><%= t("requests.type") %></th>
@@ -34,7 +34,7 @@
       <tbody>
         <% @requests.each do |req| %>
           <tr>
-            <% if current_user.owner? || current_user.manages_area? || current_user.manages_branch? || current_user.can?(:view_requests) %>
+            <% if current_user.can?(:view_requests) || current_user.can?(:approve_requests) %>
               <td><%= req.user.full_name %></td>
             <% end %>
             <td><span class="badge badge-neutral"><%= t("requests.types.#{req.request_type}") %></span></td>
@@ -83,7 +83,7 @@
   </div>
 
   <%# ── CSV export for accountants ─────────────────────────────────────────── %>
-  <% if current_user.owner? || current_user.can?(:pay_advances) %>
+  <% if current_user.can?(:pay_advances) %>
     <div style="margin-top: 1rem; text-align: end;">
       <%= link_to t("requests.export_csv"), employee_requests_path(format: :csv), class: "btn btn-secondary btn-sm" %>
     </div>

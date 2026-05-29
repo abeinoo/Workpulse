@@ -1,9 +1,9 @@
 class ShiftPolicy < ApplicationPolicy
-  def index?   = can?(:view_shifts) || owner? || manages_branch?
-  def show?    = can?(:view_shifts) || owner? || manages_branch? || own_shift_assigned?
-  def create?  = can?(:manage_shifts) || owner?
-  def update?  = can?(:manage_shifts) || owner?
-  def destroy? = can?(:manage_shifts) || owner?
+  def index?   = can?(:view_shifts) || can?(:manage_shifts) || can?(:assign_shifts)
+  def show?    = can?(:view_shifts) || can?(:manage_shifts) || can?(:assign_shifts) || own_shift_assigned?
+  def create?  = can?(:manage_shifts)
+  def update?  = can?(:manage_shifts)
+  def destroy? = can?(:manage_shifts)
 
   class Scope < ApplicationPolicy::Scope
     def resolve

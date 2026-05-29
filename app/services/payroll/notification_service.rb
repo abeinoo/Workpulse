@@ -111,14 +111,14 @@ module Payroll
       case @event
       when :finalized, :paid
         business.users.where(active: true).select { |u|
-          u.can?(:view_payroll) || u.owner?
+          u.can?(:view_payroll)
         }
       when :submitted_for_review, :branch_review_completed, :regenerated
-        [ business.owner ].compact
+        business.users.where(active: true).select { |u| u.can?(:view_payroll) }
       when :adjustment_approved, :adjustment_rejected
         [ @context[:user] ].compact
       else
-        [ business.owner ].compact
+        business.users.where(active: true).select { |u| u.can?(:view_payroll) }
       end
     rescue => e
       Rails.logger.warn("[NotificationService] Failed to resolve recipients for event=#{@event}: #{e.message}")

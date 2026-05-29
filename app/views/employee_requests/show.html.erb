@@ -12,7 +12,7 @@
   </div>
 
   <div class="info-card">
-    <% if current_user.owner? || current_user.manages_branch? || current_user.can?(:view_requests) %>
+    <% if current_user.can?(:view_requests) || current_user.can?(:approve_requests) %>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("requests.employee") %></span>
         <span><%= @request.user.full_name %></span>
@@ -122,7 +122,7 @@
             <div class="form-group">
               <%= label_tag :approved_time, t("requests.show.approved_time_label"), class: "form-label" %>
               <%= time_field_tag :approved_time,
-                    @request.proposed_time&.strftime("%H:%M"),
+                    @request.proposed_time,
                     class: "form-control" %>
               <p class="form-hint"><%= t("requests.show.approved_time_hint") %></p>
             </div>

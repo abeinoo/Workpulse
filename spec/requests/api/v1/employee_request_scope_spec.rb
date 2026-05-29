@@ -28,6 +28,12 @@ RSpec.describe "Employee Request Scope", type: :request do
   let(:direct_manager) { create(:user, business: business) }
   let(:direct_report)  { create(:user, business: business, manager: direct_manager) }
 
+  let(:manager_role) do
+    create(:permission_role, business: business,
+           permissions: %w[view_requests approve_requests view_employees],
+           permission_scopes: {})
+  end
+
   before do
     branch_a.update_column(:branch_manager_id, manager_a.id)
     branch_b.update_column(:branch_manager_id, manager_b.id)
@@ -35,6 +41,11 @@ RSpec.describe "Employee Request Scope", type: :request do
     create(:user_branch, user: manager_b,  branch: branch_b)
     create(:user_branch, user: employee_a, branch: branch_a)
     create(:user_branch, user: employee_b, branch: branch_b)
+    # Permission-driven: managers need view_requests + approve_requests.
+    # EmployeeScope handles the data scope via branch/manager relationships.
+    [manager_a, manager_b, direct_manager].each do |m|
+      m.update_column(:permission_role_id, manager_role.id)
+    end
   end
 
   # Pending requests — one per employee.

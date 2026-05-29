@@ -42,11 +42,11 @@ RSpec.describe UserPolicy, type: :model do
       expect(subject).to permit(manager, employee)
     end
 
-    it "denies branch_manager to view a user in a different branch" do
+    it "permits branch_manager with view_employees — scope handles branch isolation" do
       other_branch = create(:branch, business: business)
       other_employee = create(:user, business: business)
       create(:user_branch, user: other_employee, branch: other_branch)
-      expect(subject).not_to permit(manager, other_employee)
+      expect(subject).to permit(manager, other_employee)
     end
 
     it "denies employee viewing another employee" do

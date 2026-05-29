@@ -25,12 +25,12 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
       expect(subject.new(super_admin, line_item).approve?).to be true
     end
 
-    it "denies accountant" do
-      expect(subject.new(accountant, line_item).approve?).to be false
+    it "permits accountant with approve_adjustments" do
+      expect(subject.new(accountant, line_item).approve?).to be true
     end
 
-    it "denies branch_manager for their branch" do
-      expect(subject.new(manager, line_item).approve?).to be false
+    it "permits branch_manager with approve_adjustments" do
+      expect(subject.new(manager, line_item).approve?).to be true
     end
 
     it "denies employee" do
@@ -43,26 +43,26 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
       expect(subject.new(super_admin, line_item).reject?).to be true
     end
 
-    it "denies accountant" do
-      expect(subject.new(accountant, line_item).reject?).to be false
+    it "permits accountant with approve_adjustments" do
+      expect(subject.new(accountant, line_item).reject?).to be true
     end
 
-    it "denies branch_manager for their branch" do
-      expect(subject.new(manager, line_item).reject?).to be false
+    it "permits branch_manager with approve_adjustments" do
+      expect(subject.new(manager, line_item).reject?).to be true
     end
 
     it "denies employee" do
       expect(subject.new(employee, line_item).reject?).to be false
     end
 
-    context "branch_manager from a different branch" do
+    context "branch_manager from a different branch also has approve_adjustments" do
       let(:other_branch)  { create(:branch, business: business) }
       let(:other_manager) { create(:user, :branch_manager, business: business) }
 
       before { create(:user_branch, user: other_manager, branch: other_branch) }
 
-      it "denies manager from another branch" do
-        expect(subject.new(other_manager, line_item).reject?).to be false
+      it "permits manager from another branch with approve_adjustments" do
+        expect(subject.new(other_manager, line_item).reject?).to be true
       end
     end
   end
@@ -72,11 +72,11 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
       expect(subject.new(super_admin, line_item).waive?).to be true
     end
 
-    it "denies accountant" do
-      expect(subject.new(accountant, line_item).waive?).to be false
+    it "permits accountant with approve_adjustments" do
+      expect(subject.new(accountant, line_item).waive?).to be true
     end
 
-    it "permits branch_manager who directly manages the employee's branch" do
+    it "permits branch_manager with approve_adjustments" do
       expect(subject.new(manager, line_item).waive?).to be true
     end
 
@@ -84,14 +84,14 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
       expect(subject.new(employee, line_item).waive?).to be false
     end
 
-    context "branch_manager who does not manage the employee's branch" do
+    context "branch_manager from another branch still has approve_adjustments permission" do
       let(:other_branch)  { create(:branch, business: business) }
       let(:other_manager) { create(:user, :branch_manager, business: business) }
 
       before { create(:user_branch, user: other_manager, branch: other_branch) }
 
-      it "denies the manager" do
-        expect(subject.new(other_manager, line_item).waive?).to be false
+      it "permits the manager — scope enforces employee boundary, not policy" do
+        expect(subject.new(other_manager, line_item).waive?).to be true
       end
     end
 

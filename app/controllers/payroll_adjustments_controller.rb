@@ -23,7 +23,7 @@ class PayrollAdjustmentsController < ApplicationController
     # Otherwise: super admins auto-approve; managers require review.
     @adjustment.review_status = if @adjustment.already_paid?
                                   "approved"
-                                elsif current_user.owner?
+                                elsif current_user.can?(:manage_adjustments)
                                   "approved"
                                 else
                                   "pending_review"
@@ -36,7 +36,7 @@ class PayrollAdjustmentsController < ApplicationController
       log_adjustment_action!(:adjustment_added, @adjustment)
       redirect_to payroll_period_payroll_entry_path(@period, entry),
                   notice: @adjustment.already_paid? ? t("payroll_adjustments.recorded_already_paid") :
-                          (current_user.owner? ? t("payroll_adjustments.added") : t("payroll_adjustments.submitted_for_review"))
+                          (current_user.can?(:manage_adjustments) ? t("payroll_adjustments.added") : t("payroll_adjustments.submitted_for_review"))
     else
       @entry = entry
       render :new, status: :unprocessable_entity

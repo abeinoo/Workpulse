@@ -166,10 +166,19 @@ class User < ApplicationRecord
     Branch.where(area_manager_id: id).pluck(:id)
   end
 
+  # True when the user has any management-level permission. Used only to select
+  # the management sidebar vs. the employee sidebar — every individual feature
+  # is still gated by its own can?() check.
   def management_access?
-    owner? || manages_area? || manages_branch? || managed_employees.exists? ||
-      can?(:view_attendance) || can?(:view_payroll) || can?(:approve_requests) ||
-      can?(:assign_shifts) || can?(:view_employees) || can?(:manage_employees)
+    can?(:view_employees)   || can?(:manage_employees)  ||
+      can?(:view_attendance) || can?(:manage_attendance) ||
+      can?(:view_payroll)    || can?(:manage_payroll)    || can?(:finalize_payroll) ||
+      can?(:approve_requests) || can?(:view_requests)   ||
+      can?(:assign_shifts)   || can?(:manage_shifts)    || can?(:view_shifts)   ||
+      can?(:manage_branches) || can?(:manage_devices)   || can?(:manage_obligations) ||
+      can?(:manage_roles)    || can?(:manage_settings)  ||
+      can?(:approve_adjustments) || can?(:pay_advances) || can?(:manage_adjustments) ||
+      can?(:manage_salary_profiles)
   end
 
   def can?(permission)

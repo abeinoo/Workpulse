@@ -24,7 +24,7 @@
         <%= t("nav.dashboard") %>
       <% end %>
 
-      <% if current_user.owner? || current_user.manages_branch? || current_user.manages_area? || current_user.can?(:view_payroll) %>
+      <% if current_user.can?(:view_payroll) || current_user.can?(:view_attendance) || current_user.can?(:approve_requests) %>
         <%= link_to operations_dashboard_path,
               class: "sidebar__nav-item #{controller_name == 'operations_dashboard' ? 'is-active' : ''}",
               data: { action: "click->sidebar#close" } do %>
@@ -47,10 +47,10 @@
       <% end %>
 
       <%# ── WORKFORCE ────────────────────────────────────────────────── %>
-      <% show_employees      = current_user.owner? || current_user.can?(:view_employees) %>
-      <% show_branches       = current_user.owner? || current_user.can?(:manage_branches) %>
-      <% show_shift_types    = current_user.owner? || current_user.can?(:manage_shifts) %>
-      <% show_shift_assign   = current_user.owner? || current_user.manages_branch? || current_user.can?(:assign_shifts) %>
+      <% show_employees      = current_user.can?(:view_employees) %>
+      <% show_branches       = current_user.can?(:manage_branches) %>
+      <% show_shift_types    = current_user.can?(:manage_shifts) %>
+      <% show_shift_assign   = current_user.can?(:assign_shifts) %>
       <% if show_employees || show_branches || show_shift_types || show_shift_assign %>
         <span class="sidebar__section-label"><%= t("nav.section_workforce") %></span>
 
@@ -102,8 +102,8 @@
       <% end %>
 
       <%# ── ATTENDANCE ───────────────────────────────────────────────── %>
-      <% show_attendance_rec = current_user.owner? || current_user.manages_branch? || current_user.manages_area? || current_user.can?(:view_attendance) %>
-      <% show_punch_logs     = current_user.owner? || current_user.can?(:manage_devices) %>
+      <% show_attendance_rec = current_user.can?(:view_attendance) %>
+      <% show_punch_logs     = current_user.can?(:manage_devices) %>
       <% if show_attendance_rec || show_punch_logs %>
         <span class="sidebar__section-label"><%= t("nav.section_attendance") %></span>
 
@@ -127,8 +127,8 @@
       <% end %>
 
       <%# ── PAYROLL ──────────────────────────────────────────────────── %>
-      <% show_payroll     = current_user.owner? || current_user.manages_branch? || current_user.manages_area? || current_user.can?(:view_payroll) %>
-      <% show_adjustments = current_user.owner? || current_user.manages_branch? || current_user.manages_area? || current_user.can?(:approve_requests) %>
+      <% show_payroll     = current_user.can?(:view_payroll) %>
+      <% show_adjustments = current_user.can?(:view_payroll) %>
       <% if show_payroll || show_adjustments %>
         <span class="sidebar__section-label"><%= t("nav.section_payroll") %></span>
 
@@ -152,7 +152,7 @@
       <% end %>
 
       <%# ── REQUESTS ─────────────────────────────────────────────────── %>
-      <% if show_adjustments %>
+      <% if current_user.can?(:approve_requests) || current_user.can?(:view_requests) %>
         <span class="sidebar__section-label"><%= t("nav.section_requests") %></span>
 
         <%= link_to employee_requests_path,
@@ -164,14 +164,13 @@
       <% end %>
 
       <%# ── ADMINISTRATION (collapsible) ────────────────────────────── %>
-      <% if current_user.owner? || current_user.permission_role.present? %>
-        <% show_devices     = current_user.owner? || current_user.can?(:manage_devices) %>
-        <% show_obligations = current_user.owner? || current_user.can?(:manage_obligations) %>
-        <% show_roles       = current_user.owner? || current_user.can?(:manage_roles) %>
-        <% show_settings    = current_user.owner? || current_user.can?(:manage_settings) %>
+      <% show_devices     = current_user.can?(:manage_devices) %>
+      <% show_obligations = current_user.can?(:manage_obligations) %>
+      <% show_roles       = current_user.can?(:manage_roles) %>
+      <% show_settings    = current_user.can?(:manage_settings) %>
+      <% if show_devices || show_obligations || show_roles || show_settings %>
         <% admin_paths = %w[/admin/biometric_devices /admin/employee_obligations /admin/permission_roles /admin/settings] %>
         <% admin_active = admin_paths.any? { |p| request.path.start_with?(p) } %>
-        <% if show_devices || show_obligations || show_roles || show_settings %>
           <details class="sidebar__group" <%= 'open' if admin_active %>>
             <summary class="sidebar__section-label sidebar__group-toggle">
               <%= t("nav.section_administration") %>
@@ -214,7 +213,6 @@
               <% end %>
             <% end %>
           </details>
-        <% end %>
       <% end %>
 
     <% else %>

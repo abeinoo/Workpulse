@@ -62,12 +62,12 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
       expect(subject.new(manager, period).complete_branch_review?).to be true
     end
 
-    it "denies area_manager" do
-      expect(subject.new(area_mgr, period).complete_branch_review?).to be false
+    it "permits area_manager with view_payroll" do
+      expect(subject.new(area_mgr, period).complete_branch_review?).to be true
     end
 
-    it "denies accountant" do
-      expect(subject.new(accountant, period).complete_branch_review?).to be false
+    it "permits accountant with view_payroll" do
+      expect(subject.new(accountant, period).complete_branch_review?).to be true
     end
 
     it "denies branch_manager from a different business" do
@@ -93,7 +93,7 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
 
   describe "mark_paid?" do
     it "permits super_admin"   do expect(subject.new(super_admin, period).mark_paid?).to be true  end
-    it "denies accountant"     do expect(subject.new(accountant,  period).mark_paid?).to be false end
+    it "permits accountant with manage_payroll" do expect(subject.new(accountant, period).mark_paid?).to be true end
     it "denies branch_manager" do expect(subject.new(manager,     period).mark_paid?).to be false end
   end
 

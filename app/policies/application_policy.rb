@@ -42,15 +42,12 @@ class ApplicationPolicy
 
   protected
 
+  # Kept for use in Scope subclasses only — never use these in action methods.
   def owner?          = user.owner?
   def manages_area?   = user.manages_area?
   def manages_branch? = user.manages_branch?
 
   def can?(permission) = user.can?(permission)
-
-  def managing?
-    owner? || manages_area? || manages_branch?
-  end
 
   def same_business?(target = record)
     target.respond_to?(:business_id) && target.business_id == user.business_id

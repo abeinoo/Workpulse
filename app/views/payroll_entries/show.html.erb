@@ -4,7 +4,7 @@
   <div class="page-header">
     <div>
       <%= link_to t("payroll.entry.back"), payroll_period_path(@period), class: "back-link" %>
-      <% if current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll) %>
+      <% if current_user.can?(:view_payroll) %>
         <h1 class="page-title"><%= @entry.user.full_name %></h1>
         <p class="page-subtitle"><%= @period.period_label %></p>
       <% else %>
@@ -26,7 +26,7 @@
   <% end %>
 
   <%# ── Mobile sticky action bar (approve/reject pending items) ───────────── %>
-  <% can_manage = current_user.owner? || current_user.manages_branch? || current_user.can?(:view_payroll) %>
+  <% can_manage = current_user.can?(:view_payroll) %>
   <% if can_manage && @period.reviewable? %>
     <div class="page-actions page-actions--sticky">
       <% if can_manage %>
@@ -285,7 +285,7 @@
               <th><%= t("payroll.entry.description_col") %></th>
               <th class="text-right"><%= t("requests.amount") %></th>
               <th><%= t("payroll.entry.review_status") %></th>
-              <% if current_user.owner? %><th><%= t("attendance.actions") %></th><% end %>
+              <% if current_user.can?(:manage_payroll) %><th><%= t("attendance.actions") %></th><% end %>
             </tr>
           </thead>
           <tbody>
@@ -317,7 +317,7 @@
                     <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                   </span>
                 </td>
-                <% if current_user.owner? %>
+                <% if current_user.can?(:manage_payroll) %>
                   <td class="td-actions" data-label="<%= t('attendance.actions') %>">
                     <% if item.pending_review? && @period.reviewable? %>
                       <%= button_to t("payroll.entry.approve"),
@@ -343,7 +343,7 @@
   <% if can_manage && @period.reviewable? %>
     <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 1.75rem 0 0.6rem;">
       <h2 class="section-heading" style="margin: 0;"><%= t("payroll.entry.manual_deductions") %></h2>
-      <% if current_user.manages_branch? || current_user.owner? %>
+      <% if current_user.can?(:manage_payroll) %>
         <%= link_to t("payroll.entry.add_btn"),
               new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :deduction),
               class: "btn btn-sm btn-danger" %>
@@ -358,7 +358,7 @@
               <th><%= t("payroll.entry.description_col") %></th>
               <th class="text-right"><%= t("requests.amount") %></th>
               <th><%= t("payroll.entry.review_status") %></th>
-              <% if current_user.owner? %><th><%= t("attendance.actions") %></th><% end %>
+              <% if current_user.can?(:manage_payroll) %><th><%= t("attendance.actions") %></th><% end %>
             </tr>
           </thead>
           <tbody>
@@ -377,7 +377,7 @@
                     <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                   </span>
                 </td>
-                <% if current_user.owner? %>
+                <% if current_user.can?(:manage_payroll) %>
                   <td class="td-actions" data-label="<%= t('attendance.actions') %>">
                     <% if item.pending_review? && @period.reviewable? && policy(item).approve? %>
                       <%= button_to t("payroll.entry.approve"),

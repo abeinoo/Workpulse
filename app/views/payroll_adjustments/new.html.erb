@@ -59,7 +59,7 @@
       <%= render "shared/adjustment_already_paid_section",
             f: f, adjustment: @adjustment, selected_type: selected_type %>
 
-      <% if !current_user.owner? %>
+      <% if !current_user.can?(:manage_adjustments) %>
         <p class="form-hint" data-payroll-adjustment-form-target="reviewHint">
           <%= t("payroll_adjustments.new.hint") %>
         </p>

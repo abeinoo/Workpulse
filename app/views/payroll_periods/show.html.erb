@@ -82,7 +82,7 @@
     <% end %>
 
     <%# ── Export (print) ────────────────────────────────────────────────── %>
-    <% if current_user.management_access? && @entries.any? %>
+    <% if current_user.can?(:view_payroll) && @entries.any? %>
       <div class="page-actions__sep"></div>
       <button onclick="window.print()" class="btn btn-secondary btn-sm" type="button">
         <%= t("payroll.show.export_print") %>
@@ -227,7 +227,7 @@
   <% end %>
 
   <%# ── Branch review progress (owner only) ───────────────────────────────── %>
-  <% if current_user.owner? && @all_branch_reviews&.any? %>
+  <% if current_user.can?(:manage_payroll) && @all_branch_reviews&.any? %>
     <div class="section-card">
       <h3 class="section-title"><%= t("payroll.show.branch_review_progress") %></h3>
       <div class="table-wrap table-wrap--cards">
@@ -271,7 +271,7 @@
       <thead>
         <tr>
           <th><%= t("payroll.employee") %></th>
-          <% if current_user.management_access? %>
+          <% if current_user.can?(:view_payroll) %>
             <th><%= t("payroll.show.branch_col") %></th>
           <% end %>
           <th class="text-right"><%= t("payroll.show.days_col") %></th>
@@ -331,7 +331,7 @@
                 </div>
               </div>
             </td>
-            <% if current_user.management_access? %>
+            <% if current_user.can?(:view_payroll) %>
               <td class="td-secondary" data-label="<%= t('payroll.show.branch_col') %>">
                 <%= branch_name.presence || "—" %>
               </td>
@@ -380,7 +380,7 @@
         <% end %>
         <% if @entries.empty? %>
           <tr>
-            <td colspan="<%= current_user.management_access? ? 10 : 9 %>" class="td-empty">
+            <td colspan="<%= current_user.can?(:view_payroll) ? 10 : 9 %>" class="td-empty">
               <%= t("payroll.show.entries_empty") %>
             </td>
           </tr>
@@ -389,7 +389,7 @@
       <% unless @entries.empty? %>
         <tfoot>
           <tr class="totals-row">
-            <td colspan="<%= current_user.management_access? ? 3 : 2 %>">
+            <td colspan="<%= current_user.can?(:view_payroll) ? 3 : 2 %>">
               <strong><%= t("payroll.show.totals_label") %></strong>
             </td>
             <td class="text-right td-secondary">
@@ -415,7 +415,7 @@
   </div>
 
   <%# ── Activity timeline (all management users) ───────────────────────────── %>
-  <% if current_user.management_access? && @audit_logs&.any? %>
+  <% if current_user.can?(:view_payroll) && @audit_logs&.any? %>
     <%= render "activity_timeline" %>
   <% end %>
 

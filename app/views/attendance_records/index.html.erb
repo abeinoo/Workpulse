@@ -280,7 +280,7 @@
                 <div class="employee-cell">
                   <div class="avatar avatar--sm"><%= initials %></div>
                   <div class="employee-cell__info">
-                    <% if (current_user.manages_branch? || current_user.manages_area?) && params[:user_id].blank? %>
+                    <% if current_user.can?(:view_attendance) && params[:user_id].blank? %>
                       <%= link_to attendance_records_path(user_id: rec.user_id), class: "employee-cell__name link" do %>
                         <%= rec.user.full_name %>
                       <% end %>

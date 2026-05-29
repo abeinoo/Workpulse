@@ -18,13 +18,15 @@
     <span><%= t("nav.requests") %></span>
   <% end %>
 
-  <%= link_to payroll_periods_path,
-        class: "bottom-nav__item #{(controller_name == 'payroll_periods' || controller_name == 'payroll_entries') && !request.path.start_with?('/admin') ? 'is-active' : ''}" do %>
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-    <span><%= t("nav.payroll") %></span>
+  <% if current_user.can?(:view_payroll) %>
+    <%= link_to payroll_periods_path,
+          class: "bottom-nav__item #{(controller_name == 'payroll_periods' || controller_name == 'payroll_entries') && !request.path.start_with?('/admin') ? 'is-active' : ''}" do %>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span><%= t("nav.payroll") %></span>
+    <% end %>
   <% end %>
 
-  <% if current_user.owner? %>
+  <% if current_user.can?(:manage_settings) || current_user.can?(:manage_roles) || current_user.can?(:manage_devices) || current_user.can?(:manage_obligations) %>
     <%= link_to admin_root_path,
           class: "bottom-nav__item #{request.path.start_with?('/admin') ? 'is-active' : ''}" do %>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>

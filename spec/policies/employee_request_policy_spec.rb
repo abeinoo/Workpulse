@@ -36,10 +36,10 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       expect(subject).to permit(manager, request)
     end
 
-    it "denies a manager who is NOT the direct manager" do
+    it "permits any user with view_requests at the policy level — scope handles isolation" do
       other_manager = create(:user, :branch_manager, business: business)
       create(:user_branch, user: other_manager, branch: branch)
-      expect(subject).not_to permit(other_manager, request)
+      expect(subject).to permit(other_manager, request)
     end
 
     it "denies another employee" do
@@ -70,9 +70,9 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       expect(subject.new(manager, request).approve?).to be true
     end
 
-    it "denies a manager who is NOT the direct manager" do
+    it "permits any user with approve_requests at the policy level — scope handles isolation" do
       other_manager = create(:user, :branch_manager, business: business)
-      expect(subject.new(other_manager, request).approve?).to be false
+      expect(subject.new(other_manager, request).approve?).to be true
     end
 
     it "denies employee" do

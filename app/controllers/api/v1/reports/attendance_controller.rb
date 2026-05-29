@@ -25,7 +25,7 @@ module Api
         def resolve_branch
           return nil if params[:branch_id].blank?
 
-          allowed_branches = current_user.owner? ?
+          allowed_branches = current_user.can?(:view_attendance) ?
             current_business.branches :
             Branch.where(id: current_user.branch_ids)
 

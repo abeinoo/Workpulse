@@ -61,7 +61,7 @@ class AdjustmentsController < ApplicationController
     @adjustment.created_by = current_user
     @adjustment.review_status = if @adjustment.already_paid?
                                   "approved"
-                                elsif current_user.owner?
+                                elsif current_user.can?(:manage_adjustments)
                                   "approved"
                                 else
                                   "pending_review"
@@ -77,7 +77,7 @@ class AdjustmentsController < ApplicationController
     authorize @adjustment
 
     if @adjustment.save
-      msg = current_user.owner? ? t("flash.adjustment_approved") : t("flash.request_submitted")
+      msg = current_user.can?(:manage_adjustments) ? t("flash.adjustment_approved") : t("flash.request_submitted")
       redirect_to adjustments_path(period_month: @adjustment.period_month,
                                    period_year:  @adjustment.period_year),
                   notice: msg

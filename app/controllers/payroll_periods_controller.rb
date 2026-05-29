@@ -4,7 +4,7 @@ class PayrollPeriodsController < ApplicationController
   def index
     base_scope = policy_scope(PayrollPeriod)
 
-    if current_user.management_access?
+    if current_user.can?(:view_payroll)
       # Summary stats always reflect the full unfiltered scope
       @summary       = build_index_summary(base_scope)
       @available_years = base_scope.distinct.order(period_year: :desc).pluck(:period_year)
@@ -37,7 +37,7 @@ class PayrollPeriodsController < ApplicationController
                       .index_by(&:payroll_period_id)
     end
 
-    if current_user.manages_branch?
+    if current_user.can?(:view_payroll)
       @pending_review_period_ids = PayrollPeriodBranchReview
         .where(branch_id: current_user.managed_branch_ids, status: :pending)
         .where(payroll_period_id: @periods.select(:id))
@@ -49,7 +49,7 @@ class PayrollPeriodsController < ApplicationController
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period
 
-    unless current_user.management_access?
+    unless current_user.can?(:view_payroll)
       entry = @period.payroll_entries.find_by(user: current_user)
       if entry
         return redirect_to payroll_period_payroll_entry_path(@period, entry)
@@ -71,7 +71,7 @@ class PayrollPeriodsController < ApplicationController
     @branch_reviews_for_manager = manager_branch_reviews
 
     # Overview totals, alerts, insights, and user→branch lookup for management
-    if current_user.management_access?
+    if current_user.can?(:view_payroll)
       @overview          = build_period_overview(@entries)
       @user_branch_names = load_user_branch_names(@entries.map(&:user_id))
       @insights          = Payroll::InsightsPresenter.new(period: @period, entries: @entries)
@@ -89,7 +89,7 @@ class PayrollPeriodsController < ApplicationController
       @last_snapshot     = @period.payroll_snapshots.order(created_at: :desc).first
     end
 
-    if current_user.owner?
+    if current_user.can?(:manage_payroll)
       @all_branch_reviews = @period.payroll_period_branch_reviews
                                    .includes(:branch, :reviewer)
                                    .order("branches.name")
@@ -277,7 +277,7 @@ class PayrollPeriodsController < ApplicationController
   end
 
   def manager_branch_reviews
-    return nil unless current_user.manages_branch?
+    return nil unless current_user.can?(:view_payroll)
     @period.payroll_period_branch_reviews
            .includes(:branch)
            .where(branch_id: current_user.managed_branch_ids)

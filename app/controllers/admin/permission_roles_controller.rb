@@ -108,7 +108,7 @@ class Admin::PermissionRolesController < Admin::BaseController
   end
 
   def require_roles_management_access!
-    unless current_user.owner? || current_user.can?(:manage_roles)
+    unless current_user.can?(:manage_roles)
       redirect_to root_path, alert: t("flash.not_authorized")
     end
   end

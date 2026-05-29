@@ -74,7 +74,7 @@ class OperationsDashboardController < ApplicationController
   private
 
   def scoped_employee_ids(business)
-    if current_user.owner? || current_user.can?(:view_payroll)
+    if current_user.can?(:view_payroll)
       business.users.where(active: true).pluck(:id)
     else
       EmployeeScope.new(current_user).relation.where(active: true).pluck(:id)

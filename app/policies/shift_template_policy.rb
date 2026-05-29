@@ -1,12 +1,12 @@
 class ShiftTemplatePolicy < ApplicationPolicy
-  def index?         = owner? || can?(:assign_shifts) || can?(:view_shifts) || manages_branch? || manages_area?
-  def show?          = owner? || can?(:assign_shifts) || can?(:view_shifts) || manages_branch? || manages_area?
-  def create?        = owner? || can?(:assign_shifts) || manages_branch? || manages_area?
-  def update?        = owner? || can?(:assign_shifts) || manages_branch? || manages_area?
-  def archive?       = owner? || can?(:assign_shifts) || manages_branch? || manages_area?
-  def unarchive?     = owner? || can?(:assign_shifts) || manages_branch? || manages_area?
-  def apply?         = owner? || can?(:assign_shifts) || manages_branch? || manages_area?
-  def preview_apply? = owner? || can?(:assign_shifts) || manages_branch? || manages_area?
+  def index?         = can?(:assign_shifts) || can?(:view_shifts)
+  def show?          = can?(:assign_shifts) || can?(:view_shifts)
+  def create?        = can?(:assign_shifts)
+  def update?        = can?(:assign_shifts)
+  def archive?       = can?(:assign_shifts)
+  def unarchive?     = can?(:assign_shifts)
+  def apply?         = can?(:assign_shifts)
+  def preview_apply? = can?(:assign_shifts)
 
   class Scope < ApplicationPolicy::Scope
     def resolve

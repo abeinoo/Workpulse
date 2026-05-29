@@ -1,4 +1,6 @@
 class Admin::SettingsController < Admin::BaseController
+  before_action :require_settings_access!
+
   def show
     @business = current_user.business
   end
@@ -20,6 +22,10 @@ class Admin::SettingsController < Admin::BaseController
   end
 
   private
+
+  def require_settings_access!
+    redirect_to root_path, alert: t("flash.not_authorized") unless current_user.can?(:manage_settings)
+  end
 
   def settings_params
     params.require(:business).permit(

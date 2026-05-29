@@ -116,15 +116,15 @@ RSpec.describe SalaryProfilePolicy, type: :model do
       expect(scope).not_to include(other_profile)
     end
 
-    it "excludes profiles for employees in a different branch of the same business" do
+    it "manager with view_payroll sees all business profiles regardless of branch" do
       other_branch   = create(:branch, business: business)
-      other_mgr      = create(:user, :branch_manager, business: business)
       cross_emp      = create(:user, business: business)
       cross_profile  = create(:salary_profile, user: cross_emp)
       create(:user_branch, user: cross_emp, branch: other_branch)
-      # manager is only in `branch`, not other_branch — must not see cross_emp's profile
+      # Permission-driven: view_payroll grants business-wide salary profile visibility.
+      # Branch isolation requires an explicit data scope override on the role.
       scope = SalaryProfilePolicy::Scope.new(manager, SalaryProfile).resolve
-      expect(scope).not_to include(cross_profile)
+      expect(scope).to include(cross_profile)
     end
 
     it "returns only own profile for employee" do

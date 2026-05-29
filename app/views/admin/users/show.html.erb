@@ -97,7 +97,7 @@
           <% end %>
         </dd>
       </div>
-      <% if @user.manages_branch? && @user.managed_employees.any? %>
+      <% if @user.managed_employees.any? %>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("admin.users.managed_employees") %></dt>
           <dd class="data-list__value">

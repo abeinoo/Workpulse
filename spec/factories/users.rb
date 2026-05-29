@@ -19,13 +19,24 @@ FactoryBot.define do
       after(:create) { |u| u.business.update!(owner: u) }
     end
 
-    # Relationship-based manager traits — creates a branch and sets manager relationship
+    # Relationship-based manager traits — creates a branch, sets manager relationship,
+    # and grants the standard permission set for that role. Tests that need a manager
+    # WITHOUT specific permissions should create a plain user and set branch relationships
+    # directly, rather than using these traits.
     trait :branch_manager do
       after(:create) do |u|
         branch = Branch.find_or_create_by!(business: u.business, name: "Test Branch #{u.id}") do |b|
           b.active = true
         end
         branch.update_column(:branch_manager_id, u.id)
+
+        role = PermissionRole.find_or_create_by!(business: u.business, name: "Branch Manager #{u.business_id}") do |r|
+          r.permissions = %w[view_employees view_attendance manage_attendance
+                             view_requests approve_requests
+                             assign_shifts view_shifts
+                             view_payroll manage_adjustments approve_adjustments]
+        end
+        u.update_column(:permission_role_id, role.id)
       end
     end
 
@@ -35,19 +46,28 @@ FactoryBot.define do
           b.active = true
         end
         branch.update_column(:area_manager_id, u.id)
+
+        role = PermissionRole.find_or_create_by!(business: u.business, name: "Area Manager #{u.business_id}") do |r|
+          r.permissions = %w[view_employees view_attendance manage_attendance
+                             view_requests approve_requests
+                             assign_shifts view_shifts
+                             view_payroll manage_adjustments approve_adjustments]
+        end
+        u.update_column(:permission_role_id, role.id)
       end
     end
 
     trait :accountant do
       after(:create) do |u|
         role = PermissionRole.find_or_create_by!(business: u.business, name: "Finance #{u.business_id}") do |r|
-          r.permissions       = %w[view_payroll manage_payroll manage_adjustments view_requests pay_advances]
+          r.permissions       = %w[view_payroll manage_payroll manage_adjustments approve_adjustments view_requests pay_advances]
           r.permission_scopes = {
-            "view_payroll"       => "business_wide",
-            "manage_payroll"     => "business_wide",
-            "manage_adjustments" => "business_wide",
-            "view_requests"      => "business_wide",
-            "pay_advances"       => "business_wide"
+            "view_payroll"        => "business_wide",
+            "manage_payroll"      => "business_wide",
+            "manage_adjustments"  => "business_wide",
+            "approve_adjustments" => "business_wide",
+            "view_requests"       => "business_wide",
+            "pay_advances"        => "business_wide"
           }
         end
         u.update_column(:permission_role_id, role.id)

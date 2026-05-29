@@ -67,14 +67,14 @@
     <%= render "shared/adjustment_already_paid_section",
           f: f, adjustment: @adjustment, selected_type: selected_type %>
 
-    <% unless current_user.owner? %>
+    <% unless current_user.can?(:manage_adjustments) %>
       <div class="alert alert-info" style="margin-top: var(--space-4);">
         <%= t("adjustments.new.hint") %>
       </div>
     <% end %>
 
     <div class="form-actions">
-      <%= f.submit current_user.owner? ? t("adjustments.new.save_approve") : t("adjustments.new.submit_review"),
+      <%= f.submit current_user.can?(:manage_adjustments) ? t("adjustments.new.save_approve") : t("adjustments.new.submit_review"),
             class: "btn btn-primary" %>
       <%= link_to t("forms.cancel"),
             adjustments_path(period_month: @period_month, period_year: @period_year),

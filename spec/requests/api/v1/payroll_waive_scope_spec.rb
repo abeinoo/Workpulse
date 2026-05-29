@@ -37,6 +37,12 @@ RSpec.describe "Payroll Line Item Waive Scope", type: :request do
   let!(:deduction_b)  { create(:payroll_line_item, :early_leave_penalty, payroll_entry: entry_b) }
   let!(:deduction_dr) { create(:payroll_line_item, :late_penalty, payroll_entry: entry_dr) }
 
+  let(:manager_role) do
+    create(:permission_role, business: business,
+           permissions: %w[view_payroll view_employees approve_adjustments],
+           permission_scopes: {})
+  end
+
   before do
     branch_a.update_column(:branch_manager_id, manager_a.id)
     branch_b.update_column(:branch_manager_id, manager_b.id)
@@ -44,6 +50,11 @@ RSpec.describe "Payroll Line Item Waive Scope", type: :request do
     create(:user_branch, user: manager_b,  branch: branch_b)
     create(:user_branch, user: employee_a, branch: branch_a)
     create(:user_branch, user: employee_b, branch: branch_b)
+    # Permission-driven: managers need view_payroll + approve_adjustments.
+    # Scope still resolved by EmployeeScope via branch/manager relationships.
+    [manager_a, manager_b, direct_manager].each do |m|
+      m.update_column(:permission_role_id, manager_role.id)
+    end
   end
 
   def waive(as_user, line_item_id, notes: "Excused by manager")

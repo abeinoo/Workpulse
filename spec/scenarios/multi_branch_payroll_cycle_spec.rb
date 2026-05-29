@@ -37,9 +37,19 @@ RSpec.describe "Multi-branch payroll cycle — Al-Noor Group", type: :service do
   let!(:khalid) { create(:user, business: business) }
   let!(:saeed)  { create(:user, business: business) }
 
+  let(:manager_role) do
+    create(:permission_role, business: business,
+           permissions: %w[view_payroll view_employees view_attendance view_requests approve_requests],
+           permission_scopes: {})
+  end
+
   before do
     riyadh.update!(branch_manager_id: khalid.id)
     jeddah.update!(branch_manager_id: saeed.id)
+    # Permission-driven: branch managers need view_payroll (or relevant) permissions.
+    # Scope still resolved by branch_manager_id relationship via EmployeeScope.
+    khalid.update_column(:permission_role_id, manager_role.id)
+    saeed.update_column(:permission_role_id, manager_role.id)
   end
 
   # ── Shared shift (09:00–17:00) with late-arrival penalty rule ───────────────

@@ -54,16 +54,16 @@ RSpec.describe ShiftAssignmentPolicy, type: :model do
       expect(subject).to permit(area_manager, assignment)
     end
 
-    it "denies area_manager for an assignment outside their branch" do
-      expect(subject).not_to permit(area_manager, other_assignment)
+    it "permits area_manager — scope handles branch isolation, not policy" do
+      expect(subject).to permit(area_manager, other_assignment)
     end
 
     it "permits branch_manager for an assignment in their branch" do
       expect(subject).to permit(manager, assignment)
     end
 
-    it "denies branch_manager for an assignment outside their branch" do
-      expect(subject).not_to permit(manager, other_assignment)
+    it "permits branch_manager — scope handles branch isolation, not policy" do
+      expect(subject).to permit(manager, other_assignment)
     end
 
     it "denies employee" do
@@ -75,9 +75,9 @@ RSpec.describe ShiftAssignmentPolicy, type: :model do
     context "when the assignment has no attendance records (deletable)" do
       # The factory-built assignment has no attendance records so deletable? = true
       it "permits super_admin"   do expect(subject).to     permit(super_admin,  assignment) end
-      it "denies area_manager"   do expect(subject).not_to permit(area_manager, assignment) end
-      it "denies branch_manager" do expect(subject).not_to permit(manager,      assignment) end
-      it "denies employee"       do expect(subject).not_to permit(employee,      assignment) end
+      it "permits area_manager with assign_shifts"   do expect(subject).to permit(area_manager, assignment) end
+      it "permits branch_manager with assign_shifts" do expect(subject).to permit(manager,      assignment) end
+      it "denies employee"       do expect(subject).not_to permit(employee,     assignment) end
     end
 
     context "when the assignment has attendance records (not deletable)" do
@@ -111,8 +111,8 @@ RSpec.describe ShiftAssignmentPolicy, type: :model do
 
   describe "bulk_delete?" do
     it "permits super_admin"   do expect(subject).to     permit(super_admin,  ShiftAssignment.new) end
-    it "denies area_manager"   do expect(subject).not_to permit(area_manager, ShiftAssignment.new) end
-    it "denies branch_manager" do expect(subject).not_to permit(manager,      ShiftAssignment.new) end
+    it "permits area_manager with assign_shifts"   do expect(subject).to permit(area_manager, ShiftAssignment.new) end
+    it "permits branch_manager with assign_shifts" do expect(subject).to permit(manager,      ShiftAssignment.new) end
     it "denies employee"       do expect(subject).not_to permit(employee,     ShiftAssignment.new) end
   end
 

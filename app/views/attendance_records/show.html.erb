@@ -19,7 +19,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title"><%= local_date(@record.work_date) %></h1>
-      <% if current_user.owner? || current_user.manages_branch? %>
+      <% if current_user.can?(:view_employees) %>
         <p class="page-subtitle"><%= @record.user.full_name %><% if @record.branch %> &mdash; <%= @record.branch.name %><% end %></p>
       <% end %>
     </div>

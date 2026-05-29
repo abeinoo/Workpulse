@@ -7,7 +7,7 @@
     <% end %>
   </div>
 
-  <% unless current_user.management_access? %>
+  <% unless current_user.can?(:view_payroll) %>
 
     <%# ── Employee view: payslip cards ────────────────────────────────────── %>
     <% if @periods.empty? %>

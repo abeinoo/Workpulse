@@ -27,7 +27,7 @@ module Adjustments
 
       batch_id    = SecureRandom.uuid
       now         = Time.current
-      auto_approve = @created_by.owner?
+      auto_approve = @created_by.can?(:manage_adjustments)
       review_status = auto_approve ? "approved" : "pending_review"
 
       adjustments = @rows.each_with_index.map do |row, idx|
