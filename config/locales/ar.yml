@@ -155,6 +155,68 @@ ar:
       title: "الإشعارات"
       view_all: "عرض الكل"
     area_manager_role: "مدير المنطقة"
+    area_manager:
+      section_alerts: "التنبيهات الحرجة"
+      section_branch_health: "صحة الفروع"
+      section_pending_approvals: "الطلبات المعلّقة"
+      section_coverage: "تغطية الموارد البشرية"
+      section_ranking: "تصنيف أداء الفروع"
+      section_trend: "اتجاه الحضور (7 أيام)"
+      no_pending_approvals: "لا توجد طلبات معلّقة."
+      stats:
+        absent_today: "الغيابات اليوم"
+        missing_checkouts: "انصرافات مفقودة"
+      alerts:
+        absences_today:
+          one: "موظف واحد غائب اليوم"
+          other: "%{count} موظفين غائبين اليوم"
+        missing_checkouts:
+          one: "موظف واحد لم يسجّل انصرافه أمس"
+          other: "%{count} موظفين لم يسجّلوا انصرافهم أمس"
+        punch_corrections:
+          one: "طلب تعديل بصمة واحد معلّق"
+          other: "%{count} طلبات تعديل بصمة معلّقة"
+        coverage_shortage: "%{branch} — نسبة حضور %{pct}%"
+        coverage_shortage_detail:
+          one: "موظف واحد غائب"
+          other: "%{count} موظفين غائبين"
+        no_assignments:
+          one: "فرع واحد بلا موظفين مُعيَّنين اليوم"
+          other: "%{count} فروع بلا موظفين مُعيَّنين اليوم"
+      health:
+        label: "الحالة"
+        green: "على المسار"
+        yellow: "يحتاج متابعة"
+        red: "حرج"
+      branch:
+        present: "حاضر"
+        late: "متأخر"
+        absent: "غائب"
+        incomplete: "بلا انصراف"
+        pending: "معلّق"
+        requests: "الطلبات"
+      coverage:
+        assigned: "مُعيَّن"
+        present: "حاضر"
+        gap: "الفجوة"
+      ranking:
+        rank: "#"
+        attendance_pct: "الحضور"
+        late_count: "التأخير"
+        absent_count: "الغياب"
+      trend:
+        tooltip: "%{present} من %{assigned} مُعيَّن (%{pct}%)"
+      qa:
+        assign_shift: "تعيين وردية"
+        assign_shift_sub: "تعيين موظف لوردية"
+        temp_shift: "وردية مؤقتة"
+        temp_shift_sub: "إنشاء تعيين وردية قصير الأمد"
+        review_requests: "مراجعة الطلبات"
+        review_requests_sub: "الموافقة على الطلبات أو رفضها"
+        attendance_issues: "مشاكل الحضور"
+        attendance_issues_sub: "مراجعة البصمات المفقودة والحالات الشاذة"
+        add_employee: "إضافة موظف"
+        add_employee_sub: "إنشاء حساب موظف جديد"
     team:
       not_clocked_in: "لم يسجّل حضوره"
       no_checkout: "بلا انصراف"
@@ -2130,6 +2192,7 @@ ar:
       short: "%-d %b"
       long: "%-d %B %Y"
       dashboard: "%-d %B"
+      short_day: "%a"
 
   time:
     formats:

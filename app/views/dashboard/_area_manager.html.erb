@@ -1,6 +1,6 @@
 <div class="mgr-dashboard">
 
-  <%# ── Greeting ──────────────────────────────────────────────────── %>
+  <%# ── Greeting ───────────────────────────────────────────────────────── %>
   <div class="mgr-dashboard__greeting">
     <div>
       <p class="mgr-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
@@ -12,28 +12,288 @@
     <span class="mgr-dashboard__date"><%= I18n.l(Date.current) %></span>
   </div>
 
-  <%# ── Stat cards ─────────────────────────────────────────────────── %>
+  <%# ── §1 Operational Stats Strip ─────────────────────────────────────── %>
   <div class="mgr-dashboard__stats">
-    <div class="stat-card">
-      <p class="stat-card__value"><%= @managed_branches.size %></p>
-      <p class="stat-card__label"><%= t("dashboard.stats.branches_managed") %></p>
-    </div>
-    <div class="stat-card">
-      <p class="stat-card__value"><%= @checked_in_today %> <span class="stat-card__sub">/ <%= @employee_count %></span></p>
+
+    <div class="stat-card stat-card--success">
+      <p class="stat-card__value"><%= @area_stats[:checked_in_today] %> <span class="stat-card__sub">/ <%= @area_stats[:total_employees] %></span></p>
       <p class="stat-card__label"><%= t("dashboard.stats.checked_in_today") %></p>
     </div>
-    <div class="stat-card <%= @pending_adjustments.any? ? 'stat-card--alert' : '' %>">
-      <p class="stat-card__value"><%= @pending_adjustments.count %></p>
-      <p class="stat-card__label"><%= t("dashboard.stats.pending_adjustments") %></p>
+
+    <div class="stat-card <%= @area_stats[:absent_today] > 0 ? 'stat-card--danger' : '' %>">
+      <p class="stat-card__value"><%= @area_stats[:absent_today] %></p>
+      <p class="stat-card__label"><%= t("dashboard.area_manager.stats.absent_today") %></p>
+    </div>
+
+    <div class="stat-card <%= @area_stats[:missing_checkouts] > 0 ? 'stat-card--warning' : '' %>">
+      <p class="stat-card__value"><%= @area_stats[:missing_checkouts] %></p>
+      <p class="stat-card__label"><%= t("dashboard.area_manager.stats.missing_checkouts") %></p>
+    </div>
+
+    <div class="stat-card <%= @area_stats[:pending_requests] > 0 ? 'stat-card--alert' : '' %>">
+      <p class="stat-card__value"><%= @area_stats[:pending_requests] %></p>
+      <p class="stat-card__label"><%= t("dashboard.stats.pending_requests") %></p>
+    </div>
+
+    <div class="stat-card">
+      <p class="stat-card__value"><%= @area_stats[:branch_count] %></p>
+      <p class="stat-card__label"><%= t("dashboard.stats.branches_managed") %></p>
+    </div>
+
+  </div>
+
+  <%# ── §2 Critical Alerts ─────────────────────────────────────────────── %>
+  <% if @critical_alerts.any? %>
+    <div class="mgr-dashboard__section">
+      <div class="mgr-dashboard__section-header">
+        <h2 class="mgr-dashboard__section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <%= t("dashboard.area_manager.section_alerts") %>
+          <span class="am-alert-count"><%= @critical_alerts.size %></span>
+        </h2>
+      </div>
+
+      <div class="am-alerts-list">
+        <% @critical_alerts.each do |alert| %>
+          <% case alert[:type]
+          when :absences_today %>
+            <div class="am-alert-item am-alert-item--danger">
+              <div class="am-alert-item__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+              </div>
+              <div class="am-alert-item__body">
+                <p class="am-alert-item__title"><%= t("dashboard.area_manager.alerts.absences_today", count: alert[:count]) %></p>
+                <p class="am-alert-item__names">
+                  <%= alert[:users].map(&:full_name).join(", ") %>
+                  <% if alert[:count] > 5 %>&hellip;<% end %>
+                </p>
+              </div>
+              <%= link_to t("dashboard.view_attendance"), attendance_records_path(date: Date.current), class: "am-alert-item__action" %>
+            </div>
+
+          <% when :missing_checkouts %>
+            <div class="am-alert-item am-alert-item--warning">
+              <div class="am-alert-item__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div class="am-alert-item__body">
+                <p class="am-alert-item__title"><%= t("dashboard.area_manager.alerts.missing_checkouts", count: alert[:count]) %></p>
+                <p class="am-alert-item__names">
+                  <%= alert[:records].map { |r| r.user.full_name }.join(", ") %>
+                  <% if alert[:count] > 5 %>&hellip;<% end %>
+                </p>
+              </div>
+              <%= link_to t("dashboard.view_attendance"), attendance_records_path(date: Date.yesterday, status: "incomplete"), class: "am-alert-item__action" %>
+            </div>
+
+          <% when :punch_corrections %>
+            <div class="am-alert-item am-alert-item--warning">
+              <div class="am-alert-item__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </div>
+              <div class="am-alert-item__body">
+                <p class="am-alert-item__title"><%= t("dashboard.area_manager.alerts.punch_corrections", count: alert[:count]) %></p>
+                <p class="am-alert-item__names">
+                  <%= alert[:items].map { |r| r.user.full_name }.join(", ") %>
+                  <% if alert[:count] > 5 %>&hellip;<% end %>
+                </p>
+              </div>
+              <%= link_to t("dashboard.view_all"), employee_requests_path, class: "am-alert-item__action" %>
+            </div>
+
+          <% when :coverage_shortage %>
+            <div class="am-alert-item am-alert-item--danger">
+              <div class="am-alert-item__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </div>
+              <div class="am-alert-item__body">
+                <p class="am-alert-item__title">
+                  <%= t("dashboard.area_manager.alerts.coverage_shortage",
+                        branch: alert[:branch].name, pct: alert[:att_pct]) %>
+                </p>
+                <p class="am-alert-item__names"><%= t("dashboard.area_manager.alerts.coverage_shortage_detail", absent: alert[:absent]) %></p>
+              </div>
+              <%= link_to t("dashboard.view_attendance"),
+                    attendance_records_path(branch_id: alert[:branch].id, date: Date.current),
+                    class: "am-alert-item__action" %>
+            </div>
+
+          <% when :no_assignments %>
+            <div class="am-alert-item am-alert-item--warning">
+              <div class="am-alert-item__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </div>
+              <div class="am-alert-item__body">
+                <p class="am-alert-item__title"><%= t("dashboard.area_manager.alerts.no_assignments", count: alert[:branches].size) %></p>
+                <p class="am-alert-item__names"><%= alert[:branches].map(&:name).join(", ") %></p>
+              </div>
+              <%= link_to t("dashboard.area_manager.qa.assign_shift"), new_shift_assignment_path, class: "am-alert-item__action" %>
+            </div>
+
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── §3 Branch Health Overview ──────────────────────────────────────── %>
+  <div class="mgr-dashboard__section">
+    <div class="mgr-dashboard__section-header">
+      <h2 class="mgr-dashboard__section-title"><%= t("dashboard.area_manager.section_branch_health") %></h2>
+      <%= link_to t("dashboard.view_attendance"), attendance_records_path, class: "mgr-dashboard__section-link" %>
+    </div>
+
+    <div class="branch-health-grid">
+      <% @branch_health.each do |bh| %>
+        <div class="branch-health-card branch-health-card--<%= bh[:health] %>">
+          <div class="branch-health-card__header">
+            <div class="branch-health-card__name-row">
+              <span class="branch-health-card__name"><%= bh[:branch].name %></span>
+              <span class="branch-health-card__health-dot branch-health-card__health-dot--<%= bh[:health] %>"
+                    title="<%= t("dashboard.area_manager.health.#{bh[:health]}") %>"></span>
+            </div>
+            <% if bh[:branch].branch_manager %>
+              <span class="branch-health-card__manager"><%= bh[:branch].branch_manager.full_name %></span>
+            <% end %>
+          </div>
+
+          <div class="branch-health-card__stats">
+            <div class="branch-health-card__stat">
+              <span class="branch-health-card__stat-value text-success"><%= bh[:checked_in] %><span class="branch-health-card__stat-denom">/<%= bh[:assigned_today] %></span></span>
+              <span class="branch-health-card__stat-label"><%= t("dashboard.area_manager.branch.present") %></span>
+            </div>
+            <div class="branch-health-card__stat">
+              <span class="branch-health-card__stat-value <%= bh[:late] > 0 ? 'text-warning' : '' %>"><%= bh[:late] %></span>
+              <span class="branch-health-card__stat-label"><%= t("dashboard.area_manager.branch.late") %></span>
+            </div>
+            <div class="branch-health-card__stat">
+              <span class="branch-health-card__stat-value <%= bh[:absent] > 0 ? 'text-danger' : '' %>"><%= bh[:absent] %></span>
+              <span class="branch-health-card__stat-label"><%= t("dashboard.area_manager.branch.absent") %></span>
+            </div>
+            <div class="branch-health-card__stat">
+              <span class="branch-health-card__stat-value <%= bh[:pending_requests] > 0 ? 'text-warning' : '' %>"><%= bh[:pending_requests] %></span>
+              <span class="branch-health-card__stat-label"><%= t("dashboard.area_manager.branch.pending") %></span>
+            </div>
+          </div>
+
+          <div class="branch-health-card__bar-row">
+            <div class="branch-snapshot__bar">
+              <div class="branch-snapshot__bar-fill branch-snapshot__bar-fill--<%= bh[:att_pct] >= 80 ? 'success' : bh[:att_pct] >= 60 ? 'warning' : 'danger' %>"
+                   style="width: <%= bh[:att_pct] %>%"></div>
+            </div>
+            <span class="branch-health-card__pct <%= bh[:att_pct] >= 80 ? 'text-success' : bh[:att_pct] >= 60 ? 'text-warning' : 'text-danger' %>">
+              <%= bh[:att_pct] %>%
+            </span>
+          </div>
+
+          <div class="branch-health-card__footer">
+            <%= link_to t("dashboard.view_attendance"),
+                  attendance_records_path(branch_id: bh[:branch].id, date: Date.current),
+                  class: "branch-health-card__link" %>
+            <%= link_to t("dashboard.area_manager.branch.requests"),
+                  employee_requests_path,
+                  class: "branch-health-card__link" %>
+          </div>
+        </div>
+      <% end %>
     </div>
   </div>
 
-  <%# ── Branch Overview ───────────────────────────────────────────── %>
-  <% if @branch_summaries.any? %>
+  <%# ── §4 Two-column: Pending Approvals + Workforce Coverage ─────────── %>
+  <div class="owner-two-col">
+
+    <%# Pending Approvals ──────────────────────────────────────────────── %>
     <div class="mgr-dashboard__section">
       <div class="mgr-dashboard__section-header">
-        <h2 class="mgr-dashboard__section-title"><%= t("dashboard.sections.branch_overview") %></h2>
-        <%= link_to t("dashboard.view_attendance"), attendance_records_path, class: "mgr-dashboard__section-link" %>
+        <h2 class="mgr-dashboard__section-title">
+          <%= t("dashboard.area_manager.section_pending_approvals") %>
+          <% if @pending_approvals[:total] > 0 %>
+            <span class="am-badge-count"><%= @pending_approvals[:total] %></span>
+          <% end %>
+        </h2>
+        <%= link_to t("dashboard.view_all"), employee_requests_path, class: "mgr-dashboard__section-link" %>
+      </div>
+
+      <%# Type breakdown ─────────────────────────────────────────────── %>
+      <% if @pending_approvals[:total] > 0 %>
+        <div class="am-approvals-breakdown">
+          <% if @pending_approvals[:punch_corrections] > 0 %>
+            <span class="am-approvals-pill am-approvals-pill--warning">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/></svg>
+              <%= t("requests.types.punch_correction") %> (<%= @pending_approvals[:punch_corrections] %>)
+            </span>
+          <% end %>
+          <% if @pending_approvals[:late_permissions] > 0 %>
+            <span class="am-approvals-pill">
+              <%= t("requests.types.late_permission") %> (<%= @pending_approvals[:late_permissions] %>)
+            </span>
+          <% end %>
+          <% if @pending_approvals[:early_leaves] > 0 %>
+            <span class="am-approvals-pill">
+              <%= t("requests.types.early_leave") %> (<%= @pending_approvals[:early_leaves] %>)
+            </span>
+          <% end %>
+          <% if @pending_approvals[:salary_advances] > 0 %>
+            <span class="am-approvals-pill">
+              <%= t("requests.types.salary_advance") %> (<%= @pending_approvals[:salary_advances] %>)
+            </span>
+          <% end %>
+        </div>
+
+        <%# Inline review list ──────────────────────────────────────── %>
+        <div class="request-review-list">
+          <% @pending_approvals[:recent].each do |req| %>
+            <div class="request-review-row">
+              <div class="request-review-row__info">
+                <p class="request-review-row__name"><%= req.user.full_name %></p>
+                <p class="request-review-row__meta">
+                  <span class="badge badge-neutral"><%= t("requests.types.#{req.request_type}") %></span>
+                  <span class="request-review-row__date"><%= local_short_date(req.requested_for_date) %></span>
+                </p>
+                <% if req.reason.present? %>
+                  <p class="request-review-row__reason"><%= truncate(req.reason, length: 70) %></p>
+                <% end %>
+              </div>
+              <div class="request-review-row__actions">
+                <% if req.punch_correction? %>
+                  <%# Punch corrections need time review — link to full page %>
+                  <%= link_to t("requests.show.review_correction"),
+                        employee_request_path(req),
+                        class: "btn btn-sm btn-primary" %>
+                <% else %>
+                  <%= button_to t("requests.approve"), approve_employee_request_path(req),
+                        method: :patch,
+                        class: "btn btn-sm btn-primary",
+                        data: { turbo_confirm: t("requests.confirm_approve") } %>
+                  <%= button_to t("requests.reject"), reject_employee_request_path(req),
+                        method: :patch,
+                        class: "btn btn-sm btn-ghost",
+                        data: { turbo_confirm: t("requests.confirm_reject") } %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+        <% if @pending_approvals[:total] > 8 %>
+          <div class="mgr-dashboard__show-more">
+            <%= link_to t("dashboard.view_more", count: @pending_approvals[:total] - 8),
+                  employee_requests_path, class: "link" %>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="mgr-dashboard__empty">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <p><%= t("dashboard.area_manager.no_pending_approvals") %></p>
+        </div>
+      <% end %>
+    </div>
+
+    <%# Workforce Coverage ─────────────────────────────────────────────── %>
+    <div class="mgr-dashboard__section">
+      <div class="mgr-dashboard__section-header">
+        <h2 class="mgr-dashboard__section-title"><%= t("dashboard.area_manager.section_coverage") %></h2>
+        <%= link_to t("dashboard.area_manager.qa.assign_shift"), new_shift_assignment_path, class: "mgr-dashboard__section-link" %>
       </div>
 
       <div class="table-wrap table-wrap--cards">
@@ -41,26 +301,28 @@
           <thead>
             <tr>
               <th><%= t("payroll.branch") %></th>
-              <th><%= t("admin.branches.show.manager") %></th>
-              <th><%= t("dashboard.checked_in") %></th>
-              <th><%= t("attendance.statuses.late") %></th>
+              <th class="text-right"><%= t("dashboard.area_manager.coverage.assigned") %></th>
+              <th class="text-right"><%= t("dashboard.area_manager.coverage.present") %></th>
+              <th class="text-right"><%= t("dashboard.area_manager.coverage.gap") %></th>
             </tr>
           </thead>
           <tbody>
-            <% @branch_summaries.each do |s| %>
+            <% @workforce_coverage.each do |cov| %>
               <tr>
-                <td><%= s[:branch].name %></td>
-                <td class="td-secondary"><%= s[:branch].branch_manager&.full_name || "—" %></td>
-                <td>
-                  <span class="<%= s[:checked_in] > 0 ? 'text-success' : '' %>">
-                    <%= s[:checked_in] %> / <%= s[:employee_count] %>
+                <td><%= cov[:branch].name %></td>
+                <td class="text-right td-secondary"><%= cov[:assigned] %></td>
+                <td class="text-right">
+                  <span class="<%= cov[:present] >= cov[:assigned] ? 'text-success' : cov[:present] >= cov[:assigned] * 0.7 ? 'text-warning' : 'text-danger' %>">
+                    <%= cov[:present] %>
                   </span>
                 </td>
-                <td>
-                  <% if s[:late] > 0 %>
-                    <span class="text-danger"><%= s[:late] %></span>
+                <td class="text-right">
+                  <% if cov[:gap] > 0 %>
+                    <span class="badge badge-danger">-<%= cov[:gap] %></span>
+                  <% elsif cov[:surplus] > 0 %>
+                    <span class="badge badge-success">+<%= cov[:surplus] %></span>
                   <% else %>
-                    <span class="text-muted">0</span>
+                    <span class="text-success">&#10003;</span>
                   <% end %>
                 </td>
               </tr>
@@ -69,79 +331,148 @@
         </table>
       </div>
     </div>
-  <% end %>
 
-  <%# ── Pending Adjustments ────────────────────────────────────────── %>
-  <% if @pending_adjustments.any? %>
-    <div class="mgr-dashboard__section">
-      <div class="mgr-dashboard__section-header">
-        <h2 class="mgr-dashboard__section-title"><%= t("dashboard.sections.pending_adjustments") %></h2>
-        <%= link_to t("dashboard.view_all"), adjustments_path, class: "mgr-dashboard__section-link" %>
-      </div>
+  </div>
 
-      <div class="table-wrap table-wrap--cards">
-        <table>
-          <thead>
+  <%# ── §5 Branch Performance Ranking ─────────────────────────────────── %>
+  <div class="mgr-dashboard__section">
+    <div class="mgr-dashboard__section-header">
+      <h2 class="mgr-dashboard__section-title"><%= t("dashboard.area_manager.section_ranking") %></h2>
+    </div>
+
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("dashboard.area_manager.ranking.rank") %></th>
+            <th><%= t("payroll.branch") %></th>
+            <th><%= t("dashboard.area_manager.ranking.attendance_pct") %></th>
+            <th><%= t("dashboard.area_manager.ranking.late_count") %></th>
+            <th><%= t("dashboard.area_manager.ranking.absent_count") %></th>
+            <th><%= t("dashboard.area_manager.health.label") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @branch_ranking.each_with_index do |bh, i| %>
             <tr>
-              <th><%= t("adjustments.employee") %></th>
-              <th><%= t("adjustments.type") %></th>
-              <th><%= t("adjustments.amount") %></th>
-              <th><%= t("adjustments.reason") %></th>
-              <th><%= t("adjustments.created_by") %></th>
-              <th></th>
+              <td class="td-secondary"><%= i + 1 %></td>
+              <td><strong><%= bh[:branch].name %></strong></td>
+              <td>
+                <div class="am-inline-bar">
+                  <div class="am-inline-bar__fill am-inline-bar__fill--<%= bh[:att_pct] >= 80 ? 'success' : bh[:att_pct] >= 60 ? 'warning' : 'danger' %>"
+                       style="width: <%= bh[:att_pct] %>%"></div>
+                </div>
+                <span class="<%= bh[:att_pct] >= 80 ? 'text-success' : bh[:att_pct] >= 60 ? 'text-warning' : 'text-danger' %>">
+                  <%= bh[:att_pct] %>%
+                </span>
+              </td>
+              <td class="<%= bh[:late] > 0 ? 'text-warning' : 'td-secondary' %>">
+                <%= bh[:late] %>
+              </td>
+              <td class="<%= bh[:absent] > 0 ? 'text-danger' : 'td-secondary' %>">
+                <%= bh[:absent] %>
+              </td>
+              <td>
+                <span class="am-health-badge am-health-badge--<%= bh[:health] %>">
+                  <%= t("dashboard.area_manager.health.#{bh[:health]}") %>
+                </span>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            <% @pending_adjustments.each do |adj| %>
-              <tr>
-                <td><%= adj.user.full_name %></td>
-                <td>
-                  <span class="badge <%= adjustment_type_badge_class(adj) %>">
-                    <%= t("adjustments.types.#{adj.adjustment_type}") %>
-                  </span>
-                </td>
-                <td>
-                  <span class="<%= adj.positive? ? 'text-success' : 'text-danger' %>">
-                    <%= adj.positive? ? "+" : "-" %><%= format_currency(adj.amount) %>
-                  </span>
-                </td>
-                <td class="td-secondary"><%= truncate(adj.reason, length: 50) %></td>
-                <td class="td-secondary"><%= adj.created_by.full_name %></td>
-                <td class="td-actions">
-                  <% if policy(adj).destroy? %>
-                    <%= button_to t("adjustments.remove"),
-                          adjustment_path(adj),
-                          method: :delete,
-                          class: "btn btn-sm btn-ghost",
-                          data: { turbo_confirm: t("adjustments.remove_confirm") } %>
-                  <% end %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
+          <% end %>
+        </tbody>
+      </table>
     </div>
-  <% end %>
+  </div>
 
-  <%# ── Quick Actions ───────────────────────────────────────────────── %>
-  <div class="mgr-dashboard__quick-actions">
-    <%= link_to new_adjustment_path, class: "mgr-quick-action" do %>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-      <%= t("dashboard.quick_actions.add_adjustment") %>
-    <% end %>
-    <%= link_to attendance_records_path, class: "mgr-quick-action" do %>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <%= t("dashboard.quick_actions.attendance_log") %>
-    <% end %>
-    <%= link_to adjustments_path, class: "mgr-quick-action" do %>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      <%= t("dashboard.quick_actions.all_adjustments") %>
-    <% end %>
-    <%= link_to employee_requests_path, class: "mgr-quick-action" do %>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-      <%= t("dashboard.quick_actions.all_requests") %>
-    <% end %>
+  <%# ── §6 7-Day Attendance Trend ──────────────────────────────────────── %>
+  <div class="mgr-dashboard__section">
+    <div class="mgr-dashboard__section-header">
+      <h2 class="mgr-dashboard__section-title"><%= t("dashboard.area_manager.section_trend") %></h2>
+    </div>
+
+    <div class="am-trend-chart">
+      <% @attendance_trend.each do |day| %>
+        <div class="am-trend-day">
+          <span class="am-trend-day__pct"><%= day[:pct] %>%</span>
+          <div class="am-trend-day__bar-wrap">
+            <div class="am-trend-day__bar am-trend-day__bar--<%= day[:pct] >= 80 ? 'success' : day[:pct] >= 60 ? 'warning' : day[:pct] > 0 ? 'danger' : 'empty' %>"
+                 style="height: <%= [day[:pct], 5].max %>%"
+                 title="<%= t('dashboard.area_manager.trend.tooltip', present: day[:present], assigned: day[:assigned], pct: day[:pct]) %>">
+            </div>
+          </div>
+          <span class="am-trend-day__label"><%= l(day[:date], format: :short_day) %></span>
+          <span class="am-trend-day__sub"><%= day[:present] %>/<%= day[:assigned] %></span>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── §7 Quick Actions ────────────────────────────────────────────────── %>
+  <div class="mgr-dashboard__section">
+    <div class="mgr-dashboard__section-header">
+      <h2 class="mgr-dashboard__section-title"><%= t("dashboard.owner.section_quick_actions") %></h2>
+    </div>
+
+    <div class="am-quick-actions">
+
+      <%= link_to new_shift_assignment_path, class: "am-quick-action" do %>
+        <div class="am-quick-action__icon am-quick-action__icon--primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+        </div>
+        <div class="am-quick-action__text">
+          <p class="am-quick-action__label"><%= t("dashboard.area_manager.qa.assign_shift") %></p>
+          <p class="am-quick-action__sub"><%= t("dashboard.area_manager.qa.assign_shift_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to new_shift_assignment_path(temporary: true), class: "am-quick-action" do %>
+        <div class="am-quick-action__icon am-quick-action__icon--accent">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="am-quick-action__text">
+          <p class="am-quick-action__label"><%= t("dashboard.area_manager.qa.temp_shift") %></p>
+          <p class="am-quick-action__sub"><%= t("dashboard.area_manager.qa.temp_shift_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to employee_requests_path, class: ["am-quick-action", (@area_stats[:pending_requests] > 0 ? "am-quick-action--alert" : nil)] do %>
+        <div class="am-quick-action__icon <%= @area_stats[:pending_requests] > 0 ? 'am-quick-action__icon--warning' : 'am-quick-action__icon--neutral' %>">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div class="am-quick-action__text">
+          <p class="am-quick-action__label">
+            <%= t("dashboard.area_manager.qa.review_requests") %>
+            <% if @area_stats[:pending_requests] > 0 %>
+              <span class="am-quick-action__badge"><%= @area_stats[:pending_requests] %></span>
+            <% end %>
+          </p>
+          <p class="am-quick-action__sub"><%= t("dashboard.area_manager.qa.review_requests_sub") %></p>
+        </div>
+      <% end %>
+
+      <%= link_to attendance_records_path, class: "am-quick-action" do %>
+        <div class="am-quick-action__icon am-quick-action__icon--neutral">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div class="am-quick-action__text">
+          <p class="am-quick-action__label"><%= t("dashboard.area_manager.qa.attendance_issues") %></p>
+          <p class="am-quick-action__sub"><%= t("dashboard.area_manager.qa.attendance_issues_sub") %></p>
+        </div>
+      <% end %>
+
+      <% if current_user.can?(:manage_employees) %>
+        <%= link_to new_admin_user_path, class: "am-quick-action" do %>
+          <div class="am-quick-action__icon am-quick-action__icon--success">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          </div>
+          <div class="am-quick-action__text">
+            <p class="am-quick-action__label"><%= t("dashboard.area_manager.qa.add_employee") %></p>
+            <p class="am-quick-action__sub"><%= t("dashboard.area_manager.qa.add_employee_sub") %></p>
+          </div>
+        <% end %>
+      <% end %>
+
+    </div>
   </div>
 
 </div>

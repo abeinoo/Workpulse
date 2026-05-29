@@ -130,6 +130,68 @@ en:
     full_log: "Full log"
     view_more: "View %{count} more →"
     area_manager_role: "Area Manager"
+    area_manager:
+      section_alerts: "Critical Alerts"
+      section_branch_health: "Branch Health"
+      section_pending_approvals: "Pending Approvals"
+      section_coverage: "Workforce Coverage"
+      section_ranking: "Branch Performance Ranking"
+      section_trend: "7-Day Attendance Trend"
+      no_pending_approvals: "All clear — no pending requests."
+      stats:
+        absent_today: "Absent Today"
+        missing_checkouts: "Missing Checkouts"
+      alerts:
+        absences_today:
+          one: "1 employee absent today"
+          other: "%{count} employees absent today"
+        missing_checkouts:
+          one: "1 employee missing check-out from yesterday"
+          other: "%{count} employees missing check-out from yesterday"
+        punch_corrections:
+          one: "1 punch correction request pending"
+          other: "%{count} punch correction requests pending"
+        coverage_shortage: "%{branch} — %{pct}% attendance"
+        coverage_shortage_detail:
+          one: "1 employee absent"
+          other: "%{count} employees absent"
+        no_assignments:
+          one: "1 branch has no employees assigned today"
+          other: "%{count} branches have no employees assigned today"
+      health:
+        label: "Health"
+        green: "On Track"
+        yellow: "Attention"
+        red: "Critical"
+      branch:
+        present: "Present"
+        late: "Late"
+        absent: "Absent"
+        incomplete: "No Out"
+        pending: "Pending"
+        requests: "Requests"
+      coverage:
+        assigned: "Assigned"
+        present: "Present"
+        gap: "Gap"
+      ranking:
+        rank: "#"
+        attendance_pct: "Attendance"
+        late_count: "Late"
+        absent_count: "Absent"
+      trend:
+        tooltip: "%{present} of %{assigned} assigned (%{pct}%)"
+      qa:
+        assign_shift: "Assign Shift"
+        assign_shift_sub: "Assign an employee to a shift"
+        temp_shift: "Temporary Shift"
+        temp_shift_sub: "Create a short-term shift assignment"
+        review_requests: "Review Requests"
+        review_requests_sub: "Approve or reject pending requests"
+        attendance_issues: "Attendance Issues"
+        attendance_issues_sub: "Review missing punches and anomalies"
+        add_employee: "Add Employee"
+        add_employee_sub: "Create a new employee account"
     team:
       not_clocked_in: "Not clocked in"
       no_checkout: "No checkout"
@@ -2160,6 +2222,7 @@ en:
       short: "%-d %b"
       long: "%B %-d, %Y"
       dashboard: "%A, %B %-d"
+      short_day: "%a"
 
   time:
     formats:

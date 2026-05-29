@@ -30,41 +30,16 @@ class DashboardController < ApplicationController
   end
 
   def load_area_manager_data
-    @managed_branches = Branch.where(area_manager: current_user).includes(:branch_manager).order(:name)
-    branch_ids        = @managed_branches.pluck(:id)
+    data = Dashboard::AreaManagerData.call(current_user)
 
-    employee_ids = User.joins(:user_branches)
-                       .where(user_branches: { branch_id: branch_ids })
-                       .where(active: true)
-                       .pluck(:id)
-
-    @checked_in_today = AttendanceRecord
-      .where(user_id: employee_ids, date: Date.current)
-      .count
-
-    @employee_count = employee_ids.size
-
-    @pending_adjustments = PayrollAdjustment
-      .pending
-      .where(user_id: employee_ids)
-      .includes(:user, :created_by)
-      .order(created_at: :desc)
-      .limit(15)
-
-    @branch_summaries = @managed_branches.map do |branch|
-      branch_emp_ids = User.joins(:user_branches)
-                           .where(user_branches: { branch_id: branch.id })
-                           .where(active: true)
-                           .pluck(:id)
-      checked_in = AttendanceRecord.where(user_id: branch_emp_ids, date: Date.current).count
-      late_count  = AttendanceRecord.where(user_id: branch_emp_ids, date: Date.current, status: "late").count
-      {
-        branch:        branch,
-        employee_count: branch_emp_ids.size,
-        checked_in:    checked_in,
-        late:          late_count
-      }
-    end
+    @managed_branches   = data.managed_branches
+    @branch_health      = data.branch_health
+    @critical_alerts    = data.critical_alerts
+    @branch_ranking     = data.branch_ranking
+    @pending_approvals  = data.pending_approvals
+    @workforce_coverage = data.workforce_coverage
+    @attendance_trend   = data.attendance_trend
+    @area_stats         = data.stats
   end
 
   def load_branch_manager_data
