@@ -1,0 +1,57 @@
+<%#
+  Language switcher dropdown.
+
+  Locals:
+    variant: :auth | :sidebar  — visual context
+    url:     String             — endpoint to PATCH the new locale to
+%>
+<% variant ||= :sidebar %>
+<% url     ||= user_locale_path %>
+<% current_locale = I18n.locale.to_s %>
+
+<div class="lang-switcher lang-switcher--<%= variant %><%= " lang-switcher--up" if variant == :sidebar %>"
+     data-controller="lang-switcher"
+     data-lang-switcher-url-value="<%= url %>"
+     data-lang-switcher-current-value="<%= current_locale %>">
+
+  <button type="button"
+          class="lang-switcher__trigger"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          data-lang-switcher-target="trigger"
+          data-action="click->lang-switcher#toggle">
+    <svg class="lang-switcher__globe" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    <span class="lang-switcher__label" data-lang-switcher-target="label">
+      <%= t("locale.#{current_locale}") %>
+    </span>
+    <svg class="lang-switcher__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </button>
+
+  <ul class="lang-switcher__menu" role="listbox" data-lang-switcher-target="menu" hidden>
+    <% I18n.available_locales.each do |locale| %>
+      <% locale_s = locale.to_s %>
+      <% is_current = locale_s == current_locale %>
+      <li role="option" aria-selected="<%= is_current %>">
+        <button type="button"
+                class="lang-switcher__option <%= 'is-active' if is_current %>"
+                data-action="click->lang-switcher#select"
+                data-locale="<%= locale_s %>"
+                lang="<%= locale_s %>"
+                dir="<%= locale_s == 'ar' ? 'rtl' : 'ltr' %>">
+          <span class="lang-switcher__option-label"><%= t("locale.#{locale_s}") %></span>
+          <% if is_current %>
+            <svg class="lang-switcher__check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          <% end %>
+        </button>
+      </li>
+    <% end %>
+  </ul>
+</div>

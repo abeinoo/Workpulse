@@ -282,15 +282,7 @@
       </div>
     </div>
 
-    <div class="sidebar__locale-switcher" data-controller="locale">
-      <select class="locale-select" data-action="change->locale#switch">
-        <% I18n.available_locales.each do |l| %>
-          <option value="<%= l %>" <%= "selected" if I18n.locale == l %>>
-            <%= t("locale.#{l}") %>
-          </option>
-        <% end %>
-      </select>
-    </div>
+    <%= render "shared/language_switcher", variant: :sidebar, url: user_locale_path %>
 
     <%= link_to edit_profile_password_path,
           class: "sidebar__nav-item #{request.path == edit_profile_password_path ? 'is-active' : ''}",

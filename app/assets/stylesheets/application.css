@@ -1300,32 +1300,10 @@ tbody td {
 /* ============================================================
    12. AUTH PAGES
    ============================================================ */
-.auth-locale-switcher {
-  position: absolute;
-  top: var(--space-4);
-  inset-inline-end: var(--space-4);
+.auth-lang {
   display: flex;
-  gap: var(--space-2);
-}
-.auth-locale-btn {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: var(--radius-md);
-  color: rgba(255,255,255,0.7);
-  font-size: var(--text-xs);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-  transition: border-color var(--transition), color var(--transition), background var(--transition);
-}
-.auth-locale-btn:hover {
-  border-color: rgba(255,255,255,0.5);
-  color: #fff;
-}
-.auth-locale-btn--active {
-  background: rgba(255,255,255,0.15);
-  border-color: rgba(255,255,255,0.5);
-  color: #fff;
-  font-weight: 600;
+  justify-content: center;
+  margin: var(--space-4) 0 var(--space-5);
 }
 
 .auth-wrapper {
@@ -4032,34 +4010,124 @@ body.is-authenticated {
    LANGUAGE SWITCHER
    ========================================================= */
 
-.sidebar__locale-switcher {
-  padding: var(--space-2) var(--space-4);
-  border-top: 1px solid rgba(255,255,255,0.08);
-}
+/* ── Unified language dropdown ───────────────────────────── */
 
-.locale-select {
-  width: 100%;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: var(--text-2);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
+.lang-switcher {
+  position: relative;
+  display: inline-flex;
   font-size: var(--text-sm);
-  cursor: pointer;
-  /* Ensure the native dropdown arrow and text align correctly in both dirs */
-  direction: ltr;
-  text-align: left;
 }
 
-.locale-select:focus {
+.lang-switcher__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.9);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: 1;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+  font-family: inherit;
+}
+.lang-switcher__trigger:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.28); }
+.lang-switcher__trigger:focus-visible {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(84,198,249,0.18);
 }
 
-[dir="rtl"] .locale-select {
-  direction: rtl;
-  text-align: right;
+.lang-switcher__globe   { flex-shrink: 0; opacity: 0.85; }
+.lang-switcher__label   { flex: 1; font-weight: 500; }
+.lang-switcher__chevron { flex-shrink: 0; opacity: 0.7; transition: transform var(--transition); }
+.lang-switcher.is-open .lang-switcher__chevron { transform: rotate(180deg); }
+
+.lang-switcher__menu {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
+  min-width: 160px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: #1a1f2e;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  z-index: 50;
 }
+.lang-switcher__menu li { margin: 0; padding: 0; }
+
+.lang-switcher__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: rgba(255,255,255,0.85);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-family: inherit;
+  text-align: start;
+  transition: background var(--transition), color var(--transition);
+}
+.lang-switcher__option:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.lang-switcher__option.is-active {
+  background: rgba(84,198,249,0.12);
+  color: #fff;
+  font-weight: 600;
+}
+.lang-switcher__option-label { display: inline-block; }
+.lang-switcher__check { color: var(--accent); flex-shrink: 0; }
+
+/* ── Variants ────────────────────────────────────────────── */
+
+/* Auth (login page): compact pill, opens downward */
+.lang-switcher--auth .lang-switcher__trigger {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.88);
+  border-radius: 999px;
+  padding: var(--space-2) var(--space-4);
+}
+.lang-switcher--auth .lang-switcher__menu {
+  inset-inline-start: 50%;
+  inset-inline-end: auto;
+  transform: translateX(-50%);
+  margin-top: var(--space-2);
+}
+[dir="rtl"] .lang-switcher--auth .lang-switcher__menu { transform: translateX(50%); }
+
+/* Sidebar: full-width inside the user profile section */
+.lang-switcher--sidebar {
+  display: flex;
+  margin: var(--space-3) var(--space-4) 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.lang-switcher--sidebar .lang-switcher__trigger {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  justify-content: space-between;
+}
+
+/* Open-upward variant for dropdowns near the bottom of the viewport (sidebar). */
+.lang-switcher--up .lang-switcher__menu {
+  bottom: 100%;
+  margin-bottom: var(--space-2);
+}
+.lang-switcher--up.is-open .lang-switcher__chevron { transform: rotate(0deg); }
+.lang-switcher--up .lang-switcher__chevron { transform: rotate(180deg); }
+
+/* RTL: chevron rotates correctly regardless of writing direction. */
+[dir="rtl"] .lang-switcher__option { text-align: right; }
 
 /* =========================================================
    RTL LAYOUT OVERRIDES — applied when dir="rtl" on <html>
