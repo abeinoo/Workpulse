@@ -16,6 +16,7 @@ module Payroll
       finalized
       paid
       regenerated
+      reopened
       adjustment_approved
       adjustment_rejected
     ].freeze
@@ -26,6 +27,7 @@ module Payroll
       finalized:               "payroll_finalized",
       paid:                    "payroll_paid",
       regenerated:             "payroll_regenerated",
+      reopened:                "payroll_reopened",
       adjustment_approved:     "adjustment_approved",
       adjustment_rejected:     "adjustment_rejected"
     }.freeze
@@ -36,6 +38,7 @@ module Payroll
       finalized:               "success",
       paid:                    "success",
       regenerated:             "warning",
+      reopened:                "danger",
       adjustment_approved:     "success",
       adjustment_rejected:     "warning"
     }.freeze
@@ -69,17 +72,16 @@ module Payroll
     private
 
     def deliver_in_app
+      event_type = EVENT_TO_NOTIFICATION_TYPE.fetch(@event, "system_warning")
       recipients.each do |user|
-        Notification.create!(
+        Notifications::Creator.call(
           user:       user,
           notifiable: @period,
-          event_type: EVENT_TO_NOTIFICATION_TYPE.fetch(@event, "system_warning"),
+          event_type: event_type,
           title:      notification_title,
           body:       notification_body,
           severity:   EVENT_SEVERITY.fetch(@event, "info")
         )
-      rescue ActiveRecord::RecordInvalid => e
-        Rails.logger.warn("[NotificationService] Failed to create notification for user=#{user.id} event=#{@event}: #{e.message}")
       end
     end
 
@@ -113,7 +115,7 @@ module Payroll
         business.users.where(active: true).select { |u|
           u.can?(:view_payroll)
         }
-      when :submitted_for_review, :branch_review_completed, :regenerated
+      when :submitted_for_review, :branch_review_completed, :regenerated, :reopened
         business.users.where(active: true).select { |u| u.can?(:view_payroll) }
       when :adjustment_approved, :adjustment_rejected
         [ @context[:user] ].compact

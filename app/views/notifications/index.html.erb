@@ -19,23 +19,23 @@
     </div>
   </div>
 
-  <%# ── Filters ─────────────────────────────────────────────────────────── %>
+  <%# ── Category filters (All / Unread / Attendance / Leave / Payroll / Approvals / System) %>
   <div class="notif-filters">
     <%= link_to t("notifications.filter_all"),
           notifications_path,
-          class: "notif-filter-btn #{'is-active' unless @severity_filter || @unread_only}" %>
+          class: "notif-filter-btn #{'is-active' unless @category_filter || @unread_only}" %>
     <%= link_to t("notifications.filter_unread"),
           notifications_path(unread: "1"),
           class: "notif-filter-btn #{'is-active' if @unread_only}" %>
-    <% Notification::SEVERITIES.each do |sev| %>
-      <%= link_to t("notifications.filter_#{sev}"),
-            notifications_path(severity: sev),
-            class: "notif-filter-btn notif-filter-btn--#{sev} #{'is-active' if @severity_filter == sev}" %>
+    <% Notification::CATEGORIES.each do |cat| %>
+      <%= link_to t("notifications.categories.#{cat}"),
+            notifications_path(category: cat),
+            class: "notif-filter-btn notif-filter-btn--#{cat} #{'is-active' if @category_filter == cat}" %>
     <% end %>
   </div>
 
   <%# ── List ────────────────────────────────────────────────────────────── %>
-  <div class="notif-list">
+  <div class="notif-list" data-controller="notification">
     <% if @notifications.empty? %>
       <div class="empty-state">
         <div class="empty-state__icon">
@@ -65,6 +65,9 @@
               <span class="badge badge--<%= notif.severity %>">
                 <%= t("notifications.severity.#{notif.severity}") %>
               </span>
+              <% if notif.category.present? %>
+                <span class="notif-item__category"><%= t("notifications.categories.#{notif.category}") %></span>
+              <% end %>
               <span class="notif-item__event"><%= t("notifications.events.#{notif.event_type}", default: notif.event_type) %></span>
             </div>
           </div>
@@ -83,5 +86,19 @@
       <% end %>
     <% end %>
   </div>
+
+  <%# ── Pagination ──────────────────────────────────────────────────────── %>
+  <% if @total_pages > 1 %>
+    <% filter_params = { category: @category_filter, severity: @severity_filter, unread: (@unread_only ? "1" : nil) }.compact %>
+    <nav class="pagination" aria-label="<%= t('notifications.title') %>">
+      <% if @page > 1 %>
+        <%= link_to t("common.prev"), notifications_path(filter_params.merge(page: @page - 1)), class: "pagination__link" %>
+      <% end %>
+      <span class="pagination__status"><%= t("common.page_of", page: @page, total: @total_pages) %></span>
+      <% if @page < @total_pages %>
+        <%= link_to t("common.next"), notifications_path(filter_params.merge(page: @page + 1)), class: "pagination__link" %>
+      <% end %>
+    </nav>
+  <% end %>
 
 </div>

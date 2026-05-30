@@ -81,6 +81,8 @@ module Requests
         metadata:  { request_type: @request.request_type, response_note: @response_note }
       )
 
+      Notifications::RequestNotifier.rejected(request: @request, actor: @reviewed_by)
+
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
@@ -133,6 +135,8 @@ module Requests
         metadata:  { request_type: @request.request_type, response_note: @response_note }
       )
 
+      Notifications::RequestNotifier.approved(request: @request, actor: @reviewed_by)
+
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
@@ -173,6 +177,8 @@ module Requests
           response_note:   @response_note
         }
       )
+
+      Notifications::RequestNotifier.approved(request: @request, actor: @reviewed_by)
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e

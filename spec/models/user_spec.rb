@@ -469,4 +469,37 @@ RSpec.describe User, type: :model do
       expect(user.employment_type).to be_nil
     end
   end
+
+  describe "notification preferences" do
+    let(:pref_user) { create(:user) }
+
+    it "enables every category by default" do
+      Notification::CATEGORIES.each do |cat|
+        expect(pref_user.notification_enabled?(cat)).to be(true)
+      end
+    end
+
+    it "can disable a single category and persist it" do
+      pref_user.set_notification_preference("payroll", false)
+      expect(pref_user.reload.notification_enabled?("payroll")).to be(false)
+      expect(pref_user.notification_enabled?("attendance")).to be(true)
+    end
+
+    it "can re-enable a previously disabled category" do
+      pref_user.set_notification_preference("leave", false)
+      pref_user.set_notification_preference("leave", true)
+      expect(pref_user.reload.notification_enabled?("leave")).to be(true)
+    end
+
+    it "treats unknown categories as enabled and ignores writes to them" do
+      expect(pref_user.notification_enabled?("nonsense")).to be(true)
+      expect { pref_user.set_notification_preference("nonsense", false) }
+        .not_to change { pref_user.reload.notification_preferences }
+    end
+
+    it "coerces string booleans" do
+      pref_user.set_notification_preference("system", "0")
+      expect(pref_user.reload.notification_enabled?("system")).to be(false)
+    end
+  end
 end

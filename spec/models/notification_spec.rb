@@ -84,4 +84,44 @@ RSpec.describe Notification, type: :model do
       expect(described_class.for_user(user)).not_to include(other_notif)
     end
   end
+
+  describe "categories and the event catalog" do
+    it "validates category against CATEGORIES" do
+      n = build(:notification, category: "not_a_category")
+      expect(n).not_to be_valid
+      expect(n.errors[:category]).to be_present
+    end
+
+    it "allows a nil category (legacy rows)" do
+      expect(build(:notification, category: nil)).to be_valid
+    end
+
+    it ".by_category filters" do
+      pay = create(:notification, user: user, category: "payroll")
+      att = create(:notification, user: user, category: "attendance",
+                   event_type: "attendance_missing_check_out", severity: "warning")
+      expect(described_class.by_category("attendance")).to include(att)
+      expect(described_class.by_category("attendance")).not_to include(pay)
+    end
+
+    it ".category_for resolves the catalog category" do
+      expect(described_class.category_for("leave_approved")).to eq("leave")
+      expect(described_class.category_for("attendance_late")).to eq("attendance")
+      expect(described_class.category_for("unknown")).to be_nil
+    end
+
+    it ".severity_for resolves the catalog severity with an info fallback" do
+      expect(described_class.severity_for("leave_rejected")).to eq("danger")
+      expect(described_class.severity_for("payroll_paid")).to eq("success")
+      expect(described_class.severity_for("unknown")).to eq("info")
+    end
+
+    it "every catalog event is a valid event with a valid category + severity" do
+      Notification::EVENT_CATALOG.each do |event, meta|
+        expect(Notification::EVENT_TYPES).to include(event)
+        expect(Notification::CATEGORIES).to include(meta[:category])
+        expect(Notification::SEVERITIES).to include(meta[:severity])
+      end
+    end
+  end
 end

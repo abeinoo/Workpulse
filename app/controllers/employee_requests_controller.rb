@@ -46,6 +46,7 @@ class EmployeeRequestsController < ApplicationController
     authorize @request
 
     if @request.save
+      Notifications::RequestNotifier.submitted(request: @request)
       redirect_to employee_requests_path, notice: t("flash.request_submitted")
     else
       @for_user              = @request.user unless @request.user == current_user

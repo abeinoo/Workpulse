@@ -2,6 +2,7 @@ FactoryBot.define do
   factory :notification do
     association :user
     event_type { "payroll_finalized" }
+    category   { "payroll" }
     title      { "Payroll finalized — May 2026" }
     body       { "The May 2026 payroll has been finalized." }
     severity   { "info" }

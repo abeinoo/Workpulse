@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_29_170347) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_30_100050) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -267,6 +267,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_170347) do
 
   create_table "notifications", force: :cascade do |t|
     t.text "body"
+    t.string "category"
     t.datetime "created_at", null: false
     t.jsonb "data", default: {}, null: false
     t.string "event_type", null: false
@@ -279,6 +280,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_170347) do
     t.bigint "user_id", null: false
     t.index ["event_type"], name: "index_notifications_on_event_type"
     t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
+    t.index ["user_id", "category"], name: "index_notifications_on_user_id_and_category"
     t.index ["user_id", "created_at"], name: "index_notifications_on_user_id_and_created_at"
     t.index ["user_id", "read_at"], name: "index_notifications_on_user_id_and_read_at"
     t.index ["user_id"], name: "index_notifications_on_user_id"
@@ -767,6 +769,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_29_170347) do
     t.string "job_title"
     t.string "last_name"
     t.integer "manager_id"
+    t.jsonb "notification_preferences", default: {}, null: false
     t.integer "permission_role_id"
     t.string "phone_number"
     t.string "preferred_locale"

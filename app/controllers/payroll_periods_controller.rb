@@ -280,6 +280,7 @@ class PayrollPeriodsController < ApplicationController
     )
 
     if result.success?
+      Payroll::NotificationService.notify(event: :reopened, period: @period, actor: current_user)
       redirect_to payroll_period_path(@period), notice: t("flash.period_reopened")
     else
       redirect_to payroll_period_path(@period), alert: result.error

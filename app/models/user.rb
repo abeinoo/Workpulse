@@ -188,6 +188,25 @@ class User < ApplicationRecord
     permission_role.has_permission?(permission)
   end
 
+  # ── Notification preferences ────────────────────────────────────────────────
+  # Stored as a jsonb hash of category => boolean. A missing key means enabled,
+  # so a brand-new user receives every category by default.
+  def notification_enabled?(category)
+    cat = category.to_s
+    return true unless Notification::CATEGORIES.include?(cat)
+
+    (notification_preferences || {}).fetch(cat, true) != false
+  end
+
+  def set_notification_preference(category, enabled)
+    cat = category.to_s
+    return unless Notification::CATEGORIES.include?(cat)
+
+    prefs = (notification_preferences || {}).dup
+    prefs[cat] = ActiveModel::Type::Boolean.new.cast(enabled)
+    update!(notification_preferences: prefs)
+  end
+
   # Returns the explicitly configured data scope for a permission, or nil if unset.
   # nil signals "no override" — the caller falls back to the relationship hierarchy.
   # Owners are exempted: they always get business_wide regardless.

@@ -2295,20 +2295,41 @@ ar:
       warning: "تحذير"
       danger: "تنبيه"
       success: "نجاح"
+    categories:
+      attendance: "الحضور"
+      leave: "الإجازات"
+      payroll: "الرواتب"
+      approvals: "الموافقات"
+      system: "النظام"
     events:
       payroll_submitted: "تم تقديم الراتب"
       payroll_finalized: "تم اعتماد الراتب"
       payroll_paid: "تم صرف الراتب"
       payroll_regenerated: "تم إعادة إنشاء الراتب"
       payroll_auto_generated: "إنشاء تلقائي"
+      payroll_reopened: "تمت إعادة فتح الرواتب"
       adjustment_approved: "تمت الموافقة على التعديل"
       adjustment_rejected: "تم رفض التعديل"
       line_item_approved: "تمت الموافقة على البند"
       line_item_rejected: "تم رفض البند"
       line_item_waived: "تم إسقاط الغرامة"
       attendance_anomaly: "شذوذ في الحضور"
+      attendance_missing_check_in: "حضور غير مسجّل"
+      attendance_missing_check_out: "انصراف غير مسجّل"
+      attendance_late: "تأخّر في الحضور"
+      attendance_correction_approved: "تمت الموافقة على التصحيح"
+      attendance_correction_rejected: "تم رفض التصحيح"
+      manager_missing_attendance: "نقص في حضور الفريق"
+      manager_pending_corrections: "تصحيحات للمراجعة"
+      leave_submitted: "تم تقديم الإجازة"
+      leave_approved: "تمت الموافقة على الإجازة"
+      leave_rejected: "تم رفض الإجازة"
+      leave_cancelled: "تم إلغاء الإجازة"
+      manager_leave_request: "طلب إجازة جديد"
+      employee_request_submitted: "تم تقديم الطلب"
       employee_request_approved: "تمت الموافقة على الطلب"
       employee_request_rejected: "تم رفض الطلب"
+      manager_pending_approvals: "موافقات معلّقة"
       system_warning: "تحذير نظام"
     payroll:
       submitted_for_review:
@@ -2326,6 +2347,9 @@ ar:
       regenerated:
         title: "تم إعادة إنشاء الرواتب — %{label}"
         body: "قام %{actor} بإعادة إنشاء بيانات رواتب %{label}."
+      reopened:
+        title: "تمت إعادة فتح الرواتب — %{label}"
+        body: "أعاد %{actor} فتح فترة رواتب %{label}."
       adjustment_approved:
         title: "تمت الموافقة على التعديل"
         body: "تمت الموافقة على تعديلك لـ%{label}."
@@ -2335,6 +2359,52 @@ ar:
     payroll_auto_generated:
       title: "إنشاء تلقائي للرواتب — %{label}"
       body: "تم إنشاء فترة رواتب %{label} تلقائياً لـ%{business}."
+    attendance:
+      missing_check_in:
+        title: "لم تسجّل حضورك بعد"
+        body: "ورديتك نشطة اليوم لكن لا يوجد تسجيل حضور. يُرجى تسجيل الحضور أو التواصل مع مديرك."
+      missing_check_out:
+        title: "نسيت تسجيل الانصراف"
+        body: "حضور %{date} بدون انصراف. قدّم طلب تصحيح بصمة لإصلاحه."
+      manager_summary:
+        title: "%{count} من أعضاء الفريق بلا حضور"
+        body: "%{count} من أصل %{total} موظفين تديرهم بلا سجل حضور اليوم."
+    requests:
+      approved:
+        title: "تمت الموافقة على طلب %{type}"
+        body: "تمت الموافقة على طلب %{type} الخاص بك لتاريخ %{date}."
+      rejected:
+        title: "تم رفض طلب %{type}"
+        body: "تم رفض طلب %{type} الخاص بك لتاريخ %{date}."
+      leave_approved:
+        title: "تمت الموافقة على إجازتك"
+        body: "تمت الموافقة على %{type} لتاريخ %{date}."
+      leave_rejected:
+        title: "تم رفض إجازتك"
+        body: "تم رفض %{type} لتاريخ %{date}."
+      correction_approved:
+        title: "تمت الموافقة على تصحيح الحضور"
+        body: "تمت الموافقة على تصحيح بصمتك لتاريخ %{date} وتطبيقه."
+      correction_rejected:
+        title: "تم رفض تصحيح الحضور"
+        body: "تم رفض تصحيح بصمتك لتاريخ %{date}."
+      manager_pending:
+        title: "طلب جديد من %{name}"
+        body: "قدّم %{name} طلب %{type} بانتظار مراجعتك."
+      pending_reminder:
+        title: "%{count} طلب بانتظار مراجعتك"
+        body: "لديك %{count} طلب معلّق يحتاج إلى قرار."
+    preferences:
+      title: "تفضيلات الإشعارات"
+      subtitle: "اختر فئات الإشعارات التي تريد استلامها."
+      save: "حفظ التفضيلات"
+      saved: "تم تحديث تفضيلات الإشعارات."
+      descriptions:
+        attendance: "تذكيرات الحضور والانصراف والتأخير ونتائج التصحيح."
+        leave: "تقديم طلبات الإجازة والموافقات والرفض."
+        payroll: "إنشاء الرواتب واعتمادها وصرفها والتعديلات."
+        approvals: "الطلبات بانتظار مراجعتك ونتائج الموافقة."
+        system: "تحذيرات النظام والتنبيهات التشغيلية."
 
   ops_dashboard:
     page_title: "لوحة العمليات"
@@ -2592,3 +2662,6 @@ ar:
 
   common:
     ago: "مضت"
+    prev: "← السابق"
+    next: "التالي →"
+    page_of: "صفحة %{page} من %{total}"
