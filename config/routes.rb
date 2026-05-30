@@ -43,11 +43,14 @@ Rails.application.routes.draw do
         get "attendance",      to: "attendance#summary"
       end
 
-      resources :payroll_periods, only: [ :index, :show, :create ] do
+      resources :payroll_periods, only: [ :index, :show, :create, :destroy ] do
         member do
+          patch :submit_for_review
+          patch :approve_all_pending
           patch :finalize
           patch :mark_paid
           patch :regenerate
+          patch :reopen
           patch :complete_branch_review
         end
         resources :payroll_entries,     only: [ :index, :show, :update ]
@@ -206,6 +209,7 @@ Rails.application.routes.draw do
       patch :mark_paid
       patch :regenerate
       patch :approve_all_pending
+      patch :reopen
     end
     resources :payroll_entries, only: [ :show ] do
       resources :payroll_line_items, only: [] do

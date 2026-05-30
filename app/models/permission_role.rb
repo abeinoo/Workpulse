@@ -5,7 +5,11 @@ class PermissionRole < ApplicationRecord
   PERMISSION_GROUPS = {
     employees:      %w[view_employees manage_employees manage_salary_profiles],
     attendance:     %w[view_attendance manage_attendance manage_devices],
-    payroll:        %w[view_payroll view_payroll_analytics manage_payroll finalize_payroll pay_advances],
+    payroll:        %w[view_payroll view_payroll_analytics view_payroll_audit_log
+                       create_payroll regenerate_payroll submit_payroll_review
+                       complete_branch_review approve_payroll_items
+                       finalize_payroll pay_payroll reopen_payroll delete_payroll
+                       pay_advances],
     adjustments:    %w[manage_adjustments approve_adjustments],
     requests:       %w[view_requests approve_requests],
     shifts:         %w[view_shifts manage_shifts assign_shifts],
@@ -19,9 +23,22 @@ class PermissionRole < ApplicationRecord
 
   # Permissions where "which employees?" matters — these support data scopes.
   # Global-operation permissions (settings, reports, admin) have no scope.
+  #
+  # Excluded from scoping:
+  #   - finalize_payroll / pay_payroll / delete_payroll / reopen_payroll:
+  #     period-level transitions; the period belongs to the whole business.
+  #   - approve_payroll_items: a period-wide bulk action, not per-employee.
+  #   - approve_adjustments / manage_devices / manage_shifts: global operations.
+  #
+  # complete_branch_review IS scopable — managers should be able to complete
+  # reviews only for branches in their authorized scope.
   SCOPABLE_PERMISSIONS = (
     PERMISSION_GROUPS.slice(:employees, :attendance, :payroll, :adjustments, :requests, :shifts)
-                     .values.flatten - %w[finalize_payroll approve_adjustments manage_devices manage_shifts]
+                     .values.flatten -
+      %w[finalize_payroll pay_payroll delete_payroll reopen_payroll
+         approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
+         view_payroll_audit_log
+         approve_adjustments manage_devices manage_shifts]
   ).freeze
 
   SCOPE_OPTIONS = %w[self_only managed_employees_only branch_only business_wide].freeze
@@ -35,9 +52,17 @@ class PermissionRole < ApplicationRecord
     "manage_attendance"      => %w[view_attendance],
     "manage_employees"       => %w[view_employees],
     "manage_salary_profiles" => %w[view_employees],
-    "manage_payroll"         => %w[view_payroll],
     "finalize_payroll"       => %w[view_payroll],
     "view_payroll_analytics" => %w[view_payroll],
+    "view_payroll_audit_log" => %w[view_payroll],
+    "create_payroll"         => %w[view_payroll],
+    "regenerate_payroll"     => %w[view_payroll],
+    "submit_payroll_review"  => %w[view_payroll],
+    "complete_branch_review" => %w[view_payroll],
+    "approve_payroll_items"  => %w[view_payroll],
+    "pay_payroll"            => %w[view_payroll],
+    "reopen_payroll"         => %w[view_payroll],
+    "delete_payroll"         => %w[view_payroll],
     "pay_advances"           => %w[view_requests],
     "manage_adjustments"     => %w[view_payroll],
     "approve_adjustments"    => %w[view_payroll],

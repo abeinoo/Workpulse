@@ -74,17 +74,20 @@ class PayrollPeriodsController < ApplicationController
 
     @branch_reviews_for_manager = manager_branch_reviews
 
-    # Non-analytical management data (always loaded for any viewer with
-    # `view_payroll`) — these are operational lookups, not financial aggregates.
+    # Non-analytical, non-sensitive operational lookups.
     if current_user.can?(:view_payroll)
       @user_branch_names = load_user_branch_names(@entries.map(&:user_id))
-      @last_regenerate   = @period.payroll_audit_logs
-                                  .where(action_type: :regenerated)
-                                  .includes(:actor)
-                                  .order(created_at: :desc)
-                                  .first
-      @audit_logs        = @period.payroll_audit_logs.includes(:actor).order(created_at: :asc)
       @last_snapshot     = @period.payroll_snapshots.order(created_at: :desc).first
+    end
+
+    # Audit trail is sensitive (who did what, when, why) — gated separately.
+    if current_user.can?(:view_payroll_audit_log)
+      @last_regenerate = @period.payroll_audit_logs
+                                .where(action_type: :regenerated)
+                                .includes(:actor)
+                                .order(created_at: :desc)
+                                .first
+      @audit_logs      = @period.payroll_audit_logs.includes(:actor).order(created_at: :asc)
     end
 
     # Analytics-gated: KPI cards, insights, anomalies, period totals.
@@ -100,7 +103,10 @@ class PayrollPeriodsController < ApplicationController
                    ).detect
     end
 
-    if current_user.can?(:manage_payroll)
+    # The all-branches review progress table is intended for finance/admin
+    # users overseeing the whole period — gated on the new period-level
+    # permissions that imply business-wide payroll responsibility.
+    if current_user.can?(:finalize_payroll) || current_user.can?(:pay_payroll)
       @all_branch_reviews = @period.payroll_period_branch_reviews
                                    .includes(:branch, :reviewer)
                                    .order("branches.name")
@@ -145,10 +151,10 @@ class PayrollPeriodsController < ApplicationController
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period, :complete_branch_review?
 
-    managed_branch_ids = current_user.managed_branch_ids
-    pending_reviews    = @period.payroll_period_branch_reviews
-                                .where(branch_id: managed_branch_ids, status: :pending)
-                                .includes(:branch)
+    authorized_branch_ids = reviewable_branch_ids_for(current_user)
+    pending_reviews       = @period.payroll_period_branch_reviews
+                                   .where(branch_id: authorized_branch_ids, status: :pending)
+                                   .includes(:branch)
 
     if pending_reviews.empty?
       return redirect_to payroll_period_path(@period),
@@ -263,6 +269,23 @@ class PayrollPeriodsController < ApplicationController
     end
   end
 
+  def reopen
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :reopen?
+
+    result = Payroll::Reopener.call(
+      period: @period,
+      by:     current_user,
+      reason: params[:reason]
+    )
+
+    if result.success?
+      redirect_to payroll_period_path(@period), notice: t("flash.period_reopened")
+    else
+      redirect_to payroll_period_path(@period), alert: result.error
+    end
+  end
+
   def destroy
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period, :destroy?
@@ -288,10 +311,24 @@ class PayrollPeriodsController < ApplicationController
   end
 
   def manager_branch_reviews
-    return nil unless current_user.can?(:view_payroll)
+    return nil unless current_user.can?(:complete_branch_review)
     @period.payroll_period_branch_reviews
            .includes(:branch)
-           .where(branch_id: current_user.managed_branch_ids)
+           .where(branch_id: reviewable_branch_ids_for(current_user))
+  end
+
+  # Branches a user is allowed to complete reviews for. Honors the configured
+  # `complete_branch_review` data scope:
+  #   - business_wide: every branch in the business
+  #   - branch_only / managed_employees_only / default: structural relationships
+  #     (branches where the user is branch_manager_id or area_manager_id).
+  def reviewable_branch_ids_for(user)
+    case user.scope_for(:complete_branch_review)
+    when "business_wide"
+      user.business.branches.pluck(:id)
+    else
+      (user.managed_branch_ids + user.area_managed_branch_ids).uniq
+    end
   end
 
   def build_index_summary(scope)

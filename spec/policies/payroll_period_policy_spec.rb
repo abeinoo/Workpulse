@@ -86,7 +86,7 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
 
   describe "finalize?" do
     it "permits super_admin"   do expect(subject.new(super_admin, period).finalize?).to be true  end
-    it "denies accountant"     do expect(subject.new(accountant,  period).finalize?).to be false end
+    it "permits accountant with finalize_payroll" do expect(subject.new(accountant, period).finalize?).to be true end
     it "denies branch_manager" do expect(subject.new(manager,     period).finalize?).to be false end
     it "denies employee"       do expect(subject.new(employee,    period).finalize?).to be false end
   end

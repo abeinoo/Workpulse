@@ -89,10 +89,10 @@
       </button>
     <% end %>
 
-    <%# ── Secondary: regenerate (always shown to authorized users) ──────── %>
-    <% if policy(@period).regenerate? %>
+    <%# ── Secondary: regenerate (only on draft periods) ─────────────────── %>
+    <% if current_user.can?(:regenerate_payroll) %>
       <div class="page-actions__sep"></div>
-      <% if @period.draft? %>
+      <% if policy(@period).regenerate? %>
         <%= button_to regenerate_payroll_period_path(@period),
               method: :patch,
               class: "btn btn-warning btn-sm",
@@ -107,6 +107,22 @@
           <%= t("payroll.regenerate") %>
         </button>
         <span class="page-actions__lock-hint"><%= lock_hint %></span>
+      <% end %>
+    <% end %>
+
+    <%# ── Reopen: roll the period back one step (requires a reason) ─────── %>
+    <% if policy(@period).reopen? %>
+      <div class="page-actions__sep"></div>
+      <%= form_with url: reopen_payroll_period_path(@period), method: :patch, local: true, class: "reopen-form" do |f| %>
+        <%= f.text_field :reason,
+              required: true,
+              placeholder: t("payroll.show.reopen_reason_placeholder"),
+              class: "form-control form-control-sm reopen-form__reason" %>
+        <%= f.submit t("payroll.reopen"),
+              class: "btn btn-warning btn-sm",
+              data: { turbo_confirm: @period.paid? ?
+                                       t("payroll.confirm.reopen_from_paid") :
+                                       t("payroll.confirm.reopen_from_finalized") } %>
       <% end %>
     <% end %>
 
@@ -226,8 +242,8 @@
     <%= render "comparison" %>
   <% end %>
 
-  <%# ── Branch review progress (owner only) ───────────────────────────────── %>
-  <% if current_user.can?(:manage_payroll) && @all_branch_reviews&.any? %>
+  <%# ── Branch review progress (period overseers) ─────────────────────────── %>
+  <% if (current_user.can?(:finalize_payroll) || current_user.can?(:pay_payroll)) && @all_branch_reviews&.any? %>
     <div class="section-card">
       <h3 class="section-title"><%= t("payroll.show.branch_review_progress") %></h3>
       <div class="table-wrap table-wrap--cards">

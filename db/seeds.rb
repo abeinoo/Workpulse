@@ -704,7 +704,10 @@ puts "Payroll period (draft): #{period_curr.period_label}"
     permissions: %w[
       view_employees manage_employees manage_salary_profiles
       view_attendance manage_attendance manage_devices
-      view_payroll manage_payroll finalize_payroll
+      view_payroll view_payroll_analytics view_payroll_audit_log
+      create_payroll regenerate_payroll submit_payroll_review
+      complete_branch_review approve_payroll_items
+      finalize_payroll pay_payroll reopen_payroll delete_payroll
       manage_adjustments approve_adjustments
       view_requests approve_requests
       view_shifts manage_shifts assign_shifts
@@ -717,7 +720,7 @@ puts "Payroll period (draft): #{period_curr.period_label}"
       "view_attendance"  => "business_wide",
       "manage_attendance" => "business_wide",
       "view_payroll"     => "business_wide",
-      "manage_payroll"   => "business_wide",
+      "complete_branch_review" => "business_wide",
       "manage_adjustments" => "business_wide",
       "view_requests"    => "business_wide",
       "approve_requests" => "business_wide",

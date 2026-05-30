@@ -34,7 +34,8 @@ FactoryBot.define do
           r.permissions = %w[view_employees view_attendance manage_attendance
                              view_requests approve_requests
                              assign_shifts view_shifts
-                             view_payroll manage_adjustments approve_adjustments]
+                             view_payroll complete_branch_review
+                             manage_adjustments approve_adjustments]
         end
         u.update_column(:permission_role_id, role.id)
       end
@@ -51,7 +52,8 @@ FactoryBot.define do
           r.permissions = %w[view_employees view_attendance manage_attendance
                              view_requests approve_requests
                              assign_shifts view_shifts
-                             view_payroll manage_adjustments approve_adjustments]
+                             view_payroll complete_branch_review
+                             manage_adjustments approve_adjustments]
         end
         u.update_column(:permission_role_id, role.id)
       end
@@ -60,11 +62,15 @@ FactoryBot.define do
     trait :accountant do
       after(:create) do |u|
         role = PermissionRole.find_or_create_by!(business: u.business, name: "Finance #{u.business_id}") do |r|
-          r.permissions       = %w[view_payroll view_payroll_analytics manage_payroll manage_adjustments approve_adjustments view_requests pay_advances]
+          r.permissions       = %w[view_payroll view_payroll_analytics view_payroll_audit_log
+                                   create_payroll regenerate_payroll submit_payroll_review
+                                   complete_branch_review approve_payroll_items
+                                   finalize_payroll pay_payroll reopen_payroll delete_payroll
+                                   manage_adjustments approve_adjustments
+                                   view_requests pay_advances]
           r.permission_scopes = {
             "view_payroll"           => "business_wide",
             "view_payroll_analytics" => "business_wide",
-            "manage_payroll"         => "business_wide",
             "manage_adjustments"     => "business_wide",
             "approve_adjustments"    => "business_wide",
             "view_requests"          => "business_wide",

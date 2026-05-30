@@ -113,12 +113,23 @@ RSpec.describe PermissionRole, type: :model do
       expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(10)
     end
 
-    it "has 24 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(24)
+    it "has 32 total permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(32)
     end
 
     it "includes view_payroll_analytics as a separate permission from view_payroll" do
       expect(PermissionRole::ALL_PERMISSIONS).to include("view_payroll", "view_payroll_analytics")
+    end
+
+    it "splits the payroll workflow into per-action permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS).to include(
+        "create_payroll", "regenerate_payroll", "submit_payroll_review",
+        "complete_branch_review", "approve_payroll_items",
+        "finalize_payroll", "pay_payroll", "reopen_payroll", "delete_payroll",
+        "view_payroll_audit_log"
+      )
+      expect(PermissionRole::ALL_PERMISSIONS).not_to include("manage_payroll"),
+        "manage_payroll has been replaced by granular permissions"
     end
 
     it "contains no duplicates" do

@@ -172,7 +172,7 @@ class User < ApplicationRecord
   def management_access?
     can?(:view_employees)   || can?(:manage_employees)  ||
       can?(:view_attendance) || can?(:manage_attendance) ||
-      can?(:view_payroll)    || can?(:manage_payroll)    || can?(:finalize_payroll) ||
+      can?(:view_payroll)    || can?(:finalize_payroll) ||
       can?(:approve_requests) || can?(:view_requests)   ||
       can?(:assign_shifts)   || can?(:manage_shifts)    || can?(:view_shifts)   ||
       can?(:manage_branches) || can?(:manage_devices)   || can?(:manage_obligations) ||

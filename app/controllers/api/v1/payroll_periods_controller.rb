@@ -1,7 +1,9 @@
 module Api
   module V1
     class PayrollPeriodsController < BaseController
-      before_action :set_period, only: [ :show, :finalize, :mark_paid, :regenerate, :complete_branch_review ]
+      before_action :set_period, only: [ :show, :finalize, :mark_paid, :regenerate,
+                                          :complete_branch_review, :submit_for_review,
+                                          :approve_all_pending, :reopen, :destroy ]
 
       def index
         authorize PayrollPeriod
@@ -48,14 +50,62 @@ module Api
         handle_result(result)
       end
 
-      # Branch manager marks all their branch reviews as complete.
+      def submit_for_review
+        authorize @period, :submit_for_review?
+        result = Payroll::SubmitForReview.call(period: @period, by: current_user)
+        handle_result(result)
+      end
+
+      def approve_all_pending
+        authorize @period, :approve_all_pending?
+        return render_error("Period is not reviewable") unless @period.reviewable?
+
+        pending_items = PayrollLineItem
+                          .joins(:payroll_entry)
+                          .where(payroll_entries: { payroll_period_id: @period.id })
+                          .where(review_status: :pending_review)
+
+        return render_error("No pending items") if pending_items.empty?
+
+        entry_ids = Set.new
+        approved  = 0
+        ActiveRecord::Base.transaction do
+          pending_items.find_each do |item|
+            item.update!(
+              review_status: :approved,
+              reviewed_by:   current_user,
+              reviewed_at:   Time.current
+            )
+            entry_ids << item.payroll_entry_id
+            approved  += 1
+          end
+          PayrollEntry.where(id: entry_ids.to_a).find_each(&:recalculate_totals!)
+        end
+
+        render_success(period_json(@period.reload).merge(approved_count: approved))
+      end
+
+      def reopen
+        authorize @period, :reopen?
+        result = Payroll::Reopener.call(period: @period, by: current_user, reason: params[:reason])
+        handle_result(result)
+      end
+
+      def destroy
+        authorize @period, :destroy?
+        @period.destroy!
+        render_success(period_label: @period.period_label, status: "deleted")
+      rescue StandardError => e
+        render_error(e.message)
+      end
+
+      # Branch reviewer marks all their authorized pending branch reviews as complete.
       def complete_branch_review
         authorize @period, :complete_branch_review?
 
-        managed_branch_ids = Branch.where(branch_manager_id: current_user.id).pluck(:id)
-        pending_reviews    = @period.payroll_period_branch_reviews
-                                    .where(branch_id: managed_branch_ids, status: :pending)
-                                    .includes(:branch)
+        pending_reviews = @period.payroll_period_branch_reviews
+                                 .where(branch_id: authorized_review_branch_ids, status: :pending)
+                                 .includes(:branch)
 
         return render_error("No pending branch reviews found for your branches") if pending_reviews.empty?
 
@@ -88,6 +138,17 @@ module Api
           render_success(period_json(result.period))
         else
           render_error(result.error)
+        end
+      end
+
+      # Branches the current user is allowed to complete reviews for. Honors
+      # the configured `complete_branch_review` data scope.
+      def authorized_review_branch_ids
+        case current_user.scope_for(:complete_branch_review)
+        when "business_wide"
+          current_user.business.branches.pluck(:id)
+        else
+          (current_user.managed_branch_ids + current_user.area_managed_branch_ids).uniq
         end
       end
 

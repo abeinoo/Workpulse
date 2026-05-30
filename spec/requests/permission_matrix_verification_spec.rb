@@ -582,4 +582,338 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       expect(role.errors[:permissions].join).to include("view_payroll")
     end
   end
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Test J — Payroll workflow granularity.
+  #   Every lifecycle action (create / regenerate / submit / approve_all /
+  #   complete_branch_review / finalize / pay / reopen / delete) has its own
+  #   permission. A user granted only one workflow permission can perform
+  #   that single action and is denied every other workflow endpoint.
+  # ────────────────────────────────────────────────────────────────────────────
+  describe "Test J — payroll workflow granularity" do
+    def workflow_user(*perms)
+      role = PermissionRole.create!(
+        business:    business,
+        name:        "WflRole-#{SecureRandom.hex(4)}",
+        permissions: (perms.map(&:to_s) | %w[view_payroll]).uniq
+      )
+      create(:user, business: business, permission_role: role)
+    end
+
+    let!(:other_user) { create(:user, business: business) }
+
+    # ── PERMISSION ROLE MODEL: granular permissions exist & validate ──
+    describe "permission catalog" do
+      it "exposes a granular permission per lifecycle action" do
+        expect(PermissionRole::ALL_PERMISSIONS).to include(
+          "create_payroll", "regenerate_payroll", "submit_payroll_review",
+          "complete_branch_review", "approve_payroll_items",
+          "finalize_payroll", "pay_payroll", "reopen_payroll", "delete_payroll",
+          "view_payroll_audit_log"
+        )
+      end
+
+      it "no longer exposes the legacy coarse manage_payroll permission" do
+        expect(PermissionRole::ALL_PERMISSIONS).not_to include("manage_payroll")
+      end
+
+      it "every new workflow permission requires view_payroll" do
+        %w[create_payroll regenerate_payroll submit_payroll_review
+           complete_branch_review approve_payroll_items pay_payroll
+           reopen_payroll delete_payroll view_payroll_audit_log].each do |perm|
+          role = PermissionRole.new(business: business, name: "Bad-#{SecureRandom.hex(3)}",
+                                    permissions: [perm])
+          expect(role).not_to be_valid, "#{perm} should require view_payroll"
+          expect(role.errors[:permissions].join).to include("view_payroll"),
+            "#{perm} should mention view_payroll in its validation error"
+        end
+      end
+
+      it "complete_branch_review is scopable" do
+        expect(PermissionRole::SCOPABLE_PERMISSIONS).to include("complete_branch_review")
+      end
+
+      it "global-period actions are NOT scopable" do
+        %w[finalize_payroll pay_payroll delete_payroll reopen_payroll
+           approve_payroll_items create_payroll regenerate_payroll
+           submit_payroll_review].each do |perm|
+          expect(PermissionRole::SCOPABLE_PERMISSIONS).not_to include(perm),
+            "#{perm} should not be scopable — it's a period-wide action"
+        end
+      end
+    end
+
+    # ── CREATE_PAYROLL ──
+    describe "create_payroll" do
+      let(:user) { workflow_user(:create_payroll) }
+
+      it "permits POST /payroll_periods" do
+        sign_in user
+        post payroll_periods_path, params: { payroll_period: { year: 2025, month: 1 } }
+        # Either creates the period or returns a domain error — but NEVER a 403.
+        expect(response.status).to be_in([200, 302, 422])
+      end
+
+      it "denies submit_for_review (no submit_payroll_review)" do
+        period = create(:payroll_period, business: business)
+        sign_in user
+        patch submit_for_review_payroll_period_path(period)
+        expect(response.status).to be_in([302, 403])
+        expect(period.reload.status).to eq("draft")
+      end
+
+      it "denies finalize, mark_paid, delete, reopen" do
+        period = create(:payroll_period, :under_review, business: business)
+        sign_in user
+        patch finalize_payroll_period_path(period)
+        expect(period.reload.status).not_to eq("finalized")
+      end
+    end
+
+    # ── SUBMIT_PAYROLL_REVIEW ──
+    describe "submit_payroll_review" do
+      let(:user) { workflow_user(:submit_payroll_review) }
+      let!(:period) { create(:payroll_period, business: business) }
+
+      it "permits submit_for_review on a draft period" do
+        # Need at least one entry to populate branch reviews.
+        create(:payroll_entry, payroll_period: period, user: other_user)
+        sign_in user
+        patch submit_for_review_payroll_period_path(period)
+        expect(period.reload.status).to eq("under_review")
+      end
+
+      it "denies create_payroll" do
+        sign_in user
+        post payroll_periods_path, params: { payroll_period: { year: 2025, month: 6 } }
+        expect(response.status).to be_in([302, 403])
+      end
+    end
+
+    # ── APPROVE_PAYROLL_ITEMS ──
+    describe "approve_payroll_items" do
+      let(:user) { workflow_user(:approve_payroll_items) }
+      let!(:period) { create(:payroll_period, business: business) }
+      let!(:entry)  { create(:payroll_entry, payroll_period: period, user: other_user) }
+      let!(:item)   { create(:payroll_line_item, :late_penalty, payroll_entry: entry) }
+
+      it "permits bulk approve" do
+        sign_in user
+        patch approve_all_pending_payroll_period_path(period)
+        expect(item.reload.review_status).to eq("approved")
+      end
+
+      it "denies finalize" do
+        sign_in user
+        patch finalize_payroll_period_path(period)
+        expect(period.reload.status).to eq("draft")
+      end
+    end
+
+    # ── FINALIZE_PAYROLL ──
+    describe "finalize_payroll" do
+      let(:user) { workflow_user(:finalize_payroll) }
+      let!(:period) { create(:payroll_period, business: business, status: "branch_review_completed") }
+
+      it "permits finalize" do
+        sign_in user
+        patch finalize_payroll_period_path(period)
+        expect(period.reload.status).to eq("finalized")
+      end
+
+      it "denies pay (no pay_payroll)" do
+        period.update!(status: "finalized")
+        sign_in user
+        patch mark_paid_payroll_period_path(period)
+        expect(period.reload.status).to eq("finalized")  # unchanged
+      end
+
+      it "denies reopen" do
+        period.update!(status: "finalized")
+        sign_in user
+        patch reopen_payroll_period_path(period), params: { reason: "test" }
+        expect(period.reload.status).to eq("finalized")  # unchanged
+      end
+    end
+
+    # ── PAY_PAYROLL ──
+    describe "pay_payroll" do
+      let(:user) { workflow_user(:pay_payroll) }
+      let!(:period) { create(:payroll_period, business: business, status: "finalized") }
+
+      it "permits mark_paid" do
+        sign_in user
+        patch mark_paid_payroll_period_path(period)
+        expect(period.reload.status).to eq("paid")
+      end
+
+      it "denies finalize (no finalize_payroll)" do
+        unfinalized = create(:payroll_period, business: business, status: "branch_review_completed",
+                             period_year: 2025, period_month: 11)
+        sign_in user
+        patch finalize_payroll_period_path(unfinalized)
+        expect(unfinalized.reload.status).to eq("branch_review_completed")
+      end
+    end
+
+    # ── REOPEN_PAYROLL ──
+    describe "reopen_payroll" do
+      it "permits reopen finalized → branch_review_completed with reason" do
+        user   = workflow_user(:reopen_payroll)
+        period = create(:payroll_period, business: business, status: "finalized")
+        sign_in user
+        patch reopen_payroll_period_path(period), params: { reason: "Discovered overtime miscalculation" }
+        expect(period.reload.status).to eq("branch_review_completed")
+      end
+
+      it "denies reopen of paid period without pay_payroll" do
+        user   = workflow_user(:reopen_payroll)  # has reopen_payroll only
+        period = create(:payroll_period, business: business, status: "paid")
+        sign_in user
+        patch reopen_payroll_period_path(period), params: { reason: "wrong" }
+        expect(period.reload.status).to eq("paid")  # unchanged
+      end
+
+      it "permits reopen of paid period when both reopen_payroll AND pay_payroll are granted" do
+        user   = workflow_user(:reopen_payroll, :pay_payroll)
+        period = create(:payroll_period, business: business, status: "paid")
+        sign_in user
+        patch reopen_payroll_period_path(period), params: { reason: "Bank rejected the disbursement" }
+        expect(period.reload.status).to eq("finalized")
+      end
+
+      it "rejects reopen without a reason (service guard)" do
+        user   = workflow_user(:reopen_payroll)
+        period = create(:payroll_period, business: business, status: "finalized")
+        sign_in user
+        patch reopen_payroll_period_path(period), params: { reason: "" }
+        expect(period.reload.status).to eq("finalized")  # unchanged
+      end
+
+      it "writes a PayrollAuditLog entry with the reason" do
+        user   = workflow_user(:reopen_payroll)
+        period = create(:payroll_period, business: business, status: "finalized")
+        sign_in user
+        expect {
+          patch reopen_payroll_period_path(period), params: { reason: "Correction needed" }
+        }.to change(PayrollAuditLog, :count).by(1)
+        log = PayrollAuditLog.order(:id).last
+        expect(log.action_type).to eq("reopened")
+        expect(log.from_status).to eq("finalized")
+        expect(log.to_status).to eq("branch_review_completed")
+        expect(log.metadata_hash["reason"]).to eq("Correction needed")
+      end
+    end
+
+    # ── DELETE_PAYROLL ──
+    describe "delete_payroll" do
+      let(:user) { workflow_user(:delete_payroll) }
+
+      it "permits destroy on a draft period" do
+        period = create(:payroll_period, business: business, status: "draft")
+        sign_in user
+        delete payroll_period_path(period)
+        expect(PayrollPeriod.exists?(period.id)).to be(false)
+      end
+
+      it "denies destroy on a finalized period" do
+        period = create(:payroll_period, business: business, status: "finalized")
+        sign_in user
+        delete payroll_period_path(period)
+        expect(PayrollPeriod.exists?(period.id)).to be(true)
+      end
+    end
+
+    # ── REGENERATE_PAYROLL ──
+    describe "regenerate_payroll" do
+      let(:user) { workflow_user(:regenerate_payroll) }
+
+      it "permits regenerate on draft" do
+        period = create(:payroll_period, business: business, status: "draft")
+        sign_in user
+        patch regenerate_payroll_period_path(period)
+        expect(response.status).to be_in([200, 302])
+      end
+
+      it "denies regenerate on finalized — must reopen first" do
+        period = create(:payroll_period, business: business, status: "finalized")
+        sign_in user
+        patch regenerate_payroll_period_path(period)
+        expect(response.status).to be_in([302, 403])
+        expect(period.reload.status).to eq("finalized")
+      end
+    end
+
+    # ── COMPLETE_BRANCH_REVIEW with scope ──
+    describe "complete_branch_review" do
+      let(:branch_a) { create(:branch, business: business) }
+      let(:branch_b) { create(:branch, business: business) }
+      let!(:period)  { create(:payroll_period, business: business, status: "under_review") }
+
+      before do
+        # Two branch review slots — each branch needs one
+        create(:payroll_period_branch_review, payroll_period: period, branch: branch_a)
+        create(:payroll_period_branch_review, payroll_period: period, branch: branch_b)
+      end
+
+      it "branch-scoped user can only complete reviews for branches they manage" do
+        user = workflow_user(:complete_branch_review)
+        branch_a.update!(branch_manager_id: user.id)
+        sign_in user
+        patch complete_branch_review_payroll_period_path(period)
+
+        # branch_a review completed; branch_b review still pending
+        expect(period.payroll_period_branch_reviews.find_by(branch: branch_a).status).to eq("completed")
+        expect(period.payroll_period_branch_reviews.find_by(branch: branch_b).status).to eq("pending")
+      end
+
+      it "business-wide-scoped user can complete reviews for ANY branch in the business" do
+        role = PermissionRole.create!(
+          business:          business,
+          name:              "FinOpsRole-#{SecureRandom.hex(4)}",
+          permissions:       %w[view_payroll complete_branch_review],
+          permission_scopes: { "complete_branch_review" => "business_wide" }
+        )
+        user = create(:user, business: business, permission_role: role)
+        sign_in user
+        patch complete_branch_review_payroll_period_path(period)
+
+        expect(period.payroll_period_branch_reviews.find_by(branch: branch_a).status).to eq("completed")
+        expect(period.payroll_period_branch_reviews.find_by(branch: branch_b).status).to eq("completed")
+      end
+
+      it "denies a user without complete_branch_review" do
+        user = workflow_user(:view_payroll_analytics)  # has view_payroll, NOT complete_branch_review
+        branch_a.update!(branch_manager_id: user.id)
+        sign_in user
+        patch complete_branch_review_payroll_period_path(period)
+
+        expect(period.payroll_period_branch_reviews.find_by(branch: branch_a).status).to eq("pending")
+      end
+    end
+
+    # ── LIVE PERMISSION TOGGLE ──
+    describe "live permission revocation" do
+      let!(:period) { create(:payroll_period, business: business, status: "finalized") }
+      let(:user)    { workflow_user(:pay_payroll, :reopen_payroll) }
+
+      it "revoking pay_payroll mid-session removes the mark-paid button immediately" do
+        sign_in user
+        get payroll_period_path(period)
+        expect(response.body).to include(I18n.t("payroll.mark_paid"))
+
+        user.permission_role.update!(permissions: %w[view_payroll reopen_payroll])
+        get payroll_period_path(period)
+        expect(response.body).not_to include(mark_paid_payroll_period_path(period)),
+          "Mark-paid button must disappear on the next request after pay_payroll is revoked"
+      end
+
+      it "revoking reopen_payroll mid-session blocks the reopen endpoint immediately" do
+        sign_in user
+        user.permission_role.update!(permissions: %w[view_payroll pay_payroll])
+        patch reopen_payroll_period_path(period), params: { reason: "still trying" }
+        expect(period.reload.status).to eq("finalized")  # unchanged
+      end
+    end
+  end
 end

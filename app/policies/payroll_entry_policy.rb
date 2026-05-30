@@ -1,7 +1,9 @@
 class PayrollEntryPolicy < ApplicationPolicy
   def index?  = true  # scope handles isolation; employees see only their own finalized/paid entries
   def show?   = can?(:view_payroll) || own_entry?
-  def update? = can?(:manage_payroll)
+  # Editing entry-level fields is a payroll-rebuild concern: it requires the
+  # same authority as regenerating the period's calculations.
+  def update? = can?(:regenerate_payroll)
 
   class Scope < ApplicationPolicy::Scope
     def resolve
