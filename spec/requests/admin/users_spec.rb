@@ -19,20 +19,6 @@ RSpec.describe "Admin::Users", type: :request do
         expect(response.body).to include(super_admin.first_name)
       end
 
-      context "employee status badge column" do
-        it "renders a green (success) badge for active employees" do
-          create(:user, business: business, active: true, first_name: "Active")
-          get admin_users_path(status: "active")
-          expect(response.body).to include("badge badge-success")
-        end
-
-        it "renders a red (danger) badge for inactive employees" do
-          create(:user, business: business, active: false, first_name: "Inactive")
-          get admin_users_path(status: "inactive")
-          expect(response.body).to include("badge badge-danger")
-        end
-      end
-
       context "registration status column" do
         it "renders a green (success) Registered badge when the account has a password" do
           create(:user, business: business, first_name: "Onboarded")

@@ -25,11 +25,8 @@
         <thead>
           <tr>
             <th><%= t("admin.users.name") %></th>
-            <th><%= t("admin.users.role") %></th>
             <th><%= t("admin.users.direct_manager") %></th>
-            <th><%= t("admin.users.status") %></th>
             <th><%= t("admin.users.registration_status") %></th>
-            <th><%= t("admin.users.call") %></th>
             <th></th>
           </tr>
         </thead>
@@ -50,7 +47,6 @@
                   </div>
                 </div>
               </td>
-              <td class="td-secondary"><%= user.permission_role&.name || (user.owner? ? t("admin.users.super_admin_role") : "—") %></td>
               <td class="td-secondary">
                 <% if user.manager %>
                   <%= link_to user.manager.full_name, admin_user_path(user.manager), class: "link-muted" %>
@@ -59,16 +55,11 @@
                 <% end %>
               </td>
               <td>
-                <%= user_status_badge(user) %>
-              </td>
-              <td>
                 <%= registration_status_badge(user) %>
               </td>
               <td>
-                <%= quick_call_button(user) %>
-              </td>
-              <td>
                 <div class="td-actions">
+                  <%= quick_call_button(user) %>
                   <% if policy(user).toggle_active? %>
                     <%= button_to toggle_active_admin_user_path(user),
                           method: :patch,
