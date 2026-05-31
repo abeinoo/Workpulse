@@ -5,8 +5,7 @@ class OperationsDashboardController < ApplicationController
     authorize :operations_dashboard, :index?
 
     business = current_user.business
-    tz       = business.timezone_object
-    @today   = Time.current.in_time_zone(tz).to_date
+    @today   = BusinessDay.current(context: business)
     @from    = @today.beginning_of_month
 
     # ── Today attendance ─────────────────────────────────────────────────────

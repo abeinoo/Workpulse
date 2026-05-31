@@ -19,8 +19,7 @@ module Notifications
     private
 
     def process_business(business)
-      tz        = business.timezone_object
-      yesterday = Time.current.in_time_zone(tz).to_date - 1
+      yesterday = BusinessDay.current(context: business) - 1
 
       records = AttendanceRecord
                   .for_business(business)

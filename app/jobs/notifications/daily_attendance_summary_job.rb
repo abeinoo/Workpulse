@@ -18,8 +18,7 @@ module Notifications
     private
 
     def process_business(business)
-      tz    = business.timezone_object
-      today = Time.current.in_time_zone(tz).to_date
+      today = BusinessDay.current(context: business)
 
       managers = business.users.where(active: true).select { |u| u.managed_employees.exists? }
       return if managers.empty?

@@ -73,4 +73,64 @@ RSpec.describe BusinessDay do
       end
     end
   end
+
+  # .for_timestamp is an explicit alias of .work_date_for for readability at
+  # call sites that resolve a specific punch's business day.
+  describe ".for_timestamp" do
+    let(:early_ctx) { ctx(timezone: "UTC", start_hour: 6) }
+
+    it "delegates to work_date_for" do
+      ts = Time.utc(2026, 5, 24, 2, 0, 0)
+      expect(described_class.for_timestamp(ts, context: early_ctx))
+        .to eq(described_class.work_date_for(ts, context: early_ctx))
+    end
+
+    it "assigns a 02:00 punch to the previous business day when start_hour = 6" do
+      ts = Time.utc(2026, 5, 24, 2, 0, 0)
+      expect(described_class.for_timestamp(ts, context: early_ctx)).to eq(Date.new(2026, 5, 23))
+    end
+  end
+
+  # .current resolves "today" for "now" — the helper that replaced the scattered
+  # Date.current / Time.current.in_time_zone(tz).to_date calls across the app.
+  describe ".current" do
+    context "with business_day_start_hour = 6 (UTC business)" do
+      let(:early_ctx) { ctx(timezone: "UTC", start_hour: 6) }
+
+      it "returns the PREVIOUS day for a 02:00 'now'" do
+        travel_to Time.utc(2026, 5, 24, 2, 0, 0) do
+          expect(described_class.current(context: early_ctx)).to eq(Date.new(2026, 5, 23))
+        end
+      end
+
+      it "returns the PREVIOUS day at 05:59 (just before the start hour)" do
+        travel_to Time.utc(2026, 5, 24, 5, 59, 0) do
+          expect(described_class.current(context: early_ctx)).to eq(Date.new(2026, 5, 23))
+        end
+      end
+
+      it "rolls over to the CURRENT day exactly at 06:00 (the start hour)" do
+        travel_to Time.utc(2026, 5, 24, 6, 0, 0) do
+          expect(described_class.current(context: early_ctx)).to eq(Date.new(2026, 5, 24))
+        end
+      end
+    end
+
+    context "overnight shift in Asia/Riyadh (UTC+3) with start_hour = 6" do
+      let(:riyadh_ctx) { ctx(timezone: "Asia/Riyadh", start_hour: 6) }
+
+      it "keeps a 02:00 Riyadh 'now' on the previous business day" do
+        # 23:00 UTC on May 23 = 02:00 Riyadh on May 24; before the 06:00 start → May 23
+        travel_to Time.utc(2026, 5, 23, 23, 0, 0) do
+          expect(described_class.current(context: riyadh_ctx)).to eq(Date.new(2026, 5, 23))
+        end
+      end
+    end
+
+    it "accepts an explicit now: argument" do
+      ctx_obj = ctx(timezone: "UTC", start_hour: 6)
+      expect(described_class.current(context: ctx_obj, now: Time.utc(2026, 5, 24, 3, 0, 0)))
+        .to eq(Date.new(2026, 5, 23))
+    end
+  end
 end

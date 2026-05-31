@@ -27,6 +27,50 @@ module ApplicationHelper
   end
 
 
+  # Colored status badge for an employee/user. Reusable across index/show
+  # pages. The model only tracks an `active` boolean today; suspended/terminated
+  # are not modelled, so we map active → green, inactive → red.
+  def user_status_badge(user)
+    css, key = user.active? ? ["badge-success", "active"] : ["badge-danger", "inactive"]
+    content_tag(:span, t("admin.users.#{key}"), class: "badge #{css}")
+  end
+
+  # Registration status badge — distinct from active/inactive. Indicates whether
+  # the employee has completed account registration (set a password). Mirrors the
+  # `encrypted_password` check already used on the employee show page. The column
+  # is already loaded by the index scope, so this introduces no N+1 query.
+  def registration_status_badge(user)
+    if user.encrypted_password.present?
+      content_tag(:span, t("admin.users.registered"), class: "badge badge-success")
+    else
+      content_tag(:span, t("admin.users.pending_registration"), class: "badge badge-warning")
+    end
+  end
+
+  # "Quick call" phone button for an employee row. When a phone number exists it
+  # becomes a tel: link that dials on mobile; otherwise it renders disabled with
+  # an explanatory tooltip.
+  def quick_call_button(user)
+    icon = tag.svg(
+      tag.path(d: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"),
+      width: "15", height: "15", viewBox: "0 0 24 24", fill: "none",
+      stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round",
+      "stroke-linejoin": "round", "aria-hidden": "true"
+    )
+
+    if user.phone_number.present?
+      label = t("admin.users.call_employee", name: user.full_name)
+      link_to "tel:#{user.phone_number}", class: "btn btn-icon btn-ghost btn-sm",
+              title: label, "aria-label": label do
+        icon
+      end
+    else
+      content_tag(:span, icon, class: "btn btn-icon btn-ghost btn-sm",
+                  "aria-disabled": "true", title: t("admin.users.no_phone"),
+                  "aria-label": t("admin.users.no_phone"))
+    end
+  end
+
   def request_status_badge_class(request)
     case request.status
     when "approved" then "badge-success"

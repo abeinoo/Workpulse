@@ -431,6 +431,13 @@ body.is-guest .main-content {
 }
 .btn-block { width: 100%; }
 
+/* Icon-only button — square, compact (e.g. quick-call in tables) */
+.btn-icon {
+  padding: 0.4375rem;
+  aspect-ratio: 1;
+  line-height: 0;
+}
+
 /* ============================================================
    8. FORMS
    ============================================================ */

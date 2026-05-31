@@ -50,8 +50,12 @@ class DashboardController < ApplicationController
     @managed_branches = Branch.where(id: all_branch_ids).active.order(:name)
     branch_ids        = @managed_branches.pluck(:id)
 
+    # Business day boundaries respect the configured start hour (see BusinessDay).
+    today     = BusinessDay.current(context: current_user.business)
+    yesterday = today - 1
+
     # Manager's own attendance (they are also an employee)
-    @my_today_record  = AttendanceRecord.find_by(user: current_user, date: Date.current)
+    @my_today_record  = AttendanceRecord.find_by(user: current_user, date: today)
     @my_current_shift = ShiftAssignment.current.find_by(user: current_user)
 
     # Attendance eligibility for the manager themselves is shift-driven.
@@ -79,13 +83,13 @@ class DashboardController < ApplicationController
 
     # Keyed hash for O(1) lookup in the view: user_id → today's record
     @managed_today_records = AttendanceRecord
-      .where(user_id: managed_ids, date: Date.current)
+      .where(user_id: managed_ids, date: today)
       .index_by(&:user_id)
 
     @branch_employee_count = managed_ids.size
 
     @today_records = AttendanceRecord
-      .where(branch_id: branch_ids, date: Date.current)
+      .where(branch_id: branch_ids, date: today)
       .includes(:user)
       .order("users.first_name")
 
@@ -93,7 +97,7 @@ class DashboardController < ApplicationController
 
     # Employees with an open check-in from yesterday (forgot to check out)
     @missing_checkouts = AttendanceRecord
-      .where(user_id: managed_ids, date: Date.yesterday, status: "incomplete")
+      .where(user_id: managed_ids, date: yesterday, status: "incomplete")
       .includes(:user)
 
     scope_ids = EmployeeScope.new(current_user).relation.select(:id)
@@ -129,7 +133,9 @@ class DashboardController < ApplicationController
   end
 
   def load_employee_data
-    @today_record    = AttendanceRecord.find_by(user: current_user, date: Date.current)
+    today = BusinessDay.current(context: current_user.business)
+
+    @today_record    = AttendanceRecord.find_by(user: current_user, date: today)
     @current_shift   = ShiftAssignment.current
                                       .includes(:shift, :branch, :source_template)
                                       .find_by(user: current_user)
@@ -151,7 +157,7 @@ class DashboardController < ApplicationController
 
     # Warn if the employee left an open check-in from yesterday.
     @missing_checkout = AttendanceRecord.find_by(
-      user: current_user, date: Date.yesterday, status: "incomplete"
+      user: current_user, date: today - 1, status: "incomplete"
     )
 
     # Next 3 future shift assignments (excludes today/ongoing).
@@ -162,10 +168,10 @@ class DashboardController < ApplicationController
       .includes(:shift, :branch, :source_template)
       .limit(3)
 
-    # Month-to-date attendance counts.
+    # Month-to-date attendance counts (anchored on the current business day).
     month_records = AttendanceRecord.where(
       user: current_user,
-      date: Date.current.beginning_of_month..Date.current
+      date: today.beginning_of_month..today
     )
     @month_stats = {
       days_present:  month_records.where(status: %w[present late early_leave]).count,

@@ -49,10 +49,11 @@ module Api
         params[:end_date] ? (Date.parse(params[:end_date]) rescue current_business_date.end_of_month) : current_business_date.end_of_month
       end
 
-      # Today's date in the business timezone. Using Date.current (UTC) would give the wrong
-      # calendar day for businesses with a positive UTC offset near midnight.
+      # Current business day — honours both the business timezone and the
+      # configured business_day_start_hour (see BusinessDay), so the default
+      # month range matches the work_date attendance is recorded under.
       def current_business_date
-        Time.current.in_time_zone(current_business.timezone_object).to_date
+        BusinessDay.current(context: current_business)
       end
 
       def adjustment_params

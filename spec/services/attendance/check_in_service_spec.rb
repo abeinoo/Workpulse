@@ -50,6 +50,40 @@ RSpec.describe Attendance::CheckInService do
     end
   end
 
+  describe "business-day boundary (configurable start hour)" do
+    # Business day starts at 06:00. A check-in at 02:00 belongs to the PREVIOUS
+    # business day, not a new calendar day. UTC business so wall-clock == work_date math.
+    let(:business) { create(:business, timezone: "UTC", business_day_start_hour: 6) }
+
+    it "assigns a 02:00 check-in to the previous business day" do
+      travel_to Time.utc(2026, 5, 24, 2, 0, 0) do
+        result = call
+        expect(result).to be_success
+        expect(result.record.work_date).to eq(Date.new(2026, 5, 23))
+        expect(result.record.date).to eq(Date.new(2026, 5, 23))
+      end
+    end
+
+    it "assigns a 05:59 check-in to the previous business day" do
+      travel_to Time.utc(2026, 5, 24, 5, 59, 0) do
+        expect(call.record.work_date).to eq(Date.new(2026, 5, 23))
+      end
+    end
+
+    it "rolls over to the new business day at 06:00" do
+      travel_to Time.utc(2026, 5, 24, 6, 0, 0) do
+        expect(call.record.work_date).to eq(Date.new(2026, 5, 24))
+      end
+    end
+
+    it "blocks a second check-in after midnight as 'already checked in' for the same business day" do
+      travel_to(Time.utc(2026, 5, 23, 20, 0, 0)) { call }    # evening check-in → work_date May 23
+      travel_to(Time.utc(2026, 5, 24, 2, 0, 0)) do            # 02:00 next morning → still May 23
+        expect(call.error).to eq("Already checked in today")
+      end
+    end
+  end
+
   describe "double check-in prevention" do
     it "returns an error when the user has already checked in today" do
       call

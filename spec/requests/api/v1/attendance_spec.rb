@@ -162,4 +162,38 @@ RSpec.describe "API V1 Attendance", type: :request do
       expect(json["data"]).to be_present
     end
   end
+
+  # Regression: the reported mobile bug. Business day starts at 06:00, so a
+  # check-in at 02:00 must belong to the PREVIOUS business day — and the `today`
+  # endpoint must still surface it (not treat 02:00 as a fresh, empty new day).
+  describe "post-midnight check-in with business_day_start_hour = 6" do
+    let(:early_business) { create(:business, timezone: "UTC", business_day_start_hour: 6) }
+    let(:early_branch)   { create(:branch, business: early_business) }
+    let(:early_user)     { create(:user, business: early_business, allow_mobile_attendance: true) }
+
+    before do
+      create(:shift_assignment, user: early_user, branch: early_branch, shift: shift,
+             effective_from: 1.month.ago.to_date)
+      create(:user_branch, user: early_user, branch: early_branch)
+      sign_in early_user
+    end
+
+    it "records a 02:00 check-in under the previous business day" do
+      travel_to Time.utc(2026, 5, 24, 2, 0, 0) do
+        post "/api/v1/attendance/check_in", params: { branch_id: early_branch.id }, as: :json
+        expect(response).to have_http_status(:created)
+        expect(response.parsed_body.dig("data", "work_date")).to eq("2026-05-23")
+      end
+    end
+
+    it "the `today` endpoint returns that previous-business-day record at 02:00" do
+      travel_to Time.utc(2026, 5, 24, 2, 0, 0) do
+        post "/api/v1/attendance/check_in", params: { branch_id: early_branch.id }, as: :json
+        get "/api/v1/attendance/today", as: :json
+        data = response.parsed_body["data"]
+        expect(data).to be_present
+        expect(data["work_date"]).to eq("2026-05-23")
+      end
+    end
+  end
 end

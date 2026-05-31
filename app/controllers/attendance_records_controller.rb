@@ -7,8 +7,10 @@ class AttendanceRecordsController < ApplicationController
   def index
     @can_manage = current_user.can?(:view_attendance)
 
-    # KPI stats: unfiltered today snapshot (respects policy scope)
-    biz_today = Time.current.in_time_zone(current_user.business.timezone_object).to_date
+    # KPI stats: unfiltered today snapshot (respects policy scope).
+    # BusinessDay honours the configured start hour, so the "today" strip
+    # matches the work_date that check-in/punch assigned the records to.
+    biz_today = BusinessDay.current(context: current_user.business)
     @today = biz_today
     @today_stats = Attendance::DailyStats.call(
       scope: policy_scope(AttendanceRecord),

@@ -89,7 +89,7 @@ module Payroll
     # ── Branch lateness ───────────────────────────────────────────────────────
 
     def high_branch_lateness
-      today = Date.current
+      today = BusinessDay.current(context: @business)
       from  = today.beginning_of_month
       branches = @business.branches.active.includes(:users)
 
@@ -122,8 +122,8 @@ module Payroll
     # ── Schedule adjustment candidates ───────────────────────────────────────
 
     def employees_needing_schedule_adjustment
-      from = Date.current.beginning_of_month
-      to   = Date.current
+      to   = BusinessDay.current(context: @business)
+      from = to.beginning_of_month
 
       @business.users.active.find_each.filter_map do |user|
         result = Employee::PerformanceScorer.call(user: user, from: from, to: to)
@@ -168,7 +168,7 @@ module Payroll
     # ── Missing checkout pattern ──────────────────────────────────────────────
 
     def missing_checkout_pattern
-      yesterday = Date.current - 1
+      yesterday = BusinessDay.current(context: @business) - 1
       missing = AttendanceRecord
         .joins(:user)
         .where(users: { business_id: @business.id, active: true })

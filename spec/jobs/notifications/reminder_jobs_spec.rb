@@ -40,6 +40,35 @@ RSpec.describe "Notification reminder jobs", type: :job do
 
       expect { described_class.perform_now }.not_to change(Notification, :count)
     end
+
+    # Business-day boundary: with start_hour = 6, "yesterday" at 02:00 must be the
+    # business day two calendar days back, not the calendar yesterday. This proves
+    # the job uses BusinessDay.current rather than a midnight rollover.
+    context "with business_day_start_hour = 6 at 02:00" do
+      let(:business) { create(:business, timezone: "UTC", business_day_start_hour: 6) }
+
+      it "treats the previous BUSINESS day (not the calendar yesterday) as 'yesterday'" do
+        travel_to Time.utc(2026, 5, 24, 2, 0, 0) do
+          # At 02:00 the current business day is May 23, so "yesterday" = May 22.
+          create(:attendance_record, user: user, business: business,
+                 work_date: Date.new(2026, 5, 22), date: Date.new(2026, 5, 22),
+                 status: "incomplete", check_out_at: nil)
+
+          expect { described_class.perform_now }
+            .to change { user.notifications.where(event_type: "attendance_missing_check_out").count }.by(1)
+        end
+      end
+
+      it "does NOT flag the in-progress current business day (May 23) as missing checkout" do
+        travel_to Time.utc(2026, 5, 24, 2, 0, 0) do
+          create(:attendance_record, user: user, business: business,
+                 work_date: Date.new(2026, 5, 23), date: Date.new(2026, 5, 23),
+                 status: "incomplete", check_out_at: nil)
+
+          expect { described_class.perform_now }.not_to change(Notification, :count)
+        end
+      end
+    end
   end
 
   # ── Forgot check-in ──────────────────────────────────────────────────────────

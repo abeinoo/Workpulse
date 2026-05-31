@@ -18,8 +18,7 @@ module Notifications
     private
 
     def process_business(business)
-      tz    = business.timezone_object
-      today = Time.current.in_time_zone(tz).to_date
+      today = BusinessDay.current(context: business)
 
       assignments = ShiftAssignment
                       .active_on(today)

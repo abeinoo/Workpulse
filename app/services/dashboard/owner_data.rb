@@ -23,8 +23,7 @@ module Dashboard
 
     def initialize(business)
       @business   = business
-      tz          = business.timezone_object
-      @today      = Time.current.in_time_zone(tz).to_date
+      @today      = BusinessDay.current(context: business)
       @yesterday  = @today - 1
     end
 
