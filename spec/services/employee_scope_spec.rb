@@ -118,6 +118,14 @@ RSpec.describe EmployeeScope, type: :service do
       expect(result).not_to include(outside_report)
     end
 
+    it "branch_only returns branch colleagues for a plain member who is NOT the branch manager" do
+      # Regression: previously keyed only off managed/area branches, so a member
+      # who merely belongs to a branch (user_branches) saw nobody (WHERE 1=0).
+      result = described_class.new(branch_emp).for_scope("branch_only")
+      expect(result).to include(area_emp, branch_manager, area_manager)
+      expect(result).not_to include(unrelated_emp)
+    end
+
     it "business_wide returns all non-self users in the business" do
       result = described_class.new(branch_manager).for_scope("business_wide")
       expect(result).to include(branch_emp, unrelated_emp, area_manager)

@@ -17,47 +17,83 @@ class DashboardController < ApplicationController
   private
 
   # ── Section visibility gates ──────────────────────────────────────────────
-  # Visibility is permission-driven. Relationships only determine data scope
-  # (and an empty scope naturally yields a section with nothing to show, so we
-  # additionally require the scope to be non-empty before rendering).
+  # Visibility is PERMISSION-DRIVEN. A user sees the UNION of every section they
+  # have access to; no gate depends on another section, and no gate is keyed to
+  # a specific role/relationship FK (which previously hid sections from
+  # admins/owners who hold the permission but aren't assigned as a branch/area
+  # manager). Relationships and the user's configured permission scope only
+  # decide *which data* a section shows — for business-wide users that is the
+  # whole business. Empty data still collapses a section.
 
   helper_method :show_branch_management_section?,
                 :show_area_management_section?,
                 :show_payroll_section?,
                 :show_analytics_section?
 
+  # Team / branch management (roster, pending requests/adjustments): anyone who
+  # can view others' attendance and reaches at least one employee or branch.
   def show_branch_management_section?
     return @show_branch_management_section if defined?(@show_branch_management_section)
 
     @show_branch_management_section =
-      current_user.can?(:view_attendance) && branch_management_scope_present?
+      current_user.can?(:view_attendance) &&
+      (accessible_branch_ids.any? || attendance_employee_scope.exists?)
   end
 
+  # Branch oversight analytics (branch health, ranking, coverage, trend, critical
+  # alerts): anyone who can view attendance for one or more branches in scope.
   def show_area_management_section?
     return @show_area_management_section if defined?(@show_area_management_section)
 
     @show_area_management_section =
-      current_user.can?(:view_attendance) && current_user.area_managed_branch_ids.any?
+      current_user.can?(:view_attendance) && accessible_branch_ids.any?
   end
 
   def show_payroll_section?
     current_user.can?(:view_payroll)
   end
 
-  # Business-wide operational analytics: the owner, or any role explicitly
-  # granted business-wide attendance visibility.
+  # Business-wide operational analytics.
   def show_analytics_section?
-    current_user.owner? ||
+    business_wide_attendance?
+  end
+
+  # ── Scope helpers (data scope — never visibility) ─────────────────────────
+
+  # True when the user can see attendance for the whole business: the owner, or
+  # a permission role whose view_attendance scope is explicitly business_wide.
+  def business_wide_attendance?
+    return @business_wide_attendance if defined?(@business_wide_attendance)
+
+    @business_wide_attendance =
+      current_user.owner? ||
       (current_user.can?(:view_attendance) &&
         current_user.scope_for(:view_attendance) == "business_wide")
   end
 
-  # A user has a branch-management scope when they are the assigned manager of
-  # a branch, or have direct reports. Cheap existence checks — only evaluated
-  # for users who already cleared the :view_attendance permission gate.
-  def branch_management_scope_present?
-    Branch.where(branch_manager_id: current_user.id).exists? ||
-      current_user.managed_employees.where(active: true).exists?
+  # Employees this user may view — honours an explicit view_attendance scope
+  # (business_wide for owners/admins) and otherwise falls back to the
+  # relationship hierarchy (managed branches / area branches / direct reports).
+  def attendance_employee_scope
+    @attendance_employee_scope ||=
+      if business_wide_attendance?
+        EmployeeScope.new(current_user).for_scope("business_wide")
+      else
+        EmployeeScope.new(current_user).relation
+      end
+  end
+
+  # Branches this user oversees: every active branch for business-wide users,
+  # otherwise the union of branches they manage / area-manage / are assigned to.
+  def accessible_branch_ids
+    @accessible_branch_ids ||=
+      if business_wide_attendance?
+        Branch.for_business(current_user.business).active.pluck(:id)
+      else
+        (current_user.managed_branch_ids +
+         current_user.area_managed_branch_ids +
+         current_user.branch_ids).uniq
+      end
   end
 
   # ── Personal section (universal) ──────────────────────────────────────────
@@ -144,20 +180,19 @@ class DashboardController < ApplicationController
 
   # ── Branch management section ─────────────────────────────────────────────
   def load_branch_management_data
-    # Branch managers are officially assigned to branches via Branch#branch_manager_id.
-    # user_branches is supplementary (many-to-many). Both sources must be combined.
-    direct_branch_ids = Branch.where(branch_manager_id: current_user.id).pluck(:id)
-    all_branch_ids    = (direct_branch_ids + current_user.branch_ids).uniq
-    @managed_branches = Branch.where(id: all_branch_ids).active.order(:name)
+    # Branches and employees both come from the permission-aware scope helpers,
+    # so a business-wide permission holder (owner/admin) sees the whole business
+    # even without a branch_manager/area_manager relationship.
+    @managed_branches = Branch.where(id: accessible_branch_ids).active.order(:name)
 
     today     = BusinessDay.current(context: current_user.business)
     yesterday = today - 1
 
-    # Full team: all active employees directly managed by this manager
-    @managed_employees = current_user.managed_employees
-                                     .where(active: true)
-                                     .includes(profile_photo_attachment: :blob)
-                                     .order(:first_name, :last_name)
+    # Team: every active employee the user can view (scope-driven, not FK-driven)
+    @managed_employees = attendance_employee_scope
+                           .where(active: true)
+                           .includes(profile_photo_attachment: :blob)
+                           .order(:first_name, :last_name)
 
     managed_ids = @managed_employees.map(&:id)
 
@@ -174,10 +209,9 @@ class DashboardController < ApplicationController
       .where(user_id: managed_ids, date: yesterday, status: "incomplete")
       .includes(:user)
 
-    scope_ids = EmployeeScope.new(current_user).relation.select(:id)
     @pending_requests = EmployeeRequest
       .pending
-      .where(user_id: scope_ids)
+      .where(user_id: attendance_employee_scope.select(:id))
       .includes(:user)
       .order(created_at: :asc)
 
@@ -191,7 +225,9 @@ class DashboardController < ApplicationController
 
   # ── Area management section ───────────────────────────────────────────────
   def load_area_management_data
-    data = Dashboard::AreaManagerData.call(current_user)
+    # Scope the oversight analytics to the branches this user can reach
+    # (all branches for business-wide users) rather than only area-managed ones.
+    data = Dashboard::AreaManagerData.call(current_user, branch_scope: accessible_branch_ids)
 
     @area_branches      = data.managed_branches
     @branch_health      = data.branch_health

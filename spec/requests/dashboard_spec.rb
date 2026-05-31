@@ -291,7 +291,7 @@ RSpec.describe "Dashboard", type: :request do
     context "branch manager who also has an assigned shift" do
       let(:manager) { create(:user, :branch_manager, business: business) }
 
-      it "renders BOTH the personal schedule and the branch management section" do
+      it "renders the personal schedule plus the branch & area management it oversees" do
         future_shift_for(manager)
         sign_in manager
         get root_path
@@ -299,10 +299,11 @@ RSpec.describe "Dashboard", type: :request do
         expect(response).to have_http_status(:ok)
         # Personal schedule survives despite the management role (the Phase B fix).
         expect(response.body).to include(schedule_marker)
-        # Management section also renders — sections are additive.
+        # Management sections render additively for the branch they oversee.
         expect(response.body).to include(branch_marker)
-        # Not an area manager.
-        expect(response.body).not_to include(area_marker)
+        expect(response.body).to include(area_marker)
+        # Not business-wide → no analytics.
+        expect(response.body).not_to include(analytics_marker)
       end
     end
 
@@ -310,14 +311,14 @@ RSpec.describe "Dashboard", type: :request do
     context "area manager (no shifts)" do
       let(:area_mgr) { create(:user, :area_manager, business: business) }
 
-      it "renders the area section, and hides personal shift widgets" do
+      it "renders the branch & area sections it oversees, and hides shift widgets" do
         sign_in area_mgr
         get root_path
 
         expect(response).to have_http_status(:ok)
         expect(response.body).to     include(universal_marker)
         expect(response.body).to     include(area_marker)
-        expect(response.body).not_to include(branch_marker)
+        expect(response.body).to     include(branch_marker)
         expect(response.body).not_to include(analytics_marker)
         # No shifts → no schedule/attendance/month widgets.
         expect(response.body).not_to include(schedule_marker)
@@ -346,16 +347,20 @@ RSpec.describe "Dashboard", type: :request do
     # 5. Owner ──────────────────────────────────────────────────
     context "owner (no shifts)" do
       let(:owner) { create(:user, :owner, business: business) }
+      # Business-wide scope needs a branch + an employee to have data to show.
+      let!(:a_branch)   { branch }
+      let!(:an_employee) { create(:user, business: business) }
 
-      it "renders business analytics and hides all personal shift widgets" do
+      it "renders the UNION of business-wide sections and hides shift widgets" do
         sign_in owner
         get root_path
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).to     include(universal_marker)
-        expect(response.body).to     include(analytics_marker)
-        expect(response.body).not_to include(branch_marker)
-        expect(response.body).not_to include(area_marker)
+        expect(response.body).to include(universal_marker)
+        # Business-wide permission ⇒ sees every section, no relationship needed.
+        expect(response.body).to include(branch_marker)
+        expect(response.body).to include(area_marker)
+        expect(response.body).to include(analytics_marker)
         # Phase C: owners must NOT see attendance/schedule/month personal widgets.
         expect(response.body).not_to include(schedule_marker)
         expect(response.body).not_to include(attendance_marker)
@@ -408,6 +413,61 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).not_to include(area_marker)
         expect(response.body).not_to include(payroll_marker)
         expect(response.body).not_to include(analytics_marker)
+      end
+    end
+
+    # 9. Admin — business-wide permission, NO branch/area relationship ──
+    # This is the regression target: previously the relationship/FK gates hid
+    # these sections from a permission-holder with no assignment.
+    context "admin with business-wide permissions but no relationship assignments" do
+      let(:admin_role) do
+        create(:permission_role, business: business,
+               permissions: %w[view_attendance view_payroll view_requests approve_requests view_employees],
+               permission_scopes: { "view_attendance" => "business_wide" })
+      end
+      let(:admin) { create(:user, business: business, permission_role: admin_role) }
+      let!(:a_branch)    { branch }
+      let!(:an_employee) { create(:user, business: business) }
+
+      it "sees the UNION of all permitted sections without any relationship" do
+        # Not a branch/area manager, not an owner.
+        expect(admin.managed_branch_ids).to be_empty
+        expect(admin.area_managed_branch_ids).to be_empty
+        expect(admin.owner?).to be(false)
+
+        sign_in admin
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include(branch_marker)    # team / branch mgmt
+        expect(response.body).to include(area_marker)       # branch health / alerts
+        expect(response.body).to include(payroll_marker)    # payroll
+        expect(response.body).to include(analytics_marker)  # business analytics
+      end
+    end
+
+    # 10. Multi-role — branch manager + payroll + business-wide attendance ──
+    context "multi-role user (branch manager + business-wide attendance + payroll)" do
+      let(:multi_role) do
+        create(:permission_role, business: business,
+               permissions: %w[view_attendance view_payroll view_requests approve_requests view_shifts assign_shifts],
+               permission_scopes: { "view_attendance" => "business_wide" })
+      end
+      let(:user) { create(:user, business: business, permission_role: multi_role) }
+      let!(:a_branch)    { branch }
+      let!(:an_employee) { create(:user, business: business) }
+
+      it "renders every applicable section together" do
+        future_shift_for(user)
+        sign_in user
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include(schedule_marker)   # personal (assignment-driven)
+        expect(response.body).to include(branch_marker)
+        expect(response.body).to include(area_marker)
+        expect(response.body).to include(payroll_marker)
+        expect(response.body).to include(analytics_marker)
       end
     end
   end

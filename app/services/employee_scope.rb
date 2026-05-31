@@ -70,8 +70,12 @@ class EmployeeScope
     relation
   end
 
+  # "Branch only" means every employee who shares a branch with this user —
+  # the branches they manage / area-manage AND the branches they personally
+  # belong to (user_branches). A plain branch member (not the formal manager)
+  # must still see their branch colleagues.
   def branch
-    ids = @user.managed_branch_ids + @user.area_managed_branch_ids
+    ids = (@user.managed_branch_ids + @user.area_managed_branch_ids + @user.branch_ids).uniq
     return User.none unless ids.any?
 
     base.where(User.arel_table[:id].in(UserBranch.where(branch_id: ids).select(:user_id).arel))

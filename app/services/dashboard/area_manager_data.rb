@@ -21,14 +21,19 @@ module Dashboard
       keyword_init: true
     )
 
-    def self.call(manager)
-      new(manager).call
+    def self.call(manager, branch_scope: nil)
+      new(manager, branch_scope: branch_scope).call
     end
 
-    def initialize(manager)
-      @manager   = manager
-      @today     = BusinessDay.current(context: manager.business)
-      @yesterday = @today - 1
+    # branch_scope: optional array of branch ids to analyse. When omitted, falls
+    # back to the branches this user is the area manager of (legacy behaviour).
+    # The dashboard passes the user's full accessible-branch scope so that
+    # business-wide permission holders see every branch.
+    def initialize(manager, branch_scope: nil)
+      @manager      = manager
+      @branch_scope = branch_scope
+      @today        = BusinessDay.current(context: manager.business)
+      @yesterday    = @today - 1
     end
 
     def call
@@ -51,11 +56,10 @@ module Dashboard
     # ── Base relations — each executes exactly once ────────────────────────────
 
     def managed_branches
-      @managed_branches ||= Branch
-        .where(area_manager: manager)
-        .includes(:branch_manager)
-        .active
-        .order(:name)
+      @managed_branches ||= begin
+        relation = @branch_scope ? Branch.where(id: @branch_scope) : Branch.where(area_manager: manager)
+        relation.includes(:branch_manager).active.order(:name)
+      end
     end
 
     def branch_ids

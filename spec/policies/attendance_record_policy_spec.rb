@@ -170,4 +170,94 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
       end
     end
   end
+
+  # ──────────────────────────────────────────────────────────────
+  # Explicitly configured view_attendance data scopes (regression).
+  # Previously these dropped the current user and, for "branch_only",
+  # returned nobody when the user wasn't the formal branch manager.
+  # ──────────────────────────────────────────────────────────────
+  describe "Scope — explicit configured data scopes" do
+    def role_with_scope(scope_value)
+      create(:permission_role, business: business,
+             name: "View #{scope_value}",
+             permissions: %w[view_attendance],
+             permission_scopes: { "view_attendance" => scope_value })
+    end
+
+    let!(:other_record) { create(:attendance_record) } # different business — never visible
+
+    describe "branch_only" do
+      # A plain branch member, NOT the formal branch manager.
+      let(:viewer)    { create(:user, business: business, permission_role: role_with_scope("branch_only")) }
+      let(:colleague) { create(:user, business: business) }
+
+      let!(:viewer_record)    { create(:attendance_record, branch: branch, user: viewer) }
+      let!(:colleague_record) { create(:attendance_record, branch: branch, user: colleague) }
+
+      before do
+        create(:user_branch, user: viewer,    branch: branch)
+        create(:user_branch, user: colleague, branch: branch)
+      end
+
+      it "shows all branch colleagues including the current user" do
+        scope = described_class::Scope.new(viewer, AttendanceRecord).resolve
+        expect(scope).to include(viewer_record, colleague_record)
+        expect(scope).not_to include(other_record)
+      end
+
+      it "excludes employees from other branches" do
+        other_branch = create(:branch, business: business)
+        outsider     = create(:user, business: business)
+        create(:user_branch, user: outsider, branch: other_branch)
+        outsider_rec = create(:attendance_record, branch: other_branch, user: outsider)
+
+        scope = described_class::Scope.new(viewer, AttendanceRecord).resolve
+        expect(scope).not_to include(outsider_rec)
+      end
+    end
+
+    describe "managed_employees_only" do
+      let(:direct_mgr) { create(:user, business: business, permission_role: role_with_scope("managed_employees_only")) }
+      let(:report)     { create(:user, business: business, manager: direct_mgr) }
+      let(:stranger)   { create(:user, business: business) }
+
+      let!(:report_record)   { create(:attendance_record, branch: branch, user: report) }
+      let!(:mgr_record)      { create(:attendance_record, branch: branch, user: direct_mgr) }
+      let!(:stranger_record) { create(:attendance_record, branch: branch, user: stranger) }
+
+      it "shows direct reports and the manager's own records, not strangers" do
+        scope = described_class::Scope.new(direct_mgr, AttendanceRecord).resolve
+        expect(scope).to include(report_record, mgr_record)
+        expect(scope).not_to include(stranger_record, other_record)
+      end
+    end
+
+    describe "business_wide" do
+      let(:viewer)  { create(:user, business: business, permission_role: role_with_scope("business_wide")) }
+      let(:someone) { create(:user, business: business) }
+
+      let!(:viewer_record)  { create(:attendance_record, branch: branch, user: viewer) }
+      let!(:someone_record) { create(:attendance_record, branch: branch, user: someone) }
+
+      it "shows every record in the business including the user's own" do
+        scope = described_class::Scope.new(viewer, AttendanceRecord).resolve
+        expect(scope).to include(viewer_record, someone_record)
+        expect(scope).not_to include(other_record)
+      end
+    end
+
+    describe "self_only" do
+      let(:viewer)  { create(:user, business: business, permission_role: role_with_scope("self_only")) }
+      let(:someone) { create(:user, business: business) }
+
+      let!(:viewer_record)  { create(:attendance_record, branch: branch, user: viewer) }
+      let!(:someone_record) { create(:attendance_record, branch: branch, user: someone) }
+
+      it "shows only the user's own records" do
+        scope = described_class::Scope.new(viewer, AttendanceRecord).resolve
+        expect(scope).to include(viewer_record)
+        expect(scope).not_to include(someone_record, other_record)
+      end
+    end
+  end
 end

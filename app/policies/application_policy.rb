@@ -34,9 +34,14 @@ class ApplicationPolicy
     # scope_type must be a non-nil string from PermissionRole::SCOPE_OPTIONS.
     # Never call this with nil — use EmployeeScope.new(user).relation for the
     # hierarchy-based default when no explicit scope is configured.
+    #
+    # The current user's own records are always included: EmployeeScope excludes
+    # self by design ("employees I manage"), but a user must still see their own
+    # data under every scope — matching the hierarchy-based default path.
     def filter_by_data_scope(relation, scope_type, user_id_column: :user_id)
       employee_ids = EmployeeScope.new(user).for_scope(scope_type).select(:id)
       relation.where(user_id_column => employee_ids)
+              .or(relation.where(user_id_column => user.id))
     end
   end
 
