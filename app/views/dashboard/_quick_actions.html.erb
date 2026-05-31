@@ -1,0 +1,50 @@
+<%# ── Quick Actions bar (permission-driven) ─────────────────────────
+    Compact shortcut bar at the top of the dashboard. Only the actions the
+    current user can actually perform are rendered — driven by permissions,
+    never role names. Check-in / check-out are surfaced in the My Attendance
+    widget directly below, where geolocation capture and branch selection are
+    handled; the bar holds navigational shortcuts. %>
+
+<nav class="dashboard-quick-bar" aria-label="<%= t("dashboard.quick_actions.title") %>">
+
+  <%# New Request — universal self-service %>
+  <%= link_to new_employee_request_path, class: "dashboard-quick-bar__action" do %>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <span><%= t("dashboard.quick_actions.new_request") %></span>
+  <% end %>
+
+  <%# My Attendance — universal (own records) %>
+  <%= link_to attendance_records_path, class: "dashboard-quick-bar__action" do %>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span><%= t("dashboard.quick_actions.my_attendance") %></span>
+  <% end %>
+
+  <% if current_user.can?(:approve_requests) %>
+    <%= link_to employee_requests_path, class: "dashboard-quick-bar__action" do %>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <span><%= t("dashboard.quick_actions.approvals") %></span>
+    <% end %>
+  <% end %>
+
+  <% if current_user.can?(:assign_shifts) %>
+    <%= link_to new_shift_assignment_path, class: "dashboard-quick-bar__action" do %>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+      <span><%= t("dashboard.quick_actions.assign_shift") %></span>
+    <% end %>
+  <% end %>
+
+  <% if current_user.can?(:view_employees) %>
+    <%= link_to admin_users_path, class: "dashboard-quick-bar__action" do %>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span><%= t("dashboard.quick_actions.employees") %></span>
+    <% end %>
+  <% end %>
+
+  <% if current_user.can?(:view_payroll) %>
+    <%= link_to payroll_periods_path, class: "dashboard-quick-bar__action" do %>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span><%= t("dashboard.quick_actions.payroll") %></span>
+    <% end %>
+  <% end %>
+
+</nav>

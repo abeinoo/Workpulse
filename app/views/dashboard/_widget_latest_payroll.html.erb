@@ -1,0 +1,38 @@
+<%# ── Widget: Latest Payroll ────────────────────────────────────────
+    Rendered only when the user has a visible (finalized/paid) payroll entry
+    (@latest_payroll). Never shows draft payroll. %>
+
+<div class="emp-dashboard__section">
+  <div class="emp-dashboard__section-header">
+    <h2 class="emp-dashboard__section-title"><%= t("dashboard.latest_payroll") %></h2>
+    <%= link_to t("dashboard.view_all"), payroll_periods_path, class: "emp-dashboard__section-link" %>
+  </div>
+  <div class="payroll-summary-card">
+    <div class="payroll-summary-card__period">
+      <%= @latest_payroll.payroll_period.period_label %>
+      <span class="badge <%= @latest_payroll.payroll_period.paid? ? 'badge-success' : 'badge-neutral' %> ml-2">
+        <%= t("payroll.statuses.#{@latest_payroll.payroll_period.status}") %>
+      </span>
+    </div>
+    <div class="payroll-summary-card__row">
+      <span class="payroll-summary-card__label"><%= t("payroll.base_salary") %></span>
+      <span><%= format_currency(@latest_payroll.base_salary, precision: 0) %></span>
+    </div>
+    <% if @latest_payroll.total_overtime > 0 %>
+      <div class="payroll-summary-card__row payroll-summary-card__row--addition">
+        <span class="payroll-summary-card__label"><%= t("payroll.overtime") %></span>
+        <span>+ <%= format_currency(@latest_payroll.total_overtime, precision: 0) %></span>
+      </div>
+    <% end %>
+    <% if @latest_payroll.total_deductions > 0 %>
+      <div class="payroll-summary-card__row payroll-summary-card__row--deduction">
+        <span class="payroll-summary-card__label"><%= t("payroll.deductions") %></span>
+        <span>&minus; <%= format_currency(@latest_payroll.total_deductions, precision: 0) %></span>
+      </div>
+    <% end %>
+    <div class="payroll-summary-card__row payroll-summary-card__row--net">
+      <span class="payroll-summary-card__label"><%= t("payroll.net_salary") %></span>
+      <strong><%= format_currency(@latest_payroll.net_salary, precision: 0) %></strong>
+    </div>
+  </div>
+</div>

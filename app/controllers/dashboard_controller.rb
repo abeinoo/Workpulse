@@ -110,6 +110,15 @@ class DashboardController < ApplicationController
       absences:      month_records.where(status: "absent").count,
     }
 
+    # Whether the user participates in attendance at all. Drives the month-stats
+    # widget so users with no shifts and no history (e.g. owners) don't see an
+    # all-zero card. Cheap: reuses already-loaded values plus one EXISTS.
+    @month_attendance_count = @month_stats.values.sum
+    @has_attendance_context =
+      @today_record.present? || @today_branches.any? ||
+      @current_shift.present? || @upcoming_shifts.any? ||
+      @month_attendance_count.positive?
+
     @recent_requests = current_user.employee_requests
                                    .order(created_at: :desc)
                                    .limit(3)
@@ -123,6 +132,14 @@ class DashboardController < ApplicationController
 
     # Recent unread notifications for alert feed.
     @recent_notifications = current_user.notifications.unread.recent.limit(5)
+
+    # Whether any personal widget will render — lets the view skip the personal
+    # grid wrapper entirely (and its surrounding gap) for users with nothing
+    # personal to show, e.g. owners. Derived from already-loaded values.
+    @has_personal_widgets =
+      @missing_checkout.present? || @has_attendance_context ||
+      @recent_requests.any? || @recent_notifications.any? ||
+      @latest_payroll.present?
   end
 
   # ── Branch management section ─────────────────────────────────────────────

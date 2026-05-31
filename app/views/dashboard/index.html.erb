@@ -1,15 +1,52 @@
 <% content_for :title, t("dashboard.page_title") %>
 
-<%# Composable dashboard: each section renders independently based on the
-    permission/scope gates resolved in DashboardController. A multi-role user
-    sees every section they qualify for. Personal widgets are universal. %>
+<%# Composable, widget-based dashboard. A single content container
+    (.dashboard-compose) gives every part one shared alignment and width. Each
+    widget/section still decides for itself whether it renders, based on
+    permissions, shift-assignment existence, and actual data availability —
+    empty cards are never shown. Personal widgets tile in a responsive grid;
+    management sections render additively and expand to the full width. %>
 
 <div class="dashboard-compose">
-  <%= render "dashboard/personal_section" %>
+
+  <header class="dashboard-header">
+    <%= render "dashboard/greeting" %>
+    <%= render "dashboard/quick_actions" %>
+  </header>
+
+  <%# ── Personal widgets (self-owned, data-gated, responsive grid) ── %>
+  <% if @has_personal_widgets %>
+    <div class="dashboard-personal">
+      <% if @missing_checkout %>
+        <div class="dash-widget dash-widget--full"><%= render "dashboard/widget_missing_checkout" %></div>
+      <% end %>
+      <% if @today_record || @today_branches.any? %>
+        <div class="dash-widget"><%= render "dashboard/widget_my_attendance" %></div>
+      <% end %>
+      <% if @current_shift || @upcoming_shifts.any? %>
+        <div class="dash-widget"><%= render "dashboard/widget_my_schedule" %></div>
+      <% end %>
+      <% if @has_attendance_context %>
+        <div class="dash-widget"><%= render "dashboard/widget_month_stats" %></div>
+      <% end %>
+      <% if @recent_requests.any? %>
+        <div class="dash-widget"><%= render "dashboard/widget_my_requests" %></div>
+      <% end %>
+      <% if @recent_notifications.any? %>
+        <div class="dash-widget"><%= render "dashboard/widget_my_notifications" %></div>
+      <% end %>
+      <% if @latest_payroll %>
+        <div class="dash-widget"><%= render "dashboard/widget_latest_payroll" %></div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Management sections (permission-gated, scope-driven) ───────── %>
   <%= render "dashboard/branch_management_section" if show_branch_management_section? %>
   <%= render "dashboard/area_management_section"   if show_area_management_section? %>
   <%= render "dashboard/payroll_section"           if show_payroll_section? %>
   <%= render "dashboard/analytics_section"         if show_analytics_section? %>
+
 </div>
 
 <%= render "shared/greeting_script" %>

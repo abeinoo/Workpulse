@@ -1,0 +1,22 @@
+<%# ── Widget: My Requests ───────────────────────────────────────────
+    Rendered only when the user has recent requests (@recent_requests.any?). %>
+
+<div class="emp-dashboard__section">
+  <div class="emp-dashboard__section-header">
+    <h2 class="emp-dashboard__section-title"><%= t("dashboard.recent_requests") %></h2>
+    <%= link_to t("dashboard.view_all"), employee_requests_path, class: "emp-dashboard__section-link" %>
+  </div>
+  <div class="request-list">
+    <% @recent_requests.each do |req| %>
+      <%= link_to employee_request_path(req), class: "request-row" do %>
+        <div class="request-row__main">
+          <span class="request-row__type"><%= t("requests.types.#{req.request_type}") %></span>
+          <span class="request-row__date"><%= local_short_date(req.requested_for_date) %></span>
+        </div>
+        <span class="badge <%= req.approved? ? 'badge-success' : req.rejected? ? 'badge-danger' : 'badge-neutral' %>">
+          <%= t("requests.statuses.#{req.status}") %>
+        </span>
+      <% end %>
+    <% end %>
+  </div>
+</div>

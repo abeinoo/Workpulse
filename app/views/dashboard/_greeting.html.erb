@@ -1,0 +1,30 @@
+<%# ── Greeting (universal) ──────────────────────────────────────────
+    Shown to every user. The shift-status pill only appears when the user
+    actually participates in shifts (assignment-driven), so owners/admins
+    without shifts don't see shift noise. %>
+
+<div class="emp-dashboard__greeting">
+  <div class="emp-dashboard__greeting-row">
+    <div>
+      <p class="emp-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
+      <h1 class="emp-dashboard__greeting-name">
+        <%= current_user.first_name.presence || t("dashboard.there") %>
+      </h1>
+    </div>
+    <% if @current_shift || @upcoming_shifts.any? %>
+      <div class="emp-dashboard__shift-pill">
+        <% if @current_shift %>
+          <span class="emp-shift-status-pill emp-shift-status-pill--on">
+            <span class="emp-shift-status-pill__dot"></span>
+            <%= t("dashboard.shift_status.on_shift") %>
+          </span>
+        <% else %>
+          <span class="emp-shift-status-pill emp-shift-status-pill--upcoming">
+            <%= t("dashboard.shift_status.upcoming") %>
+          </span>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+  <p class="emp-dashboard__greeting-date"><%= l(Date.current, format: :dashboard) %></p>
+</div>

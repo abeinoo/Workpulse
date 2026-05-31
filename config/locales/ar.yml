@@ -146,6 +146,8 @@ ar:
       ends_today: "ينتهي اليوم"
     upcoming_shifts:
       title: "الورديات القادمة"
+    my_schedule:
+      title: "جدولي"
     month_stats:
       title: "هذا الشهر"
       present: "أيام الحضور"
@@ -226,12 +228,17 @@ ar:
       request: "طلب"
       no_employees: "لم يُعيَّن إليك أي موظف بعد."
     quick_actions:
+      title: "إجراءات سريعة"
       new_request: "طلب جديد"
       add_adjustment: "إضافة تسوية"
       attendance_log: "سجل الحضور"
       payroll: "الرواتب"
       all_requests: "جميع الطلبات"
       all_adjustments: "جميع التسويات"
+      my_attendance: "حضوري"
+      employees: "الموظفون"
+      approvals: "الموافقات"
+      assign_shift: "تعيين وردية"
     accountant:
       generate_payroll_label: "إنشاء الرواتب"
       generate_payroll_sub: "إنشاء فترة رواتب جديدة للفرع"

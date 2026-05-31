@@ -1,0 +1,64 @@
+<%# ── Widget: My Schedule ───────────────────────────────────────────
+    Driven purely by shift-assignment existence (@current_shift / @upcoming_shifts),
+    never by role. Any user with a current or upcoming assignment sees their
+    schedule here. Users with no assignments don't render this widget at all. %>
+
+<div class="emp-dashboard__section">
+  <div class="emp-dashboard__section-header">
+    <h2 class="emp-dashboard__section-title"><%= t("dashboard.my_schedule.title") %></h2>
+    <%= link_to t("dashboard.view_all"), shift_assignments_path, class: "emp-dashboard__section-link" %>
+  </div>
+
+  <%# Current shift summary %>
+  <% if @current_shift %>
+    <div class="emp-current-shift">
+      <div class="emp-current-shift__main">
+        <span class="emp-current-shift__name"><%= @current_shift.shift_name %></span>
+        <% if @current_shift.branch %>
+          <span class="emp-current-shift__sep">&middot;</span>
+          <span class="emp-current-shift__branch"><%= @current_shift.branch_name %></span>
+        <% end %>
+        <% if @current_shift.temporary? %>
+          <span class="badge badge-type-temporary badge--xs">
+            <%= @current_shift.source_template.present? ? @current_shift.source_template.name : t("shift_assignments.type.temporary") %>
+          </span>
+        <% end %>
+      </div>
+      <% if @current_shift.temporary? && @current_shift.effective_to %>
+        <span class="emp-current-shift__expiry">
+          <% days = @current_shift.days_until_expiry %>
+          <% if days == 0 %>
+            <%= t("dashboard.temp_shift.ends_today") %>
+          <% else %>
+            <%= t("dashboard.temp_shift.ends_in", days: days) %>
+          <% end %>
+        </span>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# Upcoming shifts %>
+  <% if @upcoming_shifts.any? %>
+    <div class="emp-upcoming-list">
+      <% @upcoming_shifts.each do |assignment| %>
+        <div class="emp-upcoming-item <%= "emp-upcoming-item--temp" if assignment.temporary? %>">
+          <div class="emp-upcoming-item__main">
+            <span class="emp-upcoming-item__shift"><%= assignment.shift_name %></span>
+            <% if assignment.temporary? %>
+              <span class="badge badge-type-temporary badge--xs">
+                <%= assignment.source_template.present? ? assignment.source_template.name : t("shift_assignments.type.temporary") %>
+              </span>
+            <% end %>
+          </div>
+          <div class="emp-upcoming-item__meta">
+            <% if assignment.branch %>
+              <span class="emp-upcoming-item__branch"><%= assignment.branch_name %></span>
+              <span class="emp-upcoming-item__sep">&middot;</span>
+            <% end %>
+            <span class="emp-upcoming-item__date"><%= local_short_date(assignment.effective_from) %></span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

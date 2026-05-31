@@ -201,12 +201,17 @@ en:
       request: "Request"
       no_employees: "No employees are assigned to you yet."
     quick_actions:
+      title: "Quick Actions"
       new_request: "New Request"
       add_adjustment: "Add Adjustment"
       attendance_log: "Attendance Log"
       payroll: "Payroll"
       all_requests: "All Requests"
       all_adjustments: "All Adjustments"
+      my_attendance: "My Attendance"
+      employees: "Employees"
+      approvals: "Approvals"
+      assign_shift: "Assign Shift"
     accountant:
       generate_payroll_label: "Generate Payroll"
       generate_payroll_sub: "Create a new payroll period for a branch"
@@ -264,6 +269,8 @@ en:
       ends_today: "Ends today"
     upcoming_shifts:
       title: "Upcoming Shifts"
+    my_schedule:
+      title: "My Schedule"
     month_stats:
       title: "This Month"
       present: "Days Attended"

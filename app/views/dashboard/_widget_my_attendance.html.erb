@@ -1,0 +1,156 @@
+<%# ── Widget: My Attendance ─────────────────────────────────────────
+    Rendered only for attendance-eligible users (a record today, or an active
+    shift assignment granting a check-in branch). Shows today's status hero and
+    the check-in / check-out controls (geolocation-aware). Never shown to users
+    with no attendance context (e.g. owners without shifts). %>
+
+<%# Biometric-only notice (mobile disabled, shift active, not yet checked in) %>
+<% if !current_user.allow_mobile_attendance? && @current_shift && @today_record.nil? %>
+  <div class="alert-bar alert-bar--info">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span><%= t("dashboard.mobile_attendance_disabled") %></span>
+  </div>
+<% end %>
+
+<% if @today_record %>
+  <div class="attendance-hero attendance-hero--<%= @today_record.checked_out? ? 'done' : 'active' %>">
+    <div class="attendance-hero__body">
+      <p class="attendance-hero__label"><%= t("dashboard.today") %></p>
+      <p class="attendance-hero__status">
+        <% if @today_record.status == "present" %><%= t("attendance.statuses.present") %>
+        <% elsif @today_record.status == "late" %>
+          <%= t("attendance.status_late") %>
+          <span class="emp-late-badge"><%= t("dashboard.late_indicator") %></span>
+        <% elsif @today_record.status == "early_leave" %><%= t("attendance.statuses.early_leave") %>
+        <% elsif @today_record.status == "incomplete" %><%= t("attendance.statuses.incomplete") %>
+        <% else %><%= t("attendance.statuses.#{@today_record.status}", default: @today_record.status.humanize) %>
+        <% end %>
+      </p>
+      <p class="attendance-hero__times">
+        <span><%= t("dashboard.time_in") %> &nbsp;<strong><%= local_time(@today_record.check_in_at) %></strong></span>
+        <% if @today_record.checked_out? %>
+          <span class="attendance-hero__sep">&middot;</span>
+          <span><%= t("dashboard.time_out") %> <strong><%= local_time(@today_record.check_out_at) %></strong></span>
+          <% if @today_record.worked_minutes %>
+            <span class="attendance-hero__sep">&middot;</span>
+            <span class="attendance-hero__worked"><%= t("dashboard.worked", hours: @today_record.worked_minutes / 60, minutes: @today_record.worked_minutes % 60) %></span>
+          <% end %>
+        <% end %>
+      </p>
+      <%# Shift progress bar — only for fixed-time shifts with both clock times present %>
+      <% if !@today_record.checked_out? && @current_shift&.shift %>
+        <% shift = @current_shift.shift %>
+        <% if shift.timed? %>
+          <% now_mins  = Time.current.in_time_zone(current_user.business.timezone).strftime("%H:%M").split(":").then { |h, m| h.to_i * 60 + m.to_i } %>
+          <% start_min = shift.start_time.hour * 60 + shift.start_time.min %>
+          <% end_min   = shift.end_time.hour   * 60 + shift.end_time.min %>
+          <% end_min  += 1440 if end_min <= start_min %>
+          <% duration  = (end_min - start_min).clamp(1, 1440) %>
+          <% elapsed   = (now_mins - start_min).clamp(0, duration) %>
+          <% pct       = ((elapsed.to_f / duration) * 100).round %>
+          <div class="shift-progress">
+            <div class="shift-progress__bar" style="width: <%= pct %>%"></div>
+          </div>
+          <p class="shift-progress__label"><%= t("dashboard.shift_progress", pct: pct) %></p>
+        <% else %>
+          <p class="shift-progress__flexible"><%= t("dashboard.flexible_schedule") %></p>
+        <% end %>
+      <% end %>
+    </div>
+    <div class="attendance-hero__icon">
+      <% if @today_record.checked_out? %>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+      <% else %>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <% end %>
+    </div>
+  </div>
+
+  <% unless @today_record.checked_out? %>
+    <%# Check-out CTA — only shown when mobile attendance is permitted %>
+    <% if current_user.allow_mobile_attendance? %>
+      <div class="emp-dashboard__cta">
+        <%= form_with url: attendance_check_out_path, method: :post,
+              data: {
+                controller: "attendance-location",
+                action: "submit->attendance-location#capture",
+                attendance_location_required_value: @today_record.branch.geolocation_enabled?
+              } do |f| %>
+          <%= f.hidden_field :branch_id, value: @today_record.branch_id %>
+          <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+          <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+          <%= f.button type: "submit", class: "btn btn-xl btn-block btn-checkout",
+                data: { attendance_location_target: "submitBtn" } do %>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <%= t("dashboard.check_out") %>
+          <% end %>
+          <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="alert-bar alert-bar--info" style="margin-top: var(--space-3);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span><%= t("dashboard.mobile_attendance_disabled") %></span>
+      </div>
+    <% end %>
+  <% end %>
+
+<% else %>
+  <%# Not checked in yet %>
+  <div class="attendance-hero attendance-hero--idle">
+    <div class="attendance-hero__body">
+      <p class="attendance-hero__label"><%= t("dashboard.today") %></p>
+      <p class="attendance-hero__status"><%= t("dashboard.not_checked_in") %></p>
+      <p class="attendance-hero__times" id="js-current-time"></p>
+    </div>
+    <div class="attendance-hero__icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+  </div>
+
+  <% branches = @today_branches %>
+  <% if branches.one? %>
+    <div class="emp-dashboard__cta">
+      <%= form_with url: attendance_check_in_path, method: :post,
+            data: {
+              controller: "attendance-location",
+              action: "submit->attendance-location#capture",
+              attendance_location_required_value: branches.first.geolocation_enabled?
+            } do |f| %>
+        <%= f.hidden_field :branch_id, value: branches.first.id %>
+        <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+        <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+        <%= f.button type: "submit", class: "btn btn-xl btn-block btn-checkin",
+              data: { attendance_location_target: "submitBtn" } do %>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          <%= t("dashboard.check_in") %>
+        <% end %>
+        <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+      <% end %>
+    </div>
+  <% elsif branches.many? %>
+    <div class="emp-dashboard__cta">
+      <p class="emp-dashboard__branch-label"><%= t("dashboard.select_branch") %></p>
+      <div class="branch-picker">
+        <% branches.each do |branch| %>
+          <%= form_with url: attendance_check_in_path, method: :post,
+                data: {
+                  controller: "attendance-location",
+                  action: "submit->attendance-location#capture",
+                  attendance_location_required_value: branch.geolocation_enabled?
+                } do |f| %>
+            <%= f.hidden_field :branch_id, value: branch.id %>
+            <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>
+            <%= f.hidden_field :longitude, data: { attendance_location_target: "lng" } %>
+            <%= f.button type: "submit", class: "branch-picker__btn",
+                  data: { attendance_location_target: "submitBtn" } do %>
+              <span class="branch-picker__name"><%= branch.name %></span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            <% end %>
+            <p class="geo-capture-status geo-capture-status--error" data-attendance-location-target="error" hidden></p>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+<% end %>

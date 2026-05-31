@@ -1,0 +1,25 @@
+<%# ── Widget: This Month Stats ──────────────────────────────────────
+    Rendered only when the user has an attendance context (a shift assignment
+    or attendance history) — see @has_attendance_context. Owners/admins with no
+    shifts and no records don't see an all-zero card. %>
+
+<div class="emp-dashboard__section">
+  <div class="emp-dashboard__section-header">
+    <h2 class="emp-dashboard__section-title"><%= t("dashboard.month_stats.title") %></h2>
+    <%= link_to t("dashboard.view_all"), attendance_records_path, class: "emp-dashboard__section-link" %>
+  </div>
+  <div class="emp-month-stats">
+    <div class="emp-month-stat">
+      <span class="emp-month-stat__value"><%= @month_stats[:days_present] %></span>
+      <span class="emp-month-stat__label"><%= t("dashboard.month_stats.present") %></span>
+    </div>
+    <div class="emp-month-stat emp-month-stat--warn">
+      <span class="emp-month-stat__value"><%= @month_stats[:late_arrivals] %></span>
+      <span class="emp-month-stat__label"><%= t("dashboard.month_stats.late") %></span>
+    </div>
+    <div class="emp-month-stat emp-month-stat--danger">
+      <span class="emp-month-stat__value"><%= @month_stats[:absences] %></span>
+      <span class="emp-month-stat__label"><%= t("dashboard.month_stats.absences") %></span>
+    </div>
+  </div>
+</div>

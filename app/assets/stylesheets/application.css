@@ -10416,3 +10416,142 @@ details:not([open]) .permission-group__chevron {
   .am-quick-actions   { grid-template-columns: 1fr 1fr; }
   .am-trend-chart     { height: 100px; }
 }
+
+/* ============================================================
+   DASHBOARD — Phase C composition (compose wrapper, quick-actions
+   bar, current-shift summary, section banners)
+   ============================================================ */
+
+/* Single content container for the whole composed dashboard. Centers and
+   constrains content to a comfortable desktop width with consistent padding,
+   so the greeting, quick actions, personal widgets and management sections all
+   share one alignment instead of each partial's legacy width. */
+.dashboard-compose {
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--space-5) var(--space-4) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+@media (min-width: 768px) {
+  .dashboard-compose {
+    padding: var(--space-7) var(--space-6) var(--space-12);
+    gap: var(--space-7);
+  }
+}
+@media (min-width: 1280px) {
+  .dashboard-compose { padding-inline: var(--space-8); }
+}
+
+/* Composed partials drop their standalone width/margin/padding and fill the
+   shared container; their internal flex/grid layouts (and gaps) are preserved,
+   so management grids now expand to the full available width. */
+.dashboard-compose .emp-dashboard,
+.dashboard-compose .mgr-dashboard,
+.dashboard-compose .owner-dashboard,
+.dashboard-compose .admin-page {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Header band: greeting + quick actions as a single first-class row. */
+.dashboard-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.dashboard-header .emp-dashboard__greeting { padding-top: 0; }
+
+/* Personal widgets tile responsively instead of a single narrow column. */
+.dashboard-personal {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+.dash-widget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+/* Full-bleed widgets (alerts) span the whole personal grid. */
+.dash-widget--full { grid-column: 1 / -1; }
+
+/* Compact, horizontally-scrollable permission-driven shortcut bar */
+.dashboard-quick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.dashboard-quick-bar__action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--transition), border-color var(--transition);
+}
+.dashboard-quick-bar__action:hover {
+  background: var(--accent-muted);
+  border-color: var(--accent-ring);
+  color: var(--accent);
+}
+.dashboard-quick-bar__action svg { flex-shrink: 0; }
+
+/* Current-shift summary inside the My Schedule widget */
+.emp-current-shift {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.emp-current-shift__main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.emp-current-shift__name { font-weight: 600; color: var(--text-1); }
+.emp-current-shift__branch,
+.emp-current-shift__sep { color: var(--text-2); }
+.emp-current-shift__expiry { color: var(--text-2); font-size: var(--text-sm); }
+
+/* Section banners for stacked management/payroll/analytics sections */
+.mgr-dashboard__section-banner,
+.owner-section__banner,
+.dashboard-section__banner {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-2);
+}
+.mgr-dashboard__section-sub,
+.owner-section__sub {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+[dir="rtl"] .emp-current-shift,
+[dir="rtl"] .dashboard-quick-bar { flex-direction: row-reverse; }
+[dir="rtl"] .dashboard-quick-bar { justify-content: flex-end; }

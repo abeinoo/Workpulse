@@ -124,19 +124,19 @@ RSpec.describe "Dashboard", type: :request do
                effective_from: 3.days.from_now.to_date)
       end
 
-      it "shows the upcoming shifts section" do
+      it "shows the schedule widget with the upcoming shift" do
         get root_path
         expect(response).to have_http_status(:ok)
-        expect(response.body).to include(I18n.t("dashboard.upcoming_shifts.title"))
+        expect(response.body).to include(I18n.t("dashboard.my_schedule.title"))
         expect(response.body).to include(shift.name)
       end
     end
 
     context "when there are no future shift assignments" do
-      it "does not show the upcoming shifts section" do
+      it "does not show the schedule widget" do
         get root_path
         expect(response).to have_http_status(:ok)
-        expect(response.body).not_to include(I18n.t("dashboard.upcoming_shifts.title"))
+        expect(response.body).not_to include(I18n.t("dashboard.my_schedule.title"))
       end
     end
   end
@@ -214,13 +214,15 @@ RSpec.describe "Dashboard", type: :request do
   end
 
   # ──────────────────────────────────────────────────────────────
-  # Month stats section always renders
+  # Month stats widget — data-gated (hidden when no attendance context)
   # ──────────────────────────────────────────────────────────────
   describe "GET / (employee dashboard) — month stats" do
-    it "always renders the month stats section" do
-      get root_path
-      expect(response).to have_http_status(:ok)
-      expect(response.body).to include(I18n.t("dashboard.month_stats.title"))
+    context "with no attendance context (no shifts, no records)" do
+      it "does not render an empty month stats card" do
+        get root_path
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include(I18n.t("dashboard.month_stats.title"))
+      end
     end
 
     context "with attendance records this month" do
@@ -230,9 +232,10 @@ RSpec.describe "Dashboard", type: :request do
                date: Date.current, work_date: Date.current)
       end
 
-      it "counts days attended" do
+      it "renders the month stats widget and counts days attended" do
         get root_path
         expect(response).to have_http_status(:ok)
+        expect(response.body).to include(I18n.t("dashboard.month_stats.title"))
         expect(response.body).to include(I18n.t("dashboard.month_stats.present"))
       end
     end
@@ -246,13 +249,15 @@ RSpec.describe "Dashboard", type: :request do
   # section they qualify for; personal widgets are universal.
   # ──────────────────────────────────────────────────────────────
   describe "GET / — composable sections" do
-    # Section markers (unique, stable strings rendered only by that section).
-    let(:personal_marker)  { I18n.t("dashboard.month_stats.title") }
+    # Section/widget markers (unique, stable strings rendered only by that area).
+    let(:universal_marker) { I18n.t("dashboard.quick_actions.new_request") } # quick bar — always
+    let(:month_marker)     { I18n.t("dashboard.month_stats.title") }
+    let(:schedule_marker)  { I18n.t("dashboard.my_schedule.title") }
+    let(:attendance_marker){ I18n.t("dashboard.not_checked_in") }
     let(:branch_marker)    { I18n.t("dashboard.sections.branch_management") }
     let(:area_marker)      { I18n.t("dashboard.area_manager.section_branch_health") }
     let(:payroll_marker)   { I18n.t("dashboard.accountant.generate_payroll_label") }
     let(:analytics_marker) { I18n.t("dashboard.sections.business_analytics") }
-    let(:schedule_marker)  { I18n.t("dashboard.upcoming_shifts.title") }
 
     let(:shift) { create(:shift, :fixed_time, business: business) }
 
@@ -266,12 +271,15 @@ RSpec.describe "Dashboard", type: :request do
 
     # 1. Employee only ──────────────────────────────────────────
     context "employee with no permissions and no shifts" do
-      it "renders only the personal section" do
+      it "renders only the universal personal area, no management sections" do
         sign_in create(:user, business: business)
         get root_path
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).to     include(personal_marker)
+        expect(response.body).to     include(universal_marker)
+        # No empty/irrelevant widgets when there is no data.
+        expect(response.body).not_to include(month_marker)
+        expect(response.body).not_to include(schedule_marker)
         expect(response.body).not_to include(branch_marker)
         expect(response.body).not_to include(area_marker)
         expect(response.body).not_to include(payroll_marker)
@@ -289,9 +297,8 @@ RSpec.describe "Dashboard", type: :request do
         get root_path
 
         expect(response).to have_http_status(:ok)
-        # Personal schedule survives despite the management role (the bug fix).
+        # Personal schedule survives despite the management role (the Phase B fix).
         expect(response.body).to include(schedule_marker)
-        expect(response.body).to include(personal_marker)
         # Management section also renders — sections are additive.
         expect(response.body).to include(branch_marker)
         # Not an area manager.
@@ -300,23 +307,26 @@ RSpec.describe "Dashboard", type: :request do
     end
 
     # 3. Area Manager ───────────────────────────────────────────
-    context "area manager" do
+    context "area manager (no shifts)" do
       let(:area_mgr) { create(:user, :area_manager, business: business) }
 
-      it "renders the area management section but not the branch team section" do
+      it "renders the area section, and hides personal shift widgets" do
         sign_in area_mgr
         get root_path
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).to     include(personal_marker)
+        expect(response.body).to     include(universal_marker)
         expect(response.body).to     include(area_marker)
         expect(response.body).not_to include(branch_marker)
         expect(response.body).not_to include(analytics_marker)
+        # No shifts → no schedule/attendance/month widgets.
+        expect(response.body).not_to include(schedule_marker)
+        expect(response.body).not_to include(month_marker)
       end
     end
 
     # 4. Accountant ─────────────────────────────────────────────
-    context "accountant" do
+    context "accountant (no shifts)" do
       let(:accountant) { create(:user, :accountant, business: business) }
 
       it "renders the payroll section but no attendance management sections" do
@@ -324,27 +334,32 @@ RSpec.describe "Dashboard", type: :request do
         get root_path
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).to     include(personal_marker)
+        expect(response.body).to     include(universal_marker)
         expect(response.body).to     include(payroll_marker)
         expect(response.body).not_to include(branch_marker)
         expect(response.body).not_to include(area_marker)
         expect(response.body).not_to include(analytics_marker)
+        expect(response.body).not_to include(schedule_marker)
       end
     end
 
     # 5. Owner ──────────────────────────────────────────────────
-    context "owner" do
+    context "owner (no shifts)" do
       let(:owner) { create(:user, :owner, business: business) }
 
-      it "renders the business analytics section" do
+      it "renders business analytics and hides all personal shift widgets" do
         sign_in owner
         get root_path
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).to     include(personal_marker)
+        expect(response.body).to     include(universal_marker)
         expect(response.body).to     include(analytics_marker)
         expect(response.body).not_to include(branch_marker)
         expect(response.body).not_to include(area_marker)
+        # Phase C: owners must NOT see attendance/schedule/month personal widgets.
+        expect(response.body).not_to include(schedule_marker)
+        expect(response.body).not_to include(attendance_marker)
+        expect(response.body).not_to include(month_marker)
       end
     end
 
@@ -366,19 +381,19 @@ RSpec.describe "Dashboard", type: :request do
 
     # 7. User with no shifts ────────────────────────────────────
     context "user with no shift assignments" do
-      it "renders personal section without the schedule block and does not crash" do
+      it "renders the dashboard without the schedule widget and does not crash" do
         sign_in create(:user, business: business)
         expect { get root_path }.not_to raise_error
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).to     include(personal_marker)
+        expect(response.body).to     include(universal_marker)
         expect(response.body).not_to include(schedule_marker)
       end
     end
 
     # 8. User with shifts but no management permissions ─────────
     context "plain employee who has shift assignments" do
-      it "shows the schedule section driven purely by assignment existence" do
+      it "shows the schedule widget driven purely by assignment existence" do
         employee_with_shift = create(:user, business: business)
         future_shift_for(employee_with_shift)
         sign_in employee_with_shift
@@ -386,11 +401,68 @@ RSpec.describe "Dashboard", type: :request do
 
         expect(response).to have_http_status(:ok)
         expect(response.body).to     include(schedule_marker)
+        # Upcoming assignment also gives an attendance context → month widget shows.
+        expect(response.body).to     include(month_marker)
         # No management sections without permissions.
         expect(response.body).not_to include(branch_marker)
         expect(response.body).not_to include(area_marker)
         expect(response.body).not_to include(payroll_marker)
         expect(response.body).not_to include(analytics_marker)
+      end
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────
+  # Phase C — Quick Actions bar (permission-driven) & empty-widget hiding
+  # ──────────────────────────────────────────────────────────────
+  describe "GET / — quick actions bar" do
+    it "shows only universal shortcuts for a plain employee" do
+      sign_in create(:user, business: business)
+      get root_path
+
+      expect(response.body).to     include(I18n.t("dashboard.quick_actions.new_request"))
+      expect(response.body).to     include(I18n.t("dashboard.quick_actions.my_attendance"))
+      # No management shortcuts without the permissions.
+      expect(response.body).not_to include(I18n.t("dashboard.quick_actions.employees"))
+      expect(response.body).not_to include(I18n.t("dashboard.quick_actions.approvals"))
+    end
+
+    it "shows permissioned shortcuts for an owner" do
+      sign_in create(:user, :owner, business: business)
+      get root_path
+
+      expect(response.body).to include(I18n.t("dashboard.quick_actions.employees"))
+      expect(response.body).to include(I18n.t("dashboard.quick_actions.approvals"))
+      expect(response.body).to include(I18n.t("dashboard.quick_actions.payroll"))
+    end
+
+    it "shows the assign-shift shortcut only with :assign_shifts permission" do
+      sign_in create(:user, :branch_manager, business: business)
+      get root_path
+      expect(response.body).to include(I18n.t("dashboard.quick_actions.assign_shift"))
+    end
+  end
+
+  describe "GET / — empty widgets are hidden" do
+    # Use widget-unique CSS hooks (the widgets' container classes) rather than
+    # labels, since words like "Notifications" also appear in the layout chrome.
+    it "does not render the latest-payroll, requests or notifications widgets with no data" do
+      sign_in create(:user, business: business)
+      get root_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("payroll-summary-card") # latest payroll
+      expect(response.body).not_to include("request-row")          # my requests
+      expect(response.body).not_to include("emp-notif-list")       # my notifications
+    end
+
+    context "when the data exists" do
+      let!(:paid_period) { create(:payroll_period, :paid, business: business) }
+      let!(:paid_entry)  { create(:payroll_entry, payroll_period: paid_period, user: employee) }
+
+      it "renders the latest-payroll widget" do
+        get root_path
+        expect(response.body).to include("payroll-summary-card")
       end
     end
   end
