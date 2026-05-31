@@ -1,26 +1,21 @@
-<%# ── Owner / Business Control Center ─────────────────────────────────────── %>
+<%# ── Business analytics section ────────────────────────────────────
+    Business-wide operational overview. Rendered when the user has
+    business-wide attendance visibility (owner, or a permission_role whose
+    view_attendance scope is business_wide). Data is whole-business. %>
 
-<div class="owner-dashboard">
+<div class="owner-dashboard owner-dashboard--section">
 
-  <%# ── Header: greeting + date pill ────────────────────────────────────── %>
-  <div class="owner-dashboard__header">
-    <div class="owner-dashboard__greeting">
-      <p class="owner-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
-      <h1 class="owner-dashboard__greeting-name"><%= current_user.first_name %></h1>
-      <p class="owner-dashboard__greeting-sub"><%= current_user.business.name %></p>
-    </div>
-    <div class="owner-dashboard__date-block">
-      <span class="owner-dashboard__today-label"><%= t("dashboard.today") %></span>
-      <span class="owner-dashboard__date"><%= l(Date.current, format: :long) %></span>
-    </div>
+  <div class="owner-section__banner">
+    <h2 class="owner-section__title"><%= t("dashboard.sections.business_analytics") %></h2>
+    <span class="owner-section__sub"><%= current_user.business.name %></span>
   </div>
 
   <%# ── Alert: missing checkouts from yesterday ─────────────────────────── %>
-  <% if @missing_checkouts.any? %>
+  <% if @business_missing_checkouts.any? %>
     <div class="alert-bar alert-bar--warning">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span><%= t("dashboard.missing_checkout_alert", count: @missing_checkouts.count) %></span>
-      <% @missing_checkouts.first(3).each do |rec| %>
+      <span><%= t("dashboard.missing_checkout_alert", count: @business_missing_checkouts.count) %></span>
+      <% @business_missing_checkouts.first(3).each do |rec| %>
         <%= link_to rec.user.full_name, edit_attendance_record_path(rec), class: "alert-bar__link" %>
       <% end %>
     </div>
@@ -438,5 +433,3 @@
   <% end %>
 
 </div>
-
-<%= render "shared/greeting_script" %>

@@ -237,4 +237,161 @@ RSpec.describe "Dashboard", type: :request do
       end
     end
   end
+
+  # ──────────────────────────────────────────────────────────────
+  # Composable dashboard — additive permission-based sections
+  #
+  # The dashboard is composed of independent sections, each gated by
+  # permission (visibility) + relationship (scope). A user sees every
+  # section they qualify for; personal widgets are universal.
+  # ──────────────────────────────────────────────────────────────
+  describe "GET / — composable sections" do
+    # Section markers (unique, stable strings rendered only by that section).
+    let(:personal_marker)  { I18n.t("dashboard.month_stats.title") }
+    let(:branch_marker)    { I18n.t("dashboard.sections.branch_management") }
+    let(:area_marker)      { I18n.t("dashboard.area_manager.section_branch_health") }
+    let(:payroll_marker)   { I18n.t("dashboard.accountant.generate_payroll_label") }
+    let(:analytics_marker) { I18n.t("dashboard.sections.business_analytics") }
+    let(:schedule_marker)  { I18n.t("dashboard.upcoming_shifts.title") }
+
+    let(:shift) { create(:shift, :fixed_time, business: business) }
+
+    def future_shift_for(user)
+      create(:shift_assignment,
+             user:           user,
+             shift:          shift,
+             branch:         branch,
+             effective_from: 3.days.from_now.to_date)
+    end
+
+    # 1. Employee only ──────────────────────────────────────────
+    context "employee with no permissions and no shifts" do
+      it "renders only the personal section" do
+        sign_in create(:user, business: business)
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to     include(personal_marker)
+        expect(response.body).not_to include(branch_marker)
+        expect(response.body).not_to include(area_marker)
+        expect(response.body).not_to include(payroll_marker)
+        expect(response.body).not_to include(analytics_marker)
+      end
+    end
+
+    # 2. Branch Manager with assigned shifts ────────────────────
+    context "branch manager who also has an assigned shift" do
+      let(:manager) { create(:user, :branch_manager, business: business) }
+
+      it "renders BOTH the personal schedule and the branch management section" do
+        future_shift_for(manager)
+        sign_in manager
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        # Personal schedule survives despite the management role (the bug fix).
+        expect(response.body).to include(schedule_marker)
+        expect(response.body).to include(personal_marker)
+        # Management section also renders — sections are additive.
+        expect(response.body).to include(branch_marker)
+        # Not an area manager.
+        expect(response.body).not_to include(area_marker)
+      end
+    end
+
+    # 3. Area Manager ───────────────────────────────────────────
+    context "area manager" do
+      let(:area_mgr) { create(:user, :area_manager, business: business) }
+
+      it "renders the area management section but not the branch team section" do
+        sign_in area_mgr
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to     include(personal_marker)
+        expect(response.body).to     include(area_marker)
+        expect(response.body).not_to include(branch_marker)
+        expect(response.body).not_to include(analytics_marker)
+      end
+    end
+
+    # 4. Accountant ─────────────────────────────────────────────
+    context "accountant" do
+      let(:accountant) { create(:user, :accountant, business: business) }
+
+      it "renders the payroll section but no attendance management sections" do
+        sign_in accountant
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to     include(personal_marker)
+        expect(response.body).to     include(payroll_marker)
+        expect(response.body).not_to include(branch_marker)
+        expect(response.body).not_to include(area_marker)
+        expect(response.body).not_to include(analytics_marker)
+      end
+    end
+
+    # 5. Owner ──────────────────────────────────────────────────
+    context "owner" do
+      let(:owner) { create(:user, :owner, business: business) }
+
+      it "renders the business analytics section" do
+        sign_in owner
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to     include(personal_marker)
+        expect(response.body).to     include(analytics_marker)
+        expect(response.body).not_to include(branch_marker)
+        expect(response.body).not_to include(area_marker)
+      end
+    end
+
+    # 6. Branch Manager + Payroll permissions ───────────────────
+    context "branch manager who also has payroll permission" do
+      let(:manager) { create(:user, :branch_manager, business: business) }
+
+      it "renders both the branch management and payroll sections" do
+        # The branch_manager trait already grants view_payroll.
+        expect(manager.can?(:view_payroll)).to be(true)
+        sign_in manager
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include(branch_marker)
+        expect(response.body).to include(payroll_marker)
+      end
+    end
+
+    # 7. User with no shifts ────────────────────────────────────
+    context "user with no shift assignments" do
+      it "renders personal section without the schedule block and does not crash" do
+        sign_in create(:user, business: business)
+        expect { get root_path }.not_to raise_error
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to     include(personal_marker)
+        expect(response.body).not_to include(schedule_marker)
+      end
+    end
+
+    # 8. User with shifts but no management permissions ─────────
+    context "plain employee who has shift assignments" do
+      it "shows the schedule section driven purely by assignment existence" do
+        employee_with_shift = create(:user, business: business)
+        future_shift_for(employee_with_shift)
+        sign_in employee_with_shift
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to     include(schedule_marker)
+        # No management sections without permissions.
+        expect(response.body).not_to include(branch_marker)
+        expect(response.body).not_to include(area_marker)
+        expect(response.body).not_to include(payroll_marker)
+        expect(response.body).not_to include(analytics_marker)
+      end
+    end
+  end
 end

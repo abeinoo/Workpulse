@@ -1,8 +1,11 @@
-<div class="admin-page">
+<%# ── Payroll section ───────────────────────────────────────────────
+    Rendered when the user can?(:view_payroll). Periods are limited by
+    policy_scope(PayrollPeriod), so the data respects the user's scope. %>
 
-  <div class="dashboard__greeting">
-    <p class="dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
-    <h1 class="dashboard__greeting-name"><%= t("greeting.hello", name: current_user.first_name) %></h1>
+<div class="admin-page admin-page--section">
+
+  <div class="dashboard-section__banner">
+    <h2 class="dashboard-section__title"><%= t("dashboard.sections.payroll") %></h2>
   </div>
 
   <div class="stats-grid">
@@ -87,5 +90,3 @@
   <% end %>
 
 </div>
-
-<%= render "shared/greeting_script" %>

@@ -288,6 +288,9 @@ en:
       my_team: "My Team"
       branch_overview: "Branch Overview"
       needs_action: "Needs Action"
+      branch_management: "Branch Management"
+      payroll: "Payroll"
+      business_analytics: "Business Analytics"
 
   attendance:
     statuses:

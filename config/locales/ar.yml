@@ -288,6 +288,9 @@ ar:
       my_team: "فريقي"
       branch_overview: "نظرة عامة على الفروع"
       needs_action: "يحتاج إجراء"
+      branch_management: "إدارة الفرع"
+      payroll: "كشوف المرتبات"
+      business_analytics: "تحليلات الأعمال"
 
   attendance:
     statuses:

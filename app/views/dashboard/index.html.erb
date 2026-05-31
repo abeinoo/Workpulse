@@ -1,13 +1,15 @@
 <% content_for :title, t("dashboard.page_title") %>
 
-<% if current_user.owner? %>
-  <%= render "super_admin" %>
-<% elsif current_user.manages_area? %>
-  <%= render "area_manager" %>
-<% elsif current_user.manages_branch? %>
-  <%= render "branch_manager" %>
-<% elsif current_user.can?(:view_payroll) %>
-  <%= render "accountant" %>
-<% else %>
-  <%= render "employee" %>
-<% end %>
+<%# Composable dashboard: each section renders independently based on the
+    permission/scope gates resolved in DashboardController. A multi-role user
+    sees every section they qualify for. Personal widgets are universal. %>
+
+<div class="dashboard-compose">
+  <%= render "dashboard/personal_section" %>
+  <%= render "dashboard/branch_management_section" if show_branch_management_section? %>
+  <%= render "dashboard/area_management_section"   if show_area_management_section? %>
+  <%= render "dashboard/payroll_section"           if show_payroll_section? %>
+  <%= render "dashboard/analytics_section"         if show_analytics_section? %>
+</div>
+
+<%= render "shared/greeting_script" %>

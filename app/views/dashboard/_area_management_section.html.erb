@@ -1,15 +1,15 @@
-<div class="mgr-dashboard">
+<%# ── Area management section ───────────────────────────────────────
+    Rendered when the user can?(:view_attendance) AND oversees one or more
+    branches at the area level (area_managed_branch_ids). Permission gates
+    visibility; the area relationship scopes the branches shown. %>
 
-  <%# ── Greeting ───────────────────────────────────────────────────────── %>
-  <div class="mgr-dashboard__greeting">
-    <div>
-      <p class="mgr-dashboard__greeting-time" id="js-greeting-time"><%= t("greeting.morning") %></p>
-      <h1 class="mgr-dashboard__greeting-name"><%= current_user.first_name %></h1>
-      <p class="mgr-dashboard__greeting-sub">
-        <%= t("dashboard.area_manager_role") %> &mdash; <%= @managed_branches.map(&:name).to_sentence %>
-      </p>
-    </div>
-    <span class="mgr-dashboard__date"><%= I18n.l(Date.current) %></span>
+<div class="mgr-dashboard mgr-dashboard--section">
+
+  <div class="mgr-dashboard__section-banner">
+    <h2 class="mgr-dashboard__section-title"><%= t("dashboard.area_manager_role") %></h2>
+    <% if @area_branches.any? %>
+      <span class="mgr-dashboard__section-sub"><%= @area_branches.map(&:name).to_sentence %></span>
+    <% end %>
   </div>
 
   <%# ── §1 Operational Stats Strip ─────────────────────────────────────── %>
@@ -476,5 +476,3 @@
   </div>
 
 </div>
-
-<%= render "shared/greeting_script" %>
