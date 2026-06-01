@@ -117,9 +117,83 @@ RSpec.describe User, type: :model do
       expect(user_other_biz).to be_valid
     end
 
-    it "allows multiple employees with blank employee_code in the same business" do
-      create(:user, business: business, employee_code: nil)
-      expect(build(:user, business: business, employee_code: nil)).to be_valid
+    it "auto-generates a code when created with a blank employee_code" do
+      u = create(:user, business: business, employee_code: nil)
+      expect(u.employee_code).to be_present
+    end
+  end
+
+  # ── employee_code auto-generation ───────────────────────────────────────────
+  describe "employee_code auto-generation" do
+    def make(business, code: nil)
+      create(:user, business: business, employee_code: code)
+    end
+
+    it "assigns the configured starting number to the first employee" do
+      business = create(:business, employee_code_start: 500)
+      expect(make(business).employee_code).to eq("500")
+    end
+
+    it "increments sequentially for subsequent employees" do
+      business = create(:business, employee_code_start: 500)
+      expect([ make(business), make(business), make(business) ].map(&:employee_code))
+        .to eq(%w[500 501 502])
+    end
+
+    it "bases the next code on the highest existing code, not the count" do
+      business = create(:business, employee_code_start: 1)
+      make(business, code: "500")
+      make(business, code: "501")
+      make(business, code: "700")
+      expect(make(business).employee_code).to eq("701")
+    end
+
+    it "ignores non-numeric legacy codes when computing the maximum" do
+      business = create(:business, employee_code_start: 1)
+      make(business, code: "EMP-001")
+      make(business, code: "500")
+      expect(make(business).employee_code).to eq("501")
+    end
+
+    it "never drops below the starting number when existing codes are lower" do
+      business = create(:business, employee_code_start: 500)
+      make(business, code: "100")
+      expect(make(business).employee_code).to eq("500")
+    end
+
+    it "does not overwrite an explicitly provided code" do
+      business = create(:business, employee_code_start: 500)
+      expect(make(business, code: "9000").employee_code).to eq("9000")
+      expect(make(business, code: "ABC").employee_code).to eq("ABC")
+    end
+
+    it "keeps an existing code unchanged on update" do
+      business = create(:business, employee_code_start: 500)
+      u = make(business)
+      expect { u.update!(first_name: "Renamed") }.not_to change { u.reload.employee_code }
+    end
+
+    it "generates independently per business" do
+      biz_a = create(:business, employee_code_start: 500)
+      biz_b = create(:business, employee_code_start: 1000)
+      expect(make(biz_a).employee_code).to eq("500")
+      expect(make(biz_b).employee_code).to eq("1000")
+    end
+
+    it "acquires a per-business advisory lock while generating (race-safety)" do
+      business = create(:business, employee_code_start: 1)
+      conn = User.connection
+      allow(conn).to receive(:execute).and_call_original
+      make(business)
+      expect(conn).to have_received(:execute)
+        .with(a_string_matching(/pg_advisory_xact_lock\(#{User::EMPLOYEE_CODE_LOCK_NAMESPACE}, #{business.id}\)/))
+    end
+
+    it "produces unique, non-colliding codes the DB index accepts" do
+      business = create(:business, employee_code_start: 1)
+      codes = Array.new(5) { make(business).employee_code }
+      expect(codes).to eq(%w[1 2 3 4 5])
+      expect(codes.uniq).to eq(codes)
     end
   end
 

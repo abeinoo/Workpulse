@@ -33,6 +33,7 @@ class Admin::SettingsController < Admin::BaseController
       :default_locale, :currency, :max_salary_advance_percentage,
       :overtime_grace_minutes,
       :payroll_auto_generate_day, :payroll_cutoff_day,
+      :employee_code_start,
       :logo, :stamp_image,
       :remove_logo, :remove_stamp_image
     )

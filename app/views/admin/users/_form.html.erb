@@ -77,7 +77,10 @@
       <%= f.label :employee_code, t("admin.users.form.employee_code"), class: "form-label" %>
       <%= f.text_field :employee_code,
             class: "form-control",
-            placeholder: "EMP-001" %>
+            placeholder: t("admin.users.form.employee_code_placeholder") %>
+      <% if f.object.new_record? %>
+        <p class="form-hint"><%= t("admin.users.form.employee_code_hint") %></p>
+      <% end %>
     </div>
 
     <%# ── Employment Info ──────────────────────────────────────────────── %>

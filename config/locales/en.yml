@@ -1620,6 +1620,8 @@ en:
         reset_action: "Reset Password"
       form:
         employee_code: "Employee code"
+        employee_code_placeholder: "Auto-generated if left blank"
+        employee_code_hint: "Leave blank to auto-assign the next number. Enter a value only to set a specific code."
         direct_manager: "Direct Manager"
         no_manager: "No manager assigned"
         identity_card: "Identity card number"
@@ -1785,6 +1787,7 @@ en:
         language: "Language"
         branding: "Branding"
         automation: "Automation"
+        employee_numbering: "Employee Numbering"
       timezone_label: "Timezone"
       timezone_hint: "Used for all attendance, payroll, and business-day calculations. Stored as an IANA timezone identifier (e.g. Asia/Riyadh)."
       business_day_label: "Business Day Start Hour"
@@ -1814,6 +1817,9 @@ en:
       payroll_cutoff_day_hint: "Attendance data is considered up to this day of the prior month. Use 0 for end of month."
       cutoff_end_of_month: "End of month"
       cutoff_day_option: "Day %{day}"
+      employee_code_start_info: "New employees are automatically assigned a numeric employee code. The next code is always one higher than the highest existing code, so numbers never repeat."
+      employee_code_start_label: "Starting Employee Number"
+      employee_code_start_hint: "The first auto-generated employee code uses this number (e.g. 500 → 500, 501, 502 …). It only applies until a higher code already exists; existing codes are never changed."
     payroll_periods:
       index:
         title: "Payroll Periods"

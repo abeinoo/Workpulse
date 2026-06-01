@@ -57,9 +57,30 @@ class Business < ApplicationRecord
             allow_nil: true
   validates :payroll_cutoff_day,
             numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 28 }
+  validates :employee_code_start,
+            numericality: { only_integer: true, greater_than_or_equal_to: 1 }
 
   def auto_payroll_enabled?
     payroll_auto_generate_day.present?
+  end
+
+  # Returns the next employee_code to assign within this business, as an integer.
+  #
+  # Based on the *highest existing numeric* employee_code (not the employee
+  # count), so gaps are preserved and codes never collide. Non-numeric legacy
+  # codes (e.g. "EMP-001") are ignored when computing the maximum. The result is
+  # never below the configured starting number, so:
+  #   - no codes yet, start = 500             -> 500
+  #   - existing 500, 501, 700, start = 500   -> 701
+  #   - existing 100, start = 500             -> 500
+  #
+  # Generation is made race-safe by the caller (User#assign_employee_code), which
+  # holds a per-business advisory lock while this runs and the row is inserted.
+  def next_employee_code
+    highest = users
+                .where("employee_code ~ ?", '^[0-9]+$')
+                .maximum(Arel.sql("employee_code::bigint"))
+    [ highest.to_i + 1, employee_code_start.to_i ].max
   end
 
   def timezone_object

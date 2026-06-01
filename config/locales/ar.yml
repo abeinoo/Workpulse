@@ -1609,6 +1609,8 @@ ar:
         reset_action: "إعادة تعيين كلمة المرور"
       form:
         employee_code: "رمز الموظف"
+        employee_code_placeholder: "يُنشأ تلقائياً إذا تُرك فارغاً"
+        employee_code_hint: "اتركه فارغاً لتعيين الرقم التالي تلقائياً. أدخل قيمة فقط لتحديد رمز معيّن."
         direct_manager: "المدير المباشر"
         no_manager: "بدون مدير"
         identity_card: "رقم الهوية"
@@ -1774,6 +1776,7 @@ ar:
         language: "اللغة"
         branding: "الهوية البصرية"
         automation: "الأتمتة"
+        employee_numbering: "ترقيم الموظفين"
       timezone_label: "المنطقة الزمنية"
       timezone_hint: "تُستخدم لجميع حسابات الحضور والرواتب وأيام العمل."
       business_day_label: "ساعة بداية يوم العمل"
@@ -1803,6 +1806,9 @@ ar:
       payroll_cutoff_day_hint: "يتم احتساب بيانات الحضور حتى هذا اليوم من الشهر السابق. استخدم 0 لنهاية الشهر."
       cutoff_end_of_month: "نهاية الشهر"
       cutoff_day_option: "اليوم %{day}"
+      employee_code_start_info: "يُمنح الموظفون الجدد كود موظف رقمي تلقائياً. يكون الكود التالي دائماً أكبر بواحد من أعلى كود موجود، لذا لا تتكرر الأرقام."
+      employee_code_start_label: "رقم الموظف الابتدائي"
+      employee_code_start_hint: "يستخدم أول كود موظف يُنشأ تلقائياً هذا الرقم (مثال: 500 ← 500، 501، 502 …). يُطبَّق فقط حتى يوجد كود أعلى منه؛ ولا تتغيّر الأكواد الحالية أبداً."
     payroll_periods:
       index:
         title: "فترات الرواتب"

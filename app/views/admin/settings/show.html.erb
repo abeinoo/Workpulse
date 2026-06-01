@@ -148,6 +148,30 @@
 
     <div class="divider"></div>
 
+    <%# ── Employee Numbering ────────────────────────────────────────────── %>
+    <h2 class="section-title"><%= t("admin.settings.sections.employee_numbering") %></h2>
+
+    <div class="settings-info-box">
+      <p class="form-hint"><%= t("admin.settings.employee_code_start_info") %></p>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :employee_code_start, t("admin.settings.employee_code_start_label"), class: "form-label" %>
+        <%= f.number_field :employee_code_start,
+              class: "form-control #{'is-error' if @business.errors[:employee_code_start].any?}",
+              min: 1,
+              step: 1,
+              placeholder: "1" %>
+        <p class="form-hint"><%= t("admin.settings.employee_code_start_hint") %></p>
+        <% if @business.errors[:employee_code_start].any? %>
+          <p class="form-error"><%= @business.errors[:employee_code_start].first %></p>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
     <%# ── Branding ────────────────────────────────────────────────────── %>
     <h2 class="section-title"><%= t("admin.settings.sections.branding") %></h2>
 

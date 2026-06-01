@@ -99,6 +99,15 @@ class User < ApplicationRecord
   validate :validate_manager_in_same_business
   validate :no_self_management
 
+  # Auto-assign a numeric employee_code on creation when none was provided.
+  # Runs inside the INSERT transaction (before_create) so the advisory lock it
+  # takes is held until COMMIT — see #assign_employee_code.
+  before_create :assign_employee_code, if: :generate_employee_code?
+
+  # Arbitrary, app-wide namespace key for the employee_code advisory lock, so it
+  # never clashes with locks taken elsewhere. Paired with business_id below.
+  EMPLOYEE_CODE_LOCK_NAMESPACE = 0x4543
+
   def self.find_for_database_authentication(warden_conditions)
     login = warden_conditions[:login].to_s.strip
     if login.include?("@")
@@ -217,6 +226,25 @@ class User < ApplicationRecord
   end
 
   private
+
+  def generate_employee_code?
+    employee_code.blank? && business_id.present?
+  end
+
+  # Race-safe employee_code generation.
+  #
+  # A transaction-level Postgres advisory lock (pg_advisory_xact_lock), keyed by
+  # business, serializes concurrent creations within the same business: a second
+  # creation blocks here until the first COMMITs, then reads the now-updated
+  # maximum — so two employees created at the same time can never receive the
+  # same code. The lock auto-releases at COMMIT/ROLLBACK. The per-business unique
+  # index on lower(employee_code) is the final database-level backstop.
+  def assign_employee_code
+    self.class.connection.execute(
+      "SELECT pg_advisory_xact_lock(#{EMPLOYEE_CODE_LOCK_NAMESPACE}, #{business_id.to_i})"
+    )
+    self.employee_code = business.next_employee_code.to_s
+  end
 
   def phone_or_email_present
     errors.add(:base, "Phone number or email must be present") if phone_number.blank? && email.blank?
