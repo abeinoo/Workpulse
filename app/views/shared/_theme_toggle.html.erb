@@ -1,0 +1,38 @@
+<%#
+  Light / dark theme toggle button.
+
+  Variants:
+    :sidebar — full-width row matching .sidebar__nav-item (icon + label)
+    :header  — compact icon button for the mobile top bar
+
+  Behavior lives in theme_controller.js; the actual theme class is applied
+  to <html> before paint by the bootstrap script in the layout <head>.
+%>
+<% variant ||= :sidebar %>
+
+<% sun = capture do %>
+  <svg class="theme-toggle__icon--sun" width="<%= variant == :header ? 20 : 16 %>" height="<%= variant == :header ? 20 : 16 %>" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+<% end %>
+<% moon = capture do %>
+  <svg class="theme-toggle__icon--moon" width="<%= variant == :header ? 20 : 16 %>" height="<%= variant == :header ? 20 : 16 %>" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+<% end %>
+
+<% if variant == :header %>
+  <button type="button"
+          class="theme-toggle--header"
+          data-controller="theme"
+          data-action="click->theme#toggle"
+          aria-label="<%= t("nav.toggle_theme") %>">
+    <%= sun %><%= moon %>
+  </button>
+<% else %>
+  <button type="button"
+          class="sidebar__nav-item theme-toggle--sidebar"
+          data-controller="theme"
+          data-action="click->theme#toggle"
+          aria-label="<%= t("nav.toggle_theme") %>">
+    <%= sun %><%= moon %>
+    <span class="theme-toggle__label--light"><%= t("nav.light_mode") %></span>
+    <span class="theme-toggle__label--dark"><%= t("nav.dark_mode") %></span>
+  </button>
+<% end %>

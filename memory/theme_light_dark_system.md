@@ -1,0 +1,12 @@
+---
+name: theme-light-dark-system
+description: Styling architecture — NO Tailwind; custom CSS-variable design system; light/dark mode added June 2026
+metadata:
+  type: project
+---
+
+WorkPulse has **no Tailwind CSS** despite occasional requests phrased around it. Styling is a single hand-written ~10.7k-line `app/assets/stylesheets/application.css` (Propshaft, no build step), built entirely on CSS custom properties in `:root` (`--navy-900..400` ladder → semantic aliases `--surface-1`, `--bg`, `--border`, `--text-1/2/3`, `--accent`). Views use semantic classes (`app-shell`, `card`, `sidebar__nav-item`, `flash--notice`), not utilities.
+
+Light/Dark mode (June 2026): convention is **`:root` = LIGHT theme, `:root.dark` = DARK theme** (Tailwind-style `class` strategy — a `dark` class on `<html>`, absence = light). `:root.dark` (CSS section "1b") restores the app's original navy palette; only color tokens that differ are overridden there. Everything flows through semantic vars so the UI flips with no per-component overrides. Key token families: `--navy-900..400` ladder (light neutrals in `:root`, navy in `.dark`); `--*-rgb` channels (`--accent/success/danger/warning/overlay/shadow/indigo/neutral-rgb`) so tints adapt via `rgba(var(--x-rgb), α)`; `--on-accent` (flips white↔#0A192F — ink on bright/accent/success/warning fills) and `--on-solid` (always white, danger fills); soft pastel alert palette (`--color-*`, `--primary-100/700`); compat aliases (`--text-muted/primary/secondary`, `--surface-0/dim/alt`, `--radius-md`, `--space-7`, `--border-subtle/focus`) that were previously **undefined** in the codebase. No-flash inline `<script>` in `application.html.erb` `<head>` applies the class pre-paint (localStorage `theme`, then `prefers-color-scheme: dark`). Stimulus `theme_controller.js` toggles the `dark` class / persists / syncs. Toggle UI `shared/_theme_toggle.html.erb` (`:sidebar` + `:header` variants) in sidebar footer, mobile header, and login `.auth-lang`. `@media print` keeps intentional hardcoded B/W — never theme it. Light palette tuned for WCAG AA (accent `#0276AE` 4.99:1, text-3 `#6B7687` 4.60:1). CSP is fully commented out, so inline scripts are allowed.
+
+**Why:** Full audit replaced ~250 hardcoded color literals (#fff/#000/hex/rgba) with semantic vars so they adapt; Tailwind was explicitly excluded. **How to apply:** For new colors use the semantic vars / `rgba(var(--x-rgb), α)` — never raw hex/rgba (except inside `@media print`). Relates to [[i18n_rtl_implementation]] (also syncs `<html>` attrs across Turbo).

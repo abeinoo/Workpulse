@@ -284,6 +284,8 @@
 
     <%= render "shared/language_switcher", variant: :sidebar, url: user_locale_path %>
 
+    <%= render "shared/theme_toggle", variant: :sidebar %>
+
     <%= link_to edit_profile_password_path,
           class: "sidebar__nav-item #{request.path == edit_profile_password_path ? 'is-active' : ''}",
           data: { action: "click->sidebar#close" } do %>
