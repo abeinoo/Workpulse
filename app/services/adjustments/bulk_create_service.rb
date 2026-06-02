@@ -25,13 +25,12 @@ module Adjustments
     def call
       return EMPTY_RESULT if @rows.empty?
 
-      batch_id    = SecureRandom.uuid
-      now         = Time.current
-      auto_approve = @created_by.can?(:manage_adjustments)
-      review_status = auto_approve ? "approved" : "pending_review"
+      batch_id = SecureRandom.uuid
 
+      # Bulk and CSV-imported adjustments always start Pending. The creator never
+      # approves their own entries — a separate approver must review them.
       adjustments = @rows.each_with_index.map do |row, idx|
-        build_adjustment(row, batch_id, review_status, auto_approve, now)
+        build_adjustment(row, batch_id)
           .tap { |adj| adj.instance_variable_set(:@_row_index, idx) }
       end
 
@@ -54,8 +53,8 @@ module Adjustments
 
     private
 
-    def build_adjustment(row, batch_id, review_status, auto_approve, now)
-      adj = PayrollAdjustment.new(
+    def build_adjustment(row, batch_id)
+      PayrollAdjustment.new(
         user_id:         row[:user_id].presence || row["user_id"],
         adjustment_type: row[:adjustment_type].presence || row["adjustment_type"],
         amount:          row[:amount].presence || row["amount"],
@@ -66,17 +65,8 @@ module Adjustments
         created_by:      @created_by,
         bulk_batch_id:   batch_id,
         import_source:   @import_source,
-        review_status:   review_status
+        review_status:   "pending_review"
       )
-
-      if auto_approve
-        adj.approved_by = @created_by
-        adj.approved_at = now
-        adj.reviewed_by = @created_by
-        adj.reviewed_at = now
-      end
-
-      adj
     end
 
     def collect_errors(adjustments)

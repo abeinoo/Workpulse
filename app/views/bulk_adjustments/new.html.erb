@@ -51,15 +51,17 @@
     <%# Period + mass-set controls ─────────────────────────────────────────── %>
     <div class="bulk-adj-toolbar">
       <div class="bulk-adj-toolbar__period">
-        <label class="form-label"><%= t("adjustments.period") %></label>
+        <label class="form-label form-label--required"><%= t("adjustments.new.period_label") %></label>
         <div class="bulk-adj-period-row">
-          <%= select_tag "bulk_adjustment[period_month]",
-                options_for_select((1..12).map { |m| [I18n.t("date.month_names")[m], m] }, @default_month),
-                class: "form-control form-control--sm" %>
-          <%= select_tag "bulk_adjustment[period_year]",
-                options_for_select(((Date.current.year - 2)..(Date.current.year + 1)).map { |y| [y, y] }, @default_year),
-                class: "form-control form-control--sm" %>
+          <%= select_tag "bulk_adjustment[period_key]",
+                options_for_select(@selectable_periods, @selected_period_key),
+                include_blank: t("forms.select"),
+                class: "form-control form-control--sm",
+                disabled: @selectable_periods.empty? %>
         </div>
+        <% if @selectable_periods.empty? %>
+          <p class="form-hint text-warning"><%= t("adjustments.new.no_periods") %></p>
+        <% end %>
       </div>
 
       <div class="bulk-adj-toolbar__mass">

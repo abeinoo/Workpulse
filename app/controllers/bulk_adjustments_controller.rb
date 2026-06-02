@@ -13,8 +13,7 @@ class BulkAdjustmentsController < ApplicationController
   def new
     @employees     = manageable_employees
     @branches      = branches_for_user
-    @default_month = params[:period_month]&.to_i.presence || Date.current.month
-    @default_year  = params[:period_year]&.to_i.presence  || Date.current.year
+    load_selectable_periods
     @default_type  = params[:adjustment_type].presence || "cash_incentive"
     @row_errors    = {}
   end
@@ -22,10 +21,15 @@ class BulkAdjustmentsController < ApplicationController
   # POST /bulk_adjustments/new
   def create
     bp = bulk_params
-    period_month = bp[:period_month].to_i.nonzero? || Date.current.month
-    period_year  = bp[:period_year].to_i.nonzero?  || Date.current.year
+    period_year, period_month = parse_period_key(bp[:period_key])
 
-    # Inject the shared period into each row (the period selects are at form level)
+    if period_month.nil?
+      reload_new_form(bp)
+      flash.now[:alert] = t("adjustments.new.no_periods")
+      return render :new, status: :unprocessable_entity
+    end
+
+    # Inject the shared period into each row (the period select is at form level)
     rows = (bp[:rows] || {}).values
              .reject { |r| r["user_id"].blank? && r["amount"].blank? }
              .map { |r| r.merge("period_month" => period_month, "period_year" => period_year) }
@@ -38,15 +42,11 @@ class BulkAdjustmentsController < ApplicationController
     ).call
 
     if result.success?
-      redirect_to adjustments_path(period_month: bp[:period_month], period_year: bp[:period_year]),
+      redirect_to adjustments_path(period_month: period_month, period_year: period_year),
                   notice: t("bulk_adjustments.created", count: result.count)
     else
-      @employees     = manageable_employees
-      @branches      = branches_for_user
-      @default_month = bp[:period_month].to_i
-      @default_year  = bp[:period_year].to_i
-      @default_type  = "cash_incentive"
-      @row_errors    = result.row_errors.index_by(&:index)
+      reload_new_form(bp)
+      @row_errors       = result.row_errors.index_by(&:index)
       flash.now[:alert] = t("bulk_adjustments.validation_failed")
       render :new, status: :unprocessable_entity
     end
@@ -54,8 +54,7 @@ class BulkAdjustmentsController < ApplicationController
 
   # GET /bulk_adjustments/import
   def import
-    @default_month = params[:period_month]&.to_i.presence || Date.current.month
-    @default_year  = params[:period_year]&.to_i.presence  || Date.current.year
+    load_selectable_periods
   end
 
   # POST /bulk_adjustments/import/preview
@@ -72,8 +71,10 @@ class BulkAdjustmentsController < ApplicationController
       return
     end
 
-    @default_month = params[:period_month]&.to_i.presence || Date.current.month
-    @default_year  = params[:period_year]&.to_i.presence  || Date.current.year
+    load_selectable_periods
+    @default_year, @default_month = parse_period_key(params[:period_key])
+    @default_month ||= Date.current.month
+    @default_year  ||= Date.current.year
 
     result = Adjustments::BulkCsvParser.new(
       csv_data:      file.read,
@@ -165,8 +166,31 @@ class BulkAdjustmentsController < ApplicationController
     Branch.for_business(current_user.business).active.order(:name)
   end
 
+  # Open payroll periods an adjustment may target (current month + upcoming, minus
+  # any period already processed). Shared by the manual and CSV-import forms.
+  def load_selectable_periods
+    @selectable_periods  = Adjustments::SelectablePeriods.new(current_user.business).options
+    @selected_period_key = params[:period_key].presence || @selectable_periods.first&.last
+  end
+
+  def reload_new_form(bp)
+    @employees           = manageable_employees
+    @branches            = branches_for_user
+    @default_type        = "cash_incentive"
+    @selectable_periods  = Adjustments::SelectablePeriods.new(current_user.business).options
+    @selected_period_key = bp[:period_key].presence || @selectable_periods.first&.last
+  end
+
+  # Splits a "YYYY-M" period key into [year, month]; returns [nil, nil] when absent
+  # or malformed so callers can require an explicit selection (no silent default).
+  def parse_period_key(key)
+    return [ nil, nil ] unless key.to_s =~ /\A(\d{4})-(\d{1,2})\z/
+
+    [ Regexp.last_match(1).to_i, Regexp.last_match(2).to_i ]
+  end
+
   def bulk_params
-    safe = params.require(:bulk_adjustment).permit(:period_month, :period_year)
+    safe = params.require(:bulk_adjustment).permit(:period_key)
 
     # rows has dynamic timestamp-based keys set by the Stimulus controller.
     # We extract them via to_unsafe_h and whitelist only the permitted fields.

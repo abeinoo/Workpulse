@@ -9,26 +9,8 @@
       <p class="page-subtitle"><%= t("adjustments.subtitle") %></p>
     </div>
     <div class="page-header__actions">
-      <%# Period switcher — always visible %>
-      <%= form_with url: adjustments_path, method: :get, local: true, class: "adj-period-form" do |f| %>
-        <%= f.select :period_month,
-              (1..12).map { |m| [I18n.t("date.month_names")[m], m] },
-              { selected: @filter_month },
-              class: "form-control form-control--sm adj-period-select" %>
-        <%= f.select :period_year,
-              ((Date.current.year - 2)..(Date.current.year + 1)).map { |y| [y, y] },
-              { selected: @filter_year },
-              class: "form-control form-control--sm adj-period-select" %>
-        <%# Preserve other filters when changing period %>
-        <%= hidden_field_tag :adjustment_type, params[:adjustment_type] %>
-        <%= hidden_field_tag :review_status,   params[:review_status] %>
-        <%= hidden_field_tag :user_id,         params[:user_id] %>
-        <%= hidden_field_tag :branch_id,       params[:branch_id] %>
-        <%= hidden_field_tag :q,               params[:q] %>
-        <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
-      <% end %>
       <% if policy(PayrollAdjustment.new(business: current_user.business)).new? %>
-        <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year),
+        <%= link_to new_adjustment_path,
               class: "btn btn-primary" do %>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -148,8 +130,7 @@
       <div class="adj-quick-actions">
         <h3 class="adj-section-title"><%= t("adjustments.quick_actions.heading") %></h3>
         <div class="adj-qa-grid">
-          <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year,
-                        "payroll_adjustment[adjustment_type]": "cash_incentive"),
+          <%= link_to new_adjustment_path(adjustment_type:"cash_incentive"),
                 class: "adj-qa-btn adj-qa-btn--bonus" do %>
             <span class="adj-qa-btn__icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -161,8 +142,7 @@
             <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.new_bonus") %></span>
           <% end %>
 
-          <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year,
-                        "payroll_adjustment[adjustment_type]": "manual_deduction"),
+          <%= link_to new_adjustment_path(adjustment_type:"manual_deduction"),
                 class: "adj-qa-btn adj-qa-btn--deduction" do %>
             <span class="adj-qa-btn__icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -174,8 +154,7 @@
             <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.new_deduction") %></span>
           <% end %>
 
-          <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year,
-                        "payroll_adjustment[adjustment_type]": "commission"),
+          <%= link_to new_adjustment_path(adjustment_type:"commission"),
                 class: "adj-qa-btn adj-qa-btn--commission" do %>
             <span class="adj-qa-btn__icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -187,8 +166,7 @@
             <span class="adj-qa-btn__label"><%= t("adjustments.quick_actions.new_commission") %></span>
           <% end %>
 
-          <%= link_to new_adjustment_path(period_month: @filter_month, period_year: @filter_year,
-                        "payroll_adjustment[adjustment_type]": "penalty"),
+          <%= link_to new_adjustment_path(adjustment_type:"penalty"),
                 class: "adj-qa-btn adj-qa-btn--penalty" do %>
             <span class="adj-qa-btn__icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -313,11 +291,21 @@
             class: "adj-filter-form",
             data: { controller: "auto-submit", auto_submit_delay_value: 0 } do |f| %>
 
-        <%# Preserve period across filter changes %>
-        <%= hidden_field_tag :period_month, @filter_month %>
-        <%= hidden_field_tag :period_year,  @filter_year %>
-
         <div class="adj-filter-grid">
+          <div class="form-group">
+            <%= f.label :date_from, t("adjustments.index.date_from"), class: "form-label" %>
+            <%= f.date_field :date_from, value: @filters[:date_from],
+                  class: "form-control form-control--sm",
+                  data: { action: "change->auto-submit#schedule" } %>
+          </div>
+
+          <div class="form-group">
+            <%= f.label :date_to, t("adjustments.index.date_to"), class: "form-label" %>
+            <%= f.date_field :date_to, value: @filters[:date_to],
+                  class: "form-control form-control--sm",
+                  data: { action: "change->auto-submit#schedule" } %>
+          </div>
+
           <div class="form-group">
             <%= f.label :adjustment_type, t("adjustments.type"), class: "form-label" %>
             <%= f.select :adjustment_type,
@@ -383,7 +371,7 @@
           <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
           <% if @active_filters %>
             <%= link_to t("adjustments.index.filter_clear"),
-                  adjustments_path(period_month: @filter_month, period_year: @filter_year),
+                  adjustments_path,
                   class: "btn btn-ghost btn-sm" %>
           <% end %>
         </div>
@@ -414,7 +402,7 @@
       </p>
       <% if policy(PayrollAdjustment.new(business: current_user.business)).new? && !@active_filters %>
         <%= link_to t("adjustments.no_adjustments_cta"),
-              new_adjustment_path(period_month: @filter_month, period_year: @filter_year),
+              new_adjustment_path,
               class: "btn btn-primary" %>
       <% end %>
     </div>
@@ -423,28 +411,34 @@
       <table>
         <thead>
           <tr>
+            <th><%= t("adjustments.id") %></th>
             <th><%= t("adjustments.employee") %></th>
             <th><%= t("adjustments.type") %></th>
             <th class="text-right"><%= t("adjustments.amount") %></th>
-            <th><%= t("adjustments.reason") %></th>
-            <th><%= t("adjustments.created_by") %></th>
+            <th><%= t("adjustments.payroll_period") %></th>
             <th><%= t("adjustments.status") %></th>
-            <th><%= t("adjustments.date") %></th>
+            <th><%= t("adjustments.created_by") %></th>
+            <th><%= t("adjustments.created_at") %></th>
+            <th><%= t("adjustments.reviewed_by") %></th>
+            <th><%= t("adjustments.reviewed_at") %></th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           <% @adjustments.each do |adj| %>
+            <% reviewer = adj.approved_by || adj.rejected_by || adj.reviewed_by %>
             <tr class="adj-row">
+              <%# Adjustment ID %>
+              <td class="td-secondary">
+                <%= link_to "##{adj.id}", adjustment_path(adj), class: "adj-id-link" %>
+              </td>
+
               <%# Employee %>
               <td>
                 <div class="employee-cell">
                   <%= user_avatar_tag(adj.user, size: :thumb) %>
                   <div>
                     <div class="employee-cell__name"><%= adj.user.full_name %></div>
-                    <div class="employee-cell__sub">
-                      <%= I18n.t("date.month_names")[adj.period_month] %> <%= adj.period_year %>
-                    </div>
                   </div>
                 </div>
               </td>
@@ -473,35 +467,40 @@
                 <% end %>
               </td>
 
-              <%# Reason %>
-              <td class="td-secondary adj-reason"><%= truncate(adj.reason, length: 55) %></td>
+              <%# Payroll period %>
+              <td class="td-secondary">
+                <%= I18n.t("date.month_names")[adj.period_month] %> <%= adj.period_year %>
+              </td>
 
-              <%# Created by + date %>
+              <%# Status badge — visually highlighted %>
+              <td>
+                <span class="badge <%= adjustment_status_badge_class(adj) %>">
+                  <%= t("payroll.entry.review_statuses.#{adj.review_status}") %>
+                </span>
+              </td>
+
+              <%# Created by %>
               <td>
                 <div class="adj-creator">
                   <span class="adj-creator__name"><%= adj.created_by.full_name %></span>
                 </div>
               </td>
 
-              <%# Status badge + reviewer %>
-              <td>
-                <span class="badge <%= adjustment_status_badge_class(adj) %>">
-                  <%= t("payroll.entry.review_statuses.#{adj.review_status}") %>
-                </span>
-                <% if adj.approved? && adj.approved_by %>
-                  <div class="adj-reviewer td-secondary"><%= adj.approved_by.full_name %></div>
-                <% elsif adj.rejected? && adj.rejected_by %>
-                  <div class="adj-reviewer td-secondary"><%= adj.rejected_by.full_name %></div>
-                <% end %>
-              </td>
+              <%# Created at %>
+              <td class="td-secondary adj-date"><%= l(adj.created_at, format: :short) %></td>
 
-              <%# Date %>
+              <%# Reviewed by %>
+              <td class="td-secondary"><%= reviewer&.full_name || t("adjustments.show.none") %></td>
+
+              <%# Reviewed at %>
               <td class="td-secondary adj-date">
-                <%= l(adj.created_at, format: :short) %>
+                <%= adj.reviewed_at ? l(adj.reviewed_at, format: :short) : t("adjustments.show.none") %>
               </td>
 
               <%# Actions %>
               <td class="td-actions">
+                <%= link_to t("adjustments.view_details"), adjustment_path(adj),
+                      class: "btn btn-sm btn-ghost" %>
                 <% if adj.pending_review? && policy(adj).approve? %>
                   <%= button_to t("adjustments.approve"),
                         approve_adjustment_path(adj),

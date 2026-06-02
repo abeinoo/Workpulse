@@ -1,8 +1,7 @@
 <% content_for :title, "#{t('adjustments.new.title')} — WorkPulse" %>
 
 <div class="form-page">
-  <%= link_to adjustments_path(period_month: @period_month, period_year: @period_year),
-        class: "back-link" do %>
+  <%= link_to adjustments_path, class: "back-link" do %>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <polyline points="15 18 9 12 15 6"/>
@@ -11,9 +10,13 @@
   <% end %>
 
   <h1 class="page-title"><%= t("adjustments.new.title") %></h1>
-  <p class="page-subtitle">
-    <%= t("adjustments.new.period", label: "#{I18n.t('date.month_names')[@period_month]} #{@period_year}") %>
-  </p>
+  <p class="page-subtitle"><%= t("adjustments.subtitle") %></p>
+
+  <% if @selectable_periods.empty? %>
+    <div class="alert alert-warning" style="margin-top: var(--space-4);">
+      <%= t("adjustments.new.no_periods") %>
+    </div>
+  <% end %>
 
   <%= form_with model: @adjustment, url: adjustments_path, local: true, class: "form-card",
         data: { controller: "payroll-adjustment-form" } do |f| %>
@@ -28,10 +31,19 @@
               class: "form-control" %>
       </div>
 
+      <%# Target payroll period — explicit selection, never a silent current-month default %>
+      <div class="form-group form-group--full">
+        <%= f.label :period_key, t("adjustments.new.period_label"), class: "form-label form-label--required" %>
+        <%= select_tag "payroll_adjustment[period_key]",
+              options_for_select(@selectable_periods, @selected_period_key),
+              { include_blank: t("forms.select"),
+                class: "form-control",
+                disabled: @selectable_periods.empty? } %>
+        <p class="form-hint"><%= t("adjustments.new.period_hint") %></p>
+      </div>
+
       <div class="form-group">
-        <% selected_type = @adjustment.adjustment_type.presence ||
-                           params[:adjustment_type].presence ||
-                           "cash_incentive" %>
+        <% selected_type = @adjustment.adjustment_type.presence || "cash_incentive" %>
         <%= f.label :adjustment_type, t("adjustments.new.type_label"), class: "form-label form-label--required" %>
         <%= f.select :adjustment_type,
               PayrollAdjustment::ADJUSTMENT_TYPES.map { |type| [t("adjustments.types.#{type}"), type] },
@@ -59,26 +71,21 @@
               placeholder: t("adjustments.new.reason_placeholder") %>
       </div>
 
-      <%= f.hidden_field :period_month, value: @period_month %>
-      <%= f.hidden_field :period_year,  value: @period_year %>
     </div>
 
     <%# Already-paid section — only shown for cash_incentive ── %>
     <%= render "shared/adjustment_already_paid_section",
           f: f, adjustment: @adjustment, selected_type: selected_type %>
 
-    <% unless current_user.can?(:manage_adjustments) %>
-      <div class="alert alert-info" style="margin-top: var(--space-4);">
-        <%= t("adjustments.new.hint") %>
-      </div>
-    <% end %>
+    <%# Every adjustment is submitted as Pending and requires a separate approver. %>
+    <div class="alert alert-info" style="margin-top: var(--space-4);">
+      <%= t("adjustments.new.hint") %>
+    </div>
 
     <div class="form-actions">
-      <%= f.submit current_user.can?(:manage_adjustments) ? t("adjustments.new.save_approve") : t("adjustments.new.submit_review"),
-            class: "btn btn-primary" %>
-      <%= link_to t("forms.cancel"),
-            adjustments_path(period_month: @period_month, period_year: @period_year),
-            class: "btn btn-ghost" %>
+      <%= f.submit t("adjustments.new.submit_review"),
+            class: "btn btn-primary", disabled: @selectable_periods.empty? %>
+      <%= link_to t("forms.cancel"), adjustments_path, class: "btn btn-ghost" %>
     </div>
   <% end %>
 </div>

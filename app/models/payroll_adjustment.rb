@@ -43,8 +43,13 @@ class PayrollAdjustment < ApplicationRecord
   validate  :already_paid_only_for_positive, if: -> { already_paid? }
   validate  :period_not_locked, on: :create
   validate  :user_belongs_to_business
+  validate  :creator_is_not_approver
 
   scope :for_period,    ->(year, month) { where(period_year: year, period_month: month) }
+  # Period-range filtering for the index. Compares a (year, month) pair as a single
+  # ordinal (year * 12 + month) so ranges spanning a year boundary work correctly.
+  scope :period_on_or_after,  ->(date) { date.present? ? where("payroll_adjustments.period_year * 12 + payroll_adjustments.period_month >= ?", date.year * 12 + date.month) : all }
+  scope :period_on_or_before, ->(date) { date.present? ? where("payroll_adjustments.period_year * 12 + payroll_adjustments.period_month <= ?", date.year * 12 + date.month) : all }
   scope :for_business,  ->(biz)         { where(business: biz) }
   scope :pending,       ->              { where(review_status: "pending_review") }
   scope :approved,      ->              { where(review_status: "approved") }
@@ -60,6 +65,31 @@ class PayrollAdjustment < ApplicationRecord
 
   def signed_amount
     positive? ? amount : -amount
+  end
+
+  # ── Approval transitions ──────────────────────────────────────────────────
+  # The ONLY place an adjustment changes review_status. Callers must have already
+  # checked Payroll::AdjustmentApproval.permitted? (policy or service layer); the
+  # creator_is_not_approver validation is the final backstop on write.
+  def approve_by!(reviewer)
+    update!(
+      review_status: "approved",
+      approved_by:   reviewer,
+      approved_at:   Time.current,
+      reviewed_by:   reviewer,
+      reviewed_at:   Time.current
+    )
+  end
+
+  def reject_by!(reviewer, notes: nil)
+    update!(
+      review_status: "rejected",
+      rejected_by:   reviewer,
+      rejected_at:   Time.current,
+      reviewed_by:   reviewer,
+      reviewed_at:   Time.current,
+      review_notes:  notes
+    )
   end
 
   # Legacy DB values that predate the type consolidation.
@@ -95,13 +125,30 @@ class PayrollAdjustment < ApplicationRecord
     return if payroll_period_id.present?
     return unless business_id && period_month && period_year
 
-    locked = PayrollPeriod.where(
+    period = PayrollPeriod.find_by(
       business_id:  business_id,
       period_month: period_month,
-      period_year:  period_year,
-      status:       %w[under_review branch_review_completed finalized paid]
-    ).exists?
+      period_year:  period_year
+    )
+    return unless period
 
-    errors.add(:base, "Adjustments cannot be created after payroll has been submitted for review") if locked
+    if period.finalized? || period.paid?
+      # Payroll has been processed/closed — no further adjustments are permitted.
+      errors.add(:base, I18n.t("adjustments.errors.period_processed"))
+    elsif period.under_review? || period.branch_review_completed?
+      errors.add(:base, I18n.t("adjustments.errors.period_under_review"))
+    end
+  end
+
+  # Enforces creator != approver at the data layer. Even if a controller or service
+  # tried to approve an adjustment with the same user that created it, the record
+  # is rejected. approved_by is only ever set when an approval actually occurs.
+  def creator_is_not_approver
+    return if approved_by_id.blank?
+    return if created_by_id.blank?
+
+    if approved_by_id == created_by_id
+      errors.add(:approved_by, I18n.t("adjustments.errors.creator_is_approver"))
+    end
   end
 end

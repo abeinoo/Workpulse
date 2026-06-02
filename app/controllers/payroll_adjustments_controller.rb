@@ -19,15 +19,10 @@ class PayrollAdjustmentsController < ApplicationController
     @adjustment.period_month   = @period.period_month
     @adjustment.period_year    = @period.period_year
     @adjustment.created_by     = current_user
-    # already_paid items are auto-approved — the money is already out the door.
-    # Otherwise: super admins auto-approve; managers require review.
-    @adjustment.review_status = if @adjustment.already_paid?
-                                  "approved"
-                                elsif current_user.can?(:manage_adjustments)
-                                  "approved"
-                                else
-                                  "pending_review"
-                                end
+    # Adjustments created during payroll review ALWAYS start Pending. The creator
+    # never approves their own entry — a separate approver with approve_adjustments
+    # must review the resulting line item (creator != approver).
+    @adjustment.review_status = "pending_review"
 
     authorize @adjustment
 
@@ -35,8 +30,7 @@ class PayrollAdjustmentsController < ApplicationController
       materialise_line_item!(@adjustment, entry)
       log_adjustment_action!(:adjustment_added, @adjustment)
       redirect_to payroll_period_payroll_entry_path(@period, entry),
-                  notice: @adjustment.already_paid? ? t("payroll_adjustments.recorded_already_paid") :
-                          (current_user.can?(:manage_adjustments) ? t("payroll_adjustments.added") : t("payroll_adjustments.submitted_for_review"))
+                  notice: t("payroll_adjustments.submitted_for_review")
     else
       @entry = entry
       render :new, status: :unprocessable_entity
@@ -47,11 +41,7 @@ class PayrollAdjustmentsController < ApplicationController
     authorize @adjustment
 
     ActiveRecord::Base.transaction do
-      @adjustment.update!(
-        review_status: "approved",
-        reviewed_by:   current_user,
-        reviewed_at:   Time.current
-      )
+      @adjustment.approve_by!(current_user)
       sync_line_item!(@adjustment, "approved")
       log_adjustment_action!(:adjustment_approved, @adjustment)
     end
@@ -66,12 +56,7 @@ class PayrollAdjustmentsController < ApplicationController
     authorize @adjustment
 
     ActiveRecord::Base.transaction do
-      @adjustment.update!(
-        review_status: "rejected",
-        reviewed_by:   current_user,
-        reviewed_at:   Time.current,
-        review_notes:  params[:review_notes]
-      )
+      @adjustment.reject_by!(current_user, notes: params[:review_notes])
       sync_line_item!(@adjustment, "rejected")
       log_adjustment_action!(:adjustment_rejected, @adjustment)
     end

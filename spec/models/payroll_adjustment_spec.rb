@@ -29,6 +29,77 @@ RSpec.describe PayrollAdjustment, type: :model do
         expect(adjustment.errors[:user]).to be_present
       end
     end
+
+    describe "creator_is_not_approver" do
+      it "is invalid when approved_by equals created_by" do
+        creator = adjustment.created_by
+        adjustment.approved_by = creator
+        expect(adjustment).not_to be_valid
+        expect(adjustment.errors[:approved_by]).to be_present
+      end
+
+      it "is valid when approved_by differs from created_by" do
+        adjustment.approved_by = create(:user, business: adjustment.business)
+        expect(adjustment).to be_valid
+      end
+
+      it "is valid when approved_by is blank (pending)" do
+        adjustment.approved_by = nil
+        expect(adjustment).to be_valid
+      end
+    end
+
+    describe "period_not_locked (payroll lock)" do
+      let(:business) { create(:business) }
+      let(:employee) { create(:user, business: business) }
+
+      def standalone_adjustment(period)
+        build(:payroll_adjustment,
+              payroll_period: nil,
+              business:       business,
+              user:           employee,
+              created_by:     create(:user, business: business),
+              period_month:   period.period_month,
+              period_year:    period.period_year)
+      end
+
+      it "blocks creation when payroll for the period is paid" do
+        period = create(:payroll_period, :paid, business: business)
+        adj = standalone_adjustment(period)
+        expect(adj).not_to be_valid
+        expect(adj.errors[:base])
+          .to include(I18n.t("adjustments.errors.period_processed"))
+      end
+
+      it "blocks creation when payroll for the period is finalized" do
+        period = create(:payroll_period, :finalized, business: business)
+        adj = standalone_adjustment(period)
+        expect(adj).not_to be_valid
+        expect(adj.errors[:base])
+          .to include(I18n.t("adjustments.errors.period_processed"))
+      end
+
+      it "blocks creation when payroll for the period is under review" do
+        period = create(:payroll_period, business: business, status: "under_review")
+        adj = standalone_adjustment(period)
+        expect(adj).not_to be_valid
+        expect(adj.errors[:base])
+          .to include(I18n.t("adjustments.errors.period_under_review"))
+      end
+
+      it "allows creation when the period is still draft" do
+        period = create(:payroll_period, business: business, status: "draft")
+        expect(standalone_adjustment(period)).to be_valid
+      end
+
+      it "allows creation when no payroll period exists yet for the month" do
+        adj = build(:payroll_adjustment,
+                    payroll_period: nil, business: business, user: employee,
+                    created_by: create(:user, business: business),
+                    period_month: 11, period_year: 2030)
+        expect(adj).to be_valid
+      end
+    end
   end
 
   describe "#signed_amount" do

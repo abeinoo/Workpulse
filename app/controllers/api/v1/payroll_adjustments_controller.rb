@@ -14,7 +14,8 @@ module Api
 
       def create
         authorize PayrollAdjustment
-        return render_error("Cannot modify a paid payroll period") if @period.paid?
+        # Payroll lock: no new adjustments once the period has been processed/closed.
+        return render_error(I18n.t("adjustments.errors.period_processed")) if @period.locked?
 
         adjustment = @period.payroll_adjustments.build(adjustment_params)
         adjustment.created_by = current_user

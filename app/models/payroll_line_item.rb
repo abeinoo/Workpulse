@@ -49,4 +49,23 @@ class PayrollLineItem < ApplicationRecord
   def reviewable?
     REVIEW_REQUIRED_TYPES.include?(item_type)
   end
+
+  # True when this line item was materialised from a PayrollAdjustment (manager-
+  # submitted bonus/commission/penalty/deduction) rather than system-generated
+  # from attendance. Only these carry a human creator for the approval rule.
+  def adjustment_sourced?
+    source_type == "PayrollAdjustment"
+  end
+
+  def source_adjustment
+    return @source_adjustment if defined?(@source_adjustment)
+
+    @source_adjustment = adjustment_sourced? ? PayrollAdjustment.find_by(id: source_id) : nil
+  end
+
+  # The user who created the underlying adjustment, or nil for system-generated
+  # items. Feeds the creator != approver clause of Payroll::AdjustmentApproval.
+  def source_creator
+    source_adjustment&.created_by
+  end
 end

@@ -31,6 +31,15 @@ module Payroll
       return err("Invalid action '#{@action}'") unless VALID_ACTIONS.include?(@action)
       return err("A reason is required to waive a deduction") if waive? && @notes.blank?
 
+      # The single approval rule: reviewer needs approve_adjustments AND must not
+      # be the creator of the underlying adjustment (creator != approver).
+      unless Payroll::AdjustmentApproval.has_permission?(@reviewed_by)
+        return err(I18n.t("adjustments.errors.review_permission"))
+      end
+      if Payroll::AdjustmentApproval.creator?(@reviewed_by, @line_item.source_creator)
+        return err(I18n.t("adjustments.errors.review_own"))
+      end
+
       period = @line_item.payroll_entry.payroll_period
       return err("Payroll period is already finalized") unless period.reviewable?
 
@@ -48,6 +57,7 @@ module Payroll
           reviewed_at:   Time.current,
           review_notes:  @notes
         )
+        sync_source_adjustment!
         @line_item.payroll_entry.recalculate_totals!
       end
 
@@ -59,6 +69,20 @@ module Payroll
     end
 
     private
+
+    # Keeps the underlying PayrollAdjustment's review_status in lock-step with its
+    # line item so that a later payroll regeneration (which only re-materialises
+    # `approved` adjustments) reflects the decision, and so approved_by records the
+    # real second-party approver. No-op for system-generated (attendance) items.
+    def sync_source_adjustment!
+      adjustment = @line_item.source_adjustment
+      return unless adjustment
+
+      case @action
+      when "approve" then adjustment.approve_by!(@reviewed_by)
+      when "reject"  then adjustment.reject_by!(@reviewed_by, notes: @notes)
+      end
+    end
 
     def waive?
       @action == "waive"

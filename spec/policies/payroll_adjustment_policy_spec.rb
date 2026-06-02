@@ -62,24 +62,51 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
     end
   end
 
+  # adjustment is created_by: manager (see top-level let).
   describe "approve? / reject?" do
-    it "permits super_admin" do
+    it "permits super_admin (not the creator)" do
       expect(subject.new(super_admin, adjustment).approve?).to be true
       expect(subject.new(super_admin, adjustment).reject?).to be true
     end
 
-    it "permits branch_manager with approve_adjustments" do
-      expect(subject.new(manager, adjustment).approve?).to be true
-      expect(subject.new(manager, adjustment).reject?).to be true
+    it "DENIES the creator from approving/rejecting their own adjustment" do
+      # Creator != Approver. Even though the branch_manager holds approve_adjustments,
+      # they may not approve the adjustment they themselves created.
+      expect(subject.new(manager, adjustment).approve?).to be false
+      expect(subject.new(manager, adjustment).reject?).to be false
     end
 
-    it "permits area_manager with approve_adjustments" do
+    it "permits a different approver (area_manager) with approve_adjustments" do
       expect(subject.new(area_manager, adjustment).approve?).to be true
       expect(subject.new(area_manager, adjustment).reject?).to be true
     end
 
-    it "permits accountant with approve_adjustments" do
+    it "permits accountant with approve_adjustments (not the creator)" do
       expect(subject.new(accountant, adjustment).approve?).to be true
+    end
+
+    it "denies a user without approve_adjustments" do
+      expect(subject.new(employee, adjustment).approve?).to be false
+    end
+  end
+
+  describe "show?" do
+    it "permits the creator to view their own adjustment" do
+      expect(subject.new(manager, adjustment).show?).to be true
+    end
+
+    it "permits the subject employee to view an adjustment about themselves" do
+      expect(subject.new(employee, adjustment).show?).to be true
+    end
+
+    it "permits a reviewer with view_payroll/manage_adjustments" do
+      expect(subject.new(accountant, adjustment).show?).to be true
+      expect(subject.new(super_admin, adjustment).show?).to be true
+    end
+
+    it "denies an unrelated employee with no payroll permissions" do
+      outsider = create(:user, business: business)
+      expect(subject.new(outsider, adjustment).show?).to be false
     end
   end
 
@@ -152,6 +179,16 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       scope = described_class::Scope.new(employee, PayrollAdjustment).resolve
       expect(scope).to include(my_adjustment)
       expect(scope).not_to include(other_adjustment)
+    end
+
+    it "a creator always sees adjustments they created, even for an out-of-scope employee" do
+      far_employee = create(:user, business: business)  # not in manager's branch scope
+      far_period   = create(:payroll_period, business: business, period_year: 2025, period_month: 7)
+      created_by_manager = create(:payroll_adjustment, :cash_incentive,
+        payroll_period: far_period, user: far_employee, created_by: manager)
+
+      scope = described_class::Scope.new(manager, PayrollAdjustment).resolve
+      expect(scope).to include(created_by_manager)
     end
 
     describe "branch_manager scope isolation" do

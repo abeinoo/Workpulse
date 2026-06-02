@@ -1,7 +1,7 @@
 class PayrollLineItemPolicy < ApplicationPolicy
-  def approve? = !period_locked? && can?(:approve_adjustments) && same_business_entry?
-  def reject?  = !period_locked? && can?(:approve_adjustments) && same_business_entry?
-  def waive?   = !period_locked? && can?(:approve_adjustments) && same_business_entry?
+  def approve? = reviewable_action?
+  def reject?  = reviewable_action?
+  def waive?   = reviewable_action?
 
   class Scope < ApplicationPolicy::Scope
     def resolve
@@ -23,6 +23,14 @@ class PayrollLineItemPolicy < ApplicationPolicy
   end
 
   private
+
+  # Same single approval rule as adjustments. For attendance/system items the
+  # source_creator is nil, so the creator != approver clause is vacuous and only
+  # the approve_adjustments permission is required (unchanged from before).
+  def reviewable_action?
+    !period_locked? && same_business_entry? &&
+      Payroll::AdjustmentApproval.permitted?(reviewer: user, creator: record.source_creator)
+  end
 
   def period_locked?
     record.payroll_entry&.payroll_period&.locked?

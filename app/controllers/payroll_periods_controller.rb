@@ -223,16 +223,30 @@ class PayrollPeriodsController < ApplicationController
     return redirect_to payroll_period_path(@period),
                        alert: t("flash.no_pending_items") if pending_items.empty?
 
-    entry_ids   = Set.new
-    approved    = 0
+    entry_ids = Set.new
+    approved  = 0
+    skipped   = 0
 
     ActiveRecord::Base.transaction do
       pending_items.each do |item|
+        # Adjustment-sourced items obey the single approval rule: the bulk approver
+        # must hold approve_adjustments AND must not be the adjustment's creator.
+        # Such items are skipped (not approved) when the rule is not satisfied, so a
+        # manager can never self-approve their own adjustments via "approve all".
+        # System-generated attendance items have no creator and stay gated only by
+        # approve_payroll_items (the action-level authorization above).
+        if item.adjustment_sourced? &&
+           !Payroll::AdjustmentApproval.permitted?(reviewer: current_user, creator: item.source_creator)
+          skipped += 1
+          next
+        end
+
         item.update!(
           review_status: :approved,
           reviewed_by:   current_user,
           reviewed_at:   Time.current
         )
+        item.source_adjustment&.approve_by!(current_user)
         entry_ids << item.payroll_entry_id
         approved  += 1
       end
@@ -246,11 +260,12 @@ class PayrollPeriodsController < ApplicationController
       payroll_period: @period,
       actor:          current_user,
       action_type:    :adjustment_approved,
-      metadata:       JSON.generate(bulk_approved: true, count: approved, approved_at: Time.current.iso8601)
+      metadata:       JSON.generate(bulk_approved: true, count: approved, skipped: skipped, approved_at: Time.current.iso8601)
     )
 
-    redirect_to payroll_period_path(@period),
-                notice: t("flash.all_pending_approved", count: approved)
+    notice = t("flash.all_pending_approved", count: approved)
+    notice += " #{t('flash.pending_skipped_self', count: skipped)}" if skipped.positive?
+    redirect_to payroll_period_path(@period), notice: notice
   rescue StandardError => e
     redirect_to payroll_period_path(@period), alert: e.message
   end

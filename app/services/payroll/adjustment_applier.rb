@@ -29,7 +29,10 @@ module Payroll
           description:   @adjustment.reason,
           source_type:   "PayrollAdjustment",
           source_id:     @adjustment.id,
-          review_status: "approved",
+          # Mirror the adjustment's real status — NEVER hard-code "approved".
+          # A pending adjustment yields a pending line item that does not count
+          # toward net salary until a separate approver approves it.
+          review_status: @adjustment.review_status,
           already_paid:  @adjustment.already_paid?
         )
 

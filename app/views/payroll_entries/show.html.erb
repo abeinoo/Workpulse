@@ -34,7 +34,7 @@
               new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :cash_incentive),
               class: "btn btn-sm btn-success" %>
         <%= link_to t("payroll.entry.add_btn") + " " + t("payroll.entry.manual_deductions"),
-              new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :deduction),
+              new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :manual_deduction),
               class: "btn btn-sm btn-danger btn-sm" %>
       <% end %>
     </div>
@@ -345,7 +345,7 @@
       <h2 class="section-heading" style="margin: 0;"><%= t("payroll.entry.manual_deductions") %></h2>
       <% if current_user.can?(:manage_adjustments) %>
         <%= link_to t("payroll.entry.add_btn"),
-              new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :deduction),
+              new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :manual_deduction),
               class: "btn btn-sm btn-danger" %>
       <% end %>
     </div>

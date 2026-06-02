@@ -149,7 +149,7 @@ Rails.application.routes.draw do
   end
 
   # ── Standalone Adjustments (pre-payroll, manager creates / admin approves) ─
-  resources :adjustments, only: [ :index, :new, :create, :destroy ] do
+  resources :adjustments, only: [ :index, :show, :new, :create, :destroy ] do
     member do
       patch :approve
       patch :reject

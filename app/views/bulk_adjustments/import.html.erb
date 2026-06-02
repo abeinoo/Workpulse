@@ -41,19 +41,18 @@
     <%= form_with url: preview_import_bulk_adjustments_path, method: :post,
           multipart: true, data: { controller: "file-upload" } do |f| %>
 
-      <%# Period selector %>
+      <%# Default period — applied to CSV rows that omit period_month / period_year. %>
       <div class="bulk-adj-period-row" style="margin-bottom: var(--space-5);">
         <div class="form-group">
-          <%= label_tag :period_month, t("adjustments.month"), class: "form-label" %>
-          <%= select_tag :period_month,
-                options_for_select((1..12).map { |m| [I18n.t("date.month_names")[m], m] }, @default_month),
-                class: "form-control form-control--sm" %>
-        </div>
-        <div class="form-group">
-          <%= label_tag :period_year, t("adjustments.year"), class: "form-label" %>
-          <%= select_tag :period_year,
-                options_for_select(((Date.current.year - 2)..(Date.current.year + 1)).map { |y| [y, y] }, @default_year),
-                class: "form-control form-control--sm" %>
+          <%= label_tag :period_key, t("adjustments.new.period_label"), class: "form-label form-label--required" %>
+          <%= select_tag :period_key,
+                options_for_select(@selectable_periods, @selected_period_key),
+                include_blank: t("forms.select"),
+                class: "form-control form-control--sm",
+                disabled: @selectable_periods.empty? %>
+          <% if @selectable_periods.empty? %>
+            <p class="form-hint text-warning"><%= t("adjustments.new.no_periods") %></p>
+          <% end %>
         </div>
       </div>
 

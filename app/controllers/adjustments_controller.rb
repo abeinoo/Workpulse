@@ -13,74 +13,72 @@ class AdjustmentsController < ApplicationController
                    .includes(:user, :created_by, :approved_by, :rejected_by,
                               user: { profile_photo_attachment: :blob })
 
-    # Period scope — used for summary stats (always full period, unfiltered by UI)
-    @period_scope = base_scope.for_period(filter_year, filter_month)
+    # Show ALL adjustments by default; every filter is optional and combinable.
+    filtered = base_scope
+                 .period_on_or_after(parsed_date(@filters[:date_from]))
+                 .period_on_or_before(parsed_date(@filters[:date_to]))
+                 .by_type(@filters[:adjustment_type])
+                 .by_status(@filters[:review_status])
+                 .for_user(@filters[:user_id])
+                 .then { |s|
+                   @filters[:branch_id].present? ?
+                     s.for_branch(@filters[:branch_id]) : s
+                 }
+                 .search_reason(@filters[:q])
 
-    # Last-period scope for trend comparison
-    lm = filter_month == 1 ? 12 : filter_month - 1
-    ly = filter_month == 1 ? filter_year - 1 : filter_year
-    last_period_scope = base_scope.for_period(ly, lm)
-
-    @summary = Adjustments::SummaryData.new(@period_scope, last_period_scope).call
-
-    # Apply UI filters on top of the period scope
-    @adjustments = @period_scope
-                     .by_type(@filters[:adjustment_type])
-                     .by_status(@filters[:review_status])
-                     .for_user(@filters[:user_id])
-                     .then { |s|
-                       @filters[:branch_id].present? ?
-                         s.for_branch(@filters[:branch_id]) : s
-                     }
-                     .search_reason(@filters[:q])
-                     .order(created_at: :desc)
+    # Summary reflects the current (filtered) result set. No order — SummaryData
+    # groups/aggregates and an ORDER BY would conflict with its GROUP BY.
+    @summary     = Adjustments::SummaryData.new(filtered).call
+    @adjustments = filtered.order(created_at: :desc)
 
     # Filter bar data
     @branches   = Branch.for_business(current_user.business).active.order(:name)
     @employees  = manageable_employees
 
     # Current filter state exposed for view
-    @filter_month   = filter_month
-    @filter_year    = filter_year
     @active_filters = @filters.values.any?(&:present?)
+    @default_month  = Date.current.month
+    @default_year   = Date.current.year
   end
 
+  def show
+    @adjustment = policy_scope(PayrollAdjustment)
+                    .includes(:user, :created_by, :approved_by, :rejected_by, :reviewed_by, :payroll_period)
+                    .find(params[:id])
+    authorize @adjustment
+  end
+
+  # Quick-action shortcuts pass ?adjustment_type=… so the form opens with the
+  # matching option preselected. Aliases ("deduction", "bonus") are normalised to
+  # real enum values; an absent/unknown value falls back to the form default.
+  ADJUSTMENT_TYPE_ALIASES = {
+    "deduction" => "manual_deduction",
+    "bonus"     => "cash_incentive",
+    "incentive" => "cash_incentive"
+  }.freeze
+
   def new
-    @adjustment = PayrollAdjustment.new(
-      period_month: target_month,
-      period_year:  target_year,
-      business:     current_user.business
-    )
+    @adjustment = PayrollAdjustment.new(business: current_user.business)
+    @adjustment.adjustment_type = preselected_adjustment_type
     authorize @adjustment
     load_form_data
   end
 
   def create
     @adjustment = PayrollAdjustment.new(adjustment_params)
+    assign_period(@adjustment)
     @adjustment.business   = current_user.business
     @adjustment.created_by = current_user
-    @adjustment.review_status = if @adjustment.already_paid?
-                                  "approved"
-                                elsif current_user.can?(:manage_adjustments)
-                                  "approved"
-                                else
-                                  "pending_review"
-                                end
-
-    if @adjustment.review_status == "approved"
-      @adjustment.approved_by = current_user
-      @adjustment.approved_at = Time.current
-      @adjustment.reviewed_by = current_user
-      @adjustment.reviewed_at = Time.current
-    end
+    # Creation never approves. Adjustments always start Pending and require a
+    # separate approver (see creator_is_not_approver / PayrollAdjustmentPolicy).
+    @adjustment.review_status = "pending_review"
 
     authorize @adjustment
 
     if @adjustment.save
-      msg = current_user.can?(:manage_adjustments) ? t("flash.adjustment_approved") : t("flash.request_submitted")
       redirect_to adjustments_path(period_month: @adjustment.period_month,
                                    period_year:  @adjustment.period_year),
-                  notice: msg
+                  notice: t("flash.request_submitted")
     else
       load_form_data
       render :new, status: :unprocessable_entity
@@ -90,13 +88,7 @@ class AdjustmentsController < ApplicationController
   def approve
     authorize @adjustment
 
-    @adjustment.update!(
-      review_status: "approved",
-      approved_by:   current_user,
-      approved_at:   Time.current,
-      reviewed_by:   current_user,
-      reviewed_at:   Time.current
-    )
+    @adjustment.approve_by!(current_user)
 
     redirect_back fallback_location: adjustments_path, notice: t("flash.adjustment_approved")
   rescue => e
@@ -106,14 +98,7 @@ class AdjustmentsController < ApplicationController
   def reject
     authorize @adjustment
 
-    @adjustment.update!(
-      review_status: "rejected",
-      rejected_by:   current_user,
-      rejected_at:   Time.current,
-      reviewed_by:   current_user,
-      reviewed_at:   Time.current,
-      review_notes:  params[:review_notes]
-    )
+    @adjustment.reject_by!(current_user, notes: params[:review_notes])
 
     redirect_back fallback_location: adjustments_path, notice: t("flash.adjustment_rejected")
   rescue => e
@@ -136,13 +121,23 @@ class AdjustmentsController < ApplicationController
   end
 
   def load_form_data
-    @employees    = manageable_employees
-    @period_month = @adjustment.period_month || target_month
-    @period_year  = @adjustment.period_year  || target_year
+    @employees           = manageable_employees
+    @selectable_periods  = Adjustments::SelectablePeriods.new(current_user.business).options
+    @selected_period_key = selected_period_key
   end
 
   def manageable_employees
     EmployeeScope.new(current_user).relation.active.order(:first_name, :last_name)
+  end
+
+  # Resolves the ?adjustment_type=… param to a valid, writable adjustment type,
+  # or nil when absent/unrecognised (preserving the form's default behaviour).
+  def preselected_adjustment_type
+    raw = params[:adjustment_type].presence
+    return nil unless raw
+
+    normalized = ADJUSTMENT_TYPE_ALIASES.fetch(raw, raw)
+    normalized if PayrollAdjustment::ADJUSTMENT_TYPES.include?(normalized)
   end
 
   def adjustment_params
@@ -152,23 +147,37 @@ class AdjustmentsController < ApplicationController
                   :already_paid, :payment_method, :paid_at)
   end
 
+  # The new form posts the target period as a single "YYYY-M" select value.
+  # Manual creation must explicitly pick a period — there is no silent fallback
+  # to the current month.
+  def assign_period(adjustment)
+    key = params.dig(:payroll_adjustment, :period_key).presence
+    return unless key && key =~ /\A(\d{4})-(\d{1,2})\z/
+
+    adjustment.period_year  = Regexp.last_match(1).to_i
+    adjustment.period_month = Regexp.last_match(2).to_i
+  end
+
+  # Pre-selected period for the form: an explicit param wins, otherwise the first
+  # open period offered by the dropdown (or nil → user must choose).
+  def selected_period_key
+    if params[:period_year].present? && params[:period_month].present?
+      "#{params[:period_year].to_i}-#{params[:period_month].to_i}"
+    else
+      @selectable_periods.first&.last
+    end
+  end
+
   def filter_params
-    params.permit(:adjustment_type, :review_status, :user_id, :branch_id, :q)
+    params.permit(:adjustment_type, :review_status, :user_id, :branch_id, :q,
+                  :date_from, :date_to)
   end
 
-  def filter_month
-    params[:period_month]&.to_i.presence || Date.current.month
-  end
+  def parsed_date(value)
+    return nil if value.blank?
 
-  def filter_year
-    params[:period_year]&.to_i.presence || Date.current.year
-  end
-
-  def target_month
-    params[:period_month]&.to_i.presence || Date.current.month
-  end
-
-  def target_year
-    params[:period_year]&.to_i.presence || Date.current.year
+    Date.parse(value.to_s)
+  rescue ArgumentError
+    nil
   end
 end

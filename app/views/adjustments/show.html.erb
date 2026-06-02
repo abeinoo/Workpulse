@@ -1,0 +1,217 @@
+<% content_for :title, t("adjustments.show.page_title", id: @adjustment.id) %>
+
+<% reviewer = @adjustment.approved_by || @adjustment.rejected_by || @adjustment.reviewed_by %>
+
+<div class="adj-show">
+  <%= link_to adjustments_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    <%= t("adjustments.show.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <div class="adj-show__heading">
+      <h1 class="page-title"><%= t("adjustments.show.title", id: @adjustment.id) %></h1>
+      <span class="badge <%= adjustment_status_badge_class(@adjustment) %>">
+        <%= t("payroll.entry.review_statuses.#{@adjustment.review_status}") %>
+      </span>
+    </div>
+    <div class="page-header__actions">
+      <% if @adjustment.pending_review? && policy(@adjustment).approve? %>
+        <%= button_to t("adjustments.approve"), approve_adjustment_path(@adjustment),
+              method: :patch, class: "btn btn-sm btn-success",
+              data: { turbo_confirm: t("adjustments.approve_confirm") } %>
+        <%= button_to t("adjustments.reject"), reject_adjustment_path(@adjustment),
+              method: :patch, class: "btn btn-sm btn-danger",
+              data: { turbo_confirm: t("adjustments.reject_confirm") } %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Approved/rejected adjustments are immutable — surface that clearly. %>
+  <% unless @adjustment.pending_review? %>
+    <div class="alert alert-info adj-show__locked">
+      <%= t("adjustments.show.locked_notice",
+            status: t("payroll.entry.review_statuses.#{@adjustment.review_status}").downcase) %>
+    </div>
+  <% end %>
+
+  <div class="adj-show__grid">
+    <%# ── Details ─────────────────────────────────────────────────────────── %>
+    <section class="card adj-show__details">
+      <h2 class="adj-section-title"><%= t("adjustments.show.details_heading") %></h2>
+      <dl class="detail-list">
+        <div class="detail-list__row">
+          <dt><%= t("adjustments.id") %></dt>
+          <dd>#<%= @adjustment.id %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("adjustments.employee") %></dt>
+          <dd>
+            <div class="employee-cell">
+              <%= user_avatar_tag(@adjustment.user, size: :thumb) %>
+              <span><%= @adjustment.user.full_name %></span>
+            </div>
+          </dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("adjustments.type") %></dt>
+          <dd>
+            <span class="adj-type-badge adj-type-badge--<%= @adjustment.adjustment_type.tr('_', '-') %>">
+              <%= adj_type_icon(@adjustment.adjustment_type) %>
+              <%= t("adjustments.types.#{@adjustment.adjustment_type}") %>
+            </span>
+          </dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("adjustments.amount") %></dt>
+          <dd>
+            <span class="adj-amount <%= @adjustment.positive? ? 'adj-amount--positive' : 'adj-amount--negative' %>">
+              <%= @adjustment.positive? ? "+" : "−" %><%= format_currency(@adjustment.amount) %>
+            </span>
+          </dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("adjustments.payroll_period") %></dt>
+          <dd><%= I18n.t("date.month_names")[@adjustment.period_month] %> <%= @adjustment.period_year %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("adjustments.status") %></dt>
+          <dd>
+            <span class="badge <%= adjustment_status_badge_class(@adjustment) %>">
+              <%= t("payroll.entry.review_statuses.#{@adjustment.review_status}") %>
+            </span>
+          </dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("adjustments.created_by") %></dt>
+          <dd><%= @adjustment.created_by.full_name %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("adjustments.created_at") %></dt>
+          <dd><%= l(@adjustment.created_at, format: :long) %></dd>
+        </div>
+
+        <% if @adjustment.approved? %>
+          <div class="detail-list__row">
+            <dt><%= t("adjustments.show.approved_by") %></dt>
+            <dd><%= @adjustment.approved_by&.full_name || t("adjustments.show.none") %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("adjustments.show.approval_date") %></dt>
+            <dd><%= @adjustment.approved_at ? l(@adjustment.approved_at, format: :long) : t("adjustments.show.none") %></dd>
+          </div>
+        <% elsif @adjustment.rejected? %>
+          <div class="detail-list__row">
+            <dt><%= t("adjustments.show.rejected_by") %></dt>
+            <dd><%= @adjustment.rejected_by&.full_name || t("adjustments.show.none") %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("adjustments.show.rejection_date") %></dt>
+            <dd><%= @adjustment.rejected_at ? l(@adjustment.rejected_at, format: :long) : t("adjustments.show.none") %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("adjustments.show.rejection_reason") %></dt>
+            <dd><%= @adjustment.review_notes.presence || t("adjustments.show.none") %></dd>
+          </div>
+        <% end %>
+
+        <div class="detail-list__row detail-list__row--full">
+          <dt><%= t("adjustments.show.notes") %></dt>
+          <dd><%= @adjustment.reason.presence || t("adjustments.show.none") %></dd>
+        </div>
+      </dl>
+    </section>
+
+    <%# ── Audit timeline ──────────────────────────────────────────────────── %>
+    <section class="card adj-show__timeline">
+      <h2 class="adj-section-title"><%= t("adjustments.show.timeline.heading") %></h2>
+      <ol class="adj-timeline">
+        <li class="adj-timeline__item adj-timeline__item--done">
+          <span class="adj-timeline__dot"></span>
+          <div class="adj-timeline__body">
+            <div class="adj-timeline__title"><%= t("adjustments.show.timeline.created") %></div>
+            <div class="adj-timeline__meta">
+              <%= t("adjustments.show.timeline.by", name: @adjustment.created_by.full_name) %>
+              · <%= l(@adjustment.created_at, format: :long) %>
+            </div>
+          </div>
+        </li>
+
+        <li class="adj-timeline__item adj-timeline__item--done">
+          <span class="adj-timeline__dot"></span>
+          <div class="adj-timeline__body">
+            <div class="adj-timeline__title"><%= t("adjustments.show.timeline.submitted") %></div>
+            <div class="adj-timeline__meta">
+              <%= t("adjustments.show.timeline.by", name: @adjustment.created_by.full_name) %>
+              · <%= l(@adjustment.created_at, format: :long) %>
+            </div>
+          </div>
+        </li>
+
+        <% if @adjustment.approved? %>
+          <li class="adj-timeline__item adj-timeline__item--approved">
+            <span class="adj-timeline__dot"></span>
+            <div class="adj-timeline__body">
+              <div class="adj-timeline__title"><%= t("adjustments.show.timeline.approved") %></div>
+              <div class="adj-timeline__meta">
+                <%= t("adjustments.show.timeline.by", name: (@adjustment.approved_by&.full_name || t("adjustments.show.none"))) %>
+                <% if @adjustment.approved_at %> · <%= l(@adjustment.approved_at, format: :long) %><% end %>
+              </div>
+            </div>
+          </li>
+        <% elsif @adjustment.rejected? %>
+          <li class="adj-timeline__item adj-timeline__item--rejected">
+            <span class="adj-timeline__dot"></span>
+            <div class="adj-timeline__body">
+              <div class="adj-timeline__title"><%= t("adjustments.show.timeline.rejected") %></div>
+              <div class="adj-timeline__meta">
+                <%= t("adjustments.show.timeline.by", name: (@adjustment.rejected_by&.full_name || t("adjustments.show.none"))) %>
+                <% if @adjustment.rejected_at %> · <%= l(@adjustment.rejected_at, format: :long) %><% end %>
+              </div>
+              <% if @adjustment.review_notes.present? %>
+                <div class="adj-timeline__note"><%= @adjustment.review_notes %></div>
+              <% end %>
+            </div>
+          </li>
+        <% else %>
+          <li class="adj-timeline__item adj-timeline__item--pending">
+            <span class="adj-timeline__dot"></span>
+            <div class="adj-timeline__body">
+              <div class="adj-timeline__title"><%= t("adjustments.show.timeline.pending") %></div>
+            </div>
+          </li>
+        <% end %>
+      </ol>
+    </section>
+  </div>
+</div>
+
+<style>
+  .adj-show__heading { display: flex; align-items: center; gap: var(--space-3); }
+  .adj-show__locked { margin-bottom: var(--space-4); }
+  .adj-show__grid { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-5); align-items: start; }
+  @media (max-width: 800px) { .adj-show__grid { grid-template-columns: 1fr; } }
+  .detail-list { display: flex; flex-direction: column; }
+  .detail-list__row { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-3);
+    padding: var(--space-3) 0; border-bottom: 1px solid var(--border-1); }
+  .detail-list__row:last-child { border-bottom: 0; }
+  .detail-list__row dt { color: var(--text-2); font-size: 0.85rem; }
+  .detail-list__row dd { margin: 0; }
+  .adj-timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+  .adj-timeline__item { position: relative; padding: 0 0 var(--space-4) var(--space-5); }
+  .adj-timeline__item:not(:last-child)::before { content: ""; position: absolute; left: 5px; top: 14px;
+    bottom: -4px; width: 2px; background: var(--border-1); }
+  .adj-timeline__dot { position: absolute; left: 0; top: 4px; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--text-3); border: 2px solid var(--bg-1); }
+  .adj-timeline__item--done .adj-timeline__dot { background: var(--text-2); }
+  .adj-timeline__item--approved .adj-timeline__dot { background: var(--success, #16a34a); }
+  .adj-timeline__item--rejected .adj-timeline__dot { background: var(--danger, #dc2626); }
+  .adj-timeline__item--pending .adj-timeline__dot { background: var(--warning, #d97706); }
+  .adj-timeline__title { font-weight: 600; font-size: 0.9rem; }
+  .adj-timeline__meta { color: var(--text-2); font-size: 0.8rem; margin-top: 2px; }
+  .adj-timeline__note { margin-top: var(--space-2); font-size: 0.82rem; color: var(--text-2);
+    background: var(--bg-2); padding: var(--space-2); border-radius: var(--radius-1); }
+</style>
