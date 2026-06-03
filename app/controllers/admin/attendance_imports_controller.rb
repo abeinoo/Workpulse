@@ -1,7 +1,7 @@
 require "csv"
 
 class Admin::AttendanceImportsController < Admin::BaseController
-  before_action :set_import, only: [ :show, :confirm, :failed_rows ]
+  before_action :set_import, only: [ :show, :confirm, :cancel, :failed_rows ]
 
   def new
     authorize AttendanceImportLog
@@ -64,6 +64,22 @@ class Admin::AttendanceImportsController < Admin::BaseController
     redirect_to admin_attendance_import_path(@import),
                 notice: t("attendance_imports.flash.confirmed",
                           count: @import.reload.imported_rows)
+  end
+
+  # Discards a staged (pending) import without creating any attendance records.
+  # The preview was persisted on upload; cancelling deletes that staged log so
+  # nothing can be confirmed later. Completed/failed imports are immutable.
+  def cancel
+    authorize @import
+
+    unless @import.pending?
+      redirect_to admin_attendance_import_path(@import),
+                  alert: t("attendance_imports.flash.cannot_cancel") and return
+    end
+
+    @import.destroy!
+    redirect_to new_admin_attendance_import_path,
+                notice: t("attendance_imports.flash.cancelled")
   end
 
   def failed_rows

@@ -42,6 +42,8 @@
             <td class="td-secondary">
               <% if req.salary_advance? && req.amount.present? %>
                 <%= format_currency(req.amount, precision: 0) %>
+              <% elsif (req.late_permission? || req.early_leave?) && req.duration_minutes.present? %>
+                <%= t("requests.show.minutes_value", count: req.duration_minutes) %>
               <% else %>
                 —
               <% end %>
@@ -53,16 +55,17 @@
             </td>
             <td class="td-actions">
               <% if req.pending? && policy(req).approve? %>
-                <%= button_to t("requests.approve"),
-                      approve_employee_request_path(req),
-                      method: :patch,
-                      class: "btn btn-sm btn-success",
-                      data: { turbo_confirm: t("requests.confirm_approve") } %>
-                <%= button_to t("requests.reject"),
-                      reject_employee_request_path(req),
-                      method: :patch,
-                      class: "btn btn-sm btn-danger",
-                      data: { turbo_confirm: t("requests.confirm_reject") } %>
+                <% unless req.punch_correction? %>
+                  <%= button_to t("requests.approve"),
+                        approve_employee_request_path(req),
+                        method: :patch,
+                        class: "btn btn-sm btn-success",
+                        data: { turbo_confirm: t("requests.confirm_approve") } %>
+                <% end %>
+                <%# Reject requires a reason — handled on the detail page %>
+                <%= link_to t("requests.reject"),
+                      employee_request_path(req),
+                      class: "btn btn-sm btn-danger" %>
               <% end %>
               <% if req.salary_advance? && req.approved? && policy(req).pay? %>
                 <%= button_to t("requests.pay"),

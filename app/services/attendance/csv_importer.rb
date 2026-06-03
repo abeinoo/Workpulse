@@ -244,33 +244,11 @@ module Attendance
     def regenerate_affected_payrolls(affected_months, triggered_by:)
       return if affected_months.empty?
 
-      affected_months.each do |year, month|
-        begin
-          period = PayrollPeriod.find_by(
-            business:     @business,
-            period_year:  year,
-            period_month: month,
-            status:       "draft"
-          )
-          next unless period
-
-          Payroll::PeriodGenerator.call(
-            business:     @business,
-            year:         year,
-            month:        month,
-            generated_by: triggered_by
-          )
-          Rails.logger.info(
-            "[CsvImporter] Regenerated payroll #{year}/#{month} for business=#{@business.id}"
-          )
-        rescue => e
-          # Payroll regeneration errors must never roll back a successful attendance import.
-          Rails.logger.warn(
-            "[CsvImporter] Payroll regeneration failed #{year}/#{month} " \
-            "business=#{@business.id}: #{e.class}: #{e.message}"
-          )
-        end
-      end
+      Payroll::DraftRegenerator.call(
+        business:     @business,
+        months:       affected_months,
+        triggered_by: triggered_by
+      )
     end
 
     # ── Punch-pairing ─────────────────────────────────────────────────────────

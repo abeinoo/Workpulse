@@ -80,6 +80,18 @@
         <span><%= @record.branch.name %></span>
       </div>
     <% end %>
+    <% if @record.created_by %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance.records.created_by") %></span>
+        <span title="<%= local_datetime(@record.created_at) %>"><%= @record.created_by.full_name %></span>
+      </div>
+    <% end %>
+    <% if @record.updated_by %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance.records.updated_by") %></span>
+        <span title="<%= local_datetime(@record.updated_at) %>"><%= @record.updated_by.full_name %></span>
+      </div>
+    <% end %>
   </div>
 
   <% if policy(@record).update? %>

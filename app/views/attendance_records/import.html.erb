@@ -1,0 +1,69 @@
+<% content_for :title, t("attendance.manual.import.page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <%= link_to attendance_records_path, class: "back-link" do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        <%= t("attendance.manual.back") %>
+      <% end %>
+      <h1 class="page-title"><%= t("attendance.manual.import.title") %></h1>
+      <p class="page-subtitle"><%= t("attendance.manual.import.subtitle") %></p>
+    </div>
+    <%= link_to t("attendance.manual.import.download_template"),
+          import_template_attendance_records_path, class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <div class="form-card">
+    <%# turbo:false — preview_import renders a 200 page (not a redirect); Turbo Drive
+        ignores non-redirect responses to form POSTs, so use a classic submit. %>
+    <%= form_with url: preview_import_attendance_records_path, method: :post,
+                  multipart: true, data: { controller: "file-upload", turbo: false } do |f| %>
+
+      <div class="file-upload-area"
+           data-file-upload-target="dropzone"
+           data-action="dragover->file-upload#dragover dragleave->file-upload#dragleave drop->file-upload#drop">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true" class="import-upload-icon">
+          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+        </svg>
+        <p class="file-upload-area__hint"><%= t("attendance.manual.import.drag_hint") %></p>
+        <p class="file-upload-area__filename" data-file-upload-target="label">
+          <%= t("attendance.manual.import.no_file_selected") %>
+        </p>
+        <label class="btn btn-ghost btn-sm import-browse-label">
+          <%= t("attendance.manual.import.browse") %>
+          <%= f.file_field :csv_file, accept: ".csv,text/csv",
+                class: "visually-hidden",
+                data: { file_upload_target: "input", action: "change->file-upload#pick" } %>
+        </label>
+      </div>
+
+      <div class="info-card import-info-card">
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance.manual.import.required_columns") %></span>
+          <code>employee_code, work_date, check_in</code>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance.manual.import.optional_columns") %></span>
+          <code>check_out, notes</code>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance.manual.import.formats") %></span>
+          <span class="td-secondary"><code>YYYY-MM-DD</code> · <code>HH:MM</code></span>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("attendance.manual.import.identifier") %></span>
+          <span class="td-secondary"><%= t("attendance.manual.import.identifier_hint") %></span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <%= f.submit t("attendance.manual.import.preview_btn"), class: "btn btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

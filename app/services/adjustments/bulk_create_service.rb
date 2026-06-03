@@ -2,6 +2,12 @@ module Adjustments
   # Validates and saves multiple PayrollAdjustment rows in a single transaction.
   # On any validation failure the whole batch is rejected (no partial saves).
   # All saved records share the same bulk_batch_id UUID for audit purposes.
+  #
+  # Security: every submitted user_id is validated against `allowed_user_ids`
+  # (the creator's scoped employee set) server-side before processing. This is the
+  # authoritative scope guard — it never trusts that the picker or CSV preview was
+  # filtered, so a hand-crafted POST with an out-of-scope user_id is rejected.
+  # `allowed_user_ids` is required precisely so a caller cannot silently bypass it.
   class BulkCreateService
     RowError = Struct.new(:index, :messages, keyword_init: true)
 
@@ -15,11 +21,12 @@ module Adjustments
 
     EMPTY_RESULT = Result.new(success: false, count: 0, batch_id: nil, row_errors: []).freeze
 
-    def initialize(rows:, business:, created_by:, import_source: "manual")
-      @rows          = Array(rows).reject { |r| row_blank?(r) }
-      @business      = business
-      @created_by    = created_by
-      @import_source = import_source
+    def initialize(rows:, business:, created_by:, allowed_user_ids:, import_source: "manual")
+      @rows             = Array(rows).reject { |r| row_blank?(r) }
+      @business         = business
+      @created_by       = created_by
+      @allowed_user_ids = Array(allowed_user_ids).map(&:to_i).to_set
+      @import_source    = import_source
     end
 
     def call
@@ -71,10 +78,22 @@ module Adjustments
 
     def collect_errors(adjustments)
       adjustments.filter_map.with_index do |adj, idx|
-        next if adj.valid?
-        row_idx = adj.instance_variable_get(:@_row_index) || idx
-        RowError.new(index: row_idx, messages: adj.errors.full_messages)
+        row_idx  = adj.instance_variable_get(:@_row_index) || idx
+        messages = []
+        # Scope guard first: an out-of-scope (or missing) user_id is rejected
+        # regardless of what the picker/CSV preview showed.
+        if !in_scope?(adj.user_id)
+          messages << I18n.t("bulk_adjustments.errors.out_of_scope")
+        elsif !adj.valid?
+          messages.concat(adj.errors.full_messages)
+        end
+        next if messages.empty?
+        RowError.new(index: row_idx, messages: messages)
       end
+    end
+
+    def in_scope?(user_id)
+      user_id.present? && @allowed_user_ids.include?(user_id.to_i)
     end
 
     def row_blank?(row)

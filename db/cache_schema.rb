@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_03_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -96,19 +96,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
     t.decimal "check_out_longitude", precision: 11, scale: 8
     t.string "check_out_source"
     t.datetime "created_at", null: false
+    t.integer "created_by_id"
     t.date "date", null: false
     t.integer "early_leave_minutes", default: 0, null: false
     t.integer "late_minutes", default: 0, null: false
     t.integer "shift_assignment_id"
     t.string "status", default: "incomplete", null: false
     t.datetime "updated_at", null: false
+    t.integer "updated_by_id"
     t.integer "user_id", null: false
     t.date "work_date", null: false
     t.integer "worked_minutes"
     t.index ["branch_id", "date"], name: "index_attendance_records_on_branch_id_and_date"
     t.index ["branch_id"], name: "index_attendance_records_on_branch_id"
     t.index ["check_in_source"], name: "index_attendance_records_on_check_in_source"
+    t.index ["created_by_id"], name: "index_attendance_records_on_created_by_id"
     t.index ["shift_assignment_id"], name: "index_attendance_records_on_shift_assignment_id"
+    t.index ["updated_by_id"], name: "index_attendance_records_on_updated_by_id"
     t.index ["user_id", "status"], name: "idx_att_records_user_status"
     t.index ["user_id", "status"], name: "index_attendance_records_on_user_id_and_status"
     t.index ["user_id", "work_date"], name: "idx_att_records_user_date"
@@ -193,6 +197,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
     t.index ["business_id"], name: "index_branches_on_business_id"
   end
 
+  create_table "brands", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((name)::text)", name: "index_brands_on_business_id_and_lower_name", unique: true
+    t.index ["business_id"], name: "index_brands_on_business_id"
+  end
+
   create_table "businesses", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.integer "business_day_start_hour", default: 6, null: false
@@ -251,6 +264,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
     t.integer "duration_minutes"
     t.datetime "original_check_in_at"
     t.datetime "original_check_out_at"
+    t.date "proposed_date"
     t.string "proposed_time"
     t.text "reason", null: false
     t.string "request_type", null: false
@@ -264,6 +278,60 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
     t.index ["reviewed_by_id"], name: "index_employee_requests_on_reviewed_by_id"
     t.index ["user_id", "request_type", "requested_for_date"], name: "idx_on_user_id_request_type_requested_for_date_bed206bfdf"
     t.index ["user_id"], name: "index_employee_requests_on_user_id"
+  end
+
+  create_table "goods_receipt_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "goods_receipt_id", null: false
+    t.bigint "product_id", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost", precision: 12, scale: 4, null: false
+    t.datetime "updated_at", null: false
+    t.index ["goods_receipt_id"], name: "index_goods_receipt_items_on_goods_receipt_id"
+    t.index ["product_id"], name: "index_goods_receipt_items_on_product_id"
+  end
+
+  create_table "goods_receipts", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.text "notes"
+    t.string "receipt_number", null: false
+    t.date "received_on", null: false
+    t.bigint "supplier_id"
+    t.datetime "updated_at", null: false
+    t.text "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.bigint "warehouse_id", null: false
+    t.index ["business_id", "receipt_number"], name: "index_goods_receipts_on_business_id_and_receipt_number", unique: true
+    t.index ["business_id"], name: "index_goods_receipts_on_business_id"
+    t.index ["created_by_id"], name: "index_goods_receipts_on_created_by_id"
+    t.index ["supplier_id"], name: "index_goods_receipts_on_supplier_id"
+    t.index ["voided_by_id"], name: "index_goods_receipts_on_voided_by_id"
+    t.index ["warehouse_id"], name: "index_goods_receipts_on_warehouse_id"
+  end
+
+  create_table "inventory_movements", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "direction", null: false
+    t.date "occurred_on", null: false
+    t.bigint "product_id", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.string "reason", null: false
+    t.bigint "source_id"
+    t.string "source_type"
+    t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "warehouse_id", null: false
+    t.index ["business_id", "occurred_on"], name: "index_inventory_movements_on_business_id_and_occurred_on"
+    t.index ["business_id"], name: "index_inventory_movements_on_business_id"
+    t.index ["product_id", "warehouse_id"], name: "index_inventory_movements_on_product_id_and_warehouse_id"
+    t.index ["product_id"], name: "index_inventory_movements_on_product_id"
+    t.index ["source_type", "source_id"], name: "index_inventory_movements_on_source"
+    t.index ["warehouse_id"], name: "index_inventory_movements_on_warehouse_id"
   end
 
   create_table "notifications", force: :cascade do |t|
@@ -475,6 +543,52 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
     t.datetime "updated_at", null: false
     t.index ["business_id", "name"], name: "index_permission_roles_on_business_id_and_name", unique: true
     t.index ["business_id"], name: "index_permission_roles_on_business_id"
+  end
+
+  create_table "product_categories", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((name)::text)", name: "index_product_categories_on_business_id_and_lower_name", unique: true
+    t.index ["business_id"], name: "index_product_categories_on_business_id"
+  end
+
+  create_table "product_warehouse_settings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "low_stock_level", precision: 12, scale: 3, default: "0.0", null: false
+    t.bigint "product_id", null: false
+    t.decimal "reorder_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "warehouse_id", null: false
+    t.index ["product_id", "warehouse_id"], name: "idx_on_product_id_warehouse_id_c543ed27c8", unique: true
+    t.index ["product_id"], name: "index_product_warehouse_settings_on_product_id"
+    t.index ["warehouse_id"], name: "index_product_warehouse_settings_on_warehouse_id"
+  end
+
+  create_table "products", force: :cascade do |t|
+    t.decimal "average_cost_price", precision: 12, scale: 4, default: "0.0", null: false
+    t.string "barcode"
+    t.bigint "brand_id"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "default_supplier_id"
+    t.decimal "initial_cost_price", precision: 12, scale: 4, default: "0.0", null: false
+    t.decimal "last_purchase_price", precision: 12, scale: 4
+    t.decimal "low_stock_level", precision: 12, scale: 3, default: "0.0", null: false
+    t.string "name", null: false
+    t.text "notes"
+    t.bigint "product_category_id"
+    t.decimal "reorder_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "selling_markup_percentage", precision: 8, scale: 2, default: "0.0", null: false
+    t.string "sku", null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((barcode)::text)", name: "index_products_on_business_id_and_lower_barcode", unique: true, where: "((barcode IS NOT NULL) AND ((barcode)::text <> ''::text))"
+    t.index "business_id, lower((sku)::text)", name: "index_products_on_business_id_and_lower_sku", unique: true
+    t.index ["brand_id"], name: "index_products_on_brand_id"
+    t.index ["business_id"], name: "index_products_on_business_id"
+    t.index ["default_supplier_id"], name: "index_products_on_default_supplier_id"
+    t.index ["product_category_id"], name: "index_products_on_product_category_id"
   end
 
   create_table "salary_profiles", force: :cascade do |t|
@@ -724,6 +838,151 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
+  create_table "stock_adjustment_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "product_id", null: false
+    t.decimal "quantity_difference", precision: 12, scale: 3, null: false
+    t.bigint "stock_adjustment_id", null: false
+    t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_stock_adjustment_items_on_product_id"
+    t.index ["stock_adjustment_id"], name: "index_stock_adjustment_items_on_stock_adjustment_id"
+  end
+
+  create_table "stock_adjustments", force: :cascade do |t|
+    t.date "adjusted_on", null: false
+    t.string "adjustment_number", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.text "notes"
+    t.string "reason", null: false
+    t.datetime "updated_at", null: false
+    t.text "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.bigint "warehouse_id", null: false
+    t.index ["business_id", "adjustment_number"], name: "index_stock_adjustments_on_business_id_and_adjustment_number", unique: true
+    t.index ["business_id"], name: "index_stock_adjustments_on_business_id"
+    t.index ["created_by_id"], name: "index_stock_adjustments_on_created_by_id"
+    t.index ["voided_by_id"], name: "index_stock_adjustments_on_voided_by_id"
+    t.index ["warehouse_id"], name: "index_stock_adjustments_on_warehouse_id"
+  end
+
+  create_table "stock_count_items", force: :cascade do |t|
+    t.decimal "counted_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.decimal "difference", precision: 12, scale: 3, default: "0.0", null: false
+    t.bigint "product_id", null: false
+    t.bigint "stock_count_id", null: false
+    t.decimal "system_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_stock_count_items_on_product_id"
+    t.index ["stock_count_id", "product_id"], name: "index_stock_count_items_on_stock_count_id_and_product_id", unique: true
+    t.index ["stock_count_id"], name: "index_stock_count_items_on_stock_count_id"
+  end
+
+  create_table "stock_counts", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "count_number", null: false
+    t.date "counted_on", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.text "notes"
+    t.datetime "posted_at"
+    t.bigint "posted_by_id"
+    t.string "status", default: "draft", null: false
+    t.bigint "stock_adjustment_id"
+    t.datetime "updated_at", null: false
+    t.bigint "warehouse_id", null: false
+    t.index ["business_id", "count_number"], name: "index_stock_counts_on_business_id_and_count_number", unique: true
+    t.index ["business_id"], name: "index_stock_counts_on_business_id"
+    t.index ["created_by_id"], name: "index_stock_counts_on_created_by_id"
+    t.index ["posted_by_id"], name: "index_stock_counts_on_posted_by_id"
+    t.index ["stock_adjustment_id"], name: "index_stock_counts_on_stock_adjustment_id"
+    t.index ["warehouse_id"], name: "index_stock_counts_on_warehouse_id"
+  end
+
+  create_table "stock_issue_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "product_id", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.bigint "stock_issue_id", null: false
+    t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_stock_issue_items_on_product_id"
+    t.index ["stock_issue_id"], name: "index_stock_issue_items_on_stock_issue_id"
+  end
+
+  create_table "stock_issues", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.string "issue_number", null: false
+    t.date "issued_on", null: false
+    t.text "notes"
+    t.datetime "updated_at", null: false
+    t.text "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.bigint "warehouse_id", null: false
+    t.index ["business_id", "issue_number"], name: "index_stock_issues_on_business_id_and_issue_number", unique: true
+    t.index ["business_id"], name: "index_stock_issues_on_business_id"
+    t.index ["created_by_id"], name: "index_stock_issues_on_created_by_id"
+    t.index ["voided_by_id"], name: "index_stock_issues_on_voided_by_id"
+    t.index ["warehouse_id"], name: "index_stock_issues_on_warehouse_id"
+  end
+
+  create_table "stock_transfer_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "product_id", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.bigint "stock_transfer_id", null: false
+    t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_stock_transfer_items_on_product_id"
+    t.index ["stock_transfer_id"], name: "index_stock_transfer_items_on_stock_transfer_id"
+  end
+
+  create_table "stock_transfers", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.bigint "destination_warehouse_id", null: false
+    t.text "notes"
+    t.bigint "source_warehouse_id", null: false
+    t.string "transfer_number", null: false
+    t.date "transferred_on", null: false
+    t.datetime "updated_at", null: false
+    t.text "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.index ["business_id", "transfer_number"], name: "index_stock_transfers_on_business_id_and_transfer_number", unique: true
+    t.index ["business_id"], name: "index_stock_transfers_on_business_id"
+    t.index ["created_by_id"], name: "index_stock_transfers_on_created_by_id"
+    t.index ["destination_warehouse_id"], name: "index_stock_transfers_on_destination_warehouse_id"
+    t.index ["source_warehouse_id"], name: "index_stock_transfers_on_source_warehouse_id"
+    t.index ["voided_by_id"], name: "index_stock_transfers_on_voided_by_id"
+  end
+
+  create_table "suppliers", force: :cascade do |t|
+    t.text "address"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.decimal "latitude", precision: 10, scale: 6
+    t.decimal "longitude", precision: 10, scale: 6
+    t.string "name", null: false
+    t.text "notes"
+    t.string "primary_mobile"
+    t.string "secondary_mobile"
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_suppliers_on_business_id_and_name"
+    t.index ["business_id"], name: "index_suppliers_on_business_id"
+  end
+
   create_table "user_audit_logs", force: :cascade do |t|
     t.string "action", null: false
     t.bigint "actor_id", null: false
@@ -789,6 +1048,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  create_table "warehouse_assignments", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "warehouse_id", null: false
+    t.index ["user_id", "warehouse_id"], name: "index_warehouse_assignments_on_user_id_and_warehouse_id", unique: true
+    t.index ["user_id"], name: "index_warehouse_assignments_on_user_id"
+    t.index ["warehouse_id"], name: "index_warehouse_assignments_on_warehouse_id"
+  end
+
+  create_table "warehouses", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_warehouses_on_business_id_and_name"
+    t.index ["business_id"], name: "index_warehouses_on_business_id"
+  end
+
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "advances", "employee_requests"
@@ -810,12 +1090,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
   add_foreign_key "branches", "businesses"
   add_foreign_key "branches", "users", column: "area_manager_id"
   add_foreign_key "branches", "users", column: "branch_manager_id"
+  add_foreign_key "brands", "businesses"
   add_foreign_key "businesses", "users", column: "owner_id"
   add_foreign_key "employee_obligations", "businesses"
   add_foreign_key "employee_obligations", "users"
   add_foreign_key "employee_obligations", "users", column: "created_by_id"
   add_foreign_key "employee_requests", "users"
   add_foreign_key "employee_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "goods_receipt_items", "goods_receipts"
+  add_foreign_key "goods_receipt_items", "products"
+  add_foreign_key "goods_receipts", "businesses"
+  add_foreign_key "goods_receipts", "suppliers"
+  add_foreign_key "goods_receipts", "users", column: "created_by_id"
+  add_foreign_key "goods_receipts", "users", column: "voided_by_id"
+  add_foreign_key "goods_receipts", "warehouses"
+  add_foreign_key "inventory_movements", "businesses"
+  add_foreign_key "inventory_movements", "products"
+  add_foreign_key "inventory_movements", "warehouses"
   add_foreign_key "notifications", "users"
   add_foreign_key "obligation_deductions", "employee_obligations"
   add_foreign_key "obligation_deductions", "payroll_periods"
@@ -843,6 +1134,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
   add_foreign_key "payroll_snapshots", "users", column: "taken_by_id"
   add_foreign_key "penalty_rules", "shifts"
   add_foreign_key "permission_roles", "businesses"
+  add_foreign_key "product_categories", "businesses"
+  add_foreign_key "product_warehouse_settings", "products"
+  add_foreign_key "product_warehouse_settings", "warehouses"
+  add_foreign_key "products", "brands"
+  add_foreign_key "products", "businesses"
+  add_foreign_key "products", "product_categories"
+  add_foreign_key "products", "suppliers", column: "default_supplier_id"
   add_foreign_key "salary_profiles", "users"
   add_foreign_key "shift_assignments", "branches"
   add_foreign_key "shift_assignments", "shift_rule_profiles"
@@ -865,6 +1163,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "stock_adjustment_items", "products"
+  add_foreign_key "stock_adjustment_items", "stock_adjustments"
+  add_foreign_key "stock_adjustments", "businesses"
+  add_foreign_key "stock_adjustments", "users", column: "created_by_id"
+  add_foreign_key "stock_adjustments", "users", column: "voided_by_id"
+  add_foreign_key "stock_adjustments", "warehouses"
+  add_foreign_key "stock_count_items", "products"
+  add_foreign_key "stock_count_items", "stock_counts"
+  add_foreign_key "stock_counts", "businesses"
+  add_foreign_key "stock_counts", "stock_adjustments"
+  add_foreign_key "stock_counts", "users", column: "created_by_id"
+  add_foreign_key "stock_counts", "users", column: "posted_by_id"
+  add_foreign_key "stock_counts", "warehouses"
+  add_foreign_key "stock_issue_items", "products"
+  add_foreign_key "stock_issue_items", "stock_issues"
+  add_foreign_key "stock_issues", "businesses"
+  add_foreign_key "stock_issues", "users", column: "created_by_id"
+  add_foreign_key "stock_issues", "users", column: "voided_by_id"
+  add_foreign_key "stock_issues", "warehouses"
+  add_foreign_key "stock_transfer_items", "products"
+  add_foreign_key "stock_transfer_items", "stock_transfers"
+  add_foreign_key "stock_transfers", "businesses"
+  add_foreign_key "stock_transfers", "users", column: "created_by_id"
+  add_foreign_key "stock_transfers", "users", column: "voided_by_id"
+  add_foreign_key "stock_transfers", "warehouses", column: "destination_warehouse_id"
+  add_foreign_key "stock_transfers", "warehouses", column: "source_warehouse_id"
+  add_foreign_key "suppliers", "businesses"
   add_foreign_key "user_audit_logs", "users", column: "actor_id"
   add_foreign_key "user_audit_logs", "users", column: "target_user_id"
   add_foreign_key "user_branches", "branches"
@@ -872,4 +1197,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
   add_foreign_key "users", "businesses"
   add_foreign_key "users", "permission_roles", on_delete: :nullify
   add_foreign_key "users", "users", column: "manager_id", on_delete: :nullify
+  add_foreign_key "warehouse_assignments", "users"
+  add_foreign_key "warehouse_assignments", "warehouses"
+  add_foreign_key "warehouses", "businesses"
 end

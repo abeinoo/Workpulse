@@ -74,6 +74,34 @@ RSpec.describe "Adjustments workflow", type: :request do
     end
   end
 
+  describe "GET /adjustments/new (employee picker scope)" do
+    it "shows ALL business employees for a business-wide adjustments manager" do
+      role = create(:permission_role, business: business,
+                    permissions: %w[view_payroll manage_adjustments],
+                    permission_scopes: { "manage_adjustments" => "business_wide" })
+      wide_mgr  = create(:user, business: business, permission_role: role)
+      unmanaged = create(:user, business: business, first_name: "Unmanaged", last_name: "Person")
+      sign_in wide_mgr
+
+      get new_adjustment_path
+      expect(response.body).to include("Unmanaged Person")
+    end
+
+    it "limits a managed-scope adjustments manager to their hierarchy" do
+      role = create(:permission_role, business: business,
+                    permissions: %w[view_payroll manage_adjustments],
+                    permission_scopes: { "manage_adjustments" => "managed_employees_only" })
+      restricted = create(:user, business: business, permission_role: role)
+      create(:user, business: business, manager: restricted, first_name: "My", last_name: "Report")
+      create(:user, business: business, first_name: "Outside", last_name: "Scope")
+      sign_in restricted
+
+      get new_adjustment_path
+      expect(response.body).to include("My Report")
+      expect(response.body).not_to include("Outside Scope")
+    end
+  end
+
   describe "POST /adjustments (create)" do
     it "creates the adjustment as Pending and does NOT auto-approve the creator" do
       sign_in manager

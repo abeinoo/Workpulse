@@ -30,13 +30,31 @@
         <span><%= t("requests.correction_types.#{@request.correction_type}") %></span>
       </div>
       <div class="info-card__row">
-        <span class="info-card__label"><%= t("requests.show.proposed_time") %></span>
-        <span><%= @request.proposed_time %></span>
+        <span class="info-card__label"><%= t("requests.show.proposed_punch") %></span>
+        <span>
+          <%= local_date(@request.proposed_date) if @request.proposed_date %>
+          <%= @request.proposed_time %>
+        </span>
       </div>
       <% if @request.approved_time.present? %>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("requests.show.approved_time") %></span>
           <span><%= @request.approved_time %></span>
+        </div>
+      <% end %>
+    <% end %>
+    <% if @request.late_permission? || @request.early_leave? %>
+      <% summary = requested_permission_summary(@request) %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("requests.show.minutes_requested") %></span>
+        <span><%= t("requests.show.minutes_value", count: summary[:minutes]) %></span>
+      </div>
+      <% if summary[:time].present? %>
+        <div class="info-card__row">
+          <span class="info-card__label">
+            <%= @request.early_leave? ? t("requests.show.requested_departure") : t("requests.show.requested_arrival") %>
+          </span>
+          <span><%= summary[:time] %></span>
         </div>
       <% end %>
     <% end %>
@@ -49,19 +67,27 @@
     <% if @request.reviewed_at %>
       <div class="info-card__row">
         <span class="info-card__label">
-          <%= @request.paid? ? t("requests.disbursed") : t("requests.reviewed") %>
+          <% if @request.paid? %>
+            <%= t("requests.disbursed") %>
+          <% elsif @request.rejected? %>
+            <%= t("requests.rejected_by") %>
+          <% else %>
+            <%= t("requests.reviewed") %>
+          <% end %>
         </span>
         <span>
           <%= local_datetime(@request.reviewed_at) %>
           <% if @request.reviewed_by %>
-            by <%= @request.reviewed_by.full_name %>
+            <%= t("requests.by_actor", name: @request.reviewed_by.full_name) %>
           <% end %>
         </span>
       </div>
     <% end %>
     <% if @request.response_note.present? %>
       <div class="info-card__row">
-        <span class="info-card__label"><%= t("requests.note") %></span>
+        <span class="info-card__label">
+          <%= @request.rejected? ? t("requests.rejection_reason") : t("requests.note") %>
+        </span>
         <span><%= @request.response_note %></span>
       </div>
     <% end %>
@@ -113,9 +139,9 @@
 
   <%# Manager approves/rejects pending requests %>
   <% if @request.pending? && policy(@request).approve? %>
-    <% if @request.punch_correction? %>
-      <%# Punch correction: full approval form with editable approved_time %>
-      <div class="form-card" style="margin-top: 1rem;">
+    <div class="form-card" style="margin-top: 1rem;">
+      <% if @request.punch_correction? %>
+        <%# Punch correction: full approval form with editable approved_time %>
         <p class="form-card__title"><%= t("requests.show.review_correction") %></p>
         <%= form_with url: approve_employee_request_path(@request), method: :patch, local: true do |f| %>
           <div class="form-grid">
@@ -123,7 +149,8 @@
               <%= label_tag :approved_time, t("requests.show.approved_time_label"), class: "form-label" %>
               <%= time_field_tag :approved_time,
                     @request.proposed_time,
-                    class: "form-control" %>
+                    class: "form-control",
+                    data: { controller: "datepicker", datepicker_mode_value: "time" } %>
               <p class="form-hint"><%= t("requests.show.approved_time_hint") %></p>
             </div>
             <div class="form-group form-group--full">
@@ -134,23 +161,38 @@
           </div>
           <div class="form-actions">
             <%= f.submit t("requests.approve"), class: "btn btn-primary" %>
-            <%= link_to t("requests.reject"),
-                  reject_employee_request_path(@request),
-                  method: :patch,
-                  data: { turbo_method: :patch,
-                          turbo_confirm: t("requests.confirm_reject") },
-                  class: "btn btn-danger" %>
           </div>
         <% end %>
+      <% else %>
+        <div class="form-actions">
+          <%= button_to t("requests.approve"), approve_employee_request_path(@request),
+                method: :patch, class: "btn btn-primary" %>
+        </div>
+      <% end %>
+
+      <%# Reject (all request types) — captures a rejection reason the employee can see %>
+      <div data-controller="collapsible" style="margin-top: 0.75rem;">
+        <button type="button" class="btn btn-danger"
+                data-action="click->collapsible#toggle"
+                data-collapsible-target="trigger"
+                aria-expanded="false">
+          <%= t("requests.reject") %>
+        </button>
+        <div data-collapsible-target="content" hidden style="margin-top: 0.75rem;">
+          <%= form_with url: reject_employee_request_path(@request), method: :patch, local: true do |f| %>
+            <div class="form-group form-group--full">
+              <%= label_tag :response_note, t("requests.show.rejection_reason_label"), class: "form-label form-label--required" %>
+              <%= text_area_tag :response_note, nil, rows: 2, class: "form-control", required: true,
+                    placeholder: t("requests.show.rejection_reason_placeholder") %>
+              <p class="form-hint"><%= t("requests.show.rejection_reason_hint") %></p>
+            </div>
+            <div class="form-actions">
+              <%= f.submit t("requests.show.confirm_reject_btn"), class: "btn btn-danger" %>
+            </div>
+          <% end %>
+        </div>
       </div>
-    <% else %>
-      <div class="form-actions" style="margin-top: 1rem;">
-        <%= button_to t("requests.approve"), approve_employee_request_path(@request),
-              method: :patch, class: "btn btn-primary" %>
-        <%= button_to t("requests.reject"), reject_employee_request_path(@request),
-              method: :patch, class: "btn btn-danger" %>
-      </div>
-    <% end %>
+    </div>
   <% end %>
 
   <%# Accountant/admin marks approved salary advance as paid %>

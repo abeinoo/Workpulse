@@ -59,6 +59,26 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       new_req = build(:employee_request, user: other_user)
       expect(subject).not_to permit(employee, new_req)
     end
+
+    it "permits a business-wide approver to create for any business employee" do
+      role = create(:permission_role, business: business,
+                    permissions: %w[view_requests approve_requests],
+                    permission_scopes: { "approve_requests" => "business_wide" })
+      wide_approver = create(:user, business: business, permission_role: role)
+      unmanaged     = create(:user, business: business) # not a report of wide_approver
+      new_req       = build(:employee_request, user: unmanaged)
+      expect(subject).to permit(wide_approver, new_req)
+    end
+
+    it "denies a managed-scope approver creating for an employee outside their hierarchy" do
+      role = create(:permission_role, business: business,
+                    permissions: %w[view_requests approve_requests],
+                    permission_scopes: { "approve_requests" => "managed_employees_only" })
+      restricted = create(:user, business: business, permission_role: role)
+      unmanaged  = create(:user, business: business)
+      new_req    = build(:employee_request, user: unmanaged)
+      expect(subject).not_to permit(restricted, new_req)
+    end
   end
 
   describe "approve?" do

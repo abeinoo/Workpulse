@@ -1,7 +1,7 @@
 class AttendanceRecordPolicy < ApplicationPolicy
   def index?   = true  # scope handles isolation
   def show?    = can?(:view_attendance) || own_record?
-  def create?  = false  # created only via CheckInService
+  def create?  = can?(:manage_attendance)  # manual entry by authorized users
   def update?  = can?(:manage_attendance)
   def destroy? = can?(:manage_attendance)
 

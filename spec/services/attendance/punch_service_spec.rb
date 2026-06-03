@@ -1,6 +1,13 @@
 require "rails_helper"
 
 RSpec.describe Attendance::PunchService do
+  # The success-path examples punch at fixed May-2026 timestamps. Freeze "now" to
+  # 2026-05-20 and pin the assignment's effective_from to a fixed early date so the
+  # assignment is always active on those dates regardless of the real calendar
+  # (previously `2.weeks.ago` drifted past the hardcoded punch dates and the
+  # service began rejecting every punch as "no active assignment").
+  around { |ex| travel_to(Time.zone.local(2026, 5, 20, 12, 0, 0)) { ex.run } }
+
   # Business with Asia/Riyadh timezone (UTC+3) and day starting at 06:00 local
   let(:business) { create(:business, timezone: "Asia/Riyadh", business_day_start_hour: 6) }
   let(:branch)   { create(:branch, business: business) }
@@ -11,7 +18,7 @@ RSpec.describe Attendance::PunchService do
            user:           employee,
            shift:          shift,
            branch:         branch,
-           effective_from: 2.weeks.ago.to_date)
+           effective_from: Date.new(2026, 5, 1))
   end
 
   # Punch at a local Riyadh time string, e.g. "2026-05-17 09:05:00 +03:00"

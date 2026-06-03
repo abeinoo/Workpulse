@@ -1,0 +1,72 @@
+<% content_for :title, t("attendance.manual.page_title") %>
+
+<div class="form-page">
+  <%= link_to attendance_records_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("attendance.manual.back") %>
+  <% end %>
+
+  <h1 class="page-title mb-1"><%= t("attendance.manual.title") %></h1>
+  <p class="page-subtitle mb-6"><%= t("attendance.manual.subtitle") %></p>
+
+  <div class="audit-notice">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <%= t("attendance.manual.audit_notice") %>
+  </div>
+
+  <%= form_with model: @record, url: attendance_records_path, method: :post, class: "form-card" do |f| %>
+
+    <% if flash[:alert] %>
+      <div class="form-error" data-turbo-temporary>
+        <p class="form-error__title"><%= flash[:alert] %></p>
+      </div>
+    <% end %>
+
+    <div class="form-grid">
+      <div class="form-group form-group--full">
+        <%= f.label :user_id, t("attendance.manual.employee_label"), class: "form-label form-label--required" %>
+        <%= f.select :user_id,
+              options_from_collection_for_select(@employees, :id, :full_name, @record.user_id),
+              { include_blank: t("attendance.manual.select_employee") },
+              class: "form-control", required: true %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :work_date, t("attendance.manual.date_label"), class: "form-label form-label--required" %>
+        <%= f.date_field :work_date,
+              class: "form-control", required: true,
+              value: @record.work_date,
+              data: { controller: "datepicker" } %>
+        <p class="form-hint"><%= t("attendance.manual.date_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= label_tag "attendance_record_check_in_time", t("attendance.manual.check_in_label"), class: "form-label form-label--required" %>
+        <%= time_field_tag "attendance_record[check_in_time]", nil,
+              class: "form-control", required: true,
+              data: { controller: "datepicker", datepicker_mode_value: "time" } %>
+      </div>
+
+      <div class="form-group">
+        <%= label_tag "attendance_record_check_out_time", t("attendance.manual.check_out_label"), class: "form-label" %>
+        <%= time_field_tag "attendance_record[check_out_time]", nil,
+              class: "form-control",
+              data: { controller: "datepicker", datepicker_mode_value: "time" } %>
+        <p class="form-hint"><%= t("attendance.manual.check_out_hint") %></p>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= label_tag "attendance_record_notes", t("attendance.manual.notes_label"), class: "form-label" %>
+        <%= text_area_tag "attendance_record[notes]", nil,
+              class: "form-control", rows: 3,
+              placeholder: t("attendance.manual.notes_placeholder") %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("attendance.manual.submit"), class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"), attendance_records_path, class: "btn btn-ghost" %>
+    </div>
+
+  <% end %>
+</div>

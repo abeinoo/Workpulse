@@ -104,8 +104,9 @@ Rails.application.routes.draw do
 
     resources :attendance_imports, only: [ :new, :create, :show ] do
       member do
-        patch :confirm
-        get   :failed_rows
+        patch  :confirm
+        delete :cancel
+        get    :failed_rows
       end
       collection do
         get :template
@@ -185,7 +186,16 @@ Rails.application.routes.draw do
   post "attendance/check_in",  to: "attendance#check_in",  as: :attendance_check_in
   post "attendance/check_out", to: "attendance#check_out", as: :attendance_check_out
 
-  resources :attendance_records, only: [ :index, :show, :edit, :update ]
+  resources :attendance_records, only: [ :index, :show, :new, :create, :edit, :update ] do
+    collection do
+      get  :bulk
+      post :bulk_create,     path: "bulk"
+      get  :import,          path: "import"
+      post :preview_import,  path: "import/preview"
+      post :confirm_import,  path: "import/confirm"
+      get  :import_template, path: "import/template"
+    end
+  end
 
   resources :employee_requests, only: [ :index, :new, :create, :show ] do
     collection do

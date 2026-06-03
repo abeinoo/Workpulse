@@ -147,4 +147,43 @@ RSpec.describe EmployeeScope, type: :service do
       expect(described_class.new(branch_manager).includes?(unrelated_emp.id)).to be false
     end
   end
+
+  describe "#for_permission" do
+    let(:wide_role) do
+      create(:permission_role, business: business,
+             permissions: %w[view_attendance manage_attendance],
+             permission_scopes: { "manage_attendance" => "business_wide" })
+    end
+    let(:wide_mgr) { create(:user, business: business, permission_role: wide_role) }
+
+    let(:restricted_role) do
+      create(:permission_role, business: business,
+             permissions: %w[view_attendance manage_attendance],
+             permission_scopes: { "manage_attendance" => "managed_employees_only" })
+    end
+    let(:restricted_mgr)     { create(:user, business: business, permission_role: restricted_role) }
+    let!(:restricted_report) { create(:user, business: business, manager: restricted_mgr) }
+
+    it "returns ALL business employees (except self) for a business-wide scope" do
+      result = described_class.new(wide_mgr).for_permission(:manage_attendance)
+      expect(result).to include(branch_emp, area_emp, unrelated_emp, direct_report)
+      expect(result).not_to include(wide_mgr)
+    end
+
+    it "limits a managed-scope manager to their own hierarchy" do
+      result = described_class.new(restricted_mgr).for_permission(:manage_attendance)
+      expect(result).to include(restricted_report)
+      expect(result).not_to include(unrelated_emp, branch_emp)
+    end
+
+    it "falls back to the hierarchy relation when no scope override is configured" do
+      scope = described_class.new(branch_manager)
+      expect(scope.for_permission(:manage_attendance)).to eq(scope.relation)
+    end
+
+    it "treats an owner as business-wide" do
+      result = described_class.new(owner).for_permission(:manage_attendance)
+      expect(result).to include(branch_emp, area_emp, unrelated_emp)
+    end
+  end
 end

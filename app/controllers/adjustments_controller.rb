@@ -127,7 +127,11 @@ class AdjustmentsController < ApplicationController
   end
 
   def manageable_employees
-    EmployeeScope.new(current_user).relation.active.order(:first_name, :last_name)
+    # Honour business-wide scope: a business-wide adjustments manager must see
+    # every employee, not just their hierarchy. for_permission falls back to the
+    # managed hierarchy when no scope override is configured.
+    EmployeeScope.new(current_user).for_permission(:manage_adjustments)
+                 .active.order(:first_name, :last_name)
   end
 
   # Resolves the ?adjustment_type=… param to a valid, writable adjustment type,

@@ -182,6 +182,54 @@ RSpec.describe "Admin::AttendanceImports", type: :request do
     end
   end
 
+  # ── Cancel (discard a staged/pending import) ──────────────────────────────
+
+  describe "DELETE /admin/attendance_imports/:id/cancel" do
+    let!(:pending_import) do
+      AttendanceImportLog.create!(
+        business:          business,
+        imported_by:       owner,
+        filename:          "pending.csv",
+        status:            "pending",
+        total_rows:        1,
+        imported_rows:     0,
+        failed_rows_count: 0,
+        metadata:          { "preview" => [ { "valid" => true } ] }
+      )
+    end
+
+    before { sign_in owner }
+
+    it "destroys a pending import and creates no attendance records" do
+      expect {
+        delete cancel_admin_attendance_import_path(pending_import)
+      }.to change(AttendanceImportLog, :count).by(-1)
+        .and change(AttendanceRecord, :count).by(0)
+
+      expect(response).to redirect_to(new_admin_attendance_import_path)
+      expect(flash[:notice]).to eq(I18n.t("attendance_imports.flash.cancelled"))
+    end
+
+    it "refuses to cancel a completed import" do
+      expect {
+        delete cancel_admin_attendance_import_path(import_log)
+      }.not_to change(AttendanceImportLog, :count)
+
+      expect(response).to redirect_to(admin_attendance_import_path(import_log))
+    end
+
+    it "is blocked for a view-only user" do
+      sign_in view_only_user
+      delete cancel_admin_attendance_import_path(pending_import)
+      expect(AttendanceImportLog.exists?(pending_import.id)).to be(true)
+    end
+
+    it "returns 404 for a cross-business import" do
+      delete cancel_admin_attendance_import_path(other_import)
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   # ── Attendance manager happy path ─────────────────────────────────────────
 
   describe "user with manage_attendance permission" do

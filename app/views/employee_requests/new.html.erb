@@ -102,9 +102,18 @@
               class: "form-control" %>
       </div>
 
+      <div class="form-group" id="proposed-date-field">
+        <%= f.label :proposed_date, t("requests.new.proposed_date_label"), class: "form-label form-label--required" %>
+        <%= f.date_field :proposed_date,
+              class: "form-control",
+              value: @request.proposed_date,
+              data: { controller: "datepicker" } %>
+        <p class="form-hint"><%= t("requests.new.proposed_date_hint") %></p>
+      </div>
+
       <div class="form-group" id="proposed-time-field">
         <%= f.label :proposed_time, t("requests.new.proposed_time_label"), class: "form-label form-label--required" %>
-        <%= f.time_field :proposed_time, class: "form-control" %>
+        <%= f.time_field :proposed_time, class: "form-control", data: { controller: "datepicker", datepicker_mode_value: "time" } %>
         <p class="form-hint"><%= t("requests.new.proposed_time_hint") %></p>
       </div>
 
@@ -137,7 +146,9 @@
         <%= f.label :requested_for_date, t("requests.new.date_label"), class: "form-label form-label--required" %>
         <%= f.date_field :requested_for_date,
               class: "form-control",
-              value: @request.requested_for_date || Date.current %>
+              value: @request.requested_for_date || Date.current,
+              data: { controller: "datepicker" } %>
+        <p class="form-hint" id="work-date-hint" style="display:none;"><%= t("requests.new.work_date_hint") %></p>
       </div>
 
       <div class="form-group form-group--full">
@@ -163,6 +174,8 @@
     var durationField       = document.getElementById("duration-field");
     var correctionTypeField = document.getElementById("correction-type-field");
     var proposedTimeField   = document.getElementById("proposed-time-field");
+    var proposedDateField   = document.getElementById("proposed-date-field");
+    var workDateHint        = document.getElementById("work-date-hint");
     var hintGeneric = document.getElementById("duration-hint-generic");
     var hintLate    = document.getElementById("duration-hint-late");
     var hintEarly   = document.getElementById("duration-hint-early");
@@ -176,6 +189,8 @@
       if (durationField)       durationField.style.display       = isPermission      ? "" : "none";
       if (correctionTypeField) correctionTypeField.style.display = isPunchCorrection ? "" : "none";
       if (proposedTimeField)   proposedTimeField.style.display   = isPunchCorrection ? "" : "none";
+      if (proposedDateField)   proposedDateField.style.display   = isPunchCorrection ? "" : "none";
+      if (workDateHint)        workDateHint.style.display        = isPunchCorrection ? "" : "none";
       if (hintGeneric)   hintGeneric.style.display   = isPermission && !hintLate && !hintEarly ? "" : "none";
       if (hintLate)      hintLate.style.display      = t === "late_permission" ? "" : "none";
       if (hintEarly)     hintEarly.style.display     = t === "early_leave"     ? "" : "none";

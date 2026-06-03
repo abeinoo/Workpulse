@@ -29,6 +29,7 @@ module Attendance
         build_audit_entries
         apply_field_changes
         recompute_derived_fields
+        @record.updated_by = @adjusted_by
         @record.save!
         # Field-level entries saved automatically via autosave on has_many.
         emit_audit_log

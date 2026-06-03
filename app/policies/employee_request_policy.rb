@@ -13,7 +13,12 @@ class EmployeeRequestPolicy < ApplicationPolicy
     return false unless effective_user.business_id == user.business_id
     return true  if effective_user == user
 
-    can?(:approve_requests) && effective_user.manager_id == user.id
+    # Mirror the on-behalf-of picker: an approver may submit for any employee in
+    # their configured approve_requests scope (business_wide → all employees;
+    # restricted → managed hierarchy), not just direct reports.
+    return false unless can?(:approve_requests)
+
+    EmployeeScope.new(user).for_permission(:approve_requests).exists?(id: effective_user.id)
   end
 
   class Scope < ApplicationPolicy::Scope

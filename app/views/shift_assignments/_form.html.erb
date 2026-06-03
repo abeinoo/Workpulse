@@ -39,13 +39,13 @@
 
       <div class="form-group">
         <%= f.label :effective_from, t("shift_assignments.start_date"), class: "form-label form-label--required" %>
-        <%= f.date_field :effective_from, class: "form-control" %>
+        <%= f.date_field :effective_from, class: "form-control", data: { controller: "datepicker" } %>
       </div>
     <% end %>
 
     <div class="form-group <%= editing ? 'form-group--full' : '' %>">
       <%= f.label :effective_to, t("shift_assignments.end_date"), class: "form-label" %>
-      <%= f.date_field :effective_to, class: "form-control" %>
+      <%= f.date_field :effective_to, class: "form-control", data: { controller: "datepicker" } %>
       <p class="form-hint"><%= t("shift_assignments.form.end_hint") %></p>
     </div>
 

@@ -158,6 +158,36 @@ RSpec.describe Requests::PunchCorrectionApplier do
   end
 
   # ──────────────────────────────────────────────────────────────
+  # Overnight: proposed_date carries the punch to the next calendar day
+  # ──────────────────────────────────────────────────────────────
+  describe "overnight check-out (proposed_date = next day)" do
+    let!(:record) { open_record }
+    let(:request) do
+      create(:employee_request, :punch_correction,
+             user:               user,
+             correction_type:    "missing_check_out",
+             requested_for_date: work_date,            # business/work day
+             proposed_date:      work_date + 1.day,    # actual punch is next calendar day
+             proposed_time:      "04:00",
+             status:             :approved,
+             reviewed_at:        Time.current)
+    end
+
+    it "stores the check-out on the day after the work_date" do
+      described_class.call(request: request)
+      out = record.reload.check_out_at.in_time_zone(business.timezone_object)
+      expect(out.to_date).to eq(work_date + 1.day)
+      expect(out.hour).to eq(4)
+    end
+
+    it "recomputes worked_minutes across midnight" do
+      described_class.call(request: request)
+      # 09:00 day 1 → 04:00 day 2 = 19h = 1140 minutes
+      expect(record.reload.worked_minutes).to eq(1140)
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────
   # No attendance record found
   # ──────────────────────────────────────────────────────────────
   describe "when no attendance record exists for the date" do

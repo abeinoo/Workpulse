@@ -35,10 +35,11 @@ class BulkAdjustmentsController < ApplicationController
              .map { |r| r.merge("period_month" => period_month, "period_year" => period_year) }
 
     result = Adjustments::BulkCreateService.new(
-      rows:          rows,
-      business:      current_user.business,
-      created_by:    current_user,
-      import_source: "manual"
+      rows:             rows,
+      business:         current_user.business,
+      created_by:       current_user,
+      allowed_user_ids: manageable_employees.ids,
+      import_source:    "manual"
     ).call
 
     if result.success?
@@ -116,10 +117,11 @@ class BulkAdjustmentsController < ApplicationController
     period_year  = params[:period_year]&.to_i.presence  || Date.current.year
 
     result = Adjustments::BulkCreateService.new(
-      rows:          rows,
-      business:      current_user.business,
-      created_by:    current_user,
-      import_source: "csv_import"
+      rows:             rows,
+      business:         current_user.business,
+      created_by:       current_user,
+      allowed_user_ids: manageable_employees.ids,
+      import_source:    "csv_import"
     ).call
 
     if result.success?
@@ -156,7 +158,10 @@ class BulkAdjustmentsController < ApplicationController
   end
 
   def manageable_employees
-    EmployeeScope.new(current_user).relation
+    # Honour business-wide scope: a business-wide adjustments manager must see
+    # every employee, not just their hierarchy. for_permission falls back to the
+    # managed hierarchy when no scope override is configured.
+    EmployeeScope.new(current_user).for_permission(:manage_adjustments)
                  .active
                  .includes(:user_branches)
                  .order(:first_name, :last_name)

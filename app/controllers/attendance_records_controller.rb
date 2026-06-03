@@ -49,6 +49,157 @@ class AttendanceRecordsController < ApplicationController
                            .order(created_at: :desc)
   end
 
+  def new
+    authorize AttendanceRecord, :create?
+    @record    = AttendanceRecord.new(work_date: BusinessDay.current(context: current_user.business))
+    @employees = manageable_employees
+  end
+
+  def create
+    authorize AttendanceRecord, :create?
+
+    employee = manageable_employees.find_by(id: params.dig(:attendance_record, :user_id))
+    unless employee
+      @record    = AttendanceRecord.new
+      @employees = manageable_employees
+      flash.now[:alert] = t("attendance.manual.errors.employee_required")
+      return render :new, status: :unprocessable_entity
+    end
+
+    result = Attendance::ManualEntryService.call(
+      employee:   employee,
+      created_by: current_user,
+      work_date:  params.dig(:attendance_record, :work_date),
+      check_in:   params.dig(:attendance_record, :check_in_time),
+      check_out:  params.dig(:attendance_record, :check_out_time),
+      notes:      params.dig(:attendance_record, :notes)
+    )
+
+    if result.success?
+      redirect_to attendance_record_path(result.record), notice: t("attendance.manual.flash.created")
+    else
+      @record    = AttendanceRecord.new(user_id: employee.id,
+                                        work_date: params.dig(:attendance_record, :work_date))
+      @employees = manageable_employees
+      flash.now[:alert] = result.error
+      render :new, status: :unprocessable_entity
+    end
+  end
+
+  # ── Bulk manual entry (spreadsheet grid) ────────────────────────────────────
+
+  def bulk
+    authorize AttendanceRecord, :create?
+    @employees    = manageable_employees
+    @default_date = BusinessDay.current(context: current_user.business)
+    @row_errors   = {}
+    @rows         = []
+  end
+
+  def bulk_create
+    authorize AttendanceRecord, :create?
+
+    rows   = bulk_rows_params
+    result = Attendance::BulkManualEntryService.new(
+      rows:             rows,
+      business:         current_user.business,
+      created_by:       current_user,
+      allowed_user_ids: manageable_employees.ids,
+      source:           "bulk_manual"
+    ).call
+
+    if result.success?
+      redirect_to attendance_records_path, notice: bulk_success_notice(result)
+    else
+      @employees    = manageable_employees
+      @default_date = BusinessDay.current(context: current_user.business)
+      @rows         = rows
+      @row_errors   = result.row_errors.index_by(&:index)
+      flash.now[:alert] = t("attendance.manual.bulk.validation_failed")
+      render :bulk, status: :unprocessable_entity
+    end
+  end
+
+  # ── CSV import (JSON preview → confirm) ─────────────────────────────────────
+
+  def import
+    authorize AttendanceRecord, :create?
+  end
+
+  def preview_import
+    authorize AttendanceRecord, :create?
+
+    file = params[:csv_file]
+    unless file.present?
+      return redirect_to import_attendance_records_path, alert: t("attendance.manual.import.no_file")
+    end
+    # Browsers report inconsistent MIME types for CSV (text/csv, application/csv,
+    # application/vnd.ms-excel, application/octet-stream, even empty). Accept any
+    # of those OR a .csv filename so a valid upload is never wrongly rejected.
+    allowed_types = %w[text/csv text/plain application/csv application/vnd.ms-excel application/octet-stream]
+    is_csv = file.content_type.to_s.in?(allowed_types) ||
+             File.extname(file.original_filename.to_s).casecmp(".csv").zero?
+    unless is_csv
+      return redirect_to import_attendance_records_path, alert: t("attendance.manual.import.invalid_type")
+    end
+
+    @parse_result = Attendance::ManualRecordsCsvParser.new(
+      csv_data:         file.read,
+      business:         current_user.business,
+      allowed_user_ids: manageable_employees.ids
+    ).call
+
+    unless @parse_result.headers_valid?
+      return redirect_to import_attendance_records_path,
+                         alert: t("attendance.manual.import.header_error", error: @parse_result.header_error)
+    end
+
+    @valid_rows_json = @parse_result.valid_rows.map do |row|
+      { user_id: row.user_id, work_date: row.work_date.to_s,
+        check_in: row.check_in, check_out: row.check_out, notes: row.notes }
+    end.to_json
+  end
+
+  def confirm_import
+    authorize AttendanceRecord, :create?
+
+    rows = JSON.parse(params[:rows_json].to_s, symbolize_names: true)
+    if rows.blank?
+      return redirect_to import_attendance_records_path, alert: t("attendance.manual.import.no_data")
+    end
+
+    result = Attendance::BulkManualEntryService.new(
+      rows:             rows,
+      business:         current_user.business,
+      created_by:       current_user,
+      allowed_user_ids: manageable_employees.ids,
+      source:           "csv_import"
+    ).call
+
+    if result.success?
+      redirect_to attendance_records_path, notice: bulk_success_notice(result)
+    else
+      redirect_to import_attendance_records_path,
+                  alert: t("attendance.manual.import.save_failed",
+                           errors: result.row_errors.flat_map(&:messages).first(3).join("; "))
+    end
+  rescue JSON::ParserError
+    redirect_to import_attendance_records_path, alert: t("attendance.manual.import.no_data")
+  end
+
+  def import_template
+    authorize AttendanceRecord, :create?
+    require "csv"
+    csv_data = CSV.generate do |csv|
+      csv << %w[employee_code work_date check_in check_out notes]
+      csv << [ "EMP001", "2026-06-01", "09:00", "17:00", "Reconstructed from sign-in sheet" ]
+      csv << [ "EMP002", "2026-06-01", "20:00", "04:00", "Overnight shift" ]
+      csv << [ "EMP003", "2026-06-02", "08:30", "", "Forgot to punch out" ]
+    end
+    send_data csv_data, filename: "manual_attendance_template.csv",
+              type: "text/csv", disposition: "attachment"
+  end
+
   def edit
     authorize @record, :update?
   end
@@ -129,6 +280,38 @@ class AttendanceRecordsController < ApplicationController
       EmployeeScope.new(current_user).relation.find_by(id: user_id) ||
         (current_user.id == user_id.to_i ? current_user : nil)
     end
+  end
+
+  # Employees the current user may create attendance for. Honours the configured
+  # data scope on manage_attendance (business_wide → all business users; otherwise
+  # the managed-employee / branch hierarchy via EmployeeScope).
+  # Grid rows arrive under attendance_record_rows with dynamic JS-generated keys.
+  # Whitelist only the permitted fields per row (mirrors BulkAdjustments#bulk_params).
+  def bulk_rows_params
+    raw = params[:attendance_record_rows]
+    return [] unless raw.is_a?(ActionController::Parameters) || raw.is_a?(Hash)
+
+    raw.to_unsafe_h.values.map do |row|
+      row.slice("user_id", "work_date", "check_in", "check_out", "notes").symbolize_keys
+    end
+  end
+
+  def bulk_success_notice(result)
+    if result.locked_count.to_i.positive?
+      t("attendance.manual.bulk.created_with_locked", count: result.count, locked: result.locked_count)
+    else
+      t("attendance.manual.bulk.created", count: result.count)
+    end
+  end
+
+  def manageable_employees
+    return User.none unless current_user.can?(:manage_attendance)
+
+    # Canonical resolver: business-wide scope → every active employee in the
+    # business; restricted scope → the managed hierarchy. Used for both the
+    # picker and the bulk/CSV allowed_user_ids guard so they always agree.
+    EmployeeScope.new(current_user).for_permission(:manage_attendance)
+                 .active.order(:first_name, :last_name)
   end
 
   def visible_branches

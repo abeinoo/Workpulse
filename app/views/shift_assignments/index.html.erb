@@ -384,7 +384,8 @@
                         name: "shift_assignment[effective_from]",
                         value: Date.current,
                         class: "form-control",
-                        data: { "shift-assignment-bulk-target": "bulkAssignDateField" } %>
+                        data: { controller: "datepicker",
+                                "shift-assignment-bulk-target": "bulkAssignDateField" } %>
                   <p class="form-hint"><%= t("shift_assignments.bulk.assign_from_hint") %></p>
                 </div>
 
@@ -445,7 +446,8 @@
               <%= f.date_field :ended_on,
                     name: "shift_assignment[ended_on]",
                     value: Date.current,
-                    class: "form-control" %>
+                    class: "form-control",
+                    data: { controller: "datepicker" } %>
               <p class="form-hint"><%= t("shift_assignments.bulk.end_date_hint") %></p>
             </div>
 

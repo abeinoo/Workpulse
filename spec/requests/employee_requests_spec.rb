@@ -190,4 +190,139 @@ RSpec.describe "EmployeeRequests", type: :request do
       expect(response.body).to include("طلب تعديل بصمة")
     end
   end
+
+  # ──────────────────────────────────────────────────────────────
+  # Overnight punch correction — work date + punch date
+  # ──────────────────────────────────────────────────────────────
+  describe "POST /employee_requests (overnight punch_correction)" do
+    it "stores requested_for_date (work day) and proposed_date (punch day) separately" do
+      post employee_requests_path, params: {
+        employee_request: {
+          request_type:       "punch_correction",
+          correction_type:    "missing_check_out",
+          requested_for_date: Date.new(2026, 6, 1).iso8601,
+          proposed_date:      Date.new(2026, 6, 2).iso8601,
+          proposed_time:      "04:00",
+          reason:             "Overnight shift, forgot to clock out"
+        }
+      }
+      req = EmployeeRequest.last
+      expect(req.requested_for_date).to eq(Date.new(2026, 6, 1))
+      expect(req.proposed_date).to eq(Date.new(2026, 6, 2))
+    end
+
+    it "defaults proposed_date to the work date when omitted" do
+      post employee_requests_path, params: {
+        employee_request: {
+          request_type:       "punch_correction",
+          correction_type:    "missing_check_in",
+          requested_for_date: Date.new(2026, 6, 1).iso8601,
+          proposed_time:      "09:00",
+          reason:             "Same-day correction"
+        }
+      }
+      expect(EmployeeRequest.last.proposed_date).to eq(Date.new(2026, 6, 1))
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────
+  # Manager review: reject with reason + employee visibility
+  # ──────────────────────────────────────────────────────────────
+  describe "manager review" do
+    let(:manager) do
+      role = create(:permission_role, business: business,
+                    permissions: %w[view_requests approve_requests])
+      create(:user, business: business, permission_role: role)
+    end
+
+    before { employee.update!(manager: manager) }
+
+    it "stores reviewer, time and reason on reject" do
+      request = create(:employee_request, :early_leave, user: employee, status: :pending)
+      sign_in manager
+
+      patch reject_employee_request_path(request),
+            params: { response_note: "Insufficient coverage that day" }
+
+      request.reload
+      expect(request).to be_rejected
+      expect(request.reviewed_by).to eq(manager)
+      expect(request.reviewed_at).to be_present
+      expect(request.response_note).to eq("Insufficient coverage that day")
+    end
+
+    it "shows the rejection reason to the requesting employee" do
+      request = create(:employee_request, :salary_advance, user: employee,
+                       status: :rejected, reviewed_by: manager,
+                       reviewed_at: Time.current, response_note: "Over the limit")
+      sign_in employee
+
+      get employee_request_path(request)
+      expect(response.body).to include("Over the limit")
+      expect(response.body).to include(I18n.t("requests.rejection_reason"))
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────
+  # On-behalf-of picker honours the approver's data scope
+  # ──────────────────────────────────────────────────────────────
+  describe "on-behalf-of employee scope" do
+    let!(:unmanaged) { create(:user, business: business, first_name: "Unmanaged", last_name: "Person") }
+
+    it "lets a business-wide approver pick and submit for any business employee" do
+      role = create(:permission_role, business: business,
+                    permissions: %w[view_requests approve_requests],
+                    permission_scopes: { "approve_requests" => "business_wide" })
+      wide_approver = create(:user, business: business, permission_role: role)
+      sign_in wide_approver
+
+      get new_employee_request_path
+      expect(response.body).to include("Unmanaged Person") # appears in the picker
+
+      expect {
+        post employee_requests_path, params: {
+          for_user_id: unmanaged.id,
+          employee_request: {
+            request_type: "early_leave", duration_minutes: 30,
+            requested_for_date: Date.current.iso8601, reason: "Doctor",
+            for_user_id: unmanaged.id
+          }
+        }
+      }.to change { EmployeeRequest.where(user: unmanaged).count }.by(1)
+    end
+
+    it "blocks a managed-scope approver from submitting for an out-of-scope employee" do
+      role = create(:permission_role, business: business,
+                    permissions: %w[view_requests approve_requests],
+                    permission_scopes: { "approve_requests" => "managed_employees_only" })
+      restricted = create(:user, business: business, permission_role: role)
+      sign_in restricted
+
+      # The out-of-scope target is rejected by resolve_for_user (falls back to the
+      # approver), so crucially NO request is created for the unmanaged employee.
+      expect {
+        post employee_requests_path, params: {
+          for_user_id: unmanaged.id,
+          employee_request: {
+            request_type: "early_leave", duration_minutes: 30,
+            requested_for_date: Date.current.iso8601, reason: "Doctor",
+            for_user_id: unmanaged.id
+          }
+        }
+      }.not_to change { EmployeeRequest.where(user: unmanaged).count }
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────
+  # Early-leave display: minutes + requested departure time
+  # ──────────────────────────────────────────────────────────────
+  describe "early-leave display" do
+    it "shows requested minutes on the detail page" do
+      request = create(:employee_request, :early_leave, user: employee,
+                       duration_minutes: 45, requested_for_date: Date.current)
+      get employee_request_path(request)
+      expect(response.body).to include(I18n.t("requests.show.minutes_requested"))
+      expect(response.body).to include("45")
+    end
+  end
 end

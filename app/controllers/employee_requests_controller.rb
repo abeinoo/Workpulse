@@ -132,12 +132,20 @@ class EmployeeRequestsController < ApplicationController
     return nil unless current_user.can?(:approve_requests)
     id = params[:for_user_id].presence || params.dig(:employee_request, :for_user_id).presence
     return nil unless id
-    current_user.managed_employees.find_by(id: id)
+    # Honour the approver's data scope: business-wide approvers can act for any
+    # employee; restricted approvers are limited to their managed hierarchy.
+    requestable_employees.find_by(id: id)
   end
 
   def managed_employees_for_form
     return [] unless current_user.can?(:approve_requests)
-    current_user.managed_employees.where(active: true).order(:first_name, :last_name)
+    requestable_employees.where(active: true).order(:first_name, :last_name)
+  end
+
+  # Employees this user may submit requests on behalf of, per their configured
+  # approve_requests scope (business_wide → all employees; otherwise hierarchy).
+  def requestable_employees
+    EmployeeScope.new(current_user).for_permission(:approve_requests)
   end
 
   def allowed_request_types_for(target_user)
@@ -174,7 +182,7 @@ class EmployeeRequestsController < ApplicationController
   def request_params
     params.require(:employee_request)
           .permit(:request_type, :requested_for_date, :reason, :amount, :duration_minutes,
-                  :correction_type, :proposed_time)
+                  :correction_type, :proposed_time, :proposed_date)
   end
 
   def prefill_from_params(request)
@@ -189,6 +197,9 @@ class EmployeeRequestsController < ApplicationController
     end
     if params[:proposed_time].present?
       request.proposed_time = params[:proposed_time]
+    end
+    if params[:proposed_date].present?
+      request.proposed_date = params[:proposed_date]
     end
   end
 

@@ -4,6 +4,7 @@ class AttendanceImportLogPolicy < ApplicationPolicy
   def template?    = can?(:manage_attendance)
   def show?        = can?(:manage_attendance) && same_business?
   def confirm?     = can?(:manage_attendance) && same_business?
+  def cancel?      = can?(:manage_attendance) && same_business?
   def failed_rows? = can?(:manage_attendance) && same_business?
 
   class Scope < ApplicationPolicy::Scope

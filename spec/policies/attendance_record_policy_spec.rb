@@ -107,10 +107,14 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
   end
 
   describe "create?" do
-    it "denies everyone" do
-      [ super_admin, area_manager, manager, employee ].each do |user|
-        expect(subject).not_to permit(user, AttendanceRecord.new)
+    it "permits users with manage_attendance (manual entry)" do
+      [ super_admin, area_manager, manager ].each do |user|
+        expect(subject).to permit(user, AttendanceRecord.new)
       end
+    end
+
+    it "denies users without manage_attendance" do
+      expect(subject).not_to permit(employee, AttendanceRecord.new)
     end
   end
 

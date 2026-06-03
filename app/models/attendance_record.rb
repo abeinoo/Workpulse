@@ -2,6 +2,8 @@ class AttendanceRecord < ApplicationRecord
   belongs_to :user
   belongs_to :branch,           optional: true
   belongs_to :shift_assignment, optional: true
+  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :updated_by, class_name: "User", optional: true
   has_many   :attendance_adjustments, dependent: :destroy
   has_many   :biometric_punch_logs, dependent: :destroy
 

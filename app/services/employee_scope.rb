@@ -51,6 +51,21 @@ class EmployeeScope
     send(method_name)
   end
 
+  # The canonical pickable/visible employees for a specific permission.
+  #
+  # Honours an explicitly-configured data scope on the permission (e.g.
+  # "business_wide" → every employee in the business) and falls back to the
+  # hierarchy-based relation when no override is set. This mirrors how
+  # ApplicationPolicy::Scope#filter_by_data_scope resolves visibility, so
+  # employee pickers and record visibility always agree.
+  #
+  # Use this for every employee dropdown/selector instead of #relation, which
+  # is hierarchy-only and grants business-wide access to owners alone.
+  def for_permission(permission)
+    configured = @user.scope_for(permission)
+    configured ? for_scope(configured) : relation
+  end
+
   # Quick boolean check for record-level policy guards.
   def includes?(user_id)
     relation.exists?(user_id)

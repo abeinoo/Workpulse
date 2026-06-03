@@ -90,17 +90,22 @@
               confirm_admin_attendance_import_path(@import),
               method: :patch,
               class: "btn btn-primary" %>
-        <%= link_to t("attendance_imports.show.cancel_btn"),
-              new_admin_attendance_import_path,
-              class: "btn btn-ghost" %>
+        <%= button_to t("attendance_imports.show.cancel_btn"),
+              cancel_admin_attendance_import_path(@import),
+              method: :delete,
+              class: "btn btn-ghost",
+              data: { turbo_confirm: t("attendance_imports.show.cancel_confirm") } %>
       </div>
     <% else %>
       <div class="alert alert-warning">
         <%= t("attendance_imports.show.no_valid_rows") %>
       </div>
       <div class="import-confirm-actions">
-        <%= link_to t("attendance_imports.show.cancel_btn"),
-              new_admin_attendance_import_path, class: "btn btn-ghost" %>
+        <%= button_to t("attendance_imports.show.cancel_btn"),
+              cancel_admin_attendance_import_path(@import),
+              method: :delete,
+              class: "btn btn-ghost",
+              data: { turbo_confirm: t("attendance_imports.show.cancel_confirm") } %>
       </div>
     <% end %>
   <% end %>

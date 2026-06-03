@@ -1,0 +1,122 @@
+<% content_for :title, t("attendance.manual.import.preview_page_title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <%= link_to import_attendance_records_path, class: "back-link" do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        <%= t("attendance.manual.import.back_upload") %>
+      <% end %>
+      <h1 class="page-title"><%= t("attendance.manual.import.preview_title") %></h1>
+    </div>
+  </div>
+
+  <%# ── Summary strip ──────────────────────────────────────────────────────── %>
+  <div class="info-card import-info-card">
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance.manual.import.total_rows") %></span>
+      <span><%= @parse_result.total_rows %></span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance.manual.import.valid_rows") %></span>
+      <span class="<%= @parse_result.valid_count.positive? ? 'text-success' : '' %>"><%= @parse_result.valid_count %></span>
+    </div>
+    <div class="info-card__row">
+      <span class="info-card__label"><%= t("attendance.manual.import.invalid_rows") %></span>
+      <span class="<%= @parse_result.invalid_count.positive? ? 'text-danger' : '' %>"><%= @parse_result.invalid_count %></span>
+    </div>
+    <% if @parse_result.locked_count.positive? %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance.manual.import.locked_rows") %></span>
+        <span class="text-warning"><%= @parse_result.locked_count %></span>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Confirm / cancel ───────────────────────────────────────────────────── %>
+  <% if @parse_result.valid_count.positive? %>
+    <div class="alert alert-info"><%= t("attendance.manual.import.confirm_hint", count: @parse_result.valid_count) %></div>
+    <% if @parse_result.locked_count.positive? %>
+      <div class="alert alert-warning"><%= t("attendance.manual.import.locked_hint", count: @parse_result.locked_count) %></div>
+    <% end %>
+
+    <div class="import-confirm-actions">
+      <%= form_with url: confirm_import_attendance_records_path, method: :post, local: true do %>
+        <%= hidden_field_tag :rows_json, @valid_rows_json %>
+        <%= submit_tag t("attendance.manual.import.confirm_btn", count: @parse_result.valid_count),
+              class: "btn btn-primary" %>
+      <% end %>
+      <%= link_to t("attendance.manual.import.cancel_btn"), import_attendance_records_path, class: "btn btn-ghost" %>
+    </div>
+  <% else %>
+    <div class="alert alert-warning"><%= t("attendance.manual.import.no_valid_rows") %></div>
+    <div class="import-confirm-actions">
+      <%= link_to t("attendance.manual.import.cancel_btn"), import_attendance_records_path, class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+
+  <%# ── Valid rows ─────────────────────────────────────────────────────────── %>
+  <% if @parse_result.valid_count.positive? %>
+    <h2 class="section-title"><%= t("attendance.manual.import.valid_rows_title", count: @parse_result.valid_count) %></h2>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th><%= t("attendance.manual.employee_label") %></th>
+            <th><%= t("attendance.manual.date_label") %></th>
+            <th><%= t("attendance.manual.check_in_label") %></th>
+            <th><%= t("attendance.manual.check_out_label") %></th>
+            <th><%= t("attendance.manual.notes_label") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @parse_result.valid_rows.each do |row| %>
+            <tr class="<%= 'bulk-row--locked' if row.locked %>">
+              <td class="td-secondary"><%= row.row_number %></td>
+              <td><%= row.user.full_name %> <span class="td-secondary">#<%= row.employee_code %></span></td>
+              <td class="td-secondary"><%= row.work_date %></td>
+              <td class="td-secondary"><%= row.check_in %></td>
+              <td class="td-secondary"><%= row.check_out.presence || "—" %></td>
+              <td class="td-secondary"><%= row.notes.presence || "—" %></td>
+              <td>
+                <% if row.locked %>
+                  <span class="badge badge-warning badge--xs"><%= t("attendance.manual.import.locked_badge") %></span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <%# ── Invalid rows ───────────────────────────────────────────────────────── %>
+  <% if @parse_result.invalid_count.positive? %>
+    <h2 class="section-title text-danger"><%= t("attendance.manual.import.error_rows_title", count: @parse_result.invalid_count) %></h2>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th><%= t("attendance.manual.import.employee_code") %></th>
+            <th><%= t("attendance.manual.date_label") %></th>
+            <th><%= t("attendance.manual.import.error") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @parse_result.invalid_rows.each do |row| %>
+            <tr>
+              <td class="td-secondary"><%= row.row_number %></td>
+              <td class="td-secondary"><%= row.employee_code.presence || "—" %></td>
+              <td class="td-secondary"><%= row.work_date || "—" %></td>
+              <td class="text-danger"><%= row.errors.join(" · ") %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

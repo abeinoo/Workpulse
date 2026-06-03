@@ -1,0 +1,52 @@
+<%#
+  Locals:
+    index     - row key (real position on re-render, "NEW_INDEX" inside the <template>)
+    employees - scoped employee collection
+    row       - hash of submitted values (default {})
+    error     - BulkManualEntryService::RowError for this row, or nil
+%>
+<% row   ||= {} %>
+<% error ||= nil %>
+<tr data-bulk-row class="<%= 'bulk-row--error' if error %>">
+  <td data-label="<%= t('attendance.manual.employee_label') %>">
+    <select name="attendance_record_rows[<%= index %>][user_id]"
+            data-field="user_id" class="form-control">
+      <option value=""><%= t("attendance.manual.select_employee") %></option>
+      <% employees.each do |e| %>
+        <option value="<%= e.id %>" data-code="<%= e.employee_code %>"
+          <%= "selected" if row[:user_id].to_s == e.id.to_s %>>
+          <%= e.full_name %> (<%= e.employee_code %>)
+        </option>
+      <% end %>
+    </select>
+  </td>
+  <td data-label="<%= t('attendance.manual.date_label') %>">
+    <input type="date" name="attendance_record_rows[<%= index %>][work_date]"
+           data-field="work_date" class="form-control"
+           value="<%= row[:work_date] %>">
+  </td>
+  <td data-label="<%= t('attendance.manual.check_in_label') %>">
+    <input type="time" name="attendance_record_rows[<%= index %>][check_in]"
+           data-field="check_in" class="form-control"
+           value="<%= row[:check_in] %>">
+  </td>
+  <td data-label="<%= t('attendance.manual.check_out_label') %>">
+    <input type="time" name="attendance_record_rows[<%= index %>][check_out]"
+           data-field="check_out" class="form-control"
+           value="<%= row[:check_out] %>">
+  </td>
+  <td data-label="<%= t('attendance.manual.notes_label') %>">
+    <input type="text" name="attendance_record_rows[<%= index %>][notes]"
+           data-field="notes" class="form-control"
+           value="<%= row[:notes] %>"
+           placeholder="<%= t('attendance.manual.notes_placeholder') %>">
+  </td>
+  <td class="td-actions">
+    <button type="button" class="btn btn-ghost btn-sm text-danger"
+            data-action="click->bulk-attendance-form#removeRow"
+            aria-label="<%= t('attendance.manual.bulk.remove_row') %>">&times;</button>
+  </td>
+  <% if error %>
+    <td class="bulk-row__error text-danger" colspan="6"><%= error.messages.join("; ") %></td>
+  <% end %>
+</tr>

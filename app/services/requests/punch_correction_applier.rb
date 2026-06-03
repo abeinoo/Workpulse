@@ -67,13 +67,17 @@ module Requests
 
     private
 
-    # Combines requested_for_date with an "HH:MM" string in the business timezone.
+    # Combines the punch's actual calendar date with an "HH:MM" string in the
+    # business timezone. Uses proposed_date (the real punch date) rather than
+    # requested_for_date (the work/business date) so overnight punches that cross
+    # midnight resolve to the correct moment — e.g. a check-out at 04:00 belonging
+    # to the previous day's shift is stored on the next calendar day.
     def build_datetime(time_str)
       return nil if time_str.blank?
 
       hours, minutes = time_str.to_s.split(":").first(2).map(&:to_i)
       tz   = ActiveSupport::TimeZone[@request.user.business.timezone]
-      date = @request.requested_for_date
+      date = @request.proposed_date || @request.requested_for_date
       tz.local(date.year, date.month, date.day, hours, minutes, 0)
     end
 

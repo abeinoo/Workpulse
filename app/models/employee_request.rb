@@ -31,7 +31,9 @@ class EmployeeRequest < ApplicationRecord
   validate :shift_supports_request_type, if: :late_permission?, on: :create
   validates :correction_type, presence: true, if: :punch_correction?
   validates :proposed_time,   presence: true, if: :punch_correction?
+  validates :proposed_date,   presence: true, if: :punch_correction?
 
+  before_validation :default_proposed_date, if: :punch_correction?
   before_save :derive_affects_payroll
 
   # Business scoping through user, not branch.
@@ -60,6 +62,13 @@ class EmployeeRequest < ApplicationRecord
   end
 
   private
+
+  # For same-day (non-overnight) corrections the punch date equals the work date,
+  # so we default it to avoid forcing employees to re-enter it. Overnight shifts
+  # (e.g. a check-out after midnight) must set proposed_date explicitly.
+  def default_proposed_date
+    self.proposed_date ||= requested_for_date
+  end
 
   # affects_payroll drives EntryCalculator exemptions; only duration-based types apply.
   def derive_affects_payroll

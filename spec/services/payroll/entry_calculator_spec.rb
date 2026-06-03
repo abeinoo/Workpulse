@@ -1,6 +1,12 @@
 require "rails_helper"
 
 RSpec.describe Payroll::EntryCalculator do
+  # Freeze the clock so `1.month.ago` always resolves to June 2026 (a month with
+  # exactly 22 weekdays). Without this, the "22 worked days" / absence examples
+  # were dependent on the real calendar — they broke once the current month's
+  # previous month had fewer than 22 weekdays.
+  around { |ex| travel_to(Time.zone.local(2026, 7, 15, 12, 0, 0)) { ex.run } }
+
   let(:business)  { create(:business, working_days_per_month: 22) }
   let(:branch)    { create(:branch, business: business) }
   let(:user)      { create(:user, business: business) }

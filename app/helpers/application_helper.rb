@@ -71,6 +71,23 @@ module ApplicationHelper
     end
   end
 
+  # Summarises a permission request (early_leave / late_permission) for display:
+  #   { minutes: Integer, time: "HH:MM" or nil }
+  # For early_leave the time is the requested departure (shift end − duration);
+  # for late_permission it's the requested arrival (shift start + duration).
+  # `time` is nil when the employee has no fixed-time shift on that date.
+  def requested_permission_summary(request)
+    minutes = request.duration_minutes.to_i
+    shift   = ShiftAssignment.active_on(request.requested_for_date)
+                             .find_by(user_id: request.user_id)&.shift
+    base = nil
+    if shift&.fixed_time?
+      base = shift.end_time   - minutes.minutes if request.early_leave?
+      base = shift.start_time + minutes.minutes if request.late_permission?
+    end
+    { minutes: minutes, time: base&.strftime("%H:%M") }
+  end
+
   def request_status_badge_class(request)
     case request.status
     when "approved" then "badge-success"

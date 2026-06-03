@@ -18,14 +18,34 @@
     </div>
     <% if @can_manage %>
       <div class="page-header__actions">
-        <%= link_to new_admin_attendance_import_path, class: "btn btn-ghost btn-sm" do %>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          <%= t("attendance.records.import_btn") %>
+        <% if policy(AttendanceRecord).create? %>
+          <%= link_to new_attendance_record_path, class: "btn btn-primary btn-sm" do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <%= t("attendance.manual.new_btn") %>
+          <% end %>
+          <%= link_to bulk_attendance_records_path, class: "btn btn-ghost btn-sm" do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+              <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+              <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+            <%= t("attendance.manual.bulk.new_btn") %>
+          <% end %>
+          <%# Single CSV entry point: the Bulk Manual Attendance importer.
+              (The biometric punch-events importer lives under the owner dashboard
+              quick-actions to avoid two competing CSV imports on this page.) %>
+          <%= link_to import_attendance_records_path, class: "btn btn-ghost btn-sm" do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <%= t("attendance.manual.import.new_btn") %>
+          <% end %>
         <% end %>
       </div>
     <% end %>

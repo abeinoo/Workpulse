@@ -627,10 +627,46 @@ select.form-control {
   cursor: pointer;
 }
 
-/* Date input */
-input[type="date"].form-control {
+/* Date / time inputs — respect the active theme so the native picker
+   (used as a fallback when JS is unavailable) renders correctly in both modes. */
+input[type="date"].form-control,
+input[type="time"].form-control,
+input[type="datetime-local"].form-control {
+  color-scheme: light;
+}
+html.dark input[type="date"].form-control,
+html.dark input[type="time"].form-control,
+html.dark input[type="datetime-local"].form-control {
   color-scheme: dark;
 }
+
+/* ── Flatpickr calendar — match form controls + dark theme + RTL ───────────── */
+.flatpickr-input.form-control[readonly] { background: var(--surface, #fff); cursor: pointer; }
+html.dark .flatpickr-calendar {
+  background: var(--navy-600, #1b2738);
+  color: var(--text-1, #e6edf5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+html.dark .flatpickr-calendar.arrowTop:before,
+html.dark .flatpickr-calendar.arrowTop:after { border-bottom-color: var(--navy-600, #1b2738); }
+html.dark .flatpickr-calendar.arrowBottom:before,
+html.dark .flatpickr-calendar.arrowBottom:after { border-top-color: var(--navy-600, #1b2738); }
+html.dark .flatpickr-months .flatpickr-month,
+html.dark .flatpickr-current-month,
+html.dark .flatpickr-weekday,
+html.dark .flatpickr-day { color: var(--text-1, #e6edf5); fill: var(--text-1, #e6edf5); }
+html.dark .flatpickr-day { background: transparent; border-color: transparent; }
+html.dark .flatpickr-day:hover,
+html.dark .flatpickr-day.prevMonthDay:hover,
+html.dark .flatpickr-day.nextMonthDay:hover { background: var(--navy-500, #28384d); border-color: var(--navy-500, #28384d); }
+html.dark .flatpickr-day.selected { background: var(--accent, #3b82f6); border-color: var(--accent, #3b82f6); color: #fff; }
+html.dark .flatpickr-day.flatpickr-disabled,
+html.dark .flatpickr-day.prevMonthDay,
+html.dark .flatpickr-day.nextMonthDay { color: var(--text-3, #6b7d93); }
+html.dark .flatpickr-months .flatpickr-prev-month svg,
+html.dark .flatpickr-months .flatpickr-next-month svg { fill: var(--text-1, #e6edf5); }
+html.dark .numInputWrapper span { border-color: var(--border, #2c3a4f); }
+html[dir="rtl"] .flatpickr-calendar { direction: rtl; }
 
 /* Input with inline suffix label (e.g. "minutes", "days") */
 .input-with-suffix {
@@ -10736,3 +10772,29 @@ html.theme-transition *::after {
   color: var(--text-2);
 }
 .theme-toggle--header:hover { color: var(--accent); }
+
+/* ── Bulk manual attendance entry ─────────────────────────────────────────── */
+.bulk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-3);
+}
+.bulk-toolbar__massset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.bulk-toolbar__count { margin-inline-start: auto; color: var(--text-2); font-size: var(--text-sm); }
+.form-control--sm { padding: 4px 8px; font-size: var(--text-sm); width: auto; }
+.form-label--inline { margin: 0; font-size: var(--text-sm); color: var(--text-2); }
+.bulk-empty { padding: var(--space-6); text-align: center; color: var(--text-3); }
+.bulk-mobile-hint { display: none; }
+tr.bulk-row--error { background: rgba(220, 38, 38, 0.06); }
+tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
+.bulk-row__error { font-size: var(--text-sm); padding-top: 0; }
+
+@media (max-width: 720px) {
+  .bulk-mobile-hint { display: block; }
+}

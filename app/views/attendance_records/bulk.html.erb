@@ -1,0 +1,91 @@
+<% content_for :title, t("attendance.manual.bulk.page_title") %>
+
+<div class="admin-page" data-controller="bulk-attendance-form">
+
+  <div class="page-header">
+    <div>
+      <%= link_to attendance_records_path, class: "back-link" do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        <%= t("attendance.manual.back") %>
+      <% end %>
+      <h1 class="page-title"><%= t("attendance.manual.bulk.title") %></h1>
+      <p class="page-subtitle"><%= t("attendance.manual.bulk.subtitle") %></p>
+    </div>
+    <%= link_to t("attendance.manual.import.title"), import_attendance_records_path, class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <div class="audit-notice">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <%= t("attendance.manual.bulk.audit_notice") %>
+  </div>
+
+  <p class="form-hint bulk-mobile-hint"><%= t("attendance.manual.bulk.mobile_hint") %></p>
+
+  <%= form_with url: bulk_create_attendance_records_path, method: :post, local: true do %>
+
+    <% if flash[:alert] %>
+      <div class="form-error" data-turbo-temporary><p class="form-error__title"><%= flash[:alert] %></p></div>
+    <% end %>
+
+    <%# ── Toolbar ─────────────────────────────────────────────────────────── %>
+    <div class="bulk-toolbar">
+      <button type="button" class="btn btn-secondary btn-sm"
+              data-action="click->bulk-attendance-form#addRow">
+        + <%= t("attendance.manual.bulk.add_row") %>
+      </button>
+      <div class="bulk-toolbar__massset">
+        <label class="form-label form-label--inline"><%= t("attendance.manual.bulk.mass_date") %></label>
+        <input type="date" class="form-control form-control--sm"
+               data-bulk-attendance-form-target="massDate"
+               value="<%= @default_date %>">
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-action="click->bulk-attendance-form#massSetDate">
+          <%= t("attendance.manual.bulk.apply_to_all") %>
+        </button>
+      </div>
+      <span class="bulk-toolbar__count">
+        <strong data-bulk-attendance-form-target="totalRows">0</strong>
+        <%= t("attendance.manual.bulk.rows_ready") %>
+      </span>
+    </div>
+
+    <%# ── Grid ───────────────────────────────────────────────────────────── %>
+    <div class="table-wrap table-wrap--cards"
+         data-action="keydown->bulk-attendance-form#handleKeydown paste->bulk-attendance-form#handlePaste input->bulk-attendance-form#updateCount change->bulk-attendance-form#updateCount">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("attendance.manual.employee_label") %></th>
+            <th><%= t("attendance.manual.date_label") %></th>
+            <th><%= t("attendance.manual.check_in_label") %></th>
+            <th><%= t("attendance.manual.check_out_label") %></th>
+            <th><%= t("attendance.manual.notes_label") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody data-bulk-attendance-form-target="body">
+          <% (@rows || []).each_with_index do |row, i| %>
+            <%= render "bulk_row", index: i, employees: @employees,
+                  row: row, error: (@row_errors || {})[i] %>
+          <% end %>
+        </tbody>
+      </table>
+      <p class="bulk-empty" data-bulk-attendance-form-target="emptyState" hidden>
+        <%= t("attendance.manual.bulk.empty") %>
+      </p>
+    </div>
+
+    <p class="form-hint"><%= t("attendance.manual.bulk.paste_hint") %></p>
+
+    <div class="form-actions">
+      <%= submit_tag t("attendance.manual.bulk.submit"), class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"), attendance_records_path, class: "btn btn-ghost" %>
+    </div>
+
+    <%# ── Blank-row template (cloned by the Stimulus controller) ─────────── %>
+    <template data-bulk-attendance-form-target="template">
+      <%= render "bulk_row", index: "NEW_INDEX", employees: @employees, row: {}, error: nil %>
+    </template>
+
+  <% end %>
+</div>
