@@ -158,10 +158,11 @@ class BulkAdjustmentsController < ApplicationController
   end
 
   def manageable_employees
-    # Honour business-wide scope: a business-wide adjustments manager must see
-    # every employee, not just their hierarchy. for_permission falls back to the
-    # managed hierarchy when no scope override is configured.
-    EmployeeScope.new(current_user).for_permission(:manage_adjustments)
+    # Resolve scope most-specific-first (manage_adjustments → view_payroll →
+    # view_employees) so a business-wide manager sees every employee. Falls back
+    # to the managed hierarchy when none is configured.
+    EmployeeScope.new(current_user)
+                 .for_permissions(:manage_adjustments, :view_payroll, :view_employees)
                  .active
                  .includes(:user_branches)
                  .order(:first_name, :last_name)

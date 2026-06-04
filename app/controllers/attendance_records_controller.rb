@@ -307,10 +307,12 @@ class AttendanceRecordsController < ApplicationController
   def manageable_employees
     return User.none unless current_user.can?(:manage_attendance)
 
-    # Canonical resolver: business-wide scope → every active employee in the
-    # business; restricted scope → the managed hierarchy. Used for both the
-    # picker and the bulk/CSV allowed_user_ids guard so they always agree.
-    EmployeeScope.new(current_user).for_permission(:manage_attendance)
+    # Resolve the picker scope from the most specific permission to the most
+    # general (manage → view_attendance → view_employees), so a manager granted
+    # business-wide on any of them sees every employee. Used for both the picker
+    # and the bulk/CSV allowed_user_ids guard so they always agree.
+    EmployeeScope.new(current_user)
+                 .for_permissions(:manage_attendance, :view_attendance, :view_employees)
                  .active.order(:first_name, :last_name)
   end
 

@@ -186,4 +186,46 @@ RSpec.describe EmployeeScope, type: :service do
       expect(result).to include(branch_emp, area_emp, unrelated_emp)
     end
   end
+
+  describe "#for_permissions (most-specific-first precedence)" do
+    def role_with(scopes)
+      create(:permission_role, business: business,
+             permissions: %w[view_employees view_attendance manage_attendance],
+             permission_scopes: scopes)
+    end
+
+    # Regional (area) manager — relation is hierarchy-only (area branch + reports).
+    let(:regional) { create(:user, business: business) }
+    before { create(:user_branch, user: regional, branch: branch) }
+
+    it "honours business_wide configured on the broad view_employees permission" do
+      regional.update!(permission_role: role_with("view_employees" => "business_wide"))
+      result = described_class.new(regional)
+                 .for_permissions(:manage_attendance, :view_attendance, :view_employees)
+      expect(result).to include(branch_emp, area_emp, unrelated_emp, direct_report)
+    end
+
+    it "honours business_wide configured on the feature view permission" do
+      regional.update!(permission_role: role_with("view_attendance" => "business_wide"))
+      result = described_class.new(regional)
+                 .for_permissions(:manage_attendance, :view_attendance, :view_employees)
+      expect(result).to include(unrelated_emp)
+    end
+
+    it "lets an explicit action-permission scope override a broader one" do
+      regional.update!(permission_role: role_with(
+        "view_employees"    => "business_wide",
+        "manage_attendance" => "managed_employees_only"))
+      result = described_class.new(regional)
+                 .for_permissions(:manage_attendance, :view_attendance, :view_employees)
+      # managed_employees_only on the action permission wins → no unrelated employee
+      expect(result).not_to include(unrelated_emp)
+    end
+
+    it "falls back to the hierarchy relation when nothing is configured" do
+      scope = described_class.new(branch_manager)
+      expect(scope.for_permissions(:manage_attendance, :view_attendance, :view_employees))
+        .to eq(scope.relation)
+    end
+  end
 end

@@ -51,18 +51,32 @@ class EmployeeScope
     send(method_name)
   end
 
-  # The canonical pickable/visible employees for a specific permission.
-  #
-  # Honours an explicitly-configured data scope on the permission (e.g.
-  # "business_wide" → every employee in the business) and falls back to the
-  # hierarchy-based relation when no override is set. This mirrors how
-  # ApplicationPolicy::Scope#filter_by_data_scope resolves visibility, so
-  # employee pickers and record visibility always agree.
-  #
-  # Use this for every employee dropdown/selector instead of #relation, which
-  # is hierarchy-only and grants business-wide access to owners alone.
+  # The canonical pickable/visible employees for one permission.
+  # Thin wrapper over #for_permissions for single-permission call sites.
   def for_permission(permission)
-    configured = @user.scope_for(permission)
+    for_permissions(permission)
+  end
+
+  # Resolve the pickable employees for a feature using an ordered list of
+  # permissions, most-specific first. The FIRST permission with an explicitly
+  # configured data scope wins; if none is configured we fall back to the
+  # hierarchy-based relation.
+  #
+  # Why a list: data scope is stored per-permission, but an admin granting a
+  # "regional manager" business-wide access naturally sets it on a single
+  # permission — often the broad "view_employees" or the feature's "view_*"
+  # permission — not on every action permission. Reading only the action
+  # permission (e.g. manage_attendance) meant such a manager fell back to their
+  # hierarchy and saw only managed employees. Passing
+  #   [action_permission, feature_view_permission, :view_employees]
+  # lets the picker honour whichever the admin configured, while a more-specific
+  # *explicit* scope still takes precedence over a broader one (so an explicit
+  # managed_employees_only on the action permission is never widened).
+  #
+  # Mirrors ApplicationPolicy::Scope#filter_by_data_scope so pickers and record
+  # visibility agree.
+  def for_permissions(*permissions)
+    configured = permissions.flatten.filter_map { |p| @user.scope_for(p) }.first
     configured ? for_scope(configured) : relation
   end
 

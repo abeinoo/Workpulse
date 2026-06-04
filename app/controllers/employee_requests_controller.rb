@@ -142,10 +142,12 @@ class EmployeeRequestsController < ApplicationController
     requestable_employees.where(active: true).order(:first_name, :last_name)
   end
 
-  # Employees this user may submit requests on behalf of, per their configured
-  # approve_requests scope (business_wide → all employees; otherwise hierarchy).
+  # Employees this user may submit requests on behalf of. Resolves scope
+  # most-specific-first (approve_requests → view_requests → view_employees) so a
+  # business-wide approver can act for everyone; falls back to the hierarchy.
   def requestable_employees
-    EmployeeScope.new(current_user).for_permission(:approve_requests)
+    EmployeeScope.new(current_user)
+                 .for_permissions(:approve_requests, :view_requests, :view_employees)
   end
 
   def allowed_request_types_for(target_user)

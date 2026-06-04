@@ -331,14 +331,20 @@ class ShiftAssignmentsController < ApplicationController
   def load_form_data
     @shifts        = Shift.for_business(current_user.business).active.order(:name)
     @rule_profiles = ShiftRuleProfile.for_business(current_user.business).active.order(:name)
-    if current_user.scope_for(:assign_shifts) == "business_wide"
-      @employees = User.where(business: current_user.business)
-                       .where.not(id: current_user.business.owner_id)
-                       .active
-                       .order(:first_name, :last_name)
+
+    # Resolve scope most-specific-first (assign_shifts → view_shifts → view_employees)
+    # so a business-wide manager sees every employee and branch, not just their hierarchy.
+    @employees = EmployeeScope.new(current_user)
+                              .for_permissions(:assign_shifts, :view_shifts, :view_employees)
+                              .active.order(:first_name, :last_name)
+
+    effective_scope = current_user.scope_for(:assign_shifts) ||
+                      current_user.scope_for(:view_shifts) ||
+                      current_user.scope_for(:view_employees)
+
+    if effective_scope == "business_wide"
       @branches = Branch.for_business(current_user.business).active.order(:name)
     else
-      @employees = EmployeeScope.new(current_user).relation.active.order(:first_name, :last_name)
       branch_ids = current_user.managed_branch_ids +
                    current_user.area_managed_branch_ids +
                    current_user.user_branches.pluck(:branch_id)
