@@ -1,27 +1,77 @@
-<div class="admin-page">
+<%
+  show_employee = current_user.can?(:view_requests) || current_user.can?(:approve_requests)
+  can_bulk      = current_user.can?(:pay_advances)
+  if can_bulk
+    cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
+    cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
+    cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
+  end
+  col_count = 5 + (show_employee ? 1 : 0) + (can_bulk ? 1 : 0)
+%>
+
+<%# data-controller wraps the whole page so checkboxes, action bar and modal
+    share one Stimulus scope. %>
+<% bulk_data = can_bulk ? {
+     controller: "request-bulk-pay",
+     "request-bulk-pay-currency-prefix-value": cur_prefix,
+     "request-bulk-pay-currency-suffix-value": cur_suffix
+   } : {} %>
+<div class="admin-page"<%= " ".html_safe + tag.attributes(data: bulk_data) if can_bulk %>>
 
   <div class="page-header">
     <h1 class="page-title"><%= t("requests.index.title") %></h1>
-    <% unless current_user.can?(:pay_advances) %>
+    <% unless can_bulk %>
       <%= link_to t("requests.new.title"), new_employee_request_path, class: "btn btn-primary btn-sm" %>
     <% end %>
   </div>
 
   <%# ── Accountant/Admin: salary advance management panel ─────────────────── %>
-  <% if current_user.can?(:pay_advances) %>
-    <% advances_pending = @requests.select { |r| r.salary_advance? && r.approved? } %>
+  <% if can_bulk %>
+    <% advances_pending = @requests.select { |r| r.salary_advance? && r.approved? && r.advance.nil? } %>
     <% if advances_pending.any? %>
       <div class="alert-banner alert-banner--warning" style="margin-bottom: 1.5rem;">
         <%= t("requests.pending_disbursement", count: advances_pending.count) %>
       </div>
     <% end %>
+
+    <%# ── Sticky bulk-action bar (hidden until a row is selected) ─────────── %>
+    <div class="bulk-action-bar"
+         data-request-bulk-pay-target="actionBar"
+         style="display:none"
+         role="toolbar"
+         aria-label="<%= t("requests.bulk.toolbar_label") %>">
+      <span class="bulk-action-bar__badge">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span data-request-bulk-pay-target="countBadge">0</span>
+        <%= t("requests.bulk.selected") %>
+      </span>
+      <span class="bulk-action-bar__sep"></span>
+      <button type="button"
+              class="btn btn-primary btn-sm"
+              data-request-bulk-pay-target="markPaidBtn"
+              data-action="click->request-bulk-pay#openModal"
+              aria-disabled="true">
+        <%= t("requests.bulk.mark_paid") %>
+      </button>
+    </div>
   <% end %>
 
   <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
         <tr>
-          <% if current_user.can?(:view_requests) || current_user.can?(:approve_requests) %>
+          <% if can_bulk %>
+            <th class="td-check">
+              <input type="checkbox"
+                     class="bulk-check-all"
+                     data-action="change->request-bulk-pay#toggleAll"
+                     aria-label="<%= t("requests.bulk.select_all") %>">
+            </th>
+          <% end %>
+          <% if show_employee %>
             <th><%= t("requests.employee") %></th>
           <% end %>
           <th><%= t("requests.type") %></th>
@@ -33,13 +83,26 @@
       </thead>
       <tbody>
         <% @requests.each do |req| %>
+          <% payable = req.salary_advance? && req.approved? && req.advance.nil? && policy(req).pay? %>
           <tr>
-            <% if current_user.can?(:view_requests) || current_user.can?(:approve_requests) %>
-              <td><%= req.user.full_name %></td>
+            <% if can_bulk %>
+              <td class="td-check">
+                <% if payable %>
+                  <input type="checkbox"
+                         class="bulk-check-row"
+                         value="<%= req.id %>"
+                         data-amount="<%= req.amount %>"
+                         data-action="change->request-bulk-pay#rowChanged"
+                         aria-label="<%= req.user.full_name %>">
+                <% end %>
+              </td>
             <% end %>
-            <td><span class="badge badge-neutral"><%= t("requests.types.#{req.request_type}") %></span></td>
-            <td class="td-secondary"><%= local_date(req.requested_for_date) %></td>
-            <td class="td-secondary">
+            <% if show_employee %>
+              <td data-label="<%= t("requests.employee") %>"><%= req.user.full_name %></td>
+            <% end %>
+            <td data-label="<%= t("requests.type") %>"><span class="badge badge-neutral"><%= t("requests.types.#{req.request_type}") %></span></td>
+            <td class="td-secondary" data-label="<%= t("requests.date") %>"><%= local_date(req.requested_for_date) %></td>
+            <td class="td-secondary" data-label="<%= t("requests.amount") %>">
               <% if req.salary_advance? && req.amount.present? %>
                 <%= format_currency(req.amount, precision: 0) %>
               <% elsif (req.late_permission? || req.early_leave?) && req.duration_minutes.present? %>
@@ -48,7 +111,7 @@
                 —
               <% end %>
             </td>
-            <td>
+            <td data-label="<%= t("requests.status") %>">
               <span class="badge <%= request_status_badge_class(req) %>">
                 <%= t("requests.statuses.#{req.status}") %>
               </span>
@@ -79,16 +142,71 @@
           </tr>
         <% end %>
         <% if @requests.empty? %>
-          <tr><td colspan="6" class="td-empty"><%= t("requests.no_requests") %></td></tr>
+          <tr><td colspan="<%= col_count %>" class="td-empty"><%= t("requests.no_requests") %></td></tr>
         <% end %>
       </tbody>
     </table>
   </div>
 
   <%# ── CSV export for accountants ─────────────────────────────────────────── %>
-  <% if current_user.can?(:pay_advances) %>
+  <% if can_bulk %>
     <div style="margin-top: 1rem; text-align: end;">
       <%= link_to t("requests.export_csv"), employee_requests_path(format: :csv), class: "btn btn-secondary btn-sm" %>
+    </div>
+
+    <%# ── Mark Selected as Paid confirmation modal ─────────────────────────── %>
+    <div class="modal-overlay"
+         style="display:none"
+         data-request-bulk-pay-target="modal"
+         data-action="click->request-bulk-pay#overlayClick">
+      <div class="modal-card" role="dialog"
+           aria-labelledby="bulk-pay-title" aria-modal="true">
+        <h3 class="modal-card__title" id="bulk-pay-title">
+          <%= t("requests.bulk.modal_title") %>
+        </h3>
+
+        <%= form_with url: bulk_pay_employee_requests_path, method: :patch, local: true do |f| %>
+          <%# request_ids[] injected by JS on open %>
+          <div data-request-bulk-pay-target="ids"></div>
+
+          <div class="bulk-pay-summary">
+            <div class="bulk-pay-summary__item">
+              <span class="bulk-pay-summary__label"><%= t("requests.bulk.summary_count") %></span>
+              <span class="bulk-pay-summary__value" data-request-bulk-pay-target="modalCount">0</span>
+            </div>
+            <div class="bulk-pay-summary__item">
+              <span class="bulk-pay-summary__label"><%= t("requests.bulk.summary_total") %></span>
+              <span class="bulk-pay-summary__value" data-request-bulk-pay-target="modalTotal">—</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <%= f.label :paid_at, t("requests.bulk.payment_date"),
+                  class: "form-label form-label--required" %>
+            <%= f.date_field :paid_at,
+                  value: Date.current,
+                  required: true,
+                  class: "form-control",
+                  data: { controller: "datepicker" } %>
+          </div>
+
+          <div class="form-group">
+            <%= f.label :notes, t("requests.bulk.notes"), class: "form-label" %>
+            <%= f.text_area :notes, rows: 3, class: "form-control",
+                  placeholder: t("requests.bulk.notes_placeholder") %>
+          </div>
+
+          <p class="form-hint"><%= t("requests.bulk.modal_hint") %></p>
+
+          <div class="form-actions">
+            <%= f.submit t("requests.bulk.confirm"), class: "btn btn-primary" %>
+            <button type="button" class="btn btn-ghost"
+                    data-action="click->request-bulk-pay#closeModal">
+              <%= t("forms.cancel") %>
+            </button>
+          </div>
+        <% end %>
+      </div>
     </div>
   <% end %>
 

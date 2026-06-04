@@ -4,6 +4,7 @@ class EmployeeRequestPolicy < ApplicationPolicy
   def approve? = can?(:approve_requests)
   def reject?  = can?(:approve_requests)
   def pay?     = can?(:pay_advances) && same_business?(record.user)
+  def bulk_pay? = can?(:pay_advances)  # class-level; per-request scoping via policy_scope
   def update?  = own_request? && record.pending?
   def destroy? = false
   def new?     = create?

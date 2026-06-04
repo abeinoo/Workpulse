@@ -325,4 +325,99 @@ RSpec.describe "EmployeeRequests", type: :request do
       expect(response.body).to include("45")
     end
   end
+
+  # ──────────────────────────────────────────────────────────────
+  # Bulk "Mark Selected as Paid"
+  # ──────────────────────────────────────────────────────────────
+  describe "PATCH /employee_requests/bulk_pay" do
+    let(:accountant) { create(:user, :accountant, business: business) }
+
+    def approved_advance(amount: 1_000.0)
+      create(:employee_request, :salary_advance, :approved, amount: amount,
+             user: create(:user, business: business))
+    end
+
+    context "as an accountant who can pay advances" do
+      before { sign_in accountant }
+
+      it "marks the selected advances as paid and creates Advances" do
+        r1 = approved_advance(amount: 1_000.0)
+        r2 = approved_advance(amount: 2_000.0)
+
+        expect {
+          patch bulk_pay_employee_requests_path,
+                params: { request_ids: [r1.id, r2.id], paid_at: Date.current.iso8601 }
+        }.to change(Advance, :count).by(2)
+
+        expect(r1.reload).to be_paid
+        expect(r2.reload).to be_paid
+        expect(response).to redirect_to(employee_requests_path)
+        expect(flash[:notice]).to be_present
+      end
+
+      it "records a bulk audit log entry" do
+        r1 = approved_advance
+
+        expect {
+          patch bulk_pay_employee_requests_path,
+                params: { request_ids: [r1.id], paid_at: Date.current.iso8601, notes: "Cash" }
+        }.to change { AuditLog.where(action: "bulk_pay_advances").count }.by(1)
+
+        expect(r1.reload.response_note).to eq("Cash")
+      end
+
+      it "pays valid advances and reports skipped ones on partial failure" do
+        valid    = approved_advance(amount: 1_000.0)
+        pending  = create(:employee_request, :salary_advance, amount: 500.0,
+                          user: create(:user, business: business))
+
+        patch bulk_pay_employee_requests_path,
+              params: { request_ids: [valid.id, pending.id], paid_at: Date.current.iso8601 }
+
+        expect(valid.reload).to be_paid
+        expect(pending.reload).to be_pending
+        expect(flash[:notice]).to be_present
+        expect(flash[:alert]).to be_present # skipped notice
+      end
+
+      it "shows an alert when none of the selected requests are payable" do
+        pending = create(:employee_request, :salary_advance, amount: 500.0,
+                         user: create(:user, business: business))
+
+        patch bulk_pay_employee_requests_path, params: { request_ids: [pending.id] }
+
+        expect(pending.reload).to be_approved.or be_pending
+        expect(flash[:alert]).to be_present
+        expect(flash[:notice]).to be_blank
+      end
+
+      it "cannot pay advances belonging to another business (out of scope)" do
+        other_business = create(:business)
+        foreign = create(:employee_request, :salary_advance, :approved, amount: 900.0,
+                         user: create(:user, business: other_business))
+
+        expect {
+          patch bulk_pay_employee_requests_path, params: { request_ids: [foreign.id] }
+        }.not_to change(Advance, :count)
+
+        expect(foreign.reload).to be_approved
+      end
+    end
+
+    context "as an employee without pay_advances permission" do
+      before { sign_in employee }
+
+      it "is not authorized and does not pay" do
+        advance = approved_advance
+
+        expect {
+          patch bulk_pay_employee_requests_path, params: { request_ids: [advance.id] }
+        }.not_to change(Advance, :count)
+
+        expect(response).to redirect_to(root_path)
+        expect(flash[:alert]).to eq(I18n.t("flash.not_authorized"))
+        expect(advance.reload).to be_approved
+      end
+    end
+  end
 end

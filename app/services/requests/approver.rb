@@ -23,8 +23,10 @@ module Requests
       new(request: request, reviewed_by: reviewed_by, response_note: response_note).reject
     end
 
-    def self.pay(request:, paid_by:)
-      new(request: request, reviewed_by: paid_by).pay
+    # paid_at — disbursement timestamp recorded on the Advance (defaults to now).
+    # note    — optional disbursement note stored on the request.
+    def self.pay(request:, paid_by:, paid_at: nil, note: nil)
+      new(request: request, reviewed_by: paid_by, response_note: note, paid_at: paid_at).pay
     end
 
     # Marks every approved salary advance in `requests` as paid in one
@@ -50,11 +52,12 @@ module Requests
       BulkResult.new(paid_count: paid, errors: errs)
     end
 
-    def initialize(request:, reviewed_by:, response_note: nil, approved_time: nil)
+    def initialize(request:, reviewed_by:, response_note: nil, approved_time: nil, paid_at: nil)
       @request       = request
       @reviewed_by   = reviewed_by
       @response_note = response_note
       @approved_time = approved_time
+      @paid_at       = paid_at
     end
 
     def approve
@@ -91,22 +94,26 @@ module Requests
     def pay
       return err("Only approved salary advance requests can be marked as paid") unless payable?
 
+      paid_at = @paid_at || Time.current
+
       ActiveRecord::Base.transaction do
-        @request.update!(status: "paid", reviewed_by: @reviewed_by, reviewed_at: Time.current)
+        update_attrs = { status: "paid", reviewed_by: @reviewed_by, reviewed_at: Time.current }
+        update_attrs[:response_note] = @response_note if @response_note.present?
+        @request.update!(update_attrs)
         Advance.create!(
           user:             @request.user,
           employee_request: @request,
           total_amount:     @request.amount,
           remaining_amount: @request.amount,
           status:           "active",
-          issued_at:        Time.current
+          issued_at:        paid_at
         )
         log_audit(
           actor:     @reviewed_by,
           auditable: @request,
           action:    "pay",
           changes:   { status: ["approved", "paid"] },
-          metadata:  { amount: @request.amount }
+          metadata:  { amount: @request.amount, paid_at: paid_at, note: @response_note }.compact
         )
       end
 

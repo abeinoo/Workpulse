@@ -8828,6 +8828,42 @@ details:not([open]) .permission-group__chevron {
 
 [dir="rtl"] .modal-overlay { direction: rtl; }
 
+/* ── Bulk-pay confirmation summary (employee-requests index) ─────────────── */
+.bulk-pay-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.bulk-pay-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.bulk-pay-summary__label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.bulk-pay-summary__value {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+[dir="rtl"] .bulk-pay-summary__item { text-align: start; }
+
+@media (max-width: 480px) {
+  .bulk-pay-summary { grid-template-columns: 1fr; }
+}
+
 /* ── Detail list (used in confirm_delete view) ───────────────────────────── */
 .detail-list {
   display: grid;

@@ -107,6 +107,27 @@ class EmployeeRequestsController < ApplicationController
     end
   end
 
+  # Bulk "Mark Selected as Paid": disburses the chosen approved salary advances
+  # in a single transaction, skipping and reporting any that are no longer
+  # payable. Selection is scoped through policy_scope so an accountant can only
+  # ever act on requests within their data scope.
+  def bulk_pay
+    authorize EmployeeRequest, :bulk_pay?
+
+    requests = policy_scope(EmployeeRequest)
+                 .includes(:user, :advance)
+                 .where(id: Array(params[:request_ids]))
+
+    result = Requests::BulkPaymentService.call(
+      requests: requests.to_a,
+      paid_by:  current_user,
+      paid_at:  params[:paid_at],
+      notes:    params[:notes]
+    )
+
+    redirect_to employee_requests_path, **bulk_pay_flash(result)
+  end
+
   def mark_all_paid
     authorize EmployeeRequest, :pay?
 
@@ -127,6 +148,24 @@ class EmployeeRequestsController < ApplicationController
   end
 
   private
+
+  # Builds the redirect flash for a bulk-pay outcome. Returns a hash suitable for
+  # splatting into redirect_to (notice and/or alert).
+  def bulk_pay_flash(result)
+    if result.any_paid?
+      total  = helpers.format_currency(result.total_amount, precision: 0)
+      notice = t("flash.bulk_pay.paid", count: result.paid_count, total: total)
+      flash  = { notice: notice }
+      if result.skipped_count.positive?
+        flash[:alert] = t("flash.bulk_pay.skipped", count: result.skipped_count)
+      end
+      flash
+    elsif result.skipped_count.positive?
+      { alert: t("flash.bulk_pay.none_paid", count: result.skipped_count) }
+    else
+      { alert: t("flash.bulk_pay.none_selected") }
+    end
+  end
 
   def resolve_for_user
     return nil unless current_user.can?(:approve_requests)

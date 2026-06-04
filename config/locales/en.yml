@@ -923,6 +923,19 @@ en:
       paid: "Paid / Disbursed"
     pay: "Mark as Paid"
     mark_all_paid: "Mark All Paid"
+    bulk:
+      toolbar_label: "Bulk advance actions"
+      selected: "selected"
+      select_all: "Select all advances"
+      mark_paid: "Mark Selected as Paid"
+      modal_title: "Mark Selected Advances as Paid"
+      summary_count: "Selected requests"
+      summary_total: "Total amount"
+      payment_date: "Payment date"
+      notes: "Notes (optional)"
+      notes_placeholder: "e.g. Disbursed via bank transfer"
+      modal_hint: "An Advance record will be created for each request and deducted from the employee's next payroll run."
+      confirm: "Confirm Payment"
     mark_paid_note: "Marking as paid confirms the advance was disbursed to the employee."
     advance_note: "An Advance record will be created and deducted from their next payroll run."
     mark_paid_confirm: "Mark as Paid / Disbursed"
@@ -2315,6 +2328,17 @@ en:
     advance_paid: "Salary advance marked as paid."
     advances_paid_one: "1 advance marked as paid."
     advances_paid_other: "%{count} advances marked as paid."
+    bulk_pay:
+      paid:
+        one: "1 advance marked as paid (%{total})."
+        other: "%{count} advances marked as paid (%{total})."
+      skipped:
+        one: "1 selected request was skipped because it was no longer payable."
+        other: "%{count} selected requests were skipped because they were no longer payable."
+      none_paid:
+        one: "Nothing was paid — the selected request was no longer payable."
+        other: "Nothing was paid — the %{count} selected requests were no longer payable."
+      none_selected: "No requests selected."
     shift_assigned: "Shift assigned successfully."
     assignment_updated: "Assignment updated."
     assignment_ended: "Assignment ended."
