@@ -188,6 +188,70 @@ RSpec.describe Requests::PunchCorrectionApplier do
   end
 
   # ──────────────────────────────────────────────────────────────
+  # Regression: check-in stored on a calendar day AFTER the work_date.
+  #
+  # Reproduces the production bug "Worked minutes must be greater than or
+  # equal to 0". The shift's work_date is the day before the punch's real
+  # calendar date (e.g. an overnight business whose business_day_start_hour
+  # pushes an afternoon punch onto the prior work_date). proposed_date
+  # defaults to requested_for_date (the work_date), so build_datetime would
+  # anchor the corrected check-out to the day BEFORE the check-in, producing
+  # a check_out_at earlier than check_in_at and a negative worked_minutes.
+  # ──────────────────────────────────────────────────────────────
+  describe "wrong_check_out_time when check-in is on the day after work_date (overnight)" do
+    let(:riyadh)    { create(:business, timezone: "Asia/Riyadh") }
+    let(:rz_branch) { create(:branch, business: riyadh) }
+    let(:rz_user)   { create(:user, business: riyadh) }
+    let(:rz_shift)  { create(:shift, :overnight, business: riyadh) } # 13:00 → 01:00
+    let(:tz)        { riyadh.timezone_object }
+    let(:work_date) { Date.new(2026, 6, 1) }
+
+    # Open record: check-in 13:05 on 2026-06-02, but the shift's work_date is 2026-06-01.
+    let!(:record) do
+      create(:attendance_record,
+             user:           rz_user,
+             branch:         rz_branch,
+             shift:          rz_shift,
+             date:           work_date,
+             work_date:      work_date,
+             check_in_at:    tz.local(2026, 6, 2, 13, 5, 0),
+             check_in_source: "mobile",
+             status:         "incomplete",
+             worked_minutes: nil)
+    end
+
+    # Wrong-check-out correction with proposed time 22:22 and no explicit
+    # proposed_date — it defaults to requested_for_date (the work_date).
+    let(:request) do
+      create(:employee_request, :punch_correction,
+             user:               rz_user,
+             correction_type:    "wrong_check_out_time",
+             requested_for_date: work_date,
+             proposed_time:      "22:22",
+             status:             :approved,
+             reviewed_at:        Time.current)
+    end
+
+    it "succeeds instead of failing the worked_minutes validation" do
+      result = described_class.call(request: request)
+      expect(result).to be_success, "expected success, got: #{result.error.inspect}"
+    end
+
+    it "stores the check-out after the check-in on the same calendar day" do
+      described_class.call(request: request)
+      out = record.reload.check_out_at.in_time_zone(tz)
+      expect(out.to_date).to eq(Date.new(2026, 6, 2))
+      expect(out.hour).to eq(22)
+      expect(out.min).to eq(22)
+    end
+
+    it "computes a non-negative worked_minutes (13:05 → 22:22 = 9h17m)" do
+      described_class.call(request: request)
+      expect(record.reload.worked_minutes).to eq(557)
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────
   # No attendance record found
   # ──────────────────────────────────────────────────────────────
   describe "when no attendance record exists for the date" do
