@@ -291,6 +291,22 @@ module ApplicationHelper
     parts.join(" ")
   end
 
+  # Renders the "OT Override" badge for an entry whose payable overtime has been
+  # overridden, or nil otherwise. `stale: true` adds a re-review hint after a
+  # regeneration changed the calculated value underneath the override.
+  def overtime_override_badge(entry)
+    return unless entry.overtime_overridden?
+
+    classes = "payroll-entry-badge payroll-entry-badge--info"
+    classes += " payroll-entry-badge--stale" if entry.overtime_override_stale?
+    label = entry.overtime_override_stale? ? t("payroll.overtime_override.badge_stale")
+                                           : t("payroll.overtime_override.badge")
+    content_tag(:span, label, class: classes,
+                title: t("payroll.overtime_override.badge_title",
+                         calculated: format_minutes(entry.calculated_overtime_minutes),
+                         approved:   format_minutes(entry.payable_overtime_minutes)))
+  end
+
   # Returns a CSS modifier key for a branch health score (0–100).
   def branch_health_grade(score)
     case score

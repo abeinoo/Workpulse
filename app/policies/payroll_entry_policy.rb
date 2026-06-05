@@ -5,6 +5,14 @@ class PayrollEntryPolicy < ApplicationPolicy
   # same authority as regenerating the period's calculations.
   def update? = can?(:regenerate_payroll)
 
+  # Overriding payable overtime — dedicated permission, only while the period is
+  # still reviewable (draft / under_review). Locked periods are immutable.
+  def override_overtime?
+    can?(:manage_payroll_overrides) &&
+      record.payroll_period&.business_id == user.business_id &&
+      record.payroll_period&.reviewable?
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       business_scoped = scope.joins(:payroll_period)

@@ -282,10 +282,19 @@
   <% end %>
 
   <%# ── Employee payroll entries table ─────────────────────────────────────── %>
+  <% can_bulk_ot = current_user.can?(:manage_payroll_overrides) && @period.reviewable? %>
+  <div data-controller="payroll-overtime-bulk">
   <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
         <tr>
+          <% if can_bulk_ot %>
+            <th class="ot-bulk-cell">
+              <input type="checkbox" class="ot-bulk-all"
+                     data-action="change->payroll-overtime-bulk#toggleAll"
+                     aria-label="<%= t('payroll.overtime_override.select_all') %>">
+            </th>
+          <% end %>
           <th><%= t("payroll.employee") %></th>
           <% if current_user.can?(:view_payroll) %>
             <th><%= t("payroll.show.branch_col") %></th>
@@ -320,6 +329,13 @@
             end
           %>
           <tr>
+            <% if can_bulk_ot %>
+              <td class="ot-bulk-cell" data-label="">
+                <input type="checkbox" class="ot-bulk-row" value="<%= entry.id %>"
+                       data-action="change->payroll-overtime-bulk#rowChanged"
+                       aria-label="<%= entry.user.full_name %>">
+              </td>
+            <% end %>
             <td data-label="<%= t('payroll.employee') %>">
               <div class="employee-cell">
                 <%= user_avatar_tag(entry.user, size: :thumb) %>
@@ -343,6 +359,9 @@
                         <span class="payroll-entry-badge payroll-entry-badge--neutral"><%= t("payroll.show.badge_no_checkout") %></span>
                       <% end %>
                     </div>
+                  <% end %>
+                  <% if entry.overtime_overridden? %>
+                    <div class="payroll-entry-badges"><%= overtime_override_badge(entry) %></div>
                   <% end %>
                 </div>
               </div>
@@ -396,7 +415,7 @@
         <% end %>
         <% if @entries.empty? %>
           <tr>
-            <td colspan="<%= current_user.can?(:view_payroll) ? 10 : 9 %>" class="td-empty">
+            <td colspan="<%= (current_user.can?(:view_payroll) ? 10 : 9) + (can_bulk_ot ? 1 : 0) %>" class="td-empty">
               <%= t("payroll.show.entries_empty") %>
             </td>
           </tr>
@@ -406,7 +425,7 @@
       <% if @overview && @entries.any? %>
         <tfoot>
           <tr class="totals-row">
-            <td colspan="<%= current_user.can?(:view_payroll) ? 3 : 2 %>">
+            <td colspan="<%= (current_user.can?(:view_payroll) ? 3 : 2) + (can_bulk_ot ? 1 : 0) %>">
               <strong><%= t("payroll.show.totals_label") %></strong>
             </td>
             <td class="text-right td-secondary">
@@ -429,6 +448,62 @@
         </tfoot>
       <% end %>
     </table>
+  </div>
+
+  <% if can_bulk_ot %>
+    <%# Sticky bulk action bar — appears once entries are selected %>
+    <div class="ot-bulk-bar" data-payroll-overtime-bulk-target="actionBar" style="display:none;">
+      <span class="ot-bulk-bar__count">
+        <strong data-payroll-overtime-bulk-target="countBadge">0</strong>
+        <%= t("payroll.overtime_override.selected_suffix") %>
+      </span>
+      <button type="button" class="btn btn-sm btn-warning"
+              data-action="payroll-overtime-bulk#openModal">
+        <%= t("payroll.overtime_override.bulk_btn") %>
+      </button>
+    </div>
+
+    <%# Modal: choose mode + value + reason %>
+    <div class="modal-overlay" data-payroll-overtime-bulk-target="modal" style="display:none;"
+         data-action="click->payroll-overtime-bulk#overlayClick">
+      <div class="modal-card">
+        <h3 class="modal-card__title"><%= t("payroll.overtime_override.bulk_title") %></h3>
+        <p class="modal-card__sub">
+          <%= t("payroll.overtime_override.bulk_subtitle_html",
+                 count: "<strong data-payroll-overtime-bulk-target='modalCount'>0</strong>").html_safe %>
+        </p>
+        <%= form_with url: adjust_overtime_payroll_period_path(@period), method: :patch do |f| %>
+          <span data-payroll-overtime-bulk-target="ids"></span>
+          <div class="form-group">
+            <%= f.label :bulk_mode, t("payroll.overtime_override.mode_label"), class: "form-label" %>
+            <%= f.select :bulk_mode,
+                  [ [ t("payroll.overtime_override.bulk_zero"), "zero" ],
+                    [ t("payroll.overtime_override.bulk_fixed_amount"), "fixed_amount" ],
+                    [ t("payroll.overtime_override.bulk_fixed_minutes"), "fixed_minutes" ],
+                    [ t("payroll.overtime_override.bulk_restore"), "restore" ] ],
+                  {}, class: "form-control",
+                  data: { action: "change->payroll-overtime-bulk#modeChanged" } %>
+          </div>
+          <div class="form-group" data-payroll-overtime-bulk-target="valueField" style="display:none;">
+            <%= f.label :value, t("payroll.overtime_override.value_label"), class: "form-label" %>
+            <%= f.number_field :value, step: "0.01", min: 0, class: "form-control",
+                  data: { payroll_overtime_bulk_target: "value" } %>
+          </div>
+          <div class="form-group">
+            <%= f.label :reason, t("payroll.overtime_override.reason_label"), class: "form-label" %>
+            <%= f.text_area :reason, rows: 2, class: "form-control",
+                  placeholder: t("payroll.overtime_override.reason_placeholder"),
+                  data: { payroll_overtime_bulk_target: "reason" } %>
+          </div>
+          <div class="modal-card__actions">
+            <button type="button" class="btn btn-secondary"
+                    data-action="payroll-overtime-bulk#closeModal"><%= t("forms.cancel") %></button>
+            <%= f.submit t("payroll.overtime_override.confirm"), class: "btn btn-warning" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
   </div>
 
   <%# ── Activity timeline (all management users) ───────────────────────────── %>

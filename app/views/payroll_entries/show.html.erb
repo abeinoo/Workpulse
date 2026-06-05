@@ -69,6 +69,71 @@
     </div>
   <% end %>
 
+  <%# ── Overtime override (payroll users only) ─────────────────────────────── %>
+  <% if can_manage && (@entry.calculated_overtime_minutes.to_i > 0 || @entry.overtime_overridden?) %>
+    <% can_override = policy(@entry).override_overtime? %>
+    <div class="ot-override-card <%= @entry.overtime_overridden? ? 'ot-override-card--active' : '' %>">
+      <div class="ot-override-card__row">
+        <div class="ot-override-card__metric">
+          <span class="ot-override-card__label"><%= t("payroll.overtime_override.calculated") %></span>
+          <span class="ot-override-card__value"><%= format_minutes(@entry.calculated_overtime_minutes) %></span>
+          <span class="ot-override-card__sub"><%= format_currency(@entry.calculated_overtime_pay) %></span>
+        </div>
+        <div class="ot-override-card__metric">
+          <span class="ot-override-card__label"><%= t("payroll.overtime_override.approved") %></span>
+          <span class="ot-override-card__value <%= @entry.overtime_overridden? ? 'text-warning' : 'text-success' %>">
+            <%= format_minutes(@entry.payable_overtime_minutes) %>
+          </span>
+          <span class="ot-override-card__sub"><%= format_currency(@entry.payable_overtime_pay) %></span>
+        </div>
+        <% if @entry.overtime_overridden? %>
+          <div class="ot-override-card__metric">
+            <span class="ot-override-card__label"><%= t("payroll.overtime_override.difference") %></span>
+            <span class="ot-override-card__value text-danger">− <%= format_currency(@entry.overtime_difference) %></span>
+          </div>
+        <% end %>
+        <% if can_override %>
+          <details class="ot-override-form">
+            <summary class="btn btn-sm btn-warning" style="cursor: pointer; list-style: none;">
+              <%= @entry.overtime_overridden? ? t("payroll.overtime_override.edit_btn") : t("payroll.overtime_override.set_btn") %>
+            </summary>
+            <div class="waive-popover ot-override-popover">
+              <%= form_with url: override_overtime_payroll_period_payroll_entry_path(@period, @entry), method: :patch do |f| %>
+                <p class="waive-popover__hint"><%= t("payroll.overtime_override.hint") %></p>
+                <div class="ot-override-popover__modes">
+                  <label><%= f.radio_button :mode, "amount", checked: true %> <%= t("payroll.overtime_override.mode_amount") %></label>
+                  <label><%= f.radio_button :mode, "minutes" %> <%= t("payroll.overtime_override.mode_minutes") %></label>
+                  <label><%= f.radio_button :mode, "restore" %> <%= t("payroll.overtime_override.mode_restore") %></label>
+                </div>
+                <%= f.number_field :value, step: "0.01", min: 0, placeholder: t("payroll.overtime_override.value_placeholder"),
+                      class: "form-control form-control--sm", style: "margin-bottom:.5rem;" %>
+                <div class="ot-override-popover__quick">
+                  <button type="submit" name="mode" value="amount" formnovalidate
+                          class="btn btn-sm btn-danger"
+                          onclick="this.form.value.value='0'"><%= t("payroll.overtime_override.quick_zero") %></button>
+                </div>
+                <%= f.text_area :reason, placeholder: t("payroll.overtime_override.reason_placeholder"),
+                      rows: 2, class: "waive-popover__textarea" %>
+                <%= f.submit t("payroll.overtime_override.confirm"), class: "btn btn-sm btn-warning" %>
+              <% end %>
+            </div>
+          </details>
+        <% end %>
+      </div>
+      <% if @entry.overtime_overridden? %>
+        <div class="ot-override-card__note">
+          <% if @entry.overtime_override_stale? %>
+            <span class="ot-override-card__stale">⚠ <%= t("payroll.overtime_override.stale_notice") %></span>
+          <% end %>
+          <%= t("payroll.overtime_override.set_by",
+                 name: @entry.overtime_overridden_by&.full_name || t("forms.none")) %>
+          <%= "· #{local_short_date(@entry.overtime_overridden_at)}" if @entry.overtime_overridden_at %>
+          — <%= @entry.overtime_override_reason %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
   <%# ── Salary breakdown ───────────────────────────────────────────────────── %>
   <%
     already_paid_items = @additions.select(&:already_paid?)
@@ -562,6 +627,27 @@
   }
   .waive-popover__hint { font-size: 0.8rem; color: var(--text-2); margin-bottom: 0.5rem; }
   .waive-popover__textarea { width: 100%; margin-bottom: 0.5rem; font-size: 0.85rem; }
+
+  /* Overtime override card */
+  .ot-override-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.9rem 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .ot-override-card--active { border-color: var(--warning, #f59e0b); background: var(--warning-muted, #fff7ed); }
+  .ot-override-card__row { display: flex; align-items: flex-end; gap: 2rem; flex-wrap: wrap; }
+  .ot-override-card__metric { display: flex; flex-direction: column; gap: 0.1rem; }
+  .ot-override-card__label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); }
+  .ot-override-card__value { font-size: 1.05rem; font-weight: 700; }
+  .ot-override-card__sub { font-size: 0.78rem; color: var(--text-2); }
+  .ot-override-card__note { margin-top: 0.6rem; font-size: 0.8rem; color: var(--text-2); }
+  .ot-override-card__stale { color: var(--warning, #f59e0b); font-weight: 600; margin-inline-end: 0.4rem; }
+  .ot-override-form { margin-inline-start: auto; position: relative; }
+  .ot-override-popover { min-width: 20rem; }
+  .ot-override-popover__modes { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
+  .ot-override-popover__quick { margin-bottom: 0.5rem; }
 
   /* Attendance table */
   .attendance-table td, .attendance-table th { white-space: nowrap; }

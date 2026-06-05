@@ -10,6 +10,7 @@ module Payroll
       @period   = period
       @user     = user
       @business = business
+      @calculated_overtime_minutes = 0
     end
 
     def call
@@ -52,6 +53,10 @@ module Payroll
           days_worked:          days_worked,
           total_deductions:     total_deductions.round(2),
           total_overtime:       total_overtime.round(2),
+          # Pristine system overtime snapshot. At generation payable == calculated;
+          # an override (if any) is re-applied afterwards by Payroll::Regenerator.
+          calculated_overtime_minutes: @calculated_overtime_minutes,
+          calculated_overtime_pay:     total_overtime.round(2),
           total_bonuses:        total_bonuses.round(2),
           already_paid_total:   already_paid_total.round(2),
           advances_deducted:    advances_deducted.round(2),
@@ -123,7 +128,10 @@ module Payroll
           grace_minutes: @business.overtime_grace_minutes.to_i,
           rule_profile:  rule_profile
         )
-        items << item("overtime", overtime.overtime_pay, record, "Overtime #{record.work_date}") if overtime.overtime_pay > 0
+        if overtime.overtime_pay > 0
+          items << item("overtime", overtime.overtime_pay, record, "Overtime #{record.work_date}")
+          @calculated_overtime_minutes += overtime.overtime_minutes.to_i
+        end
 
         items
       end

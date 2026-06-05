@@ -230,9 +230,13 @@ Rails.application.routes.draw do
       patch :mark_paid
       patch :regenerate
       patch :approve_all_pending
+      patch :adjust_overtime
       patch :reopen
     end
     resources :payroll_entries, only: [ :show ] do
+      member do
+        patch :override_overtime
+      end
       resources :payroll_line_items, only: [] do
         member do
           patch :approve

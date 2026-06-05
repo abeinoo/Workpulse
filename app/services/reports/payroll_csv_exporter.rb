@@ -31,7 +31,8 @@ module Reports
       [
         "Employee ID", "Full Name", "Salary Type",
         "Base Salary (#{@currency})", "Working Days", "Days Worked",
-        "Total Deductions (#{@currency})", "Total Overtime (#{@currency})",
+        "Total Deductions (#{@currency})",
+        "Calculated Overtime (#{@currency})", "Approved Overtime (#{@currency})", "Overtime Difference (#{@currency})",
         "Total Bonuses (#{@currency})", "Paid During Period (#{@currency})",
         "Advances Deducted (#{@currency})", "Obligations Deducted (#{@currency})",
         "Final Payable (#{@currency})", "Status"
@@ -42,7 +43,9 @@ module Reports
       [
         row[:user_id], row[:full_name], row[:salary_type],
         row[:base_salary], row[:working_days], row[:days_worked],
-        row[:total_deductions], row[:total_overtime], row[:total_bonuses],
+        row[:total_deductions],
+        row[:calculated_overtime], row[:approved_overtime], row[:overtime_difference],
+        row[:total_bonuses],
         row[:already_paid_total],
         row[:advances_deducted], row[:obligations_deducted], row[:net_salary], row[:status]
       ]
@@ -52,7 +55,9 @@ module Reports
       [
         "", "TOTALS", "",
         totals[:base_salary], "", "",
-        totals[:deductions], totals[:overtime], totals[:bonuses],
+        totals[:deductions],
+        totals[:calculated_overtime], totals[:overtime], totals[:overtime_difference],
+        totals[:bonuses],
         totals[:already_paid_total],
         totals[:advances_deducted], totals[:obligations_deducted], totals[:net_salary], ""
       ]

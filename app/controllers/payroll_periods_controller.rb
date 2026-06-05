@@ -270,6 +270,31 @@ class PayrollPeriodsController < ApplicationController
     redirect_to payroll_period_path(@period), alert: e.message
   end
 
+  def adjust_overtime
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :adjust_overtime?
+
+    # Restrict to entries the actor is authorised to see within this period.
+    entry_ids = policy_scope(PayrollEntry).where(payroll_period: @period, id: params[:entry_ids]).pluck(:id)
+
+    result = Payroll::BulkOvertimeOverrider.call(
+      period:    @period,
+      entry_ids: entry_ids,
+      bulk_mode: params[:bulk_mode],
+      value:     params[:value],
+      reason:    params[:reason],
+      actor:     current_user
+    )
+
+    if result.success?
+      notice = t("payroll.overtime_override.flash.bulk_applied", count: result.applied)
+      notice += " #{t('payroll.overtime_override.flash.bulk_skipped', count: result.skipped)}" if result.skipped.positive?
+      redirect_to payroll_period_path(@period), notice: notice
+    else
+      redirect_to payroll_period_path(@period), alert: result.error
+    end
+  end
+
   def regenerate
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period, :regenerate?

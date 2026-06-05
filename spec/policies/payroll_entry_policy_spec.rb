@@ -53,6 +53,27 @@ RSpec.describe PayrollEntryPolicy, type: :model do
     it "denies employee"        do expect(subject.new(employee,    entry).update?).to be false end
   end
 
+  describe "override_overtime?" do
+    let(:draft_period) { create(:payroll_period, business: business, status: :draft) }
+    let(:draft_entry)  { create(:payroll_entry, payroll_period: draft_period, user: employee) }
+
+    it "permits accountant on a reviewable period" do
+      expect(subject.new(accountant, draft_entry).override_overtime?).to be true
+    end
+
+    it "denies branch_manager (no manage_payroll_overrides)" do
+      expect(subject.new(manager, draft_entry).override_overtime?).to be false
+    end
+
+    it "denies employee" do
+      expect(subject.new(employee, draft_entry).override_overtime?).to be false
+    end
+
+    it "denies even an accountant once the period is locked" do
+      expect(subject.new(accountant, entry).override_overtime?).to be false # entry uses a :finalized period
+    end
+  end
+
   describe "Scope" do
     let!(:my_entry)    { entry }
     let!(:other_entry) { create(:payroll_entry) }

@@ -8017,6 +8017,25 @@ details:not([open]) .permission-group__chevron {
 .payroll-entry-badge--danger  { background: rgba(var(--danger-rgb),0.15);  color: var(--danger); }
 .payroll-entry-badge--warning { background: rgba(var(--warning-rgb),0.15); color: var(--warning); }
 .payroll-entry-badge--neutral { background: var(--surface-2);      color: var(--text-3); }
+.payroll-entry-badge--info    { background: rgba(var(--info-rgb, 59,130,246),0.15); color: var(--info, #3b82f6); }
+.payroll-entry-badge--stale   { background: rgba(var(--warning-rgb),0.20); color: var(--warning); }
+
+/* ── Overtime bulk action (payroll period page) ──────────── */
+.ot-bulk-cell { width: 2.25rem; text-align: center; }
+.ot-bulk-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+}
+.ot-bulk-bar__count { color: var(--text-2); font-size: var(--text-sm); }
 
 /* ── Activity timeline: inline actor avatar ──────────────── */
 .payroll-timeline__actor {

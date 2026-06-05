@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_03_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_05_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -423,12 +423,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_03_100001) do
   create_table "payroll_entries", force: :cascade do |t|
     t.decimal "advances_deducted", precision: 12, scale: 2, default: "0.0", null: false
     t.decimal "already_paid_total", precision: 12, scale: 2, default: "0.0", null: false
+    t.integer "approved_overtime_minutes"
+    t.decimal "approved_overtime_pay", precision: 12, scale: 2
     t.decimal "base_salary", precision: 12, scale: 2, null: false
+    t.integer "calculated_overtime_minutes", default: 0, null: false
+    t.decimal "calculated_overtime_pay", precision: 12, scale: 2, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.integer "days_worked", default: 0, null: false
     t.decimal "net_salary", precision: 12, scale: 2, null: false
     t.text "notes"
     t.decimal "obligations_deducted", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "overtime_overridden_at"
+    t.integer "overtime_overridden_by_id"
+    t.string "overtime_override_mode"
+    t.string "overtime_override_reason"
+    t.boolean "overtime_override_stale", default: false, null: false
     t.integer "payroll_period_id", null: false
     t.string "salary_type", null: false
     t.string "status", default: "draft", null: false
@@ -438,6 +447,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_03_100001) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.integer "working_days", null: false
+    t.index ["overtime_overridden_by_id"], name: "index_payroll_entries_on_overtime_overridden_by_id"
     t.index ["payroll_period_id", "user_id"], name: "index_payroll_entries_on_payroll_period_id_and_user_id", unique: true
     t.index ["payroll_period_id"], name: "index_payroll_entries_on_payroll_period_id"
     t.index ["user_id", "status"], name: "index_payroll_entries_on_user_id_and_status"

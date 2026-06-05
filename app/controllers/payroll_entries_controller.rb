@@ -18,6 +18,22 @@ class PayrollEntriesController < ApplicationController
     @paid_adjustments = paid_adj_ids.any? ? PayrollAdjustment.where(id: paid_adj_ids).index_by(&:id) : {}
   end
 
+  def override_overtime
+    authorize @entry, :override_overtime?
+
+    result = Payroll::OvertimeOverrider.call(
+      entry:  @entry,
+      mode:   params[:mode],
+      value:  params[:value],
+      reason: params[:reason],
+      actor:  current_user
+    )
+
+    redirect_to payroll_period_payroll_entry_path(@period, @entry),
+                **(result.success? ? { notice: t("payroll.overtime_override.flash.updated") }
+                                   : { alert: result.error })
+  end
+
   private
 
   def set_period_and_entry

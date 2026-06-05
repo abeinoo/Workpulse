@@ -6,6 +6,7 @@ class PayrollPeriodPolicy < ApplicationPolicy
   def create?               = can?(:create_payroll)
   def submit_for_review?    = can?(:submit_payroll_review)
   def approve_all_pending?  = can?(:approve_payroll_items)
+  def adjust_overtime?      = can?(:manage_payroll_overrides) && record.reviewable?
   def finalize?             = can?(:finalize_payroll)
   def mark_paid?            = can?(:pay_payroll)
   def destroy?              = can?(:delete_payroll) && record.draft?

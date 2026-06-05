@@ -256,6 +256,15 @@ RSpec.describe Payroll::EntryCalculator do
       overtime_item = entry.payroll_line_items.find_by(item_type: "overtime")
       expect(overtime_item.amount).to eq(75.0)
     end
+
+    it "snapshots the calculated overtime minutes and pay on the entry" do
+      entry = run
+      expect(entry.calculated_overtime_minutes).to eq(60)
+      expect(entry.calculated_overtime_pay).to eq(75.0)
+      # No override at generation: payable == calculated.
+      expect(entry.overtime_overridden?).to be false
+      expect(entry.payable_overtime_pay).to eq(75.0)
+    end
   end
 
   describe "absence deduction for monthly employee" do

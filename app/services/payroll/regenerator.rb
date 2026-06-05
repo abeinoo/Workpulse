@@ -26,6 +26,9 @@ module Payroll
       Payroll::SnapshotService.call(period: @period, taken_by: @regenerated_by)
 
       previous_entry_count = @period.payroll_entries.count
+      # Preserve management overtime overrides across the rebuild (entries are
+      # destroyed and recreated by PeriodGenerator). Captured by user_id.
+      saved_overrides = capture_overtime_overrides
 
       regenerated = Payroll::PeriodGenerator.call(
         business:     @period.business,
@@ -33,6 +36,8 @@ module Payroll
         month:        @period.period_month,
         generated_by: @regenerated_by
       )
+
+      reapply_overtime_overrides(regenerated, saved_overrides)
 
       PayrollAuditLog.create!(
         payroll_period: regenerated,
@@ -58,6 +63,60 @@ module Payroll
     end
 
     private
+
+    # Snapshot the override decision for every overridden entry, keyed by user_id.
+    def capture_overtime_overrides
+      @period.payroll_entries.where.not(overtime_override_mode: nil).map do |e|
+        [ e.user_id, {
+          mode:                e.overtime_override_mode,
+          approved_minutes:    e.approved_overtime_minutes,
+          approved_pay:        e.approved_overtime_pay,
+          calculated_minutes:  e.calculated_overtime_minutes,
+          calculated_pay:      e.calculated_overtime_pay,
+          reason:              e.overtime_override_reason,
+          overridden_by_id:    e.overtime_overridden_by_id,
+          overridden_at:       e.overtime_overridden_at
+        } ]
+      end.to_h
+    end
+
+    # Re-apply saved overrides to the freshly generated entries, clamping the
+    # approved value to the new calculated overtime and flagging the override as
+    # stale when the calculated value changed (prompts a re-review).
+    def reapply_overtime_overrides(period, saved_overrides)
+      return if saved_overrides.empty?
+
+      period.payroll_entries.where(user_id: saved_overrides.keys).find_each do |entry|
+        prev = saved_overrides[entry.user_id]
+        new_calc_minutes = entry.calculated_overtime_minutes.to_i
+        new_calc_pay     = entry.calculated_overtime_pay.to_f
+
+        # Calculated overtime vanished — drop the override entirely.
+        next if new_calc_minutes.zero? || new_calc_pay <= 0
+
+        if prev[:mode] == "amount"
+          approved_pay     = [ prev[:approved_pay].to_f, new_calc_pay ].min.round(2)
+          approved_minutes = (new_calc_minutes * approved_pay / new_calc_pay).round
+        else # minutes
+          approved_minutes = [ prev[:approved_minutes].to_i, new_calc_minutes ].min
+          approved_pay     = (new_calc_pay * approved_minutes / new_calc_minutes).round(2)
+        end
+
+        stale = new_calc_minutes != prev[:calculated_minutes].to_i ||
+                (new_calc_pay - prev[:calculated_pay].to_f).abs >= 0.01
+
+        entry.update!(
+          overtime_override_mode:    prev[:mode],
+          approved_overtime_minutes: approved_minutes,
+          approved_overtime_pay:     approved_pay,
+          overtime_override_reason:  prev[:reason],
+          overtime_overridden_by_id: prev[:overridden_by_id],
+          overtime_overridden_at:    prev[:overridden_at],
+          overtime_override_stale:   stale
+        )
+        entry.recalculate_totals!
+      end
+    end
 
     def err(message)
       Result.new(success: false, error: message)
