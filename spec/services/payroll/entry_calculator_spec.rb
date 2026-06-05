@@ -522,4 +522,86 @@ RSpec.describe Payroll::EntryCalculator do
       expect(absence_items).to be_empty
     end
   end
+
+  # Regression: incomplete attendance (single punch / missing check-out) must NOT
+  # be counted as a payable worked day. Daily profile so days_worked maps 1:1 to
+  # basic salary (daily_rate 400 × days). Mirrors the reported bug: 22 complete +
+  # 1 incomplete day must yield 22 worked days, not 23.
+  describe "incomplete attendance days are excluded from payable days" do
+    let!(:daily_profile) do
+      salary_profile.update!(active: false)
+      create(:salary_profile, :daily, user: user, base_amount: 400.0,
+             effective_from: 6.months.ago.to_date)
+    end
+
+    let(:weekdays) { (period_start..period_end).reject { |d| d.saturday? || d.sunday? } }
+
+    def incomplete_record(date, status:, late: 0)
+      create(:attendance_record, user: user, branch: branch, shift_assignment: shift_assignment,
+             date: date, work_date: date,
+             check_in_at:  Time.zone.local(date.year, date.month, date.day, 9, 0) + late.minutes,
+             check_out_at: nil, worked_minutes: nil, late_minutes: late,
+             early_leave_minutes: 0, status: status)
+    end
+
+    # 21 complete days + 1 candidate day (the 22nd weekday) that varies per case.
+    let(:incomplete_day) { weekdays[21] }
+    before { weekdays.first(21).each { |d| create_record(d, worked: 480) } }
+
+    it "counts a complete day as worked (22 complete days)" do
+      create_record(incomplete_day, worked: 480)
+      entry = run
+      expect(entry.days_worked).to eq(22)
+      expect(entry.base_salary).to eq(400.0 * 22)
+    end
+
+    it "excludes a missing-check-out day (status incomplete)" do
+      incomplete_record(incomplete_day, status: "incomplete")
+      entry = run
+      expect(entry.days_worked).to eq(21)
+      expect(entry.base_salary).to eq(400.0 * 21)
+    end
+
+    it "excludes a single-punch LATE day (open record carries status 'late')" do
+      incomplete_record(incomplete_day, status: "late", late: 30)
+      entry = run
+      expect(entry.days_worked).to eq(21)
+      expect(entry.base_salary).to eq(400.0 * 21)
+    end
+
+    it "treats a missing check-in as incomplete (check_in_at is structurally required)" do
+      # check_in_at is NOT NULL at the DB level, so a record can never exist with a
+      # missing check-in; the only incomplete shape is a missing check-out, which
+      # complete? already excludes.
+      expect(AttendanceRecord.columns_hash["check_in_at"].null).to be(false)
+      expect(AttendanceRecord.new(check_in_at: nil, check_out_at: nil).complete?).to be(false)
+      incomplete_record(incomplete_day, status: "incomplete")
+      expect(run.days_worked).to eq(21)
+    end
+
+    it "keeps the incomplete record visible (not deleted/hidden)" do
+      incomplete_record(incomplete_day, status: "incomplete")
+      run
+      expect(AttendanceRecord.where(user: user, work_date: incomplete_day)).to exist
+    end
+
+    it "still excludes the day while a punch correction is only PENDING" do
+      incomplete_record(incomplete_day, status: "incomplete")
+      create(:employee_request, :punch_correction, :pending,
+             user: user, requested_for_date: incomplete_day)
+      entry = run
+      expect(entry.days_worked).to eq(21)
+    end
+
+    it "counts the day once an approved punch correction completes attendance" do
+      rec = incomplete_record(incomplete_day, status: "incomplete")
+      rec.update_columns(
+        check_out_at: Time.zone.local(incomplete_day.year, incomplete_day.month, incomplete_day.day, 17, 0),
+        worked_minutes: 480, status: "present"
+      )
+      entry = run
+      expect(entry.days_worked).to eq(22)
+      expect(entry.base_salary).to eq(400.0 * 22)
+    end
+  end
 end

@@ -38,6 +38,14 @@ class AttendanceRecord < ApplicationRecord
     check_out_at.present?
   end
 
+  # A payable worked day: attendance is COMPLETE (both punches present) and the
+  # day is not marked absent. A single-punch/open record (no check_out) is never
+  # payable — note an open *late* record carries status "late", not "incomplete",
+  # so completeness must be decided by check_out_at presence, not by status.
+  def complete?
+    check_in_at.present? && check_out_at.present? && !absent?
+  end
+
   def overnight?
     return false unless check_out_at.present?
     tz = branch&.business&.timezone_object || user.business.timezone_object

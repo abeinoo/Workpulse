@@ -23,7 +23,10 @@ module Payroll
       profile    = rate_calc.profile
       records    = load_records
 
-      days_worked        = records.count { |r| !r.absent? }
+      # Only COMPLETE attendance days are payable. Incomplete/single-punch records
+      # (check-in without check-out) remain visible in attendance reports but never
+      # count toward worked days, payable days, or basic salary.
+      days_worked        = records.count(&:complete?)
       line_items         = attendance_line_items(records, daily_rate, profile.overtime_multiplier)
       line_items        += absence_line_items(profile, days_worked, daily_rate)
       advance_result     = AdvanceDeductor.call(user: @user)
@@ -92,7 +95,7 @@ module Payroll
 
     def attendance_line_items(records, daily_rate, overtime_multiplier = nil)
       records.flat_map do |record|
-        next [] if record.absent? || !record.checked_out?
+        next [] unless record.complete?
 
         items        = []
         rule_profile = record.shift_assignment&.rule_profile
