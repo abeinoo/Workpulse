@@ -11,6 +11,7 @@ export default class extends Controller {
   static targets = [
     "actionBar", "countBadge", "modal", "ids",
     "modalCount", "value", "valueField", "reason",
+    "waiverModal", "waiverIds", "waiverModalCount",
   ]
 
   connect() {
@@ -88,8 +89,37 @@ export default class extends Controller {
     if (event.target === this.modalTarget) this.closeModal()
   }
 
+  // ── Manual deduction waiver modal (shares the same row selection) ──────────
+  openWaiverModal() {
+    const boxes = this.checkedBoxes
+    if (boxes.length === 0) return
+
+    if (this.hasWaiverIdsTarget) {
+      this.waiverIdsTarget.innerHTML = boxes
+        .map((b) => `<input type="hidden" name="entry_ids[]" value="${b.value}">`)
+        .join("")
+    }
+    if (this.hasWaiverModalCountTarget) this.waiverModalCountTarget.textContent = boxes.length
+    if (this.hasWaiverModalTarget) {
+      this.waiverModalTarget.style.display = ""
+      requestAnimationFrame(() => {
+        const first = this.waiverModalTarget.querySelector("select, input, textarea, button")
+        if (first) first.focus()
+      })
+    }
+  }
+
+  closeWaiverModal() {
+    if (this.hasWaiverModalTarget) this.waiverModalTarget.style.display = "none"
+  }
+
+  waiverOverlayClick(event) {
+    if (event.target === this.waiverModalTarget) this.closeWaiverModal()
+  }
+
   _handleKeydown(event) {
-    if (!this.hasModalTarget || this.modalTarget.style.display === "none") return
-    if (event.key === "Escape") this.closeModal()
+    if (event.key !== "Escape") return
+    if (this.hasModalTarget && this.modalTarget.style.display !== "none") this.closeModal()
+    if (this.hasWaiverModalTarget && this.waiverModalTarget.style.display !== "none") this.closeWaiverModal()
   }
 }

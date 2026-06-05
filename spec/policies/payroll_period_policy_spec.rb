@@ -97,6 +97,57 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
     it "denies branch_manager" do expect(subject.new(manager,     period).mark_paid?).to be false end
   end
 
+  describe "waive_deductions?" do
+    let(:draft_period)     { create(:payroll_period, business: business, period_year: 2025, period_month: 9) }
+    let(:finalized_period) { create(:payroll_period, :finalized, business: business, period_year: 2025, period_month: 10) }
+
+    it "permits accountant (has manage_payroll_deduction_waivers) on a reviewable period" do
+      expect(subject.new(accountant, draft_period).waive_deductions?).to be true
+    end
+
+    it "permits super_admin on a reviewable period" do
+      expect(subject.new(super_admin, draft_period).waive_deductions?).to be true
+    end
+
+    it "denies branch_manager (no waiver permission)" do
+      expect(subject.new(manager, draft_period).waive_deductions?).to be false
+    end
+
+    it "denies employee" do
+      expect(subject.new(employee, draft_period).waive_deductions?).to be false
+    end
+
+    it "denies even an authorised user once the period is finalized" do
+      expect(subject.new(accountant, finalized_period).waive_deductions?).to be false
+    end
+  end
+
+  describe "export_payroll_bank_csv?" do
+    let(:finalized) { create(:payroll_period, :finalized, business: business, period_year: 2025, period_month: 6) }
+    let(:paid)      { create(:payroll_period, :paid,      business: business, period_year: 2025, period_month: 7) }
+    let(:draft)     { create(:payroll_period,             business: business, period_year: 2025, period_month: 8) }
+
+    it "permits a payroll viewer on a finalized period" do
+      expect(subject.new(accountant, finalized).export_payroll_bank_csv?).to be true
+    end
+
+    it "permits a payroll viewer on a paid period" do
+      expect(subject.new(accountant, paid).export_payroll_bank_csv?).to be true
+    end
+
+    it "denies a payroll viewer on a draft period" do
+      expect(subject.new(accountant, draft).export_payroll_bank_csv?).to be false
+    end
+
+    it "denies a user without view_payroll even when finalized" do
+      expect(subject.new(employee, finalized).export_payroll_bank_csv?).to be false
+    end
+
+    it "permits the owner on a finalized period" do
+      expect(subject.new(super_admin, finalized).export_payroll_bank_csv?).to be true
+    end
+  end
+
   describe "Scope" do
     # Use fixed months to avoid uniqueness conflicts with `period` (current month).
     let!(:business_period) { create(:payroll_period, business: business,

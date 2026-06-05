@@ -59,6 +59,37 @@ class PayrollLineItemsController < ApplicationController
     end
   end
 
+  # ── Manual deduction waiver layer (dedicated permission) ───────────────────
+  def waive_deduction
+    authorize @line_item, :waive_deduction?
+
+    result = Payroll::DeductionWaiver.call(
+      line_item: @line_item,
+      action:    "waive",
+      actor:     current_user,
+      reason:    params[:reason]
+    )
+
+    redirect_to payroll_period_payroll_entry_path(@period, @entry),
+                **(result.success? ? { notice: t("payroll.deduction_waiver.flash.waived") }
+                                   : { alert: result.error })
+  end
+
+  def restore_deduction
+    authorize @line_item, :restore_deduction?
+
+    result = Payroll::DeductionWaiver.call(
+      line_item: @line_item,
+      action:    "restore",
+      actor:     current_user,
+      reason:    params[:reason]
+    )
+
+    redirect_to payroll_period_payroll_entry_path(@period, @entry),
+                **(result.success? ? { notice: t("payroll.deduction_waiver.flash.restored") }
+                                   : { alert: result.error })
+  end
+
   private
 
   def set_context

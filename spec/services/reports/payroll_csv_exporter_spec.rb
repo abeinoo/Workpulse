@@ -42,7 +42,10 @@ RSpec.describe Reports::PayrollCsvExporter, type: :service do
     end
 
     it "TOTALS row net_salary is the full business sum" do
-      expect(totals_row(csv)[12].to_f).to eq(7_700.0)
+      # Locate the column by header so the assertion survives column additions.
+      header  = CSV.parse(csv)[1]
+      net_idx = header.index { |h| h.to_s.start_with?("Final Payable") }
+      expect(totals_row(csv)[net_idx].to_f).to eq(7_700.0)
     end
 
     it "includes a currency header row" do

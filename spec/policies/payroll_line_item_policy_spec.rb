@@ -104,6 +104,43 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
     end
   end
 
+  describe "waive_deduction? / restore_deduction?" do
+    let(:manual_deduction) { create(:payroll_line_item, :manual_deduction, payroll_entry: entry) }
+
+    it "permits super_admin" do
+      expect(subject.new(super_admin, manual_deduction).waive_deduction?).to be true
+    end
+
+    it "permits accountant (has manage_payroll_deduction_waivers)" do
+      expect(subject.new(accountant, manual_deduction).waive_deduction?).to be true
+      expect(subject.new(accountant, manual_deduction).restore_deduction?).to be true
+    end
+
+    it "denies branch_manager (approve_adjustments but no waiver permission)" do
+      expect(subject.new(manager, manual_deduction).waive_deduction?).to be false
+    end
+
+    it "denies employee" do
+      expect(subject.new(employee, manual_deduction).waive_deduction?).to be false
+    end
+
+    it "denies waiving a non-manual-deduction line item even for accountant" do
+      expect(subject.new(accountant, line_item).waive_deduction?).to be false
+    end
+
+    it "blocks waiving on a finalized period" do
+      finalized = create(:payroll_period, :finalized, business: business)
+      f_entry   = create(:payroll_entry, payroll_period: finalized, user: create(:user, business: business))
+      f_item    = create(:payroll_line_item, :manual_deduction, payroll_entry: f_entry)
+      expect(subject.new(accountant, f_item).waive_deduction?).to be false
+    end
+
+    it "denies an accountant from a different business" do
+      other_accountant = create(:user, :accountant)
+      expect(subject.new(other_accountant, manual_deduction).waive_deduction?).to be false
+    end
+  end
+
   describe "Scope" do
     let!(:line_item)       { create(:payroll_line_item, :late_penalty, payroll_entry: entry) }
     let!(:other_line_item) { create(:payroll_line_item, :late_penalty) }

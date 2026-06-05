@@ -3,6 +3,13 @@ class PayrollLineItemPolicy < ApplicationPolicy
   def reject?  = reviewable_action?
   def waive?   = reviewable_action?
 
+  # ── Manual deduction waiver layer ───────────────────────────────────────────
+  # Gated by its own dedicated permission (manage_payroll_deduction_waivers),
+  # independent of the approve_adjustments review rule. Only manual deductions on
+  # an unlocked, same-business period may be waived/restored.
+  def waive_deduction?   = deduction_waiver_action?
+  def restore_deduction? = deduction_waiver_action?
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       business_items = scope.joins(payroll_entry: :payroll_period)
@@ -30,6 +37,11 @@ class PayrollLineItemPolicy < ApplicationPolicy
   def reviewable_action?
     !period_locked? && same_business_entry? &&
       Payroll::AdjustmentApproval.permitted?(reviewer: user, creator: record.source_creator)
+  end
+
+  def deduction_waiver_action?
+    user.can?(:manage_payroll_deduction_waivers) &&
+      !period_locked? && same_business_entry? && record.deduction_waivable?
   end
 
   def period_locked?

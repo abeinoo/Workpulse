@@ -74,6 +74,33 @@ class PayrollEntry < ApplicationRecord
     total_bonuses - already_paid_total - total_deductions - advances_deducted - obligations_deducted
   end
 
+  # ── Manual deduction waiver reporting ───────────────────────────────────────
+  # The approved manual-deduction line items for this entry. Both active and
+  # waived ones — the waiver layer decides which are actually applied.
+  def approved_manual_deduction_items
+    payroll_line_items.select { |li| li.manual_deduction? && li.approved? }
+  end
+
+  # Sum of manual deductions that have been waived (excluded from net salary).
+  def waived_deductions_total
+    approved_manual_deduction_items.select(&:deduction_waived?).sum { |li| li.amount.abs }.round(2)
+  end
+
+  # What manual deductions would total with NO waivers applied.
+  def original_manual_deductions_total
+    approved_manual_deduction_items.sum { |li| li.amount.abs }.round(2)
+  end
+
+  # What is actually deducted after waivers (the part the employee still pays).
+  def applied_manual_deductions_total
+    (original_manual_deductions_total - waived_deductions_total).round(2)
+  end
+
+  # True when at least one manual deduction on this entry has been waived.
+  def any_deduction_waived?
+    approved_manual_deduction_items.any?(&:deduction_waived?)
+  end
+
   # Recomputes stored totals from current approved line items.
   # already_paid bonuses appear in total_bonuses (gross picture) but are also
   # stored in already_paid_total and subtracted from net_salary so the employee
@@ -83,7 +110,9 @@ class PayrollEntry < ApplicationRecord
     active = items.select(&:approved?)
 
     non_financial = ->(li) { li.advance_deduction? || li.obligation_deduction? }
-    deductions    = active.reject(&non_financial).select(&:deduction?).sum { |li| li.amount.abs }
+    # Waived manual deductions stay on the entry (visible + audited) but are excluded
+    # from the payable figure, so net salary rises by the waived amount automatically.
+    deductions    = active.reject(&non_financial).reject(&:deduction_waived?).select(&:deduction?).sum { |li| li.amount.abs }
     # Raw system overtime from attendance line items (the source of truth).
     calculated_ot = active.select(&:overtime?).sum(&:amount).round(2)
     # Payable overtime applies the management override (no-op when not overridden).

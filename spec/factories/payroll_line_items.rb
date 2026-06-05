@@ -48,5 +48,22 @@ FactoryBot.define do
       review_status { :waived }
       review_notes  { "Excused by manager" }
     end
+
+    # An approved manual deduction sourced from a PayrollAdjustment — the kind of
+    # line item the payroll-level waiver layer operates on.
+    trait :manual_deduction do
+      item_type     { :manual_deduction }
+      amount        { -100.0 }
+      review_status { :approved }
+      source_type   { "PayrollAdjustment" }
+      sequence(:source_id) { |n| n }
+    end
+
+    # A manual deduction that has been waived at the payroll layer.
+    trait :deduction_waived do
+      deduction_waived        { true }
+      deduction_waiver_reason { "Waived during review" }
+      deduction_waived_at     { Time.current }
+    end
   end
 end

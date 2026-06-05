@@ -7,6 +7,7 @@ class PayrollPeriodPolicy < ApplicationPolicy
   def submit_for_review?    = can?(:submit_payroll_review)
   def approve_all_pending?  = can?(:approve_payroll_items)
   def adjust_overtime?      = can?(:manage_payroll_overrides) && record.reviewable?
+  def waive_deductions?     = can?(:manage_payroll_deduction_waivers) && record.reviewable?
   def finalize?             = can?(:finalize_payroll)
   def mark_paid?            = can?(:pay_payroll)
   def destroy?              = can?(:delete_payroll) && record.draft?
@@ -34,6 +35,10 @@ class PayrollPeriodPolicy < ApplicationPolicy
 
   # Viewing the payroll audit log is gated separately from viewing payroll.
   def view_audit_log? = can?(:view_payroll_audit_log)
+
+  # Bank-transfer CSV export — any payroll viewer may download the payment file,
+  # but only once the period is finalised/paid (an approved, locked period).
+  def export_payroll_bank_csv? = can?(:view_payroll) && record.locked?
 
   class Scope < ApplicationPolicy::Scope
     VISIBLE_TO_EMPLOYEE = %w[finalized paid].freeze

@@ -89,6 +89,13 @@
       </button>
     <% end %>
 
+    <%# ── Bank transfer CSV (finalised/paid periods only) ────────────────── %>
+    <% if policy(@period).export_payroll_bank_csv? %>
+      <%= link_to t("payroll.bank_transfer.export"),
+            export_bank_transfer_payroll_period_path(@period),
+            class: "btn btn-primary btn-sm" %>
+    <% end %>
+
     <%# ── Secondary: regenerate (only on draft periods) ─────────────────── %>
     <% if current_user.can?(:regenerate_payroll) %>
       <div class="page-actions__sep"></div>
@@ -137,6 +144,30 @@
     <% end %>
 
   </div>
+
+  <%# ── Bank transfer export summary (finalised/paid periods only) ────────── %>
+  <% if @bank_transfer_summary %>
+    <div class="alert alert-info bank-transfer-banner">
+      <div class="bank-transfer-banner__title"><%= t("payroll.bank_transfer.banner_title") %></div>
+      <div class="bank-transfer-banner__stats">
+        <span>
+          <strong><%= @bank_transfer_summary[:total_employees] %></strong>
+          <%= t("payroll.bank_transfer.total_employees") %>
+        </span>
+        <span>
+          <strong><%= format_currency(@bank_transfer_summary[:total_amount]) %></strong>
+          <%= t("payroll.bank_transfer.total_amount") %>
+        </span>
+        <span class="<%= 'text-danger' if @bank_transfer_summary[:missing_national_id].positive? %>">
+          <strong><%= @bank_transfer_summary[:missing_national_id] %></strong>
+          <%= t("payroll.bank_transfer.missing_national_id") %>
+        </span>
+      </div>
+      <%= link_to t("payroll.bank_transfer.export"),
+            export_bank_transfer_payroll_period_path(@period),
+            class: "btn btn-primary btn-sm" %>
+    </div>
+  <% end %>
 
   <%# ── Branch review notice (branch managers only) ───────────────────────── %>
   <% if @branch_reviews_for_manager&.any? %>
@@ -282,13 +313,15 @@
   <% end %>
 
   <%# ── Employee payroll entries table ─────────────────────────────────────── %>
-  <% can_bulk_ot = current_user.can?(:manage_payroll_overrides) && @period.reviewable? %>
+  <% can_bulk_ot    = current_user.can?(:manage_payroll_overrides) && @period.reviewable? %>
+  <% can_bulk_waive = current_user.can?(:manage_payroll_deduction_waivers) && @period.reviewable? %>
+  <% can_bulk       = can_bulk_ot || can_bulk_waive %>
   <div data-controller="payroll-overtime-bulk">
   <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
         <tr>
-          <% if can_bulk_ot %>
+          <% if can_bulk %>
             <th class="ot-bulk-cell">
               <input type="checkbox" class="ot-bulk-all"
                      data-action="change->payroll-overtime-bulk#toggleAll"
@@ -329,7 +362,7 @@
             end
           %>
           <tr>
-            <% if can_bulk_ot %>
+            <% if can_bulk %>
               <td class="ot-bulk-cell" data-label="">
                 <input type="checkbox" class="ot-bulk-row" value="<%= entry.id %>"
                        data-action="change->payroll-overtime-bulk#rowChanged"
@@ -415,7 +448,7 @@
         <% end %>
         <% if @entries.empty? %>
           <tr>
-            <td colspan="<%= (current_user.can?(:view_payroll) ? 10 : 9) + (can_bulk_ot ? 1 : 0) %>" class="td-empty">
+            <td colspan="<%= (current_user.can?(:view_payroll) ? 10 : 9) + (can_bulk ? 1 : 0) %>" class="td-empty">
               <%= t("payroll.show.entries_empty") %>
             </td>
           </tr>
@@ -425,7 +458,7 @@
       <% if @overview && @entries.any? %>
         <tfoot>
           <tr class="totals-row">
-            <td colspan="<%= (current_user.can?(:view_payroll) ? 3 : 2) + (can_bulk_ot ? 1 : 0) %>">
+            <td colspan="<%= (current_user.can?(:view_payroll) ? 3 : 2) + (can_bulk ? 1 : 0) %>">
               <strong><%= t("payroll.show.totals_label") %></strong>
             </td>
             <td class="text-right td-secondary">
@@ -450,19 +483,29 @@
     </table>
   </div>
 
-  <% if can_bulk_ot %>
+  <% if can_bulk %>
     <%# Sticky bulk action bar — appears once entries are selected %>
     <div class="ot-bulk-bar" data-payroll-overtime-bulk-target="actionBar" style="display:none;">
       <span class="ot-bulk-bar__count">
         <strong data-payroll-overtime-bulk-target="countBadge">0</strong>
         <%= t("payroll.overtime_override.selected_suffix") %>
       </span>
-      <button type="button" class="btn btn-sm btn-warning"
-              data-action="payroll-overtime-bulk#openModal">
-        <%= t("payroll.overtime_override.bulk_btn") %>
-      </button>
+      <% if can_bulk_ot %>
+        <button type="button" class="btn btn-sm btn-warning"
+                data-action="payroll-overtime-bulk#openModal">
+          <%= t("payroll.overtime_override.bulk_btn") %>
+        </button>
+      <% end %>
+      <% if can_bulk_waive %>
+        <button type="button" class="btn btn-sm btn-secondary"
+                data-action="payroll-overtime-bulk#openWaiverModal">
+          <%= t("payroll.deduction_waiver.bulk_btn") %>
+        </button>
+      <% end %>
     </div>
+  <% end %>
 
+  <% if can_bulk_ot %>
     <%# Modal: choose mode + value + reason %>
     <div class="modal-overlay" data-payroll-overtime-bulk-target="modal" style="display:none;"
          data-action="click->payroll-overtime-bulk#overlayClick">
@@ -499,6 +542,40 @@
             <button type="button" class="btn btn-secondary"
                     data-action="payroll-overtime-bulk#closeModal"><%= t("forms.cancel") %></button>
             <%= f.submit t("payroll.overtime_override.confirm"), class: "btn btn-warning" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if can_bulk_waive %>
+    <%# Modal: waive or restore manual deductions for the selected employees %>
+    <div class="modal-overlay" data-payroll-overtime-bulk-target="waiverModal" style="display:none;"
+         data-action="click->payroll-overtime-bulk#waiverOverlayClick">
+      <div class="modal-card">
+        <h3 class="modal-card__title"><%= t("payroll.deduction_waiver.bulk_title") %></h3>
+        <p class="modal-card__sub">
+          <%= t("payroll.deduction_waiver.bulk_subtitle_html",
+                 count: "<strong data-payroll-overtime-bulk-target='waiverModalCount'>0</strong>").html_safe %>
+        </p>
+        <%= form_with url: waive_deductions_payroll_period_path(@period), method: :patch do |f| %>
+          <span data-payroll-overtime-bulk-target="waiverIds"></span>
+          <div class="form-group">
+            <%= f.label :waiver_action, t("payroll.deduction_waiver.bulk_action_label"), class: "form-label" %>
+            <%= f.select :waiver_action,
+                  [ [ t("payroll.deduction_waiver.bulk_waive"), "waive" ],
+                    [ t("payroll.deduction_waiver.bulk_restore"), "restore" ] ],
+                  {}, class: "form-control" %>
+          </div>
+          <div class="form-group">
+            <%= f.label :reason, t("payroll.deduction_waiver.reason_label"), class: "form-label" %>
+            <%= f.text_area :reason, rows: 2, class: "form-control", required: true,
+                  placeholder: t("payroll.deduction_waiver.reason_placeholder") %>
+          </div>
+          <div class="modal-card__actions">
+            <button type="button" class="btn btn-secondary"
+                    data-action="payroll-overtime-bulk#closeWaiverModal"><%= t("forms.cancel") %></button>
+            <%= f.submit t("payroll.deduction_waiver.confirm_waive"), class: "btn btn-warning" %>
           </div>
         <% end %>
       </div>

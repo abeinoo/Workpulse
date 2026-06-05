@@ -415,6 +415,8 @@
       <% end %>
     </div>
     <% manual = @manual_deductions %>
+    <% can_waive_deductions = current_user.can?(:manage_payroll_deduction_waivers) %>
+    <% show_actions_col = current_user.can?(:approve_adjustments) || can_waive_deductions %>
     <% if manual.any? %>
       <div class="table-wrap table-wrap--cards" style="margin-bottom: 1.5rem;">
         <table>
@@ -423,17 +425,19 @@
               <th><%= t("payroll.entry.description_col") %></th>
               <th class="text-right"><%= t("requests.amount") %></th>
               <th><%= t("payroll.entry.review_status") %></th>
-              <% if current_user.can?(:approve_adjustments) %><th><%= t("attendance.actions") %></th><% end %>
+              <th><%= t("payroll.deduction_waiver.status_label") %></th>
+              <% if show_actions_col %><th><%= t("attendance.actions") %></th><% end %>
             </tr>
           </thead>
           <tbody>
             <% manual.each do |item| %>
+              <% struck = item.rejected? || item.waived? || item.deduction_waived? %>
               <tr>
                 <td class="td-secondary" data-label="<%= t('payroll.entry.description_col') %>">
                   <%= item.description.presence || "—" %>
                 </td>
-                <td class="text-right <%= item.approved? ? 'text-danger' : 'text-muted' %>"
-                    style="<%= 'text-decoration: line-through;' if item.rejected? || item.waived? %>"
+                <td class="text-right <%= item.approved? && !item.deduction_waived? ? 'text-danger' : 'text-muted' %>"
+                    style="<%= 'text-decoration: line-through;' if struck %>"
                     data-label="<%= t('requests.amount') %>">
                   − <%= format_currency(item.amount.abs) %>
                 </td>
@@ -442,7 +446,16 @@
                     <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
                   </span>
                 </td>
-                <% if current_user.can?(:approve_adjustments) %>
+                <td data-label="<%= t('payroll.deduction_waiver.status_label') %>">
+                  <% if item.approved? %>
+                    <span class="badge <%= item.deduction_waived? ? 'badge-warning' : 'badge-success' %>">
+                      <%= t("payroll.deduction_waiver.status_#{item.waiver_status}") %>
+                    </span>
+                  <% else %>
+                    —
+                  <% end %>
+                </td>
+                <% if show_actions_col %>
                   <td class="td-actions" data-label="<%= t('attendance.actions') %>">
                     <% if item.pending_review? && @period.reviewable? && policy(item).approve? %>
                       <%= button_to t("payroll.entry.approve"),
@@ -452,9 +465,40 @@
                             reject_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
                             method: :patch, class: "btn btn-sm btn-danger" %>
                     <% end %>
+                    <% if item.approved? && policy(item).waive_deduction? %>
+                      <% if item.deduction_waived? %>
+                        <%= button_to t("payroll.deduction_waiver.restore_btn"),
+                              restore_deduction_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
+                              method: :patch, class: "btn btn-sm btn-secondary" %>
+                      <% else %>
+                        <details class="waive-details">
+                          <summary class="btn btn-sm btn-warning" style="cursor: pointer; list-style: none;"><%= t("payroll.deduction_waiver.waive_btn") %></summary>
+                          <div class="waive-popover">
+                            <%= form_with url: waive_deduction_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
+                                  method: :patch do |f| %>
+                              <p class="waive-popover__hint"><%= t("payroll.deduction_waiver.waive_hint") %></p>
+                              <%= f.text_area :reason, placeholder: t("payroll.deduction_waiver.reason_placeholder"), required: true,
+                                    rows: 2, class: "waive-popover__textarea" %>
+                              <%= f.submit t("payroll.deduction_waiver.confirm_waive"), class: "btn btn-sm btn-warning" %>
+                            <% end %>
+                          </div>
+                        </details>
+                      <% end %>
+                    <% end %>
                   </td>
                 <% end %>
               </tr>
+              <% if item.deduction_waived? %>
+                <tr class="deduction-note-row">
+                  <td colspan="<%= show_actions_col ? 5 : 4 %>">
+                    <span class="deduction-note">
+                      <%= t("payroll.deduction_waiver.waived_by", name: item.deduction_waived_by&.full_name || t("forms.none")) %>
+                      <% if item.deduction_waived_at %><%= t("payroll.deduction_waiver.waived_on", date: l(item.deduction_waived_at.to_date)) %><% end %>
+                      <% if item.deduction_waiver_reason.present? %> — <%= item.deduction_waiver_reason %><% end %>
+                    </span>
+                  </td>
+                </tr>
+              <% end %>
             <% end %>
           </tbody>
         </table>

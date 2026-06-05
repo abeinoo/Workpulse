@@ -1,6 +1,7 @@
 class PayrollLineItem < ApplicationRecord
   belongs_to :payroll_entry
   belongs_to :reviewed_by, class_name: "User", optional: true
+  belongs_to :deduction_waived_by, class_name: "User", optional: true
 
   ITEM_TYPES = %w[
     late_penalty early_leave_penalty overtime advance_deduction obligation_deduction
@@ -67,5 +68,23 @@ class PayrollLineItem < ApplicationRecord
   # items. Feeds the creator != approver clause of Payroll::AdjustmentApproval.
   def source_creator
     source_adjustment&.created_by
+  end
+
+  # ── Manual deduction waiver layer ───────────────────────────────────────────
+  # A payroll-level layer (distinct from the review_status workflow) that lets a
+  # payroll user excuse a manual deduction without touching the source adjustment.
+  # Only manual deductions are waivable. `deduction_waived` is the boolean column.
+  scope :manual_deductions,        -> { where(item_type: "manual_deduction") }
+  scope :waived_deductions,        -> { manual_deductions.where(deduction_waived: true) }
+  scope :active_manual_deductions, -> { manual_deductions.where(deduction_waived: false) }
+
+  # Only manual deductions participate in the waiver layer.
+  def deduction_waivable?
+    manual_deduction?
+  end
+
+  # Human-facing waiver state for display: "waived" or "active".
+  def waiver_status
+    deduction_waived? ? "waived" : "active"
   end
 end

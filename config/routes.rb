@@ -231,7 +231,9 @@ Rails.application.routes.draw do
       patch :regenerate
       patch :approve_all_pending
       patch :adjust_overtime
+      patch :waive_deductions
       patch :reopen
+      get   :export_bank_transfer
     end
     resources :payroll_entries, only: [ :show ] do
       member do
@@ -242,6 +244,8 @@ Rails.application.routes.draw do
           patch :approve
           patch :reject
           patch :waive
+          patch :waive_deduction
+          patch :restore_deduction
         end
       end
       resources :payroll_adjustments, only: [ :new, :create ]

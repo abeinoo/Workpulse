@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_05_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_05_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -458,6 +458,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_120000) do
     t.boolean "already_paid", default: false, null: false
     t.decimal "amount", precision: 12, scale: 2, null: false
     t.datetime "created_at", null: false
+    t.boolean "deduction_waived", default: false, null: false
+    t.datetime "deduction_waived_at"
+    t.integer "deduction_waived_by_id"
+    t.string "deduction_waiver_reason"
     t.string "description"
     t.string "item_type", null: false
     t.integer "original_minutes"
@@ -470,6 +474,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_120000) do
     t.bigint "source_id"
     t.string "source_type"
     t.datetime "updated_at", null: false
+    t.index ["deduction_waived_by_id"], name: "index_payroll_line_items_on_deduction_waived_by_id"
+    t.index ["payroll_entry_id", "deduction_waived"], name: "idx_payroll_line_items_entry_waived"
     t.index ["payroll_entry_id", "review_status"], name: "idx_payroll_line_items_entry_status"
     t.index ["payroll_entry_id"], name: "index_payroll_line_items_on_payroll_entry_id"
     t.index ["review_status"], name: "index_payroll_line_items_on_review_status"

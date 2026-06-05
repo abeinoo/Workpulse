@@ -65,7 +65,7 @@ FactoryBot.define do
           r.permissions       = %w[view_payroll view_payroll_analytics view_payroll_audit_log
                                    create_payroll regenerate_payroll submit_payroll_review
                                    complete_branch_review approve_payroll_items
-                                   manage_payroll_overrides
+                                   manage_payroll_overrides manage_payroll_deduction_waivers
                                    finalize_payroll pay_payroll reopen_payroll delete_payroll
                                    manage_adjustments approve_adjustments
                                    view_requests pay_advances]

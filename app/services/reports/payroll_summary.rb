@@ -38,10 +38,17 @@ module Reports
     end
 
     def build_totals(entries)
+      original_deductions = manual_deductions_total(entries, waived: nil)
+      waived_deductions   = manual_deductions_total(entries, waived: true)
       {
         employees:            entries.size,
         base_salary:          entries.sum(:base_salary).to_f.round(2),
         deductions:           entries.sum(:total_deductions).to_f.round(2),
+        # Manual deduction waiver layer (manual deductions only). original = before
+        # any waivers; waived = the excused amount; applied = what is still deducted.
+        original_deductions:  original_deductions,
+        waived_deductions:    waived_deductions,
+        applied_deductions:   (original_deductions - waived_deductions).round(2),
         overtime:             entries.sum(:total_overtime).to_f.round(2),
         calculated_overtime:  entries.sum(:calculated_overtime_pay).to_f.round(2),
         overtime_difference:  (entries.sum(:calculated_overtime_pay).to_f - entries.sum(:total_overtime).to_f).round(2),
@@ -53,6 +60,16 @@ module Reports
       }
     end
 
+    # Sum of approved manual deductions across the given entries. Pass waived: true
+    # for only the waived ones, or waived: nil for all (the pre-waiver original).
+    def manual_deductions_total(entries, waived:)
+      rel = PayrollLineItem
+              .where(payroll_entry_id: entries.select(:id))
+              .where(item_type: "manual_deduction", review_status: "approved")
+      rel = rel.where(deduction_waived: waived) unless waived.nil?
+      rel.sum("ABS(amount)").to_f.round(2)
+    end
+
     def entry_row(entry)
       {
         user_id:              entry.user_id,
@@ -62,6 +79,10 @@ module Reports
         working_days:         entry.working_days,
         days_worked:          entry.days_worked,
         total_deductions:     entry.total_deductions.to_f,
+        applied_deductions:   entry.applied_manual_deductions_total,
+        waived_deductions:    entry.waived_deductions_total,
+        original_deductions:  entry.original_manual_deductions_total,
+        any_deduction_waived: entry.any_deduction_waived?,
         total_overtime:       entry.total_overtime.to_f,
         calculated_overtime:  entry.calculated_overtime_pay.to_f,
         approved_overtime:    entry.payable_overtime_pay,

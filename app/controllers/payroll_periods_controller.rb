@@ -103,6 +103,14 @@ class PayrollPeriodsController < ApplicationController
                    ).detect
     end
 
+    # Bank-transfer export summary — shown as a banner above the download button
+    # on finalised/paid periods. Reuses the policy-scoped @entries so the figures
+    # match exactly what the CSV will contain.
+    if policy(@period).export_payroll_bank_csv?
+      @bank_transfer_summary =
+        Reports::BankTransferCsvExporter.new(period: @period, entries: @entries).summary
+    end
+
     # The all-branches review progress table is intended for finance/admin
     # users overseeing the whole period — gated on the new period-level
     # permissions that imply business-wide payroll responsibility.
@@ -293,6 +301,40 @@ class PayrollPeriodsController < ApplicationController
     else
       redirect_to payroll_period_path(@period), alert: result.error
     end
+  end
+
+  def waive_deductions
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :waive_deductions?
+
+    # Restrict to entries the actor is authorised to see within this period.
+    entry_ids = policy_scope(PayrollEntry).where(payroll_period: @period, id: params[:entry_ids]).pluck(:id)
+
+    result = Payroll::BulkDeductionWaiver.call(
+      period:    @period,
+      entry_ids: entry_ids,
+      action:    params[:waiver_action],
+      reason:    params[:reason],
+      actor:     current_user
+    )
+
+    if result.success?
+      notice = t("payroll.deduction_waiver.flash.bulk_applied", count: result.applied)
+      notice += " #{t('payroll.deduction_waiver.flash.bulk_skipped', count: result.skipped)}" if result.skipped.positive?
+      redirect_to payroll_period_path(@period), notice: notice
+    else
+      redirect_to payroll_period_path(@period), alert: result.error
+    end
+  end
+
+  def export_bank_transfer
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :export_payroll_bank_csv?
+
+    entries  = policy_scope(PayrollEntry).where(payroll_period: @period)
+    exporter = Reports::BankTransferCsvExporter.new(period: @period, entries: entries)
+
+    send_data exporter.to_csv, filename: exporter.filename, type: "text/csv"
   end
 
   def regenerate
