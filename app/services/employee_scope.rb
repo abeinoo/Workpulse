@@ -101,13 +101,21 @@ class EmployeeScope
 
   # "Branch only" means every employee who shares a branch with this user —
   # the branches they manage / area-manage AND the branches they personally
-  # belong to (user_branches). A plain branch member (not the formal manager)
-  # must still see their branch colleagues.
+  # work in. Branch membership is shift-driven (active ShiftAssignment), matching
+  # attendance/scheduling/dashboard; the legacy UserBranch join table is no longer
+  # consulted here. A plain branch member (not the formal manager) still sees their
+  # branch colleagues via their own active assignment.
   def branch
-    ids = (@user.managed_branch_ids + @user.area_managed_branch_ids + @user.branch_ids).uniq
+    ids = (@user.managed_branch_ids + @user.area_managed_branch_ids + own_assigned_branch_ids).uniq
     return User.none unless ids.any?
 
-    base.where(User.arel_table[:id].in(UserBranch.where(branch_id: ids).select(:user_id).arel))
+    base.where(User.arel_table[:id].in(ShiftAssignment.user_ids_for_branches(ids).arel))
+  end
+
+  # Branches the user is currently shift-assigned to (replaces @user.branch_ids,
+  # which derived from UserBranch).
+  def own_assigned_branch_ids
+    ShiftAssignment.current.where(user_id: @user.id).distinct.pluck(:branch_id)
   end
 
   def business_wide

@@ -208,11 +208,9 @@ module Payroll
       entries  = period.payroll_entries.pluck(:user_id, :net_salary, :total_overtime)
       user_ids = entries.map(&:first)
 
-      branch_map = UserBranch
-        .where(user_id: user_ids)
-        .joins(:branch)
-        .pluck(:user_id, "branches.name")
-        .each_with_object({}) { |(uid, name), h| h[uid] ||= name }
+      branch_map = ShiftAssignment.branch_names_by_user(
+        user_ids, from: period.period_start, to: period.period_end
+      )
 
       entries.each_with_object(Hash.new { |h, k| h[k] = { net: 0.0, overtime: 0.0 } }) do |(uid, net, ot), h|
         name = branch_map[uid] || I18n.t("payroll_dashboard.no_branch")

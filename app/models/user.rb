@@ -88,8 +88,8 @@ class User < ApplicationRecord
   validates :phone_number,             uniqueness: true, allow_blank: true
   validates :emergency_contact_phone,  length: { minimum: 5, maximum: 20 }, allow_blank: true
   validates :identity_card_number, uniqueness: { case_sensitive: false },
-                                   length: { minimum: 5, maximum: 30 },
-                                   allow_blank: true
+                                   length: { minimum: 14, maximum: 14 },
+                                   allow_blank: false
   validates :email, uniqueness: { case_sensitive: false }, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
   validates :first_name, :last_name, presence: true
   validates :business, presence: true
@@ -98,6 +98,8 @@ class User < ApplicationRecord
   validate :phone_or_email_present
   validate :validate_manager_in_same_business
   validate :no_self_management
+
+  validates :identity_card_number, presence: true, uniqueness: true
 
   # Auto-assign a numeric employee_code on creation when none was provided.
   # Runs inside the INSERT transaction (before_create) so the advisory lock it

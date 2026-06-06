@@ -57,7 +57,7 @@ class PayrollAdjustment < ApplicationRecord
   scope :by_type,       ->(type)        { where(adjustment_type: type) if type.present? }
   scope :by_status,     ->(status)      { where(review_status: status) if status.present? }
   scope :for_user,      ->(uid)         { where(user_id: uid) if uid.present? }
-  scope :for_branch,    ->(branch_id)   { joins(user: :user_branches).where(user_branches: { branch_id: branch_id }) if branch_id.present? }
+  scope :for_branch,    ->(branch_id)   { where(user_id: ShiftAssignment.current.where(branch_id: branch_id).select(:user_id)) if branch_id.present? }
   scope :search_reason, ->(q)           { where("reason ILIKE ?", "%#{q}%") if q.present? }
   scope :for_batch,     ->(batch_id)    { where(bulk_batch_id: batch_id) if batch_id.present? }
 

@@ -164,7 +164,6 @@ class BulkAdjustmentsController < ApplicationController
     EmployeeScope.new(current_user)
                  .for_permissions(:manage_adjustments, :view_payroll, :view_employees)
                  .active
-                 .includes(:user_branches)
                  .order(:first_name, :last_name)
   end
 

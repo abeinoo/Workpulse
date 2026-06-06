@@ -16,12 +16,19 @@ RSpec.describe EmployeeScope, type: :service do
   let!(:direct_report)  { create(:user, business: business, manager: direct_manager) }
   let(:unrelated_emp)   { create(:user, business: business) }
 
+  let(:shift) { create(:shift, :fixed_time, business: business) }
+
   before do
     branch.update_columns(area_manager_id: area_manager.id, branch_manager_id: branch_manager.id)
+    # #relation (managed_employees) still reads the legacy UserBranch join table.
     create(:user_branch, user: area_manager,   branch: branch)
     create(:user_branch, user: branch_manager, branch: branch)
     create(:user_branch, user: branch_emp,     branch: branch)
     create(:user_branch, user: area_emp,       branch: branch)
+    # #branch (branch_only) is now shift-driven — mirror membership via active assignments.
+    [ area_manager, branch_manager, branch_emp, area_emp ].each do |u|
+      create(:shift_assignment, user: u, branch: branch, shift: shift)
+    end
   end
 
   describe "#relation" do

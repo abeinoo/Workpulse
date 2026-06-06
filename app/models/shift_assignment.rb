@@ -19,6 +19,11 @@ class ShiftAssignment < ApplicationRecord
     where("effective_from <= ?", date)
       .where("effective_to IS NULL OR effective_to >= ?", date)
   }
+  # Assignments overlapping a date range [from, to] (period-based branch attribution).
+  scope :active_during, ->(from, to) {
+    where("effective_from <= ?", to)
+      .where("effective_to IS NULL OR effective_to >= ?", from)
+  }
   scope :current,  -> { active_on(Date.current) }
   scope :upcoming, -> { where("effective_from > ?", Date.current) }
   scope :expired,  -> {
@@ -33,6 +38,33 @@ class ShiftAssignment < ApplicationRecord
 
   delegate :name, to: :shift,  prefix: true
   delegate :name, to: :branch, prefix: true, allow_nil: true
+
+  # ── Branch membership resolution ─────────────────────────────────────────────
+  # ShiftAssignment is the authoritative source of an employee's branch. These
+  # helpers replace the legacy UserBranch join table for payroll attribution and
+  # the Branch Only employee scope.
+
+  # Chainable subquery of user_ids assigned to any of `branch_ids`, active on `on`.
+  def self.user_ids_for_branches(branch_ids, on: Date.current)
+    active_on(on).where(branch_id: branch_ids).select(:user_id)
+  end
+
+  # Distinct branch_ids the given users were assigned to during [from, to].
+  def self.branch_ids_for_users(user_ids, from:, to:)
+    active_during(from, to).where(user_id: user_ids).distinct.pluck(:branch_id)
+  end
+
+  # Map of user_id => branch name for the given users, using assignments active
+  # during [from, to]. When a user worked multiple branches, the latest-effective
+  # assignment wins.
+  def self.branch_names_by_user(user_ids, from:, to:)
+    active_during(from, to)
+      .where(user_id: user_ids)
+      .joins(:branch)
+      .order(:effective_from)
+      .pluck(:user_id, "branches.name")
+      .each_with_object({}) { |(uid, name), h| h[uid] = name }
+  end
 
   # ── Status helpers ───────────────────────────────────────────────────────────
 

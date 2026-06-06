@@ -145,11 +145,9 @@ class Payroll::InsightsPresenter
       h[uid] += late.to_i + early.to_i
     end
 
-    branch_lookup = {}
-    UserBranch.where(user_id: user_ids)
-              .joins(:branch)
-              .pluck(:user_id, "branches.name")
-              .each { |uid, name| branch_lookup[uid] ||= name }
+    branch_lookup = ShiftAssignment.branch_names_by_user(
+      user_ids, from: @period.period_start, to: @period.period_end
+    )
 
     branch_data = Hash.new { |h, k| h[k] = { total: 0, count: 0 } }
     user_totals.each do |uid, mins|

@@ -55,7 +55,9 @@ module Payroll
     # All branches that have at least one employee in this period and have a manager assigned.
     def branches_needing_review
       user_ids   = @period.payroll_entries.pluck(:user_id)
-      branch_ids = UserBranch.where(user_id: user_ids).distinct.pluck(:branch_id)
+      branch_ids = ShiftAssignment.branch_ids_for_users(
+        user_ids, from: @period.period_start, to: @period.period_end
+      )
       Branch.where(id: branch_ids).where.not(branch_manager_id: nil)
     end
 

@@ -439,11 +439,8 @@ class PayrollPeriodsController < ApplicationController
 
   def load_user_branch_names(user_ids)
     return {} if user_ids.empty?
-    result = {}
-    UserBranch.where(user_id: user_ids)
-              .joins(:branch)
-              .pluck(:user_id, "branches.name")
-              .each { |uid, name| result[uid] ||= name }
-    result
+    ShiftAssignment.branch_names_by_user(
+      user_ids, from: @period.period_start, to: @period.period_end
+    )
   end
 end

@@ -4,6 +4,8 @@ FactoryBot.define do
     first_name            { Faker::Name.first_name }
     last_name             { Faker::Name.last_name }
     sequence(:email)      { |n| "user#{n}@example.com" }
+    # 14-char unique identity card number — required by User validation.
+    sequence(:identity_card_number) { |n| (10**13 + n).to_s }
     password              { "password123" }
     password_confirmation { "password123" }
     active                { true }

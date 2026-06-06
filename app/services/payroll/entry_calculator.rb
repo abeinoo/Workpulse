@@ -14,26 +14,44 @@ module Payroll
     end
 
     def call
-      rate_calc = Salary::DailyRateCalculator.for(
-        user: @user, business: @business, date: @period.period_start
+      # Resolve the salary profile that applies to this period. An employee whose
+      # FIRST profile only becomes effective partway through the month would not be
+      # found when anchoring the lookup at period_start — yet they worked during the
+      # period and must still receive a (prorated) entry. For those mid-period
+      # starters we anchor the lookup at period_end; everyone else keeps the original
+      # period_start anchor, so existing payrolls are unaffected.
+      earliest_effective = @user.salary_profiles.minimum(:effective_from)
+      return nil unless earliest_effective
+
+      mid_period_start = earliest_effective > @period.period_start
+      rate_anchor      = mid_period_start ? @period.period_end : @period.period_start
+      rate_calc        = Salary::DailyRateCalculator.for(
+        user: @user, business: @business, date: rate_anchor
       )
       return nil unless rate_calc.profile
 
       daily_rate = rate_calc.daily_rate
       profile    = rate_calc.profile
-      records    = load_records
+
+      # The employee is only active from their first effective_from onward. Base
+      # salary, working days and absences are all scoped to that in-period window so
+      # a mid-month hire is neither paid for nor penalised for days before they start.
+      effective_start        = [ earliest_effective, @period.period_start ].max
+      effective_working_days = working_days_for(effective_start)
+
+      records = load_records
 
       # Only COMPLETE attendance days are payable. Incomplete/single-punch records
       # (check-in without check-out) remain visible in attendance reports but never
       # count toward worked days, payable days, or basic salary.
       days_worked        = records.count(&:complete?)
       line_items         = attendance_line_items(records, daily_rate, profile.overtime_multiplier)
-      line_items        += absence_line_items(profile, days_worked, daily_rate)
+      line_items        += absence_line_items(profile, days_worked, daily_rate, effective_working_days, effective_start)
       advance_result     = AdvanceDeductor.call(user: @user)
       obligation_result  = ObligationDeductor.call(user: @user, period: @period)
       adj_items          = adjustment_line_items
 
-      base_salary          = base(profile, daily_rate, days_worked)
+      base_salary          = base(profile, daily_rate, days_worked, effective_working_days, effective_start)
       att_deductions       = sum_negatives(line_items)
       adj_deductions       = sum_negatives(adj_items)
       total_deductions     = att_deductions + adj_deductions
@@ -52,7 +70,7 @@ module Payroll
           user:                 @user,
           salary_type:          profile.salary_type,
           base_salary:          base_salary.round(2),
-          working_days:         @period.working_days,
+          working_days:         effective_working_days,
           days_worked:          days_worked,
           total_deductions:     total_deductions.round(2),
           total_overtime:       total_overtime.round(2),
@@ -140,20 +158,33 @@ module Payroll
       end
     end
 
-    def absence_line_items(profile, days_worked, daily_rate)
+    def absence_line_items(profile, days_worked, daily_rate, effective_working_days, effective_start)
       return [] unless profile.monthly?
       # Employees without an active shift assignment are not subject to absence tracking.
-      return [] unless shift_assigned?
+      return [] unless shift_assigned?(effective_start)
 
-      absent_days = @period.working_days - days_worked
+      absent_days = effective_working_days - days_worked
       return [] unless absent_days > 0
 
       amount = (absent_days * daily_rate).round(2)
       [ item("manual_adjustment", -amount, nil, "Absence deduction (#{absent_days} day(s))") ]
     end
 
-    def shift_assigned?
-      ShiftAssignment.active_on(@period.period_start).where(user: @user).exists?
+    # Absence is judged against the employee's active window: an assignment that
+    # starts mid-month is "active" on the employee's effective_start, not on day 1.
+    def shift_assigned?(on_date)
+      ShiftAssignment.active_on(on_date).where(user: @user).exists?
+    end
+
+    # Working days the employee is actually active for within the period. Full-period
+    # employees keep the period's standard working_days; mid-period starters get a
+    # calendar-prorated slice (always at least one day if active at all).
+    def working_days_for(effective_start)
+      return @period.working_days if effective_start <= @period.period_start
+
+      total_days  = (@period.period_end - @period.period_start).to_i + 1
+      active_days = (@period.period_end - effective_start).to_i + 1
+      [ (@period.working_days * active_days.to_f / total_days).round, 1 ].max
     end
 
     def adjustment_line_items
@@ -185,8 +216,14 @@ module Payroll
         end
     end
 
-    def base(profile, daily_rate, days_worked)
-      profile.monthly? ? profile.base_amount.to_f : (daily_rate * days_worked).round(2)
+    def base(profile, daily_rate, days_worked, effective_working_days, effective_start)
+      return (daily_rate * days_worked).round(2) unless profile.monthly?
+
+      # Full-period monthly staff are paid their exact base amount; mid-period
+      # starters are prorated by the working days within their active window.
+      return profile.base_amount.to_f if effective_start <= @period.period_start
+
+      (daily_rate * effective_working_days).round(2)
     end
 
     def sum_negatives(items)
