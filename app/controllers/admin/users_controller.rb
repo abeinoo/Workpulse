@@ -190,7 +190,8 @@ class Admin::UsersController < Admin::BaseController
       :allow_mobile_attendance, :allow_biometric_attendance,
       :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship,
       :profile_photo, :national_id_front, :national_id_back,
-      :remove_profile_photo, :remove_national_id_front, :remove_national_id_back
+      :remove_profile_photo, :remove_national_id_front, :remove_national_id_back,
+      assigned_warehouse_ids: []
     )
   end
 end

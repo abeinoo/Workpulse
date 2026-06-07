@@ -1,0 +1,68 @@
+<%= form_with model: [:inventory, goods_receipt], class: "form-card", data: { controller: "line-items receipt-supplier" } do |f| %>
+  <%= render "shared/error_messages", object: goods_receipt %>
+
+  <h2 class="section-title"><%= t("inventory.goods_receipts.section_header") %></h2>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :warehouse_id, t("inventory.goods_receipts.warehouse"), class: "form-label" %>
+      <%= f.select :warehouse_id,
+            options_from_collection_for_select(@warehouses, :id, :name, goods_receipt.warehouse_id),
+            { include_blank: "— #{t('inventory.goods_receipts.select_warehouse')}" },
+            class: "form-control #{'is-error' if goods_receipt.errors[:warehouse].any?}" %>
+    </div>
+    <div class="form-group">
+      <%= f.label :supplier_id, t("inventory.goods_receipts.supplier"), class: "form-label" %>
+      <%= f.select :supplier_id,
+            options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
+            { include_blank: "— #{t('inventory.goods_receipts.no_supplier')}" },
+            class: "form-control", data: { "receipt-supplier-target": "supplier" } %>
+    </div>
+    <div class="form-group">
+      <%= f.label :received_on, t("inventory.goods_receipts.date"), class: "form-label" %>
+      <%= f.date_field :received_on, class: "form-control" %>
+    </div>
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :notes, t("inventory.goods_receipts.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 2, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2 class="section-title"><%= t("inventory.goods_receipts.section_items") %></h2>
+  <div class="table-wrap">
+    <table class="line-items-table">
+      <thead><tr>
+        <th style="width: 45%;"><%= t("inventory.goods_receipts.product") %></th>
+        <th><%= t("inventory.goods_receipts.quantity") %></th>
+        <th><%= t("inventory.goods_receipts.unit_cost") %></th>
+        <th></th>
+      </tr></thead>
+      <tbody data-line-items-target="rows">
+        <%= f.fields_for :items do |item_f| %>
+          <%= render "item_fields", f: item_f, products: @products %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if goods_receipt.items.any? %>>
+    <%= t("inventory.goods_receipts.no_items_hint") %>
+  </p>
+
+  <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add" style="margin-top: var(--space-3);">
+    + <%= t("inventory.goods_receipts.add_item") %>
+  </button>
+
+  <%# Template for new rows (index replaced by JS) %>
+  <template data-line-items-target="template">
+    <%= f.fields_for :items, GoodsReceiptItem.new, child_index: "NEW_INDEX" do |item_f| %>
+      <%= render "item_fields", f: item_f, products: @products %>
+    <% end %>
+  </template>
+
+  <div class="form-actions">
+    <%= f.submit t("inventory.goods_receipts.post"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_goods_receipts_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

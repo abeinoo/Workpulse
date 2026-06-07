@@ -1,0 +1,41 @@
+<% content_for :title, t("inventory.stock_adjustments.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.stock_adjustments.title") %></h1>
+    <% if current_user.can?(:manage_inventory) %>
+      <%= link_to t("inventory.stock_adjustments.new_action"), new_inventory_stock_adjustment_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <% if @stock_adjustments.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.stock_adjustments.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.stock_adjustments.number") %></th>
+          <th><%= t("inventory.stock_adjustments.date") %></th>
+          <th><%= t("inventory.stock_adjustments.warehouse") %></th>
+          <th><%= t("inventory.stock_adjustments.reason") %></th>
+          <th><%= t("inventory.void.status") %></th>
+        </tr></thead>
+        <tbody>
+          <% @stock_adjustments.each do |adjustment| %>
+            <tr>
+              <td><%= link_to adjustment.adjustment_number, inventory_stock_adjustment_path(adjustment), class: "link" %></td>
+              <td class="td-secondary"><%= local_date(adjustment.adjusted_on) %></td>
+              <td class="td-secondary"><%= adjustment.warehouse.name %></td>
+              <td class="td-secondary"><%= t("inventory.stock_adjustments.reasons.#{adjustment.reason}") %></td>
+              <td>
+                <span class="badge <%= adjustment.voided? ? 'badge-danger' : 'badge-success' %>">
+                  <%= adjustment.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+                </span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

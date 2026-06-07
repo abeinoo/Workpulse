@@ -1,0 +1,121 @@
+<% content_for :title, t("inventory.dashboard.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.dashboard.title") %></h1>
+    <div class="flex items-center" style="gap: var(--space-2);">
+      <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_stock_receipts) %>
+        <%= link_to t("inventory.goods_receipts.new_action"), new_inventory_goods_receipt_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+      <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_stock_issues) %>
+        <%= link_to t("inventory.stock_issues.new_action"), new_inventory_stock_issue_path, class: "btn btn-secondary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="stats-grid" style="margin-bottom: var(--space-6);">
+    <%= link_to inventory_products_path, class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.dashboard.products") %></span>
+      <span class="stat-card__value"><%= @product_count %></span>
+    <% end %>
+    <%= link_to inventory_warehouses_path, class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.dashboard.warehouses") %></span>
+      <span class="stat-card__value"><%= @warehouse_count %></span>
+    <% end %>
+    <%= link_to inventory_suppliers_path, class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.dashboard.suppliers") %></span>
+      <span class="stat-card__value"><%= @supplier_count %></span>
+    <% end %>
+    <div class="stat-card <%= 'stat-card--warning' if @low_stock_alerts.any? %>">
+      <span class="stat-card__label"><%= t("inventory.dashboard.stock_value") %></span>
+      <span class="stat-card__value"><%= format_currency(@stock_value) %></span>
+    </div>
+  </div>
+
+  <%# ── Low stock alerts ─────────────────────────────────────── %>
+  <section class="card" style="margin-bottom: var(--space-6);">
+    <div class="card__header flex items-center justify-between">
+      <h2 class="card__title" style="margin: 0;">
+        <%= t("inventory.dashboard.low_stock_title") %>
+        <% if @low_stock_alerts.any? %>
+          <span class="badge badge-warning"><%= @low_stock_alerts.size %></span>
+        <% end %>
+      </h2>
+    </div>
+
+    <% if @low_stock_alerts.empty? %>
+      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.dashboard.low_stock_empty") %></p>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("inventory.products.name") %></th>
+              <th><%= t("inventory.products.sku") %></th>
+              <th><%= t("inventory.dashboard.warehouse") %></th>
+              <th style="text-align: end;"><%= t("inventory.products.current_stock") %></th>
+              <th style="text-align: end;"><%= t("inventory.products.reorder_quantity") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @low_stock_alerts.each do |alert| %>
+              <tr>
+                <td><%= link_to alert.product.name, inventory_product_path(alert.product), class: "link" %></td>
+                <td class="td-secondary"><%= alert.product.sku %></td>
+                <td class="td-secondary">
+                  <%= alert.total? ? t("inventory.dashboard.all_warehouses") : alert.warehouse_name %>
+                </td>
+                <td style="text-align: end;"><span class="badge badge-warning"><%= alert.on_hand.to_i %></span></td>
+                <td style="text-align: end;"><%= alert.reorder_quantity.to_i %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </section>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5);">
+    <section class="card">
+      <div class="card__header"><h2 class="card__title" style="margin: 0;"><%= t("inventory.dashboard.recent_receipts") %></h2></div>
+      <div class="table-wrap table-wrap--cards">
+        <% if @recent_receipts.empty? %>
+          <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.dashboard.none_yet") %></p>
+        <% else %>
+          <table>
+            <tbody>
+              <% @recent_receipts.each do |r| %>
+                <tr>
+                  <td><%= link_to r.receipt_number, inventory_goods_receipt_path(r), class: "link" %></td>
+                  <td class="td-secondary"><%= r.supplier&.name %></td>
+                  <td class="td-secondary" style="text-align: end;"><%= l r.received_on, format: :short %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__header"><h2 class="card__title" style="margin: 0;"><%= t("inventory.dashboard.recent_issues") %></h2></div>
+      <div class="table-wrap table-wrap--cards">
+        <% if @recent_issues.empty? %>
+          <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.dashboard.none_yet") %></p>
+        <% else %>
+          <table>
+            <tbody>
+              <% @recent_issues.each do |i| %>
+                <tr>
+                  <td><%= link_to i.issue_number, inventory_stock_issue_path(i), class: "link" %></td>
+                  <td class="td-secondary"><%= i.warehouse.name %></td>
+                  <td class="td-secondary" style="text-align: end;"><%= l i.issued_on, format: :short %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        <% end %>
+      </div>
+    </section>
+  </div>
+</div>

@@ -1,0 +1,62 @@
+<% content_for :title, @stock_transfer.transfer_number %>
+
+<div class="admin-page">
+  <%= link_to inventory_stock_transfers_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title">
+      <%= @stock_transfer.transfer_number %>
+      <span class="badge <%= @stock_transfer.voided? ? 'badge-danger' : 'badge-success' %>">
+        <%= @stock_transfer.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+      </span>
+    </h1>
+  </div>
+
+  <%= render "inventory/shared/void_panel",
+        document: @stock_transfer,
+        void_path: void_inventory_stock_transfer_path(@stock_transfer),
+        can_void: policy(@stock_transfer).void? %>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.date") %></dt><dd><%= local_date(@stock_transfer.transferred_on) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.source_warehouse") %></dt><dd><%= @stock_transfer.source_warehouse.name %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.destination_warehouse") %></dt><dd><%= @stock_transfer.destination_warehouse.name %></dd></div>
+      <% if @stock_transfer.notes.present? %>
+        <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.notes") %></dt><dd><%= simple_format(@stock_transfer.notes) %></dd></div>
+      <% end %>
+    </dl>
+  </div>
+
+  <div class="table-wrap table-wrap--cards">
+    <table>
+      <thead><tr>
+        <th><%= t("inventory.stock_transfers.product") %></th>
+        <th><%= t("inventory.products.sku") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_transfers.quantity") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_transfers.unit_cost") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_transfers.total") %></th>
+      </tr></thead>
+      <tbody>
+        <% @items.each do |item| %>
+          <tr>
+            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+            <td class="td-secondary"><%= item.product.sku %></td>
+            <td style="text-align: end;"><%= item.quantity.to_i %></td>
+            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
+            <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align: end; font-weight: 600;"><%= t("inventory.stock_transfers.total") %></td>
+          <td style="text-align: end; font-weight: 600;"><%= format_currency(@stock_transfer.total_value) %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,27 @@
+<tr data-line-row>
+  <td>
+    <%= f.select :product_id,
+          options_from_collection_for_select(products, :id, ->(p) { "#{p.name} (#{p.sku})" }, f.object.product_id),
+          { include_blank: "— #{t('inventory.stock_counts.select_product')}" }, class: "form-control" %>
+  </td>
+  <td style="text-align: end;" class="td-secondary">
+    <%= f.object.persisted? ? f.object.system_quantity.to_i : "—" %>
+  </td>
+  <td>
+    <%= f.number_field :counted_quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0" %>
+  </td>
+  <td style="text-align: end;">
+    <% if f.object.persisted? %>
+      <% diff = f.object.difference.to_d %>
+      <span class="badge <%= diff.zero? ? 'badge-neutral' : (diff.positive? ? 'badge-success' : 'badge-warning') %>">
+        <%= diff.positive? ? "+" : "" %><%= diff.to_i %>
+      </span>
+    <% else %>—<% end %>
+  </td>
+  <td class="td-actions">
+    <% if f.object.persisted? %>
+      <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
+    <% end %>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" data-action="line-items#remove" aria-label="<%= t('common.delete') %>">×</button>
+  </td>
+</tr>

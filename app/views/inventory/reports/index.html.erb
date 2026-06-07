@@ -1,0 +1,22 @@
+<% content_for :title, t("inventory.reports.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.reports.title") %></h1>
+  </div>
+
+  <div class="stats-grid">
+    <%= link_to inventory_current_stock_report_path, class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.reports.current_stock.title") %></span>
+      <span class="stat-card__sub"><%= t("inventory.reports.current_stock.desc") %></span>
+    <% end %>
+    <%= link_to inventory_movements_report_path, class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.reports.movements.title") %></span>
+      <span class="stat-card__sub"><%= t("inventory.reports.movements.desc") %></span>
+    <% end %>
+    <%= link_to inventory_supplier_purchases_report_path, class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.reports.supplier_purchases.title") %></span>
+      <span class="stat-card__sub"><%= t("inventory.reports.supplier_purchases.desc") %></span>
+    <% end %>
+  </div>
+</div>

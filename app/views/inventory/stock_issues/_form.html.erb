@@ -1,0 +1,60 @@
+<%= form_with model: [:inventory, stock_issue], class: "form-card", data: { controller: "line-items" } do |f| %>
+  <%= render "shared/error_messages", object: stock_issue %>
+
+  <h2 class="section-title"><%= t("inventory.stock_issues.section_header") %></h2>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :warehouse_id, t("inventory.stock_issues.warehouse"), class: "form-label" %>
+      <%= f.select :warehouse_id,
+            options_from_collection_for_select(@warehouses, :id, :name, stock_issue.warehouse_id),
+            { include_blank: "— #{t('inventory.stock_issues.select_warehouse')}" },
+            class: "form-control #{'is-error' if stock_issue.errors[:warehouse].any?}" %>
+    </div>
+    <div class="form-group">
+      <%= f.label :issued_on, t("inventory.stock_issues.date"), class: "form-label" %>
+      <%= f.date_field :issued_on, class: "form-control" %>
+    </div>
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :notes, t("inventory.stock_issues.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 2, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2 class="section-title"><%= t("inventory.stock_issues.section_items") %></h2>
+  <p class="form-hint"><%= t("inventory.stock_issues.cost_note") %></p>
+  <div class="table-wrap">
+    <table class="line-items-table">
+      <thead><tr>
+        <th style="width: 60%;"><%= t("inventory.stock_issues.product") %></th>
+        <th><%= t("inventory.stock_issues.quantity") %></th>
+        <th></th>
+      </tr></thead>
+      <tbody data-line-items-target="rows">
+        <%= f.fields_for :items do |item_f| %>
+          <%= render "item_fields", f: item_f, products: @products %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if stock_issue.items.any? %>>
+    <%= t("inventory.stock_issues.no_items_hint") %>
+  </p>
+
+  <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add" style="margin-top: var(--space-3);">
+    + <%= t("inventory.stock_issues.add_item") %>
+  </button>
+
+  <template data-line-items-target="template">
+    <%= f.fields_for :items, StockIssueItem.new, child_index: "NEW_INDEX" do |item_f| %>
+      <%= render "item_fields", f: item_f, products: @products %>
+    <% end %>
+  </template>
+
+  <div class="form-actions">
+    <%= f.submit t("inventory.stock_issues.post"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_stock_issues_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

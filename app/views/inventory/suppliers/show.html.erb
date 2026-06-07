@@ -1,0 +1,60 @@
+<% content_for :title, @supplier.name %>
+
+<div class="admin-page">
+  <%= link_to inventory_suppliers_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title"><%= @supplier.name %></h1>
+    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_suppliers) %>
+      <%= link_to t("common.edit"), edit_inventory_supplier_path(@supplier), class: "btn btn-secondary btn-sm" %>
+    <% end %>
+  </div>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.suppliers.primary_mobile") %></dt><dd><%= @supplier.primary_mobile.presence || "—" %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.suppliers.secondary_mobile") %></dt><dd><%= @supplier.secondary_mobile.presence || "—" %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.suppliers.address") %></dt><dd><%= @supplier.address.presence || "—" %></dd></div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.suppliers.map_location") %></dt>
+        <dd>
+          <% if @supplier.map_location? %>
+            <%= link_to t("inventory.suppliers.view_on_map"),
+                  "https://www.google.com/maps?q=#{@supplier.latitude},#{@supplier.longitude}",
+                  target: "_blank", rel: "noopener", class: "link" %>
+          <% else %>—<% end %>
+        </dd>
+      </div>
+      <div class="detail-list__row"><dt><%= t("inventory.suppliers.notes") %></dt><dd><%= @supplier.notes.presence || "—" %></dd></div>
+    </dl>
+  </div>
+
+  <h2 class="section-title"><%= t("inventory.suppliers.recent_purchases") %></h2>
+  <% if @recent_receipts.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.dashboard.none_yet") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.goods_receipts.number") %></th>
+          <th><%= t("inventory.goods_receipts.warehouse") %></th>
+          <th><%= t("inventory.goods_receipts.date") %></th>
+          <th style="text-align: end;"><%= t("inventory.goods_receipts.total") %></th>
+        </tr></thead>
+        <tbody>
+          <% @recent_receipts.each do |r| %>
+            <tr>
+              <td><%= link_to r.receipt_number, inventory_goods_receipt_path(r), class: "link" %></td>
+              <td class="td-secondary"><%= r.warehouse.name %></td>
+              <td class="td-secondary"><%= local_date(r.received_on) %></td>
+              <td style="text-align: end;"><%= format_currency(r.total_value) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

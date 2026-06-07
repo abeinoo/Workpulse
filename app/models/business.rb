@@ -37,6 +37,18 @@ class Business < ApplicationRecord
   has_many :biometric_devices,    dependent: :destroy
   has_many :biometric_punch_logs, dependent: :destroy
 
+  has_many :warehouses,           dependent: :destroy
+  has_many :suppliers,            dependent: :destroy
+  has_many :brands,               dependent: :destroy
+  has_many :product_categories,   dependent: :destroy
+  has_many :products,             dependent: :destroy
+  has_many :goods_receipts,       dependent: :destroy
+  has_many :stock_issues,         dependent: :destroy
+  has_many :stock_transfers,      dependent: :destroy
+  has_many :stock_adjustments,    dependent: :destroy
+  has_many :stock_counts,         dependent: :destroy
+  has_many :inventory_movements,  dependent: :destroy
+
   serialize :settings, coder: JSON
 
   validates :name,                presence: true

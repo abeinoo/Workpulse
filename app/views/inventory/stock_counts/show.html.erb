@@ -1,0 +1,78 @@
+<% content_for :title, @stock_count.count_number %>
+
+<div class="admin-page">
+  <%= link_to inventory_stock_counts_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title">
+      <%= @stock_count.count_number %>
+      <span class="badge <%= @stock_count.posted? ? 'badge-success' : 'badge-neutral' %>">
+        <%= t("inventory.stock_counts.statuses.#{@stock_count.status}") %>
+      </span>
+    </h1>
+    <div class="flex items-center" style="gap: var(--space-2);">
+      <% if @stock_count.draft? && policy(@stock_count).update? %>
+        <%= link_to t("common.edit"), edit_inventory_stock_count_path(@stock_count), class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if @stock_count.draft? && policy(@stock_count).post? %>
+        <%= button_to t("inventory.stock_counts.post_action"), post_inventory_stock_count_path(@stock_count),
+              method: :patch, class: "btn btn-primary btn-sm",
+              data: { turbo_confirm: t("inventory.stock_counts.post_confirm") } %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.stock_counts.date") %></dt><dd><%= local_date(@stock_count.counted_on) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_counts.warehouse") %></dt><dd><%= @stock_count.warehouse.name %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_counts.counted_by") %></dt><dd><%= @stock_count.created_by&.full_name || "—" %></dd></div>
+      <% if @stock_count.posted? %>
+        <div class="detail-list__row"><dt><%= t("inventory.stock_counts.posted_by") %></dt><dd><%= @stock_count.posted_by&.full_name || "—" %></dd></div>
+        <div class="detail-list__row"><dt><%= t("inventory.stock_counts.posted_at") %></dt><dd><%= l(@stock_count.posted_at, format: :long) %></dd></div>
+        <% if @stock_count.stock_adjustment %>
+          <div class="detail-list__row">
+            <dt><%= t("inventory.stock_counts.adjustment") %></dt>
+            <dd><%= link_to @stock_count.stock_adjustment.adjustment_number, inventory_stock_adjustment_path(@stock_count.stock_adjustment), class: "link" %></dd>
+          </div>
+        <% end %>
+      <% end %>
+      <% if @stock_count.notes.present? %>
+        <div class="detail-list__row"><dt><%= t("inventory.stock_counts.notes") %></dt><dd><%= simple_format(@stock_count.notes) %></dd></div>
+      <% end %>
+    </dl>
+  </div>
+
+  <%# ── Worksheet / variance ──────────────────────────────── %>
+  <h2 class="section-title"><%= t("inventory.stock_counts.variance_title") %></h2>
+  <div class="table-wrap table-wrap--cards">
+    <table>
+      <thead><tr>
+        <th><%= t("inventory.stock_counts.product") %></th>
+        <th><%= t("inventory.products.sku") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_counts.system_quantity") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_counts.counted_quantity") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_counts.difference") %></th>
+      </tr></thead>
+      <tbody>
+        <% @items.each do |item| %>
+          <% diff = item.difference.to_d %>
+          <tr>
+            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+            <td class="td-secondary"><%= item.product.sku %></td>
+            <td style="text-align: end;"><%= item.system_quantity.to_i %></td>
+            <td style="text-align: end;"><%= item.counted_quantity.to_i %></td>
+            <td style="text-align: end;">
+              <span class="badge <%= diff.zero? ? 'badge-neutral' : (diff.positive? ? 'badge-success' : 'badge-warning') %>">
+                <%= diff.positive? ? "+" : "" %><%= diff.to_i %>
+              </span>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

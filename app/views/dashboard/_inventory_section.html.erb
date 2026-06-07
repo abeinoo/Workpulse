@@ -1,0 +1,37 @@
+<%# Low-stock summary widget on the main dashboard. Warehouse-scoped users only
+    see alerts for their assigned warehouses. Collapses when nothing is low. %>
+<% return if @inventory_low_stock.blank? %>
+
+<div class="admin-page admin-page--section">
+
+  <div class="dashboard-section__banner flex items-center justify-between">
+    <h2 class="dashboard-section__title">
+      <%= t("dashboard.inventory.low_stock_title") %>
+      <span class="badge badge-warning"><%= @inventory_low_stock.size %></span>
+    </h2>
+    <%= link_to t("dashboard.inventory.view_all"), inventory_root_path, class: "link" %>
+  </div>
+
+  <div class="table-wrap table-wrap--cards">
+    <table>
+      <thead><tr>
+        <th><%= t("inventory.products.name") %></th>
+        <th><%= t("inventory.products.sku") %></th>
+        <th><%= t("inventory.dashboard.warehouse") %></th>
+        <th style="text-align: end;"><%= t("inventory.products.current_stock") %></th>
+        <th style="text-align: end;"><%= t("inventory.products.reorder_quantity") %></th>
+      </tr></thead>
+      <tbody>
+        <% @inventory_low_stock.each do |alert| %>
+          <tr>
+            <td><%= link_to alert.product.name, inventory_product_path(alert.product), class: "link" %></td>
+            <td class="td-secondary"><%= alert.product.sku %></td>
+            <td class="td-secondary"><%= alert.total? ? t("inventory.dashboard.all_warehouses") : alert.warehouse_name %></td>
+            <td style="text-align: end;"><span class="badge badge-warning"><%= alert.on_hand.to_i %></span></td>
+            <td style="text-align: end;"><%= alert.reorder_quantity.to_i %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

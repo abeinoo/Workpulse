@@ -1,0 +1,39 @@
+<%# locals: document, void_path, can_void %>
+<% if document.voided? %>
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5); border-inline-start: 3px solid var(--color-danger, #dc2626);">
+    <div class="flex items-center" style="gap: var(--space-2); margin-bottom: var(--space-3);">
+      <span class="badge badge-danger"><%= t("inventory.void.status_voided") %></span>
+    </div>
+    <dl class="detail-list">
+      <div class="detail-list__row">
+        <dt><%= t("inventory.void.voided_by") %></dt>
+        <dd><%= document.voided_by&.full_name || "—" %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.void.voided_at") %></dt>
+        <dd><%= l(document.voided_at, format: :long) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.void.void_reason") %></dt>
+        <dd><%= document.void_reason %></dd>
+      </div>
+    </dl>
+  </div>
+<% elsif can_void %>
+  <details class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
+    <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer;">
+      <%= t("inventory.void.action") %>
+    </summary>
+    <%= form_with url: void_path, method: :patch, class: "mt-4" do |f| %>
+      <div class="form-group">
+        <label class="form-label" for="void_reason"><%= t("inventory.void.reason_label") %></label>
+        <textarea id="void_reason" name="void_reason" rows="2" class="form-control"
+                  required placeholder="<%= t('inventory.void.reason_placeholder') %>"></textarea>
+        <p class="form-hint"><%= t("inventory.void.reason_hint") %></p>
+      </div>
+      <%= f.submit t("inventory.void.confirm"),
+            class: "btn btn-danger btn-sm",
+            data: { turbo_confirm: t("inventory.void.confirm_dialog") } %>
+    <% end %>
+  </details>
+<% end %>

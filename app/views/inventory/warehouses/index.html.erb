@@ -1,0 +1,49 @@
+<% content_for :title, t("inventory.warehouses.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.warehouses.title") %></h1>
+    <% if current_user.can?(:manage_inventory) %>
+      <%= link_to t("inventory.warehouses.add"), new_inventory_warehouse_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <% if @warehouses.empty? %>
+    <div class="empty-state">
+      <p class="empty-state__title"><%= t("inventory.warehouses.empty") %></p>
+    </div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("inventory.warehouses.name") %></th>
+            <th><%= t("inventory.warehouses.description") %></th>
+            <th><%= t("inventory.warehouses.status") %></th>
+            <th><%= t("inventory.warehouses.created") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @warehouses.each do |warehouse| %>
+            <tr>
+              <td><%= link_to warehouse.name, inventory_warehouse_path(warehouse), class: "link" %></td>
+              <td class="td-secondary"><%= warehouse.description.presence || "—" %></td>
+              <td>
+                <span class="badge <%= warehouse.active? ? 'badge-success' : 'badge-neutral' %>">
+                  <%= t("inventory.warehouses.statuses.#{warehouse.status}") %>
+                </span>
+              </td>
+              <td class="td-secondary"><%= l warehouse.created_at.to_date, format: :short %></td>
+              <td class="td-actions">
+                <% if current_user.can?(:manage_inventory) %>
+                  <%= link_to t("common.edit"), edit_inventory_warehouse_path(warehouse), class: "link-muted" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

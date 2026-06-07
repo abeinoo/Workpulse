@@ -1,0 +1,13 @@
+<%= form_with model: [:inventory, category], url: (category.persisted? ? inventory_product_category_path(category) : inventory_product_categories_path), class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: category %>
+  <div class="form-grid">
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :name, t("inventory.product_categories.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if category.errors[:name].any?}", autofocus: true %>
+    </div>
+  </div>
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_product_categories_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

@@ -1,0 +1,28 @@
+<%= form_with model: [:inventory, warehouse], class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: warehouse %>
+
+  <div class="form-grid">
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :name, t("inventory.warehouses.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if warehouse.errors[:name].any?}",
+            placeholder: t("inventory.warehouses.name_placeholder") %>
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :description, t("inventory.warehouses.description"), class: "form-label" %>
+      <%= f.text_area :description, rows: 3, class: "form-control" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :status, t("inventory.warehouses.status"), class: "form-label" %>
+      <%= f.select :status,
+            Warehouse.statuses.keys.map { |s| [t("inventory.warehouses.statuses.#{s}"), s] },
+            {}, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_warehouses_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

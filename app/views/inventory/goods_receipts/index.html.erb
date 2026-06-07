@@ -1,0 +1,43 @@
+<% content_for :title, t("inventory.goods_receipts.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.goods_receipts.title") %></h1>
+    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_stock_receipts) %>
+      <%= link_to t("inventory.goods_receipts.new_action"), new_inventory_goods_receipt_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <% if @goods_receipts.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.goods_receipts.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.goods_receipts.number") %></th>
+          <th><%= t("inventory.goods_receipts.date") %></th>
+          <th><%= t("inventory.goods_receipts.supplier") %></th>
+          <th><%= t("inventory.goods_receipts.warehouse") %></th>
+          <th><%= t("inventory.void.status") %></th>
+          <th style="text-align: end;"><%= t("inventory.goods_receipts.total") %></th>
+        </tr></thead>
+        <tbody>
+          <% @goods_receipts.each do |receipt| %>
+            <tr>
+              <td><%= link_to receipt.receipt_number, inventory_goods_receipt_path(receipt), class: "link" %></td>
+              <td class="td-secondary"><%= local_date(receipt.received_on) %></td>
+              <td class="td-secondary"><%= receipt.supplier&.name || "—" %></td>
+              <td class="td-secondary"><%= receipt.warehouse.name %></td>
+              <td>
+                <span class="badge <%= receipt.voided? ? 'badge-danger' : 'badge-success' %>">
+                  <%= receipt.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+                </span>
+              </td>
+              <td style="text-align: end;"><%= format_currency(receipt.total_value) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

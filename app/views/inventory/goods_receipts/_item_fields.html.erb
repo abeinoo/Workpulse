@@ -1,0 +1,21 @@
+<tr data-line-row>
+  <td>
+    <% product_options = products.map { |p| [ p.name, p.id, { "data-default-supplier-id" => p.default_supplier_id } ] } %>
+    <%= f.select :product_id,
+          options_for_select(product_options, f.object.product_id),
+          { include_blank: "— #{t('inventory.goods_receipts.select_product')}" },
+          class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
+  </td>
+  <td>
+    <%= f.number_field :quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0" %>
+  </td>
+  <td>
+    <%= f.number_field :unit_cost, step: "0.0001", min: 0, class: "form-control", placeholder: "0.00" %>
+  </td>
+  <td class="td-actions">
+    <% if f.object.persisted? %>
+      <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
+    <% end %>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" data-action="line-items#remove" aria-label="<%= t('common.delete') %>">×</button>
+  </td>
+</tr>

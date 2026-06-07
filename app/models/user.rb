@@ -36,6 +36,8 @@ class User < ApplicationRecord
   has_many :managed_employees,     class_name: "User", foreign_key: :manager_id, dependent: :nullify
   has_many :user_branches,         dependent: :destroy
   has_many :branches,              through: :user_branches
+  has_many :warehouse_assignments, dependent: :destroy
+  has_many :assigned_warehouses,   through: :warehouse_assignments, source: :warehouse
   has_many :salary_profiles,       dependent: :destroy
   has_one  :active_salary_profile,
            -> { active.order(effective_from: :desc) },
@@ -197,6 +199,22 @@ class User < ApplicationRecord
     return false unless permission_role
 
     permission_role.has_permission?(permission)
+  end
+
+  # Warehouse-scoped inventory access.
+  #
+  # Returns nil when the user may see EVERY warehouse (owners, and anyone with no
+  # explicit warehouse assignments — accountants, admins), or an array of the
+  # warehouse ids they're restricted to. Assigning warehouses to a user narrows
+  # their inventory visibility to exactly those.
+  def inventory_warehouse_ids
+    return nil if owner?
+    ids = warehouse_assignments.pluck(:warehouse_id)
+    ids.empty? ? nil : ids
+  end
+
+  def warehouse_scoped?
+    !inventory_warehouse_ids.nil?
   end
 
   # ── Notification preferences ────────────────────────────────────────────────

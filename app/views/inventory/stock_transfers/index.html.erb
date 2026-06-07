@@ -1,0 +1,43 @@
+<% content_for :title, t("inventory.stock_transfers.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.stock_transfers.title") %></h1>
+    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_stock_transfers) %>
+      <%= link_to t("inventory.stock_transfers.new_action"), new_inventory_stock_transfer_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <% if @stock_transfers.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.stock_transfers.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.stock_transfers.number") %></th>
+          <th><%= t("inventory.stock_transfers.date") %></th>
+          <th><%= t("inventory.stock_transfers.source_warehouse") %></th>
+          <th><%= t("inventory.stock_transfers.destination_warehouse") %></th>
+          <th><%= t("inventory.void.status") %></th>
+          <th style="text-align: end;"><%= t("inventory.stock_transfers.total") %></th>
+        </tr></thead>
+        <tbody>
+          <% @stock_transfers.each do |transfer| %>
+            <tr>
+              <td><%= link_to transfer.transfer_number, inventory_stock_transfer_path(transfer), class: "link" %></td>
+              <td class="td-secondary"><%= local_date(transfer.transferred_on) %></td>
+              <td class="td-secondary"><%= transfer.source_warehouse.name %></td>
+              <td class="td-secondary"><%= transfer.destination_warehouse.name %></td>
+              <td>
+                <span class="badge <%= transfer.voided? ? 'badge-danger' : 'badge-success' %>">
+                  <%= transfer.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+                </span>
+              </td>
+              <td style="text-align: end;"><%= format_currency(transfer.total_value) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

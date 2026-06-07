@@ -1,0 +1,46 @@
+<%= form_with model: [:inventory, supplier], class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: supplier %>
+
+  <div class="form-grid">
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :name, t("inventory.suppliers.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if supplier.errors[:name].any?}" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :primary_mobile, t("inventory.suppliers.primary_mobile"), class: "form-label" %>
+      <%= f.telephone_field :primary_mobile, class: "form-control", placeholder: "+966 5x xxx xxxx" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :secondary_mobile, t("inventory.suppliers.secondary_mobile"), class: "form-label" %>
+      <%= f.telephone_field :secondary_mobile, class: "form-control" %>
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :address, t("inventory.suppliers.address"), class: "form-label" %>
+      <%= f.text_field :address, class: "form-control" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :latitude, t("inventory.suppliers.latitude"), class: "form-label" %>
+      <%= f.number_field :latitude, step: "any", class: "form-control" %>
+      <p class="form-hint"><%= t("inventory.suppliers.map_hint") %></p>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :longitude, t("inventory.suppliers.longitude"), class: "form-label" %>
+      <%= f.number_field :longitude, step: "any", class: "form-control" %>
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :notes, t("inventory.suppliers.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 3, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_suppliers_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>
