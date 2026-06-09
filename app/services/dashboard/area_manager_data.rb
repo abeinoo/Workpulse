@@ -66,14 +66,19 @@ module Dashboard
       @branch_ids ||= managed_branches.pluck(:id)
     end
 
-    # Hash: branch_id → [user_ids] for permanent branch members (user_branches).
+    # Hash: branch_id → [user_ids] for branch members. Membership is shift-driven:
+    # an employee belongs to a branch while they hold an active ShiftAssignment to
+    # it (active today for this current-day dashboard).
     def employees_by_branch
       @employees_by_branch ||= begin
         mapping = Hash.new { |h, k| h[k] = [] }
-        User
-          .joins(:user_branches)
-          .where(user_branches: { branch_id: branch_ids }, active: true)
-          .pluck("user_branches.branch_id", "users.id")
+        ShiftAssignment
+          .active_on(today)
+          .where(branch_id: branch_ids)
+          .joins(:user)
+          .where(users: { active: true })
+          .distinct
+          .pluck(:branch_id, :user_id)
           .each { |bid, uid| mapping[bid] << uid }
         mapping
       end
@@ -199,7 +204,7 @@ module Dashboard
           alerts << {
             type:    :absences_today,
             count:   absent_uids.size,
-            users:   User.where(id: absent_uids.first(5)).includes(:user_branches).to_a
+            users:   User.where(id: absent_uids.first(5)).to_a
           }
         end
 

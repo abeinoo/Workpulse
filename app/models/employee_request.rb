@@ -41,10 +41,10 @@ class EmployeeRequest < ApplicationRecord
     joins(:user).where(users: { business_id: business.id })
   }
 
-  # Finds pending requests from employees who belong to any of the given branches.
+  # Finds pending requests from employees currently assigned (active ShiftAssignment)
+  # to any of the given branches. Branch membership is shift-driven.
   scope :pending_for_branch, ->(branch_ids) {
-    joins(user: :user_branches)
-      .where(user_branches: { branch_id: branch_ids }, status: "pending")
+    where(status: "pending", user_id: ShiftAssignment.user_ids_for_branches(branch_ids))
       .distinct
   }
 

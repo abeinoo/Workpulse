@@ -6,11 +6,7 @@ RSpec.describe User, type: :model do
   # ── Associations ──────────────────────────────────────────────────────────
   describe "associations" do
     it { is_expected.to belong_to(:business) }
-    it { is_expected.to belong_to(:manager).optional }
     it { is_expected.to belong_to(:permission_role).optional }
-    it { is_expected.to have_many(:managed_employees).dependent(:nullify) }
-    it { is_expected.to have_many(:user_branches).dependent(:destroy) }
-    it { is_expected.to have_many(:branches).through(:user_branches) }
     it { is_expected.to have_many(:salary_profiles).dependent(:destroy) }
     it { is_expected.to have_many(:shift_assignments).dependent(:destroy) }
     it { is_expected.to have_many(:attendance_records).dependent(:destroy) }
@@ -317,62 +313,6 @@ RSpec.describe User, type: :model do
     end
   end
 
-  # ── Manager relationship validations ─────────────────────────────────────
-  describe "manager validations" do
-    let(:business)       { create(:business) }
-    let(:other_business) { create(:business) }
-
-    describe "validate_manager_in_same_business" do
-      it "accepts any user in the same business as manager" do
-        manager  = create(:user, business: business)
-        employee = build(:user, business: business, manager: manager)
-        expect(employee).to be_valid
-      end
-
-      it "rejects a manager from a different business" do
-        other_manager = create(:user, business: other_business)
-        employee = build(:user, business: business, manager: other_manager)
-        expect(employee).not_to be_valid
-        expect(employee.errors[:manager]).to include("must belong to the same business")
-      end
-
-      it "is valid with no manager assigned" do
-        employee = build(:user, business: business, manager: nil)
-        expect(employee).to be_valid
-      end
-    end
-
-    describe "no_self_management" do
-      it "rejects assigning oneself as manager" do
-        mgr = create(:user, business: business)
-        mgr.manager = mgr
-        expect(mgr).not_to be_valid
-        expect(mgr.errors[:manager]).to include("cannot be yourself")
-      end
-    end
-  end
-
-  # ── #managed_employee_ids ─────────────────────────────────────────────────
-  describe "#managed_employee_ids" do
-    let(:business) { create(:business) }
-    let(:manager)  { create(:user, business: business) }
-
-    it "returns IDs of directly managed employees" do
-      emp1 = create(:user, business: business, manager: manager)
-      emp2 = create(:user, business: business, manager: manager)
-      expect(manager.managed_employee_ids).to match_array([emp1.id, emp2.id])
-    end
-
-    it "returns an empty array when no employees are assigned" do
-      expect(manager.managed_employee_ids).to eq([])
-    end
-
-    it "does not include employees managed by a different manager" do
-      other_manager = create(:user, business: business)
-      create(:user, business: business, manager: other_manager)
-      expect(manager.managed_employee_ids).to be_empty
-    end
-  end
 
   # ── Instance methods ──────────────────────────────────────────────────────
   describe "#full_name" do

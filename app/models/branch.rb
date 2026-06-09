@@ -2,8 +2,6 @@ class Branch < ApplicationRecord
   belongs_to :business
   belongs_to :branch_manager, class_name: "User", optional: true
   belongs_to :area_manager,   class_name: "User", optional: true
-  has_many :user_branches,      dependent: :destroy
-  has_many :users,              through: :user_branches
   has_many :shift_assignments,   dependent: :nullify
   has_many :attendance_records,  dependent: :destroy
   has_many :payroll_periods,     dependent: :destroy

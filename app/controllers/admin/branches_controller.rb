@@ -9,9 +9,11 @@ class Admin::BranchesController < Admin::BaseController
     authorize @branch
     today = Date.current
 
-    @employees = @branch.users.where(active: true)
-                             .includes(:permission_role, profile_photo_attachment: :blob)
-                             .order(:first_name, :last_name)
+    # Branch membership is shift-driven: employees currently assigned to this branch
+    # via an active ShiftAssignment.
+    @employees = User.where(id: ShiftAssignment.user_ids_for_branches([ @branch.id ]), active: true)
+                     .includes(:permission_role, profile_photo_attachment: :blob)
+                     .order(:first_name, :last_name)
     @branch_manager = @branch.branch_manager
 
     @today_records = @branch.attendance_records
@@ -37,7 +39,7 @@ class Admin::BranchesController < Admin::BaseController
                               .includes(payroll_entries: { user: { profile_photo_attachment: :blob } })
                               .first
 
-    branch_user_ids = UserBranch.where(branch: @branch).select(:user_id)
+    branch_user_ids = ShiftAssignment.user_ids_for_branches([ @branch.id ])
 
     @pending_requests = EmployeeRequest
                           .where(user_id: branch_user_ids, status: :pending)

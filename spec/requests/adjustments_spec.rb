@@ -12,9 +12,10 @@ RSpec.describe "Adjustments workflow", type: :request do
   let(:manager)  { create(:user, :branch_manager, business: business) }
   # Accountant: a different user who can approve.
   let(:approver) { create(:user, :accountant, business: business) }
+  let(:shift) { create(:shift, :fixed_time, business: business) }
   let(:employee) do
     u = create(:user, business: business)
-    create(:user_branch, user: u, branch: branch)
+    create(:shift_assignment, user: u, branch: branch, shift: shift)
     u
   end
 
@@ -87,12 +88,14 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(response.body).to include("Unmanaged Person")
     end
 
-    it "limits a managed-scope adjustments manager to their hierarchy" do
+    it "limits a branch-scoped adjustments manager to their branch" do
       role = create(:permission_role, business: business,
                     permissions: %w[view_payroll manage_adjustments],
-                    permission_scopes: { "manage_adjustments" => "managed_employees_only" })
+                    permission_scopes: { "manage_adjustments" => "branch" })
       restricted = create(:user, business: business, permission_role: role)
-      create(:user, business: business, manager: restricted, first_name: "My", last_name: "Report")
+      r_branch   = create(:branch, business: business, branch_manager_id: restricted.id)
+      report     = create(:user, business: business, first_name: "My", last_name: "Report")
+      create(:shift_assignment, user: report, branch: r_branch, shift: shift)
       create(:user, business: business, first_name: "Outside", last_name: "Scope")
       sign_in restricted
 

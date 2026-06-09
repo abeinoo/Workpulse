@@ -72,7 +72,7 @@ RSpec.describe Adjustments::BulkCreateService, type: :model do
       expect(result.count).to eq(2)
     end
 
-    it "managed_employees_only manager: an out-of-scope row rejects the whole batch" do
+    it "branch-scoped manager: an out-of-scope row rejects the whole batch" do
       # allowed set excludes other_employee (simulating a restricted scope)
       rows = [ row, row(user_id: other_employee.id) ]
       result = service(rows: rows, allowed: [ employee.id ]).call

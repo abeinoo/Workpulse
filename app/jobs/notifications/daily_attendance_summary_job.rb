@@ -20,11 +20,13 @@ module Notifications
     def process_business(business)
       today = BusinessDay.current(context: business)
 
-      managers = business.users.where(active: true).select { |u| u.managed_employees.exists? }
+      # Managers are users who oversee a branch or area; their "team" is everyone
+      # currently assigned (active ShiftAssignment) to those branches.
+      managers = business.users.where(active: true).select { |u| u.manages_branch? || u.manages_area? }
       return if managers.empty?
 
       managers.each do |manager|
-        team_ids = manager.managed_employees.where(active: true).pluck(:id)
+        team_ids = EmployeeScope.new(manager).relation.where(active: true).pluck(:id)
         next if team_ids.empty?
 
         present_ids = AttendanceRecord.where(user_id: team_ids, date: today).pluck(:user_id).to_set

@@ -273,7 +273,7 @@ class AttendanceRecordsController < ApplicationController
     return nil unless current_user.can?(:view_attendance)
 
     configured = current_user.scope_for(:view_attendance)
-    if configured == "business_wide"
+    if configured == "business"
       current_user.business.users.find_by(id: user_id)
     else
       # Default: use EmployeeScope which honours managed_employees + branch hierarchy.
@@ -320,7 +320,7 @@ class AttendanceRecordsController < ApplicationController
     return Branch.none unless current_user.can?(:view_attendance)
 
     configured = current_user.scope_for(:view_attendance)
-    if configured == "business_wide"
+    if configured == "business"
       current_user.business.branches.active.order(:name)
     else
       branch_ids = current_user.managed_branch_ids + current_user.area_managed_branch_ids

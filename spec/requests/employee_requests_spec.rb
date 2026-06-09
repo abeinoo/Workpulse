@@ -235,7 +235,12 @@ RSpec.describe "EmployeeRequests", type: :request do
       create(:user, business: business, permission_role: role)
     end
 
-    before { employee.update!(manager: manager) }
+    before do
+      # Shift-driven membership: `manager` manages `branch`, employee assigned there.
+      branch.update_column(:branch_manager_id, manager.id)
+      create(:shift_assignment, user: employee, branch: branch,
+             shift: create(:shift, :fixed_time, business: business))
+    end
 
     it "stores reviewer, time and reason on reject" do
       request = create(:employee_request, :early_leave, user: employee, status: :pending)
@@ -291,10 +296,10 @@ RSpec.describe "EmployeeRequests", type: :request do
       }.to change { EmployeeRequest.where(user: unmanaged).count }.by(1)
     end
 
-    it "blocks a managed-scope approver from submitting for an out-of-scope employee" do
+    it "blocks a branch-scoped approver from submitting for an out-of-scope employee" do
       role = create(:permission_role, business: business,
                     permissions: %w[view_requests approve_requests],
-                    permission_scopes: { "approve_requests" => "managed_employees_only" })
+                    permission_scopes: { "approve_requests" => "branch" })
       restricted = create(:user, business: business, permission_role: role)
       sign_in restricted
 

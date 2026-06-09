@@ -19,9 +19,10 @@ RSpec.describe "Payroll review approval paths", type: :request do
   # Branch manager + an employee inside the branch they manage.
   let(:branch_manager) { create(:user, :branch_manager, business: business) }
   let(:bm_branch)      { Branch.find_by(business: business, branch_manager_id: branch_manager.id) }
+  let(:shift)    { create(:shift, :fixed_time, business: business) }
   let(:employee) do
     u = create(:user, business: business)
-    create(:user_branch, user: u, branch: bm_branch)
+    create(:shift_assignment, user: u, branch: bm_branch, shift: shift)
     u
   end
 

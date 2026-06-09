@@ -49,8 +49,13 @@ module Scheduling
 
     private
 
+    # Shift-driven membership: the employee is "in" the branch if they have any
+    # ShiftAssignment to it (past, present, or future). Assigning to a branch the
+    # employee has never been associated with yields a soft branch-mismatch warning.
     def user_not_in_branch?
-      @branch.present? && !@user.branches.exists?(@branch.id)
+      return false if @branch.blank?
+
+      !ShiftAssignment.where(user_id: @user.id, branch_id: @branch.id).exists?
     end
 
     def blocked(reason)

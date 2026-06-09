@@ -81,27 +81,34 @@ class OperationsDashboardController < ApplicationController
   end
 
   def build_branch_health(business, employee_ids, today)
-    from     = today.beginning_of_month
-    branches = business.branches.active.includes(:users).order(:name)
+    from       = today.beginning_of_month
+    branches   = business.branches.active.order(:name)
+    branch_ids = branches.map(&:id)
 
-    # Batch-load all monthly records for all employees at once
+    # Batch-load all monthly records for all employees at once. Attendance carries
+    # its own branch_id (where the work happened), so group on it directly.
     month_counts = AttendanceRecord
-      .joins(user: :user_branches)
-      .where(user_id: employee_ids, work_date: from..today)
-      .where(user_branches: { branch_id: branches.map(&:id) })
-      .group("user_branches.branch_id", :status)
+      .where(user_id: employee_ids, work_date: from..today, branch_id: branch_ids)
+      .group(:branch_id, :status)
       .count  # { [branch_id, status] => count }
 
     today_checked_in = AttendanceRecord
-      .joins(user: :user_branches)
-      .where(user_id: employee_ids, date: today)
+      .where(user_id: employee_ids, date: today, branch_id: branch_ids)
       .where.not(check_in_at: nil)
-      .where(user_branches: { branch_id: branches.map(&:id) })
-      .group("user_branches.branch_id")
+      .group(:branch_id)
       .count  # { branch_id => count }
 
+    # branch_id → [user_ids] currently assigned (shift-driven membership),
+    # limited to the visible employee set.
+    members_by_branch = ShiftAssignment
+      .active_on(today)
+      .where(branch_id: branch_ids, user_id: employee_ids)
+      .joins(:user).where(users: { active: true })
+      .distinct.pluck(:branch_id, :user_id)
+      .each_with_object(Hash.new { |h, k| h[k] = [] }) { |(bid, uid), h| h[bid] << uid }
+
     branches.map do |branch|
-      branch_emp_ids = branch.users.where(id: employee_ids, active: true).pluck(:id)
+      branch_emp_ids = members_by_branch[branch.id] || []
       next if branch_emp_ids.empty?
 
       late_month   = month_counts[[branch.id, "late"]].to_i

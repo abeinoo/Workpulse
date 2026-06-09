@@ -342,12 +342,12 @@ class ShiftAssignmentsController < ApplicationController
                       current_user.scope_for(:view_shifts) ||
                       current_user.scope_for(:view_employees)
 
-    if effective_scope == "business_wide"
+    if effective_scope == "business"
       @branches = Branch.for_business(current_user.business).active.order(:name)
     else
       branch_ids = current_user.managed_branch_ids +
                    current_user.area_managed_branch_ids +
-                   current_user.user_branches.pluck(:branch_id)
+                   BranchMembership.current_branch_ids(current_user)
       @branches = Branch.where(id: branch_ids.uniq).active.order(:name)
     end
   end

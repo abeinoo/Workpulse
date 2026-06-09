@@ -12,8 +12,6 @@ RSpec.describe SalaryProfilePolicy, type: :model do
 
   before do
     branch.update_column(:branch_manager_id, manager.id)
-    create(:user_branch, user: manager,  branch: branch)
-    create(:user_branch, user: employee, branch: branch)
   end
 
   let(:active_profile)     { create(:salary_profile, user: employee) }
@@ -120,7 +118,6 @@ RSpec.describe SalaryProfilePolicy, type: :model do
       other_branch   = create(:branch, business: business)
       cross_emp      = create(:user, business: business)
       cross_profile  = create(:salary_profile, user: cross_emp)
-      create(:user_branch, user: cross_emp, branch: other_branch)
       # Permission-driven: view_payroll grants business-wide salary profile visibility.
       # Branch isolation requires an explicit data scope override on the role.
       scope = SalaryProfilePolicy::Scope.new(manager, SalaryProfile).resolve

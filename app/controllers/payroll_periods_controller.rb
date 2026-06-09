@@ -402,12 +402,12 @@ class PayrollPeriodsController < ApplicationController
 
   # Branches a user is allowed to complete reviews for. Honors the configured
   # `complete_branch_review` data scope:
-  #   - business_wide: every branch in the business
-  #   - branch_only / managed_employees_only / default: structural relationships
+  #   - business: every branch in the business
+  #   - branch / area / default: structural relationships
   #     (branches where the user is branch_manager_id or area_manager_id).
   def reviewable_branch_ids_for(user)
     case user.scope_for(:complete_branch_review)
-    when "business_wide"
+    when "business"
       user.business.branches.pluck(:id)
     else
       (user.managed_branch_ids + user.area_managed_branch_ids).uniq

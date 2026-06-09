@@ -318,10 +318,11 @@ RSpec.describe EmployeeRequest, type: :model do
     let!(:approved) { create(:employee_request, :approved, user: branch_employee) }
     let!(:other)    { create(:employee_request) }
 
-    before { create(:user_branch, user: branch_employee, branch: branch) }
+    let(:shift) { create(:shift, :fixed_time, business: business) }
+    before { create(:shift_assignment, user: branch_employee, branch: branch, shift: shift) }
 
     describe ".pending_for_branch" do
-      it "returns pending requests for the given branch ids via user_branches" do
+      it "returns pending requests for employees assigned to the branch (shift-driven)" do
         result = EmployeeRequest.pending_for_branch([branch.id])
         expect(result).to include(pending)
         expect(result).not_to include(approved, other)

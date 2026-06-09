@@ -145,7 +145,7 @@ module Api
       # the configured `complete_branch_review` data scope.
       def authorized_review_branch_ids
         case current_user.scope_for(:complete_branch_review)
-        when "business_wide"
+        when "business"
           current_user.business.branches.pluck(:id)
         else
           (current_user.managed_branch_ids + current_user.area_managed_branch_ids).uniq

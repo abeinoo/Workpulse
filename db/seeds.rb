@@ -185,35 +185,14 @@ emp5 = employees[4]  # Yusuf Karimi   — Jeddah, daily 300
 emp6 = employees[5]  # Reem Sultan    — Jeddah, monthly 7000
 
 # ---------------------------------------------------------------------------
-# UserBranch assignments + branch manager relationships
+# Branch manager relationships (membership itself is shift-driven via ShiftAssignment)
 # ---------------------------------------------------------------------------
-[ [ mgr_riyadh, riyadh ], [ mgr_jeddah, jeddah ] ].each do |user, branch|
-  UserBranch.find_or_create_by!(user: user, branch: branch)
-end
-
-employees_data.each_with_index do |d, i|
-  UserBranch.find_or_create_by!(user: employees[i], branch: d[:branch])
-end
-puts "UserBranch records assigned"
-
 riyadh.update_column(:branch_manager_id, mgr_riyadh.id) if riyadh.branch_manager_id.nil?
 jeddah.update_column(:branch_manager_id, mgr_jeddah.id) if jeddah.branch_manager_id.nil?
 puts "Branch manager relationships set"
 
-
-# ---------------------------------------------------------------------------
-# Manager assignments
-# ---------------------------------------------------------------------------
-employees_data.each_with_index do |d, i|
-  target_mgr = d[:branch] == riyadh ? mgr_riyadh : mgr_jeddah
-  employees[i].update_column(:manager_id, target_mgr.id) if employees[i].manager_id.nil?
-end
-puts "Manager assignments: Riyadh staff → #{mgr_riyadh.full_name}, Jeddah staff → #{mgr_jeddah.full_name}"
-
-# Branch managers report to area manager
-mgr_riyadh.update_column(:manager_id, area_mgr.id) if mgr_riyadh.manager_id.nil?
-mgr_jeddah.update_column(:manager_id, area_mgr.id) if mgr_jeddah.manager_id.nil?
-area_mgr.update_column(:manager_id, admin.id)       if area_mgr.manager_id.nil?
+# Management hierarchy is derived from Branch.branch_manager_id / area_manager_id
+# and active ShiftAssignments — there is no direct employee→manager ownership.
 
 # Assign area manager to both branches
 riyadh.update_column(:area_manager_id, area_mgr.id) if riyadh.area_manager_id.nil?

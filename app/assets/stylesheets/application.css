@@ -5405,21 +5405,24 @@ details:not([open]) .permission-group__chevron {
   margin-left: var(--space-1);
 }
 
+.permission-scope-chip--self,
 .permission-scope-chip--self_only {
   background: rgba(var(--neutral-rgb), 0.15);
   color: var(--text-3);
 }
 
-.permission-scope-chip--managed_employees_only {
-  background: rgba(var(--accent-rgb), 0.15);
-  color: var(--accent);
-}
-
+.permission-scope-chip--branch,
 .permission-scope-chip--branch_only {
   background: rgba(var(--warning-rgb), 0.15);
   color: var(--warning);
 }
 
+.permission-scope-chip--area {
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+}
+
+.permission-scope-chip--business,
 .permission-scope-chip--business_wide {
   background: rgba(var(--success-rgb), 0.15);
   color: var(--success);

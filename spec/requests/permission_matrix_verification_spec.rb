@@ -386,13 +386,13 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       expect(response).to have_http_status(:ok)
 
       # Mutate scope mid-session.
-      role.update!(permission_scopes: { "view_payroll" => "business_wide" })
+      role.update!(permission_scopes: { "view_payroll" => "business" })
 
       # The next request must observe the new scope.
       get root_path
       expect(response).to have_http_status(:ok)
       # Re-fetch the User from DB to check what the next can?/scope_for call would see.
-      expect(User.find(user.id).scope_for(:view_payroll)).to eq("business_wide")
+      expect(User.find(user.id).scope_for(:view_payroll)).to eq("business")
     end
 
     it "current_user is a fresh AR object on each request (Devise re-fetches from DB)" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_05_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_09_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1012,18 +1012,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_130000) do
     t.index ["target_user_id"], name: "index_user_audit_logs_on_target_user_id"
   end
 
-  create_table "user_branches", force: :cascade do |t|
-    t.boolean "active", default: true, null: false
-    t.integer "branch_id", null: false
-    t.datetime "created_at", null: false
-    t.date "joined_at"
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.index ["branch_id"], name: "index_user_branches_on_branch_id"
-    t.index ["user_id", "branch_id"], name: "index_user_branches_on_user_id_and_branch_id", unique: true
-    t.index ["user_id"], name: "index_user_branches_on_user_id"
-  end
-
   create_table "users", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.boolean "allow_biometric_attendance", default: true, null: false
@@ -1044,7 +1032,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_130000) do
     t.string "identity_card_number"
     t.string "job_title"
     t.string "last_name"
-    t.integer "manager_id"
     t.jsonb "notification_preferences", default: {}, null: false
     t.integer "permission_role_id"
     t.string "phone_number"
@@ -1058,7 +1045,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_130000) do
     t.index ["business_id"], name: "index_users_on_business_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["identity_card_number"], name: "index_users_on_identity_card_number", unique: true
-    t.index ["manager_id"], name: "index_users_on_manager_id"
     t.index ["permission_role_id"], name: "index_users_on_permission_role_id"
     t.index ["phone_number"], name: "index_users_on_phone_number", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
@@ -1208,11 +1194,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_05_130000) do
   add_foreign_key "suppliers", "businesses"
   add_foreign_key "user_audit_logs", "users", column: "actor_id"
   add_foreign_key "user_audit_logs", "users", column: "target_user_id"
-  add_foreign_key "user_branches", "branches"
-  add_foreign_key "user_branches", "users"
   add_foreign_key "users", "businesses"
   add_foreign_key "users", "permission_roles", on_delete: :nullify
-  add_foreign_key "users", "users", column: "manager_id", on_delete: :nullify
   add_foreign_key "warehouse_assignments", "users"
   add_foreign_key "warehouse_assignments", "warehouses"
   add_foreign_key "warehouses", "businesses"

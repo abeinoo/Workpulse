@@ -10,8 +10,6 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
 
   before do
     branch.update_column(:branch_manager_id, manager.id)
-    create(:user_branch, user: manager,  branch: branch)
-    create(:user_branch, user: employee, branch: branch)
   end
 
   let(:period)     { create(:payroll_period, business: business, branch: branch) }
@@ -198,9 +196,7 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       let(:other_adj_period) { create(:payroll_period, business: business, branch: other_branch,
                                       period_year: 2025, period_month: 3) }
       let!(:other_branch_adj) do
-        create(:user_branch, user: other_emp, branch: other_branch)
         other_branch.update_column(:branch_manager_id, other_mgr.id)
-        create(:user_branch, user: other_mgr, branch: other_branch)
         create(:payroll_adjustment, :cash_incentive,
                payroll_period: other_adj_period,
                user:           other_emp,

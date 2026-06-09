@@ -5,12 +5,15 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
   let(:branch)      { create(:branch, business: business) }
   let(:super_admin) { create(:user, :super_admin, business: business) }
   let(:manager)     { create(:user, :branch_manager, business: business) }
-  let(:employee)    { create(:user, business: business, manager: manager) }
+  let(:employee)    { create(:user, business: business) }
   let(:request)     { create(:employee_request, user: employee) }
+  let(:shift)       { create(:shift, :fixed_time, business: business) }
 
   before do
-    create(:user_branch, user: manager, branch: branch)
-    create(:user_branch, user: employee, branch: branch)
+    # Branch membership is shift-driven; make `manager` the branch_manager of
+    # `branch` and assign `employee` to it.
+    branch.update_column(:branch_manager_id, manager.id)
+    create(:shift_assignment, user: employee, branch: branch, shift: shift)
   end
 
   subject { described_class }
@@ -38,7 +41,6 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
 
     it "permits any user with view_requests at the policy level — scope handles isolation" do
       other_manager = create(:user, :branch_manager, business: business)
-      create(:user_branch, user: other_manager, branch: branch)
       expect(subject).to permit(other_manager, request)
     end
 
@@ -70,10 +72,10 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       expect(subject).to permit(wide_approver, new_req)
     end
 
-    it "denies a managed-scope approver creating for an employee outside their hierarchy" do
+    it "denies a branch-scoped approver creating for an employee outside their branch" do
       role = create(:permission_role, business: business,
                     permissions: %w[view_requests approve_requests],
-                    permission_scopes: { "approve_requests" => "managed_employees_only" })
+                    permission_scopes: { "approve_requests" => "branch" })
       restricted = create(:user, business: business, permission_role: role)
       unmanaged  = create(:user, business: business)
       new_req    = build(:employee_request, user: unmanaged)
@@ -127,15 +129,16 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
     end
 
     describe "branch_manager scope" do
-      it "returns requests from directly managed employees" do
+      it "returns requests from employees assigned to the managed branch" do
         scope = described_class::Scope.new(manager, EmployeeRequest).resolve
         expect(scope).to include(my_request)
         expect(scope).not_to include(other_request)
       end
 
-      it "excludes requests from employees with a different manager" do
-        other_manager = create(:user, :branch_manager, business: business)
-        unmanaged_emp = create(:user, business: business, manager: other_manager)
+      it "excludes requests from employees assigned to a different branch" do
+        other_branch  = create(:branch, business: business)
+        unmanaged_emp = create(:user, business: business)
+        create(:shift_assignment, user: unmanaged_emp, branch: other_branch, shift: shift)
         unmanaged_req = create(:employee_request, user: unmanaged_emp)
         scope = described_class::Scope.new(manager, EmployeeRequest).resolve
         expect(scope).not_to include(unmanaged_req)

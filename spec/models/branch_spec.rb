@@ -5,8 +5,6 @@ RSpec.describe Branch, type: :model do
 
   describe "associations" do
     it { is_expected.to belong_to(:business) }
-    it { is_expected.to have_many(:user_branches).dependent(:destroy) }
-    it { is_expected.to have_many(:users).through(:user_branches) }
     it { is_expected.to have_many(:attendance_records).dependent(:destroy) }
     it { is_expected.to have_many(:payroll_periods).dependent(:destroy) }
   end

@@ -6,13 +6,11 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
   let(:super_admin)   { create(:user, :super_admin,   business: business) }
   let(:area_manager)  { create(:user, :area_manager,  business: business) }
   let(:manager)       { create(:user, :branch_manager, business: business) }
-  let(:employee)      { create(:user, business: business, manager: manager) }
+  let(:employee)      { create(:user, business: business) }
   let(:record)        { create(:attendance_record, branch: branch, user: employee) }
 
   before do
     branch.update!(area_manager: area_manager, branch_manager: manager)
-    create(:user_branch, user: manager,  branch: branch)
-    create(:user_branch, user: employee, branch: branch)
   end
 
   subject { described_class }
@@ -86,9 +84,7 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
       end
 
       it "can edit any same-business record at policy level — scope enforces branch isolation" do
-        other_manager = create(:user, :branch_manager, business: business)
-        other_emp     = create(:user, business: business, manager: other_manager)
-        create(:user_branch, user: other_emp, branch: branch)
+        other_emp     = create(:user, business: business)
         other_record  = create(:attendance_record, user: other_emp, branch: branch)
         expect(subject).to permit(manager, other_record)
       end
@@ -191,17 +187,15 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
     let!(:other_record) { create(:attendance_record) } # different business — never visible
 
     describe "branch_only" do
-      # A plain branch member, NOT the formal branch manager.
+      # The branch manager of `branch`. Branch membership for colleagues is
+      # shift-driven (the attendance_record factory creates the active assignment).
       let(:viewer)    { create(:user, business: business, permission_role: role_with_scope("branch_only")) }
       let(:colleague) { create(:user, business: business) }
 
       let!(:viewer_record)    { create(:attendance_record, branch: branch, user: viewer) }
       let!(:colleague_record) { create(:attendance_record, branch: branch, user: colleague) }
 
-      before do
-        create(:user_branch, user: viewer,    branch: branch)
-        create(:user_branch, user: colleague, branch: branch)
-      end
+      before { branch.update_column(:branch_manager_id, viewer.id) }
 
       it "shows all branch colleagues including the current user" do
         scope = described_class::Scope.new(viewer, AttendanceRecord).resolve
@@ -212,7 +206,6 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
       it "excludes employees from other branches" do
         other_branch = create(:branch, business: business)
         outsider     = create(:user, business: business)
-        create(:user_branch, user: outsider, branch: other_branch)
         outsider_rec = create(:attendance_record, branch: other_branch, user: outsider)
 
         scope = described_class::Scope.new(viewer, AttendanceRecord).resolve
@@ -220,18 +213,23 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
       end
     end
 
-    describe "managed_employees_only" do
-      let(:direct_mgr) { create(:user, business: business, permission_role: role_with_scope("managed_employees_only")) }
-      let(:report)     { create(:user, business: business, manager: direct_mgr) }
-      let(:stranger)   { create(:user, business: business) }
+    # branch scope: the viewer (branch manager) sees colleagues assigned to their
+    # branch and their own records, not people in other branches.
+    describe "branch" do
+      let(:viewer)    { create(:user, business: business, permission_role: role_with_scope("branch")) }
+      let(:colleague) { create(:user, business: business) }
+      let(:stranger)  { create(:user, business: business) }
+      let(:other_branch) { create(:branch, business: business) }
 
-      let!(:report_record)   { create(:attendance_record, branch: branch, user: report) }
-      let!(:mgr_record)      { create(:attendance_record, branch: branch, user: direct_mgr) }
-      let!(:stranger_record) { create(:attendance_record, branch: branch, user: stranger) }
+      let!(:viewer_record)    { create(:attendance_record, branch: branch, user: viewer) }
+      let!(:colleague_record) { create(:attendance_record, branch: branch, user: colleague) }
+      let!(:stranger_record)  { create(:attendance_record, branch: other_branch, user: stranger) }
 
-      it "shows direct reports and the manager's own records, not strangers" do
-        scope = described_class::Scope.new(direct_mgr, AttendanceRecord).resolve
-        expect(scope).to include(report_record, mgr_record)
+      before { branch.update_column(:branch_manager_id, viewer.id) }
+
+      it "shows branch colleagues and the viewer's own records, not other branches" do
+        scope = described_class::Scope.new(viewer, AttendanceRecord).resolve
+        expect(scope).to include(viewer_record, colleague_record)
         expect(scope).not_to include(stranger_record, other_record)
       end
     end

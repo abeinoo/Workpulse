@@ -36,7 +36,6 @@ RSpec.describe "Admin::AttendanceImports", type: :request do
   let(:branch_manager) do
     user = create(:user, business: business)
     branch.update_column(:branch_manager_id, user.id)
-    create(:user_branch, user: user, branch: branch)
     user
   end
 

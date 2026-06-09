@@ -9,7 +9,6 @@ RSpec.describe Attendance::CheckInService do
   before do
     create(:shift_assignment, user: user, branch: branch, shift: shift,
            effective_from: 1.month.ago.to_date)
-    create(:user_branch, user: user, branch: branch)
   end
 
   def call(latitude: nil, longitude: nil)
@@ -107,13 +106,14 @@ RSpec.describe Attendance::CheckInService do
     end
   end
 
-  describe "shift not found" do
-    it "fails when there is no active shift assignment for today" do
-      # Close the existing assignment
+  describe "no active assignment" do
+    it "fails the branch-assignment check when the assignment is closed" do
+      # Branch membership is shift-driven: closing the only active assignment also
+      # removes branch membership, so the branch-assignment guard fires first.
       ShiftAssignment.where(user: user).update_all(effective_to: 1.day.ago.to_date)
       result = call
       expect(result).not_to be_success
-      expect(result.error).to eq("No active shift found for today")
+      expect(result.error).to eq("You are not assigned to this branch")
     end
   end
 
@@ -127,7 +127,6 @@ RSpec.describe Attendance::CheckInService do
     before do
       create(:shift_assignment, user: geo_user, branch: geo_branch, shift: shift,
              effective_from: 1.month.ago.to_date)
-      create(:user_branch, user: geo_user, branch: geo_branch)
     end
 
     it "succeeds when coordinates are inside the allowed radius" do

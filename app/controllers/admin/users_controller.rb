@@ -5,7 +5,7 @@ class Admin::UsersController < Admin::BaseController
     authorize User
     @status_filter = params[:status].presence_in(%w[active inactive]) || "active"
     scope = policy_scope(User)
-              .includes(:manager, :permission_role, profile_photo_attachment: :blob)
+              .includes(:permission_role, profile_photo_attachment: :blob)
               .order(:first_name, :last_name)
     @users = case @status_filter
              when "active"   then scope.where(active: true)
@@ -17,7 +17,6 @@ class Admin::UsersController < Admin::BaseController
   def new
     @user = current_user.business.users.new
     authorize @user
-    load_managers
   end
 
   def create
@@ -31,7 +30,6 @@ class Admin::UsersController < Admin::BaseController
     if @user.save
       redirect_to admin_users_path, notice: t("flash.employee_created")
     else
-      load_managers
       render :new, status: :unprocessable_entity
     end
   end
@@ -48,7 +46,6 @@ class Admin::UsersController < Admin::BaseController
 
   def edit
     authorize @user
-    load_managers
   end
 
   def update
@@ -63,7 +60,6 @@ class Admin::UsersController < Admin::BaseController
       end
       redirect_to admin_users_path, notice: t("flash.employee_updated")
     else
-      load_managers
       render :edit, status: :unprocessable_entity
     end
   end
@@ -174,16 +170,10 @@ class Admin::UsersController < Admin::BaseController
     end
   end
 
-  def load_managers
-    @managers = current_user.business.users.active
-                             .where.not(id: @user.id)
-                             .order(:first_name, :last_name)
-  end
-
   def user_params
     params.require(:user).permit(
       :first_name, :last_name, :phone_number, :email,
-      :employee_code, :active, :manager_id,
+      :employee_code, :active,
       :permission_role_id,
       :job_title, :department, :hire_date, :employment_type,
       :identity_card_number, :identity_card_expiry_date,
