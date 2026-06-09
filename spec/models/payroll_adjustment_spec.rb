@@ -47,6 +47,52 @@ RSpec.describe PayrollAdjustment, type: :model do
         adjustment.approved_by = nil
         expect(adjustment).to be_valid
       end
+
+      it "is valid when the business owner approves their own adjustment" do
+        owner = create(:user, :owner, business: adjustment.business)
+        adjustment.created_by  = owner
+        adjustment.approved_by = owner
+        expect(adjustment).to be_valid
+      end
+    end
+
+    describe "owner auto-approval" do
+      let(:business) { create(:business) }
+      let(:owner)    { create(:user, :owner, business: business) }
+      let(:period)   { create(:payroll_period, business: business, status: "draft") }
+
+      def owner_adjustment
+        build(:payroll_adjustment, payroll_period: period, business: business,
+              created_by: owner, review_status: "pending_review")
+      end
+
+      it "#apply_owner_auto_approval approves an owner-created adjustment" do
+        adj = owner_adjustment
+        adj.apply_owner_auto_approval
+
+        expect(adj.review_status).to eq("approved")
+        expect(adj.approved_by_id).to eq(owner.id)
+        expect(adj.reviewed_by_id).to eq(owner.id)
+        expect(adj.approved_at).to be_present
+        expect(adj).to be_valid
+      end
+
+      it "#apply_owner_auto_approval is a no-op for a non-owner creator" do
+        adj = build(:payroll_adjustment, payroll_period: period, business: business,
+                    created_by: create(:user, business: business),
+                    review_status: "pending_review")
+        adj.apply_owner_auto_approval
+
+        expect(adj.review_status).to eq("pending_review")
+        expect(adj.approved_by_id).to be_nil
+      end
+
+      it "#creator_is_business_owner? is true only when created_by is the owner" do
+        expect(owner_adjustment.creator_is_business_owner?).to be true
+        non_owner = build(:payroll_adjustment, payroll_period: period, business: business,
+                          created_by: create(:user, business: business))
+        expect(non_owner.creator_is_business_owner?).to be false
+      end
     end
 
     describe "period_not_locked (payroll lock)" do

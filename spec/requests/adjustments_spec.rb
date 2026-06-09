@@ -121,6 +121,22 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(adj.period_year).to eq(2026)
     end
 
+    it "auto-approves an adjustment created by the business owner" do
+      owner = create(:user, :owner, business: business)
+      sign_in owner
+
+      expect {
+        post adjustments_path, params: create_params
+      }.to change(PayrollAdjustment, :count).by(1)
+
+      adj = PayrollAdjustment.last
+      expect(adj.review_status).to eq("approved")
+      expect(adj.created_by).to eq(owner)
+      expect(adj.approved_by).to eq(owner)
+      expect(adj.approved_at).to be_present
+      expect(adj.reviewed_by).to eq(owner)
+    end
+
     it "blocks creation for a paid period with the processed message" do
       draft_period.update_column(:status, "paid")
       sign_in manager
@@ -187,6 +203,76 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(response.body).to include(adjustment_path(adj_june))
       expect(response.body).to include(I18n.t("adjustments.view_details"))
     end
+
+    context "as a regular employee" do
+      let!(:my_approved) do
+        create(:payroll_adjustment, :cash_incentive, :approved, business: business, user: employee,
+               created_by: manager, payroll_period: nil, period_month: 6, period_year: 2026)
+      end
+      let!(:my_pending) do
+        create(:payroll_adjustment, :commission, business: business, user: employee,
+               created_by: manager, payroll_period: nil, period_month: 7, period_year: 2026)
+      end
+      let!(:coworker_approved) do
+        coworker = create(:user, business: business)
+        create(:payroll_adjustment, :cash_incentive, :approved, business: business, user: coworker,
+               created_by: manager, payroll_period: nil, period_month: 6, period_year: 2026)
+      end
+
+      it "can open the Adjustments page and sees ONLY their own approved adjustments" do
+        sign_in employee
+        get adjustments_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include(adjustment_path(my_approved))       # own + approved
+        expect(response.body).not_to include(adjustment_path(my_pending))    # own but pending → hidden
+        expect(response.body).not_to include(adjustment_path(coworker_approved)) # another employee → hidden
+      end
+
+      it "does not expose analytics or creation actions to the employee" do
+        sign_in employee
+        get adjustments_path
+
+        expect(response.body).not_to include('class="adj-stats"')   # Analytics & Reports hidden
+        expect(response.body).not_to include(new_adjustment_path)   # cannot create
+      end
+
+      it "shows an Adjustments link in the employee sidebar navigation" do
+        sign_in employee
+        get root_path # dashboard — renders the application layout + sidebar
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("href=\"#{adjustments_path}\"")
+        expect(response.body).to include(I18n.t("nav.adjustments"))
+      end
+    end
+
+    # Analytics & Reports (the aggregate stats strip + insights) are Business-scope only.
+    context "Adjustment Analytics & Reports visibility" do
+      it "shows analytics to the business owner" do
+        owner = create(:user, :owner, business: business)
+        sign_in owner
+        get adjustments_path
+
+        expect(response.body).to include('class="adj-stats"')
+      end
+
+      it "shows analytics to a business-scope admin (accountant)" do
+        sign_in approver
+        get adjustments_path
+
+        expect(response.body).to include('class="adj-stats"')
+      end
+
+      it "hides analytics from a branch-scope manager" do
+        sign_in manager
+        get adjustments_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include('class="adj-stats"')
+        expect(response.body).not_to include('class="adj-insights"')
+      end
+    end
   end
 
   describe "GET /adjustments/:id (show)" do
@@ -208,7 +294,17 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(response.body).to include(I18n.t("adjustments.show.timeline.submitted"))
     end
 
-    it "renders for the subject employee" do
+    it "404s for the subject employee while the adjustment is still pending" do
+      # The subject employee may only view their own adjustments once approved.
+      sign_in employee
+      get adjustment_path(adjustment) # pending_review
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "renders for the subject employee once the adjustment is approved" do
+      adjustment.update_columns(review_status: "approved",
+                                approved_by_id: approver.id, approved_at: Time.current,
+                                reviewed_by_id: approver.id, reviewed_at: Time.current)
       sign_in employee
       get adjustment_path(adjustment)
       expect(response).to have_http_status(:ok)

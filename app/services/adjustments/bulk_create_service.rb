@@ -34,8 +34,9 @@ module Adjustments
 
       batch_id = SecureRandom.uuid
 
-      # Bulk and CSV-imported adjustments always start Pending. The creator never
-      # approves their own entries — a separate approver must review them.
+      # Bulk and CSV-imported adjustments start Pending and need a separate
+      # approver — except owner-created rows, which auto-approve at build time
+      # (the owner is the ultimate approval authority). See build_adjustment.
       adjustments = @rows.each_with_index.map do |row, idx|
         build_adjustment(row, batch_id)
           .tap { |adj| adj.instance_variable_set(:@_row_index, idx) }
@@ -73,7 +74,7 @@ module Adjustments
         bulk_batch_id:   batch_id,
         import_source:   @import_source,
         review_status:   "pending_review"
-      )
+      ).tap(&:apply_owner_auto_approval) # owner-created rows auto-approve; no-op otherwise
     end
 
     def collect_errors(adjustments)

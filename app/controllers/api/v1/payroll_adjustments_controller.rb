@@ -19,6 +19,8 @@ module Api
 
         adjustment = @period.payroll_adjustments.build(adjustment_params)
         adjustment.created_by = current_user
+        # Owner-created adjustments are auto-approved at creation; a no-op otherwise.
+        adjustment.apply_owner_auto_approval
 
         unless adjustment.save
           return render_error(adjustment.errors.full_messages.join(", "))

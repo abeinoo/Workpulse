@@ -35,6 +35,8 @@
   <% end %>
 
   <%# ── Summary stats strip ───────────────────────────────────────────────────── %>
+  <%# Analytics & Reports — Business-scope users (owners/admins) only. %>
+  <% if @can_view_analytics %>
   <div class="adj-stats">
     <div class="adj-stat-card">
       <div class="adj-stat-card__icon adj-stat-card__icon--total">
@@ -121,6 +123,7 @@
       </div>
     </div>
   </div>
+  <% end %>
 
   <%# ── Two-column: quick actions + insights ────────────────────────────────── %>
   <div class="adj-meta-row">
@@ -205,8 +208,8 @@
       </div>
     <% end %>
 
-    <%# Insights panel %>
-    <% if @summary.total_count > 0 %>
+    <%# Insights panel — Analytics & Reports, Business-scope users only. %>
+    <% if @can_view_analytics && @summary.total_count > 0 %>
       <div class="adj-insights">
         <h3 class="adj-section-title"><%= t("adjustments.insights.heading") %></h3>
         <div class="adj-insights-list">

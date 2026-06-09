@@ -31,6 +31,11 @@ class AdjustmentsController < ApplicationController
     @summary     = Adjustments::SummaryData.new(filtered).call
     @adjustments = filtered.order(created_at: :desc)
 
+    # Adjustment Analytics & Reports are restricted to Business-scope users
+    # (owners/admins). Branch- and area-scope managers and employees see the list
+    # but not the aggregate analytics. Both the UI and the policy enforce this.
+    @can_view_analytics = policy(PayrollAdjustment.new(business: current_user.business)).analytics?
+
     # Filter bar data
     @branches   = Branch.for_business(current_user.business).active.order(:name)
     @employees  = manageable_employees
@@ -69,9 +74,12 @@ class AdjustmentsController < ApplicationController
     assign_period(@adjustment)
     @adjustment.business   = current_user.business
     @adjustment.created_by = current_user
-    # Creation never approves. Adjustments always start Pending and require a
-    # separate approver (see creator_is_not_approver / PayrollAdjustmentPolicy).
+    # Adjustments start Pending and require a separate approver (see
+    # creator_is_not_approver / PayrollAdjustmentPolicy). The single exception:
+    # an owner-created adjustment is auto-approved at creation, since the owner is
+    # the ultimate approval authority (apply_owner_auto_approval no-ops otherwise).
     @adjustment.review_status = "pending_review"
+    @adjustment.apply_owner_auto_approval
 
     authorize @adjustment
 
