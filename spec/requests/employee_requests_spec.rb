@@ -226,6 +226,83 @@ RSpec.describe "EmployeeRequests", type: :request do
   end
 
   # ──────────────────────────────────────────────────────────────
+  # Index: default ordering + filter bar
+  # ──────────────────────────────────────────────────────────────
+  describe "GET /employee_requests (index ordering + filters)" do
+    let(:manager) do
+      role = create(:permission_role, business: business,
+                    permissions: %w[view_requests approve_requests],
+                    permission_scopes: { "view_requests" => "business_wide" })
+      create(:user, business: business, permission_role: role)
+    end
+    let(:other_employee) { create(:user, business: business, first_name: "Other", last_name: "Worker") }
+
+    let!(:pending_old) { create(:employee_request, :late_permission, user: employee, status: :pending, created_at: 3.days.ago) }
+    let!(:pending_new) { create(:employee_request, :late_permission, user: other_employee, status: :pending, created_at: 1.hour.ago) }
+    let!(:approved)    { create(:employee_request, :early_leave,     user: employee, status: :approved) }
+    let!(:rejected)    { create(:employee_request, :early_leave,     user: employee, status: :rejected) }
+
+    it "orders pending first (newest first), then approved, then rejected" do
+      sign_in manager
+      get employee_requests_path
+
+      body = response.body
+      positions = [ pending_new, pending_old, approved, rejected ].map { |r| body.index(employee_request_path(r)) }
+      expect(positions).to eq(positions.compact.sort) # already in ascending document order
+      expect(positions).to all(be_present)
+    end
+
+    it "filters by status at the database level" do
+      sign_in manager
+      get employee_requests_path(status: "approved")
+
+      expect(response.body).to include(employee_request_path(approved))
+      expect(response.body).not_to include(employee_request_path(pending_old))
+      expect(response.body).not_to include(employee_request_path(rejected))
+    end
+
+    it "filters by employee" do
+      sign_in manager
+      get employee_requests_path(user_id: other_employee.id)
+
+      expect(response.body).to include(employee_request_path(pending_new))
+      expect(response.body).not_to include(employee_request_path(pending_old))
+    end
+
+    it "renders active filter chips and a clear link when filters are applied" do
+      sign_in manager
+      get employee_requests_path(status: "approved")
+
+      expect(response.body).to include("filter-chip")
+      expect(response.body).to include(I18n.t("requests.filters.clear"))
+      expect(response.body).to include(I18n.t("requests.statuses.approved"))
+    end
+
+    it "shows no chips when unfiltered" do
+      sign_in manager
+      get employee_requests_path
+
+      expect(response.body).not_to include("filter-chip")
+    end
+
+    it "limits the employee filter dropdown to employees in the viewer's scope" do
+      outsider_role = create(:permission_role, business: business,
+                             permissions: %w[view_requests approve_requests],
+                             permission_scopes: { "view_requests" => "branch" })
+      branch_mgr = create(:user, business: business, permission_role: outsider_role)
+      br = create(:branch, business: business, branch_manager_id: branch_mgr.id)
+      in_scope = create(:user, business: business, first_name: "Inscope", last_name: "Report")
+      create(:shift_assignment, user: in_scope, branch: br,
+             shift: create(:shift, :fixed_time, business: business))
+      sign_in branch_mgr
+
+      get employee_requests_path
+      expect(response.body).to include("Inscope Report")        # selectable in the picker
+      expect(response.body).not_to include("Other Worker")      # out of this manager's scope
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────
   # Manager review: reject with reason + employee visibility
   # ──────────────────────────────────────────────────────────────
   describe "manager review" do

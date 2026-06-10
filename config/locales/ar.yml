@@ -910,6 +910,20 @@ ar:
     index:
       title: "الطلبات"
       page_title: "الطلبات — ووركبلس"
+    filters:
+      status: "الحالة"
+      employee: "الموظف"
+      branch: "الفرع"
+      date_from: "من"
+      date_to: "إلى"
+      all_statuses: "كل الحالات"
+      all_employees: "كل الموظفين"
+      all_branches: "كل الفروع"
+      search_employee: "ابحث عن موظف…"
+      apply: "تصفية"
+      clear: "مسح عوامل التصفية"
+      active: "عوامل التصفية النشطة"
+      remove: "إزالة عامل التصفية: %{filter}"
     new:
       title: "طلب جديد"
       page_title: "طلب جديد — ووركبلس"
@@ -1132,6 +1146,17 @@ ar:
     remove_confirm: "هل تريد حذف هذه التسوية؟"
     approve_confirm: "الموافقة على هذه التسوية؟"
     reject_confirm: "رفض هذه التسوية؟"
+    bulk:
+      select_all: "تحديد كل التسويات"
+      select_row: "تحديد التسوية"
+      selected_suffix: "محددة"
+      approve_selected: "الموافقة على المحدد"
+      reject_selected: "رفض المحدد"
+      approve_confirm: "الموافقة على %{count} تسوية محددة؟"
+      reject_confirm: "رفض %{count} تسوية محددة؟"
+      approve_result: "تمت الموافقة: %{succeeded} · تم التخطي: %{skipped} · فشل: %{failed}"
+      reject_result: "تم الرفض: %{succeeded} · تم التخطي: %{skipped} · فشل: %{failed}"
+      none_selected: "لم يتم تحديد أي تسويات."
     pending:
       one: "تسوية واحدة بانتظار مراجعتك"
       other: "%{count} تسويات بانتظار مراجعتك"

@@ -32,6 +32,13 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
   def approve? = can_review?
   def reject?  = can_review?
 
+  # Bulk approve/reject gate the COLLECTION action: the user must hold
+  # approve_adjustments at all. Per-record eligibility (creator ≠ approver, pending
+  # only) is still enforced row-by-row by Adjustments::BulkReview, so employees —
+  # who lack approve_adjustments — never get the actions, in the UI or via POST.
+  def bulk_approve? = same_business? && can?(:approve_adjustments)
+  def bulk_reject?  = same_business? && can?(:approve_adjustments)
+
   # Adjustment Analytics & Reports (the aggregate summary/insights surfaces) are
   # restricted to Business-scope users — owners and admins whose adjustments/payroll
   # authority spans the whole business. Branch- and area-scope managers and plain

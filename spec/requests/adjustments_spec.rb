@@ -175,6 +175,69 @@ RSpec.describe "Adjustments workflow", type: :request do
     end
   end
 
+  describe "Bulk approve / reject" do
+    let!(:adj_a) do
+      create(:payroll_adjustment, :cash_incentive, business: business, user: employee,
+             created_by: manager, payroll_period: draft_period, review_status: :pending_review)
+    end
+    let!(:adj_b) do
+      create(:payroll_adjustment, :commission, business: business, user: employee,
+             created_by: manager, payroll_period: draft_period, review_status: :pending_review)
+    end
+    let!(:adj_done) do
+      create(:payroll_adjustment, :cash_incentive, :approved, business: business, user: employee,
+             created_by: manager, payroll_period: draft_period)
+    end
+
+    it "POST bulk_approve approves the selected pending rows and reports counts" do
+      sign_in approver
+      post bulk_approve_adjustments_path,
+           params: { adjustment_ids: [ adj_a.id, adj_b.id, adj_done.id ] }
+
+      expect(response).to redirect_to(adjustments_path)
+      expect(adj_a.reload.review_status).to eq("approved")
+      expect(adj_a.approved_by).to eq(approver)
+      expect(adj_b.reload.review_status).to eq("approved")
+      # adj_done was already approved → skipped, not re-touched.
+      expect(flash[:notice]).to include("Approved: 2", "Skipped: 1", "Failed: 0")
+    end
+
+    it "POST bulk_reject rejects the selected pending rows" do
+      sign_in approver
+      post bulk_reject_adjustments_path, params: { adjustment_ids: [ adj_a.id ] }
+
+      expect(adj_a.reload.review_status).to eq("rejected")
+      expect(adj_a.rejected_by).to eq(approver)
+      expect(flash[:notice]).to include("Rejected: 1")
+    end
+
+    it "counts an adjustment the reviewer created themselves as failed (creator ≠ approver)" do
+      own = create(:payroll_adjustment, :cash_incentive, business: business, user: employee,
+                   created_by: approver, payroll_period: draft_period, review_status: :pending_review)
+      sign_in approver
+      post bulk_approve_adjustments_path, params: { adjustment_ids: [ own.id ] }
+
+      expect(own.reload.review_status).to eq("pending_review")
+      # Nothing succeeded → surfaced as an alert rather than a notice.
+      expect(flash[:alert]).to include("Approved: 0", "Failed: 1")
+    end
+
+    it "forbids an employee from using the bulk endpoint and changes nothing" do
+      sign_in employee
+      post bulk_approve_adjustments_path, params: { adjustment_ids: [ adj_a.id, adj_b.id ] }
+
+      expect(response).to redirect_to(root_path)
+      expect(adj_a.reload.review_status).to eq("pending_review")
+      expect(adj_b.reload.review_status).to eq("pending_review")
+    end
+
+    it "reports when nothing actionable was selected" do
+      sign_in approver
+      post bulk_approve_adjustments_path, params: { adjustment_ids: [] }
+      expect(flash[:alert]).to eq(I18n.t("adjustments.bulk.none_selected"))
+    end
+  end
+
   describe "GET /adjustments (index)" do
     let!(:adj_june) do
       create(:payroll_adjustment, :cash_incentive, business: business, user: employee,
@@ -204,6 +267,16 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(response.body).to include(I18n.t("adjustments.view_details"))
     end
 
+    it "shows the bulk Approve/Reject controls to a reviewer" do
+      sign_in approver
+      get adjustments_path
+
+      expect(response.body).to include('data-controller="adjustment-bulk-review"')
+      expect(response.body).to include("bulk-check-all")
+      expect(response.body).to include(I18n.t("adjustments.bulk.approve_selected"))
+      expect(response.body).to include(I18n.t("adjustments.bulk.reject_selected"))
+    end
+
     context "as a regular employee" do
       let!(:my_approved) do
         create(:payroll_adjustment, :cash_incentive, :approved, business: business, user: employee,
@@ -229,12 +302,14 @@ RSpec.describe "Adjustments workflow", type: :request do
         expect(response.body).not_to include(adjustment_path(coworker_approved)) # another employee → hidden
       end
 
-      it "does not expose analytics or creation actions to the employee" do
+      it "does not expose analytics, creation, or bulk-review actions to the employee" do
         sign_in employee
         get adjustments_path
 
-        expect(response.body).not_to include('class="adj-stats"')   # Analytics & Reports hidden
-        expect(response.body).not_to include(new_adjustment_path)   # cannot create
+        expect(response.body).not_to include('class="adj-stats"')                   # Analytics & Reports hidden
+        expect(response.body).not_to include(new_adjustment_path)                   # cannot create
+        expect(response.body).not_to include('data-controller="adjustment-bulk-review"') # no bulk UI
+        expect(response.body).not_to include("bulk-check-all")
       end
 
       it "shows an Adjustments link in the employee sidebar navigation" do

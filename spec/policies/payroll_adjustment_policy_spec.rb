@@ -140,6 +140,32 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
     end
   end
 
+  describe "bulk_approve? / bulk_reject?" do
+    it "permits a reviewer with approve_adjustments (accountant)" do
+      expect(subject.new(accountant, blank_record).bulk_approve?).to be true
+      expect(subject.new(accountant, blank_record).bulk_reject?).to be true
+    end
+
+    it "permits a branch_manager (holds approve_adjustments)" do
+      expect(subject.new(manager, blank_record).bulk_approve?).to be true
+      expect(subject.new(manager, blank_record).bulk_reject?).to be true
+    end
+
+    it "permits an area_manager" do
+      expect(subject.new(area_manager, blank_record).bulk_approve?).to be true
+    end
+
+    it "denies a plain employee" do
+      expect(subject.new(employee, blank_record).bulk_approve?).to be false
+      expect(subject.new(employee, blank_record).bulk_reject?).to be false
+    end
+
+    it "denies a user from another business" do
+      foreign = create(:user, :accountant, business: create(:business))
+      expect(subject.new(foreign, blank_record).bulk_approve?).to be false
+    end
+  end
+
   describe "show?" do
     it "permits the creator to view their own adjustment" do
       expect(subject.new(manager, adjustment).show?).to be true

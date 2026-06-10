@@ -911,6 +911,20 @@ en:
     index:
       title: "Requests"
       page_title: "Requests — WorkPulse"
+    filters:
+      status: "Status"
+      employee: "Employee"
+      branch: "Branch"
+      date_from: "From"
+      date_to: "To"
+      all_statuses: "All Statuses"
+      all_employees: "All Employees"
+      all_branches: "All Branches"
+      search_employee: "Search employee…"
+      apply: "Filter"
+      clear: "Clear Filters"
+      active: "Active filters"
+      remove: "Remove filter: %{filter}"
     new:
       title: "New Request"
       page_title: "New Request — WorkPulse"
@@ -1133,6 +1147,17 @@ en:
     remove_confirm: "Remove this adjustment?"
     approve_confirm: "Approve this adjustment?"
     reject_confirm: "Reject this adjustment?"
+    bulk:
+      select_all: "Select all adjustments"
+      select_row: "Select adjustment"
+      selected_suffix: "selected"
+      approve_selected: "Approve Selected"
+      reject_selected: "Reject Selected"
+      approve_confirm: "Approve %{count} selected adjustment(s)?"
+      reject_confirm: "Reject %{count} selected adjustment(s)?"
+      approve_result: "Approved: %{succeeded} · Skipped: %{skipped} · Failed: %{failed}"
+      reject_result: "Rejected: %{succeeded} · Skipped: %{skipped} · Failed: %{failed}"
+      none_selected: "No adjustments were selected."
     pending:
       one: "1 adjustment awaiting your review"
       other: "%{count} adjustments awaiting your review"

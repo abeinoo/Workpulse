@@ -7,6 +7,75 @@ RSpec.describe EmployeeRequest, type: :model do
     it { is_expected.to have_one(:advance).dependent(:destroy) }
   end
 
+  describe ".sorted_for_review" do
+    let(:business) { create(:business) }
+    let(:user)     { create(:user, business: business) }
+
+    it "orders pending → approved → rejected → other, newest first within each group" do
+      old_pending = create(:employee_request, :late_permission, user: user, status: :pending, created_at: 3.days.ago)
+      new_pending = create(:employee_request, :late_permission, user: user, status: :pending, created_at: 1.hour.ago)
+      approved    = create(:employee_request, :early_leave,     user: user, status: :approved)
+      rejected    = create(:employee_request, :early_leave,     user: user, status: :rejected)
+      paid        = create(:employee_request, :salary_advance,  user: user, status: :paid)
+
+      ordered = EmployeeRequest.where(user: user).sorted_for_review.to_a
+
+      expect(ordered).to eq([ new_pending, old_pending, approved, rejected, paid ])
+    end
+  end
+
+  describe "index filter scopes" do
+    let(:business) { create(:business) }
+    let(:user)     { create(:user, business: business) }
+
+    describe ".with_status" do
+      it "filters by status and is a no-op when blank" do
+        pending  = create(:employee_request, :late_permission, user: user, status: :pending)
+        approved = create(:employee_request, :early_leave, user: user, status: :approved)
+
+        expect(EmployeeRequest.with_status("pending")).to contain_exactly(pending)
+        expect(EmployeeRequest.with_status("")).to contain_exactly(pending, approved)
+      end
+    end
+
+    describe ".for_user" do
+      it "filters by user_id and is a no-op when blank" do
+        other = create(:user, business: business)
+        mine  = create(:employee_request, :late_permission, user: user)
+        create(:employee_request, :late_permission, user: other)
+
+        expect(EmployeeRequest.for_user(user.id)).to contain_exactly(mine)
+        expect(EmployeeRequest.for_user(nil).count).to eq(2)
+      end
+    end
+
+    describe ".requested_on_or_after / .requested_on_or_before" do
+      it "filters by the requested_for_date range" do
+        early = create(:employee_request, :late_permission, user: user, requested_for_date: Date.new(2026, 6, 1))
+        late  = create(:employee_request, :early_leave,     user: user, requested_for_date: Date.new(2026, 6, 20))
+
+        expect(EmployeeRequest.requested_on_or_after(Date.new(2026, 6, 10))).to contain_exactly(late)
+        expect(EmployeeRequest.requested_on_or_before(Date.new(2026, 6, 10))).to contain_exactly(early)
+      end
+    end
+
+    describe ".for_branch" do
+      it "filters to employees currently assigned to the branch" do
+        branch   = create(:branch, business: business)
+        assigned = create(:user, business: business)
+        create(:shift_assignment, user: assigned, branch: branch,
+               shift: create(:shift, :fixed_time, business: business))
+
+        in_branch  = create(:employee_request, :late_permission, user: assigned)
+        out_branch = create(:employee_request, :late_permission, user: user)
+
+        result = EmployeeRequest.for_branch(branch.id)
+        expect(result).to include(in_branch)
+        expect(result).not_to include(out_branch)
+      end
+    end
+  end
+
   describe "validations" do
     subject { build(:employee_request) }
 

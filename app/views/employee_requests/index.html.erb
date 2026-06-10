@@ -59,6 +59,99 @@
     </div>
   <% end %>
 
+  <%# ── Filter bar (GET form → filters live in the URL query string) ────────── %>
+  <%= form_with url: employee_requests_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+
+      <%# Status %>
+      <div class="filter-bar__field">
+        <%= f.label :status, t("requests.filters.status"), class: "filter-bar__label" %>
+        <%= f.select :status,
+              options_for_select(
+                [[ t("requests.filters.all_statuses"), "" ]] +
+                  EmployeeRequest::REVIEW_PRIORITY.map { |s| [ t("requests.statuses.#{s}"), s ] },
+                @filters[:status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+
+      <%# Employee — searchable dropdown, only employees in the viewer's scope %>
+      <% if show_employee && @filter_employees.any? %>
+        <div class="filter-bar__field" data-controller="searchable-select">
+          <%= f.label :user_id, t("requests.filters.employee"), class: "filter-bar__label" %>
+          <%= f.select :user_id,
+                options_for_select(
+                  [[ t("requests.filters.all_employees"), "" ]] +
+                    @filter_employees.map { |u| [ u.full_name, u.id ] },
+                  @filters[:user_id]),
+                {}, class: "filter-bar__select",
+                data: { searchable_select_target: "select", search_placeholder: t("requests.filters.search_employee") } %>
+        </div>
+      <% end %>
+
+      <%# Branch %>
+      <% if show_employee && @filter_branches.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :branch_id, t("requests.filters.branch"), class: "filter-bar__label" %>
+          <%= f.select :branch_id,
+                options_for_select(
+                  [[ t("requests.filters.all_branches"), "" ]] +
+                    @filter_branches.map { |b| [ b.name, b.id ] },
+                  @filters[:branch_id]),
+                {}, class: "filter-bar__select" %>
+        </div>
+      <% end %>
+
+      <%# Date range %>
+      <div class="filter-bar__field">
+        <%= f.label :date_from, t("requests.filters.date_from"), class: "filter-bar__label" %>
+        <%= f.date_field :date_from, value: @filters[:date_from], class: "filter-bar__input" %>
+      </div>
+      <div class="filter-bar__field">
+        <%= f.label :date_to, t("requests.filters.date_to"), class: "filter-bar__label" %>
+        <%= f.date_field :date_to, value: @filters[:date_to], class: "filter-bar__input" %>
+      </div>
+
+    </div>
+
+    <div class="filter-bar__actions">
+      <%= f.submit t("requests.filters.apply"), class: "btn btn-sm btn-primary" %>
+      <% if @active_filters %>
+        <%= link_to t("requests.filters.clear"), employee_requests_path, class: "btn btn-sm btn-ghost" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Active filter chips ────────────────────────────────────────────────── %>
+  <% if @active_filters %>
+    <%
+      chips = []
+      if @filters[:status].present?
+        chips << [ :status, "#{t('requests.filters.status')}: #{t("requests.statuses.#{@filters[:status]}", default: @filters[:status])}" ]
+      end
+      if @filters[:user_id].present?
+        emp = @filter_employees.find { |u| u.id.to_s == @filters[:user_id].to_s }
+        chips << [ :user_id, "#{t('requests.filters.employee')}: #{emp&.full_name || @filters[:user_id]}" ]
+      end
+      if @filters[:branch_id].present?
+        br = @filter_branches.find { |b| b.id.to_s == @filters[:branch_id].to_s }
+        chips << [ :branch_id, "#{t('requests.filters.branch')}: #{br&.name || @filters[:branch_id]}" ]
+      end
+      chips << [ :date_from, "#{t('requests.filters.date_from')}: #{@filters[:date_from]}" ] if @filters[:date_from].present?
+      chips << [ :date_to,   "#{t('requests.filters.date_to')}: #{@filters[:date_to]}" ]   if @filters[:date_to].present?
+    %>
+    <div class="filter-chips" aria-label="<%= t('requests.filters.active') %>">
+      <% chips.each do |key, text| %>
+        <span class="filter-chip">
+          <%= text %>
+          <%= link_to "×", employee_requests_path(@filters.except(key).to_h),
+                class: "filter-chip__remove",
+                "aria-label": t("requests.filters.remove", filter: text) %>
+        </span>
+      <% end %>
+      <%= link_to t("requests.filters.clear"), employee_requests_path, class: "filter-chip filter-chip--clear" %>
+    </div>
+  <% end %>
+
   <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
@@ -151,7 +244,7 @@
   <%# ── CSV export for accountants ─────────────────────────────────────────── %>
   <% if can_bulk %>
     <div style="margin-top: 1rem; text-align: end;">
-      <%= link_to t("requests.export_csv"), employee_requests_path(format: :csv), class: "btn btn-secondary btn-sm" %>
+      <%= link_to t("requests.export_csv"), employee_requests_path(@filters.to_h.merge(format: :csv)), class: "btn btn-secondary btn-sm" %>
     </div>
 
     <%# ── Mark Selected as Paid confirmation modal ─────────────────────────── %>
