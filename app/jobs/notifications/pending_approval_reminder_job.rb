@@ -47,18 +47,11 @@ module Notifications
       end
     end
 
-    # Direct manager + branch/area managers of the requester's branches who hold
-    # approve_requests. Mirrors Notifications::RequestNotifier#reviewers.
+    # Who to remind about a stale request: the requester's branch/area managers,
+    # falling back to business-scope approvers when none can be inferred.
+    # Mirrors Notifications::RequestNotifier#reviewers via the shared resolver.
     def reviewers_for(request)
-      requester  = request.user
-      candidate_ids = [ requester.manager_id ]
-      candidate_ids.concat(
-        Branch.where(id: requester.branch_ids).pluck(:branch_manager_id, :area_manager_id).flatten
-      )
-      candidate_ids = candidate_ids.compact.uniq - [ requester.id ]
-      return [] if candidate_ids.empty?
-
-      User.where(id: candidate_ids, active: true).select { |u| u.can?(:approve_requests) }
+      Requests::ReviewerResolver.for(request)
     end
   end
 end

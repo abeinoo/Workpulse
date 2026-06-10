@@ -17,9 +17,6 @@ RSpec.describe ShiftAssignmentPolicy, type: :model do
   before do
     branch.update_column(:area_manager_id,  area_manager.id)
     branch.update_column(:branch_manager_id, manager.id)
-    create(:user_branch, user: area_manager, branch: branch)
-    create(:user_branch, user: manager,      branch: branch)
-    create(:user_branch, user: employee,     branch: branch)
   end
 
   subject { described_class }

@@ -149,19 +149,6 @@
       </div>
     <% end %>
 
-    <% if defined?(@managers) && @managers.any? %>
-      <div class="form-group">
-        <%= f.label :manager_id, t("admin.users.form.direct_manager"), class: "form-label" %>
-        <%= f.select :manager_id,
-              @managers.map { |m| [m.full_name, m.id] },
-              { include_blank: "— #{t("admin.users.form.no_manager")} —" },
-              class: "form-control" %>
-        <p class="form-hint">
-          <%= t("admin.users.form.hierarchy_hint") %>
-        </p>
-      </div>
-    <% end %>
-
     <div class="form-group">
       <%= f.label :identity_card_number, t("admin.users.form.identity_card"), class: "form-label" %>
       <%= f.text_field :identity_card_number,

@@ -10,7 +10,6 @@ RSpec.describe BranchPolicy, type: :model do
 
   before do
     branch.update_column(:branch_manager_id, manager.id)
-    create(:user_branch, user: manager, branch: branch)
   end
 
   subject { described_class }

@@ -27,6 +27,7 @@ RSpec.describe "Payroll Scope Visibility", type: :request do
   let(:employee_b) { create(:user, business: business) }
 
   let(:period)    { create(:payroll_period, business: business) }
+  let(:shift)     { create(:shift, :fixed_time, business: business) }
   let!(:entry_a)  { create(:payroll_entry, payroll_period: period, user: employee_a, base_salary: 5_000.0, net_salary: 4_800.0) }
   let!(:entry_b)  { create(:payroll_entry, payroll_period: period, user: employee_b, base_salary: 3_000.0, net_salary: 2_900.0) }
 
@@ -39,10 +40,9 @@ RSpec.describe "Payroll Scope Visibility", type: :request do
   before do
     branch_a.update_column(:branch_manager_id, manager_a.id)
     branch_b.update_column(:branch_manager_id, manager_b.id)
-    create(:user_branch, user: manager_a,  branch: branch_a)
-    create(:user_branch, user: manager_b,  branch: branch_b)
-    create(:user_branch, user: employee_a, branch: branch_a)
-    create(:user_branch, user: employee_b, branch: branch_b)
+    # Branch membership is shift-driven: assign each employee to their branch.
+    create(:shift_assignment, user: employee_a, branch: branch_a, shift: shift)
+    create(:shift_assignment, user: employee_b, branch: branch_b, shift: shift)
     # Permission-driven: branch managers need view_payroll permission.
     # Scope is resolved by EmployeeScope via the branch_manager_id relationship.
     manager_a.update_column(:permission_role_id, manager_role.id)

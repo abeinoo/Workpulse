@@ -85,7 +85,7 @@ class DashboardController < ApplicationController
     @business_wide_attendance =
       current_user.owner? ||
       (current_user.can?(:view_attendance) &&
-        current_user.scope_for(:view_attendance) == "business_wide")
+        current_user.scope_for(:view_attendance) == "business")
   end
 
   # Employees this user may view — honours an explicit view_attendance scope
@@ -94,7 +94,7 @@ class DashboardController < ApplicationController
   def attendance_employee_scope
     @attendance_employee_scope ||=
       if business_wide_attendance?
-        EmployeeScope.new(current_user).for_scope("business_wide")
+        EmployeeScope.new(current_user).for_scope("business")
       else
         EmployeeScope.new(current_user).relation
       end
@@ -109,7 +109,7 @@ class DashboardController < ApplicationController
       else
         (current_user.managed_branch_ids +
          current_user.area_managed_branch_ids +
-         current_user.branch_ids).uniq
+         BranchMembership.current_branch_ids(current_user)).uniq
       end
   end
 

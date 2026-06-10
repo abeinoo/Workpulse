@@ -36,15 +36,47 @@ class EmployeeRequest < ApplicationRecord
   before_validation :default_proposed_date, if: :punch_correction?
   before_save :derive_affects_payroll
 
+  # Review-queue display priority: pending first, then approved, then rejected,
+  # then any remaining status (e.g. paid). Drives the default index ordering so
+  # managers always see actionable (pending) requests at the top.
+  REVIEW_PRIORITY = %w[pending approved rejected].freeze
+
   # Business scoping through user, not branch.
   scope :for_business, ->(business) {
     joins(:user).where(users: { business_id: business.id })
   }
 
-  # Finds pending requests from employees who belong to any of the given branches.
+  # Default index order, computed entirely in the database: status priority
+  # (pending → approved → rejected → other), then newest-first within each group.
+  scope :sorted_for_review, -> {
+    order(Arel.sql(review_priority_case)).order(created_at: :desc)
+  }
+
+  # ── Index filters (all no-op when the value is blank, so they compose freely) ──
+  scope :with_status, ->(status)  { where(status: status) if status.present? }
+  scope :for_user,    ->(user_id) { where(user_id: user_id) if user_id.present? }
+  # Branch membership is shift-driven: an employee belongs to a branch while they
+  # hold an active ShiftAssignment to it.
+  scope :for_branch,  ->(branch_id) {
+    where(user_id: ShiftAssignment.user_ids_for_branches([ branch_id ])) if branch_id.present?
+  }
+  scope :requested_on_or_after,  ->(date) { where(requested_for_date: date..) if date.present? }
+  scope :requested_on_or_before, ->(date) { where(requested_for_date: ..date) if date.present? }
+
+  # Builds the SQL CASE expression that maps each status to its review-priority
+  # rank. Values come from the REVIEW_PRIORITY constant and are quoted through the
+  # connection, so the fragment is safe to wrap in Arel.sql.
+  def self.review_priority_case
+    whens = REVIEW_PRIORITY.each_with_index.map do |status, rank|
+      "WHEN #{connection.quote(status)} THEN #{rank}"
+    end.join(" ")
+    "CASE employee_requests.status #{whens} ELSE #{REVIEW_PRIORITY.size} END"
+  end
+
+  # Finds pending requests from employees currently assigned (active ShiftAssignment)
+  # to any of the given branches. Branch membership is shift-driven.
   scope :pending_for_branch, ->(branch_ids) {
-    joins(user: :user_branches)
-      .where(user_branches: { branch_id: branch_ids }, status: "pending")
+    where(status: "pending", user_id: ShiftAssignment.user_ids_for_branches(branch_ids))
       .distinct
   }
 

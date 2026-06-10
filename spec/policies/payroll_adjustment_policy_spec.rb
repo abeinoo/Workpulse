@@ -10,8 +10,6 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
 
   before do
     branch.update_column(:branch_manager_id, manager.id)
-    create(:user_branch, user: manager,  branch: branch)
-    create(:user_branch, user: employee, branch: branch)
   end
 
   let(:period)     { create(:payroll_period, business: business, branch: branch) }
@@ -21,6 +19,25 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
   let(:blank_record) { PayrollAdjustment.new(business: business) }
 
   subject { described_class }
+
+  describe "index?" do
+    it "permits an employee (Scope limits them to their own approved adjustments)" do
+      expect(subject.new(employee, blank_record).index?).to be true
+    end
+
+    it "permits a branch_manager" do
+      expect(subject.new(manager, blank_record).index?).to be true
+    end
+
+    it "permits class-level authorize (e.g. the API collection)" do
+      expect(subject.new(employee, PayrollAdjustment).index?).to be true
+    end
+
+    it "denies a user from another business" do
+      foreign = create(:user, business: create(:business))
+      expect(subject.new(foreign, blank_record).index?).to be false
+    end
+  end
 
   describe "new?" do
     it "permits super_admin" do
@@ -90,13 +107,79 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
     end
   end
 
+  # Adjustment Analytics & Reports are visible only to Business-scope users.
+  describe "analytics? / reports?" do
+    it "permits the owner (super_admin)" do
+      expect(subject.new(super_admin, blank_record).analytics?).to be true
+      expect(subject.new(super_admin, blank_record).reports?).to be true
+    end
+
+    it "permits a business-scope admin (accountant, view_payroll business-wide)" do
+      expect(subject.new(accountant, blank_record).analytics?).to be true
+      expect(subject.new(accountant, blank_record).reports?).to be true
+    end
+
+    it "denies a branch-scope manager" do
+      expect(subject.new(manager, blank_record).analytics?).to be false
+      expect(subject.new(manager, blank_record).reports?).to be false
+    end
+
+    it "denies an area-scope manager" do
+      expect(subject.new(area_manager, blank_record).analytics?).to be false
+      expect(subject.new(area_manager, blank_record).reports?).to be false
+    end
+
+    it "denies a plain employee" do
+      expect(subject.new(employee, blank_record).analytics?).to be false
+      expect(subject.new(employee, blank_record).reports?).to be false
+    end
+
+    it "denies a cross-business user even if they are a business-scope owner elsewhere" do
+      foreign_owner = create(:user, :super_admin, business: create(:business))
+      expect(subject.new(foreign_owner, blank_record).analytics?).to be false
+    end
+  end
+
+  describe "bulk_approve? / bulk_reject?" do
+    it "permits a reviewer with approve_adjustments (accountant)" do
+      expect(subject.new(accountant, blank_record).bulk_approve?).to be true
+      expect(subject.new(accountant, blank_record).bulk_reject?).to be true
+    end
+
+    it "permits a branch_manager (holds approve_adjustments)" do
+      expect(subject.new(manager, blank_record).bulk_approve?).to be true
+      expect(subject.new(manager, blank_record).bulk_reject?).to be true
+    end
+
+    it "permits an area_manager" do
+      expect(subject.new(area_manager, blank_record).bulk_approve?).to be true
+    end
+
+    it "denies a plain employee" do
+      expect(subject.new(employee, blank_record).bulk_approve?).to be false
+      expect(subject.new(employee, blank_record).bulk_reject?).to be false
+    end
+
+    it "denies a user from another business" do
+      foreign = create(:user, :accountant, business: create(:business))
+      expect(subject.new(foreign, blank_record).bulk_approve?).to be false
+    end
+  end
+
   describe "show?" do
     it "permits the creator to view their own adjustment" do
       expect(subject.new(manager, adjustment).show?).to be true
     end
 
-    it "permits the subject employee to view an adjustment about themselves" do
-      expect(subject.new(employee, adjustment).show?).to be true
+    it "permits the subject employee to view an APPROVED adjustment about themselves" do
+      approved = create(:payroll_adjustment, :cash_incentive, :approved,
+                        payroll_period: period, user: employee, created_by: manager)
+      expect(subject.new(employee, approved).show?).to be true
+    end
+
+    it "DENIES the subject employee from viewing a pending adjustment about themselves" do
+      # adjustment is pending_review by factory default — not yet visible to the subject.
+      expect(subject.new(employee, adjustment).show?).to be false
     end
 
     it "permits a reviewer with view_payroll/manage_adjustments" do
@@ -175,10 +258,33 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       expect(scope).not_to include(other_adjustment)
     end
 
-    it "employee sees only their own adjustments" do
+    it "employee sees only their own APPROVED adjustments" do
+      my_approved = create(:payroll_adjustment, :cash_incentive, :approved,
+                           payroll_period: period, user: employee, created_by: manager)
+
       scope = described_class::Scope.new(employee, PayrollAdjustment).resolve
-      expect(scope).to include(my_adjustment)
-      expect(scope).not_to include(other_adjustment)
+      expect(scope).to include(my_approved)
+      expect(scope).not_to include(my_adjustment)    # their own, but still pending → hidden
+      expect(scope).not_to include(other_adjustment) # other business
+    end
+
+    it "employee does NOT see a pending or rejected adjustment about themselves" do
+      pending  = my_adjustment # pending_review by factory default
+      rejected = create(:payroll_adjustment, :cash_incentive, payroll_period: period,
+                        user: employee, created_by: manager, review_status: :rejected)
+
+      scope = described_class::Scope.new(employee, PayrollAdjustment).resolve
+      expect(scope).not_to include(pending)
+      expect(scope).not_to include(rejected)
+    end
+
+    it "employee does NOT see a co-worker's adjustment in the same business" do
+      coworker     = create(:user, business: business)
+      coworker_adj = create(:payroll_adjustment, :cash_incentive, :approved, payroll_period: period,
+                            user: coworker, created_by: manager)
+
+      scope = described_class::Scope.new(employee, PayrollAdjustment).resolve
+      expect(scope).not_to include(coworker_adj)     # belongs to another employee
     end
 
     it "a creator always sees adjustments they created, even for an out-of-scope employee" do
@@ -198,9 +304,7 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
       let(:other_adj_period) { create(:payroll_period, business: business, branch: other_branch,
                                       period_year: 2025, period_month: 3) }
       let!(:other_branch_adj) do
-        create(:user_branch, user: other_emp, branch: other_branch)
         other_branch.update_column(:branch_manager_id, other_mgr.id)
-        create(:user_branch, user: other_mgr, branch: other_branch)
         create(:payroll_adjustment, :cash_incentive,
                payroll_period: other_adj_period,
                user:           other_emp,

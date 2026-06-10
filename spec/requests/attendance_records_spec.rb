@@ -52,7 +52,7 @@ RSpec.describe "AttendanceRecords", type: :request do
   end
 
   describe "manual attendance entry" do
-    let!(:employee) { create(:user, business: business, manager: owner) }
+    let!(:employee) { create(:user, business: business) }
 
     it "renders the new form for an authorized user" do
       get new_attendance_record_path
@@ -123,7 +123,6 @@ RSpec.describe "AttendanceRecords", type: :request do
       region    = create(:branch, business: business)
       regional  = create(:user, business: business)
       region.update!(area_manager_id: regional.id)
-      create(:user_branch, user: regional, branch: region)
       role = create(:permission_role, business: business,
                     permissions: %w[view_employees view_attendance manage_attendance],
                     permission_scopes: { "view_employees" => "business_wide" })
@@ -132,20 +131,22 @@ RSpec.describe "AttendanceRecords", type: :request do
       # An employee in a DIFFERENT branch the regional manager does not manage.
       other_branch = create(:branch, business: business)
       outsider     = create(:user, business: business, first_name: "Far", last_name: "Away")
-      create(:user_branch, user: outsider, branch: other_branch)
 
       sign_in regional
       get new_attendance_record_path
       expect(response.body).to include("Far Away")
     end
 
-    it "limits a managed-scope manager to their hierarchy" do
+    it "limits a branch-scoped manager to their branch" do
       role = create(:permission_role, business: business,
                     permissions: %w[view_attendance manage_attendance],
-                    permission_scopes: { "manage_attendance" => "managed_employees_only" })
+                    permission_scopes: { "manage_attendance" => "branch" })
       restricted = create(:user, business: business, permission_role: role)
-      create(:user, business: business, manager: restricted, first_name: "My", last_name: "Report")
-      outsider   = create(:user, business: business, first_name: "Outside", last_name: "Scope")
+      r_branch   = create(:branch, business: business, branch_manager_id: restricted.id)
+      shift      = create(:shift, :fixed_time, business: business)
+      report     = create(:user, business: business, first_name: "My", last_name: "Report")
+      create(:shift_assignment, user: report, branch: r_branch, shift: shift)
+      create(:user, business: business, first_name: "Outside", last_name: "Scope")
       sign_in restricted
 
       get new_attendance_record_path
@@ -155,8 +156,8 @@ RSpec.describe "AttendanceRecords", type: :request do
   end
 
   describe "bulk manual attendance entry" do
-    let!(:emp1) { create(:user, business: business, employee_code: "EMP001", manager: owner) }
-    let!(:emp2) { create(:user, business: business, employee_code: "EMP002", manager: owner) }
+    let!(:emp1) { create(:user, business: business, employee_code: "EMP001") }
+    let!(:emp2) { create(:user, business: business, employee_code: "EMP002") }
 
     it "renders the bulk grid for an authorized user" do
       get bulk_attendance_records_path
@@ -199,8 +200,8 @@ RSpec.describe "AttendanceRecords", type: :request do
   end
 
   describe "manual attendance CSV import" do
-    let!(:emp1) { create(:user, business: business, employee_code: "EMP001", manager: owner) }
-    let!(:emp2) { create(:user, business: business, employee_code: "EMP002", manager: owner) }
+    let!(:emp1) { create(:user, business: business, employee_code: "EMP001") }
+    let!(:emp2) { create(:user, business: business, employee_code: "EMP002") }
 
     def upload(csv)
       Rack::Test::UploadedFile.new(

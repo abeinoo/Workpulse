@@ -74,7 +74,11 @@ RSpec.describe Scheduling::TemplatePreviewer do
     end
 
     context "when employee is in the branch and no conflicts exist" do
-      before { create(:user_branch, user: employee, branch: branch) }
+      # Prior (non-overlapping) history at the branch → no branch-mismatch warning.
+      before do
+        create(:shift_assignment, user: employee, branch: branch, shift: shift,
+               effective_from: Date.new(2026, 1, 1), effective_to: Date.new(2026, 1, 7))
+      end
 
       it "returns a valid row with no conflict" do
         row = subject.first

@@ -163,15 +163,22 @@ RSpec.describe PermissionRole, type: :model do
     it "returns the configured scope string" do
       role = build(:permission_role,
                    permissions:       %w[view_payroll],
-                   permission_scopes: { "view_payroll" => "managed_employees_only" })
-      expect(role.scope_for(:view_payroll)).to eq("managed_employees_only")
+                   permission_scopes: { "view_payroll" => "branch" })
+      expect(role.scope_for(:view_payroll)).to eq("branch")
+    end
+
+    it "normalizes legacy scope names to the canonical set" do
+      role = build(:permission_role,
+                   permissions:       %w[view_payroll],
+                   permission_scopes: { "view_payroll" => "branch_only" })
+      expect(role.scope_for(:view_payroll)).to eq("branch")
     end
 
     it "strips scope entries for permissions that are not granted (before_validation)" do
       role = build(:permission_role,
                    permissions:       %w[view_attendance],
-                   permission_scopes: { "view_attendance" => "self_only",
-                                        "view_payroll"    => "business_wide" })
+                   permission_scopes: { "view_attendance" => "self",
+                                        "view_payroll"    => "business" })
       role.valid?
       expect(role.permission_scopes.keys).to contain_exactly("view_attendance")
     end

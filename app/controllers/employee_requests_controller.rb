@@ -2,9 +2,24 @@ class EmployeeRequestsController < ApplicationController
   before_action :authenticate_user!
 
   def index
+    # Expose filter params to the view (filter_params is private and not visible there).
+    @filters = filter_params
+
+    # All filtering and sorting happens in the database; the view never loads or
+    # sifts the full request set in Ruby.
     @requests = policy_scope(EmployeeRequest)
-                  .includes(:user)
-                  .order(created_at: :desc)
+                  .includes(:user, :advance)
+                  .with_status(@filters[:status])
+                  .for_user(@filters[:user_id])
+                  .then { |s| @filters[:branch_id].present? ? s.for_branch(@filters[:branch_id]) : s }
+                  .requested_on_or_after(parsed_date(@filters[:date_from]))
+                  .requested_on_or_before(parsed_date(@filters[:date_to]))
+                  .sorted_for_review
+
+    # Filter-bar option sources, scoped to what this user may see.
+    @filter_employees = requestable_employees.active.order(:first_name, :last_name)
+    @filter_branches  = Branch.for_business(current_user.business).active.order(:name)
+    @active_filters   = @filters.values.any?(&:present?)
 
     respond_to do |format|
       format.html
@@ -165,6 +180,20 @@ class EmployeeRequestsController < ApplicationController
     else
       { alert: t("flash.bulk_pay.none_selected") }
     end
+  end
+
+  # Whitelisted index filters. Kept in the URL query string (GET form) so they
+  # survive reloads, the CSV export link, and back/forward navigation.
+  def filter_params
+    params.permit(:status, :user_id, :branch_id, :date_from, :date_to)
+  end
+
+  def parsed_date(value)
+    return nil if value.blank?
+
+    Date.parse(value.to_s)
+  rescue ArgumentError
+    nil
   end
 
   def resolve_for_user

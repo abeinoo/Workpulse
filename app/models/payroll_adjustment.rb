@@ -92,6 +92,29 @@ class PayrollAdjustment < ApplicationRecord
     )
   end
 
+  # Owner-created adjustments are auto-approved at creation: the business owner is
+  # the ultimate approval authority, so an adjustment they create needs no separate
+  # review step. A no-op unless created_by is the business owner, so it is safe to
+  # call on every creation surface (standalone, bulk, API). The creator_is_not_approver
+  # validation explicitly permits the owner-as-approver case this sets up.
+  def apply_owner_auto_approval
+    return unless creator_is_business_owner?
+
+    self.review_status  = "approved"
+    self.approved_by_id ||= created_by_id
+    self.approved_at    ||= Time.current
+    self.reviewed_by_id ||= created_by_id
+    self.reviewed_at    ||= Time.current
+  end
+
+  # True when the adjustment's creator is the business owner — the one user who may
+  # approve their own adjustment (see apply_owner_auto_approval / creator_is_not_approver).
+  def creator_is_business_owner?
+    created_by_id.present? &&
+      business&.owner_id.present? &&
+      business.owner_id == created_by_id
+  end
+
   # Legacy DB values that predate the type consolidation.
   LEGACY_TYPE_MAP = {
     "bonus"     => "cash_incentive",
@@ -146,9 +169,13 @@ class PayrollAdjustment < ApplicationRecord
   def creator_is_not_approver
     return if approved_by_id.blank?
     return if created_by_id.blank?
+    return if approved_by_id != created_by_id
 
-    if approved_by_id == created_by_id
-      errors.add(:approved_by, I18n.t("adjustments.errors.creator_is_approver"))
-    end
+    # The business owner is the ultimate approval authority and may approve the
+    # adjustments they create (owner auto-approval). The creator != approver rule
+    # binds everyone else.
+    return if creator_is_business_owner?
+
+    errors.add(:approved_by, I18n.t("adjustments.errors.creator_is_approver"))
   end
 end

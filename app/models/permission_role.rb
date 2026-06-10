@@ -46,7 +46,26 @@ class PermissionRole < ApplicationRecord
          approve_adjustments manage_devices manage_shifts]
   ).freeze
 
-  SCOPE_OPTIONS = %w[self_only managed_employees_only branch_only business_wide].freeze
+  # Canonical data-scope names. Branch membership is shift-driven; "area" is a
+  # first-class tier (branches under an area manager). The legacy
+  # managed_employees scope has been folded into "branch".
+  SCOPE_OPTIONS = %w[self branch area business].freeze
+
+  # Legacy scope value → canonical. Applied on read (#scope_for) and normalized
+  # into storage on save (before_validation) so pre-migration data keeps working
+  # until the legacy names are fully removed in the final cleanup phase.
+  LEGACY_SCOPE_ALIASES = {
+    "self_only"              => "self",
+    "branch_only"            => "branch",
+    "business_wide"          => "business"
+  }.freeze
+
+  def self.normalize_scope(value)
+    return nil if value.blank?
+
+    v = value.to_s
+    LEGACY_SCOPE_ALIASES.fetch(v, v)
+  end
 
   # Permissions that require other permissions to be meaningful.
   # Granting a permission without its dependencies creates hidden authorization gaps
@@ -94,7 +113,10 @@ class PermissionRole < ApplicationRecord
 
   before_validation do
     self.permissions      = Array(permissions).reject(&:blank?).uniq
-    self.permission_scopes = (permission_scopes || {}).select { |k, _| has_permission?(k) }
+    self.permission_scopes = (permission_scopes || {})
+      .select { |k, _| has_permission?(k) }
+      .transform_values { |v| self.class.normalize_scope(v) }
+      .compact
   end
 
   validates :name, presence: true,
@@ -122,7 +144,7 @@ class PermissionRole < ApplicationRecord
   end
 
   def scope_for(permission)
-    (permission_scopes || {})[permission.to_s].presence
+    self.class.normalize_scope((permission_scopes || {})[permission.to_s].presence)
   end
 
   def user_count

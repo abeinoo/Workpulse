@@ -93,9 +93,13 @@ RSpec.describe "Notification reminder jobs", type: :job do
 
   # ── Daily attendance summary (manager) ───────────────────────────────────────
   describe Notifications::DailyAttendanceSummaryJob do
+    let(:shift) { create(:shift, :fixed_time, business: business) }
+
     it "notifies a manager about team members missing attendance today" do
-      manager  = create(:user, business: business)
-      create(:user, business: business, manager: manager) # report with no attendance
+      manager = create(:user, business: business)
+      branch  = create(:branch, business: business, branch_manager_id: manager.id)
+      report  = create(:user, business: business) # assigned to manager's branch, no attendance
+      create(:shift_assignment, user: report, branch: branch, shift: shift)
 
       expect {
         described_class.perform_now
@@ -104,8 +108,12 @@ RSpec.describe "Notification reminder jobs", type: :job do
 
     it "does not notify when every report has attendance" do
       manager = create(:user, business: business)
-      report  = create(:user, business: business, manager: manager)
-      create(:attendance_record, user: report, business: business, date: today, work_date: today)
+      branch  = create(:branch, business: business, branch_manager_id: manager.id)
+      report  = create(:user, business: business)
+      # The attendance_record factory creates the active assignment to this branch,
+      # so the report is both a team member AND has attendance today.
+      create(:attendance_record, user: report, business: business, branch: branch,
+             date: today, work_date: today)
 
       expect { described_class.perform_now }.not_to change(Notification, :count)
     end
@@ -113,9 +121,20 @@ RSpec.describe "Notification reminder jobs", type: :job do
 
   # ── Pending approval reminder ────────────────────────────────────────────────
   describe Notifications::PendingApprovalReminderJob do
+    let(:shift) { create(:shift, :fixed_time, business: business) }
+
+    # The :branch_manager trait makes `manager` the branch_manager of its own
+    # branch and grants approve_requests; the employee is assigned to that branch
+    # so the manager is inferred as their reviewer.
+    def assign_to_managed_branch(employee, manager)
+      branch = Branch.find_by!(branch_manager_id: manager.id)
+      create(:shift_assignment, user: employee, branch: branch, shift: shift)
+    end
+
     it "reminds the reviewing manager about a stale pending request" do
       manager  = create(:user, :branch_manager, business: business)
-      employee = create(:user, business: business, manager: manager)
+      employee = create(:user, business: business)
+      assign_to_managed_branch(employee, manager)
       create(:employee_request, :late_permission, user: employee, status: "pending",
              created_at: 2.days.ago)
 
@@ -126,7 +145,8 @@ RSpec.describe "Notification reminder jobs", type: :job do
 
     it "ignores fresh requests below the stale threshold" do
       manager  = create(:user, :branch_manager, business: business)
-      employee = create(:user, business: business, manager: manager)
+      employee = create(:user, business: business)
+      assign_to_managed_branch(employee, manager)
       create(:employee_request, :late_permission, user: employee, status: "pending",
              created_at: 1.hour.ago)
 

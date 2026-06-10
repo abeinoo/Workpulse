@@ -25,7 +25,6 @@
         <thead>
           <tr>
             <th><%= t("admin.users.name") %></th>
-            <th><%= t("admin.users.direct_manager") %></th>
             <th><%= t("admin.users.registration_status") %></th>
             <th></th>
           </tr>
@@ -46,13 +45,6 @@
                     <div class="employee-cell__sub"><%= user.email.presence || user.phone_number %></div>
                   </div>
                 </div>
-              </td>
-              <td class="td-secondary">
-                <% if user.manager %>
-                  <%= link_to user.manager.full_name, admin_user_path(user.manager), class: "link-muted" %>
-                <% else %>
-                  <span class="td-unassigned"><%= t("admin.users.not_assigned") %></span>
-                <% end %>
               </td>
               <td>
                 <%= registration_status_badge(user) %>

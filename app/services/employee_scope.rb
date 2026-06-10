@@ -1,22 +1,45 @@
 # Single authoritative resolver for "which employees can this user access?"
 #
+# Branch membership is shift-driven: an employee belongs to a branch while they
+# hold an active ShiftAssignment to it (see BranchMembership). Management is the
+# branch's branch_manager_id / area_manager_id. There is no direct
+# employee→manager ownership and no UserBranch membership.
+#
 # Hierarchy (highest wins; levels are additive, not exclusive):
 #
 #   Owner          → every non-owner user in the business
-#   Area manager   → employees in area-managed branches + their own direct reports
-#   Branch manager → employees in managed branches + their own direct reports
-#   Direct manager → employees where manager_id == user.id
+#   Area manager   → employees assigned to branches they area-manage (or manage)
+#   Branch manager → employees assigned to branches they manage
 #   Employee       → User.none  (self access is handled at the policy level, not here)
+#
+# Permission data scopes (stored per-permission on PermissionRole):
+#   self     → only the user themselves
+#   branch   → employees assigned to branches where the user is branch_manager_id
+#   area     → employees assigned to branches where the user is area_manager_id
+#   business → every employee in the business
+#
+# branch and area are strictly role-based: a user who merely works in a branch
+# (an active assignment, but not its manager) gets nobody from these scopes —
+# only self (added back by the policy layer). Employees without any active
+# ShiftAssignment belong to no branch/area and surface only under business.
 #
 # Usage:
 #   EmployeeScope.new(user).relation          # canonical "what does this manager see?"
-#   EmployeeScope.new(user).for_scope("branch_only")  # explicit named-scope override
+#   EmployeeScope.new(user).for_scope("branch")       # explicit named-scope override
 #   EmployeeScope.new(user).includes?(other_user_id)  # record-level guard
 #
 class EmployeeScope
+  # New canonical scope names plus legacy aliases, kept resolvable until the
+  # legacy values are fully migrated out (Phase 5 cleanup). PermissionRole
+  # normalizes stored scopes to the canonical names; the aliases here defend
+  # against any un-migrated callers/data in the meantime.
   SCOPE_RESOLVERS = {
+    "self"     => :self_only,
+    "branch"   => :branch,
+    "area"     => :area,
+    "business" => :business_wide,
+    # legacy → canonical
     "self_only"              => :self_only,
-    "managed_employees_only" => :managed,
     "branch_only"            => :branch,
     "business_wide"          => :business_wide
   }.freeze
@@ -25,30 +48,21 @@ class EmployeeScope
     @user = user
   end
 
-  # The canonical managed-employee relation for this user.
-  # Follows the 5-tier hierarchy and returns an AR relation that can be
-  # chained (.active, .select(:id), .exists?, etc.).
+  # The canonical managed-employee relation for this user — the natural hierarchy
+  # used when no explicit data scope is configured. Branch managers and area
+  # managers see everyone currently assigned to the branches they oversee.
+  # Returns an AR relation that can be chained (.active, .select(:id), .exists?).
   def relation
     return business_wide if @user.owner?
 
-    branch_ids = @user.managed_branch_ids + @user.area_managed_branch_ids
-
-    if branch_ids.any?
-      direct_cond  = User.arel_table[:manager_id].eq(@user.id)
-      branch_subq  = UserBranch.where(branch_id: branch_ids).select(:user_id)
-      base.where(User.arel_table[:id].in(branch_subq.arel).or(direct_cond))
-    elsif @user.managed_employees.exists?
-      base.where(manager_id: @user.id)
-    else
-      User.none
-    end
+    members_in(@user.managed_branch_ids + @user.area_managed_branch_ids)
   end
 
   # Resolve a named scope string to a concrete AR relation.
   # Called by policies when an explicit scope override is configured.
   def for_scope(scope_name)
-    method_name = SCOPE_RESOLVERS.fetch(scope_name.to_s, :managed)
-    send(method_name)
+    method_name = SCOPE_RESOLVERS.fetch(scope_name.to_s, nil)
+    method_name ? send(method_name) : relation
   end
 
   # The canonical pickable/visible employees for one permission.
@@ -70,8 +84,7 @@ class EmployeeScope
   # hierarchy and saw only managed employees. Passing
   #   [action_permission, feature_view_permission, :view_employees]
   # lets the picker honour whichever the admin configured, while a more-specific
-  # *explicit* scope still takes precedence over a broader one (so an explicit
-  # managed_employees_only on the action permission is never widened).
+  # *explicit* scope still takes precedence over a broader one.
   #
   # Mirrors ApplicationPolicy::Scope#filter_by_data_scope so pickers and record
   # visibility agree.
@@ -95,30 +108,29 @@ class EmployeeScope
     User.where(id: @user.id)
   end
 
-  def managed
-    relation
-  end
-
-  # "Branch only" means every employee who shares a branch with this user —
-  # the branches they manage / area-manage AND the branches they personally
-  # work in. Branch membership is shift-driven (active ShiftAssignment), matching
-  # attendance/scheduling/dashboard; the legacy UserBranch join table is no longer
-  # consulted here. A plain branch member (not the formal manager) still sees their
-  # branch colleagues via their own active assignment.
+  # "branch" scope: employees assigned to the branches this user manages as
+  # branch_manager_id. Role-based only — no own-assigned fallback.
   def branch
-    ids = (@user.managed_branch_ids + @user.area_managed_branch_ids + own_assigned_branch_ids).uniq
-    return User.none unless ids.any?
-
-    base.where(User.arel_table[:id].in(ShiftAssignment.user_ids_for_branches(ids).arel))
+    members_in(@user.managed_branch_ids)
   end
 
-  # Branches the user is currently shift-assigned to (replaces @user.branch_ids,
-  # which derived from UserBranch).
-  def own_assigned_branch_ids
-    ShiftAssignment.current.where(user_id: @user.id).distinct.pluck(:branch_id)
+  # "area" scope: employees assigned to the branches in the user's area
+  # (area_manager_id). Role-based only — no own-assigned or managed fallback.
+  def area
+    members_in(@user.area_managed_branch_ids)
   end
 
   def business_wide
     base
+  end
+
+  # Employees (excluding self) currently assigned to any of `branch_ids` via an
+  # active ShiftAssignment. The single shift-driven membership primitive every
+  # scope is built on.
+  def members_in(branch_ids)
+    ids = branch_ids.uniq
+    return User.none unless ids.any?
+
+    base.where(User.arel_table[:id].in(BranchMembership.current_member_ids(ids).arel))
   end
 end

@@ -9,23 +9,17 @@ RSpec.describe EmployeeScope, type: :service do
 
   let(:area_manager)    { create(:user, business: business) }
   let(:branch_manager)  { create(:user, business: business) }
-  let(:direct_manager)  { create(:user, business: business) }
 
   let(:branch_emp)      { create(:user, business: business) }
   let(:area_emp)        { create(:user, business: business) }
-  let!(:direct_report)  { create(:user, business: business, manager: direct_manager) }
   let(:unrelated_emp)   { create(:user, business: business) }
 
   let(:shift) { create(:shift, :fixed_time, business: business) }
 
   before do
     branch.update_columns(area_manager_id: area_manager.id, branch_manager_id: branch_manager.id)
-    # #relation (managed_employees) still reads the legacy UserBranch join table.
-    create(:user_branch, user: area_manager,   branch: branch)
-    create(:user_branch, user: branch_manager, branch: branch)
-    create(:user_branch, user: branch_emp,     branch: branch)
-    create(:user_branch, user: area_emp,       branch: branch)
-    # #branch (branch_only) is now shift-driven — mirror membership via active assignments.
+    # Branch membership is shift-driven: an employee belongs to a branch while they
+    # hold an active ShiftAssignment to it. No UserBranch, no manager_id.
     [ area_manager, branch_manager, branch_emp, area_emp ].each do |u|
       create(:shift_assignment, user: u, branch: branch, shift: shift)
     end
@@ -41,55 +35,35 @@ RSpec.describe EmployeeScope, type: :service do
     end
 
     context "area manager" do
-      it "returns employees in area-managed branches" do
+      it "returns employees assigned to area-managed branches" do
         result = described_class.new(area_manager).relation
         expect(result).to include(branch_emp, area_emp, branch_manager)
       end
 
-      it "also includes direct reports outside the branch" do
-        direct_of_area = create(:user, business: business, manager: area_manager)
-        result = described_class.new(area_manager).relation
-        expect(result).to include(direct_of_area)
-      end
-
       it "excludes employees in unmanaged branches" do
         other_emp = create(:user, business: business)
-        create(:user_branch, user: other_emp, branch: other_branch)
+        create(:shift_assignment, user: other_emp, branch: other_branch, shift: shift)
         result = described_class.new(area_manager).relation
         expect(result).not_to include(other_emp)
       end
     end
 
     context "branch manager" do
-      it "returns employees in managed branches" do
+      it "returns employees assigned to managed branches" do
         result = described_class.new(branch_manager).relation
         expect(result).to include(branch_emp, area_emp)
       end
 
-      it "also includes direct reports" do
-        dr = create(:user, business: business, manager: branch_manager)
-        result = described_class.new(branch_manager).relation
-        expect(result).to include(dr)
-      end
-
       it "excludes employees in other branches" do
         other_emp = create(:user, business: business)
-        create(:user_branch, user: other_emp, branch: other_branch)
+        create(:shift_assignment, user: other_emp, branch: other_branch, shift: shift)
         result = described_class.new(branch_manager).relation
         expect(result).not_to include(other_emp)
       end
     end
 
-    context "direct manager only" do
-      it "returns only direct reports" do
-        result = described_class.new(direct_manager).relation
-        expect(result).to include(direct_report)
-        expect(result).not_to include(branch_emp, unrelated_emp)
-      end
-    end
-
-    context "plain employee" do
-      it "returns User.none" do
+    context "plain employee (manages no branch)" do
+      it "returns User.none — there is no direct-report ownership" do
         result = described_class.new(unrelated_emp).relation
         expect(result).to be_empty
       end
@@ -108,35 +82,45 @@ RSpec.describe EmployeeScope, type: :service do
   end
 
   describe "#for_scope" do
-    it "self_only returns only the user themselves" do
-      result = described_class.new(branch_manager).for_scope("self_only")
+    it "self returns only the user themselves" do
+      result = described_class.new(branch_manager).for_scope("self")
       expect(result).to contain_exactly(branch_manager)
     end
 
-    it "managed_employees_only delegates to #relation" do
-      scope = described_class.new(branch_manager)
-      expect(scope.for_scope("managed_employees_only")).to eq(scope.relation)
-    end
-
-    it "branch_only returns employees in managed branches without direct reports outside branch" do
-      outside_report = create(:user, business: business, manager: branch_manager)
-      result = described_class.new(branch_manager).for_scope("branch_only")
-      expect(result).to include(branch_emp)
-      expect(result).not_to include(outside_report)
-    end
-
-    it "branch_only returns branch colleagues for a plain member who is NOT the branch manager" do
-      # Regression: previously keyed only off managed/area branches, so a member
-      # who merely belongs to a branch (user_branches) saw nobody (WHERE 1=0).
-      result = described_class.new(branch_emp).for_scope("branch_only")
-      expect(result).to include(area_emp, branch_manager, area_manager)
+    it "branch returns employees in managed branches" do
+      result = described_class.new(branch_manager).for_scope("branch")
+      expect(result).to include(branch_emp, area_emp)
       expect(result).not_to include(unrelated_emp)
     end
 
-    it "business_wide returns all non-self users in the business" do
-      result = described_class.new(branch_manager).for_scope("business_wide")
+    it "branch returns nobody for a plain member who is NOT the branch manager" do
+      # Strictly role-based: a member who merely works in the branch manages no
+      # branch, so the branch scope is empty (self is added back at the policy layer).
+      result = described_class.new(branch_emp).for_scope("branch")
+      expect(result).to be_empty
+    end
+
+    it "area returns employees in area-managed branches" do
+      result = described_class.new(area_manager).for_scope("area")
+      expect(result).to include(branch_emp, area_emp, branch_manager)
+      expect(result).not_to include(unrelated_emp)
+    end
+
+    it "area returns nobody for a user who is not an area manager" do
+      result = described_class.new(branch_manager).for_scope("area")
+      expect(result).to be_empty
+    end
+
+    it "business returns all non-self users in the business" do
+      result = described_class.new(branch_manager).for_scope("business")
       expect(result).to include(branch_emp, unrelated_emp, area_manager)
       expect(result).not_to include(branch_manager)
+    end
+
+    it "resolves legacy scope names through the backward-compat aliases" do
+      scope = described_class.new(branch_manager)
+      expect(scope.for_scope("branch_only")).to eq(scope.for_scope("branch"))
+      expect(scope.for_scope("business_wide")).to eq(scope.for_scope("business"))
     end
 
     it "unknown scope falls back to relation" do
@@ -159,25 +143,33 @@ RSpec.describe EmployeeScope, type: :service do
     let(:wide_role) do
       create(:permission_role, business: business,
              permissions: %w[view_attendance manage_attendance],
-             permission_scopes: { "manage_attendance" => "business_wide" })
+             permission_scopes: { "manage_attendance" => "business" })
     end
     let(:wide_mgr) { create(:user, business: business, permission_role: wide_role) }
 
+    # A branch-scoped manager: branch_manager of their own branch, with one
+    # employee assigned there.
+    let(:restricted_branch) { create(:branch, business: business) }
     let(:restricted_role) do
       create(:permission_role, business: business,
              permissions: %w[view_attendance manage_attendance],
-             permission_scopes: { "manage_attendance" => "managed_employees_only" })
+             permission_scopes: { "manage_attendance" => "branch" })
     end
-    let(:restricted_mgr)     { create(:user, business: business, permission_role: restricted_role) }
-    let!(:restricted_report) { create(:user, business: business, manager: restricted_mgr) }
+    let(:restricted_mgr) { create(:user, business: business, permission_role: restricted_role) }
+    let!(:restricted_report) do
+      create(:user, business: business).tap do |u|
+        restricted_branch.update_columns(branch_manager_id: restricted_mgr.id)
+        create(:shift_assignment, user: u, branch: restricted_branch, shift: shift)
+      end
+    end
 
-    it "returns ALL business employees (except self) for a business-wide scope" do
+    it "returns ALL business employees (except self) for a business scope" do
       result = described_class.new(wide_mgr).for_permission(:manage_attendance)
-      expect(result).to include(branch_emp, area_emp, unrelated_emp, direct_report)
+      expect(result).to include(branch_emp, area_emp, unrelated_emp, restricted_report)
       expect(result).not_to include(wide_mgr)
     end
 
-    it "limits a managed-scope manager to their own hierarchy" do
+    it "limits a branch-scoped manager to employees assigned to their branch" do
       result = described_class.new(restricted_mgr).for_permission(:manage_attendance)
       expect(result).to include(restricted_report)
       expect(result).not_to include(unrelated_emp, branch_emp)
@@ -201,19 +193,19 @@ RSpec.describe EmployeeScope, type: :service do
              permission_scopes: scopes)
     end
 
-    # Regional (area) manager — relation is hierarchy-only (area branch + reports).
+    # A plain branch member (assigned to `branch`) — relation is hierarchy-only.
     let(:regional) { create(:user, business: business) }
-    before { create(:user_branch, user: regional, branch: branch) }
+    before { create(:shift_assignment, user: regional, branch: branch, shift: shift) }
 
-    it "honours business_wide configured on the broad view_employees permission" do
-      regional.update!(permission_role: role_with("view_employees" => "business_wide"))
+    it "honours business configured on the broad view_employees permission" do
+      regional.update!(permission_role: role_with("view_employees" => "business"))
       result = described_class.new(regional)
                  .for_permissions(:manage_attendance, :view_attendance, :view_employees)
-      expect(result).to include(branch_emp, area_emp, unrelated_emp, direct_report)
+      expect(result).to include(branch_emp, area_emp, unrelated_emp)
     end
 
-    it "honours business_wide configured on the feature view permission" do
-      regional.update!(permission_role: role_with("view_attendance" => "business_wide"))
+    it "honours business configured on the feature view permission" do
+      regional.update!(permission_role: role_with("view_attendance" => "business"))
       result = described_class.new(regional)
                  .for_permissions(:manage_attendance, :view_attendance, :view_employees)
       expect(result).to include(unrelated_emp)
@@ -221,11 +213,11 @@ RSpec.describe EmployeeScope, type: :service do
 
     it "lets an explicit action-permission scope override a broader one" do
       regional.update!(permission_role: role_with(
-        "view_employees"    => "business_wide",
-        "manage_attendance" => "managed_employees_only"))
+        "view_employees"    => "business",
+        "manage_attendance" => "branch"))
       result = described_class.new(regional)
                  .for_permissions(:manage_attendance, :view_attendance, :view_employees)
-      # managed_employees_only on the action permission wins → no unrelated employee
+      # branch on the action permission wins → no unrelated employee
       expect(result).not_to include(unrelated_emp)
     end
 

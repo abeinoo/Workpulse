@@ -27,7 +27,7 @@ module Api
 
           allowed_branches = current_user.can?(:view_attendance) ?
             current_business.branches :
-            Branch.where(id: current_user.branch_ids)
+            Branch.where(id: BranchMembership.current_branch_ids(current_user))
 
           allowed_branches.find(params[:branch_id])
         end

@@ -131,7 +131,7 @@ module Dashboard
 
     # ── Branch snapshots ──────────────────────────────────────────────────────
     # Two queries total for all branches — one GROUP BY on attendance, one
-    # GROUP BY on user_branches.
+    # GROUP BY on active shift assignments (shift-driven branch membership).
 
     def branch_snapshots
       @branch_snapshots ||= begin
@@ -147,11 +147,13 @@ module Dashboard
             "SUM(CASE WHEN check_in_at IS NOT NULL AND check_out_at IS NULL THEN 1 ELSE 0 END) AS active_now_count"
           ).index_by(&:branch_id)
 
-        emp_counts_by_branch = User
-          .joins(:user_branches)
-          .where(users: { business_id: business.id, active: true })
-          .group("user_branches.branch_id")
-          .count
+        emp_counts_by_branch = ShiftAssignment
+          .active_on(today)
+          .for_business(business)
+          .where(users: { active: true })
+          .distinct
+          .group(:branch_id)
+          .count(:user_id)
 
         business.branches.active.order(:name).map do |branch|
           stats    = attendance_by_branch[branch.id]

@@ -2531,6 +2531,90 @@ body.is-authenticated {
   gap: var(--space-2);
 }
 
+/* ── Active filter chips ──────────────────────────────────────────────────── */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.filter-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  color: var(--text-2);
+  text-decoration: none;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.filter-chip__remove:hover {
+  background: var(--surface-2, var(--surface-0));
+  color: var(--text-1);
+}
+
+.filter-chip--clear {
+  color: var(--accent);
+  background: transparent;
+  border-style: dashed;
+  text-decoration: none;
+}
+
+.filter-chip--clear:hover { background: var(--surface-1); }
+
+/* ── Searchable select (progressive enhancement over a native <select>) ──── */
+.searchable-select { position: relative; }
+
+.searchable-select__menu {
+  display: none;
+  position: absolute;
+  z-index: 60;
+  inset-inline: 0;
+  top: calc(100% + 2px);
+  max-height: 16rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.25);
+}
+
+.searchable-select.is-open .searchable-select__menu { display: block; }
+
+.searchable-select__option {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.searchable-select__option:hover,
+.searchable-select__option[aria-selected="true"] {
+  background: var(--surface-1);
+}
+
 .table-meta {
   font-size: var(--text-sm);
   color: var(--text-2);
@@ -5405,21 +5489,24 @@ details:not([open]) .permission-group__chevron {
   margin-left: var(--space-1);
 }
 
+.permission-scope-chip--self,
 .permission-scope-chip--self_only {
   background: rgba(var(--neutral-rgb), 0.15);
   color: var(--text-3);
 }
 
-.permission-scope-chip--managed_employees_only {
-  background: rgba(var(--accent-rgb), 0.15);
-  color: var(--accent);
-}
-
+.permission-scope-chip--branch,
 .permission-scope-chip--branch_only {
   background: rgba(var(--warning-rgb), 0.15);
   color: var(--warning);
 }
 
+.permission-scope-chip--area {
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+}
+
+.permission-scope-chip--business,
 .permission-scope-chip--business_wide {
   background: rgba(var(--success-rgb), 0.15);
   color: var(--success);
@@ -8767,6 +8854,16 @@ details:not([open]) .permission-group__chevron {
   padding: 1px 5px;
   margin-inline-start: var(--space-1);
   vertical-align: middle;
+}
+
+/* Generic utility: fully removed from layout (used for JS-injected hidden forms). */
+.hidden { display: none !important; }
+
+/* Narrow leading column holding row-selection checkboxes in bulk-review tables. */
+.adj-check-col {
+  width: 2.25rem;
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* ── Bulk action bar ─────────────────────────────────────────────────────── */

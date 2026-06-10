@@ -75,20 +75,11 @@ module Notifications
       end
     end
 
-    # Who can review this requester's requests: their direct manager plus the
-    # managers of the branches they belong to — limited to users who actually
-    # hold the approve_requests permission. De-duplicated, requester excluded.
+    # Who to notify to review this request: the requester's branch/area managers,
+    # falling back to business-scope approvers when none can be inferred (e.g. the
+    # requester has no active ShiftAssignment). See Requests::ReviewerResolver.
     def reviewers
-      requester = @request.user
-      branch_ids = requester.branch_ids
-      candidate_ids = []
-      candidate_ids << requester.manager_id if requester.manager_id
-      candidate_ids.concat(Branch.where(id: branch_ids).pluck(:branch_manager_id, :area_manager_id).flatten)
-      candidate_ids = candidate_ids.compact.uniq - [ requester.id ]
-      return [] if candidate_ids.empty?
-
-      User.where(id: candidate_ids, active: true)
-          .select { |u| u.can?(:approve_requests) }
+      Requests::ReviewerResolver.for(@request)
     end
 
     def request_type_label

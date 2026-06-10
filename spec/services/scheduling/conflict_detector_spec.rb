@@ -22,7 +22,10 @@ RSpec.describe Scheduling::ConflictDetector do
   describe "#call" do
     context "when the employee is active and no conflicts exist" do
       it "returns :valid status" do
-        create(:user_branch, user: user, branch: branch)
+        # The employee has prior (non-overlapping) history at the branch, so there
+        # is no branch-mismatch warning and the new assignment is conflict-free.
+        create(:shift_assignment, user: user, branch: branch, shift: shift,
+               effective_from: 90.days.ago.to_date, effective_to: 60.days.ago.to_date)
         result = detect
         expect(result.status).to eq(:valid)
         expect(result.valid?).to be true

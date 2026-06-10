@@ -9,7 +9,6 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
   let(:area_mgr)    { create(:user, :area_manager, business: business) }
   let(:employee)    { create(:user, business: business) }
 
-  before { create(:user_branch, user: manager, branch: branch) }
 
   # All periods are company-wide — no branch scoping on PayrollPeriod.
   let(:period) { create(:payroll_period, business: business) }

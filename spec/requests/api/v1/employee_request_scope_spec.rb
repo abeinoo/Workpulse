@@ -2,31 +2,32 @@ require "rails_helper"
 
 # Regression suite for employee-request scope isolation.
 #
-# Verifies that branch managers and direct managers can only view and act on
-# requests belonging to employees inside their EmployeeScope, and that the
-# partition invariant holds: count_A + count_B == owner count.
+# Verifies that branch managers can only view and act on requests belonging to
+# employees inside their EmployeeScope, and that the partition invariant holds:
+# count_A + count_B + count_C == owner count.
 #
-# Setup: one business, two branches, one manager per branch, one employee per
-# branch.  A separate direct manager has a direct report via manager_id only —
-# no shared UserBranch row — so the tests also confirm that EmployeeScope
-# handles the manager_id path correctly.
+# Setup: one business, three branches, one manager per branch, one employee per
+# branch. Branch membership is shift-driven — an employee belongs to a branch
+# while they hold an active ShiftAssignment to it. There is no UserBranch and no
+# manager_id ownership.
 RSpec.describe "Employee Request Scope", type: :request do
   let(:business)   { create(:business) }
   let(:branch_a)   { create(:branch, business: business) }
   let(:branch_b)   { create(:branch, business: business) }
+  let(:branch_c)   { create(:branch, business: business) }
 
   let!(:owner)     { create(:user, :owner, business: business) }
 
-  # Plain users — branch-manager scope comes from branch_manager_id + UserBranch,
-  # not from any trait.
+  let(:shift)      { create(:shift, :fixed_time, business: business) }
+
+  # Plain users — branch-manager scope comes from branch_manager_id; membership
+  # comes from active ShiftAssignments.
   let(:manager_a)  { create(:user, business: business) }
   let(:manager_b)  { create(:user, business: business) }
+  let(:manager_c)  { create(:user, business: business) }
   let(:employee_a) { create(:user, business: business) }
   let(:employee_b) { create(:user, business: business) }
-
-  # Direct manager has NO branch and NO UserBranch — only manager_id on the report.
-  let(:direct_manager) { create(:user, business: business) }
-  let(:direct_report)  { create(:user, business: business, manager: direct_manager) }
+  let(:employee_c) { create(:user, business: business) }
 
   let(:manager_role) do
     create(:permission_role, business: business,
@@ -37,13 +38,13 @@ RSpec.describe "Employee Request Scope", type: :request do
   before do
     branch_a.update_column(:branch_manager_id, manager_a.id)
     branch_b.update_column(:branch_manager_id, manager_b.id)
-    create(:user_branch, user: manager_a,  branch: branch_a)
-    create(:user_branch, user: manager_b,  branch: branch_b)
-    create(:user_branch, user: employee_a, branch: branch_a)
-    create(:user_branch, user: employee_b, branch: branch_b)
+    branch_c.update_column(:branch_manager_id, manager_c.id)
+    create(:shift_assignment, user: employee_a, branch: branch_a, shift: shift)
+    create(:shift_assignment, user: employee_b, branch: branch_b, shift: shift)
+    create(:shift_assignment, user: employee_c, branch: branch_c, shift: shift)
     # Permission-driven: managers need view_requests + approve_requests.
-    # EmployeeScope handles the data scope via branch/manager relationships.
-    [manager_a, manager_b, direct_manager].each do |m|
+    # EmployeeScope handles the data scope via branch relationships.
+    [ manager_a, manager_b, manager_c ].each do |m|
       m.update_column(:permission_role_id, manager_role.id)
     end
   end
@@ -51,7 +52,7 @@ RSpec.describe "Employee Request Scope", type: :request do
   # Pending requests — one per employee.
   let!(:request_a) { create(:employee_request, :pending, user: employee_a) }
   let!(:request_b) { create(:employee_request, :pending, user: employee_b) }
-  let!(:request_dr){ create(:employee_request, :pending, user: direct_report) }
+  let!(:request_c) { create(:employee_request, :pending, user: employee_c) }
 
   # ── Index ──────────────────────────────────────────────────────────────────
 
@@ -64,14 +65,14 @@ RSpec.describe "Employee Request Scope", type: :request do
 
     it "owner sees requests for all employees" do
       ids = fetch_request_ids(owner)
-      expect(ids).to include(request_a.id, request_b.id, request_dr.id)
+      expect(ids).to include(request_a.id, request_b.id, request_c.id)
     end
 
     it "branch manager A sees only branch A employee requests" do
       ids = fetch_request_ids(manager_a)
       expect(ids).to     include(request_a.id)
       expect(ids).not_to include(request_b.id)
-      expect(ids).not_to include(request_dr.id)
+      expect(ids).not_to include(request_c.id)
     end
 
     it "branch manager B sees only branch B employee requests" do
@@ -80,9 +81,9 @@ RSpec.describe "Employee Request Scope", type: :request do
       expect(ids).not_to include(request_a.id)
     end
 
-    it "direct manager sees direct report's request without a shared UserBranch" do
-      ids = fetch_request_ids(direct_manager)
-      expect(ids).to include(request_dr.id)
+    it "branch manager C sees their branch employee's request" do
+      ids = fetch_request_ids(manager_c)
+      expect(ids).to include(request_c.id)
       expect(ids).not_to include(request_a.id, request_b.id)
     end
 
@@ -92,12 +93,12 @@ RSpec.describe "Employee Request Scope", type: :request do
       expect(ids).not_to include(request_b.id)
     end
 
-    it "partition invariant: manager A count + manager B count + direct manager count equals owner count" do
+    it "partition invariant: manager A + B + C count equals owner count" do
       count_a  = fetch_request_ids(manager_a).length
       count_b  = fetch_request_ids(manager_b).length
-      count_dm = fetch_request_ids(direct_manager).length
+      count_c  = fetch_request_ids(manager_c).length
       count_owner = fetch_request_ids(owner).length
-      expect(count_a + count_b + count_dm).to eq(count_owner)
+      expect(count_a + count_b + count_c).to eq(count_owner)
     end
   end
 
@@ -116,14 +117,14 @@ RSpec.describe "Employee Request Scope", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "direct manager can view their direct report's request" do
-      sign_in direct_manager
-      get "/api/v1/employee_requests/#{request_dr.id}", as: :json
+    it "branch manager C can view their branch employee's request" do
+      sign_in manager_c
+      get "/api/v1/employee_requests/#{request_c.id}", as: :json
       expect(response).to have_http_status(:ok)
     end
 
-    it "direct manager gets 404 on a request outside their scope" do
-      sign_in direct_manager
+    it "branch manager C gets 404 on a request outside their scope" do
+      sign_in manager_c
       get "/api/v1/employee_requests/#{request_a.id}", as: :json
       expect(response).to have_http_status(:not_found)
     end
@@ -146,15 +147,15 @@ RSpec.describe "Employee Request Scope", type: :request do
       expect(request_b.reload.status).to eq("pending")
     end
 
-    it "direct manager can approve their direct report's request" do
-      sign_in direct_manager
-      patch "/api/v1/employee_requests/#{request_dr.id}/approve", as: :json
+    it "branch manager C can approve their branch employee's request" do
+      sign_in manager_c
+      patch "/api/v1/employee_requests/#{request_c.id}/approve", as: :json
       expect(response).to have_http_status(:ok)
-      expect(request_dr.reload.status).to eq("approved")
+      expect(request_c.reload.status).to eq("approved")
     end
 
-    it "direct manager gets 404 trying to approve an out-of-scope request" do
-      sign_in direct_manager
+    it "branch manager C gets 404 trying to approve an out-of-scope request" do
+      sign_in manager_c
       patch "/api/v1/employee_requests/#{request_a.id}/approve", as: :json
       expect(response).to have_http_status(:not_found)
     end
@@ -185,44 +186,39 @@ RSpec.describe "Employee Request Scope", type: :request do
       expect(request_b.reload.status).to eq("pending")
     end
 
-    it "direct manager can reject their direct report's request" do
-      sign_in direct_manager
-      patch "/api/v1/employee_requests/#{request_dr.id}/reject", as: :json
+    it "branch manager C can reject their branch employee's request" do
+      sign_in manager_c
+      patch "/api/v1/employee_requests/#{request_c.id}/reject", as: :json
       expect(response).to have_http_status(:ok)
-      expect(request_dr.reload.status).to eq("rejected")
+      expect(request_c.reload.status).to eq("rejected")
     end
   end
 
   # ── EmployeeScope delegation regression ───────────────────────────────────
   #
-  # These examples catch anyone accidentally narrowing back to managed_employee_ids
-  # (direct reports only via manager_id) or a branch-only check.
+  # These examples catch anyone accidentally re-introducing manager_id ownership
+  # or a UserBranch membership check. Membership is shift-driven only.
 
   describe "EmployeeScope delegation regression" do
-    it "branch manager sees branch employees even when they have no manager_id relationship" do
-      # employee_a's manager_id is nil — scope comes purely from UserBranch
-      expect(employee_a.manager_id).to be_nil
+    it "branch manager sees branch employees via active shift assignment" do
       sign_in manager_a
       get "/api/v1/employee_requests", as: :json
       ids = response.parsed_body["data"].map { |r| r["id"] }
       expect(ids).to include(request_a.id)
     end
 
-    it "direct manager sees direct report even when they share no branch" do
-      # direct_report has NO UserBranch row — scope comes purely from manager_id
-      expect(UserBranch.where(user: direct_report).exists?).to be false
-      sign_in direct_manager
+    it "an employee with no active assignment is not visible to any branch manager" do
+      floating = create(:user, business: business)
+      floating_req = create(:employee_request, :pending, user: floating)
+      sign_in manager_a
       get "/api/v1/employee_requests", as: :json
       ids = response.parsed_body["data"].map { |r| r["id"] }
-      expect(ids).to include(request_dr.id)
+      expect(ids).not_to include(floating_req.id)
     end
 
-    it "branch manager cannot see direct report of another manager who is also in their branch" do
-      # Edge case: if a direct_report is placed in branch_a but belongs to direct_manager,
-      # manager_a should NOT see their requests through that branch membership.
-      # direct_report is NOT in branch_a, so this is just a cross-scope sanity check.
+    it "a branch manager cannot see another branch's employee request" do
       sign_in manager_a
-      get "/api/v1/employee_requests/#{request_dr.id}", as: :json
+      get "/api/v1/employee_requests/#{request_c.id}", as: :json
       expect(response).to have_http_status(:not_found)
     end
   end

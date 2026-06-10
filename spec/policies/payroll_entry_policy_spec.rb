@@ -9,10 +9,11 @@ RSpec.describe PayrollEntryPolicy, type: :model do
   let(:area_mgr)    { create(:user, :area_manager, business: business) }
   let(:employee)    { create(:user, business: business) }
 
+  let(:shift) { create(:shift, :fixed_time, business: business) }
+
   before do
     branch.update_column(:branch_manager_id, manager.id)
-    create(:user_branch, user: manager,  branch: branch)
-    create(:user_branch, user: employee, branch: branch)
+    create(:shift_assignment, user: employee, branch: branch, shift: shift)
   end
 
   let(:period) { create(:payroll_period, :finalized, business: business) }
@@ -99,7 +100,7 @@ RSpec.describe PayrollEntryPolicy, type: :model do
 
       it "includes entries for employees in managed branches" do
         managed_emp = create(:user, business: business)
-        create(:user_branch, user: managed_emp, branch: area_branch)
+        create(:shift_assignment, user: managed_emp, branch: area_branch, shift: shift)
         managed_entry = create(:payroll_entry, payroll_period: period, user: managed_emp)
 
         scope = described_class::Scope.new(area_mgr, PayrollEntry).resolve
@@ -131,7 +132,7 @@ RSpec.describe PayrollEntryPolicy, type: :model do
       it "excludes entries for employees in a different branch" do
         other_branch = create(:branch, business: business)
         other_emp    = create(:user, business: business)
-        create(:user_branch, user: other_emp, branch: other_branch)
+        create(:shift_assignment, user: other_emp, branch: other_branch, shift: shift)
         other_entry2 = create(:payroll_entry, payroll_period: period, user: other_emp)
 
         scope = described_class::Scope.new(manager, PayrollEntry).resolve

@@ -31,6 +31,15 @@ class AdjustmentsController < ApplicationController
     @summary     = Adjustments::SummaryData.new(filtered).call
     @adjustments = filtered.order(created_at: :desc)
 
+    # Adjustment Analytics & Reports are restricted to Business-scope users
+    # (owners/admins). Branch- and area-scope managers and employees see the list
+    # but not the aggregate analytics. Both the UI and the policy enforce this.
+    @can_view_analytics = policy(PayrollAdjustment.new(business: current_user.business)).analytics?
+
+    # Row selection + bulk Approve/Reject is only offered to users who can review
+    # adjustments (approve_adjustments). Employees never see the checkboxes/actions.
+    @can_review_bulk = policy(PayrollAdjustment.new(business: current_user.business)).bulk_approve?
+
     # Filter bar data
     @branches   = Branch.for_business(current_user.business).active.order(:name)
     @employees  = manageable_employees
@@ -69,9 +78,12 @@ class AdjustmentsController < ApplicationController
     assign_period(@adjustment)
     @adjustment.business   = current_user.business
     @adjustment.created_by = current_user
-    # Creation never approves. Adjustments always start Pending and require a
-    # separate approver (see creator_is_not_approver / PayrollAdjustmentPolicy).
+    # Adjustments start Pending and require a separate approver (see
+    # creator_is_not_approver / PayrollAdjustmentPolicy). The single exception:
+    # an owner-created adjustment is auto-approved at creation, since the owner is
+    # the ultimate approval authority (apply_owner_auto_approval no-ops otherwise).
     @adjustment.review_status = "pending_review"
+    @adjustment.apply_owner_auto_approval
 
     authorize @adjustment
 
@@ -105,6 +117,32 @@ class AdjustmentsController < ApplicationController
     redirect_back fallback_location: adjustments_path, alert: e.message
   end
 
+  # Bulk approve/reject of the selected pending adjustments. Each row is processed
+  # individually (audit fields stay accurate); already-decided rows are skipped and
+  # rows the user may not review (e.g. ones they created) are counted as failed.
+  # Selection runs through policy_scope, so a reviewer can only ever act on rows
+  # within their data scope.
+  def bulk_approve
+    authorize PayrollAdjustment.new(business: current_user.business), :bulk_approve?
+
+    result = Adjustments::BulkReview.approve(
+      adjustments: selected_adjustments,
+      reviewer:    current_user
+    )
+    redirect_back fallback_location: adjustments_path, **bulk_review_flash(result)
+  end
+
+  def bulk_reject
+    authorize PayrollAdjustment.new(business: current_user.business), :bulk_reject?
+
+    result = Adjustments::BulkReview.reject(
+      adjustments: selected_adjustments,
+      reviewer:    current_user,
+      notes:       params[:review_notes].presence
+    )
+    redirect_back fallback_location: adjustments_path, **bulk_review_flash(result)
+  end
+
   def destroy
     authorize @adjustment
     month = @adjustment.period_month
@@ -118,6 +156,24 @@ class AdjustmentsController < ApplicationController
 
   def set_adjustment
     @adjustment = policy_scope(PayrollAdjustment).find(params[:id])
+  end
+
+  # The chosen rows, always re-scoped through policy_scope so a reviewer can never
+  # act on an adjustment outside their data scope, whatever ids were posted.
+  def selected_adjustments
+    policy_scope(PayrollAdjustment).where(id: Array(params[:adjustment_ids])).to_a
+  end
+
+  # Builds the redirect flash for a bulk review outcome, e.g.
+  # "Approved: 18 · Skipped: 2 · Failed: 1". A notice when anything succeeded,
+  # otherwise an alert (nothing actionable was selected).
+  def bulk_review_flash(result)
+    return { alert: t("adjustments.bulk.none_selected") } unless result.any_selected?
+
+    message = t("adjustments.bulk.#{result.action}_result",
+                succeeded: result.succeeded, skipped: result.skipped, failed: result.failed)
+
+    result.any_succeeded? ? { notice: message } : { alert: message }
   end
 
   def load_form_data

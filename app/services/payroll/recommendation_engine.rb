@@ -91,10 +91,12 @@ module Payroll
     def high_branch_lateness
       today = BusinessDay.current(context: @business)
       from  = today.beginning_of_month
-      branches = @business.branches.active.includes(:users)
+      branches = @business.branches.active
 
       branches.filter_map do |branch|
-        emp_ids = branch.users.where(active: true).pluck(:id)
+        emp_ids = User.active
+                      .where(id: ShiftAssignment.user_ids_for_branches([ branch.id ], on: today))
+                      .pluck(:id)
         next if emp_ids.empty?
 
         late_count = AttendanceRecord

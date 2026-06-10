@@ -4,11 +4,14 @@ RSpec.describe "API V1 Employee Requests", type: :request do
   let(:business)  { create(:business) }
   let(:branch)    { create(:branch, business: business) }
   let(:manager)   { create(:user, :branch_manager, business: business) }
-  let(:employee)  { create(:user, business: business, manager: manager) }
+  let(:employee)  { create(:user, business: business) }
+  let(:shift)     { create(:shift, :fixed_time, business: business) }
 
   before do
-    create(:user_branch, user: employee, branch: branch)
-    create(:user_branch, user: manager,  branch: branch)
+    # Make `manager` the branch_manager of `branch` and assign the employee there
+    # (shift-driven membership).
+    branch.update_column(:branch_manager_id, manager.id)
+    create(:shift_assignment, user: employee, branch: branch, shift: shift)
   end
 
   # ---------------------------------------------------------------------------

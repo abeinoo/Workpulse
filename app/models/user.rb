@@ -30,12 +30,8 @@ class User < ApplicationRecord
     max_size:      Attachable::DEFAULT_DOCUMENT_SIZE
 
   belongs_to :business
-  belongs_to :manager,          class_name: "User", optional: true
   belongs_to :permission_role,  optional: true
 
-  has_many :managed_employees,     class_name: "User", foreign_key: :manager_id, dependent: :nullify
-  has_many :user_branches,         dependent: :destroy
-  has_many :branches,              through: :user_branches
   has_many :warehouse_assignments, dependent: :destroy
   has_many :assigned_warehouses,   through: :warehouse_assignments, source: :warehouse
   has_many :salary_profiles,       dependent: :destroy
@@ -62,12 +58,6 @@ class User < ApplicationRecord
   scope :active,   -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
   scope :by_department, ->(dept) { where(department: dept) }
-
-  # Thin delegate to EmployeeScope — kept for backward compatibility with existing
-  # callers. New code should use EmployeeScope.new(manager).relation directly.
-  def self.managed_by(manager)
-    EmployeeScope.new(manager).relation
-  end
 
   normalizes :email,               with: ->(e) { e.blank? ? nil : e.strip.downcase }
   normalizes :phone_number,        with: ->(phone) {
@@ -98,8 +88,6 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 6, maximum: 128 }, if: :password_required?
   validates_confirmation_of :password, if: :password_required?
   validate :phone_or_email_present
-  validate :validate_manager_in_same_business
-  validate :no_self_management
 
   validates :identity_card_number, presence: true, uniqueness: true
 
@@ -153,10 +141,6 @@ class User < ApplicationRecord
     elsif pct >= 60 then :partial
     else :incomplete
     end
-  end
-
-  def managed_employee_ids
-    managed_employees.pluck(:id)
   end
 
   def owner?
@@ -240,7 +224,7 @@ class User < ApplicationRecord
   # nil signals "no override" — the caller falls back to the relationship hierarchy.
   # Owners are exempted: they always get business_wide regardless.
   def scope_for(permission)
-    return "business_wide" if owner?
+    return "business" if owner?
 
     permission_role&.scope_for(permission)
   end
@@ -272,14 +256,5 @@ class User < ApplicationRecord
 
   def password_required?
     password.present? || password_confirmation.present?
-  end
-
-  def validate_manager_in_same_business
-    return unless manager_id.present? && manager
-    errors.add(:manager, "must belong to the same business") unless manager.business_id == business_id
-  end
-
-  def no_self_management
-    errors.add(:manager, "cannot be yourself") if manager_id.present? && manager_id == id
   end
 end

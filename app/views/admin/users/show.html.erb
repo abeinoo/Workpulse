@@ -88,24 +88,6 @@
         <% end %>
       <% end %>
       <div class="data-list__item">
-        <dt class="data-list__label"><%= t("admin.users.direct_manager") %></dt>
-        <dd class="data-list__value">
-          <% if @user.manager %>
-            <%= link_to @user.manager.full_name, admin_user_path(@user.manager), class: "link" %>
-          <% else %>
-            <span class="td-secondary">— <%= t("admin.users.not_assigned") %></span>
-          <% end %>
-        </dd>
-      </div>
-      <% if @user.managed_employees.any? %>
-        <div class="data-list__item">
-          <dt class="data-list__label"><%= t("admin.users.managed_employees") %></dt>
-          <dd class="data-list__value">
-            <%= @user.managed_employees.order(:first_name).map(&:full_name).join(", ") %>
-          </dd>
-        </div>
-      <% end %>
-      <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.users.status") %></dt>
         <dd class="data-list__value">
           <% if @user.encrypted_password.present? %>

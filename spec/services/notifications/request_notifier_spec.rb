@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Notifications::RequestNotifier do
   let(:business) { create(:business) }
   let(:manager)  { create(:user, :branch_manager, business: business) }
-  let(:employee) { create(:user, business: business, manager: manager) }
+  let(:employee) { create(:user, business: business) }
 
   describe ".approved" do
     it "notifies the requester with a leave_approved event for a late_permission request" do

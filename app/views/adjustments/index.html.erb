@@ -35,6 +35,8 @@
   <% end %>
 
   <%# ── Summary stats strip ───────────────────────────────────────────────────── %>
+  <%# Analytics & Reports — Business-scope users (owners/admins) only. %>
+  <% if @can_view_analytics %>
   <div class="adj-stats">
     <div class="adj-stat-card">
       <div class="adj-stat-card__icon adj-stat-card__icon--total">
@@ -121,6 +123,7 @@
       </div>
     </div>
   </div>
+  <% end %>
 
   <%# ── Two-column: quick actions + insights ────────────────────────────────── %>
   <div class="adj-meta-row">
@@ -205,8 +208,8 @@
       </div>
     <% end %>
 
-    <%# Insights panel %>
-    <% if @summary.total_count > 0 %>
+    <%# Insights panel — Analytics & Reports, Business-scope users only. %>
+    <% if @can_view_analytics && @summary.total_count > 0 %>
       <div class="adj-insights">
         <h3 class="adj-section-title"><%= t("adjustments.insights.heading") %></h3>
         <div class="adj-insights-list">
@@ -407,10 +410,53 @@
       <% end %>
     </div>
   <% else %>
+    <% bulk_attrs = @can_review_bulk ? {
+         controller: "adjustment-bulk-review",
+         "adjustment-bulk-review-approve-confirm-value": t("adjustments.bulk.approve_confirm"),
+         "adjustment-bulk-review-reject-confirm-value":  t("adjustments.bulk.reject_confirm")
+       } : {} %>
+    <%= tag.div data: bulk_attrs do %>
+
+      <% if @can_review_bulk %>
+        <%# Sticky bulk-action bar — hidden until at least one row is selected. %>
+        <div class="bulk-action-bar" data-adjustment-bulk-review-target="actionBar" style="display:none;">
+          <span class="bulk-action-bar__badge">
+            <strong data-adjustment-bulk-review-target="countBadge">0</strong>
+            <%= t("adjustments.bulk.selected_suffix") %>
+          </span>
+          <span class="bulk-action-bar__sep"></span>
+          <button type="button" class="btn btn-sm btn-success"
+                  data-action="click->adjustment-bulk-review#submitApprove">
+            <%= t("adjustments.bulk.approve_selected") %>
+          </button>
+          <button type="button" class="btn btn-sm btn-danger"
+                  data-action="click->adjustment-bulk-review#submitReject">
+            <%= t("adjustments.bulk.reject_selected") %>
+          </button>
+        </div>
+
+        <%# Hidden forms — the Stimulus controller injects adjustment_ids[] then submits. %>
+        <%= form_with url: bulk_approve_adjustments_path, method: :post,
+              data: { "adjustment-bulk-review-target": "approveForm" }, class: "hidden" do %>
+          <div data-adjustment-bulk-review-target="approveIds"></div>
+        <% end %>
+        <%= form_with url: bulk_reject_adjustments_path, method: :post,
+              data: { "adjustment-bulk-review-target": "rejectForm" }, class: "hidden" do %>
+          <div data-adjustment-bulk-review-target="rejectIds"></div>
+        <% end %>
+      <% end %>
+
     <div class="table-wrap table-wrap--cards">
       <table>
         <thead>
           <tr>
+            <% if @can_review_bulk %>
+              <th class="adj-check-col">
+                <input type="checkbox" class="bulk-check-all"
+                       data-action="change->adjustment-bulk-review#toggleAll"
+                       aria-label="<%= t('adjustments.bulk.select_all') %>">
+              </th>
+            <% end %>
             <th><%= t("adjustments.id") %></th>
             <th><%= t("adjustments.employee") %></th>
             <th><%= t("adjustments.type") %></th>
@@ -428,6 +474,17 @@
           <% @adjustments.each do |adj| %>
             <% reviewer = adj.approved_by || adj.rejected_by || adj.reviewed_by %>
             <tr class="adj-row">
+              <% if @can_review_bulk %>
+                <%# Row selector — only pending rows this reviewer may act on are selectable. %>
+                <td class="adj-check-col">
+                  <% if adj.pending_review? && policy(adj).approve? %>
+                    <input type="checkbox" class="bulk-check-row" value="<%= adj.id %>"
+                           data-action="change->adjustment-bulk-review#rowChanged"
+                           aria-label="<%= t('adjustments.bulk.select_row') %>">
+                  <% end %>
+                </td>
+              <% end %>
+
               <%# Adjustment ID %>
               <td class="td-secondary">
                 <%= link_to "##{adj.id}", adjustment_path(adj), class: "adj-id-link" %>
@@ -526,6 +583,8 @@
         </tbody>
       </table>
     </div>
+
+    <% end %>
   <% end %>
 
 </div>

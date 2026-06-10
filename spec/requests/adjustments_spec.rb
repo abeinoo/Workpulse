@@ -12,9 +12,10 @@ RSpec.describe "Adjustments workflow", type: :request do
   let(:manager)  { create(:user, :branch_manager, business: business) }
   # Accountant: a different user who can approve.
   let(:approver) { create(:user, :accountant, business: business) }
+  let(:shift) { create(:shift, :fixed_time, business: business) }
   let(:employee) do
     u = create(:user, business: business)
-    create(:user_branch, user: u, branch: branch)
+    create(:shift_assignment, user: u, branch: branch, shift: shift)
     u
   end
 
@@ -87,12 +88,14 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(response.body).to include("Unmanaged Person")
     end
 
-    it "limits a managed-scope adjustments manager to their hierarchy" do
+    it "limits a branch-scoped adjustments manager to their branch" do
       role = create(:permission_role, business: business,
                     permissions: %w[view_payroll manage_adjustments],
-                    permission_scopes: { "manage_adjustments" => "managed_employees_only" })
+                    permission_scopes: { "manage_adjustments" => "branch" })
       restricted = create(:user, business: business, permission_role: role)
-      create(:user, business: business, manager: restricted, first_name: "My", last_name: "Report")
+      r_branch   = create(:branch, business: business, branch_manager_id: restricted.id)
+      report     = create(:user, business: business, first_name: "My", last_name: "Report")
+      create(:shift_assignment, user: report, branch: r_branch, shift: shift)
       create(:user, business: business, first_name: "Outside", last_name: "Scope")
       sign_in restricted
 
@@ -116,6 +119,22 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(adj.approved_at).to be_nil
       expect(adj.period_month).to eq(7)
       expect(adj.period_year).to eq(2026)
+    end
+
+    it "auto-approves an adjustment created by the business owner" do
+      owner = create(:user, :owner, business: business)
+      sign_in owner
+
+      expect {
+        post adjustments_path, params: create_params
+      }.to change(PayrollAdjustment, :count).by(1)
+
+      adj = PayrollAdjustment.last
+      expect(adj.review_status).to eq("approved")
+      expect(adj.created_by).to eq(owner)
+      expect(adj.approved_by).to eq(owner)
+      expect(adj.approved_at).to be_present
+      expect(adj.reviewed_by).to eq(owner)
     end
 
     it "blocks creation for a paid period with the processed message" do
@@ -156,6 +175,69 @@ RSpec.describe "Adjustments workflow", type: :request do
     end
   end
 
+  describe "Bulk approve / reject" do
+    let!(:adj_a) do
+      create(:payroll_adjustment, :cash_incentive, business: business, user: employee,
+             created_by: manager, payroll_period: draft_period, review_status: :pending_review)
+    end
+    let!(:adj_b) do
+      create(:payroll_adjustment, :commission, business: business, user: employee,
+             created_by: manager, payroll_period: draft_period, review_status: :pending_review)
+    end
+    let!(:adj_done) do
+      create(:payroll_adjustment, :cash_incentive, :approved, business: business, user: employee,
+             created_by: manager, payroll_period: draft_period)
+    end
+
+    it "POST bulk_approve approves the selected pending rows and reports counts" do
+      sign_in approver
+      post bulk_approve_adjustments_path,
+           params: { adjustment_ids: [ adj_a.id, adj_b.id, adj_done.id ] }
+
+      expect(response).to redirect_to(adjustments_path)
+      expect(adj_a.reload.review_status).to eq("approved")
+      expect(adj_a.approved_by).to eq(approver)
+      expect(adj_b.reload.review_status).to eq("approved")
+      # adj_done was already approved → skipped, not re-touched.
+      expect(flash[:notice]).to include("Approved: 2", "Skipped: 1", "Failed: 0")
+    end
+
+    it "POST bulk_reject rejects the selected pending rows" do
+      sign_in approver
+      post bulk_reject_adjustments_path, params: { adjustment_ids: [ adj_a.id ] }
+
+      expect(adj_a.reload.review_status).to eq("rejected")
+      expect(adj_a.rejected_by).to eq(approver)
+      expect(flash[:notice]).to include("Rejected: 1")
+    end
+
+    it "counts an adjustment the reviewer created themselves as failed (creator ≠ approver)" do
+      own = create(:payroll_adjustment, :cash_incentive, business: business, user: employee,
+                   created_by: approver, payroll_period: draft_period, review_status: :pending_review)
+      sign_in approver
+      post bulk_approve_adjustments_path, params: { adjustment_ids: [ own.id ] }
+
+      expect(own.reload.review_status).to eq("pending_review")
+      # Nothing succeeded → surfaced as an alert rather than a notice.
+      expect(flash[:alert]).to include("Approved: 0", "Failed: 1")
+    end
+
+    it "forbids an employee from using the bulk endpoint and changes nothing" do
+      sign_in employee
+      post bulk_approve_adjustments_path, params: { adjustment_ids: [ adj_a.id, adj_b.id ] }
+
+      expect(response).to redirect_to(root_path)
+      expect(adj_a.reload.review_status).to eq("pending_review")
+      expect(adj_b.reload.review_status).to eq("pending_review")
+    end
+
+    it "reports when nothing actionable was selected" do
+      sign_in approver
+      post bulk_approve_adjustments_path, params: { adjustment_ids: [] }
+      expect(flash[:alert]).to eq(I18n.t("adjustments.bulk.none_selected"))
+    end
+  end
+
   describe "GET /adjustments (index)" do
     let!(:adj_june) do
       create(:payroll_adjustment, :cash_incentive, business: business, user: employee,
@@ -184,6 +266,88 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(response.body).to include(adjustment_path(adj_june))
       expect(response.body).to include(I18n.t("adjustments.view_details"))
     end
+
+    it "shows the bulk Approve/Reject controls to a reviewer" do
+      sign_in approver
+      get adjustments_path
+
+      expect(response.body).to include('data-controller="adjustment-bulk-review"')
+      expect(response.body).to include("bulk-check-all")
+      expect(response.body).to include(I18n.t("adjustments.bulk.approve_selected"))
+      expect(response.body).to include(I18n.t("adjustments.bulk.reject_selected"))
+    end
+
+    context "as a regular employee" do
+      let!(:my_approved) do
+        create(:payroll_adjustment, :cash_incentive, :approved, business: business, user: employee,
+               created_by: manager, payroll_period: nil, period_month: 6, period_year: 2026)
+      end
+      let!(:my_pending) do
+        create(:payroll_adjustment, :commission, business: business, user: employee,
+               created_by: manager, payroll_period: nil, period_month: 7, period_year: 2026)
+      end
+      let!(:coworker_approved) do
+        coworker = create(:user, business: business)
+        create(:payroll_adjustment, :cash_incentive, :approved, business: business, user: coworker,
+               created_by: manager, payroll_period: nil, period_month: 6, period_year: 2026)
+      end
+
+      it "can open the Adjustments page and sees ONLY their own approved adjustments" do
+        sign_in employee
+        get adjustments_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include(adjustment_path(my_approved))       # own + approved
+        expect(response.body).not_to include(adjustment_path(my_pending))    # own but pending → hidden
+        expect(response.body).not_to include(adjustment_path(coworker_approved)) # another employee → hidden
+      end
+
+      it "does not expose analytics, creation, or bulk-review actions to the employee" do
+        sign_in employee
+        get adjustments_path
+
+        expect(response.body).not_to include('class="adj-stats"')                   # Analytics & Reports hidden
+        expect(response.body).not_to include(new_adjustment_path)                   # cannot create
+        expect(response.body).not_to include('data-controller="adjustment-bulk-review"') # no bulk UI
+        expect(response.body).not_to include("bulk-check-all")
+      end
+
+      it "shows an Adjustments link in the employee sidebar navigation" do
+        sign_in employee
+        get root_path # dashboard — renders the application layout + sidebar
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("href=\"#{adjustments_path}\"")
+        expect(response.body).to include(I18n.t("nav.adjustments"))
+      end
+    end
+
+    # Analytics & Reports (the aggregate stats strip + insights) are Business-scope only.
+    context "Adjustment Analytics & Reports visibility" do
+      it "shows analytics to the business owner" do
+        owner = create(:user, :owner, business: business)
+        sign_in owner
+        get adjustments_path
+
+        expect(response.body).to include('class="adj-stats"')
+      end
+
+      it "shows analytics to a business-scope admin (accountant)" do
+        sign_in approver
+        get adjustments_path
+
+        expect(response.body).to include('class="adj-stats"')
+      end
+
+      it "hides analytics from a branch-scope manager" do
+        sign_in manager
+        get adjustments_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include('class="adj-stats"')
+        expect(response.body).not_to include('class="adj-insights"')
+      end
+    end
   end
 
   describe "GET /adjustments/:id (show)" do
@@ -205,7 +369,17 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(response.body).to include(I18n.t("adjustments.show.timeline.submitted"))
     end
 
-    it "renders for the subject employee" do
+    it "404s for the subject employee while the adjustment is still pending" do
+      # The subject employee may only view their own adjustments once approved.
+      sign_in employee
+      get adjustment_path(adjustment) # pending_review
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "renders for the subject employee once the adjustment is approved" do
+      adjustment.update_columns(review_status: "approved",
+                                approved_by_id: approver.id, approved_at: Time.current,
+                                reviewed_by_id: approver.id, reviewed_at: Time.current)
       sign_in employee
       get adjustment_path(adjustment)
       expect(response).to have_http_status(:ok)

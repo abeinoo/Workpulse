@@ -69,13 +69,11 @@ RSpec.describe "Multi-branch payroll cycle — Al-Noor Group", type: :service do
 
   # sara: monthly 9 900, all 22 days present → net = 9 900
   let!(:sara)         { create(:user, business: business) }
-  let!(:sara_ub)      { create(:user_branch, user: sara, branch: riyadh) }
   let!(:sara_salary)  { create(:salary_profile, :monthly, user: sara, base_amount: 9_900.0, effective_from: Date.new(2024, 1, 1)) }
   let!(:sara_sa)      { create(:shift_assignment, user: sara, branch: riyadh, shift: shift, effective_from: Date.new(2024, 1, 1)) }
 
   # farid: monthly 6 600 (daily = 300), 20/22 days, day 5 late 60 min, advance 600 → net = 5 325
   let!(:farid)        { create(:user, business: business) }
-  let!(:farid_ub)     { create(:user_branch, user: farid, branch: riyadh) }
   let!(:farid_salary) { create(:salary_profile, :monthly, user: farid, base_amount: 6_600.0, effective_from: Date.new(2024, 1, 1)) }
   let!(:farid_sa)     { create(:shift_assignment, user: farid, branch: riyadh, shift: shift, effective_from: Date.new(2024, 1, 1)) }
 
@@ -90,7 +88,6 @@ RSpec.describe "Multi-branch payroll cycle — Al-Noor Group", type: :service do
 
   # layla: monthly 4 400 (daily = 200), all 22 days present, obligation 400/month → net = 4 000
   let!(:layla)           { create(:user, business: business) }
-  let!(:layla_ub)        { create(:user_branch, user: layla, branch: riyadh) }
   let!(:layla_salary)    { create(:salary_profile, :monthly, user: layla, base_amount: 4_400.0, effective_from: Date.new(2024, 1, 1)) }
   let!(:layla_sa)        { create(:shift_assignment, user: layla, branch: riyadh, shift: shift, effective_from: Date.new(2024, 1, 1)) }
   let!(:layla_obligation) do
@@ -105,7 +102,6 @@ RSpec.describe "Multi-branch payroll cycle — Al-Noor Group", type: :service do
 
   # noor: monthly 8 800, all 22 days present, approved bonus 400 → net = 9 200
   let!(:noor)        { create(:user, business: business) }
-  let!(:noor_ub)     { create(:user_branch, user: noor, branch: jeddah) }
   let!(:noor_salary) { create(:salary_profile, :monthly, user: noor, base_amount: 8_800.0, effective_from: Date.new(2024, 1, 1)) }
   let!(:noor_sa)     { create(:shift_assignment, user: noor, branch: jeddah, shift: shift, effective_from: Date.new(2024, 1, 1)) }
 
@@ -125,7 +121,6 @@ RSpec.describe "Multi-branch payroll cycle — Al-Noor Group", type: :service do
 
   # hassan: monthly 5 500 (daily = 250), 19/22 present (3 absent) → net = 4 750
   let!(:hassan)        { create(:user, business: business) }
-  let!(:hassan_ub)     { create(:user_branch, user: hassan, branch: jeddah) }
   let!(:hassan_salary) { create(:salary_profile, :monthly, user: hassan, base_amount: 5_500.0, effective_from: Date.new(2024, 1, 1)) }
   let!(:hassan_sa)     { create(:shift_assignment, user: hassan, branch: jeddah, shift: shift, effective_from: Date.new(2024, 1, 1)) }
 

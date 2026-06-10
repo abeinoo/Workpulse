@@ -1,10 +1,9 @@
 require "rails_helper"
 
-# Regression: branch membership is now derived from active ShiftAssignment, not the
-# legacy (unpopulated) UserBranch join table. Reproduces the production bug where
-# "Branch Only" payroll scope returned no employees and the Complete Branch Review
-# button never appeared, because those paths queried UserBranch — which no runtime
-# code writes. Every employee here is shift-assigned but has NO UserBranch row.
+# Regression: branch membership is derived from active ShiftAssignment. Reproduces
+# the production bug where "Branch Only" payroll scope returned no employees and the
+# Complete Branch Review button never appeared. Every employee here is tied to their
+# branch solely by an active ShiftAssignment.
 RSpec.describe "Shift-driven branch membership", type: :model do
   let(:business) { create(:business) }
   let(:branch)   { create(:branch, business: business) }
@@ -18,11 +17,10 @@ RSpec.describe "Shift-driven branch membership", type: :model do
   end
   let(:manager) { create(:user, business: business, permission_role: role) }
 
-  # Shift-assigned to the branch, NO UserBranch row, NO manager_id link → only an
-  # active ShiftAssignment ties them to the branch.
+  # Shift-assigned to the branch → only an active ShiftAssignment ties them to it.
   let(:emp_shift_only)   { create(:user, business: business) }
-  # Shift-assigned AND a direct report (manager_id) — must also appear.
-  let(:emp_with_manager) { create(:user, business: business, manager: manager) }
+  # A second employee also assigned to the manager's branch — must also appear.
+  let(:emp_with_manager) { create(:user, business: business) }
   # In a different branch entirely — must NOT appear.
   let(:other_branch)     { create(:branch, business: business) }
   let(:emp_other_branch) { create(:user, business: business) }
@@ -32,10 +30,6 @@ RSpec.describe "Shift-driven branch membership", type: :model do
     create(:shift_assignment, user: emp_shift_only,   branch: branch,       shift: shift)
     create(:shift_assignment, user: emp_with_manager, branch: branch,       shift: shift)
     create(:shift_assignment, user: emp_other_branch, branch: other_branch, shift: shift)
-  end
-
-  it "has NO UserBranch rows anywhere (proves the path no longer depends on it)" do
-    expect(UserBranch.count).to eq(0)
   end
 
   describe "EmployeeScope#branch (Branch Only)" do
@@ -49,13 +43,13 @@ RSpec.describe "Shift-driven branch membership", type: :model do
       expect(ids).not_to include(emp_other_branch.id)
     end
 
-    it "returns the shift-only employee even though they have no UserBranch and no manager_id" do
+    it "returns an employee tied to the branch solely by an active ShiftAssignment" do
       expect(ids).to include(emp_shift_only.id)
     end
   end
 
-  describe "EmployeeScope#relation (Managed Employees) — unchanged" do
-    it "still returns the manager's direct reports" do
+  describe "EmployeeScope#relation (default hierarchy)" do
+    it "returns employees assigned to the manager's branch" do
       expect(EmployeeScope.new(manager).relation.pluck(:id)).to include(emp_with_manager.id)
     end
   end

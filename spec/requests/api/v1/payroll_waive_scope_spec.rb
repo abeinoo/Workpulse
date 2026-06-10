@@ -7,23 +7,27 @@ require "rails_helper"
 # with 404, that employees cannot waive their own deductions, and that every
 # successful waive creates a PayrollAuditLog with the correct fields.
 #
-# Setup mirrors payroll_visibility_spec: one business, two branches, one manager
-# per branch, one employee per branch.  A direct manager operates without any
-# shared UserBranch rows (manager_id path only).
+# Setup: one business, three branches, one manager per branch, one employee per
+# branch. Branch membership is shift-driven (active ShiftAssignment) — there is
+# no UserBranch and no manager_id ownership.
 RSpec.describe "Payroll Line Item Waive Scope", type: :request do
   let(:business)   { create(:business) }
   let(:branch_a)   { create(:branch, business: business) }
   let(:branch_b)   { create(:branch, business: business) }
+  let(:branch_c)   { create(:branch, business: business) }
 
   let!(:owner)     { create(:user, :owner, business: business) }
+
+  let(:shift)      { create(:shift, :fixed_time, business: business) }
 
   let(:manager_a)  { create(:user, business: business) }
   let(:manager_b)  { create(:user, business: business) }
   let(:employee_a) { create(:user, business: business) }
   let(:employee_b) { create(:user, business: business) }
 
+  # A third branch's manager and employee (was the "direct manager" pair).
   let(:direct_manager) { create(:user, business: business) }
-  let(:direct_report)  { create(:user, business: business, manager: direct_manager) }
+  let(:direct_report)  { create(:user, business: business) }
 
   # A draft period so all waive/approve/reject operations are allowed.
   let(:period) { create(:payroll_period, business: business) }
@@ -46,12 +50,12 @@ RSpec.describe "Payroll Line Item Waive Scope", type: :request do
   before do
     branch_a.update_column(:branch_manager_id, manager_a.id)
     branch_b.update_column(:branch_manager_id, manager_b.id)
-    create(:user_branch, user: manager_a,  branch: branch_a)
-    create(:user_branch, user: manager_b,  branch: branch_b)
-    create(:user_branch, user: employee_a, branch: branch_a)
-    create(:user_branch, user: employee_b, branch: branch_b)
+    branch_c.update_column(:branch_manager_id, direct_manager.id)
+    create(:shift_assignment, user: employee_a,    branch: branch_a, shift: shift)
+    create(:shift_assignment, user: employee_b,    branch: branch_b, shift: shift)
+    create(:shift_assignment, user: direct_report, branch: branch_c, shift: shift)
     # Permission-driven: managers need view_payroll + approve_adjustments.
-    # Scope still resolved by EmployeeScope via branch/manager relationships.
+    # Scope still resolved by EmployeeScope via branch relationships.
     [manager_a, manager_b, direct_manager].each do |m|
       m.update_column(:permission_role_id, manager_role.id)
     end
@@ -105,11 +109,10 @@ RSpec.describe "Payroll Line Item Waive Scope", type: :request do
     end
   end
 
-  # ── Direct manager scope (no UserBranch) ──────────────────────────────────
+  # ── Third-branch manager scope ────────────────────────────────────────────
 
-  describe "direct manager waive scope" do
-    it "can waive their direct report's deduction without any shared UserBranch row" do
-      expect(UserBranch.where(user: direct_report).exists?).to be false
+  describe "branch C manager waive scope" do
+    it "can waive their branch employee's deduction (shift-driven membership)" do
       waive(direct_manager, deduction_dr.id)
       expect(response).to have_http_status(:ok)
       expect(deduction_dr.reload.review_status).to eq("waived")
@@ -262,16 +265,17 @@ RSpec.describe "Payroll Line Item Waive Scope", type: :request do
   # ── EmployeeScope delegation regression ───────────────────────────────────
 
   describe "EmployeeScope delegation regression" do
-    it "branch manager sees branch employee's line item even when employee has no manager_id" do
-      expect(employee_a.manager_id).to be_nil
+    it "branch manager sees branch employee's line item via active assignment" do
       waive(manager_a, deduction_a.id)
       expect(response).to have_http_status(:ok)
     end
 
-    it "direct manager sees direct report's line item even with no UserBranch" do
-      expect(UserBranch.where(user: direct_report).exists?).to be false
-      waive(direct_manager, deduction_dr.id)
-      expect(response).to have_http_status(:ok)
+    it "an employee with no active assignment is not waiveable by any branch manager" do
+      floating       = create(:user, business: business)
+      floating_entry = create(:payroll_entry, payroll_period: period, user: floating)
+      floating_ded   = create(:payroll_line_item, :late_penalty, payroll_entry: floating_entry)
+      waive(manager_a, floating_ded.id)
+      expect(response).to have_http_status(:not_found)
     end
   end
 end

@@ -5,12 +5,14 @@ RSpec.describe UserPolicy, type: :model do
   let(:branch)      { create(:branch, business: business) }
   let(:super_admin) { create(:user, :super_admin, business: business) }
   let(:manager)     { create(:user, :branch_manager, business: business) }
-  let(:employee)    { create(:user, business: business, manager: manager) }
+  let(:employee)    { create(:user, business: business) }
   let(:other_user)  { create(:user, business: business) }
+  let(:shift)       { create(:shift, :fixed_time, business: business) }
 
   before do
-    create(:user_branch, user: manager, branch: branch)
-    create(:user_branch, user: employee, branch: branch)
+    # `manager` manages `branch`; `employee` is assigned to it (shift-driven).
+    branch.update_column(:branch_manager_id, manager.id)
+    create(:shift_assignment, user: employee, branch: branch, shift: shift)
   end
 
   subject { described_class }
@@ -45,7 +47,6 @@ RSpec.describe UserPolicy, type: :model do
     it "permits branch_manager with view_employees — scope handles branch isolation" do
       other_branch = create(:branch, business: business)
       other_employee = create(:user, business: business)
-      create(:user_branch, user: other_employee, branch: other_branch)
       expect(subject).to permit(manager, other_employee)
     end
 
@@ -119,9 +120,8 @@ RSpec.describe UserPolicy, type: :model do
         expect(scope).not_to include(other_business_user)
       end
 
-      it "excludes employees managed by a different manager" do
-        other_manager  = create(:user, :branch_manager, business: business)
-        other_employee = create(:user, business: business, manager: other_manager)
+      it "excludes employees not assigned to the manager's branch" do
+        other_employee = create(:user, business: business)
         scope = described_class::Scope.new(manager, User).resolve
         expect(scope).not_to include(other_employee)
       end
