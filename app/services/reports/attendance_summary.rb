@@ -27,8 +27,8 @@ module Reports
     private
 
     STAT_KEYS = %i[
-      total_days days_present late_days early_leave_days absent_days
-      total_late_minutes total_early_leave_minutes total_worked_minutes
+      total_days days_present late_days early_leave_days overtime_days absent_days
+      total_late_minutes total_early_leave_minutes total_overtime_minutes total_worked_minutes
     ].freeze
 
     def per_user_stats
@@ -40,10 +40,12 @@ module Reports
           "users.first_name",
           "users.last_name",
           "COUNT(*) AS total_days",
-          "SUM(CASE WHEN attendance_records.status IN ('present','late','early_leave') THEN 1 ELSE 0 END) AS days_present",
-          "SUM(CASE WHEN attendance_records.status = 'late'        THEN 1 ELSE 0 END) AS late_days",
-          "SUM(CASE WHEN attendance_records.status = 'early_leave' THEN 1 ELSE 0 END) AS early_leave_days",
+          "SUM(CASE WHEN attendance_records.status IN ('present','late','early_leave','late_early_leave','overtime') THEN 1 ELSE 0 END) AS days_present",
+          "SUM(CASE WHEN attendance_records.status IN ('late','late_early_leave')        THEN 1 ELSE 0 END) AS late_days",
+          "SUM(CASE WHEN attendance_records.status IN ('early_leave','late_early_leave') THEN 1 ELSE 0 END) AS early_leave_days",
+          "SUM(CASE WHEN attendance_records.status = 'overtime'    THEN 1 ELSE 0 END) AS overtime_days",
           "SUM(CASE WHEN attendance_records.status = 'absent'      THEN 1 ELSE 0 END) AS absent_days",
+          "SUM(COALESCE(overtime_minutes, 0))   AS total_overtime_minutes",
           "SUM(COALESCE(late_minutes, 0))        AS total_late_minutes",
           "SUM(COALESCE(early_leave_minutes, 0)) AS total_early_leave_minutes",
           "SUM(COALESCE(worked_minutes, 0))      AS total_worked_minutes"
@@ -59,9 +61,11 @@ module Reports
         days_present:              r.days_present.to_i,
         late_days:                 r.late_days.to_i,
         early_leave_days:          r.early_leave_days.to_i,
+        overtime_days:             r.overtime_days.to_i,
         absent_days:               r.absent_days.to_i,
         total_late_minutes:        r.total_late_minutes.to_i,
         total_early_leave_minutes: r.total_early_leave_minutes.to_i,
+        total_overtime_minutes:    r.total_overtime_minutes.to_i,
         total_worked_minutes:      r.total_worked_minutes.to_i
       }
     end

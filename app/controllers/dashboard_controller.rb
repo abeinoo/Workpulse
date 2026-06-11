@@ -158,8 +158,8 @@ class DashboardController < ApplicationController
       date: today.beginning_of_month..today
     )
     @month_stats = {
-      days_present:  month_records.where(status: %w[present late early_leave]).count,
-      late_arrivals: month_records.where(status: "late").count,
+      days_present:  month_records.where(status: AttendanceRecord::ATTENDED_STATUSES).count,
+      late_arrivals: month_records.where(status: AttendanceRecord::LATE_STATUSES).count,
       absences:      month_records.where(status: "absent").count,
     }
 

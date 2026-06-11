@@ -249,7 +249,7 @@ class AttendanceRecordsController < ApplicationController
                    .where(shift_assignments: { shift_id: params[:shift_id] })
     end
 
-    scope = scope.where(status: "late")     if params[:late] == "1"
+    scope = scope.where(status: AttendanceRecord::LATE_STATUSES) if params[:late] == "1"
     scope = scope.where(check_out_at: nil)  if params[:missing_checkout] == "1"
 
     if params[:overnight] == "1"

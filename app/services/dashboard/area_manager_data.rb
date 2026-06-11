@@ -157,9 +157,9 @@ module Dashboard
           assigned_uids = assigned_by_branch[branch.id].uniq
           total_emp     = (employees_by_branch[branch.id] || []).size
 
-          present    = records.count { |r| %w[present late early_leave].include?(r.status) }
+          present    = records.count { |r| AttendanceRecord::ATTENDED_STATUSES.include?(r.status) }
           incomplete = records.count { |r| r.status == "incomplete" }
-          late       = records.count { |r| r.status == "late" }
+          late       = records.count(&:counts_as_late?)
           checked_in = present + incomplete
 
           # Absent: had a shift today but no check-in at all.

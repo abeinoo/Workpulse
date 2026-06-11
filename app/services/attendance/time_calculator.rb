@@ -63,14 +63,91 @@ module Attendance
       end
     end
 
-    def self.derive_status(late_minutes, early_leave_minutes)
-      if late_minutes.to_i > 0
+    # Minutes worked beyond the scheduled shift duration plus the business-wide
+    # overtime grace threshold. This is the SINGLE source of truth shared with
+    # Salary::OvertimeCalculator so attendance status and payroll never diverge.
+    #
+    # Returns 0 when:
+    #   - the rule profile disables overtime
+    #   - the shift has no schedulable duration
+    #   - worked time does not exceed scheduled + grace
+    #
+    # break_minutes from the rule profile are deducted from worked first.
+    # overtime_grace_minutes is the business-level threshold (business.overtime_grace_minutes).
+    def self.overtime_minutes(shift, worked_minutes, overtime_grace_minutes:, rule_profile: nil)
+      return 0 if rule_profile && !rule_profile.overtime_enabled?
+      return 0 unless shift
+
+      scheduled = shift.duration_minutes.to_i
+      return 0 if scheduled <= 0
+
+      worked = worked_minutes.to_i
+      return 0 if worked <= 0
+
+      effective_worked = worked - rule_profile&.effective_break_minutes.to_i
+      [ effective_worked - scheduled - overtime_grace_minutes.to_i, 0 ].max
+    end
+
+    # Final attendance outcome after grace periods, penalty thresholds, and overtime.
+    # Inputs (late_minutes / early_leave_minutes) are already grace-adjusted.
+    #
+    #   shift:      used to resolve penalty-rule thresholds (nil → grace-only gating)
+    #   completed:  both punches present? Open records can only be late/incomplete.
+    #
+    # Penalty-gated with grace fallback: Late / Early Departure flag only once the
+    # minutes reach the LOWEST configured penalty threshold for that rule type. When a
+    # shift has no penalty rules the threshold is 1 — i.e. any minute past grace flags
+    # (grace-only fallback). So 10 min early under a 30-min first rule stays Present.
+    #
+    # Priority (single-valued status):
+    #   late + early → late_early_leave
+    #   late         → late        (late beats overtime)
+    #   early        → early_leave  (early beats overtime)
+    #   overtime     → overtime
+    #   else         → present
+    def self.derive_status(shift:, late_minutes:, early_leave_minutes:, overtime_minutes: 0, completed: true)
+      late_flagged  = flagged?(late_minutes,        late_threshold(shift))
+      early_flagged = flagged?(early_leave_minutes, early_threshold(shift))
+
+      return late_flagged ? "late" : "incomplete" unless completed
+
+      if late_flagged && early_flagged
+        "late_early_leave"
+      elsif late_flagged
         "late"
-      elsif early_leave_minutes.to_i > 0
+      elsif early_flagged
         "early_leave"
+      elsif overtime_minutes.to_i > 0
+        "overtime"
       else
         "present"
       end
     end
+
+    # A minute value flags only when it is positive AND has reached the threshold.
+    def self.flagged?(minutes, threshold)
+      minutes.to_i.positive? && minutes.to_i >= threshold
+    end
+    private_class_method :flagged?
+
+    # Lowest late-arrival penalty threshold, or 1 (grace fallback) when none configured.
+    # Hour-based shifts have no late concept → Float::INFINITY so late never flags.
+    # Filters the (possibly eager-loaded) association in Ruby to avoid N+1.
+    def self.late_threshold(shift)
+      return Float::INFINITY if shift.nil? || shift.hour_based?
+      rules = shift.penalty_rules.select(&:late_arrival?)
+      PenaltyRule.lowest_threshold(rules) || 1
+    end
+    private_class_method :late_threshold
+
+    # Lowest early-leave penalty threshold, or 1 (grace fallback) when none configured.
+    # Hour-based shifts apply ALL penalty rules to the hour shortfall (mirrors
+    # PenaltyCalculator), so the threshold is the lowest across every rule.
+    def self.early_threshold(shift)
+      return 1 if shift.nil?
+      rules = shift.hour_based? ? shift.penalty_rules.to_a : shift.penalty_rules.select(&:early_leave?)
+      PenaltyRule.lowest_threshold(rules) || 1
+    end
+    private_class_method :early_threshold
   end
 end

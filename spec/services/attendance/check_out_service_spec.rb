@@ -36,9 +36,18 @@ RSpec.describe Attendance::CheckOutService do
     end
 
     it "sets status to :present when no early leave" do
-      travel_to(Time.zone.parse("17:00")) do
+      # Exactly the scheduled 8h (09:00–17:00) → no early leave, no overtime.
+      travel_to(open_record.check_in_at + 8.hours) do
         call
         expect(open_record.reload.status).to eq("present")
+      end
+    end
+
+    it "sets status to :overtime when working beyond the shift + grace" do
+      travel_to(open_record.check_in_at + 10.hours) do
+        call
+        expect(open_record.reload.status).to eq("overtime")
+        expect(open_record.reload.overtime_minutes).to eq(120)
       end
     end
 

@@ -107,20 +107,35 @@ module Attendance
         return Result.new(success: true, action: "rejected_spam", log: log)
       end
 
-      shift  = record.shift_assignment&.shift || @assignment.shift
-      branch = record.branch || @assignment.branch
+      shift        = record.shift_assignment&.shift || @assignment.shift
+      branch       = record.branch || @assignment.branch
+      rule_profile = record.shift_assignment&.rule_profile || @assignment.rule_profile
 
+      # worked / early_leave are computed exactly as before (no grace profile) so
+      # payroll-input minute values are unchanged. overtime_minutes is display-only.
       worked_mins      = ((@punched_at - record.check_in_at) / 60).to_i
       early_leave_mins = Attendance::TimeCalculator.early_leave_minutes(
         shift, @punched_at, worked_mins, branch
       )
-      status = Attendance::TimeCalculator.derive_status(record.late_minutes, early_leave_mins)
+      overtime_mins    = Attendance::TimeCalculator.overtime_minutes(
+        shift, worked_mins,
+        overtime_grace_minutes: @business.overtime_grace_minutes.to_i,
+        rule_profile:           rule_profile
+      )
+      status = Attendance::TimeCalculator.derive_status(
+        shift:               shift,
+        late_minutes:        record.late_minutes,
+        early_leave_minutes: early_leave_mins,
+        overtime_minutes:    overtime_mins,
+        completed:           true
+      )
 
       record.assign_attributes(
         check_out_at:        @punched_at,
         check_out_source:    "biometric_device",
         worked_minutes:      worked_mins,
         early_leave_minutes: early_leave_mins,
+        overtime_minutes:    overtime_mins,
         status:              status
       )
 

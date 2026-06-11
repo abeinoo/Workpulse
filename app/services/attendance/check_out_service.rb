@@ -27,6 +27,11 @@ module Attendance
       early_leave_mins = shift ? TimeCalculator.early_leave_minutes(
         shift, now, worked_mins, @branch, rule_profile: rule_profile
       ) : 0
+      overtime_mins    = TimeCalculator.overtime_minutes(
+        shift, worked_mins,
+        overtime_grace_minutes: business.overtime_grace_minutes.to_i,
+        rule_profile:           rule_profile
+      )
 
       record.assign_attributes(
         check_out_at:        now,
@@ -35,7 +40,14 @@ module Attendance
         check_out_longitude: @longitude,
         worked_minutes:      worked_mins,
         early_leave_minutes: early_leave_mins,
-        status:              TimeCalculator.derive_status(record.late_minutes, early_leave_mins)
+        overtime_minutes:    overtime_mins,
+        status:              TimeCalculator.derive_status(
+          shift:               shift,
+          late_minutes:        record.late_minutes,
+          early_leave_minutes: early_leave_mins,
+          overtime_minutes:    overtime_mins,
+          completed:           true
+        )
       )
 
       record.save ? Result.new(success: true, record: record)
@@ -43,6 +55,10 @@ module Attendance
     end
 
     private
+
+    def business
+      @branch&.business || @user.business
+    end
 
     def open_record
       AttendanceRecord.where(user: @user, check_out_at: nil).order(check_in_at: :desc).first

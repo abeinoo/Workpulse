@@ -349,7 +349,8 @@ RSpec.describe Attendance::CsvImporter do
 
       record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
       expect(record.check_out_at).to eq(Time.zone.parse("#{work_day} 18:00:00"))
-      expect(record.status).to       eq("present")
+      # 09:00–18:00 on a 09:00–17:00 shift → 60 min past shift end ⇒ overtime
+      expect(record.status).to       eq("overtime")
     end
 
     it "does not create a duplicate when an existing record already covers the day" do
@@ -603,7 +604,8 @@ RSpec.describe Attendance::CsvImporter do
 
       record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
       expect(record.late_minutes).to eq(0)
-      expect(record.status).to       eq("present")
+      # 08:30–17:00 = 30 min beyond the scheduled 8h (grace 0) ⇒ overtime, not late
+      expect(record.status).to       eq("overtime")
     end
 
     # ── Early leave ───────────────────────────────────────────────────────────
@@ -625,8 +627,8 @@ RSpec.describe Attendance::CsvImporter do
       expect(record.status).to              eq("early_leave")
     end
 
-    it "sets status to 'late' (not 'early_leave') when both penalties apply" do
-      # TimeCalculator.derive_status: late takes precedence over early_leave
+    it "sets status to 'late_early_leave' when both penalties apply" do
+      # TimeCalculator.derive_status: late + early-departure → combined status
       employee = make_employee(code: "BOTH001")  # shift 09:00–17:00
       work_day = Date.current
 
@@ -639,7 +641,7 @@ RSpec.describe Attendance::CsvImporter do
       record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
       expect(record.late_minutes).to        eq(30)
       expect(record.early_leave_minutes).to eq(60)
-      expect(record.status).to              eq("late")
+      expect(record.status).to              eq("late_early_leave")
     end
 
     # ── Hour-based shifts ─────────────────────────────────────────────────────
@@ -782,10 +784,10 @@ RSpec.describe Attendance::CsvImporter do
       run_import(csv)
 
       record = AttendanceRecord.find_by!(user: employee, work_date: work_day)
-      expect(record.late_minutes).to        eq(30)          # correctly preserved
-      expect(record.early_leave_minutes).to eq(60)          # newly computed
-      expect(record.worked_minutes).to      eq(390)         # 09:30–16:00 = 390 min
-      expect(record.status).to              eq("late")      # late takes precedence
+      expect(record.late_minutes).to        eq(30)               # correctly preserved
+      expect(record.early_leave_minutes).to eq(60)               # newly computed
+      expect(record.worked_minutes).to      eq(390)              # 09:30–16:00 = 390 min
+      expect(record.status).to              eq("late_early_leave") # both penalties apply
     end
 
     it "does not update existing records when CSV adds no new information" do

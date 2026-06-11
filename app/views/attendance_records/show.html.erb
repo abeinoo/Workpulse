@@ -27,8 +27,8 @@
       <% if @record.overnight? %>
         <span class="badge badge-neutral">⇌ <%= t("attendance.records.overnight") %></span>
       <% end %>
-      <span class="badge <%= @record.status == "present" ? 'badge-success' : @record.status == "late" ? 'badge-warning' : @record.status == "early_leave" ? 'badge-accent' : 'badge-neutral' %>">
-        <%= @record.status.humanize %>
+      <span class="attn-status-badge attn-status-badge--<%= @record.status %>">
+        <%= t("attendance.statuses.#{@record.status}", default: @record.status.humanize) %>
       </span>
     </div>
   </div>
@@ -72,6 +72,12 @@
       <div class="info-card__row">
         <span class="info-card__label"><%= t("attendance.records.left_early_by") %></span>
         <span class="text-warning"><%= @record.early_leave_minutes %> min</span>
+      </div>
+    <% end %>
+    <% if @record.overtime_minutes.to_i > 0 %>
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("attendance.records.overtime_by") %></span>
+        <span class="text-success"><%= @record.overtime_minutes %> min</span>
       </div>
     <% end %>
     <% if @record.branch %>

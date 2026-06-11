@@ -7327,11 +7327,13 @@ details:not([open]) .permission-group__chevron {
   text-transform: uppercase;
   white-space: nowrap;
 }
-.attn-status-badge--present     { background: var(--success-muted);  color: var(--success); }
-.attn-status-badge--late        { background: var(--warning-muted);  color: var(--warning); }
-.attn-status-badge--early_leave { background: var(--accent-muted);   color: var(--accent); }
-.attn-status-badge--incomplete  { background: var(--navy-500);        color: var(--text-2); }
-.attn-status-badge--absent      { background: var(--danger-muted);   color: var(--danger); }
+.attn-status-badge--present          { background: var(--success-muted);  color: var(--success); }
+.attn-status-badge--late             { background: var(--warning-muted);  color: var(--warning); }
+.attn-status-badge--early_leave      { background: var(--accent-muted);   color: var(--accent); }
+.attn-status-badge--late_early_leave { background: var(--danger-muted);   color: var(--danger); }
+.attn-status-badge--overtime         { background: var(--info-muted, var(--accent-muted)); color: var(--info, var(--accent)); }
+.attn-status-badge--incomplete       { background: var(--navy-500);        color: var(--text-2); }
+.attn-status-badge--absent           { background: var(--danger-muted);   color: var(--danger); }
 
 /* ── Time cells ────────────────────────────────────────────────────────────── */
 .attn-time-cell {
@@ -7363,6 +7365,32 @@ details:not([open]) .permission-group__chevron {
   border-radius: var(--radius-full);
   background: var(--warning-muted);
   color: var(--warning);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Early-departure pill ──────────────────────────────────────────────────── */
+.attn-early-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1em 0.55em;
+  border-radius: var(--radius-full);
+  background: var(--accent-muted);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Overtime pill ─────────────────────────────────────────────────────────── */
+.attn-ot-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1em 0.55em;
+  border-radius: var(--radius-full);
+  background: var(--success-muted);
+  color: var(--success);
   font-size: var(--text-xs);
   font-weight: 700;
   white-space: nowrap;

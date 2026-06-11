@@ -142,7 +142,7 @@
             hours_in    = minutes_in / 60
             mins_remain = minutes_in % 60
             is_out      = record.checked_out?
-            is_late     = record.status == "late"
+            is_late     = record.counts_as_late?
           %>
           <div class="who-here-card who-here-card--<%= is_out ? 'out' : is_late ? 'late' : 'active' %>">
             <div class="who-here-card__top">

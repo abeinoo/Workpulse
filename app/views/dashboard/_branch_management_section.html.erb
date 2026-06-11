@@ -158,15 +158,18 @@
             if rec.nil?
               status_key   = "absent"
               status_label = t("dashboard.team.not_clocked_in")
-            elsif rec.status == "present"
-              status_key   = "present"
-              status_label = t("attendance.statuses.present")
-            elsif rec.status == "late"
+            elsif rec.counts_as_late?
               status_key   = "late"
-              status_label = t("attendance.statuses.late")
+              status_label = t("attendance.statuses.#{rec.status}")
             elsif rec.status == "early_leave"
               status_key   = "early_leave"
               status_label = t("attendance.statuses.early_leave")
+            elsif rec.status == "overtime"
+              status_key   = "present"
+              status_label = t("attendance.statuses.overtime")
+            elsif rec.status == "present"
+              status_key   = "present"
+              status_label = t("attendance.statuses.present")
             elsif rec.status == "incomplete"
               status_key   = "incomplete"
               status_label = t("dashboard.team.no_checkout")

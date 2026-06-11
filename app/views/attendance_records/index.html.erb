@@ -283,6 +283,8 @@
           <th><%= t("attendance.check_out_at") %></th>
           <th><%= t("attendance.records.worked") %></th>
           <th><%= t("attendance.records.late_min") %></th>
+          <th><%= t("attendance.records.early_min") %></th>
+          <th><%= t("attendance.records.overtime_min") %></th>
           <th><%= sort_link.call("status", t("attendance.status")) %></th>
           <% if @can_manage %>
             <th></th>
@@ -380,6 +382,24 @@
               <% end %>
             </td>
 
+            <%# Early Departure %>
+            <td>
+              <% if rec.early_leave_minutes.to_i > 0 %>
+                <span class="attn-early-pill"><%= rec.early_leave_minutes %>m</span>
+              <% else %>
+                <span class="td-secondary">—</span>
+              <% end %>
+            </td>
+
+            <%# Overtime %>
+            <td>
+              <% if rec.overtime_minutes.to_i > 0 %>
+                <span class="attn-ot-pill"><%= rec.overtime_minutes %>m</span>
+              <% else %>
+                <span class="td-secondary">—</span>
+              <% end %>
+            </td>
+
             <%# Status %>
             <td>
               <span class="attn-status-badge attn-status-badge--<%= rec.status %>">
@@ -404,7 +424,7 @@
 
         <% if @records.empty? %>
           <tr>
-            <td colspan="<%= @can_manage ? 10 : 8 %>" class="td-empty">
+            <td colspan="<%= @can_manage ? 12 : 10 %>" class="td-empty">
               <div class="attn-empty">
                 <div class="attn-empty__icon" aria-hidden="true">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"

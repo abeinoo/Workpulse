@@ -59,7 +59,12 @@ module Attendance
       late_mins = assignment ? TimeCalculator.late_minutes(
         assignment.shift, now, @branch, rule_profile: assignment.rule_profile
       ) : 0
-      status    = late_mins > 0 ? "late" : "incomplete"
+      status    = TimeCalculator.derive_status(
+        shift:               assignment&.shift,
+        late_minutes:        late_mins,
+        early_leave_minutes: 0,
+        completed:           false
+      )
 
       AttendanceRecord.new(
         user:               @user,

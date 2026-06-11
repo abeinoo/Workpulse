@@ -113,7 +113,7 @@ RSpec.describe Attendance::RecordRecomputer do
     end
 
     context "late check-in AND early leave" do
-      it "sets both penalty fields and status to 'late' (late takes precedence)" do
+      it "sets both penalty fields and the combined late_early_leave status" do
         record = stale_imported_record(
           user: make_user("R008"), check_in_hour: 10, check_out_hour: 16,
           late_minutes: 0, early_leave_minutes: 0, status: "present"
@@ -121,7 +121,7 @@ RSpec.describe Attendance::RecordRecomputer do
         described_class.recompute!(record)
         expect(record.late_minutes).to        eq(60)
         expect(record.early_leave_minutes).to eq(60)
-        expect(record.status).to              eq("late")
+        expect(record.status).to              eq("late_early_leave")
       end
     end
 

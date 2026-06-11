@@ -7,20 +7,29 @@ class AttendanceRecord < ApplicationRecord
   has_many   :attendance_adjustments, dependent: :destroy
   has_many   :biometric_punch_logs, dependent: :destroy
 
-  STATUSES = %w[incomplete present late early_leave absent].freeze
+  STATUSES = %w[incomplete present late early_leave late_early_leave overtime absent].freeze
   SOURCES  = %w[mobile biometric_device import admin_manual api].freeze
 
+  # Status groups — single source of truth for reporting/dashboards so the combined
+  # status (late_early_leave) is never under-counted against late or early-leave.
+  LATE_STATUSES        = %w[late late_early_leave].freeze
+  EARLY_LEAVE_STATUSES = %w[early_leave late_early_leave].freeze
+  # Any day the employee actually attended (the inverse of absent/incomplete).
+  ATTENDED_STATUSES    = %w[present late early_leave late_early_leave overtime].freeze
+
   enum :status, {
-    incomplete:  "incomplete",
-    present:     "present",
-    late:        "late",
-    early_leave: "early_leave",
-    absent:      "absent"
+    incomplete:       "incomplete",
+    present:          "present",
+    late:             "late",
+    early_leave:      "early_leave",
+    late_early_leave: "late_early_leave",
+    overtime:         "overtime",
+    absent:           "absent"
   }
 
   validates :user, :date, :check_in_at, :work_date, presence: true
   validates :work_date, uniqueness: { scope: :user_id, message: "already has an attendance record" }
-  validates :worked_minutes, :late_minutes, :early_leave_minutes,
+  validates :worked_minutes, :late_minutes, :early_leave_minutes, :overtime_minutes,
             numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   scope :for_date,   ->(date) { where(date: date) }
@@ -54,6 +63,16 @@ class AttendanceRecord < ApplicationRecord
 
   def total_penalty_minutes
     late_minutes.to_i + early_leave_minutes.to_i
+  end
+
+  # True for any status that includes lateness (plain late or the combined status).
+  def counts_as_late?
+    LATE_STATUSES.include?(status)
+  end
+
+  # True for any status that includes an early departure (plain or combined).
+  def counts_as_early_leave?
+    EARLY_LEAVE_STATUSES.include?(status)
   end
 
   # Returns the effective source for display: check_in_source preferred, falls back to check_out_source.

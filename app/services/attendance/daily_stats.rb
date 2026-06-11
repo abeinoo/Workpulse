@@ -13,7 +13,7 @@ module Attendance
         Arel.sql("COUNT(*) FILTER (WHERE check_in_at IS NOT NULL)"),
         Arel.sql("COUNT(*) FILTER (WHERE check_in_at IS NOT NULL AND check_out_at IS NULL)"),
         Arel.sql("COUNT(*) FILTER (WHERE check_out_at IS NOT NULL)"),
-        Arel.sql("COUNT(*) FILTER (WHERE status = 'late')"),
+        Arel.sql("COUNT(*) FILTER (WHERE status IN ('late','late_early_leave'))"),
         Arel.sql("COUNT(*) FILTER (WHERE status = 'absent')"),
         Arel.sql("COALESCE(SUM(worked_minutes), 0)")
       ) || Array.new(6, 0)

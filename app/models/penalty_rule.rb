@@ -34,4 +34,10 @@ class PenaltyRule < ApplicationRecord
   def self.applicable_for(minutes, rules_scope)
     rules_scope.ordered_by_threshold.select { |r| minutes >= r.threshold_minutes }.last
   end
+
+  # Lowest threshold across the given rules (Array or relation), or nil when empty.
+  # Operates in Ruby so it can run on eager-loaded associations without extra queries.
+  def self.lowest_threshold(rules)
+    rules.filter_map(&:threshold_minutes).min
+  end
 end

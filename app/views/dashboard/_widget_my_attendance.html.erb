@@ -18,8 +18,8 @@
       <p class="attendance-hero__label"><%= t("dashboard.today") %></p>
       <p class="attendance-hero__status">
         <% if @today_record.status == "present" %><%= t("attendance.statuses.present") %>
-        <% elsif @today_record.status == "late" %>
-          <%= t("attendance.status_late") %>
+        <% elsif @today_record.counts_as_late? %>
+          <%= t("attendance.statuses.#{@today_record.status}") %>
           <span class="emp-late-badge"><%= t("dashboard.late_indicator") %></span>
         <% elsif @today_record.status == "early_leave" %><%= t("attendance.statuses.early_leave") %>
         <% elsif @today_record.status == "incomplete" %><%= t("attendance.statuses.incomplete") %>

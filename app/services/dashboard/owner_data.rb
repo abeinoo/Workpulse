@@ -73,7 +73,7 @@ module Dashboard
 
       checked_in  = records.count { |r| r.check_in_at.present? }
       checked_out = records.count { |r| r.checked_out? }
-      late_count  = records.count { |r| r.status == "late" }
+      late_count  = records.count(&:counts_as_late?)
       active_now  = records.count { |r| r.check_in_at.present? && !r.checked_out? }
       total       = employee_ids.size
       # Employees with no record today are considered absent for dashboard display
@@ -107,9 +107,9 @@ module Dashboard
       today = today_records.to_a
 
       yest_checked_in = yest.count { |r| r.check_in_at.present? }
-      yest_late       = yest.count { |r| r.status == "late" }
+      yest_late       = yest.count(&:counts_as_late?)
       today_checked_in = today.count { |r| r.check_in_at.present? }
-      today_late       = today.count { |r| r.status == "late" }
+      today_late       = today.count(&:counts_as_late?)
 
       busiest = branch_snapshots.max_by { |s| s[:active_now] }
 
@@ -142,7 +142,7 @@ module Dashboard
           .select(
             "branch_id",
             "COUNT(*)                                            AS total_attended",
-            "SUM(CASE WHEN status='late'         THEN 1 ELSE 0 END) AS late_count",
+            "SUM(CASE WHEN status IN ('late','late_early_leave') THEN 1 ELSE 0 END) AS late_count",
             "SUM(CASE WHEN check_out_at IS NOT NULL THEN 1 ELSE 0 END) AS checked_out_count",
             "SUM(CASE WHEN check_in_at IS NOT NULL AND check_out_at IS NULL THEN 1 ELSE 0 END) AS active_now_count"
           ).index_by(&:branch_id)

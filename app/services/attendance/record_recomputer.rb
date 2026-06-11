@@ -53,6 +53,7 @@ module Attendance
       shift        = record.shift   # shift_assignment&.shift
       branch       = record.branch
       rule_profile = record.shift_assignment&.rule_profile
+      ot_grace     = (branch&.business || record.user.business).overtime_grace_minutes.to_i
 
       new_late = shift ? TimeCalculator.late_minutes(
         shift, record.check_in_at, branch, rule_profile: rule_profile
@@ -71,29 +72,49 @@ module Attendance
           0
         end
 
-        new_status = TimeCalculator.derive_status(new_late, new_early)
+        new_overtime = TimeCalculator.overtime_minutes(
+          shift, worked_mins, overtime_grace_minutes: ot_grace, rule_profile: rule_profile
+        )
 
-        changed = record.late_minutes        != new_late   ||
-                  record.early_leave_minutes != new_early  ||
-                  record.worked_minutes      != worked_mins ||
+        new_status = TimeCalculator.derive_status(
+          shift:               shift,
+          late_minutes:        new_late,
+          early_leave_minutes: new_early,
+          overtime_minutes:    new_overtime,
+          completed:           true
+        )
+
+        changed = record.late_minutes        != new_late     ||
+                  record.early_leave_minutes != new_early    ||
+                  record.overtime_minutes    != new_overtime ||
+                  record.worked_minutes      != worked_mins  ||
                   record.status              != new_status
 
         record.late_minutes        = new_late
         record.early_leave_minutes = new_early
+        record.overtime_minutes    = new_overtime
         record.worked_minutes      = worked_mins
         record.status              = new_status
       else
         # Open record (no checkout yet)
-        new_early  = 0
-        new_status = new_late > 0 ? "late" : "incomplete"
+        new_early    = 0
+        new_overtime = 0
+        new_status   = TimeCalculator.derive_status(
+          shift:               shift,
+          late_minutes:        new_late,
+          early_leave_minutes: 0,
+          completed:           false
+        )
 
         changed = record.late_minutes        != new_late        ||
                   record.early_leave_minutes != new_early       ||
+                  record.overtime_minutes    != new_overtime    ||
                   record.worked_minutes.present?                 ||   # must be nil without checkout
                   record.status              != new_status
 
         record.late_minutes        = new_late
         record.early_leave_minutes = new_early
+        record.overtime_minutes    = new_overtime
         record.worked_minutes      = nil
         record.status              = new_status
       end
@@ -111,7 +132,7 @@ module Attendance
       affected_periods = []   # [[business_id, year, month], ...]
 
       scope
-        .includes(:branch, :user, shift_assignment: [ :rule_profile, { shift: :penalty_rules } ])
+        .includes(user: :business, branch: :business, shift_assignment: [ :rule_profile, { shift: :penalty_rules } ])
         .find_each do |record|
         begin
           if recompute!(record)
