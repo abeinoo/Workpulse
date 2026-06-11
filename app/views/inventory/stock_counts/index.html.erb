@@ -28,7 +28,7 @@
           <th><%= t("inventory.stock_counts.warehouse") %></th>
           <th><%= t("inventory.stock_counts.status") %></th>
           <th><%= t("inventory.stock_counts.counted_by") %></th>
-          <th><%= t("inventory.stock_counts.posted_by") %></th>
+          <th><%= t("inventory.stock_counts.approved_by") %></th>
         </tr></thead>
         <tbody>
           <% @stock_counts.each do |count| %>
@@ -37,12 +37,12 @@
               <td class="td-secondary"><%= local_date(count.counted_on) %></td>
               <td class="td-secondary"><%= count.warehouse.name %></td>
               <td>
-                <span class="badge <%= count.posted? ? 'badge-success' : 'badge-neutral' %>">
+                <span class="badge <%= stock_count_status_class(count.status) %>">
                   <%= t("inventory.stock_counts.statuses.#{count.status}") %>
                 </span>
               </td>
               <td class="td-secondary"><%= count.created_by&.full_name || "—" %></td>
-              <td class="td-secondary"><%= count.posted_by&.full_name || "—" %></td>
+              <td class="td-secondary"><%= count.approved_by&.full_name || "—" %></td>
             </tr>
           <% end %>
         </tbody>

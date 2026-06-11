@@ -24,7 +24,7 @@ module Inventory
       end
 
       def call
-        return Result.new(applied: 0, skipped: [], header_error: :not_draft) unless @count.draft?
+        return Result.new(applied: 0, skipped: [], header_error: :not_draft) unless @count.editable_counts?
 
         table = parse
         return Result.new(applied: 0, skipped: [], header_error: :invalid_headers) unless headers_valid?(table)

@@ -15,6 +15,8 @@
       <table>
         <thead><tr>
           <th><%= t("inventory.product_categories.name") %></th>
+          <th><%= t("inventory.product_categories.description") %></th>
+          <th><%= t("inventory.product_categories.status") %></th>
           <th style="text-align: end;"><%= t("inventory.product_categories.products_count") %></th>
           <th></th>
         </tr></thead>
@@ -22,6 +24,14 @@
           <% @categories.each do |category| %>
             <tr>
               <td><%= category.name %></td>
+              <td class="td-secondary"><%= truncate(category.description.to_s, length: 60).presence || "—" %></td>
+              <td>
+                <% if category.active? %>
+                  <span class="badge badge-success"><%= t("inventory.product_categories.statuses.active") %></span>
+                <% else %>
+                  <span class="badge"><%= t("inventory.product_categories.statuses.inactive") %></span>
+                <% end %>
+              </td>
               <td style="text-align: end;"><%= category.products_count %></td>
               <td class="td-actions">
                 <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>

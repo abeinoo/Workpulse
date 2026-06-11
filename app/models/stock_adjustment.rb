@@ -9,6 +9,12 @@ class StockAdjustment < ApplicationRecord
   has_many :items, class_name: "StockAdjustmentItem", dependent: :destroy
   has_many :inventory_movements, as: :source, dependent: :destroy
 
+  # The physical count that generated this adjustment, if any (back-navigation).
+  # The FK lives on stock_counts.stock_adjustment_id; nullified if the adjustment
+  # is ever removed so the count is never left pointing at a missing record.
+  has_one :source_stock_count, class_name: "StockCount",
+          foreign_key: :stock_adjustment_id, inverse_of: :stock_adjustment, dependent: :nullify
+
   accepts_nested_attributes_for :items,
                                 allow_destroy: true,
                                 reject_if:     ->(attrs) { attrs[:product_id].blank? }
@@ -31,6 +37,14 @@ class StockAdjustment < ApplicationRecord
   def cost_bearing?
     opening_balance?
   end
+
+  # ── Value impact (signed, valued at each line's frozen unit-cost snapshot) ──
+  # Negative lines are shortages (stock lost), positive lines overages (gained).
+  def line_value(item) = item.quantity_difference.to_d * item.unit_cost.to_d
+
+  def shortage_value = items.select { |i| i.quantity_difference.negative? }.sum { |i| line_value(i) }
+  def overage_value  = items.select { |i| i.quantity_difference.positive? }.sum { |i| line_value(i) }
+  def net_value      = items.sum { |i| line_value(i) }
 
   # Compensating movements that undo this adjustment: a positive line (which
   # increased stock) is reversed with an OUT, a negative line with an IN.

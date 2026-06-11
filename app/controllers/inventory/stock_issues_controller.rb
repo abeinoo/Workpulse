@@ -50,6 +50,12 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @warehouses = accessible_warehouses
   end
 
+  def import_template
+    authorize StockIssue, :create?
+    send_data Inventory::Imports::StockIssueImporter.sample_csv,
+              filename: "stock_issue_import_sample.csv", type: "text/csv"
+  end
+
   def run_import
     authorize StockIssue, :create?
     file      = params[:file]

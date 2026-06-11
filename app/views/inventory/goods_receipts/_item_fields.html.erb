@@ -1,13 +1,12 @@
 <tr data-line-row>
   <td>
-    <% product_options = products.map { |p| [ p.name, p.id, { "data-default-supplier-id" => p.default_supplier_id } ] } %>
     <%= f.select :product_id,
-          options_for_select(product_options, f.object.product_id),
+          inventory_product_options(products, f.object.product_id),
           { include_blank: "— #{t('inventory.goods_receipts.select_product')}" },
           class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
   </td>
   <td>
-    <%= f.number_field :quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0" %>
+    <%= f.number_field :quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0", data: { quantity_field: true } %>
   </td>
   <td>
     <%= f.number_field :unit_cost, step: "0.0001", min: 0, class: "form-control", placeholder: "0.00" %>

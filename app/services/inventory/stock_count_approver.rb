@@ -1,14 +1,14 @@
 module Inventory
-  # Posts a draft physical count: refreshes each line's system quantity from live
-  # stock, computes the difference (counted − system), and generates ONE
+  # Approves a completed physical count: refreshes each line's system quantity from
+  # live stock, computes the difference (counted − system), and generates ONE
   # stock-count Inventory Adjustment from the non-zero differences — so the ledger
   # is corrected through the normal adjustment path (full audit trail, voidable).
-  # The count is then frozen as "posted".
+  # The count is then frozen as "approved".
   #
-  # Recomputing the system quantity at post time guarantees the warehouse ends at
-  # exactly the counted quantity and never produces negative stock (a shortfall
+  # Recomputing the system quantity at approval time guarantees the warehouse ends
+  # at exactly the counted quantity and never produces negative stock (a shortfall
   # can't exceed what's on hand).
-  class StockCountPoster
+  class StockCountApprover
     Result = Struct.new(:ok, :count, keyword_init: true) do
       def ok? = ok
     end
@@ -19,15 +19,26 @@ module Inventory
     end
 
     def call
-      unless @count.draft?
-        @count.errors.add(:base, :not_draft)
+      unless @count.completed?
+        @count.errors.add(:base, :not_completed)
+        return failure
+      end
+
+      # Belt-and-suspenders against a duplicate: a count may only ever own one
+      # adjustment. (The state machine already prevents re-approval — an approved
+      # count can't be reopened — but never create a second adjustment regardless.)
+      if @count.stock_adjustment_id.present?
+        @count.errors.add(:base, :already_approved)
         return failure
       end
 
       ActiveRecord::Base.transaction do
         refresh_differences!
 
-        diff_items = @count.items.select { |item| item.difference.to_d.nonzero? }
+        # Only counted rows with a real variance generate an adjustment line.
+        # Uncounted (blank) rows are left untouched — never treated as a zero
+        # count, so they cannot affect stock.
+        diff_items = @count.counted_items.select { |item| item.difference.to_d.nonzero? }
         if diff_items.any?
           adjustment = build_adjustment(diff_items)
           result = AdjustmentPoster.new(adjustment).call
@@ -38,7 +49,7 @@ module Inventory
           @count.stock_adjustment = adjustment
         end
 
-        @count.update!(status: :posted, posted_at: Time.current, posted_by: @user)
+        @count.update!(status: :approved, approved_at: Time.current, approved_by: @user)
         return Result.new(ok: true, count: @count)
       end
 
@@ -47,8 +58,10 @@ module Inventory
 
     private
 
+    # Refresh system quantity (and the derived variance) for COUNTED rows only;
+    # blank rows are deliberately not touched.
     def refresh_differences!
-      @count.items.each do |item|
+      @count.counted_items.each do |item|
         system_qty = item.product.stock_in(@count.warehouse)
         item.update!(system_quantity: system_qty)   # difference recomputed by callback
       end

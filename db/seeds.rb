@@ -888,19 +888,43 @@ if business.inventory_movements.none?
                        note: "Cycle-count correction",
                        lines: [ [ prod["SK-FC-301"], -3, 0 ] ])
 
-  # -- 6. Stock count: draft worksheet, then posted (generates an adjustment) --
-  count = business.stock_counts.build(warehouse: w_main, counted_on: Date.current, created_by: mgr_riyadh,
-                                      notes: "Monthly physical count — Riyadh")
-  # Count three products against live system stock with small, realistic variances.
-  count_plan = { "HC-DB-100" => -2, "SH-1L-200" => +3, "SK-FM-300" => 0 }
-  count_plan.each do |sku, delta|
-    product   = prod[sku]
-    system_qt = product.stock_in(w_main)
-    count.items.build(product: product, counted_quantity: [ system_qt + delta, 0 ].max)
+  # -- 6. Stock count sessions across the workflow --------------------------
+  # A session preloads a row for every product (system quantity snapshotted),
+  # then counted quantities are entered (plan = small, realistic variances).
+  # partial: true leaves products outside the plan uncounted (blank) — to show the
+  # in-progress progress bar / filters; otherwise every product is counted.
+  build_count = lambda do |warehouse:, on:, counter:, plan:, notes:, partial: false|
+    count = business.stock_counts.build(warehouse: warehouse, counted_on: on, created_by: counter, notes: notes)
+    business.products.ordered.each do |product|
+      system_qt = product.stock_in(warehouse)
+      counted =
+        if plan.key?(product.sku) then [ system_qt + plan[product.sku], 0 ].max
+        elsif partial             then nil                 # left uncounted
+        else system_qt
+        end
+      count.items.build(product: product, system_quantity: system_qt, counted_quantity: counted)
+    end
+    count.save!
+    count.start_counting!(counter)   # draft → in_progress
+    count
   end
-  count.save!
-  count_result = Inventory::StockCountPoster.new(count, user: mgr_riyadh).call
-  raise "Stock count seed failed: #{count.errors.full_messages.join('; ')}" unless count_result.ok?
+
+  # (a) Approved — runs through approval, generating a real stock-count adjustment.
+  approved_count = build_count.call(warehouse: w_main, on: 1.day.ago.to_date, counter: mgr_riyadh,
+                                    plan: { "HC-DB-100" => -2, "SH-1L-200" => +3, "SK-FM-300" => 0 },
+                                    notes: "Monthly physical count — Riyadh")
+  approved_count.mark_completed!(mgr_riyadh)
+  approve_result = Inventory::StockCountApprover.new(approved_count, user: admin).call
+  raise "Stock count approval seed failed: #{approved_count.errors.full_messages.join('; ')}" unless approve_result.ok?
+
+  # (b) Completed — counted and submitted, awaiting approval.
+  completed_count = build_count.call(warehouse: w_jeddah, on: Date.current, counter: mgr_jeddah,
+                                     plan: { "SH-1L-200" => -1 }, notes: "Weekly count — Jeddah")
+  completed_count.mark_completed!(mgr_jeddah)
+
+  # (c) In progress — counting underway, most products still uncounted.
+  build_count.call(warehouse: w_central, on: Date.current, counter: admin,
+                   plan: { "HC-DB-100" => +1 }, notes: "Spot count — Central DC", partial: true)
 
   puts "Inventory documents posted: " \
        "#{GoodsReceipt.for_business(business).count} receipts, " \

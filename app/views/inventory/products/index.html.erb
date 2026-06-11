@@ -4,7 +4,9 @@
   <div class="page-header">
     <h1 class="page-title"><%= t("inventory.products.title") %></h1>
     <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
-      <div class="flex items-center" style="gap: var(--space-2);">
+      <div class="flex items-center" style="gap: var(--space-2); flex-wrap: wrap;">
+        <%= link_to t("inventory.products.manage_categories"), inventory_product_categories_path, class: "btn btn-ghost btn-sm" %>
+        <%= link_to t("inventory.products.manage_brands"), inventory_brands_path, class: "btn btn-ghost btn-sm" %>
         <%= link_to t("inventory.imports.import_csv"), import_inventory_products_path, class: "btn btn-secondary btn-sm" %>
         <%= link_to t("inventory.products.add"), new_inventory_product_path, class: "btn btn-primary btn-sm" %>
       </div>

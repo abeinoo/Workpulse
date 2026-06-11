@@ -8,9 +8,14 @@
   <h1 class="page-title mb-6"><%= t("inventory.imports.products.title") %></h1>
 
   <%= form_with url: run_import_inventory_products_path, method: :post, class: "form-card" do |f| %>
-    <p class="form-hint" style="margin-bottom: var(--space-4);">
-      <%= t("inventory.imports.products.columns") %>
-    </p>
+    <div class="flex items-center" style="justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap;">
+      <p class="form-hint" style="margin: 0;"><%= t("inventory.imports.products.columns") %></p>
+      <%= link_to t("inventory.imports.download_sample"), import_template_inventory_products_path,
+            class: "btn btn-secondary btn-sm" %>
+    </div>
+
+    <%= render "inventory/shared/import_columns", columns: Inventory::Imports::ProductImporter::COLUMNS %>
+
     <div class="form-grid">
       <div class="form-group" style="grid-column: 1 / -1;">
         <%= label_tag :file, t("inventory.imports.file"), class: "form-label" %>

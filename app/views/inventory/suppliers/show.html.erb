@@ -18,18 +18,27 @@
       <div class="detail-list__row"><dt><%= t("inventory.suppliers.primary_mobile") %></dt><dd><%= @supplier.primary_mobile.presence || "—" %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.suppliers.secondary_mobile") %></dt><dd><%= @supplier.secondary_mobile.presence || "—" %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.suppliers.address") %></dt><dd><%= @supplier.address.presence || "—" %></dd></div>
-      <div class="detail-list__row">
-        <dt><%= t("inventory.suppliers.map_location") %></dt>
-        <dd>
-          <% if @supplier.map_location? %>
-            <%= link_to t("inventory.suppliers.view_on_map"),
-                  "https://www.google.com/maps?q=#{@supplier.latitude},#{@supplier.longitude}",
-                  target: "_blank", rel: "noopener", class: "link" %>
-          <% else %>—<% end %>
-        </dd>
-      </div>
       <div class="detail-list__row"><dt><%= t("inventory.suppliers.notes") %></dt><dd><%= @supplier.notes.presence || "—" %></dd></div>
     </dl>
+
+    <% if @supplier.map_location? %>
+      <div class="divider"></div>
+
+      <div class="flex items-center justify-between" style="margin-bottom: var(--space-3);">
+        <h2 class="section-title" style="margin: 0;"><%= t("inventory.suppliers.map_location") %></h2>
+        <%= link_to "https://www.google.com/maps?q=#{@supplier.latitude},#{@supplier.longitude}",
+              target: "_blank", rel: "noopener", class: "btn btn-secondary btn-sm" do %>
+          <%= t("inventory.suppliers.open_in_google_maps") %>
+        <% end %>
+      </div>
+
+      <%# Same map-picker controller as the form, in read-only display mode %>
+      <div data-controller="map-picker" data-map-picker-readonly-value="true">
+        <input type="hidden" data-map-picker-target="lat" value="<%= @supplier.latitude %>">
+        <input type="hidden" data-map-picker-target="lng" value="<%= @supplier.longitude %>">
+        <div data-map-picker-target="container" class="branch-map"></div>
+      </div>
+    <% end %>
   </div>
 
   <h2 class="section-title"><%= t("inventory.suppliers.recent_purchases") %></h2>

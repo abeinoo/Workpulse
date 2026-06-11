@@ -31,6 +31,24 @@
     </dl>
   </div>
 
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.goods_receipts.invoices") %></h2>
+    </div>
+    <% if @goods_receipt.invoices.attached? %>
+      <div class="attachment-grid">
+        <% @goods_receipt.invoices.each do |invoice| %>
+          <div class="attachment-item">
+            <p class="attachment-item__label"><%= invoice.filename.to_s %></p>
+            <%= document_viewer_tag(invoice) %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.goods_receipts.no_invoices") %></p>
+    <% end %>
+  </div>
+
   <div class="table-wrap table-wrap--cards">
     <table>
       <thead><tr>

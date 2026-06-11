@@ -10950,3 +10950,39 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
 @media (max-width: 720px) {
   .bulk-mobile-hint { display: block; }
 }
+
+/* ── Stock-count counting screen: progress + filter pills ─────────────── */
+.count-progress { margin-bottom: var(--space-3); }
+.count-progress__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  margin-bottom: var(--space-2);
+}
+.count-progress__pct { margin-inline-start: auto; font-weight: 700; color: var(--text-1); }
+.count-progress__track {
+  height: 8px;
+  background: var(--navy-500);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.count-progress__bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+  transition: width 0.2s ease;
+}
+.filter-pill.is-active {
+  background: var(--accent-muted);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+/* Stock-count quantity inputs: standard whole-number field — right-aligned,
+   consistent text size, no native number spinners. */
+.qty-input { text-align: end; max-width: 130px; margin-inline-start: auto; }
+.qty-input::-webkit-outer-spin-button,
+.qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.qty-input { -moz-appearance: textfield; }

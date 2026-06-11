@@ -25,11 +25,18 @@
       <%= f.label :notes, t("inventory.goods_receipts.notes"), class: "form-label" %>
       <%= f.text_area :notes, rows: 2, class: "form-control" %>
     </div>
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :invoices, t("inventory.goods_receipts.invoices"), class: "form-label" %>
+      <%= f.file_field :invoices, multiple: true, accept: "image/jpeg,image/png,application/pdf",
+            class: "form-control #{'is-error' if goods_receipt.errors[:invoices].any?}" %>
+      <p class="form-hint"><%= t("inventory.goods_receipts.invoices_hint") %></p>
+    </div>
   </div>
 
   <div class="divider"></div>
 
   <h2 class="section-title"><%= t("inventory.goods_receipts.section_items") %></h2>
+  <%= render "inventory/shared/barcode_scanner" %>
   <div class="table-wrap">
     <table class="line-items-table">
       <thead><tr>

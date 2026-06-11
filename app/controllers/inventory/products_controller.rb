@@ -11,7 +11,7 @@ class Inventory::ProductsController < Inventory::BaseController
 
     @stock_totals = Inventory::StockLevels.totals_for(current_user.business)
     @brands       = current_user.business.brands.ordered
-    @categories   = current_user.business.product_categories.ordered
+    @categories   = current_user.business.product_categories.active.ordered
   end
 
   def show
@@ -89,6 +89,12 @@ class Inventory::ProductsController < Inventory::BaseController
     @warehouses = accessible_warehouses
   end
 
+  def import_template
+    authorize Product, :create?
+    send_data Inventory::Imports::ProductImporter.sample_csv,
+              filename: "products_import_sample.csv", type: "text/csv"
+  end
+
   def run_import
     authorize Product, :create?
     file = params[:file]
@@ -116,8 +122,14 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   def load_options
-    @brands     = current_user.business.brands.ordered
-    @categories = current_user.business.product_categories.ordered
+    @brands = current_user.business.brands.ordered
+    # Only active categories are selectable, but keep the product's current
+    # category in the list (even if since deactivated) so editing never silently
+    # clears it.
+    cats = current_user.business.product_categories
+    @categories = cats.where(active: true)
+                      .or(cats.where(id: @product&.product_category_id))
+                      .ordered
     @warehouses = accessible_warehouses
     @suppliers  = current_user.business.suppliers.ordered
   end

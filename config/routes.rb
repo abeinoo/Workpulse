@@ -283,6 +283,7 @@ Rails.application.routes.draw do
       collection do
         get  :import
         post :run_import, path: "import"
+        get  :import_template
       end
     end
     resources :goods_receipts,  only: [ :index, :show, :new, :create ] do
@@ -293,6 +294,7 @@ Rails.application.routes.draw do
       collection do
         get  :import
         post :run_import, path: "import"
+        get  :import_template
       end
     end
     resources :stock_transfers, only: [ :index, :show, :new, :create ] do
@@ -303,11 +305,17 @@ Rails.application.routes.draw do
     end
     resources :stock_counts do
       member do
-        patch :post
+        patch :complete
+        patch :approve
+        patch :reopen
+        get   :export
         get   :import
         patch :run_import, path: "import"
       end
     end
+
+    # Shared barcode → product lookup for scanner-enabled document forms.
+    get "barcode_lookup", to: "barcode_lookups#show", as: :barcode_lookup
 
     # ── Reports ──────────────────────────────────────────────────────────
     get "reports",                    to: "reports#index",              as: :reports

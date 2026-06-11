@@ -59,7 +59,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
 
   def receipt_params
     params.require(:goods_receipt).permit(
-      :warehouse_id, :supplier_id, :received_on, :notes,
+      :warehouse_id, :supplier_id, :received_on, :notes, invoices: [],
       items_attributes: [ :id, :product_id, :quantity, :unit_cost, :_destroy ]
     )
   end

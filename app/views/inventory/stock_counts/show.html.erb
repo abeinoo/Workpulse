@@ -9,30 +9,67 @@
   <div class="page-header">
     <h1 class="page-title">
       <%= @stock_count.count_number %>
-      <span class="badge <%= @stock_count.posted? ? 'badge-success' : 'badge-neutral' %>">
+      <span class="badge <%= stock_count_status_class(@stock_count.status) %>">
         <%= t("inventory.stock_counts.statuses.#{@stock_count.status}") %>
       </span>
     </h1>
     <div class="flex items-center" style="gap: var(--space-2);">
-      <% if @stock_count.draft? && policy(@stock_count).update? %>
-        <%= link_to t("common.edit"), edit_inventory_stock_count_path(@stock_count), class: "btn btn-secondary btn-sm" %>
+      <%= link_to t("inventory.stock_counts.export_action"), export_inventory_stock_count_path(@stock_count, format: :csv), class: "btn btn-ghost btn-sm" %>
+      <% if @stock_count.editable_counts? && policy(@stock_count).update? %>
+        <%= link_to t("inventory.stock_counts.continue_counting"), edit_inventory_stock_count_path(@stock_count), class: "btn btn-secondary btn-sm" %>
       <% end %>
-      <% if @stock_count.draft? && policy(@stock_count).post? %>
-        <%= button_to t("inventory.stock_counts.post_action"), post_inventory_stock_count_path(@stock_count),
+      <% if policy(@stock_count).complete? %>
+        <%= button_to t("inventory.stock_counts.complete_action"), complete_inventory_stock_count_path(@stock_count),
               method: :patch, class: "btn btn-primary btn-sm",
-              data: { turbo_confirm: t("inventory.stock_counts.post_confirm") } %>
+              data: { turbo_confirm: t("inventory.stock_counts.complete_confirm") } %>
+      <% end %>
+      <% if policy(@stock_count).approve? %>
+        <% if @stock_count.uncounted_count.positive? %>
+          <span class="badge badge-neutral"><%= t("inventory.stock_counts.uncounted_skipped", count: @stock_count.uncounted_count) %></span>
+        <% end %>
+        <%= button_to t("inventory.stock_counts.approve_action"), approve_inventory_stock_count_path(@stock_count),
+              method: :patch, class: "btn btn-primary btn-sm",
+              data: { turbo_confirm: @stock_count.fully_counted? ? t("inventory.stock_counts.approve_confirm") : t("inventory.stock_counts.approve_confirm_partial", count: @stock_count.uncounted_count) } %>
+      <% end %>
+      <% if policy(@stock_count).reopen? %>
+        <%= button_to t("inventory.stock_counts.reopen_action"), reopen_inventory_stock_count_path(@stock_count),
+              method: :patch, class: "btn btn-ghost btn-sm",
+              data: { turbo_confirm: t("inventory.stock_counts.reopen_confirm") } %>
       <% end %>
     </div>
   </div>
+
+  <%# ── Report summary ──────────────────────────────────────── %>
+  <div class="stats-grid" style="margin-bottom: var(--space-5);">
+    <div class="stat-card"><div class="stat-card__label"><%= t("inventory.stock_counts.report.total_counted") %></div><div class="stat-card__value"><%= @stock_count.counted_products %> / <%= @stock_count.total_products %> <span class="stat-card__sub"><%= @stock_count.completion_percentage %>%</span></div></div>
+    <div class="stat-card"><div class="stat-card__label"><%= t("inventory.stock_counts.report.remaining") %></div><div class="stat-card__value <%= 'text-warning' if @stock_count.remaining_products.positive? %>"><%= @stock_count.remaining_products %></div></div>
+    <div class="stat-card"><div class="stat-card__label"><%= t("inventory.stock_counts.report.matched") %></div><div class="stat-card__value"><%= @stock_count.matched_count %></div></div>
+    <div class="stat-card"><div class="stat-card__label"><%= t("inventory.stock_counts.report.shortages") %></div><div class="stat-card__value text-danger"><%= @stock_count.shortage_count %></div></div>
+    <div class="stat-card"><div class="stat-card__label"><%= t("inventory.stock_counts.report.overages") %></div><div class="stat-card__value text-warning"><%= @stock_count.overage_count %></div></div>
+    <div class="stat-card"><div class="stat-card__label"><%= t("inventory.stock_counts.report.adjustment_value") %></div><div class="stat-card__value"><%= number_to_currency(@stock_count.adjustment_value, unit: "") %></div></div>
+  </div>
+
+  <%# ── Inventory value impact (approved counts, from the generated adjustment) ── %>
+  <% if @stock_count.approved? %>
+    <% adj = @stock_count.stock_adjustment %>
+    <h2 class="section-title"><%= t("inventory.stock_counts.impact.title") %></h2>
+    <div class="stats-grid" style="margin-bottom: var(--space-5);">
+      <div class="stat-card stat-card--danger"><div class="stat-card__label"><%= t("inventory.stock_counts.impact.total_shortages") %></div><div class="stat-card__value text-danger"><%= format_currency(adj ? adj.shortage_value : 0) %></div></div>
+      <div class="stat-card stat-card--success"><div class="stat-card__label"><%= t("inventory.stock_counts.impact.total_overages") %></div><div class="stat-card__value"><%= format_currency(adj ? adj.overage_value : 0) %></div></div>
+      <div class="stat-card stat-card--accent"><div class="stat-card__label"><%= t("inventory.stock_counts.impact.net_value") %></div><div class="stat-card__value"><%= format_currency(adj ? adj.net_value : 0) %></div></div>
+    </div>
+  <% end %>
 
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <dl class="detail-list">
       <div class="detail-list__row"><dt><%= t("inventory.stock_counts.date") %></dt><dd><%= local_date(@stock_count.counted_on) %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.stock_counts.warehouse") %></dt><dd><%= @stock_count.warehouse.name %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.stock_counts.counted_by") %></dt><dd><%= @stock_count.created_by&.full_name || "—" %></dd></div>
-      <% if @stock_count.posted? %>
-        <div class="detail-list__row"><dt><%= t("inventory.stock_counts.posted_by") %></dt><dd><%= @stock_count.posted_by&.full_name || "—" %></dd></div>
-        <div class="detail-list__row"><dt><%= t("inventory.stock_counts.posted_at") %></dt><dd><%= l(@stock_count.posted_at, format: :long) %></dd></div>
+      <% if @stock_count.completed_at %>
+        <div class="detail-list__row"><dt><%= t("inventory.stock_counts.completed_by") %></dt><dd><%= @stock_count.completed_by&.full_name || "—" %> · <%= l(@stock_count.completed_at, format: :long) %></dd></div>
+      <% end %>
+      <% if @stock_count.approved? %>
+        <div class="detail-list__row"><dt><%= t("inventory.stock_counts.approved_by") %></dt><dd><%= @stock_count.approved_by&.full_name || "—" %> · <%= l(@stock_count.approved_at, format: :long) %></dd></div>
         <% if @stock_count.stock_adjustment %>
           <div class="detail-list__row">
             <dt><%= t("inventory.stock_counts.adjustment") %></dt>
@@ -52,22 +89,23 @@
     <table>
       <thead><tr>
         <th><%= t("inventory.stock_counts.product") %></th>
-        <th><%= t("inventory.products.sku") %></th>
+        <th><%= t("inventory.stock_counts.barcode") %></th>
         <th style="text-align: end;"><%= t("inventory.stock_counts.system_quantity") %></th>
         <th style="text-align: end;"><%= t("inventory.stock_counts.counted_quantity") %></th>
         <th style="text-align: end;"><%= t("inventory.stock_counts.difference") %></th>
       </tr></thead>
       <tbody>
         <% @items.each do |item| %>
-          <% diff = item.difference.to_d %>
+          <% diff = item.difference.to_d
+             diff_class = !item.counted? ? "badge-neutral" : (diff.zero? ? "badge-success" : (diff.positive? ? "badge-warning" : "badge-danger")) %>
           <tr>
-            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
-            <td class="td-secondary"><%= item.product.sku %></td>
+            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %> <span class="td-secondary">(<%= item.product.sku %>)</span></td>
+            <td class="td-secondary"><%= item.product.barcode.presence || "—" %></td>
             <td style="text-align: end;"><%= item.system_quantity.to_i %></td>
-            <td style="text-align: end;"><%= item.counted_quantity.to_i %></td>
+            <td style="text-align: end;"><%= item.counted? ? item.counted_quantity.to_i : "—" %></td>
             <td style="text-align: end;">
-              <span class="badge <%= diff.zero? ? 'badge-neutral' : (diff.positive? ? 'badge-success' : 'badge-warning') %>">
-                <%= diff.positive? ? "+" : "" %><%= diff.to_i %>
+              <span class="badge <%= diff_class %>">
+                <%= item.counted? ? "#{diff.positive? ? '+' : ''}#{diff.to_i}" : "—" %>
               </span>
             </td>
           </tr>

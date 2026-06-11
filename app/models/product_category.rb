@@ -8,4 +8,5 @@ class ProductCategory < ApplicationRecord
 
   scope :for_business, ->(business) { where(business: business) }
   scope :ordered,      -> { order(:name) }
+  scope :active,       -> { where(active: true) }
 end

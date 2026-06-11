@@ -14,6 +14,31 @@ module Inventory
     class ProductImporter
       REQUIRED_HEADERS = [ "product name", "sku" ].freeze
 
+      # Column schema — single source of truth for the parser's headers, the
+      # downloadable sample template, and the on-screen required/optional guide.
+      # Header matching is case-insensitive (see #parse), so `header` casing is
+      # for display only.
+      Column = Struct.new(:header, :required, :example, keyword_init: true)
+      COLUMNS = [
+        Column.new(header: "Product Name",     required: true,  example: "Sample Widget"),
+        Column.new(header: "SKU",              required: true,  example: "WIDGET-001"),
+        Column.new(header: "Barcode",          required: false, example: "6291000000017"),
+        Column.new(header: "Brand",            required: false, example: "Acme"),
+        Column.new(header: "Category",         required: false, example: "Hardware"),
+        Column.new(header: "Initial Cost",     required: false, example: "12.50"),
+        Column.new(header: "Current Stock",    required: false, example: "100"),
+        Column.new(header: "Low Stock Level",  required: false, example: "10"),
+        Column.new(header: "Reorder Quantity", required: false, example: "50")
+      ].freeze
+
+      # Header row + one example row, so users can fill in their own data.
+      def self.sample_csv
+        CSV.generate do |csv|
+          csv << COLUMNS.map(&:header)
+          csv << COLUMNS.map(&:example)
+        end
+      end
+
       Result = Struct.new(:created, :skipped, :opening_adjustment, :header_error, keyword_init: true) do
         def ok?            = header_error.nil?
         def created_count  = created.size

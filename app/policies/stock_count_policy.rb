@@ -2,15 +2,20 @@ class StockCountPolicy < ApplicationPolicy
   def index?   = can?(:view_inventory) || can?(:manage_inventory) || can?(:view_stock_count_reports)
   def show?    = index?
 
-  # Creating / editing / deleting drafts.
+  # Creating sessions and editing counts (draft / in_progress only).
   def create?  = can?(:manage_inventory) || can?(:manage_stock_counts)
   def new?     = create?
-  def update?  = create? && draft_record?
+  def update?  = create? && record.editable_counts?
   def edit?    = update?
-  def destroy? = create? && draft_record?
+  def destroy? = create? && record.draft?
 
-  # Posting is a separate, higher-trust action (segregation of duties).
-  def post?    = (can?(:manage_inventory) || can?(:post_stock_counts)) && draft_record?
+  # Submitting a finished count for approval.
+  def complete? = create? && record.in_progress?
+
+  # Approval / send-back are higher-trust actions (segregation of duties):
+  # an employee with only counting rights cannot approve.
+  def approve? = approver? && record.completed?
+  def reopen?  = approver? && record.completed?
 
   class Scope < ApplicationPolicy::Scope
     def resolve
@@ -20,7 +25,7 @@ class StockCountPolicy < ApplicationPolicy
 
   private
 
-  def draft_record?
-    !record.respond_to?(:posted?) || record.draft?
+  def approver?
+    can?(:manage_inventory) || can?(:post_stock_counts)
   end
 end

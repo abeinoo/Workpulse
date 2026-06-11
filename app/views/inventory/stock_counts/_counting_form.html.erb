@@ -1,0 +1,75 @@
+<%# Counting screen: preloaded rows, barcode scan-to-count, live difference,
+    progress and filters. %>
+<%= form_with model: [:inventory, stock_count], method: :patch,
+      class: "form-card", data: { controller: "line-items count-sheet" } do |f| %>
+  <%= render "shared/error_messages", object: stock_count %>
+
+  <h2 class="section-title"><%= t("inventory.stock_counts.section_items") %></h2>
+  <%= render "inventory/shared/barcode_scanner", scanner_mode: "rows" %>
+
+  <%# ── Progress ─────────────────────────────────────────────── %>
+  <div class="count-progress">
+    <div class="count-progress__stats">
+      <span><%= t("inventory.stock_counts.progress.counted") %>: <strong data-count-sheet-target="counted">0</strong></span>
+      <span><%= t("inventory.stock_counts.progress.remaining") %>: <strong data-count-sheet-target="remaining">0</strong></span>
+      <span><%= t("inventory.stock_counts.progress.total") %>: <strong data-count-sheet-target="total">0</strong></span>
+      <span class="count-progress__pct" data-count-sheet-target="percent">0%</span>
+    </div>
+    <div class="count-progress__track">
+      <div class="count-progress__bar" data-count-sheet-target="progressBar" style="width: 0%;"></div>
+    </div>
+  </div>
+
+  <%# ── Filters ──────────────────────────────────────────────── %>
+  <div class="btn-group" style="margin-bottom: var(--space-3);">
+    <% { all: "all", counted: "counted", not_counted: "not_counted", differences: "differences" }.each_with_index do |(key, val), i| %>
+      <button type="button" class="btn btn-ghost btn-sm filter-pill <%= 'is-active' if i.zero? %>"
+              data-filter="<%= val %>" data-count-sheet-target="filterButton"
+              data-action="count-sheet#filter">
+        <%= t("inventory.stock_counts.filters.#{key}") %>
+      </button>
+    <% end %>
+  </div>
+
+  <div class="table-wrap">
+    <table class="line-items-table">
+      <thead><tr>
+        <th style="width: 40%;"><%= t("inventory.stock_counts.product") %></th>
+        <th><%= t("inventory.stock_counts.barcode") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_counts.system_quantity") %></th>
+        <th><%= t("inventory.stock_counts.counted_quantity") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_counts.difference") %></th>
+      </tr></thead>
+      <tbody data-line-items-target="rows">
+        <%= f.fields_for :items do |item_f| %>
+          <%= render "item_fields", f: item_f %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <%# Template for rows the scanner adds for products not preloaded. %>
+  <template data-line-items-target="template">
+    <tr data-line-row data-product-id="__PID__" data-barcode="__BARCODE__" data-sku="__SKU__" data-system-quantity="0">
+      <td>
+        __NAME__ <span class="td-secondary">(__SKU__)</span>
+        <input type="hidden" name="stock_count[items_attributes][NEW_INDEX][product_id]" value="__PID__">
+        <input type="hidden" name="stock_count[items_attributes][NEW_INDEX][system_quantity]" value="0">
+      </td>
+      <td class="td-secondary">__BARCODE__</td>
+      <td style="text-align: end;">0</td>
+      <td>
+        <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="—" class="form-control qty-input"
+               name="stock_count[items_attributes][NEW_INDEX][counted_quantity]"
+               data-quantity-field
+               data-action="input->count-sheet#recalc keydown.enter->count-sheet#focusScanner">
+      </td>
+      <td style="text-align: end;"><span data-difference class="badge badge-neutral">—</span></td>
+    </tr>
+  </template>
+
+  <div class="form-actions">
+    <%= f.submit t("inventory.stock_counts.save_counts"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_stock_count_path(stock_count), class: "btn btn-ghost" %>
+  </div>
+<% end %>

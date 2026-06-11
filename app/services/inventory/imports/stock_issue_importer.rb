@@ -9,6 +9,24 @@ module Inventory
     class StockIssueImporter
       REQUIRED_HEADERS = [ "sku", "quantity" ].freeze
 
+      # Column schema — single source of truth for the parser's headers, the
+      # downloadable sample template, and the on-screen required/optional guide.
+      # Header matching is case-insensitive (see #parse), so `header` casing is
+      # for display only.
+      Column = Struct.new(:header, :required, :example, keyword_init: true)
+      COLUMNS = [
+        Column.new(header: "SKU",      required: true, example: "WIDGET-001"),
+        Column.new(header: "Quantity", required: true, example: "5")
+      ].freeze
+
+      # Header row + one example row, so users can fill in their own data.
+      def self.sample_csv
+        CSV.generate do |csv|
+          csv << COLUMNS.map(&:header)
+          csv << COLUMNS.map(&:example)
+        end
+      end
+
       Result = Struct.new(:issue, :skipped, :header_error, keyword_init: true) do
         def ok?           = header_error.nil?
         def issued_count  = issue&.items&.size.to_i

@@ -1,0 +1,24 @@
+<%# Required-vs-optional column guide for a CSV import, driven by an importer's
+    COLUMNS schema. Expects `columns:` — an array of Importer::Column structs. %>
+<div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-4);">
+  <table>
+    <thead><tr>
+      <th><%= t("inventory.imports.column") %></th>
+      <th><%= t("inventory.imports.requirement") %></th>
+    </tr></thead>
+    <tbody>
+      <% columns.each do |column| %>
+        <tr>
+          <td><code><%= column.header %></code></td>
+          <td>
+            <% if column.required %>
+              <span class="badge badge-warning"><%= t("inventory.imports.required") %></span>
+            <% else %>
+              <span class="td-secondary"><%= t("inventory.imports.optional") %></span>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

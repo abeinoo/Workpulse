@@ -1,10 +1,10 @@
-<% content_for :title, t("inventory.stock_counts.edit_title") %>
+<% content_for :title, t("inventory.stock_counts.counting_title") %>
 
 <div class="form-page form-page--wide">
   <%= link_to inventory_stock_count_path(@stock_count), class: "back-link" do %>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
     <%= t("forms.back") %>
   <% end %>
-  <h1 class="page-title mb-6"><%= @stock_count.count_number %> — <%= t("inventory.stock_counts.edit_title") %></h1>
-  <%= render "form", stock_count: @stock_count %>
+  <h1 class="page-title mb-6"><%= @stock_count.count_number %> — <%= t("inventory.stock_counts.counting_title") %></h1>
+  <%= render "counting_form", stock_count: @stock_count %>
 </div>

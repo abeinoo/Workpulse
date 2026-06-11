@@ -8,6 +8,11 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
     @stock_adjustment = find_adjustment
     authorize @stock_adjustment
     @items = @stock_adjustment.items.includes(:product)
+
+    # For stock-count adjustments, surface the originating count so the page can
+    # link back and show the System/Counted/Difference behind each line.
+    @source_count = @stock_adjustment.source_stock_count
+    @count_items_by_product = @source_count ? @source_count.items.index_by(&:product_id) : {}
   end
 
   def new

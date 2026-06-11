@@ -24,6 +24,7 @@
 
   <h2 class="section-title"><%= t("inventory.stock_issues.section_items") %></h2>
   <p class="form-hint"><%= t("inventory.stock_issues.cost_note") %></p>
+  <%= render "inventory/shared/barcode_scanner" %>
   <div class="table-wrap">
     <table class="line-items-table">
       <thead><tr>

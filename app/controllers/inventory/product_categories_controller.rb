@@ -53,6 +53,6 @@ class Inventory::ProductCategoriesController < Inventory::BaseController
   end
 
   def category_params
-    params.require(:product_category).permit(:name)
+    params.require(:product_category).permit(:name, :description, :active)
   end
 end

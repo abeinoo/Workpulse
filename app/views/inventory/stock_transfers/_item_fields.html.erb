@@ -1,11 +1,11 @@
 <tr data-line-row>
   <td>
     <%= f.select :product_id,
-          options_from_collection_for_select(products, :id, ->(p) { "#{p.name} (#{p.sku})" }, f.object.product_id),
+          inventory_product_options(products, f.object.product_id),
           { include_blank: "— #{t('inventory.stock_transfers.select_product')}" }, class: "form-control" %>
   </td>
   <td>
-    <%= f.number_field :quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0" %>
+    <%= f.number_field :quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0", data: { quantity_field: true } %>
   </td>
   <td class="td-actions">
     <% if f.object.persisted? %>

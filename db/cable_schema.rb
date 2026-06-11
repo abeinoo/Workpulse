@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_09_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_11_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -562,8 +562,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_09_000001) do
   end
 
   create_table "product_categories", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
     t.bigint "business_id", null: false
     t.datetime "created_at", null: false
+    t.text "description"
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.index "business_id, lower((name)::text)", name: "index_product_categories_on_business_id_and_lower_name", unique: true
@@ -887,9 +889,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_09_000001) do
   end
 
   create_table "stock_count_items", force: :cascade do |t|
-    t.decimal "counted_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "counted_quantity", precision: 12, scale: 3
     t.datetime "created_at", null: false
-    t.decimal "difference", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "difference", precision: 12, scale: 3
     t.bigint "product_id", null: false
     t.bigint "stock_count_id", null: false
     t.decimal "system_quantity", precision: 12, scale: 3, default: "0.0", null: false
@@ -900,22 +902,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_09_000001) do
   end
 
   create_table "stock_counts", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
     t.bigint "business_id", null: false
+    t.datetime "completed_at"
+    t.bigint "completed_by_id"
     t.string "count_number", null: false
     t.date "counted_on", null: false
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
     t.text "notes"
-    t.datetime "posted_at"
-    t.bigint "posted_by_id"
+    t.datetime "started_at"
     t.string "status", default: "draft", null: false
     t.bigint "stock_adjustment_id"
     t.datetime "updated_at", null: false
     t.bigint "warehouse_id", null: false
+    t.index ["approved_by_id"], name: "index_stock_counts_on_approved_by_id"
     t.index ["business_id", "count_number"], name: "index_stock_counts_on_business_id_and_count_number", unique: true
     t.index ["business_id"], name: "index_stock_counts_on_business_id"
+    t.index ["completed_by_id"], name: "index_stock_counts_on_completed_by_id"
     t.index ["created_by_id"], name: "index_stock_counts_on_created_by_id"
-    t.index ["posted_by_id"], name: "index_stock_counts_on_posted_by_id"
     t.index ["stock_adjustment_id"], name: "index_stock_counts_on_stock_adjustment_id"
     t.index ["warehouse_id"], name: "index_stock_counts_on_warehouse_id"
   end
@@ -1175,8 +1181,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_09_000001) do
   add_foreign_key "stock_count_items", "stock_counts"
   add_foreign_key "stock_counts", "businesses"
   add_foreign_key "stock_counts", "stock_adjustments"
+  add_foreign_key "stock_counts", "users", column: "approved_by_id"
+  add_foreign_key "stock_counts", "users", column: "completed_by_id"
   add_foreign_key "stock_counts", "users", column: "created_by_id"
-  add_foreign_key "stock_counts", "users", column: "posted_by_id"
   add_foreign_key "stock_counts", "warehouses"
   add_foreign_key "stock_issue_items", "products"
   add_foreign_key "stock_issue_items", "stock_issues"
