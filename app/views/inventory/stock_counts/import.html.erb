@@ -1,0 +1,20 @@
+<% content_for :title, t("inventory.imports.stock_counts.title") %>
+
+<div class="form-page">
+  <%= link_to inventory_stock_count_path(@stock_count), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= @stock_count.count_number %>
+  <% end %>
+  <h1 class="page-title mb-6"><%= t("inventory.imports.stock_counts.title") %></h1>
+
+  <%= form_with url: run_import_inventory_stock_count_path(@stock_count), method: :patch, class: "form-card" do |f| %>
+    <p class="form-hint" style="margin-bottom: var(--space-4);"><%= t("inventory.imports.stock_counts.columns") %></p>
+    <div class="form-group">
+      <%= label_tag :file, t("inventory.imports.file"), class: "form-label" %>
+      <%= file_field_tag :file, accept: ".csv", class: "form-control", required: true %>
+    </div>
+    <div class="form-actions">
+      <%= f.submit t("inventory.imports.upload"), class: "btn btn-primary" %>
+    </div>
+  <% end %>
+</div>

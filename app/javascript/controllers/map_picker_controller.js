@@ -7,6 +7,9 @@ export default class extends Controller {
   static values = {
     defaultLat: { type: Number, default: 24.7136 },
     defaultLng: { type: Number, default: 46.6753 },
+    // Read-only mode: render the saved marker but disable clicking/dragging.
+    // Used on detail pages to display a location without editing it.
+    readonly: { type: Boolean, default: false },
   }
 
   connect() {
@@ -45,6 +48,8 @@ export default class extends Controller {
     }).addTo(this.map)
 
     if (hasCoords) this.#placeMarker(savedLat, savedLng)
+
+    if (this.readonlyValue) return  // detail page: display only, no marker editing
 
     this.map.on("click", ({ latlng }) => {
       this.#placeMarker(latlng.lat, latlng.lng)
@@ -144,26 +149,35 @@ export default class extends Controller {
   }
 
   #placeMarker(lat, lng) {
-    const radius = this.#currentRadius()
+    // A geofence circle only makes sense when a radius input is present
+    // (branches). Locations without one (suppliers) show a marker only.
+    const hasCircle = this.hasRadiusTarget
 
     if (this.mapMarker) {
       this.mapMarker.setLatLng([lat, lng])
-      this.mapCircle.setLatLng([lat, lng])
-      this.mapCircle.setRadius(radius)
+      if (hasCircle) {
+        this.mapCircle.setLatLng([lat, lng])
+        this.mapCircle.setRadius(this.#currentRadius())
+      }
     } else {
-      this.mapMarker = this.L.marker([lat, lng], { draggable: true }).addTo(this.map)
-      this.mapCircle = this.L.circle([lat, lng], {
-        radius,
-        color: "#54C6F9",
-        fillColor: "#54C6F9",
-        fillOpacity: 0.15,
-        weight: 2,
-      }).addTo(this.map)
+      this.mapMarker = this.L.marker([lat, lng], { draggable: !this.readonlyValue }).addTo(this.map)
 
-      this.mapMarker.on("drag", ({ latlng }) => {
-        this.mapCircle.setLatLng([latlng.lat, latlng.lng])
-        this.#syncInputs(latlng.lat, latlng.lng)
-      })
+      if (hasCircle) {
+        this.mapCircle = this.L.circle([lat, lng], {
+          radius: this.#currentRadius(),
+          color: "#54C6F9",
+          fillColor: "#54C6F9",
+          fillOpacity: 0.15,
+          weight: 2,
+        }).addTo(this.map)
+      }
+
+      if (!this.readonlyValue) {
+        this.mapMarker.on("drag", ({ latlng }) => {
+          this.mapCircle?.setLatLng([latlng.lat, latlng.lng])
+          this.#syncInputs(latlng.lat, latlng.lng)
+        })
+      }
     }
   }
 

@@ -55,7 +55,7 @@ RSpec.describe PermissionRole, type: :model do
 
       it "strips blank strings from the hidden-field sentinel before validating" do
         # Rails form helpers emit permissions[]='' as a sentinel; ensure it is silently dropped
-        role = build(:permission_role, permissions: ["", "view_employees", ""])
+        role = build(:permission_role, permissions: [ "", "view_employees", "" ])
         expect(role).to be_valid
         expect(role.permissions).to eq(%w[view_employees])
       end
@@ -93,12 +93,12 @@ RSpec.describe PermissionRole, type: :model do
 
       PermissionRole::PERMISSION_DEPENDENCIES.each do |perm, deps|
         it "#{perm} requires #{deps.join(', ')}" do
-          role = build(:permission_role, permissions: [perm])
+          role = build(:permission_role, permissions: [ perm ])
           expect(role).not_to be_valid
           deps.each do |dep|
-            role_with_dep = build(:permission_role, permissions: [perm, dep])
+            role_with_dep = build(:permission_role, permissions: [ perm, dep ])
             # Only valid once ALL deps (not just this one) are present
-            if PermissionRole::PERMISSION_DEPENDENCIES[perm].all? { |d| [perm, dep].include?(d) }
+            if PermissionRole::PERMISSION_DEPENDENCIES[perm].all? { |d| [ perm, dep ].include?(d) }
               expect(role_with_dep).to be_valid
             end
           end
@@ -109,12 +109,12 @@ RSpec.describe PermissionRole, type: :model do
 
   # ── Constants ───────────────────────────────────────────────────────────────
   describe "PERMISSION_GROUPS" do
-    it "covers exactly 10 groups" do
-      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(10)
+    it "covers exactly 11 groups" do
+      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(11)
     end
 
-    it "has 34 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(34)
+    it "has 45 total permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(45)
     end
 
     it "includes view_payroll_analytics as a separate permission from view_payroll" do

@@ -1,0 +1,33 @@
+<% content_for :title, @warehouse.name %>
+
+<div class="admin-page">
+  <%= link_to inventory_warehouses_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title">
+      <%= @warehouse.name %>
+      <span class="badge <%= @warehouse.active? ? 'badge-success' : 'badge-neutral' %>">
+        <%= t("inventory.warehouses.statuses.#{@warehouse.status}") %>
+      </span>
+    </h1>
+    <% if current_user.can?(:manage_inventory) %>
+      <%= link_to t("common.edit"), edit_inventory_warehouse_path(@warehouse), class: "btn btn-secondary btn-sm" %>
+    <% end %>
+  </div>
+
+  <div class="card" style="padding: var(--space-5);">
+    <dl class="detail-list">
+      <div class="detail-list__row">
+        <dt><%= t("inventory.warehouses.description") %></dt>
+        <dd><%= @warehouse.description.presence || "—" %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.warehouses.created") %></dt>
+        <dd><%= local_date(@warehouse.created_at) %></dd>
+      </div>
+    </dl>
+  </div>
+</div>

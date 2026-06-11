@@ -1,0 +1,52 @@
+<% content_for :title, t("inventory.stock_counts.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.stock_counts.title") %></h1>
+    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_stock_counts) %>
+      <%= link_to t("inventory.stock_counts.new_action"), new_inventory_stock_count_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <%= form_with url: inventory_stock_counts_path, method: :get, class: "filter-bar" do |f| %>
+    <%= f.select :warehouse_id, options_from_collection_for_select(@warehouses, :id, :name, params[:warehouse_id]),
+          { include_blank: t("inventory.stock_counts.all_warehouses") }, class: "form-control" %>
+    <%= f.select :status,
+          StockCount.statuses.keys.map { |s| [t("inventory.stock_counts.statuses.#{s}"), s] },
+          { include_blank: t("inventory.stock_counts.all_statuses") }, class: "form-control" %>
+    <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm" %>
+  <% end %>
+
+  <% if @stock_counts.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.stock_counts.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.stock_counts.number") %></th>
+          <th><%= t("inventory.stock_counts.date") %></th>
+          <th><%= t("inventory.stock_counts.warehouse") %></th>
+          <th><%= t("inventory.stock_counts.status") %></th>
+          <th><%= t("inventory.stock_counts.counted_by") %></th>
+          <th><%= t("inventory.stock_counts.approved_by") %></th>
+        </tr></thead>
+        <tbody>
+          <% @stock_counts.each do |count| %>
+            <tr>
+              <td><%= link_to count.count_number, inventory_stock_count_path(count), class: "link" %></td>
+              <td class="td-secondary"><%= local_date(count.counted_on) %></td>
+              <td class="td-secondary"><%= count.warehouse.name %></td>
+              <td>
+                <span class="badge <%= stock_count_status_class(count.status) %>">
+                  <%= t("inventory.stock_counts.statuses.#{count.status}") %>
+                </span>
+              </td>
+              <td class="td-secondary"><%= count.created_by&.full_name || "—" %></td>
+              <td class="td-secondary"><%= count.approved_by&.full_name || "—" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

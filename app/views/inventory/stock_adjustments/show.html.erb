@@ -1,0 +1,78 @@
+<% content_for :title, @stock_adjustment.adjustment_number %>
+
+<div class="admin-page">
+  <%= link_to inventory_stock_adjustments_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title">
+      <%= @stock_adjustment.adjustment_number %>
+      <span class="badge <%= @stock_adjustment.voided? ? 'badge-danger' : 'badge-success' %>">
+        <%= @stock_adjustment.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+      </span>
+    </h1>
+  </div>
+
+  <%= render "inventory/shared/void_panel",
+        document: @stock_adjustment,
+        void_path: void_inventory_stock_adjustment_path(@stock_adjustment),
+        can_void: policy(@stock_adjustment).void? %>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.stock_adjustments.date") %></dt><dd><%= local_date(@stock_adjustment.adjusted_on) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_adjustments.warehouse") %></dt><dd><%= @stock_adjustment.warehouse.name %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_adjustments.reason") %></dt><dd><%= t("inventory.stock_adjustments.reasons.#{@stock_adjustment.reason}") %></dd></div>
+      <% if @source_count %>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.stock_adjustments.source_stock_count") %></dt>
+          <dd><%= link_to @source_count.count_number, inventory_stock_count_path(@source_count), class: "link" %></dd>
+        </div>
+      <% end %>
+      <% if @stock_adjustment.notes.present? %>
+        <div class="detail-list__row"><dt><%= t("inventory.stock_adjustments.notes") %></dt><dd><%= simple_format(@stock_adjustment.notes) %></dd></div>
+      <% end %>
+    </dl>
+  </div>
+
+  <div class="table-wrap table-wrap--cards">
+    <table>
+      <thead><tr>
+        <th><%= t("inventory.stock_adjustments.product") %></th>
+        <th><%= t("inventory.stock_counts.barcode") %></th>
+        <th><%= t("inventory.products.sku") %></th>
+        <% if @source_count %>
+          <th style="text-align: end;"><%= t("inventory.stock_counts.system_quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.stock_counts.counted_quantity") %></th>
+        <% end %>
+        <th style="text-align: end;"><%= t("inventory.stock_adjustments.quantity_difference") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_adjustments.unit_cost") %></th>
+        <th style="text-align: end;"><%= t("inventory.stock_adjustments.adjustment_value") %></th>
+      </tr></thead>
+      <tbody>
+        <% @items.each do |item| %>
+          <% count_item = @count_items_by_product[item.product_id] %>
+          <tr>
+            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+            <td class="td-secondary"><%= item.product.barcode.presence || "—" %></td>
+            <td class="td-secondary"><%= item.product.sku %></td>
+            <% if @source_count %>
+              <td style="text-align: end;"><%= count_item ? count_item.system_quantity.to_i : "—" %></td>
+              <td style="text-align: end;"><%= count_item&.counted? ? count_item.counted_quantity.to_i : "—" %></td>
+            <% end %>
+            <td style="text-align: end;">
+              <% positive = item.quantity_difference.positive? %>
+              <span class="badge <%= positive ? 'badge-success' : 'badge-warning' %>">
+                <%= positive ? "+" : "" %><%= item.quantity_difference.to_i %>
+              </span>
+            </td>
+            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
+            <td style="text-align: end;"><%= format_currency(@stock_adjustment.line_value(item)) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,49 @@
+<% content_for :title, t("inventory.imports.summary_title") %>
+
+<div class="admin-page">
+  <%= link_to inventory_products_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("inventory.products.title") %>
+  <% end %>
+
+  <div class="page-header"><h1 class="page-title"><%= t("inventory.imports.summary_title") %></h1></div>
+
+  <div class="stats-grid" style="margin-bottom: var(--space-5);">
+    <div class="stat-card stat-card--success">
+      <span class="stat-card__label"><%= t("inventory.imports.created") %></span>
+      <span class="stat-card__value"><%= @result.created_count %></span>
+    </div>
+    <div class="stat-card <%= 'stat-card--warning' if @result.skipped_count.positive? %>">
+      <span class="stat-card__label"><%= t("inventory.imports.skipped") %></span>
+      <span class="stat-card__value"><%= @result.skipped_count %></span>
+    </div>
+    <% if @result.opening_adjustment %>
+      <%= link_to inventory_stock_adjustment_path(@result.opening_adjustment), class: "stat-card" do %>
+        <span class="stat-card__label"><%= t("inventory.imports.opening_adjustment") %></span>
+        <span class="stat-card__value"><%= @result.opening_adjustment.adjustment_number %></span>
+      <% end %>
+    <% end %>
+  </div>
+
+  <% if @result.skipped.any? %>
+    <h2 class="section-title"><%= t("inventory.imports.skipped_rows") %></h2>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.imports.row") %></th>
+          <th><%= t("inventory.products.sku") %></th>
+          <th><%= t("inventory.imports.reason") %></th>
+        </tr></thead>
+        <tbody>
+          <% @result.skipped.each do |skip| %>
+            <tr>
+              <td class="td-secondary"><%= skip.row_number %></td>
+              <td class="td-secondary"><%= skip.sku.presence || "—" %></td>
+              <td><%= t("inventory.imports.reasons.#{skip.reason}", default: skip.reason.to_s) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

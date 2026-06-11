@@ -133,6 +133,22 @@
       <p class="form-hint"><%= t("admin.users.form.permission_role_hint") %></p>
     </div>
 
+    <% warehouses = current_user.business.warehouses.ordered %>
+    <% if warehouses.any? %>
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <%= f.label :assigned_warehouse_ids, t("admin.users.form.warehouses"), class: "form-label" %>
+        <div class="check-grid" style="display: flex; flex-wrap: wrap; gap: var(--space-3);">
+          <%= f.collection_check_boxes :assigned_warehouse_ids, warehouses, :id, :name do |b| %>
+            <label class="form-check">
+              <%= b.check_box %>
+              <span class="form-check-label"><%= b.text %></span>
+            </label>
+          <% end %>
+        </div>
+        <p class="form-hint"><%= t("admin.users.form.warehouses_hint") %></p>
+      </div>
+    <% end %>
+
     <div class="form-group">
       <%= f.label :identity_card_number, t("admin.users.form.identity_card"), class: "form-label" %>
       <%= f.text_field :identity_card_number,

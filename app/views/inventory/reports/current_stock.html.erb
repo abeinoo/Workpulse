@@ -1,0 +1,49 @@
+<% content_for :title, t("inventory.reports.current_stock.title") %>
+
+<div class="admin-page">
+  <%= link_to inventory_reports_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("inventory.reports.title") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.reports.current_stock.title") %></h1>
+  </div>
+
+  <%= form_with url: inventory_current_stock_report_path, method: :get, class: "filter-bar" do |f| %>
+    <%= f.select :warehouse_id, options_from_collection_for_select(@warehouses, :id, :name, params[:warehouse_id]),
+          { include_blank: t("inventory.reports.all_warehouses") }, class: "form-control" %>
+    <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm" %>
+  <% end %>
+
+  <div class="table-wrap table-wrap--cards">
+    <table>
+      <thead><tr>
+        <th><%= t("inventory.reports.fields.product") %></th>
+        <th><%= t("inventory.reports.fields.sku") %></th>
+        <th style="text-align: end;"><%= t("inventory.reports.fields.current_stock") %></th>
+        <th style="text-align: end;"><%= t("inventory.reports.fields.last_cost") %></th>
+        <th style="text-align: end;"><%= t("inventory.reports.fields.avg_cost") %></th>
+        <th style="text-align: end;"><%= t("inventory.reports.fields.stock_value") %></th>
+      </tr></thead>
+      <tbody>
+        <% @rows.each do |row| %>
+          <tr>
+            <td><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+            <td class="td-secondary"><%= row.product.sku %></td>
+            <td style="text-align: end;"><%= row.on_hand.to_i %></td>
+            <td style="text-align: end;"><%= format_currency(row.last_cost) %></td>
+            <td style="text-align: end;"><%= format_currency(row.unit_cost) %></td>
+            <td style="text-align: end;"><%= format_currency(row.stock_value) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5" style="text-align: end; font-weight: 600;"><%= t("inventory.reports.fields.total_value") %></td>
+          <td style="text-align: end; font-weight: 600;"><%= format_currency(@report.total_value) %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

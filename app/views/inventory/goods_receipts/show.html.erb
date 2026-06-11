@@ -1,0 +1,80 @@
+<% content_for :title, @goods_receipt.receipt_number %>
+
+<div class="admin-page">
+  <%= link_to inventory_goods_receipts_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title">
+      <%= @goods_receipt.receipt_number %>
+      <span class="badge <%= @goods_receipt.voided? ? 'badge-danger' : 'badge-success' %>">
+        <%= @goods_receipt.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+      </span>
+    </h1>
+  </div>
+
+  <%= render "inventory/shared/void_panel",
+        document: @goods_receipt,
+        void_path: void_inventory_goods_receipt_path(@goods_receipt),
+        can_void: policy(@goods_receipt).void? %>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.date") %></dt><dd><%= local_date(@goods_receipt.received_on) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.supplier") %></dt><dd><%= @goods_receipt.supplier&.name || "—" %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.warehouse") %></dt><dd><%= @goods_receipt.warehouse.name %></dd></div>
+      <% if @goods_receipt.notes.present? %>
+        <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.notes") %></dt><dd><%= simple_format(@goods_receipt.notes) %></dd></div>
+      <% end %>
+    </dl>
+  </div>
+
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.goods_receipts.invoices") %></h2>
+    </div>
+    <% if @goods_receipt.invoices.attached? %>
+      <div class="attachment-grid">
+        <% @goods_receipt.invoices.each do |invoice| %>
+          <div class="attachment-item">
+            <p class="attachment-item__label"><%= invoice.filename.to_s %></p>
+            <%= document_viewer_tag(invoice) %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.goods_receipts.no_invoices") %></p>
+    <% end %>
+  </div>
+
+  <div class="table-wrap table-wrap--cards">
+    <table>
+      <thead><tr>
+        <th><%= t("inventory.goods_receipts.product") %></th>
+        <th><%= t("inventory.products.sku") %></th>
+        <th style="text-align: end;"><%= t("inventory.goods_receipts.quantity") %></th>
+        <th style="text-align: end;"><%= t("inventory.goods_receipts.unit_cost") %></th>
+        <th style="text-align: end;"><%= t("inventory.goods_receipts.total") %></th>
+      </tr></thead>
+      <tbody>
+        <% @items.each do |item| %>
+          <tr>
+            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+            <td class="td-secondary"><%= item.product.sku %></td>
+            <td style="text-align: end;"><%= item.quantity.to_i %></td>
+            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
+            <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align: end; font-weight: 600;"><%= t("inventory.goods_receipts.total") %></td>
+          <td style="text-align: end; font-weight: 600;"><%= format_currency(@goods_receipt.total_value) %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

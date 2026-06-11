@@ -1,0 +1,55 @@
+<% content_for :title, t("inventory.reports.supplier_purchases.title") %>
+
+<div class="admin-page">
+  <%= link_to inventory_reports_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("inventory.reports.title") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.reports.supplier_purchases.title") %></h1>
+  </div>
+
+  <%= form_with url: inventory_supplier_purchases_report_path, method: :get, class: "filter-bar" do |f| %>
+    <%= f.select :supplier_id, options_from_collection_for_select(@suppliers, :id, :name, params[:supplier_id]),
+          { include_blank: t("inventory.reports.all_suppliers") }, class: "form-control" %>
+    <%= f.select :warehouse_id, options_from_collection_for_select(@warehouses, :id, :name, params[:warehouse_id]),
+          { include_blank: t("inventory.reports.all_warehouses") }, class: "form-control" %>
+    <%= f.date_field :from, value: params[:from], class: "form-control" %>
+    <%= f.date_field :to, value: params[:to], class: "form-control" %>
+    <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm" %>
+  <% end %>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.supplier_purchases.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.reports.fields.supplier") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.receipts") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.products") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.purchase_value") %></th>
+        </tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td><%= link_to row.supplier.name, inventory_supplier_path(row.supplier), class: "link" %></td>
+              <td style="text-align: end;"><%= row.receipt_count %></td>
+              <td style="text-align: end;"><%= row.product_count %></td>
+              <td style="text-align: end;"><%= row.total_quantity.to_i %></td>
+              <td style="text-align: end;"><%= format_currency(row.total_value) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" style="text-align: end; font-weight: 600;"><%= t("inventory.reports.fields.total_value") %></td>
+            <td style="text-align: end; font-weight: 600;"><%= format_currency(@report.grand_total) %></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <% end %>
+</div>

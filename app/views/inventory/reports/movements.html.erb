@@ -1,0 +1,56 @@
+<% content_for :title, t("inventory.reports.movements.title") %>
+
+<div class="admin-page">
+  <%= link_to inventory_reports_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("inventory.reports.title") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.reports.movements.title") %></h1>
+  </div>
+
+  <%= form_with url: inventory_movements_report_path, method: :get, class: "filter-bar" do |f| %>
+    <%= f.select :warehouse_id, options_from_collection_for_select(@warehouses, :id, :name, params[:warehouse_id]),
+          { include_blank: t("inventory.reports.all_warehouses") }, class: "form-control" %>
+    <%= f.select :product_id, options_from_collection_for_select(@products, :id, :name, params[:product_id]),
+          { include_blank: t("inventory.reports.all_products") }, class: "form-control" %>
+    <%= f.date_field :from, value: params[:from], class: "form-control" %>
+    <%= f.date_field :to, value: params[:to], class: "form-control" %>
+    <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm" %>
+  <% end %>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.movements.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.reports.fields.date") %></th>
+          <th><%= t("inventory.reports.fields.product") %></th>
+          <th><%= t("inventory.reports.fields.warehouse") %></th>
+          <th><%= t("inventory.reports.fields.type") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.balance_after") %></th>
+        </tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td class="td-secondary"><%= local_date(row.movement.occurred_on) %></td>
+              <td><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-secondary"><%= row.warehouse.name %></td>
+              <td>
+                <span class="badge <%= row.direction == 'in' ? 'badge-success' : 'badge-neutral' %>">
+                  <%= t("inventory.movements.directions.#{row.direction}") %>
+                </span>
+                <span class="td-secondary"><%= t("inventory.movements.reasons.#{row.reason}") %></span>
+              </td>
+              <td style="text-align: end;"><%= row.signed_quantity.positive? ? "+" : "" %><%= row.signed_quantity.to_i %></td>
+              <td style="text-align: end;"><%= row.balance_after.to_i %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

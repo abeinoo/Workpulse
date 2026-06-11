@@ -1,0 +1,25 @@
+<% product = f.object.product
+   system_qty = f.object.system_quantity.to_d
+   counted = f.object.counted?
+   diff = f.object.difference.to_d
+   diff_class = !counted ? "badge-neutral" : (diff.zero? ? "badge-success" : (diff.positive? ? "badge-warning" : "badge-danger")) %>
+<tr data-line-row data-product-id="<%= product.id %>" data-barcode="<%= product.barcode %>" data-sku="<%= product.sku %>" data-system-quantity="<%= system_qty %>">
+  <td>
+    <%= product.name %> <span class="td-secondary">(<%= product.sku %>)</span>
+    <%= f.hidden_field :id %>
+    <%= f.hidden_field :product_id %>
+    <%= f.hidden_field :system_quantity %>
+  </td>
+  <td class="td-secondary"><%= product.barcode.presence || "—" %></td>
+  <td style="text-align: end;"><%= system_qty.to_i %></td>
+  <td>
+    <%= f.number_field :counted_quantity, step: 1, min: 0, class: "form-control qty-input",
+          inputmode: "numeric", pattern: "[0-9]*", placeholder: "—",
+          data: { quantity_field: true, action: "input->count-sheet#recalc keydown.enter->count-sheet#focusScanner" } %>
+  </td>
+  <td style="text-align: end;">
+    <span data-difference class="badge <%= diff_class %>">
+      <%= counted ? "#{diff.positive? ? '+' : ''}#{diff.to_i}" : "—" %>
+    </span>
+  </td>
+</tr>

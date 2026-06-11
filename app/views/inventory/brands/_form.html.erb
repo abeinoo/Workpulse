@@ -1,0 +1,13 @@
+<%= form_with model: [:inventory, brand], class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: brand %>
+  <div class="form-grid">
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :name, t("inventory.brands.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if brand.errors[:name].any?}", autofocus: true %>
+    </div>
+  </div>
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_brands_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

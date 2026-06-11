@@ -1,0 +1,64 @@
+<% content_for :title, t("inventory.products.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.products.title") %></h1>
+    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
+      <div class="flex items-center" style="gap: var(--space-2); flex-wrap: wrap;">
+        <%= link_to t("inventory.products.manage_categories"), inventory_product_categories_path, class: "btn btn-ghost btn-sm" %>
+        <%= link_to t("inventory.products.manage_brands"), inventory_brands_path, class: "btn btn-ghost btn-sm" %>
+        <%= link_to t("inventory.imports.import_csv"), import_inventory_products_path, class: "btn btn-secondary btn-sm" %>
+        <%= link_to t("inventory.products.add"), new_inventory_product_path, class: "btn btn-primary btn-sm" %>
+      </div>
+    <% end %>
+  </div>
+
+  <%= form_with url: inventory_products_path, method: :get, class: "filter-bar" do |f| %>
+    <%= f.text_field :q, value: params[:q], placeholder: t("inventory.products.search_placeholder"), class: "form-control" %>
+    <%= f.select :brand_id, options_from_collection_for_select(@brands, :id, :name, params[:brand_id]),
+          { include_blank: t("inventory.products.all_brands") }, class: "form-control" %>
+    <%= f.select :category_id, options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
+          { include_blank: t("inventory.products.all_categories") }, class: "form-control" %>
+    <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm" %>
+  <% end %>
+
+  <% if @products.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.products.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.products.name") %></th>
+          <th><%= t("inventory.products.sku") %></th>
+          <th><%= t("inventory.products.brand") %></th>
+          <th style="text-align: end;"><%= t("inventory.products.current_stock") %></th>
+          <th style="text-align: end;"><%= t("inventory.products.avg_cost") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @products.each do |product| %>
+            <% stock = @stock_totals[product.id] || 0 %>
+            <tr>
+              <td><%= link_to product.name, inventory_product_path(product), class: "link" %></td>
+              <td class="td-secondary"><%= product.sku %></td>
+              <td class="td-secondary"><%= product.brand&.name || "—" %></td>
+              <td style="text-align: end;">
+                <% if stock <= product.low_stock_level %>
+                  <span class="badge badge-warning"><%= stock.to_i %></span>
+                <% else %>
+                  <%= stock.to_i %>
+                <% end %>
+              </td>
+              <td style="text-align: end;"><%= format_currency(product.average_cost_price) %></td>
+              <td class="td-actions">
+                <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
+                  <%= link_to t("common.edit"), edit_inventory_product_path(product), class: "link-muted" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

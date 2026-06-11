@@ -271,6 +271,59 @@ Rails.application.routes.draw do
     resource :password, only: [ :edit, :update ]
   end
 
+  # ── Inventory Management ──────────────────────────────────────────────────
+  namespace :inventory do
+    root to: "dashboard#index"
+
+    resources :warehouses
+    resources :suppliers
+    resources :brands,             except: [ :show ]
+    resources :product_categories, except: [ :show ]
+    resources :products do
+      collection do
+        get  :import
+        post :run_import, path: "import"
+        get  :import_template
+      end
+    end
+    resources :goods_receipts,  only: [ :index, :show, :new, :create ] do
+      member { patch :void }
+    end
+    resources :stock_issues,    only: [ :index, :show, :new, :create ] do
+      member { patch :void }
+      collection do
+        get  :import
+        post :run_import, path: "import"
+        get  :import_template
+      end
+    end
+    resources :stock_transfers, only: [ :index, :show, :new, :create ] do
+      member { patch :void }
+    end
+    resources :stock_adjustments, only: [ :index, :show, :new, :create ] do
+      member { patch :void }
+    end
+    resources :stock_counts do
+      member do
+        patch :complete
+        patch :approve
+        patch :reopen
+        get   :export
+        get   :import
+        patch :run_import, path: "import"
+      end
+    end
+
+    # Shared barcode → product lookup for scanner-enabled document forms.
+    get "barcode_lookup", to: "barcode_lookups#show", as: :barcode_lookup
+
+    # ── Reports ──────────────────────────────────────────────────────────
+    get "reports",                    to: "reports#index",              as: :reports
+    get "reports/current_stock",      to: "reports#current_stock",      as: :current_stock_report
+    get "reports/movements",          to: "reports#movements",          as: :movements_report
+    get "reports/supplier_purchases", to: "reports#supplier_purchases", as: :supplier_purchases_report
+  end
+
   # ── Root ──────────────────────────────────────────────────────────────────
   root to: "dashboard#index"
 end

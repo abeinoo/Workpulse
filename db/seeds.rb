@@ -95,11 +95,12 @@ end
 # Super Admin
 # ---------------------------------------------------------------------------
 admin = seed_user(
-  business:      business,
-  email:         "admin@workpulse.dev",
-  first_name:    "Sara",
-  last_name:     "Al-Otaibi",
-  employee_code: "ADM-001"
+  business:             business,
+  email:                "admin@workpulse.dev",
+  first_name:           "Sara",
+  last_name:            "Al-Otaibi",
+  employee_code:        "ADM-001",
+  identity_card_number: "1001000001"
 )
 business.update_column(:owner_id, admin.id) if business.owner_id.nil?
 puts "Owner: #{admin.email}"
@@ -108,12 +109,13 @@ puts "Owner: #{admin.email}"
 # Area Manager
 # ---------------------------------------------------------------------------
 area_mgr = seed_user(
-  business:      business,
-  email:         "area.manager@workpulse.dev",
-  phone:         "+966509990002",
-  first_name:    "Tariq",
-  last_name:     "Al-Harbi",
-  employee_code: "ARM-001"
+  business:             business,
+  email:                "area.manager@workpulse.dev",
+  phone:                "+966509990002",
+  first_name:           "Tariq",
+  last_name:            "Al-Harbi",
+  employee_code:        "ARM-001",
+  identity_card_number: "1001000002"
 )
 puts "Area Manager: #{area_mgr.email}"
 
@@ -121,12 +123,13 @@ puts "Area Manager: #{area_mgr.email}"
 # Accountant
 # ---------------------------------------------------------------------------
 accountant = seed_user(
-  business:      business,
-  email:         "accountant@workpulse.dev",
-  phone:         "+966509990001",
-  first_name:    "Hana",
-  last_name:     "Al-Rashid",
-  employee_code: "ACC-001"
+  business:             business,
+  email:                "accountant@workpulse.dev",
+  phone:                "+966509990001",
+  first_name:           "Hana",
+  last_name:            "Al-Rashid",
+  employee_code:        "ACC-001",
+  identity_card_number: "1001000003"
 )
 puts "Accountant: #{accountant.email}"
 
@@ -134,21 +137,23 @@ puts "Accountant: #{accountant.email}"
 # Branch Managers
 # ---------------------------------------------------------------------------
 mgr_riyadh = seed_user(
-  business:      business,
-  email:         "manager.riyadh@workpulse.dev",
-  phone:         "+966501110001",
-  first_name:    "Khaled",
-  last_name:     "Al-Ghamdi",
-  employee_code: "MGR-001"
+  business:             business,
+  email:                "manager.riyadh@workpulse.dev",
+  phone:                "+966501110001",
+  first_name:           "Khaled",
+  last_name:            "Al-Ghamdi",
+  employee_code:        "MGR-001",
+  identity_card_number: "1001000004"
 )
 
 mgr_jeddah = seed_user(
-  business:      business,
-  email:         "manager.jeddah@workpulse.dev",
-  phone:         "+966501110002",
-  first_name:    "Noura",
-  last_name:     "Al-Zahrani",
-  employee_code: "MGR-002"
+  business:             business,
+  email:                "manager.jeddah@workpulse.dev",
+  phone:                "+966501110002",
+  first_name:           "Noura",
+  last_name:            "Al-Zahrani",
+  employee_code:        "MGR-002",
+  identity_card_number: "1001000005"
 )
 puts "Managers: #{mgr_riyadh.email}, #{mgr_jeddah.email}"
 
@@ -326,6 +331,7 @@ unless EmployeeRequest.where(user: emp1, request_type: "late_permission", status
     request_type:       "late_permission",
     requested_for_date: Date.current + 2.days,
     reason:             "Medical appointment in the morning",
+    duration_minutes:   60,
     status:             "pending"
   )
 end
@@ -387,6 +393,7 @@ unless EmployeeRequest.where(user: emp2, request_type: "early_leave", status: "r
     request_type:       "early_leave",
     requested_for_date: Date.current - 3.days,
     reason:             "Family obligation",
+    duration_minutes:   90,
     status:             "rejected",
     reviewed_by:        mgr_riyadh,
     reviewed_at:        Time.current - 2.days,
@@ -401,6 +408,7 @@ unless EmployeeRequest.where(user: emp5, request_type: "early_leave", status: "a
     request_type:       "early_leave",
     requested_for_date: Date.current - 1.day,
     reason:             "Medical follow-up",
+    duration_minutes:   45,
     status:             "approved",
     reviewed_by:        mgr_jeddah,
     reviewed_at:        Time.current - 1.day,
@@ -574,17 +582,17 @@ if emp6_entry && emp6_entry.payroll_line_items.where(item_type: "bonus").none?
   end
 
   unless emp6_entry.payroll_line_items.where(item_type: "bonus", source_type: "PayrollAdjustment", source_id: bonus_adj.id).exists?
-    PayrollLineItem.create!(
-      payroll_entry: emp6_entry,
-      item_type:     "bonus",
-      amount:        500,
-      description:   "Performance bonus — Ramadan rush",
-      review_status: "approved",
-      reviewed_by:   admin,
-      reviewed_at:   Time.current - 6.days,
-      source_type:   "PayrollAdjustment",
-      source_id:     bonus_adj.id
-    )
+    # PayrollLineItem.create!(
+    #   payroll_entry: emp6_entry,
+    #   item_type:     "bonus",
+    #   amount:        500,
+    #   description:   "Performance bonus — Ramadan rush",
+    #   review_status: "approved",
+    #   reviewed_by:   admin,
+    #   reviewed_at:   Time.current - 6.days,
+    #   source_type:   "PayrollAdjustment",
+    #   source_id:     bonus_adj.id
+    # )
   end
   emp6_entry.recalculate_totals!
 end
@@ -645,31 +653,291 @@ if emp1_curr
   unless PayrollAdjustment.where(business: business, period_year: period_curr.period_year,
                                   period_month: period_curr.period_month,
                                   user: emp1, adjustment_type: "bonus").exists?
-    bonus_curr = PayrollAdjustment.create!(
-      payroll_period:  period_curr,
-      business:        business,
-      period_month:    period_curr.period_month,
-      period_year:     period_curr.period_year,
-      user:            emp1,
-      adjustment_type: "bonus",
-      amount:          300,
-      reason:          "Outstanding attendance — perfect month",
-      created_by:      mgr_riyadh,
-      review_status:   "pending_review"
-    )
-    PayrollLineItem.create!(
-      payroll_entry: emp1_curr,
-      item_type:     "bonus",
-      amount:        300,
-      description:   "Attendance bonus (pending review)",
-      review_status: "pending_review",
-      source_type:   "PayrollAdjustment",
-      source_id:     bonus_curr.id
-    )
+    # bonus_curr = PayrollAdjustment.create!(
+    #   payroll_period:  period_curr,
+    #   business:        business,
+    #   period_month:    period_curr.period_month,
+    #   period_year:     period_curr.period_year,
+    #   user:            emp1,
+    #   adjustment_type: "bonus",
+    #   amount:          300,
+    #   reason:          "Outstanding attendance — perfect month",
+    #   created_by:      mgr_riyadh,
+    #   review_status:   "pending_review"
+    # )
+    # PayrollLineItem.create!(
+    #   payroll_entry: emp1_curr,
+    #   item_type:     "bonus",
+    #   amount:        300,
+    #   description:   "Attendance bonus (pending review)",
+    #   review_status: "pending_review",
+    #   source_type:   "PayrollAdjustment",
+    #   source_id:     bonus_curr.id
+    # )
   end
 end
 
 puts "Payroll period (draft): #{period_curr.period_label}"
+
+# ===========================================================================
+# INVENTORY
+# ---------------------------------------------------------------------------
+# Reference data (warehouses, suppliers, categories, brands, products) is
+# created idempotently with find_or_create_by. The stock itself is built only
+# on a fresh database (guarded by "no inventory movements yet") and is posted
+# through the real Inventory service objects — GoodsReceiptPoster, transfers,
+# issues, adjustments and a posted stock count — so the movement ledger, moving
+# average cost and document numbers are all produced exactly as in production.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Warehouses (business-scoped; conceptually mapped to branches + a central DC)
+# ---------------------------------------------------------------------------
+w_main = Warehouse.find_or_create_by!(business: business, name: "Riyadh Main Warehouse") do |w|
+  w.description = "Primary stockroom serving the Riyadh HQ salon floor"
+  w.status      = "active"
+end
+
+w_jeddah = Warehouse.find_or_create_by!(business: business, name: "Jeddah Branch Warehouse") do |w|
+  w.description = "Back-of-house storage for the Jeddah branch"
+  w.status      = "active"
+end
+
+w_central = Warehouse.find_or_create_by!(business: business, name: "Central Distribution Center") do |w|
+  w.description = "Bulk warehouse that supplies both branches via transfers"
+  w.status      = "active"
+end
+warehouses = [ w_main, w_jeddah, w_central ]
+puts "Warehouses: #{warehouses.map(&:name).join(', ')}"
+
+# Warehouse scoping demo: the Jeddah manager only sees the Jeddah warehouse.
+# (A user with no assignments sees every warehouse — owners/accountants.)
+WarehouseAssignment.find_or_create_by!(user: mgr_jeddah, warehouse: w_jeddah)
+puts "Warehouse assignments: #{mgr_jeddah.full_name} → #{w_jeddah.name}"
+
+# ---------------------------------------------------------------------------
+# Suppliers
+# ---------------------------------------------------------------------------
+suppliers_data = [
+  { name: "Gulf Beauty Supplies",          mobile: "+966112340001", address: "Industrial City 2, Riyadh",   lat: 24.6500, lng: 46.7100 },
+  { name: "Al-Salam Trading Co.",          mobile: "+966122340002", address: "Al Khomrah District, Jeddah",  lat: 21.4200, lng: 39.1900 },
+  { name: "Riyadh Cosmetics Distribution", mobile: "+966112340003", address: "Exit 18, Eastern Ring Road, Riyadh", lat: nil, lng: nil }
+]
+suppliers = suppliers_data.map do |d|
+  Supplier.find_or_create_by!(business: business, name: d[:name]) do |s|
+    s.primary_mobile = d[:mobile]
+    s.address        = d[:address]
+    s.latitude       = d[:lat]
+    s.longitude      = d[:lng]
+  end
+end
+sup_gulf, sup_salam, sup_cosmetics = suppliers
+puts "Suppliers: #{suppliers.count}"
+
+# ---------------------------------------------------------------------------
+# Product categories & brands
+# ---------------------------------------------------------------------------
+categories = {}
+[ "Hair Care", "Skin Care", "Tools & Equipment", "Consumables" ].each do |name|
+  categories[name] = ProductCategory.find_or_create_by!(business: business, name: name)
+end
+
+brands = {}
+[ "L'Oréal", "Schwarzkopf", "Wella", "Generic" ].each do |name|
+  brands[name] = Brand.find_or_create_by!(business: business, name: name)
+end
+puts "Categories: #{categories.size}, Brands: #{brands.size}"
+
+# ---------------------------------------------------------------------------
+# Products
+# ---------------------------------------------------------------------------
+products_data = [
+  { sku: "HC-DB-100", name: "Hair Color — Dark Brown",       cat: "Hair Care",          brand: "L'Oréal",     supplier: sup_gulf,      cost: 100, low: 20, reorder: 50, markup: 40, barcode: "6281000000100" },
+  { sku: "HC-BL-101", name: "Hair Color — Blonde",           cat: "Hair Care",          brand: "Schwarzkopf", supplier: sup_gulf,      cost: 110, low: 20, reorder: 50, markup: 40, barcode: "6281000000101" },
+  { sku: "SH-1L-200", name: "Shampoo 1L",                    cat: "Hair Care",          brand: "Wella",       supplier: sup_salam,     cost: 25,  low: 30, reorder: 80, markup: 50, barcode: "6281000000200" },
+  { sku: "CN-1L-201", name: "Conditioner 1L",                cat: "Hair Care",          brand: "Wella",       supplier: sup_salam,     cost: 28,  low: 30, reorder: 80, markup: 50, barcode: "6281000000201" },
+  { sku: "SK-FM-300", name: "Face Moisturizer",              cat: "Skin Care",          brand: "L'Oréal",     supplier: sup_cosmetics, cost: 45,  low: 15, reorder: 40, markup: 60, barcode: "6281000000300" },
+  { sku: "SK-FC-301", name: "Facial Cleanser",               cat: "Skin Care",          brand: "L'Oréal",     supplier: sup_cosmetics, cost: 35,  low: 15, reorder: 40, markup: 60, barcode: "6281000000301" },
+  { sku: "TL-HD-400", name: "Hair Dryer Pro",                cat: "Tools & Equipment",  brand: "Generic",     supplier: sup_salam,     cost: 180, low: 5,  reorder: 10, markup: 35, barcode: "6281000000400" },
+  { sku: "TL-SS-401", name: "Styling Scissors",              cat: "Tools & Equipment",  brand: "Generic",     supplier: sup_salam,     cost: 90,  low: 5,  reorder: 15, markup: 35, barcode: "6281000000401" },
+  { sku: "CS-DT-500", name: "Disposable Towels (100pk)",     cat: "Consumables",        brand: "Generic",     supplier: sup_gulf,      cost: 40,  low: 25, reorder: 60, markup: 30, barcode: "6281000000500" },
+  { sku: "CS-LG-501", name: "Latex Gloves (100pk)",          cat: "Consumables",        brand: "Generic",     supplier: sup_gulf,      cost: 22,  low: 25, reorder: 60, markup: 30, barcode: "6281000000501" }
+]
+
+products = products_data.map do |d|
+  Product.find_or_create_by!(business: business, sku: d[:sku]) do |p|
+    p.name                      = d[:name]
+    p.product_category          = categories[d[:cat]]
+    p.brand                     = brands[d[:brand]]
+    p.default_supplier          = d[:supplier]
+    p.barcode                   = d[:barcode]
+    p.initial_cost_price        = d[:cost]
+    p.average_cost_price        = d[:cost]   # blended forward once stock is posted
+    p.low_stock_level           = d[:low]
+    p.reorder_quantity          = d[:reorder]
+    p.selling_markup_percentage = d[:markup]
+  end
+end
+prod = products.index_by(&:sku)
+puts "Products: #{products.count}"
+
+# ---------------------------------------------------------------------------
+# Per-warehouse overrides — the Jeddah warehouse alerts earlier on fast movers.
+# ---------------------------------------------------------------------------
+{ "HC-DB-100" => { low: 10, reorder: 25 },
+  "SH-1L-200" => { low: 15, reorder: 40 } }.each do |sku, cfg|
+  ProductWarehouseSetting.find_or_create_by!(product: prod[sku], warehouse: w_jeddah) do |s|
+    s.low_stock_level  = cfg[:low]
+    s.reorder_quantity = cfg[:reorder]
+  end
+end
+puts "Product warehouse settings: #{ProductWarehouseSetting.joins(:product).where(products: { business_id: business.id }).count}"
+
+# ---------------------------------------------------------------------------
+# Stock movements — posted through the real services, fresh-DB only.
+# ---------------------------------------------------------------------------
+if business.inventory_movements.none?
+  # -- Posting helpers ------------------------------------------------------
+  post_adjustment = lambda do |warehouse:, on:, reason:, lines:, note:|
+    adj = business.stock_adjustments.build(
+      warehouse: warehouse, adjusted_on: on, reason: reason, created_by: admin, notes: note
+    )
+    lines.each { |product, diff, unit_cost| adj.items.build(product: product, quantity_difference: diff, unit_cost: unit_cost) }
+    result = Inventory::AdjustmentPoster.new(adj).call
+    raise "Adjustment seed failed (#{reason} @ #{warehouse.name}): #{adj.errors.full_messages.join('; ')}" unless result.ok?
+    adj
+  end
+
+  post_receipt = lambda do |warehouse:, supplier:, on:, lines:|
+    grn = business.goods_receipts.build(warehouse: warehouse, supplier: supplier, received_on: on, created_by: admin)
+    lines.each { |product, qty, unit_cost| grn.items.build(product: product, quantity: qty, unit_cost: unit_cost) }
+    result = Inventory::GoodsReceiptPoster.new(grn).call
+    raise "Goods receipt seed failed (@ #{warehouse.name}): #{grn.errors.full_messages.join('; ')}" unless result.ok?
+    grn
+  end
+
+  post_transfer = lambda do |from:, to:, on:, lines:|
+    trf = business.stock_transfers.build(source_warehouse: from, destination_warehouse: to, transferred_on: on, created_by: admin)
+    lines.each { |product, qty| trf.items.build(product: product, quantity: qty) }
+    result = Inventory::StockTransferPoster.new(trf).call
+    raise "Transfer seed failed (#{from.name} → #{to.name}): #{trf.errors.full_messages.join('; ')}" unless result.ok?
+    trf
+  end
+
+  post_issue = lambda do |warehouse:, on:, note:, lines:|
+    iss = business.stock_issues.build(warehouse: warehouse, issued_on: on, notes: note, created_by: admin)
+    lines.each { |product, qty| iss.items.build(product: product, quantity: qty) }
+    result = Inventory::StockIssuePoster.new(iss).call
+    raise "Stock issue seed failed (@ #{warehouse.name}): #{iss.errors.full_messages.join('; ')}" unless result.ok?
+    iss
+  end
+
+  # -- 1. Opening balances: establish on-hand + average cost per warehouse --
+  opening = {
+    w_central => 300,   # bulk distribution centre
+    w_main    => 100,   # Riyadh salon floor stockroom
+    w_jeddah  => 60     # Jeddah branch
+  }
+  opening.each do |warehouse, qty|
+    post_adjustment.call(
+      warehouse: warehouse,
+      on:        60.days.ago.to_date,
+      reason:    :opening_balance,
+      note:      "Opening balance — initial stock take",
+      lines:     products.map { |p| [ p, qty, p.initial_cost_price ] }
+    )
+  end
+
+  # -- 2. Goods receipts: replenish the DC/main at varying cost (moves the avg) --
+  post_receipt.call(warehouse: w_central, supplier: sup_gulf, on: 25.days.ago.to_date, lines: [
+    [ prod["HC-DB-100"], 50, 120 ],
+    [ prod["HC-BL-101"], 50, 125 ]
+  ])
+  post_receipt.call(warehouse: w_central, supplier: sup_salam, on: 20.days.ago.to_date, lines: [
+    [ prod["SH-1L-200"], 100, 27 ],
+    [ prod["CN-1L-201"], 100, 30 ],
+    [ prod["CS-DT-500"], 80,  42 ]
+  ])
+  post_receipt.call(warehouse: w_main, supplier: sup_cosmetics, on: 15.days.ago.to_date, lines: [
+    [ prod["SK-FM-300"], 40, 48 ],
+    [ prod["SK-FC-301"], 40, 37 ]
+  ])
+
+  # -- 3. Transfers: move stock from the DC out to the two branches ---------
+  post_transfer.call(from: w_central, to: w_main, on: 12.days.ago.to_date, lines: [
+    [ prod["HC-DB-100"], 30 ], [ prod["HC-BL-101"], 30 ], [ prod["SH-1L-200"], 40 ]
+  ])
+  post_transfer.call(from: w_central, to: w_jeddah, on: 10.days.ago.to_date, lines: [
+    [ prod["HC-DB-100"], 20 ], [ prod["SH-1L-200"], 25 ],
+    [ prod["CS-DT-500"], 20 ], [ prod["CS-LG-501"], 20 ]
+  ])
+
+  # -- 4. Stock issues: consumption on the salon floor ---------------------
+  post_issue.call(warehouse: w_main, on: 7.days.ago.to_date, note: "Salon floor usage — Riyadh", lines: [
+    [ prod["HC-DB-100"], 12 ], [ prod["SH-1L-200"], 15 ], [ prod["SK-FM-300"], 8 ]
+  ])
+  post_issue.call(warehouse: w_jeddah, on: 5.days.ago.to_date, note: "Salon floor usage — Jeddah", lines: [
+    [ prod["HC-DB-100"], 8 ], [ prod["CS-DT-500"], 10 ]
+  ])
+
+  # -- 5. Adjustments: damage / loss corrections ---------------------------
+  post_adjustment.call(warehouse: w_jeddah, on: 3.days.ago.to_date, reason: :damaged,
+                       note: "Water-damaged stock discarded",
+                       lines: [ [ prod["CS-DT-500"], -5, 0 ] ])
+  post_adjustment.call(warehouse: w_main, on: 2.days.ago.to_date, reason: :manual_correction,
+                       note: "Cycle-count correction",
+                       lines: [ [ prod["SK-FC-301"], -3, 0 ] ])
+
+  # -- 6. Stock count sessions across the workflow --------------------------
+  # A session preloads a row for every product (system quantity snapshotted),
+  # then counted quantities are entered (plan = small, realistic variances).
+  # partial: true leaves products outside the plan uncounted (blank) — to show the
+  # in-progress progress bar / filters; otherwise every product is counted.
+  build_count = lambda do |warehouse:, on:, counter:, plan:, notes:, partial: false|
+    count = business.stock_counts.build(warehouse: warehouse, counted_on: on, created_by: counter, notes: notes)
+    business.products.ordered.each do |product|
+      system_qt = product.stock_in(warehouse)
+      counted =
+        if plan.key?(product.sku) then [ system_qt + plan[product.sku], 0 ].max
+        elsif partial             then nil                 # left uncounted
+        else system_qt
+        end
+      count.items.build(product: product, system_quantity: system_qt, counted_quantity: counted)
+    end
+    count.save!
+    count.start_counting!(counter)   # draft → in_progress
+    count
+  end
+
+  # (a) Approved — runs through approval, generating a real stock-count adjustment.
+  approved_count = build_count.call(warehouse: w_main, on: 1.day.ago.to_date, counter: mgr_riyadh,
+                                    plan: { "HC-DB-100" => -2, "SH-1L-200" => +3, "SK-FM-300" => 0 },
+                                    notes: "Monthly physical count — Riyadh")
+  approved_count.mark_completed!(mgr_riyadh)
+  approve_result = Inventory::StockCountApprover.new(approved_count, user: admin).call
+  raise "Stock count approval seed failed: #{approved_count.errors.full_messages.join('; ')}" unless approve_result.ok?
+
+  # (b) Completed — counted and submitted, awaiting approval.
+  completed_count = build_count.call(warehouse: w_jeddah, on: Date.current, counter: mgr_jeddah,
+                                     plan: { "SH-1L-200" => -1 }, notes: "Weekly count — Jeddah")
+  completed_count.mark_completed!(mgr_jeddah)
+
+  # (c) In progress — counting underway, most products still uncounted.
+  build_count.call(warehouse: w_central, on: Date.current, counter: admin,
+                   plan: { "HC-DB-100" => +1 }, notes: "Spot count — Central DC", partial: true)
+
+  puts "Inventory documents posted: " \
+       "#{GoodsReceipt.for_business(business).count} receipts, " \
+       "#{StockTransfer.for_business(business).count} transfers, " \
+       "#{StockIssue.for_business(business).count} issues, " \
+       "#{StockAdjustment.for_business(business).count} adjustments, " \
+       "#{StockCount.for_business(business).count} counts"
+else
+  puts "Inventory movements already present — skipping document posting (idempotent)"
+end
+
+puts "Inventory ledger: #{business.inventory_movements.count} movements; " \
+     "total stock value SAR #{products.sum(&:stock_value).round(2)}"
 
 # ---------------------------------------------------------------------------
 # Permission Roles — two optional demo roles to illustrate the system.
@@ -691,6 +959,10 @@ puts "Payroll period (draft): #{period_curr.period_label}"
       view_requests approve_requests
       view_shifts manage_shifts assign_shifts
       view_reports export_reports
+      view_inventory manage_inventory view_inventory_reports
+      manage_suppliers manage_products manage_stock_receipts
+      manage_stock_issues manage_stock_transfers
+      manage_stock_counts post_stock_counts view_stock_count_reports
     ],
     permission_scopes: {
       "view_employees"   => "business_wide",
@@ -741,6 +1013,7 @@ puts "  Users     : #{business.users.count} (owner: #{business.owner&.full_name}
 puts "  Records   : #{AttendanceRecord.joins(:branch).where(branches: { business: business }).count} attendance records"
 puts "  Requests  : #{EmployeeRequest.for_business(business).count} employee requests"
 puts "  Payroll   : #{PayrollPeriod.where(business: business).count} periods, #{PayrollEntry.joins(:payroll_period).where(payroll_periods: { business: business }).count} entries"
+puts "  Inventory : #{Warehouse.for_business(business).count} warehouses, #{Product.for_business(business).count} products, #{business.inventory_movements.count} movements"
 puts "\n  Credentials (password: password123)"
 puts "    admin@workpulse.dev          — Owner"
 puts "    area.manager@workpulse.dev   — Area Manager (all branches)"

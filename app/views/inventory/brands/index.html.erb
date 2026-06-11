@@ -1,0 +1,37 @@
+<% content_for :title, t("inventory.brands.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.brands.title") %></h1>
+    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
+      <%= link_to t("inventory.brands.add"), new_inventory_brand_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <% if @brands.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.brands.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.brands.name") %></th>
+          <th style="text-align: end;"><%= t("inventory.brands.products_count") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @brands.each do |brand| %>
+            <tr>
+              <td><%= brand.name %></td>
+              <td style="text-align: end;"><%= brand.products_count %></td>
+              <td class="td-actions">
+                <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
+                  <%= link_to t("common.edit"), edit_inventory_brand_path(brand), class: "link-muted" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

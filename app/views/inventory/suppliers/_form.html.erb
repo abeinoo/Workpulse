@@ -1,0 +1,89 @@
+<%= form_with model: [:inventory, supplier], class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: supplier %>
+
+  <div class="form-grid">
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :name, t("inventory.suppliers.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if supplier.errors[:name].any?}" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :primary_mobile, t("inventory.suppliers.primary_mobile"), class: "form-label" %>
+      <%= f.telephone_field :primary_mobile, class: "form-control", placeholder: "+966 5x xxx xxxx" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :secondary_mobile, t("inventory.suppliers.secondary_mobile"), class: "form-label" %>
+      <%= f.telephone_field :secondary_mobile, class: "form-control" %>
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :address, t("inventory.suppliers.address"), class: "form-label" %>
+      <%= f.text_field :address, class: "form-control" %>
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :notes, t("inventory.suppliers.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 3, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── Location ──────────────────────────────────────────── %>
+  <h2 class="section-title" style="margin-bottom: var(--space-1);"><%= t("inventory.suppliers.map_location") %></h2>
+  <p class="form-hint" style="margin-top: 0;"><%= t("inventory.suppliers.map_pick_hint") %></p>
+
+  <%# Reuses the same map-picker controller, markup and styling as the Branch form %>
+  <div data-controller="map-picker"
+       data-map-picker-default-lat-value="24.7136"
+       data-map-picker-default-lng-value="46.6753">
+
+    <%# Search bar + Use Current Location %>
+    <div class="map-search-bar">
+      <input type="text"
+             class="form-control map-search-bar__input"
+             placeholder="<%= t('inventory.suppliers.search_placeholder') %>"
+             data-map-picker-target="search"
+             data-action="keydown.enter->map-picker#onSearch">
+      <button type="button"
+              class="btn btn-secondary map-search-bar__btn"
+              data-action="click->map-picker#onSearch"><%= t("inventory.suppliers.search_button") %></button>
+      <button type="button"
+              class="btn btn-ghost map-search-bar__btn map-search-bar__locate"
+              data-action="click->map-picker#onUseLocation"
+              title="<%= t('inventory.suppliers.use_current_location') %>">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="10" stroke-dasharray="2 4"/></svg>
+        <span class="map-search-bar__locate-label"><%= t("inventory.suppliers.use_current_location") %></span>
+      </button>
+    </div>
+    <p class="map-search-status" data-map-picker-target="searchStatus" hidden></p>
+
+    <%# Interactive map canvas — click to place, drag the marker to fine-tune %>
+    <div data-map-picker-target="container" class="branch-map" style="margin-bottom: var(--space-4);"></div>
+
+    <%# Read-only coordinate fields — kept in sync with the map %>
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :latitude, t("inventory.suppliers.latitude"), class: "form-label" %>
+        <%= f.number_field :latitude, step: "any", readonly: true,
+              class: "form-control #{'is-error' if supplier.errors[:latitude].any?}",
+              data: { map_picker_target: "lat" } %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :longitude, t("inventory.suppliers.longitude"), class: "form-label" %>
+        <%= f.number_field :longitude, step: "any", readonly: true,
+              class: "form-control #{'is-error' if supplier.errors[:longitude].any?}",
+              data: { map_picker_target: "lng" } %>
+      </div>
+    </div>
+
+    <p class="form-hint" style="margin-top: 0;"><%= t("inventory.suppliers.map_hint") %></p>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_suppliers_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

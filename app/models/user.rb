@@ -32,6 +32,8 @@ class User < ApplicationRecord
   belongs_to :business
   belongs_to :permission_role,  optional: true
 
+  has_many :warehouse_assignments, dependent: :destroy
+  has_many :assigned_warehouses,   through: :warehouse_assignments, source: :warehouse
   has_many :salary_profiles,       dependent: :destroy
   has_one  :active_salary_profile,
            -> { active.order(effective_from: :desc) },
@@ -78,8 +80,8 @@ class User < ApplicationRecord
   validates :phone_number,             uniqueness: true, allow_blank: true
   validates :emergency_contact_phone,  length: { minimum: 5, maximum: 20 }, allow_blank: true
   validates :identity_card_number, uniqueness: { case_sensitive: false },
-                                   length: { minimum: 14, maximum: 14 },
-                                   allow_blank: false
+                                   length: { minimum: 5, maximum: 30 },
+                                   allow_blank: true
   validates :email, uniqueness: { case_sensitive: false }, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
   validates :first_name, :last_name, presence: true
   validates :business, presence: true
@@ -87,7 +89,6 @@ class User < ApplicationRecord
   validates_confirmation_of :password, if: :password_required?
   validate :phone_or_email_present
 
-  validates :identity_card_number, presence: true, uniqueness: true
 
   # Auto-assign a numeric employee_code on creation when none was provided.
   # Runs inside the INSERT transaction (before_create) so the advisory lock it
@@ -181,6 +182,22 @@ class User < ApplicationRecord
     return false unless permission_role
 
     permission_role.has_permission?(permission)
+  end
+
+  # Warehouse-scoped inventory access.
+  #
+  # Returns nil when the user may see EVERY warehouse (owners, and anyone with no
+  # explicit warehouse assignments — accountants, admins), or an array of the
+  # warehouse ids they're restricted to. Assigning warehouses to a user narrows
+  # their inventory visibility to exactly those.
+  def inventory_warehouse_ids
+    return nil if owner?
+    ids = warehouse_assignments.pluck(:warehouse_id)
+    ids.empty? ? nil : ids
+  end
+
+  def warehouse_scoped?
+    !inventory_warehouse_ids.nil?
   end
 
   # ── Notification preferences ────────────────────────────────────────────────

@@ -30,6 +30,16 @@ class ApplicationPolicy
 
     attr_reader :user, :scope
 
+    # Restricts an inventory relation to the warehouses the user may see.
+    # nil from inventory_warehouse_ids means "all warehouses" — the relation
+    # passes through unchanged. Pass the relevant column (e.g. :warehouse_id, :id).
+    def for_accessible_warehouses(relation, column: :warehouse_id)
+      ids = user.inventory_warehouse_ids
+      return relation if ids.nil?
+
+      relation.where(column => ids)
+    end
+
     # Applies an explicit scope string to a user_id-based relation.
     # scope_type must be a non-nil string from PermissionRole::SCOPE_OPTIONS.
     # Never call this with nil — use EmployeeScope.new(user).relation for the

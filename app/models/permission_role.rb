@@ -15,6 +15,10 @@ class PermissionRole < ApplicationRecord
     requests:       %w[view_requests approve_requests],
     shifts:         %w[view_shifts manage_shifts assign_shifts],
     reports:        %w[view_reports export_reports],
+    inventory:      %w[view_inventory manage_inventory view_inventory_reports
+                       manage_suppliers manage_products manage_stock_receipts
+                       manage_stock_issues manage_stock_transfers
+                       manage_stock_counts post_stock_counts view_stock_count_reports],
     settings:       %w[manage_settings manage_branches],
     obligations:    %w[manage_obligations],
     administration: %w[manage_roles]
@@ -90,7 +94,15 @@ class PermissionRole < ApplicationRecord
     "approve_adjustments"    => %w[view_payroll],
     "approve_requests"       => %w[view_requests],
     "assign_shifts"          => %w[view_shifts],
-    "manage_obligations"     => %w[view_employees]
+    "manage_obligations"     => %w[view_employees],
+    "manage_inventory"       => %w[view_inventory],
+    "manage_suppliers"       => %w[view_inventory],
+    "manage_products"        => %w[view_inventory],
+    "manage_stock_receipts"  => %w[view_inventory],
+    "manage_stock_issues"    => %w[view_inventory],
+    "manage_stock_transfers" => %w[view_inventory],
+    "manage_stock_counts"    => %w[view_inventory],
+    "post_stock_counts"      => %w[view_inventory]
   }.freeze
 
   # Reverse index: given a permission, which permissions depend on it?

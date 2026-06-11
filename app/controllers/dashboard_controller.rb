@@ -12,6 +12,7 @@ class DashboardController < ApplicationController
     load_area_management_data   if show_area_management_section?
     load_payroll_data           if show_payroll_section?
     load_analytics_data         if show_analytics_section?
+    load_inventory_data         if show_inventory_section?
   end
 
   private
@@ -28,7 +29,23 @@ class DashboardController < ApplicationController
   helper_method :show_branch_management_section?,
                 :show_area_management_section?,
                 :show_payroll_section?,
-                :show_analytics_section?
+                :show_analytics_section?,
+                :show_inventory_section?
+
+  # Inventory low-stock summary: anyone who can view inventory. Warehouse-scoped
+  # users only see alerts for their assigned warehouses.
+  def show_inventory_section?
+    return @show_inventory_section if defined?(@show_inventory_section)
+
+    @show_inventory_section =
+      current_user.can?(:view_inventory) || current_user.can?(:manage_inventory)
+  end
+
+  def load_inventory_data
+    @inventory_low_stock = Inventory::LowStockQuery.new(
+      current_user.business, warehouse_ids: current_user.inventory_warehouse_ids
+    ).alerts.first(8)
+  end
 
   # Team / branch management (roster, pending requests/adjustments): anyone who
   # can view others' attendance and reaches at least one employee or branch.
