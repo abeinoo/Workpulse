@@ -2008,16 +2008,7 @@ ar:
         job_title: "المسمى الوظيفي"
         job_title_placeholder: "مثال: مهندس برمجيات"
         department: "القسم"
-        department_placeholder: "مثال: الهندسة"
-        department_options:
-          - الهندسة
-          - العمليات
-          - المبيعات
-          - التسويق
-          - المالية
-          - الموارد البشرية
-          - دعم العملاء
-          - الإدارة
+        no_department: "بدون قسم"
         hire_date: "تاريخ التعيين"
         employment_type: "نوع التوظيف"
         select_employment_type: "اختر النوع"

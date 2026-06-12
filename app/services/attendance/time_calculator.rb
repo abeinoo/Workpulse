@@ -69,6 +69,7 @@ module Attendance
     #
     # Returns 0 when:
     #   - the rule profile disables overtime
+    #   - the shift has a blank overtime_rate_multiplier (overtime disabled)
     #   - the shift has no schedulable duration
     #   - worked time does not exceed scheduled + grace
     #
@@ -77,6 +78,7 @@ module Attendance
     def self.overtime_minutes(shift, worked_minutes, overtime_grace_minutes:, rule_profile: nil)
       return 0 if rule_profile && !rule_profile.overtime_enabled?
       return 0 unless shift
+      return 0 unless shift.overtime_enabled?
 
       scheduled = shift.duration_minutes.to_i
       return 0 if scheduled <= 0

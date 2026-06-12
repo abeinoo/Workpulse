@@ -190,7 +190,7 @@ class Payroll::InsightsPresenter
     months_list.map do |y, m|
       pid = period_ids_by_ym[[y, m]]
       {
-        label:      Date::MONTHNAMES[m].first(3),
+        label:      I18n.t("date.abbr_month_names")[m],
         net:        pid ? net_by_period[pid].to_f : nil,
         is_current: y == @period.period_year && m == @period.period_month
       }

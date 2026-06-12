@@ -18,8 +18,8 @@ class Shift < ApplicationRecord
             presence: true,
             numericality: { greater_than: 0 },
             if: :hour_based?
-  before_validation { self.overtime_rate_multiplier ||= 1.0 }
 
+  # A blank overtime_rate_multiplier means overtime is disabled for this shift.
   validates :overtime_rate_multiplier,
             numericality: { greater_than_or_equal_to: 1 }, allow_nil: true
   validates :max_late_permission_minutes,
@@ -29,6 +29,11 @@ class Shift < ApplicationRecord
 
   scope :active,        -> { where(active: true) }
   scope :for_business,  ->(business) { where(business: business) }
+
+  # Overtime is disabled when the multiplier is blank (NULL).
+  def overtime_enabled?
+    overtime_rate_multiplier.present?
+  end
 
   def overnight?
     fixed_time? && start_time && end_time && end_time < start_time

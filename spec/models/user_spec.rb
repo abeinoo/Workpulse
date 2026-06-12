@@ -412,7 +412,7 @@ RSpec.describe User, type: :model do
         phone_number:            "+966500000001",
         email:                   "full@example.com",
         job_title:               "Engineer",
-        department:              "Engineering",
+        department:              Department.new(name: "Engineering", business: business),
         hire_date:               Date.new(2024, 1, 1),
         employment_type:         "full_time",
         emergency_contact_name:  "Dad",

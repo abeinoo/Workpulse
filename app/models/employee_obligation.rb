@@ -119,11 +119,11 @@ class EmployeeObligation < ApplicationRecord
   end
 
   def start_label
-    "#{Date::MONTHNAMES[start_month]} #{start_year}"
+    "#{I18n.t("date.month_names")[start_month]} #{start_year}"
   end
 
   def end_label
-    end_year.present? ? "#{Date::MONTHNAMES[end_month]} #{end_year}" : nil
+    end_year.present? ? "#{I18n.t("date.month_names")[end_month]} #{end_year}" : nil
   end
 
   private

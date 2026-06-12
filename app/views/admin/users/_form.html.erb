@@ -98,17 +98,17 @@
     </div>
 
     <div class="form-group">
-      <%= f.label :department, t("admin.users.form.department"), class: "form-label" %>
-      <%= f.text_field :department,
-            class: "form-control",
-            list: "department-suggestions",
-            autocomplete: "off",
-            placeholder: t("admin.users.form.department_placeholder") %>
-      <datalist id="department-suggestions">
-        <% Array(t("admin.users.form.department_options")).each do |opt| %>
-          <option value="<%= opt %>">
-        <% end %>
-      </datalist>
+      <%= f.label :department_id, t("admin.users.form.department"), class: "form-label" %>
+      <%# Active departments only; keep the currently-assigned one in the list
+          even if it was since deactivated, so editing never drops the link. %>
+      <% departments = current_user.business.departments.active.ordered.to_a %>
+      <% if user.department_id.present? && departments.none? { |d| d.id == user.department_id } %>
+        <% departments.unshift(user.department) %>
+      <% end %>
+      <%= f.select :department_id,
+            options_from_collection_for_select(departments, :id, :name, user.department_id),
+            { include_blank: "— #{t("admin.users.form.no_department")} —" },
+            class: "form-control" %>
     </div>
 
     <div class="form-group">

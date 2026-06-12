@@ -4,6 +4,8 @@ module Salary
   # Overtime = minutes worked beyond (scheduled_duration + grace_minutes).
   # grace_minutes is the business-level threshold before overtime begins counting.
   #
+  # A blank shift.overtime_rate_multiplier disables overtime entirely (zero).
+  #
   # Rule profile overrides (highest priority):
   #   overtime_enabled:    false → always returns zero
   #   overtime_multiplier: overrides shift.overtime_rate_multiplier
@@ -31,6 +33,7 @@ module Salary
 
       shift = @record.shift_assignment&.shift
       return zero_result unless shift
+      return zero_result unless shift.overtime_enabled?
 
       worked = @record.worked_minutes.to_i
       return zero_result if worked <= 0

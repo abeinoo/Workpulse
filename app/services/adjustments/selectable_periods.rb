@@ -52,7 +52,7 @@ module Adjustments
     end
 
     def label_for(date)
-      "#{Date::MONTHNAMES[date.month]} #{date.year}"
+      "#{I18n.t("date.month_names")[date.month]} #{date.year}"
     end
   end
 end

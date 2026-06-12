@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_12_110003) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -793,7 +793,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_12_110003) do
     t.integer "max_early_leave_permission_minutes"
     t.integer "max_late_permission_minutes"
     t.string "name", null: false
-    t.decimal "overtime_rate_multiplier", precision: 4, scale: 2, default: "1.5", null: false
+    t.decimal "overtime_rate_multiplier", precision: 4, scale: 2
     t.decimal "required_hours", precision: 4, scale: 2
     t.string "shift_type", null: false
     t.time "start_time"

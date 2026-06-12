@@ -29,7 +29,7 @@ class PayrollPeriod < ApplicationRecord
   scope :for_business, ->(business) { where(business: business) }
 
   def period_label
-    "#{Date::MONTHNAMES[period_month]} #{period_year}"
+    "#{I18n.t("date.month_names")[period_month]} #{period_year}"
   end
 
   def period_start

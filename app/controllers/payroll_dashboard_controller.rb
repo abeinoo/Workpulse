@@ -81,7 +81,7 @@ class PayrollDashboardController < ApplicationController
     month_list.map do |y, m|
       pid = periods_by_ym[[y, m]]
       {
-        label:   Date::MONTHNAMES[m].first(3),
+        label:   I18n.t("date.abbr_month_names")[m],
         net:     pid ? net_by_pid[pid].to_f : nil,
         overtime: pid ? ot_by_pid[pid].to_f : nil,
       }

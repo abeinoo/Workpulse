@@ -16,7 +16,7 @@
             <% if @user.job_title.present? %>
               <%= @user.job_title %>
               <% if @user.department.present? %>
-                &middot; <%= @user.department %>
+                &middot; <%= @user.department.name %>
               <% end %>
             <% else %>
               <%= @user.permission_role&.name || (@user.owner? ? t("admin.users.super_admin_role") : "—") %>
@@ -71,7 +71,7 @@
         <% if @user.department.present? %>
           <div class="data-list__item">
             <dt class="data-list__label"><%= t("admin.users.department") %></dt>
-            <dd class="data-list__value"><%= @user.department %></dd>
+            <dd class="data-list__value"><%= @user.department.name %></dd>
           </div>
         <% end %>
         <% if @user.hire_date.present? %>

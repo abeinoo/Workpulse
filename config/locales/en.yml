@@ -2020,16 +2020,7 @@ en:
         job_title: "Job Title"
         job_title_placeholder: "e.g. Software Engineer"
         department: "Department"
-        department_placeholder: "e.g. Engineering"
-        department_options:
-          - Engineering
-          - Operations
-          - Sales
-          - Marketing
-          - Finance
-          - HR
-          - Customer Support
-          - Management
+        no_department: "No department"
         hire_date: "Hire Date"
         employment_type: "Employment Type"
         select_employment_type: "Select type"
