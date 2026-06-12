@@ -137,6 +137,10 @@ Rails.application.routes.draw do
     end
 
     resources :shift_rule_profiles
+
+    # ── Performance: Department Settings ──────────────────────────────────
+    resources :departments, except: [ :show ]
+    resources :evaluation_templates
   end
 
   # ── Standalone Adjustments (pre-payroll, manager creates / admin approves) ─
@@ -301,6 +305,22 @@ Rails.application.routes.draw do
     get "reports/current_stock",      to: "reports#current_stock",      as: :current_stock_report
     get "reports/movements",          to: "reports#movements",          as: :movements_report
     get "reports/supplier_purchases", to: "reports#supplier_purchases", as: :supplier_purchases_report
+  end
+
+  # ── Performance Evaluation ────────────────────────────────────────────────
+  namespace :performance do
+    root to: "dashboard#index"
+
+    resources :observations
+    resources :reviews do
+      member do
+        patch :submit
+        patch :finalize
+      end
+    end
+
+    get "reports",       to: "reports#index", as: :reports
+    get "reports/trend", to: "reports#trend", as: :trend_report
   end
 
   # ── Root ──────────────────────────────────────────────────────────────────

@@ -1,0 +1,22 @@
+<%#
+  Monthly trend as a labelled bar list (no chart dependency).
+  Local: trend (Array<Analytics::TrendPoint>)
+%>
+<table style="width: 100%;">
+  <tbody>
+    <% trend.each do |point| %>
+      <tr>
+        <td style="width: 140px;" class="td-secondary">
+          <%= "#{t('date.month_names')[point.month]} #{point.year}" %>
+        </td>
+        <td style="width: 55%;">
+          <div class="rank-bar"><div class="rank-bar__fill" style="width: <%= ((point.average || 0) / 5.0 * 100).round %>%;"></div></div>
+        </td>
+        <td style="width: 80px; text-align: end;">
+          <%= render "shared/stars", score: point.average %>
+        </td>
+        <td style="width: 56px; text-align: end; font-weight: 600;"><%= point.average || "—" %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

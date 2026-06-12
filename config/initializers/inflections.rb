@@ -14,3 +14,10 @@
 # ActiveSupport::Inflector.inflections(:en) do |inflect|
 #   inflect.acronym "RESTful"
 # end
+
+# Performance evaluation module: criterion → criteria (Latin plural), so
+# EvaluationCriterion maps to the evaluation_criteria table and routes/paths
+# pluralize correctly.
+ActiveSupport::Inflector.inflections(:en) do |inflect|
+  inflect.irregular "criterion", "criteria"
+end

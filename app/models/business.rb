@@ -49,6 +49,11 @@ class Business < ApplicationRecord
   has_many :stock_counts,         dependent: :destroy
   has_many :inventory_movements,  dependent: :destroy
 
+  has_many :departments,              dependent: :destroy
+  has_many :evaluation_templates,     dependent: :destroy
+  has_many :performance_reviews,      dependent: :destroy
+  has_many :performance_observations, dependent: :destroy
+
   serialize :settings, coder: JSON
 
   validates :name,                presence: true

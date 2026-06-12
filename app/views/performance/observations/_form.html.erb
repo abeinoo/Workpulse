@@ -1,0 +1,46 @@
+<%# Model is PerformanceObservation, whose route key is already "performance_observation",
+    so form_with infers the namespaced path without an extra :performance scope. %>
+<%= form_with model: observation, class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: observation %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :employee_id, t("performance.observations.employee"), class: "form-label" %>
+      <%= f.collection_select :employee_id, @employees, :id, :full_name,
+            { prompt: t("performance.observations.select_employee") },
+            class: "form-control #{'is-error' if observation.errors[:employee].any?}" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :observation_date, t("performance.observations.date"), class: "form-label" %>
+      <%= f.date_field :observation_date, class: "form-control #{'is-error' if observation.errors[:observation_date].any?}" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :evaluation_criterion_id, t("performance.observations.criterion"), class: "form-label" %>
+      <%= f.collection_select :evaluation_criterion_id, @criteria, :id, :name,
+            { prompt: t("performance.observations.select_criterion") },
+            class: "form-control #{'is-error' if observation.errors[:evaluation_criterion].any?}" %>
+      <p class="form-hint"><%= t("performance.observations.criterion_hint") %></p>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :observation_type, t("performance.observations.type"), class: "form-label" %>
+      <%= f.select :observation_type,
+            PerformanceObservation::TYPES.map { |t| [t("performance.observation_types.#{t}"), t] },
+            { prompt: t("performance.observations.select_type") },
+            class: "form-control #{'is-error' if observation.errors[:observation_type].any?}" %>
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :note, t("performance.observations.note"), class: "form-label" %>
+      <%= f.text_area :note, rows: 4, class: "form-control",
+            placeholder: t("performance.observations.note_placeholder") %>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), performance_observations_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

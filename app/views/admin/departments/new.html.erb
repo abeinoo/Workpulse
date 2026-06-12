@@ -1,0 +1,10 @@
+<% content_for :title, t("admin.departments.new_title") %>
+
+<div class="form-page">
+  <%= link_to admin_departments_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+  <h1 class="page-title mb-6"><%= t("admin.departments.new_title") %></h1>
+  <%= render "form", department: @department %>
+</div>

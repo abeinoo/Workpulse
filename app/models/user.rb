@@ -31,6 +31,9 @@ class User < ApplicationRecord
 
   belongs_to :business
   belongs_to :permission_role,  optional: true
+  # Additive: first-class department link (backfilled from the legacy string
+  # column, which is kept for backward compatibility). New features use this.
+  belongs_to :department,       optional: true
 
   has_many :warehouse_assignments, dependent: :destroy
   has_many :assigned_warehouses,   through: :warehouse_assignments, source: :warehouse
@@ -44,6 +47,11 @@ class User < ApplicationRecord
   has_many :advances,              dependent: :destroy
   has_many :payroll_entries,       dependent: :destroy
   has_many :employee_obligations,  dependent: :destroy, foreign_key: :user_id
+
+  # Performance evaluation (new module). employee_id is the subject of reviews
+  # and observations; reviewer_id / observed_by_id are tracked separately.
+  has_many :performance_reviews,      dependent: :destroy, foreign_key: :employee_id
+  has_many :performance_observations, dependent: :destroy, foreign_key: :employee_id
 
   EMPLOYMENT_TYPES = %w[full_time part_time contract intern].freeze
 
@@ -173,7 +181,9 @@ class User < ApplicationRecord
       can?(:manage_branches) || can?(:manage_devices)   || can?(:manage_obligations) ||
       can?(:manage_roles)    || can?(:manage_settings)  ||
       can?(:approve_adjustments) || can?(:pay_advances) || can?(:manage_adjustments) ||
-      can?(:manage_salary_profiles)
+      can?(:manage_salary_profiles) ||
+      can?(:view_performance)     || can?(:create_observations) || can?(:manage_reviews) ||
+      can?(:finalize_reviews)     || can?(:manage_evaluation_templates)
   end
 
   def can?(permission)

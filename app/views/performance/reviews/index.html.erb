@@ -1,0 +1,53 @@
+<% content_for :title, t("performance.reviews.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("performance.reviews.title") %></h1>
+    <% if current_user.can?(:manage_reviews) %>
+      <%= link_to t("performance.reviews.add"), new_performance_review_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <div class="filter-bar" style="margin-bottom: var(--space-4);">
+    <%= link_to t("performance.reviews.filter_all"), performance_reviews_path,
+          class: "btn btn-sm #{params[:status].blank? ? 'btn-secondary' : 'btn-ghost'}" %>
+    <% PerformanceReview::STATUSES.each do |status| %>
+      <%= link_to t("performance.statuses.#{status}"), performance_reviews_path(status: status),
+            class: "btn btn-sm #{params[:status] == status ? 'btn-secondary' : 'btn-ghost'}" %>
+    <% end %>
+  </div>
+
+  <% if @reviews.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("performance.reviews.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("performance.reviews.employee") %></th>
+            <th><%= t("performance.reviews.period") %></th>
+            <th><%= t("performance.reviews.department") %></th>
+            <th><%= t("performance.reviews.score") %></th>
+            <th><%= t("performance.reviews.status") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @reviews.each do |review| %>
+            <tr>
+              <td><%= link_to review.employee.full_name, performance_review_path(review), class: "link" %></td>
+              <td class="td-secondary"><%= review.period_label %><%= " · #{review.review_period}" if review.review_period.present? %></td>
+              <td class="td-secondary"><%= review.department.name %></td>
+              <td>
+                <% if review.average_score %>
+                  <%= render "shared/stars", score: review.average_score %>
+                  <span class="td-secondary">(<%= review.average_score %>)</span>
+                <% else %>—<% end %>
+              </td>
+              <td><span class="badge badge-<%= review.finalized? ? 'success' : (review.submitted? ? 'info' : 'neutral') %>"><%= t("performance.statuses.#{review.status}") %></span></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,12 @@
+<%#
+  Read-only star display.
+  Locals: score (Integer/Float/nil), size (:default | :lg)
+%>
+<% value = score.to_f.round %>
+<span class="stars <%= 'stars--lg' if local_assigns[:size] == :lg %>"
+      role="img"
+      aria-label="<%= score.present? ? t('performance.stars.aria', score: score) : t('performance.stars.none') %>">
+  <% (1..5).each do |i| %>
+    <span class="stars__star <%= 'stars__star--on' if i <= value %>">★</span>
+  <% end %>
+</span>

@@ -229,13 +229,58 @@
         </details>
       <% end %>
 
+      <%# ── PERFORMANCE (collapsible) ─────────────────────────────────── %>
+      <% if current_user.can?(:view_performance) || current_user.can?(:create_observations) ||
+            current_user.can?(:manage_reviews)   || current_user.can?(:finalize_reviews) %>
+        <% performance_active = request.path.start_with?("/performance") %>
+        <details class="sidebar__group" <%= 'open' if performance_active %>>
+          <summary class="sidebar__section-label sidebar__group-toggle">
+            <%= t("nav.section_performance") %>
+            <svg class="sidebar__group-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+
+          <% if current_user.can?(:view_performance) || current_user.can?(:manage_reviews) %>
+            <%= link_to performance_root_path,
+                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('performance') ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+              <%= t("nav.performance_dashboard") %>
+            <% end %>
+          <% end %>
+
+          <%= link_to performance_observations_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'observations' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <%= t("nav.performance_observations") %>
+          <% end %>
+
+          <%= link_to performance_reviews_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reviews' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/></svg>
+            <%= t("nav.performance_reviews") %>
+          <% end %>
+
+          <% if current_user.can?(:view_performance) || current_user.can?(:manage_reviews) %>
+            <%= link_to performance_reports_path,
+                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reports' && controller_path.start_with?('performance') ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="14" y="6" width="3" height="11"/></svg>
+              <%= t("nav.performance_reports") %>
+            <% end %>
+          <% end %>
+        </details>
+      <% end %>
+
       <%# ── ADMINISTRATION (collapsible) ────────────────────────────── %>
       <% show_devices     = current_user.can?(:manage_devices) %>
       <% show_obligations = current_user.can?(:manage_obligations) %>
       <% show_roles       = current_user.can?(:manage_roles) %>
       <% show_settings    = current_user.can?(:manage_settings) %>
-      <% if show_devices || show_obligations || show_roles || show_settings %>
-        <% admin_paths = %w[/admin/biometric_devices /admin/employee_obligations /admin/permission_roles /admin/settings] %>
+      <% show_eval_templates = current_user.can?(:manage_evaluation_templates) %>
+      <% if show_devices || show_obligations || show_roles || show_settings || show_eval_templates %>
+        <% admin_paths = %w[/admin/biometric_devices /admin/employee_obligations /admin/permission_roles /admin/settings /admin/departments /admin/evaluation_templates] %>
         <% admin_active = admin_paths.any? { |p| request.path.start_with?(p) } %>
           <details class="sidebar__group" <%= 'open' if admin_active %>>
             <summary class="sidebar__section-label sidebar__group-toggle">
@@ -276,6 +321,22 @@
                     data: { action: "click->sidebar#close" } do %>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 <%= t("nav.settings") %>
+              <% end %>
+            <% end %>
+
+            <% if show_eval_templates %>
+              <%= link_to admin_departments_path,
+                    class: "sidebar__nav-item sidebar__nav-item--sub #{request.path.start_with?('/admin/departments') ? 'is-active' : ''}",
+                    data: { action: "click->sidebar#close" } do %>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <%= t("nav.departments") %>
+              <% end %>
+
+              <%= link_to admin_evaluation_templates_path,
+                    class: "sidebar__nav-item sidebar__nav-item--sub #{request.path.start_with?('/admin/evaluation_templates') ? 'is-active' : ''}",
+                    data: { action: "click->sidebar#close" } do %>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                <%= t("nav.evaluation_templates") %>
               <% end %>
             <% end %>
           </details>
@@ -326,6 +387,14 @@
             data: { action: "click->sidebar#close" } do %>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
         <%= t("nav.adjustments") %>
+      <% end %>
+
+      <%# Employees see only their own finalized performance reviews. %>
+      <%= link_to performance_reviews_path,
+            class: "sidebar__nav-item #{controller_name == 'reviews' && controller_path.start_with?('performance') ? 'is-active' : ''}",
+            data: { action: "click->sidebar#close" } do %>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/></svg>
+        <%= t("nav.my_reviews") %>
       <% end %>
 
     <% end %>

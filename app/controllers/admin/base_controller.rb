@@ -10,6 +10,7 @@ class Admin::BaseController < ApplicationController
            current_user.can?(:manage_employees)   || current_user.can?(:manage_branches)  ||
            current_user.can?(:manage_shifts)      || current_user.can?(:manage_attendance) ||
            current_user.can?(:manage_salary_profiles) ||
+           current_user.can?(:manage_evaluation_templates) ||
            current_user.can?(:view_employees)     || current_user.can?(:view_attendance)  ||
            current_user.can?(:view_payroll)
       redirect_to root_path, alert: t("flash.not_authorized")

@@ -1,0 +1,54 @@
+<% content_for :title, t("performance.observations.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("performance.observations.title") %></h1>
+    <% if current_user.can?(:create_observations) %>
+      <%= link_to t("performance.observations.add"), new_performance_observation_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <p class="form-hint"><%= t("performance.observations.intro") %></p>
+
+  <%# ── Type filter ──────────────────────────────────────── %>
+  <div class="filter-bar" style="margin-bottom: var(--space-4);">
+    <%= link_to t("performance.observations.filter_all"), performance_observations_path,
+          class: "btn btn-sm #{params[:type].blank? ? 'btn-secondary' : 'btn-ghost'}" %>
+    <% PerformanceObservation::TYPES.each do |type| %>
+      <%= link_to t("performance.observation_types.#{type}"),
+            performance_observations_path(type: type),
+            class: "btn btn-sm #{params[:type] == type ? 'btn-secondary' : 'btn-ghost'}" %>
+    <% end %>
+  </div>
+
+  <% if @observations.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("performance.observations.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("performance.observations.date") %></th>
+            <th><%= t("performance.observations.employee") %></th>
+            <th><%= t("performance.observations.criterion") %></th>
+            <th><%= t("performance.observations.type") %></th>
+            <th><%= t("performance.observations.note") %></th>
+            <th><%= t("performance.observations.observed_by") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @observations.each do |obs| %>
+            <tr>
+              <td class="td-secondary"><%= local_date(obs.observation_date) %></td>
+              <td><%= link_to obs.employee.full_name, performance_observation_path(obs), class: "link" %></td>
+              <td class="td-secondary"><%= obs.evaluation_criterion.name %></td>
+              <td><span class="obs-chip obs-chip--<%= obs.observation_type %>"><%= t("performance.observation_types.#{obs.observation_type}") %></span></td>
+              <td class="td-secondary"><%= truncate(obs.note, length: 60) %></td>
+              <td class="td-secondary"><%= obs.observed_by.full_name %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

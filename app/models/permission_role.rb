@@ -19,6 +19,8 @@ class PermissionRole < ApplicationRecord
                        manage_suppliers manage_products manage_stock_receipts
                        manage_stock_issues manage_stock_transfers
                        manage_stock_counts post_stock_counts view_stock_count_reports],
+    performance:    %w[view_performance manage_evaluation_templates
+                       create_observations manage_reviews finalize_reviews],
     settings:       %w[manage_settings manage_branches],
     obligations:    %w[manage_obligations],
     administration: %w[manage_roles]
@@ -38,12 +40,13 @@ class PermissionRole < ApplicationRecord
   # complete_branch_review IS scopable — managers should be able to complete
   # reviews only for branches in their authorized scope.
   SCOPABLE_PERMISSIONS = (
-    PERMISSION_GROUPS.slice(:employees, :attendance, :payroll, :adjustments, :requests, :shifts)
+    PERMISSION_GROUPS.slice(:employees, :attendance, :payroll, :adjustments, :requests, :shifts, :performance)
                      .values.flatten -
       %w[finalize_payroll pay_payroll delete_payroll reopen_payroll
          approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
          view_payroll_audit_log
-         approve_adjustments manage_devices manage_shifts]
+         approve_adjustments manage_devices manage_shifts
+         manage_evaluation_templates]
   ).freeze
 
   # Canonical data-scope names. Branch membership is shift-driven; "area" is a
@@ -102,7 +105,11 @@ class PermissionRole < ApplicationRecord
     "manage_stock_issues"    => %w[view_inventory],
     "manage_stock_transfers" => %w[view_inventory],
     "manage_stock_counts"    => %w[view_inventory],
-    "post_stock_counts"      => %w[view_inventory]
+    "post_stock_counts"      => %w[view_inventory],
+    "manage_evaluation_templates" => %w[view_performance],
+    "create_observations"         => %w[view_performance],
+    "manage_reviews"              => %w[view_performance],
+    "finalize_reviews"            => %w[view_performance manage_reviews]
   }.freeze
 
   # Reverse index: given a permission, which permissions depend on it?

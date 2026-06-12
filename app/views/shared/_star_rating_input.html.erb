@@ -1,0 +1,17 @@
+<%#
+  Interactive 1–5 star input bound to a form field via the star-rating Stimulus
+  controller. Locals:
+    form  – the nested form builder (f) for a performance_review_score
+    value – current score (Integer/nil)
+%>
+<div class="star-rating" data-controller="star-rating" data-star-rating-value-value="<%= value.to_i %>">
+  <%= form.hidden_field :score, data: { star_rating_target: "input" } %>
+  <% (1..5).each do |i| %>
+    <button type="button"
+            class="star-rating__star <%= i <= value.to_i ? 'star--on' : 'star--off' %>"
+            data-star-rating-target="star"
+            data-value="<%= i %>"
+            data-action="click->star-rating#select mouseenter->star-rating#preview mouseleave->star-rating#reset"
+            aria-label="<%= t('performance.stars.set', score: i) %>">★</button>
+  <% end %>
+</div>

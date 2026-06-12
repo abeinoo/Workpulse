@@ -1,0 +1,66 @@
+<% content_for :title, t("performance.dashboard.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("performance.dashboard.title") %></h1>
+    <div class="flex items-center gap-2">
+      <%= form_with url: performance_root_path, method: :get, class: "flex items-center gap-2" do |f| %>
+        <%= f.select :year, ((Date.current.year - 4)..Date.current.year).to_a.reverse,
+              { selected: @year }, class: "form-control form-control--sm",
+              onchange: "this.form.requestSubmit()" %>
+      <% end %>
+      <%= link_to t("performance.dashboard.full_reports"), performance_reports_path(year: @year), class: "btn btn-secondary btn-sm" %>
+    </div>
+  </div>
+
+  <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-bottom: var(--space-5);">
+    <%= render "performance/shared/ranking_list",
+          title: t("performance.reports.top_employees"),
+          rankings: @top_employees,
+          empty_text: t("performance.reports.no_data") %>
+    <%= render "performance/shared/ranking_list",
+          title: t("performance.reports.lowest_employees"),
+          rankings: @lowest_employees,
+          empty_text: t("performance.reports.no_data") %>
+  </div>
+
+  <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-bottom: var(--space-5);">
+    <%= render "performance/shared/ranking_list",
+          title: t("performance.reports.department_ranking"),
+          rankings: @department_ranking,
+          empty_text: t("performance.reports.no_data") %>
+    <%= render "performance/shared/weak_areas", weak_areas: @weak_areas %>
+  </div>
+
+  <%# ── Recent reviews ───────────────────────────────────── %>
+  <div class="card" style="padding: var(--space-5);">
+    <div class="flex items-center justify-between" style="margin-bottom: var(--space-3);">
+      <h2 class="section-title" style="margin: 0;"><%= t("performance.dashboard.recent_reviews") %></h2>
+      <%= link_to t("common.view_all"), performance_reviews_path, class: "link" %>
+    </div>
+    <% if @recent_reviews.empty? %>
+      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("performance.reviews.empty") %></p></div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead><tr>
+            <th><%= t("performance.reviews.employee") %></th>
+            <th><%= t("performance.reviews.period") %></th>
+            <th><%= t("performance.reviews.score") %></th>
+            <th><%= t("performance.reviews.status") %></th>
+          </tr></thead>
+          <tbody>
+            <% @recent_reviews.each do |review| %>
+              <tr>
+                <td><%= link_to review.employee.full_name, performance_review_path(review), class: "link" %></td>
+                <td class="td-secondary"><%= review.period_label %></td>
+                <td><% if review.average_score %><%= render "shared/stars", score: review.average_score %><% else %>—<% end %></td>
+                <td><span class="badge badge-<%= review.finalized? ? 'success' : (review.submitted? ? 'info' : 'neutral') %>"><%= t("performance.statuses.#{review.status}") %></span></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+</div>

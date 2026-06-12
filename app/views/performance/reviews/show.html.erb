@@ -1,0 +1,92 @@
+<% content_for :title, t("performance.reviews.detail_title", name: @review.employee.full_name) %>
+
+<div class="admin-page">
+  <%= link_to performance_reviews_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <%# ── Employee + review header ─────────────────────────── %>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= @review.employee.full_name %></h1>
+      <p class="form-hint" style="margin: 0;">
+        <%= @review.department.name %> · <%= @review.period_label %>
+        <%= " · #{@review.review_period}" if @review.review_period.present? %>
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="badge badge-<%= @review.finalized? ? 'success' : (@review.submitted? ? 'info' : 'neutral') %>">
+        <%= t("performance.statuses.#{@review.status}") %>
+      </span>
+      <% if policy(@review).edit? %>
+        <%= link_to t("common.edit"), edit_performance_review_path(@review), class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if policy(@review).submit? %>
+        <%= button_to t("performance.reviews.submit_action"), submit_performance_review_path(@review),
+              method: :patch, class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if policy(@review).finalize? %>
+        <%= button_to t("performance.reviews.finalize_action"), finalize_performance_review_path(@review),
+              method: :patch, class: "btn btn-primary btn-sm",
+              form: { data: { turbo_confirm: t("performance.reviews.finalize_confirm") } } %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Overall score ─────────────────────────────────────── %>
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3);">
+    <div>
+      <p class="form-label" style="margin: 0;"><%= t("performance.reviews.average_score") %></p>
+      <% if @review.average_score %>
+        <%= render "shared/stars", score: @review.average_score, size: :lg %>
+        <span style="font-size: var(--text-xl); font-weight: 700; margin-inline-start: 8px;"><%= @review.average_score %></span>
+      <% else %>
+        <span class="td-secondary"><%= t("performance.reviews.not_scored") %></span>
+      <% end %>
+    </div>
+    <div class="td-secondary"><%= t("performance.reviews.reviewed_by", name: @review.reviewer.full_name) %></div>
+  </div>
+
+  <%# ── Per-criterion breakdown ──────────────────────────── %>
+  <% scores_by_criterion = @review.performance_review_scores.index_by(&:evaluation_criterion_id) %>
+  <% @composer.criterion_rows.each do |row| %>
+    <div class="criterion-block">
+      <div class="criterion-block__header">
+        <div>
+          <h3 style="margin: 0 0 4px;"><%= row.criterion.name %></h3>
+          <%= render "shared/stars", score: scores_by_criterion[row.criterion.id]&.score %>
+          <% if scores_by_criterion[row.criterion.id]&.score %>
+            <span class="td-secondary">(<%= scores_by_criterion[row.criterion.id].score %>/5)</span>
+          <% end %>
+        </div>
+        <div class="criterion-block__counts">
+          <span class="obs-chip obs-chip--positive"><%= t("performance.observation_types.positive") %>: <%= row.positive_count %></span>
+          <span class="obs-chip obs-chip--negative"><%= t("performance.observation_types.negative") %>: <%= row.negative_count %></span>
+          <span class="obs-chip obs-chip--neutral"><%= t("performance.observation_types.neutral") %>: <%= row.neutral_count %></span>
+        </div>
+      </div>
+
+      <% if row.observations.any? %>
+        <div class="criterion-block__observations">
+          <ul style="list-style: none; padding: 0; margin: 0;">
+            <% row.observations.each do |obs| %>
+              <li>
+                <span class="obs-chip obs-chip--<%= obs.observation_type %>"><%= t("performance.observation_types.#{obs.observation_type}") %></span>
+                <%= obs.note.presence || t("performance.reviews.no_note") %>
+                <span class="td-secondary">— <%= obs.observed_by.full_name %>, <%= local_date(obs.observation_date) %></span>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @review.notes.present? %>
+    <div class="card" style="padding: var(--space-5); margin-top: var(--space-4);">
+      <h2 class="section-title"><%= t("performance.reviews.notes") %></h2>
+      <%= simple_format(@review.notes) %>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,38 @@
+<%#
+  One criterion row inside the template form. Rendered both server-side (for
+  existing/seed rows) and cloned client-side from the <template> below.
+  Local: f – fields_for builder for evaluation_criteria
+%>
+<div class="criterion-row" data-criterion-row>
+  <% if f.object.persisted? %>
+    <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
+  <% end %>
+
+  <div class="form-grid" style="grid-template-columns: 2fr 3fr auto auto; align-items: end; gap: var(--space-3);">
+    <div class="form-group">
+      <%= f.label :name, t("admin.evaluation_templates.criterion_name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control", placeholder: t("admin.evaluation_templates.criterion_name_placeholder") %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :description, t("admin.evaluation_templates.criterion_description"), class: "form-label" %>
+      <%= f.text_field :description, class: "form-control" %>
+    </div>
+
+    <div class="form-group" style="max-width: 90px;">
+      <%= f.label :sort_order, t("admin.evaluation_templates.criterion_order"), class: "form-label" %>
+      <%= f.number_field :sort_order, class: "form-control", value: (f.object.sort_order || 0) %>
+    </div>
+
+    <div class="form-group">
+      <label class="form-check" title="<%= t('admin.evaluation_templates.criterion_active') %>">
+        <%= f.check_box :active, checked: f.object.new_record? ? true : f.object.active %>
+        <span><%= t("admin.evaluation_templates.criterion_active") %></span>
+      </label>
+    </div>
+  </div>
+
+  <button type="button" class="link-muted" data-action="criteria-fields#remove">
+    <%= t("admin.evaluation_templates.remove_criterion") %>
+  </button>
+</div>

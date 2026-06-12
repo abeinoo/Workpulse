@@ -1,0 +1,30 @@
+<% content_for :title, t("performance.observations.detail_title") %>
+
+<div class="admin-page">
+  <%= link_to performance_observations_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title"><%= @observation.employee.full_name %></h1>
+    <% if policy(@observation).update? %>
+      <div class="flex gap-2">
+        <%= link_to t("common.edit"), edit_performance_observation_path(@observation), class: "btn btn-secondary btn-sm" %>
+        <%= button_to t("common.delete"), performance_observation_path(@observation), method: :delete,
+              class: "btn btn-danger btn-sm",
+              form: { data: { turbo_confirm: t("performance.observations.delete_confirm") } } %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="card" style="padding: var(--space-5);">
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("performance.observations.criterion") %></dt><dd><%= @observation.evaluation_criterion.name %></dd></div>
+      <div class="detail-list__row"><dt><%= t("performance.observations.type") %></dt><dd><span class="obs-chip obs-chip--<%= @observation.observation_type %>"><%= t("performance.observation_types.#{@observation.observation_type}") %></span></dd></div>
+      <div class="detail-list__row"><dt><%= t("performance.observations.date") %></dt><dd><%= local_date(@observation.observation_date) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("performance.observations.observed_by") %></dt><dd><%= @observation.observed_by.full_name %></dd></div>
+      <div class="detail-list__row"><dt><%= t("performance.observations.note") %></dt><dd><%= simple_format(@observation.note.presence || "—") %></dd></div>
+    </dl>
+  </div>
+</div>

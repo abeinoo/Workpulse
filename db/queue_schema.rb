@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_12_110003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -229,6 +229,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
     t.index ["owner_id"], name: "index_businesses_on_owner_id"
   end
 
+  create_table "departments", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((name)::text)", name: "index_departments_on_business_id_and_lower_name", unique: true
+    t.index ["business_id"], name: "index_departments_on_business_id"
+  end
+
   create_table "employee_obligations", force: :cascade do |t|
     t.boolean "auto_deduct", default: true, null: false
     t.bigint "business_id", null: false
@@ -279,6 +289,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
     t.index ["reviewed_by_id"], name: "index_employee_requests_on_reviewed_by_id"
     t.index ["user_id", "request_type", "requested_for_date"], name: "idx_on_user_id_request_type_requested_for_date_bed206bfdf"
     t.index ["user_id"], name: "index_employee_requests_on_user_id"
+  end
+
+  create_table "evaluation_criteria", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.bigint "evaluation_template_id", null: false
+    t.string "name", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["evaluation_template_id", "sort_order"], name: "idx_on_evaluation_template_id_sort_order_1f1b8b8ce2"
+    t.index ["evaluation_template_id"], name: "index_evaluation_criteria_on_evaluation_template_id"
+  end
+
+  create_table "evaluation_templates", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "department_id", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_evaluation_templates_on_business_id"
+    t.index ["department_id", "active"], name: "index_evaluation_templates_on_department_id_and_active"
+    t.index ["department_id"], name: "index_evaluation_templates_on_department_id"
   end
 
   create_table "goods_receipt_items", force: :cascade do |t|
@@ -548,6 +582,59 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
     t.datetime "updated_at", null: false
     t.index ["shift_id", "rule_type", "threshold_minutes"], name: "index_penalty_rules_on_shift_type_threshold", unique: true
     t.index ["shift_id"], name: "index_penalty_rules_on_shift_id"
+  end
+
+  create_table "performance_observations", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "employee_id", null: false
+    t.bigint "evaluation_criterion_id", null: false
+    t.text "note"
+    t.date "observation_date", null: false
+    t.string "observation_type", null: false
+    t.bigint "observed_by_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "observation_type", "evaluation_criterion_id"], name: "index_observations_on_business_type_criterion"
+    t.index ["business_id"], name: "index_performance_observations_on_business_id"
+    t.index ["employee_id", "observation_date"], name: "idx_on_employee_id_observation_date_7defa356e1"
+    t.index ["employee_id"], name: "index_performance_observations_on_employee_id"
+    t.index ["evaluation_criterion_id"], name: "index_performance_observations_on_evaluation_criterion_id"
+    t.index ["observed_by_id"], name: "index_performance_observations_on_observed_by_id"
+  end
+
+  create_table "performance_review_scores", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "evaluation_criterion_id", null: false
+    t.bigint "performance_review_id", null: false
+    t.integer "score", null: false
+    t.datetime "updated_at", null: false
+    t.index ["evaluation_criterion_id"], name: "index_performance_review_scores_on_evaluation_criterion_id"
+    t.index ["performance_review_id", "evaluation_criterion_id"], name: "index_review_scores_on_review_and_criterion", unique: true
+    t.index ["performance_review_id"], name: "index_performance_review_scores_on_performance_review_id"
+  end
+
+  create_table "performance_reviews", force: :cascade do |t|
+    t.decimal "average_score", precision: 4, scale: 2
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "department_id", null: false
+    t.bigint "employee_id", null: false
+    t.datetime "finalized_at"
+    t.text "notes"
+    t.integer "review_month", null: false
+    t.string "review_period"
+    t.integer "review_year", null: false
+    t.bigint "reviewer_id", null: false
+    t.string "status", default: "draft", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "review_year", "review_month"], name: "idx_on_business_id_review_year_review_month_fad3bf3d11"
+    t.index ["business_id", "status"], name: "index_performance_reviews_on_business_id_and_status"
+    t.index ["business_id"], name: "index_performance_reviews_on_business_id"
+    t.index ["department_id", "review_year", "review_month"], name: "idx_on_department_id_review_year_review_month_4e53278bd0"
+    t.index ["department_id"], name: "index_performance_reviews_on_department_id"
+    t.index ["employee_id", "review_year", "review_month"], name: "idx_on_employee_id_review_year_review_month_7c271668da"
+    t.index ["employee_id"], name: "index_performance_reviews_on_employee_id"
+    t.index ["reviewer_id"], name: "index_performance_reviews_on_reviewer_id"
   end
 
   create_table "permission_roles", force: :cascade do |t|
@@ -1026,6 +1113,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
     t.integer "business_id"
     t.datetime "created_at", null: false
     t.string "department"
+    t.bigint "department_id"
     t.string "email"
     t.string "emergency_contact_name"
     t.string "emergency_contact_phone"
@@ -1050,6 +1138,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
     t.index "business_id, lower((employee_code)::text)", name: "index_users_on_business_id_and_lower_employee_code", unique: true, where: "((employee_code IS NOT NULL) AND ((employee_code)::text <> ''::text))"
     t.index ["business_id", "department"], name: "index_users_on_business_id_and_department"
     t.index ["business_id"], name: "index_users_on_business_id"
+    t.index ["department_id"], name: "index_users_on_department_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["identity_card_number"], name: "index_users_on_identity_card_number", unique: true
     t.index ["permission_role_id"], name: "index_users_on_permission_role_id"
@@ -1101,11 +1190,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
   add_foreign_key "branches", "users", column: "branch_manager_id"
   add_foreign_key "brands", "businesses"
   add_foreign_key "businesses", "users", column: "owner_id"
+  add_foreign_key "departments", "businesses"
   add_foreign_key "employee_obligations", "businesses"
   add_foreign_key "employee_obligations", "users"
   add_foreign_key "employee_obligations", "users", column: "created_by_id"
   add_foreign_key "employee_requests", "users"
   add_foreign_key "employee_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "evaluation_criteria", "evaluation_templates"
+  add_foreign_key "evaluation_templates", "businesses"
+  add_foreign_key "evaluation_templates", "departments"
   add_foreign_key "goods_receipt_items", "goods_receipts"
   add_foreign_key "goods_receipt_items", "products"
   add_foreign_key "goods_receipts", "businesses"
@@ -1142,6 +1235,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
   add_foreign_key "payroll_snapshots", "payroll_periods"
   add_foreign_key "payroll_snapshots", "users", column: "taken_by_id"
   add_foreign_key "penalty_rules", "shifts"
+  add_foreign_key "performance_observations", "businesses"
+  add_foreign_key "performance_observations", "evaluation_criteria"
+  add_foreign_key "performance_observations", "users", column: "employee_id"
+  add_foreign_key "performance_observations", "users", column: "observed_by_id"
+  add_foreign_key "performance_review_scores", "evaluation_criteria"
+  add_foreign_key "performance_review_scores", "performance_reviews"
+  add_foreign_key "performance_reviews", "businesses"
+  add_foreign_key "performance_reviews", "departments"
+  add_foreign_key "performance_reviews", "users", column: "employee_id"
+  add_foreign_key "performance_reviews", "users", column: "reviewer_id"
   add_foreign_key "permission_roles", "businesses"
   add_foreign_key "product_categories", "businesses"
   add_foreign_key "product_warehouse_settings", "products"
@@ -1203,6 +1306,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_11_071200) do
   add_foreign_key "user_audit_logs", "users", column: "actor_id"
   add_foreign_key "user_audit_logs", "users", column: "target_user_id"
   add_foreign_key "users", "businesses"
+  add_foreign_key "users", "departments"
   add_foreign_key "users", "permission_roles", on_delete: :nullify
   add_foreign_key "warehouse_assignments", "users"
   add_foreign_key "warehouse_assignments", "warehouses"

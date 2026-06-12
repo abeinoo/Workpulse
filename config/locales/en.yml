@@ -51,6 +51,14 @@ en:
     inventory_stock_adjustments: "Stock Adjustments"
     inventory_stock_counts: "Stock Counts"
     inventory_reports: "Reports"
+    section_performance: "Performance"
+    performance_dashboard: "Performance Dashboard"
+    performance_observations: "Observations"
+    performance_reviews: "Monthly Reviews"
+    performance_reports: "Reports"
+    my_reviews: "My Reviews"
+    departments: "Departments"
+    evaluation_templates: "Evaluation Templates"
 
   auth:
     sign_in:
@@ -1749,6 +1757,56 @@ en:
       submit_review: "Submit for Review"
 
   admin:
+    departments:
+      title: "Departments"
+      intro: "Departments group employees and drive their evaluation templates."
+      add: "Add Department"
+      empty: "No departments yet."
+      name: "Department Name"
+      name_placeholder: "e.g. Reception"
+      employees: "Employees"
+      status: "Status"
+      active_label: "Active"
+      active_hint: "Inactive departments are hidden from new selections but keep existing links."
+      statuses:
+        active: "Active"
+        inactive: "Inactive"
+      new_title: "New Department"
+      edit_title: "Edit Department"
+      delete_confirm: "Delete this department? This cannot be undone."
+      created: "Department created."
+      updated: "Department updated."
+      destroyed: "Department deleted."
+    evaluation_templates:
+      title: "Evaluation Templates"
+      intro: "Define the criteria each department is evaluated against."
+      add: "Add Template"
+      empty: "No evaluation templates yet."
+      name: "Template Name"
+      name_placeholder: "e.g. Hair Stylist Evaluation"
+      department: "Department"
+      select_department: "Select a department"
+      active_label: "Active"
+      criteria_count: "Criteria"
+      status: "Status"
+      statuses:
+        active: "Active"
+        inactive: "Inactive"
+      criteria_title: "Evaluation Criteria"
+      criteria_hint: "Each criterion is scored 1–5 stars during a review."
+      add_criterion: "Add Criterion"
+      remove_criterion: "Remove"
+      no_criteria: "No criteria added yet."
+      criterion_name: "Criterion"
+      criterion_name_placeholder: "e.g. Customer Service"
+      criterion_description: "Description"
+      criterion_order: "Order"
+      criterion_active: "Active"
+      new_title: "New Evaluation Template"
+      edit_title: "Edit Evaluation Template"
+      created: "Template created."
+      updated: "Template updated."
+      destroyed: "Template deleted."
     biometric_devices:
       index:
         title: "Biometric Devices"
@@ -2222,6 +2280,7 @@ en:
         shifts: "Shifts"
         reports: "Reports"
         inventory: "Inventory"
+        performance: "Performance"
         settings: "Settings"
         obligations: "Obligations"
         administration: "Administration"
@@ -2271,6 +2330,11 @@ en:
         manage_stock_counts: "Create / Edit Stock Counts"
         post_stock_counts: "Approve Stock Counts"
         view_stock_count_reports: "View Stock Count Reports"
+        view_performance: "View Performance"
+        manage_evaluation_templates: "Manage Evaluation Templates"
+        create_observations: "Create Observations"
+        manage_reviews: "Create / Edit Reviews"
+        finalize_reviews: "Finalize Reviews"
       scopes:
         self: "Self only"
         branch: "Branch"
@@ -2324,6 +2388,11 @@ en:
         manage_stock_counts: "Create and edit draft physical inventory counts"
         post_stock_counts: "Approve stock counts (generates adjustments) — segregation of duties"
         view_stock_count_reports: "View stock count history and variance reports"
+        view_performance: "View performance reviews, observations, and reports"
+        manage_evaluation_templates: "Define department evaluation templates and criteria"
+        create_observations: "Record positive, negative, and neutral observations"
+        manage_reviews: "Create and edit monthly performance reviews"
+        finalize_reviews: "Lock reviews as final (cannot be edited afterwards)"
 
     employee_obligations:
       back: "← Obligations"
@@ -2559,6 +2628,111 @@ en:
   locale:
     en: "English"
     ar: "العربية"
+
+  performance:
+    grade:
+      excellent: "Excellent"
+      good: "Good"
+      fair: "Fair"
+      poor: "Poor"
+    stars:
+      aria: "%{score} out of 5 stars"
+      set: "Set %{score} stars"
+      none: "Not rated"
+    statuses:
+      draft: "Draft"
+      submitted: "Submitted"
+      finalized: "Finalized"
+    observation_types:
+      positive: "Positive"
+      negative: "Negative"
+      neutral: "Neutral"
+    dashboard:
+      title: "Performance Dashboard"
+      full_reports: "Full Reports"
+      recent_reviews: "Recent Reviews"
+    profile:
+      title: "Performance"
+      new_review: "New Review"
+      empty: "No finalized reviews yet."
+    observations:
+      title: "Observations"
+      intro: "Record day-to-day observations that feed into monthly reviews."
+      add: "New Observation"
+      empty: "No observations recorded yet."
+      new_title: "New Observation"
+      edit_title: "Edit Observation"
+      detail_title: "Observation"
+      employee: "Employee"
+      select_employee: "Select an employee"
+      criterion: "Criterion"
+      select_criterion: "Select a criterion"
+      criterion_hint: "Criteria come from the employee's department template."
+      type: "Type"
+      select_type: "Select a type"
+      date: "Date"
+      note: "Note"
+      note_placeholder: "What happened?"
+      observed_by: "Observed By"
+      filter_all: "All"
+      created: "Observation recorded."
+      updated: "Observation updated."
+      destroyed: "Observation deleted."
+      delete_confirm: "Delete this observation?"
+    reviews:
+      title: "Monthly Reviews"
+      add: "New Review"
+      empty: "No reviews yet."
+      new_title: "New Review"
+      edit_title: "Edit Review"
+      detail_title: "%{name} — Review"
+      employee: "Employee"
+      select_employee: "Select an employee"
+      department: "Department"
+      no_department: "No department"
+      month: "Month"
+      year: "Year"
+      period: "Period"
+      period_label: "Period Label"
+      period_placeholder: "e.g. mid-month, probation"
+      period_hint: "Optional — leave blank for a standard monthly review."
+      load_screen: "Load Review Screen"
+      score: "Score"
+      average_score: "Average Score"
+      not_scored: "Not scored yet"
+      reviewed_by: "Reviewed by %{name}"
+      status: "Status"
+      filter_all: "All"
+      notes: "Notes"
+      notes_placeholder: "Overall comments about this review period…"
+      observations_this_month: "Observations this month"
+      no_note: "(no note)"
+      save_draft: "Save Review"
+      submit_action: "Submit"
+      finalize_action: "Finalize"
+      finalize_confirm: "Finalize this review? It can no longer be edited."
+      no_template_title: "No evaluation template"
+      no_template_body: "This employee's department has no active evaluation template. Create one to score this review."
+      manage_templates: "Manage Templates"
+      created: "Review created."
+      updated: "Review updated."
+      submitted: "Review submitted."
+      finalized: "Review finalized."
+      destroyed: "Review deleted."
+    reports:
+      title: "Performance Reports"
+      no_data: "Not enough data yet."
+      top_employees: "Top Employees"
+      lowest_employees: "Lowest Employees"
+      department_ranking: "Department Ranking"
+      monthly_trend: "Monthly Trend"
+      employee_trend: "Employee Trend"
+      trend_for: "Score history — %{name}"
+      weak_areas: "Most Common Weak Areas"
+      weak_areas_empty: "No negative observations recorded."
+      negative_count:
+        one: "%{count} negative"
+        other: "%{count} negative"
 
   inventory:
     dashboard:
@@ -2976,6 +3150,12 @@ en:
       employee_obligation: "Employee Obligation"
       user: "Employee"
       branch: "Branch"
+      department: "Department"
+      evaluation_template: "Evaluation Template"
+      evaluation_criterion: "Criterion"
+      performance_review: "Performance Review"
+      performance_review_score: "Score"
+      performance_observation: "Observation"
     attributes:
       employee_obligation:
         user: "Employee"
@@ -2990,8 +3170,35 @@ en:
         end_month: "End month"
         end_year: "End year"
         auto_deduct: "Auto deduct"
+      department:
+        name: "Department name"
+      evaluation_template:
+        name: "Template name"
+        department: "Department"
+      evaluation_criterion:
+        name: "Criterion"
+        description: "Description"
+        sort_order: "Order"
+      performance_review:
+        employee: "Employee"
+        reviewer: "Reviewer"
+        department: "Department"
+        review_month: "Month"
+        review_year: "Year"
+        review_period: "Period"
+      performance_review_score:
+        score: "Score"
+        evaluation_criterion: "Criterion"
+      performance_observation:
+        employee: "Employee"
+        observed_by: "Observed by"
+        evaluation_criterion: "Criterion"
+        observation_date: "Date"
+        observation_type: "Type"
+        note: "Note"
     errors:
       messages:
+        required: "must be selected"
         blank: "can't be blank"
         taken: "has already been taken"
         not_a_number: "is not a number"
@@ -3099,13 +3306,6 @@ en:
     at_risk_employees: "At-Risk Employees"
     no_perf_data: "Insufficient data for this month."
     no_at_risk: "No at-risk employees detected."
-
-  performance:
-    grade:
-      excellent: "Excellent"
-      good: "Good"
-      fair: "Fair"
-      poor: "Poor"
 
   recommendations:
     high_branch_overtime:
@@ -3323,6 +3523,7 @@ en:
 
   common:
     ago: "ago"
+    view_all: "View all"
     prev: "← Previous"
     next: "Next →"
     page_of: "Page %{page} of %{total}"

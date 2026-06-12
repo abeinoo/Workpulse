@@ -353,4 +353,43 @@
       </div>
     </div>
   <% end %>
+
+  <%# ── Performance tab ─────────────────────────────────────── %>
+  <% if current_user.can?(:view_performance) %>
+    <div class="card" style="margin-top: var(--space-5);">
+      <div class="card-header">
+        <h2 class="section-title" style="margin: 0;"><%= t("performance.profile.title") %></h2>
+        <% if current_user.can?(:manage_reviews) %>
+          <%= link_to t("performance.profile.new_review"),
+                new_performance_review_path(employee_id: @user.id), class: "btn btn-secondary btn-sm" %>
+        <% end %>
+      </div>
+
+      <% if @performance_reviews.blank? %>
+        <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("performance.profile.empty") %></p></div>
+      <% else %>
+        <div class="table-wrap table-wrap--cards">
+          <table>
+            <thead><tr>
+              <th><%= t("performance.reviews.period") %></th>
+              <th><%= t("performance.reviews.department") %></th>
+              <th><%= t("performance.reviews.score") %></th>
+            </tr></thead>
+            <tbody>
+              <% @performance_reviews.each do |review| %>
+                <tr>
+                  <td><%= link_to review.period_label, performance_review_path(review), class: "link" %></td>
+                  <td class="td-secondary"><%= review.department.name %></td>
+                  <td>
+                    <%= render "shared/stars", score: review.average_score %>
+                    <span class="td-secondary">(<%= review.average_score %>)</span>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
 </div>

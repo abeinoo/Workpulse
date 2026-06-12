@@ -939,6 +939,88 @@ end
 puts "Inventory ledger: #{business.inventory_movements.count} movements; " \
      "total stock value SAR #{products.sum(&:stock_value).round(2)}"
 
+# ===========================================================================
+# PERFORMANCE EVALUATION
+# ---------------------------------------------------------------------------
+# Department-scoped evaluation templates and their criteria are reference data,
+# seeded idempotently. Departments are matched case/space-insensitively (mirror-
+# ing Department's own name normalization) so an existing department — e.g. one
+# backfilled from the legacy users.department string — is reused rather than
+# duplicated. Criteria are populated only when a template is first created, so
+# manual edits made in the UI are never overwritten on a re-seed. No sample
+# reviews, scores, or observations are created.
+# ===========================================================================
+
+# Reuse an existing department by its normalized (trimmed, case-insensitive)
+# name, or create it. Never creates a near-duplicate of a department that
+# already exists under a different case or spacing.
+def seed_department(business, name)
+  normalized = name.to_s.strip.gsub(/\s+/, " ")
+  Department.where(business: business)
+            .where("lower(name) = ?", normalized.downcase)
+            .first_or_create!(name: normalized)
+end
+
+# Default evaluation templates per department, each with its ordered criteria.
+performance_defaults = {
+  "Hair Stylists" => {
+    template: "Hair Stylist Evaluation",
+    criteria: [
+      [ "Uniform & Personal Hygiene", "Clean, professional appearance and grooming" ],
+      [ "Punctuality",                "Arrives on time and ready for each shift" ],
+      [ "Customer Service",           "Warmth, attentiveness, and client rapport" ],
+      [ "Service Quality",            "Technical quality and consistency of work" ],
+      [ "Service Speed",              "Efficiency without sacrificing quality" ]
+    ]
+  },
+  "Reception" => {
+    template: "Reception Evaluation",
+    criteria: [
+      [ "Booking Accuracy",         "Correct appointments, no double-booking" ],
+      [ "Customer Service",         "Friendly, helpful front-desk experience" ],
+      [ "Communication Skills",     "Clear phone and in-person communication" ],
+      [ "Attendance & Punctuality", "Reliable presence at the desk" ],
+      [ "Teamwork",                 "Coordinates well with stylists and managers" ]
+    ]
+  },
+  "Warehouse" => {
+    template: "Warehouse Evaluation",
+    criteria: [
+      [ "Inventory Accuracy", "Counts and records match physical stock" ],
+      [ "Organization",       "Tidy, well-labelled, navigable storage" ],
+      [ "Process Compliance", "Follows receiving, issuing, and count procedures" ],
+      [ "Stock Monitoring",   "Flags low stock and discrepancies promptly" ]
+    ]
+  }
+}
+
+performance_defaults.each do |dept_name, config|
+  department = seed_department(business, dept_name)
+
+  template = EvaluationTemplate.find_or_initialize_by(
+    business: business, department: department, name: config[:template]
+  )
+
+  # Criteria are seeded only on the template's first creation (initial seed),
+  # so re-running never duplicates or resurrects criteria edited away in the UI.
+  if template.new_record?
+    template.active = true
+    template.save!
+    config[:criteria].each_with_index do |(name, description), index|
+      template.evaluation_criteria.create!(
+        name: name, description: description, sort_order: index
+      )
+    end
+  end
+end
+
+criteria_count = EvaluationCriterion
+  .joins(:evaluation_template)
+  .where(evaluation_templates: { business_id: business.id }).count
+puts "Performance: #{Department.where(business: business).count} departments, " \
+     "#{EvaluationTemplate.for_business(business).count} templates, #{criteria_count} criteria " \
+     "(no reviews/observations seeded)"
+
 # ---------------------------------------------------------------------------
 # Permission Roles — two optional demo roles to illustrate the system.
 # The business owner creates and names their own roles in the UI;
@@ -963,6 +1045,8 @@ puts "Inventory ledger: #{business.inventory_movements.count} movements; " \
       manage_suppliers manage_products manage_stock_receipts
       manage_stock_issues manage_stock_transfers
       manage_stock_counts post_stock_counts view_stock_count_reports
+      view_performance manage_evaluation_templates create_observations
+      manage_reviews finalize_reviews
     ],
     permission_scopes: {
       "view_employees"   => "business_wide",
@@ -985,6 +1069,7 @@ puts "Inventory ledger: #{business.inventory_movements.count} movements; " \
     permissions: %w[
       view_employees view_attendance view_payroll
       view_requests view_shifts view_reports
+      view_performance
     ],
     permission_scopes: {
       "view_employees"  => "business_wide",
@@ -1014,6 +1099,7 @@ puts "  Records   : #{AttendanceRecord.joins(:branch).where(branches: { business
 puts "  Requests  : #{EmployeeRequest.for_business(business).count} employee requests"
 puts "  Payroll   : #{PayrollPeriod.where(business: business).count} periods, #{PayrollEntry.joins(:payroll_period).where(payroll_periods: { business: business }).count} entries"
 puts "  Inventory : #{Warehouse.for_business(business).count} warehouses, #{Product.for_business(business).count} products, #{business.inventory_movements.count} movements"
+puts "  Performance: #{Department.where(business: business).count} departments, #{EvaluationTemplate.for_business(business).count} templates, #{EvaluationCriterion.joins(:evaluation_template).where(evaluation_templates: { business_id: business.id }).count} criteria"
 puts "\n  Credentials (password: password123)"
 puts "    admin@workpulse.dev          — Owner"
 puts "    area.manager@workpulse.dev   — Area Manager (all branches)"

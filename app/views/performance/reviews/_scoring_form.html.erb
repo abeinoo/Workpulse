@@ -1,0 +1,87 @@
+<%#
+  The monthly review scoring screen. Locals:
+    review   – PerformanceReview (new or persisted, with built score rows)
+    composer – Performance::ReviewComposer for the same employee/period
+  Renders one criterion block per score row: star input + the month's
+  observations grouped under it with positive/negative/neutral counts.
+%>
+<% rows_by_criterion = composer.criterion_rows.index_by { |r| r.criterion.id } %>
+
+<%# PerformanceReview's route key is already "performance_review" — no extra scope needed. %>
+<%= form_with model: review, class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: review %>
+
+  <%= f.hidden_field :employee_id %>
+  <%= f.hidden_field :department_id %>
+  <%= f.hidden_field :review_year %>
+  <%= f.hidden_field :review_month %>
+
+  <div class="form-grid" style="margin-bottom: var(--space-4);">
+    <div class="form-group">
+      <%= f.label :review_period, t("performance.reviews.period_label"), class: "form-label" %>
+      <%= f.text_field :review_period, class: "form-control",
+            placeholder: t("performance.reviews.period_placeholder") %>
+      <p class="form-hint"><%= t("performance.reviews.period_hint") %></p>
+    </div>
+  </div>
+
+  <% if composer.template? && review.performance_review_scores.any? %>
+    <%= f.fields_for :performance_review_scores do |sf| %>
+      <% row = rows_by_criterion[sf.object.evaluation_criterion_id] %>
+      <% next unless row %>
+      <%= sf.hidden_field :evaluation_criterion_id %>
+
+      <div class="criterion-block">
+        <div class="criterion-block__header">
+          <div>
+            <h3 style="margin: 0 0 2px;"><%= row.criterion.name %></h3>
+            <% if row.criterion.description.present? %>
+              <p class="form-hint" style="margin: 0;"><%= row.criterion.description %></p>
+            <% end %>
+          </div>
+          <div class="criterion-block__counts">
+            <span class="obs-chip obs-chip--positive"><%= t("performance.observation_types.positive") %>: <%= row.positive_count %></span>
+            <span class="obs-chip obs-chip--negative"><%= t("performance.observation_types.negative") %>: <%= row.negative_count %></span>
+            <span class="obs-chip obs-chip--neutral"><%= t("performance.observation_types.neutral") %>: <%= row.neutral_count %></span>
+          </div>
+        </div>
+
+        <div style="margin-top: var(--space-3);">
+          <%= render "shared/star_rating_input", form: sf, value: sf.object.score %>
+        </div>
+
+        <% if row.observations.any? %>
+          <div class="criterion-block__observations">
+            <p class="form-label" style="margin-bottom: 4px;"><%= t("performance.reviews.observations_this_month") %></p>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+              <% row.observations.each do |obs| %>
+                <li>
+                  <span class="obs-chip obs-chip--<%= obs.observation_type %>"><%= t("performance.observation_types.#{obs.observation_type}") %></span>
+                  <%= obs.note.presence || t("performance.reviews.no_note") %>
+                  <span class="td-secondary">— <%= local_date(obs.observation_date) %></span>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div class="form-group" style="margin-top: var(--space-4);">
+      <%= f.label :notes, t("performance.reviews.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 4, class: "form-control",
+            placeholder: t("performance.reviews.notes_placeholder") %>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("performance.reviews.save_draft"), class: "btn btn-primary" %>
+      <%= link_to t("common.cancel"), performance_reviews_path, class: "btn btn-ghost" %>
+    </div>
+  <% else %>
+    <div class="empty-state">
+      <p class="empty-state__title"><%= t("performance.reviews.no_template_title") %></p>
+      <p class="empty-state__text"><%= t("performance.reviews.no_template_body") %></p>
+      <%= link_to t("performance.reviews.manage_templates"), admin_evaluation_templates_path, class: "btn btn-secondary btn-sm" %>
+    </div>
+  <% end %>
+<% end %>

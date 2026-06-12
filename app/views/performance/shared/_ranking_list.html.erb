@@ -1,0 +1,25 @@
+<%#
+  Renders a ranked list (employees or departments) with a 0–5 score bar.
+  Locals: title, rankings (Array<Analytics::Ranked>), empty_text
+%>
+<div class="card" style="padding: var(--space-5);">
+  <h2 class="section-title"><%= title %></h2>
+  <% if rankings.blank? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= empty_text %></p></div>
+  <% else %>
+    <table style="width: 100%;">
+      <tbody>
+        <% rankings.each_with_index do |row, i| %>
+          <tr>
+            <td style="width: 28px;" class="td-secondary"><%= i + 1 %></td>
+            <td><%= row.name %></td>
+            <td style="width: 40%;">
+              <div class="rank-bar"><div class="rank-bar__fill" style="width: <%= ((row.average || 0) / 5.0 * 100).round %>%;"></div></div>
+            </td>
+            <td style="width: 64px; text-align: end; font-weight: 600;"><%= row.average || "—" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>

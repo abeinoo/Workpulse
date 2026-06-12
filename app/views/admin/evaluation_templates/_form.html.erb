@@ -1,0 +1,59 @@
+<%= form_with model: [:admin, template], class: "form-card", data: { controller: "criteria-fields" } do |f| %>
+  <%= render "shared/error_messages", object: template %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :name, t("admin.evaluation_templates.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if template.errors[:name].any?}",
+            placeholder: t("admin.evaluation_templates.name_placeholder") %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :department_id, t("admin.evaluation_templates.department"), class: "form-label" %>
+      <%= f.collection_select :department_id, @departments, :id, :name,
+            { prompt: t("admin.evaluation_templates.select_department") },
+            class: "form-control #{'is-error' if template.errors[:department_id].any?}" %>
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <label class="form-check">
+        <%= f.check_box :active %>
+        <span><%= t("admin.evaluation_templates.active_label") %></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="flex items-center justify-between" style="margin-bottom: var(--space-3);">
+    <h2 class="section-title" style="margin: 0;"><%= t("admin.evaluation_templates.criteria_title") %></h2>
+    <button type="button" class="btn btn-secondary btn-sm" data-action="criteria-fields#add">
+      <%= t("admin.evaluation_templates.add_criterion") %>
+    </button>
+  </div>
+  <p class="form-hint" style="margin-top: 0;"><%= t("admin.evaluation_templates.criteria_hint") %></p>
+
+  <div data-criteria-fields-target="container">
+    <%= f.fields_for :evaluation_criteria do |cf| %>
+      <%= render "criterion_fields", f: cf %>
+    <% end %>
+  </div>
+
+  <p class="empty-state__text" data-criteria-fields-target="emptyState"
+     <%= "hidden" if template.evaluation_criteria.any? %>>
+    <%= t("admin.evaluation_templates.no_criteria") %>
+  </p>
+
+  <%# Template for client-side cloning of new criterion rows %>
+  <template data-criteria-fields-target="template">
+    <%= f.fields_for :evaluation_criteria, EvaluationCriterion.new(active: true, sort_order: 0),
+          child_index: "NEW_INDEX" do |cf| %>
+      <%= render "criterion_fields", f: cf %>
+    <% end %>
+  </template>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), admin_evaluation_templates_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

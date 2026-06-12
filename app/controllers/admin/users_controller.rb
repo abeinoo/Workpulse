@@ -41,6 +41,13 @@ class Admin::UsersController < Admin::BaseController
     @active_salary_profile = @user.active_salary_profile
     @salary_profiles = @user.salary_profiles.order(effective_from: :desc)
 
+    # Performance tab — finalized reviews for this employee, newest first.
+    if current_user.can?(:view_performance)
+      @performance_reviews = @user.performance_reviews
+                                  .includes(:department)
+                                  .finalized_reviews.recent_first.limit(12)
+    end
+
     load_shift_timeline
   end
 

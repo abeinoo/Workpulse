@@ -51,6 +51,14 @@ ar:
     inventory_stock_adjustments: "تسويات المخزون"
     inventory_stock_counts: "جرد المخزون"
     inventory_reports: "التقارير"
+    section_performance: "تقييم الأداء"
+    performance_dashboard: "لوحة الأداء"
+    performance_observations: "الملاحظات"
+    performance_reviews: "التقييمات الشهرية"
+    performance_reports: "التقارير"
+    my_reviews: "تقييماتي"
+    departments: "الأقسام"
+    evaluation_templates: "قوالب التقييم"
 
   auth:
     sign_in:
@@ -1737,6 +1745,56 @@ ar:
       submit_review: "إرسال للمراجعة"
 
   admin:
+    departments:
+      title: "الأقسام"
+      intro: "تجمّع الأقسام الموظفين وتحدّد قوالب تقييمهم."
+      add: "إضافة قسم"
+      empty: "لا توجد أقسام بعد."
+      name: "اسم القسم"
+      name_placeholder: "مثال: الاستقبال"
+      employees: "الموظفون"
+      status: "الحالة"
+      active_label: "نشط"
+      active_hint: "الأقسام غير النشطة تُخفى من الاختيارات الجديدة مع الاحتفاظ بالروابط الحالية."
+      statuses:
+        active: "نشط"
+        inactive: "غير نشط"
+      new_title: "قسم جديد"
+      edit_title: "تعديل القسم"
+      delete_confirm: "حذف هذا القسم؟ لا يمكن التراجع."
+      created: "تم إنشاء القسم."
+      updated: "تم تحديث القسم."
+      destroyed: "تم حذف القسم."
+    evaluation_templates:
+      title: "قوالب التقييم"
+      intro: "حدّد المعايير التي يُقيَّم عليها كل قسم."
+      add: "إضافة قالب"
+      empty: "لا توجد قوالب تقييم بعد."
+      name: "اسم القالب"
+      name_placeholder: "مثال: تقييم مصفف الشعر"
+      department: "القسم"
+      select_department: "اختر قسمًا"
+      active_label: "نشط"
+      criteria_count: "المعايير"
+      status: "الحالة"
+      statuses:
+        active: "نشط"
+        inactive: "غير نشط"
+      criteria_title: "معايير التقييم"
+      criteria_hint: "يُقيَّم كل معيار من 1 إلى 5 نجوم أثناء التقييم."
+      add_criterion: "إضافة معيار"
+      remove_criterion: "إزالة"
+      no_criteria: "لم تتم إضافة معايير بعد."
+      criterion_name: "المعيار"
+      criterion_name_placeholder: "مثال: خدمة العملاء"
+      criterion_description: "الوصف"
+      criterion_order: "الترتيب"
+      criterion_active: "نشط"
+      new_title: "قالب تقييم جديد"
+      edit_title: "تعديل قالب التقييم"
+      created: "تم إنشاء القالب."
+      updated: "تم تحديث القالب."
+      destroyed: "تم حذف القالب."
     biometric_devices:
       index:
         title: "الأجهزة البيومترية"
@@ -2211,6 +2269,7 @@ ar:
         shifts: "الورديات"
         reports: "التقارير"
         inventory: "المخزون"
+        performance: "تقييم الأداء"
         settings: "الإعدادات"
         obligations: "الالتزامات"
         administration: "الإدارة"
@@ -2260,6 +2319,11 @@ ar:
         manage_stock_counts: "إنشاء / تعديل عمليات الجرد"
         post_stock_counts: "اعتماد عمليات الجرد"
         view_stock_count_reports: "عرض تقارير الجرد"
+        view_performance: "عرض تقييم الأداء"
+        manage_evaluation_templates: "إدارة قوالب التقييم"
+        create_observations: "إنشاء الملاحظات"
+        manage_reviews: "إنشاء / تعديل التقييمات"
+        finalize_reviews: "اعتماد التقييمات"
       scopes:
         self: "بيانات شخصية فقط"
         branch: "الفرع"
@@ -2313,6 +2377,11 @@ ar:
         manage_stock_counts: "إنشاء وتعديل عمليات الجرد المسودة"
         post_stock_counts: "اعتماد عمليات الجرد (يولّد تسويات) — فصل المهام"
         view_stock_count_reports: "عرض سجل الجرد وتقارير الفروقات"
+        view_performance: "عرض التقييمات والملاحظات وتقارير الأداء"
+        manage_evaluation_templates: "تحديد قوالب ومعايير تقييم الأقسام"
+        create_observations: "تسجيل الملاحظات الإيجابية والسلبية والمحايدة"
+        manage_reviews: "إنشاء وتعديل تقييمات الأداء الشهرية"
+        finalize_reviews: "اعتماد التقييمات نهائيًا (لا يمكن تعديلها بعد ذلك)"
 
     employee_obligations:
       back: "← الالتزامات"
@@ -2591,6 +2660,115 @@ ar:
   locale:
     en: "English"
     ar: "العربية"
+
+  performance:
+    grade:
+      excellent: "ممتاز"
+      good: "جيد"
+      fair: "مقبول"
+      poor: "ضعيف"
+    stars:
+      aria: "%{score} من 5 نجوم"
+      set: "تحديد %{score} نجوم"
+      none: "غير مُقيَّم"
+    statuses:
+      draft: "مسودة"
+      submitted: "مُرسَل"
+      finalized: "معتمد"
+    observation_types:
+      positive: "إيجابية"
+      negative: "سلبية"
+      neutral: "محايدة"
+    dashboard:
+      title: "لوحة الأداء"
+      full_reports: "التقارير الكاملة"
+      recent_reviews: "أحدث التقييمات"
+    profile:
+      title: "الأداء"
+      new_review: "تقييم جديد"
+      empty: "لا توجد تقييمات معتمدة بعد."
+    observations:
+      title: "الملاحظات"
+      intro: "سجّل الملاحظات اليومية التي تغذّي التقييمات الشهرية."
+      add: "ملاحظة جديدة"
+      empty: "لم تُسجَّل أي ملاحظات بعد."
+      new_title: "ملاحظة جديدة"
+      edit_title: "تعديل الملاحظة"
+      detail_title: "ملاحظة"
+      employee: "الموظف"
+      select_employee: "اختر موظفًا"
+      criterion: "المعيار"
+      select_criterion: "اختر معيارًا"
+      criterion_hint: "تأتي المعايير من قالب تقييم قسم الموظف."
+      type: "النوع"
+      select_type: "اختر النوع"
+      date: "التاريخ"
+      note: "الملاحظة"
+      note_placeholder: "ماذا حدث؟"
+      observed_by: "سُجّلت بواسطة"
+      filter_all: "الكل"
+      created: "تم تسجيل الملاحظة."
+      updated: "تم تحديث الملاحظة."
+      destroyed: "تم حذف الملاحظة."
+      delete_confirm: "حذف هذه الملاحظة؟"
+    reviews:
+      title: "التقييمات الشهرية"
+      add: "تقييم جديد"
+      empty: "لا توجد تقييمات بعد."
+      new_title: "تقييم جديد"
+      edit_title: "تعديل التقييم"
+      detail_title: "%{name} — التقييم"
+      employee: "الموظف"
+      select_employee: "اختر موظفًا"
+      department: "القسم"
+      no_department: "بدون قسم"
+      month: "الشهر"
+      year: "السنة"
+      period: "الفترة"
+      period_label: "تسمية الفترة"
+      period_placeholder: "مثال: منتصف الشهر، فترة تجربة"
+      period_hint: "اختياري — اتركه فارغًا للتقييم الشهري المعتاد."
+      load_screen: "تحميل شاشة التقييم"
+      score: "الدرجة"
+      average_score: "متوسط الدرجة"
+      not_scored: "لم يُقيَّم بعد"
+      reviewed_by: "قُيّم بواسطة %{name}"
+      status: "الحالة"
+      filter_all: "الكل"
+      notes: "ملاحظات"
+      notes_placeholder: "تعليقات عامة حول فترة التقييم…"
+      observations_this_month: "ملاحظات هذا الشهر"
+      no_note: "(بدون ملاحظة)"
+      save_draft: "حفظ التقييم"
+      submit_action: "إرسال"
+      finalize_action: "اعتماد"
+      finalize_confirm: "اعتماد هذا التقييم؟ لن يكون قابلًا للتعديل بعد ذلك."
+      no_template_title: "لا يوجد قالب تقييم"
+      no_template_body: "لا يوجد قالب تقييم نشط لقسم هذا الموظف. أنشئ قالبًا لتقييمه."
+      manage_templates: "إدارة القوالب"
+      created: "تم إنشاء التقييم."
+      updated: "تم تحديث التقييم."
+      submitted: "تم إرسال التقييم."
+      finalized: "تم اعتماد التقييم."
+      destroyed: "تم حذف التقييم."
+    reports:
+      title: "تقارير الأداء"
+      no_data: "لا توجد بيانات كافية بعد."
+      top_employees: "أفضل الموظفين"
+      lowest_employees: "أقل الموظفين"
+      department_ranking: "ترتيب الأقسام"
+      monthly_trend: "الاتجاه الشهري"
+      employee_trend: "اتجاه الموظف"
+      trend_for: "سجل الدرجات — %{name}"
+      weak_areas: "أكثر نقاط الضعف شيوعًا"
+      weak_areas_empty: "لا توجد ملاحظات سلبية مسجّلة."
+      negative_count:
+        zero: "%{count} سلبية"
+        one: "ملاحظة سلبية واحدة"
+        two: "ملاحظتان سلبيتان"
+        few: "%{count} ملاحظات سلبية"
+        many: "%{count} ملاحظة سلبية"
+        other: "%{count} سلبية"
 
   inventory:
     dashboard:
@@ -3008,6 +3186,12 @@ ar:
       employee_obligation: "التزام موظف"
       user: "موظف"
       branch: "فرع"
+      department: "قسم"
+      evaluation_template: "قالب تقييم"
+      evaluation_criterion: "معيار"
+      performance_review: "تقييم أداء"
+      performance_review_score: "درجة"
+      performance_observation: "ملاحظة"
     attributes:
       employee_obligation:
         user: "الموظف"
@@ -3022,8 +3206,35 @@ ar:
         end_month: "شهر النهاية"
         end_year: "سنة النهاية"
         auto_deduct: "خصم تلقائي"
+      department:
+        name: "اسم القسم"
+      evaluation_template:
+        name: "اسم القالب"
+        department: "القسم"
+      evaluation_criterion:
+        name: "المعيار"
+        description: "الوصف"
+        sort_order: "الترتيب"
+      performance_review:
+        employee: "الموظف"
+        reviewer: "المُقيِّم"
+        department: "القسم"
+        review_month: "الشهر"
+        review_year: "السنة"
+        review_period: "الفترة"
+      performance_review_score:
+        score: "الدرجة"
+        evaluation_criterion: "المعيار"
+      performance_observation:
+        employee: "الموظف"
+        observed_by: "بواسطة"
+        evaluation_criterion: "المعيار"
+        observation_date: "التاريخ"
+        observation_type: "النوع"
+        note: "الملاحظة"
     errors:
       messages:
+        required: "يجب اختياره"
         blank: "مطلوب"
         taken: "محجوز مسبقاً"
         not_a_number: "يجب أن يكون رقماً"
@@ -3118,13 +3329,6 @@ ar:
     at_risk_employees: "موظفون في خطر"
     no_perf_data: "بيانات غير كافية لهذا الشهر."
     no_at_risk: "لا يوجد موظفون في خطر."
-
-  performance:
-    grade:
-      excellent: "ممتاز"
-      good: "جيد"
-      fair: "مقبول"
-      poor: "ضعيف"
 
   recommendations:
     high_branch_overtime:
@@ -3342,6 +3546,7 @@ ar:
 
   common:
     ago: "مضت"
+    view_all: "عرض الكل"
     prev: "← السابق"
     next: "التالي →"
     page_of: "صفحة %{page} من %{total}"

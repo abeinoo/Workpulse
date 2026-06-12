@@ -1,0 +1,30 @@
+<%#
+  "Most common weak areas" — criteria by negative-observation count.
+  Locals: weak_areas (Array<Analytics::WeakArea>)
+%>
+<div class="card" style="padding: var(--space-5);">
+  <h2 class="section-title"><%= t("performance.reports.weak_areas") %></h2>
+  <% if weak_areas.blank? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("performance.reports.weak_areas_empty") %></p></div>
+  <% else %>
+    <% max = weak_areas.map(&:negative_count).max.to_f %>
+    <table style="width: 100%;">
+      <tbody>
+        <% weak_areas.each do |area| %>
+          <tr>
+            <td>
+              <%= area.criterion_name %>
+              <% if area.department_name.present? %><span class="td-secondary">· <%= area.department_name %></span><% end %>
+            </td>
+            <td style="width: 45%;">
+              <div class="rank-bar rank-bar--danger"><div class="rank-bar__fill" style="width: <%= max.positive? ? (area.negative_count / max * 100).round : 0 %>%;"></div></div>
+            </td>
+            <td style="width: 110px; text-align: end; font-weight: 600;">
+              <%= t("performance.reports.negative_count", count: area.negative_count) %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>

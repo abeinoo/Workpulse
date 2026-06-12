@@ -1,0 +1,41 @@
+<% content_for :title, t("performance.reports.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("performance.reports.title") %></h1>
+    <div class="flex items-center gap-2">
+      <%= form_with url: performance_reports_path, method: :get do |f| %>
+        <%= f.select :year, ((Date.current.year - 4)..Date.current.year).to_a.reverse,
+              { selected: @year }, class: "form-control form-control--sm",
+              onchange: "this.form.requestSubmit()" %>
+      <% end %>
+      <%= link_to t("performance.reports.employee_trend"), performance_trend_report_path(year: @year), class: "btn btn-secondary btn-sm" %>
+    </div>
+  </div>
+
+  <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-bottom: var(--space-5);">
+    <%= render "performance/shared/ranking_list",
+          title: t("performance.reports.top_employees"),
+          rankings: @top_employees, empty_text: t("performance.reports.no_data") %>
+    <%= render "performance/shared/ranking_list",
+          title: t("performance.reports.lowest_employees"),
+          rankings: @lowest_employees, empty_text: t("performance.reports.no_data") %>
+  </div>
+
+  <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-bottom: var(--space-5);">
+    <%= render "performance/shared/ranking_list",
+          title: t("performance.reports.department_ranking"),
+          rankings: @department_ranking, empty_text: t("performance.reports.no_data") %>
+    <%= render "performance/shared/weak_areas", weak_areas: @weak_areas %>
+  </div>
+
+  <%# ── Business-wide monthly trend ──────────────────────── %>
+  <div class="card" style="padding: var(--space-5);">
+    <h2 class="section-title"><%= t("performance.reports.monthly_trend") %></h2>
+    <% if @business_trend.blank? %>
+      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("performance.reports.no_data") %></p></div>
+    <% else %>
+      <%= render "performance/reports/trend_table", trend: @business_trend %>
+    <% end %>
+  </div>
+</div>

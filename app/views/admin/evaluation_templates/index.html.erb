@@ -1,0 +1,47 @@
+<% content_for :title, t("admin.evaluation_templates.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("admin.evaluation_templates.title") %></h1>
+    <%= link_to t("admin.evaluation_templates.add"), new_admin_evaluation_template_path, class: "btn btn-primary btn-sm" %>
+  </div>
+
+  <p class="form-hint"><%= t("admin.evaluation_templates.intro") %></p>
+
+  <% if @templates.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("admin.evaluation_templates.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("admin.evaluation_templates.name") %></th>
+            <th><%= t("admin.evaluation_templates.department") %></th>
+            <th><%= t("admin.evaluation_templates.criteria_count") %></th>
+            <th><%= t("admin.evaluation_templates.status") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @templates.each do |template| %>
+            <tr>
+              <td><%= link_to template.name, admin_evaluation_template_path(template), class: "link" %></td>
+              <td class="td-secondary"><%= template.department.name %></td>
+              <td class="td-secondary"><%= template.evaluation_criteria.active.count %></td>
+              <td>
+                <% if template.active? %>
+                  <span class="badge badge-success"><%= t("admin.evaluation_templates.statuses.active") %></span>
+                <% else %>
+                  <span class="badge badge-neutral"><%= t("admin.evaluation_templates.statuses.inactive") %></span>
+                <% end %>
+              </td>
+              <td class="td-actions">
+                <%= link_to t("common.edit"), edit_admin_evaluation_template_path(template), class: "link-muted" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,38 @@
+<% content_for :title, @template.name %>
+
+<div class="admin-page">
+  <%= link_to admin_evaluation_templates_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= @template.name %></h1>
+      <p class="form-hint" style="margin: 0;">
+        <%= @template.department.name %>
+        <% unless @template.active? %>· <span class="badge badge-neutral"><%= t("admin.evaluation_templates.statuses.inactive") %></span><% end %>
+      </p>
+    </div>
+    <%= link_to t("common.edit"), edit_admin_evaluation_template_path(@template), class: "btn btn-secondary btn-sm" %>
+  </div>
+
+  <div class="card" style="padding: var(--space-5);">
+    <h2 class="section-title"><%= t("admin.evaluation_templates.criteria_title") %></h2>
+    <% if @criteria.empty? %>
+      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("admin.evaluation_templates.no_criteria") %></p></div>
+    <% else %>
+      <ol class="detail-list">
+        <% @criteria.each do |criterion| %>
+          <div class="detail-list__row">
+            <dt>
+              <%= criterion.name %>
+              <% unless criterion.active? %><span class="badge badge-neutral"><%= t("admin.evaluation_templates.statuses.inactive") %></span><% end %>
+            </dt>
+            <dd><%= criterion.description.presence || "—" %></dd>
+          </div>
+        <% end %>
+      </ol>
+    <% end %>
+  </div>
+</div>
