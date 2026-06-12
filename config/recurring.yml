@@ -18,24 +18,3 @@ production:
     class: Payroll::AutoGenerateJob
     queue: background
     schedule: every day at 6:00am
-
-  # ── Notification reminders ───────────────────────────────────────────────
-  forgot_checkin_reminder:
-    class: Notifications::ForgotCheckinReminderJob
-    queue: background
-    schedule: every day at 10:30am
-
-  forgot_checkout_reminder:
-    class: Notifications::ForgotCheckoutReminderJob
-    queue: background
-    schedule: every day at 7:00am
-
-  daily_attendance_summary:
-    class: Notifications::DailyAttendanceSummaryJob
-    queue: background
-    schedule: every day at 11:00am
-
-  pending_approval_reminder:
-    class: Notifications::PendingApprovalReminderJob
-    queue: background
-    schedule: every day at 2:00pm

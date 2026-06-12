@@ -34,7 +34,6 @@ en:
     shift_rule_profiles: "Scheduling Rules"
     staff: "Staff"
     operations: "Operations"
-    notifications: "Notifications"
     section_dashboard: "Dashboard"
     section_workforce: "Workforce"
     section_attendance: "Attendance"
@@ -293,9 +292,6 @@ en:
       present: "Days Attended"
       late: "Late Arrivals"
       absences: "Absences"
-    notifications:
-      title: "Notifications"
-      view_all: "View all"
     trends:
       vs_yesterday_checkin: "vs. yesterday"
       avg_work: "Avg. work"
@@ -1066,6 +1062,10 @@ en:
       exceeds_monthly_limit: "exceeds the monthly limit (%{remaining} minutes remaining out of %{limit})"
       unavailable_for_hour_based: "is not available for employees assigned to hour-based (flexible) shifts"
       exceeds_advance_limit: "exceeds your available advance limit (%{available} %{currency} remaining)"
+
+  approvals:
+    errors:
+      self_approval: "You cannot approve or reject your own request."
 
   adjustments:
     types:
@@ -3066,139 +3066,6 @@ en:
       default: "%b %-d, %Y %H:%M"
       short: "%-d %b %H:%M"
       time: "%-H:%M"
-
-  notifications:
-    page_title: "Notifications"
-    title: "Notifications"
-    unread_count:
-      one: "1 unread notification"
-      other: "%{count} unread notifications"
-    all_read: "All caught up"
-    empty: "No notifications yet"
-    mark_all_read: "Mark all as read"
-    mark_read: "Mark as read"
-    all_marked_read: "All notifications marked as read."
-    filter_all: "All"
-    filter_unread: "Unread"
-    filter_info: "Info"
-    filter_warning: "Warnings"
-    filter_danger: "Alerts"
-    filter_success: "Success"
-    severity:
-      info: "Info"
-      warning: "Warning"
-      danger: "Alert"
-      success: "Success"
-    categories:
-      attendance: "Attendance"
-      leave: "Leave"
-      payroll: "Payroll"
-      approvals: "Approvals"
-      system: "System"
-    events:
-      payroll_submitted: "Payroll submitted"
-      payroll_finalized: "Payroll finalized"
-      payroll_paid: "Payroll paid"
-      payroll_regenerated: "Payroll regenerated"
-      payroll_auto_generated: "Auto-generated"
-      payroll_reopened: "Payroll reopened"
-      adjustment_approved: "Adjustment approved"
-      adjustment_rejected: "Adjustment rejected"
-      line_item_approved: "Line item approved"
-      line_item_rejected: "Line item rejected"
-      line_item_waived: "Penalty waived"
-      attendance_anomaly: "Attendance anomaly"
-      attendance_missing_check_in: "Missing check-in"
-      attendance_missing_check_out: "Missing check-out"
-      attendance_late: "Late arrival"
-      attendance_correction_approved: "Correction approved"
-      attendance_correction_rejected: "Correction rejected"
-      manager_missing_attendance: "Team attendance gaps"
-      manager_pending_corrections: "Corrections to review"
-      leave_submitted: "Leave submitted"
-      leave_approved: "Leave approved"
-      leave_rejected: "Leave rejected"
-      leave_cancelled: "Leave cancelled"
-      manager_leave_request: "New leave request"
-      employee_request_submitted: "Request submitted"
-      employee_request_approved: "Request approved"
-      employee_request_rejected: "Request rejected"
-      manager_pending_approvals: "Approvals pending"
-      system_warning: "System warning"
-    payroll:
-      submitted_for_review:
-        title: "Payroll submitted for review — %{label}"
-        body: "%{actor} submitted the %{label} payroll period for review."
-      branch_review_completed:
-        title: "Branch review completed — %{label}"
-        body: "%{actor} completed branch review for %{label}."
-      finalized:
-        title: "Payroll finalized — %{label}"
-        body: "%{label} payroll has been finalized by %{actor}."
-      paid:
-        title: "Payroll marked as paid — %{label}"
-        body: "%{label} payroll has been marked as paid by %{actor}."
-      regenerated:
-        title: "Payroll regenerated — %{label}"
-        body: "%{actor} regenerated the %{label} payroll entries."
-      reopened:
-        title: "Payroll reopened — %{label}"
-        body: "%{actor} reopened the %{label} payroll period."
-      adjustment_approved:
-        title: "Adjustment approved"
-        body: "Your adjustment for %{label} was approved."
-      adjustment_rejected:
-        title: "Adjustment rejected"
-        body: "Your adjustment for %{label} was rejected."
-    payroll_auto_generated:
-      title: "Payroll auto-generated — %{label}"
-      body: "The %{label} payroll period was automatically generated for %{business}."
-    attendance:
-      missing_check_in:
-        title: "You haven't checked in yet"
-        body: "Your shift is active today but we don't have a check-in for you. Please check in or contact your manager."
-      missing_check_out:
-        title: "You forgot to check out"
-        body: "Your %{date} attendance has no check-out. Submit a punch correction to fix it."
-      manager_summary:
-        title: "%{count} team member(s) missing attendance"
-        body: "%{count} of %{total} employees you manage have no attendance record today."
-    requests:
-      approved:
-        title: "Your %{type} request was approved"
-        body: "Your %{type} request for %{date} has been approved."
-      rejected:
-        title: "Your %{type} request was rejected"
-        body: "Your %{type} request for %{date} was rejected."
-      leave_approved:
-        title: "Your leave was approved"
-        body: "Your %{type} for %{date} has been approved."
-      leave_rejected:
-        title: "Your leave was rejected"
-        body: "Your %{type} for %{date} was rejected."
-      correction_approved:
-        title: "Attendance correction approved"
-        body: "Your punch correction for %{date} was approved and applied."
-      correction_rejected:
-        title: "Attendance correction rejected"
-        body: "Your punch correction for %{date} was rejected."
-      manager_pending:
-        title: "New request from %{name}"
-        body: "%{name} submitted a %{type} request awaiting your review."
-      pending_reminder:
-        title: "%{count} request(s) awaiting your review"
-        body: "You have %{count} pending request(s) that need a decision."
-    preferences:
-      title: "Notification Preferences"
-      subtitle: "Choose which categories of notifications you want to receive."
-      save: "Save preferences"
-      saved: "Notification preferences updated."
-      descriptions:
-        attendance: "Check-in/out reminders, late arrivals, correction outcomes."
-        leave: "Leave request submissions, approvals, and rejections."
-        payroll: "Payroll generation, finalization, payment, and adjustments."
-        approvals: "Requests awaiting your review and approval outcomes."
-        system: "System warnings and operational alerts."
 
   ops_dashboard:
     page_title: "Operations Dashboard"

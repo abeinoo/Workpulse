@@ -32,9 +32,6 @@
       <% if @recent_requests.any? %>
         <div class="dash-widget"><%= render "dashboard/widget_my_requests" %></div>
       <% end %>
-      <% if @recent_notifications.any? %>
-        <div class="dash-widget"><%= render "dashboard/widget_my_notifications" %></div>
-      <% end %>
       <% if @latest_payroll %>
         <div class="dash-widget"><%= render "dashboard/widget_latest_payroll" %></div>
       <% end %>

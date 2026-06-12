@@ -24,6 +24,13 @@ module Inventory
         return failure
       end
 
+      # Segregation of duties: whoever ran or submitted the count may not approve
+      # it themselves. Backstop for direct service calls (the policy hides the UI).
+      if self_approval?
+        @count.errors.add(:base, Approvals::SelfApproval.error_message)
+        return failure
+      end
+
       # Belt-and-suspenders against a duplicate: a count may only ever own one
       # adjustment. (The state machine already prevents re-approval — an approved
       # count can't be reopened — but never create a second adjustment regardless.)
@@ -57,6 +64,11 @@ module Inventory
     end
 
     private
+
+    def self_approval?
+      Approvals::SelfApproval.by_requester?(approver: @user, requester: @count.completed_by_id) ||
+        Approvals::SelfApproval.by_requester?(approver: @user, requester: @count.created_by_id)
+    end
 
     # Refresh system quantity (and the derived variance) for COUNTED rows only;
     # blank rows are deliberately not touched.

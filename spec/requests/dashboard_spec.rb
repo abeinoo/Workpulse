@@ -505,15 +505,14 @@ RSpec.describe "Dashboard", type: :request do
 
   describe "GET / — empty widgets are hidden" do
     # Use widget-unique CSS hooks (the widgets' container classes) rather than
-    # labels, since words like "Notifications" also appear in the layout chrome.
-    it "does not render the latest-payroll, requests or notifications widgets with no data" do
+    # labels to avoid false matches against layout chrome.
+    it "does not render the latest-payroll or requests widgets with no data" do
       sign_in create(:user, business: business)
       get root_path
 
       expect(response).to have_http_status(:ok)
       expect(response.body).not_to include("payroll-summary-card") # latest payroll
       expect(response.body).not_to include("request-row")          # my requests
-      expect(response.body).not_to include("emp-notif-list")       # my notifications
     end
 
     context "when the data exists" do

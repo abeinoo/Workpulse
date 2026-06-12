@@ -13,8 +13,10 @@ class StockCountPolicy < ApplicationPolicy
   def complete? = create? && record.in_progress?
 
   # Approval / send-back are higher-trust actions (segregation of duties):
-  # an employee with only counting rights cannot approve.
-  def approve? = approver? && record.completed?
+  # an employee with only counting rights cannot approve. Self-approval is also
+  # blocked — the person who ran or submitted the count may not approve it; another
+  # authorized approver must.
+  def approve? = approver? && record.completed? && !own_count?
   def reopen?  = approver? && record.completed?
 
   class Scope < ApplicationPolicy::Scope
@@ -27,5 +29,11 @@ class StockCountPolicy < ApplicationPolicy
 
   def approver?
     can?(:manage_inventory) || can?(:post_stock_counts)
+  end
+
+  # The count's "requester": whoever ran it (created_by) or submitted it for
+  # approval (completed_by). Either of them approving it is a self-approval.
+  def own_count?
+    [ record.created_by_id, record.completed_by_id ].compact.include?(user.id)
   end
 end

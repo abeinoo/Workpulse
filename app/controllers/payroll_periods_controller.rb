@@ -148,7 +148,6 @@ class PayrollPeriodsController < ApplicationController
 
     result = Payroll::SubmitForReview.call(period: @period, by: current_user)
     if result.success?
-      Payroll::NotificationService.notify(event: :submitted_for_review, period: @period, actor: current_user)
       redirect_to payroll_period_path(@period), notice: t("flash.payroll_submitted")
     else
       redirect_to payroll_period_path(@period), alert: result.error
@@ -193,7 +192,6 @@ class PayrollPeriodsController < ApplicationController
 
     result = Payroll::Approver.advance(period: @period, by: current_user)
     if result.success?
-      Payroll::NotificationService.notify(event: :finalized, period: @period, actor: current_user)
       redirect_to payroll_period_path(@period), notice: t("flash.period_finalized")
     else
       redirect_to payroll_period_path(@period), alert: result.error
@@ -206,7 +204,6 @@ class PayrollPeriodsController < ApplicationController
 
     result = Payroll::Approver.advance(period: @period, by: current_user)
     if result.success?
-      Payroll::NotificationService.notify(event: :paid, period: @period, actor: current_user)
       redirect_to payroll_period_path(@period), notice: t("flash.period_paid")
     else
       redirect_to payroll_period_path(@period), alert: result.error
@@ -362,7 +359,6 @@ class PayrollPeriodsController < ApplicationController
     )
 
     if result.success?
-      Payroll::NotificationService.notify(event: :reopened, period: @period, actor: current_user)
       redirect_to payroll_period_path(@period), notice: t("flash.period_reopened")
     else
       redirect_to payroll_period_path(@period), alert: result.error

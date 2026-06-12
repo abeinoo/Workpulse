@@ -62,12 +62,14 @@ module Requests
 
     def approve
       return err("Request is already #{@request.status}") unless @request.pending?
+      return err(Approvals::SelfApproval.error_message) if self_approval?
 
       @request.punch_correction? ? approve_punch_correction : approve_standard
     end
 
     def reject
       return err("Request is already #{@request.status}") unless @request.pending?
+      return err(Approvals::SelfApproval.error_message) if self_approval?
 
       @request.update!(
         status:        "rejected",
@@ -83,8 +85,6 @@ module Requests
         changes:   { status: ["pending", "rejected"] },
         metadata:  { request_type: @request.request_type, response_note: @response_note }
       )
-
-      Notifications::RequestNotifier.rejected(request: @request, actor: @reviewed_by)
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
@@ -142,8 +142,6 @@ module Requests
         metadata:  { request_type: @request.request_type, response_note: @response_note }
       )
 
-      Notifications::RequestNotifier.approved(request: @request, actor: @reviewed_by)
-
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
@@ -185,11 +183,15 @@ module Requests
         }
       )
 
-      Notifications::RequestNotifier.approved(request: @request, actor: @reviewed_by)
-
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
+    end
+
+    # Backstop for direct service/API calls (the policy already hides the UI):
+    # the reviewer may not be the employee who submitted the request.
+    def self_approval?
+      Approvals::SelfApproval.by_requester?(approver: @reviewed_by, requester: @request.user_id)
     end
 
     def payable?

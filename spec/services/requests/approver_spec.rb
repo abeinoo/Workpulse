@@ -227,4 +227,40 @@ RSpec.describe Requests::Approver do
       expect(Payroll::PermissionApplier).not_to have_received(:call)
     end
   end
+
+  # Direct service calls bypass the UI and the policy, so the rule is also enforced
+  # here: the reviewer may never be the employee who submitted the request.
+  describe "self-approval prevention" do
+    let(:own_request) { create(:employee_request, :late_permission, user: manager) }
+
+    it "allows an approver to approve ANOTHER user's request" do
+      other_request = create(:employee_request, :late_permission,
+                             user: create(:user, business: business))
+      result = described_class.approve(request: other_request, reviewed_by: manager)
+      expect(result).to be_success
+      expect(other_request.reload.status).to eq("approved")
+    end
+
+    it "blocks approving your OWN request (direct service call)" do
+      result = described_class.approve(request: own_request, reviewed_by: manager)
+      expect(result).not_to be_success
+      expect(result.error).to eq("You cannot approve or reject your own request.")
+      expect(own_request.reload.status).to eq("pending")
+    end
+
+    it "blocks rejecting your OWN request (direct service call)" do
+      result = described_class.reject(request: own_request, reviewed_by: manager)
+      expect(result).not_to be_success
+      expect(result.error).to eq("You cannot approve or reject your own request.")
+      expect(own_request.reload.status).to eq("pending")
+    end
+
+    it "blocks self-approval of a punch correction (attendance correction)" do
+      correction = create(:employee_request, :punch_correction, user: manager)
+      result = described_class.approve(request: correction, reviewed_by: manager)
+      expect(result).not_to be_success
+      expect(result.error).to eq("You cannot approve or reject your own request.")
+      expect(correction.reload.status).to eq("pending")
+    end
+  end
 end

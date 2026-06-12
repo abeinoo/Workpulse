@@ -100,6 +100,17 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
     it "denies employee" do
       expect(subject.new(employee, request).approve?).to be false
     end
+
+    it "denies an approver approving their OWN request (no self-approval)" do
+      own_request = create(:employee_request, user: manager)
+      expect(subject.new(manager, own_request).approve?).to be false
+    end
+
+    it "still permits another approver to approve that request" do
+      own_request   = create(:employee_request, user: manager)
+      other_manager = create(:user, :branch_manager, business: business)
+      expect(subject.new(other_manager, own_request).approve?).to be true
+    end
   end
 
   describe "reject?" do
@@ -113,6 +124,11 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
 
     it "denies employee" do
       expect(subject.new(employee, request).reject?).to be false
+    end
+
+    it "denies an approver rejecting their OWN request (no self-approval)" do
+      own_request = create(:employee_request, user: manager)
+      expect(subject.new(manager, own_request).reject?).to be false
     end
   end
 

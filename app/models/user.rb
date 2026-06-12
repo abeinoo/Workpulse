@@ -44,7 +44,6 @@ class User < ApplicationRecord
   has_many :advances,              dependent: :destroy
   has_many :payroll_entries,       dependent: :destroy
   has_many :employee_obligations,  dependent: :destroy, foreign_key: :user_id
-  has_many :notifications,         dependent: :destroy
 
   EMPLOYMENT_TYPES = %w[full_time part_time contract intern].freeze
 
@@ -198,25 +197,6 @@ class User < ApplicationRecord
 
   def warehouse_scoped?
     !inventory_warehouse_ids.nil?
-  end
-
-  # ── Notification preferences ────────────────────────────────────────────────
-  # Stored as a jsonb hash of category => boolean. A missing key means enabled,
-  # so a brand-new user receives every category by default.
-  def notification_enabled?(category)
-    cat = category.to_s
-    return true unless Notification::CATEGORIES.include?(cat)
-
-    (notification_preferences || {}).fetch(cat, true) != false
-  end
-
-  def set_notification_preference(category, enabled)
-    cat = category.to_s
-    return unless Notification::CATEGORIES.include?(cat)
-
-    prefs = (notification_preferences || {}).dup
-    prefs[cat] = ActiveModel::Type::Boolean.new.cast(enabled)
-    update!(notification_preferences: prefs)
   end
 
   # Returns the explicitly configured data scope for a permission, or nil if unset.

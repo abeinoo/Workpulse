@@ -183,16 +183,12 @@ class DashboardController < ApplicationController
                                   .order("payroll_periods.period_year DESC, payroll_periods.period_month DESC")
                                   .first
 
-    # Recent unread notifications for alert feed.
-    @recent_notifications = current_user.notifications.unread.recent.limit(5)
-
     # Whether any personal widget will render — lets the view skip the personal
     # grid wrapper entirely (and its surrounding gap) for users with nothing
     # personal to show, e.g. owners. Derived from already-loaded values.
     @has_personal_widgets =
       @missing_checkout.present? || @has_attendance_context ||
-      @recent_requests.any? || @recent_notifications.any? ||
-      @latest_payroll.present?
+      @recent_requests.any? || @latest_payroll.present?
   end
 
   # ── Branch management section ─────────────────────────────────────────────

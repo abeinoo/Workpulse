@@ -3204,47 +3204,6 @@ body.is-authenticated {
   line-height: 1.3;
 }
 
-/* ── Notification feed ───────────────────────────────────── */
-.emp-notif-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.emp-notif-item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-2);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-}
-.emp-notif-item__dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  margin-top: 5px;
-}
-.emp-notif-item--warning .emp-notif-item__dot { background: var(--warning); }
-.emp-notif-item--danger  .emp-notif-item__dot { background: var(--danger); }
-.emp-notif-item--success .emp-notif-item__dot { background: var(--success); }
-.emp-notif-item__body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.emp-notif-item__title {
-  font-size: var(--text-sm);
-  color: var(--text-1);
-}
-.emp-notif-item__time {
-  font-size: var(--text-xs);
-  color: var(--text-2);
-}
-
 /* ============================================================
    § 22 — Branch Manager Dashboard
    ============================================================ */
@@ -4490,7 +4449,6 @@ body.is-authenticated {
 [dir="rtl"] .emp-upcoming-item { text-align: right; }
 [dir="rtl"] .emp-upcoming-item__main { flex-direction: row-reverse; }
 [dir="rtl"] .emp-upcoming-item__meta { flex-direction: row-reverse; }
-[dir="rtl"] .emp-notif-item { flex-direction: row-reverse; text-align: right; }
 [dir="rtl"] .emp-month-stats { direction: rtl; }
 
 /* Sidebar user block */
@@ -8487,109 +8445,8 @@ details:not([open]) .permission-group__chevron {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PHASE 4 — Operations Dashboard, Notifications, Recommendations
+   PHASE 4 — Operations Dashboard, Recommendations
    ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ── Notification badge (sidebar + mobile header) ────────────────────────── */
-.sidebar-notif-badge,
-.notif-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  background: var(--danger);
-  color: var(--on-solid);
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 9px;
-  line-height: 1;
-}
-.sidebar-notif-badge { margin-inline-start: auto; }
-.mobile-header__notif-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  color: var(--text-2);
-  text-decoration: none;
-  flex-shrink: 0;
-}
-.mobile-header__notif-btn .notif-badge {
-  position: absolute;
-  top: 2px;
-  inset-inline-end: 2px;
-}
-
-/* ── Notification center page ─────────────────────────────────────────────── */
-.notif-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-.notif-filter-btn {
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  background: var(--surface-2);
-  color: var(--text-2);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  text-decoration: none;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.notif-filter-btn:hover  { background: var(--surface-3); color: var(--text-1); }
-.notif-filter-btn.is-active { background: var(--navy-600); color: var(--text-1); border-color: transparent; }
-.notif-filter-btn--warning { border-color: var(--warning); }
-.notif-filter-btn--danger  { border-color: var(--danger); }
-.notif-filter-btn--success { border-color: var(--success); }
-
-.notif-list { display: flex; flex-direction: column; gap: var(--space-2); }
-
-.notif-item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-2);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  transition: background 0.15s;
-}
-.notif-item--unread { background: var(--navy-800); border-color: var(--navy-600); }
-.notif-item:hover   { background: var(--surface-3); }
-
-.notif-indicator--info    { width: 4px; align-self: stretch; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
-.notif-indicator--warning { width: 4px; align-self: stretch; border-radius: 2px; background: var(--warning); flex-shrink: 0; }
-.notif-indicator--danger  { width: 4px; align-self: stretch; border-radius: 2px; background: var(--danger);  flex-shrink: 0; }
-.notif-indicator--success { width: 4px; align-self: stretch; border-radius: 2px; background: var(--success); flex-shrink: 0; }
-
-.notif-item__body   { flex: 1; min-width: 0; }
-.notif-item__header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: 4px; }
-.notif-item__title  { font-weight: 600; color: var(--text-1); font-size: var(--text-sm); }
-.notif-item__time   { color: var(--text-3); font-size: var(--text-xs); white-space: nowrap; flex-shrink: 0; }
-.notif-item__text   { color: var(--text-2); font-size: var(--text-sm); margin: 0 0 6px; line-height: 1.5; }
-.notif-item__meta   { display: flex; align-items: center; gap: var(--space-2); }
-.notif-item__event  { color: var(--text-3); font-size: var(--text-xs); }
-.notif-item__read-btn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.notif-item__read-btn:hover { background: var(--success); color: var(--on-accent); border-color: transparent; }
 
 /* ── Settings info box ────────────────────────────────────────────────────── */
 .settings-info-box {
@@ -8789,7 +8646,6 @@ details:not([open]) .permission-group__chevron {
   .ops-branch-grid { grid-template-columns: repeat(2, 1fr); }
   .pdash-recommendations,
   .ops-recommendations { grid-template-columns: 1fr; }
-  .notif-filters { gap: var(--space-1); }
 }
 
 /* ── Profile completion bar ───────────────────────────────────────────────── */
@@ -10938,7 +10794,7 @@ html.theme-transition *::after {
   font: inherit;
 }
 
-/* Mobile-header variant: icon button matching the notification bell */
+/* Mobile-header variant: compact icon button for the mobile top bar */
 .theme-toggle--header {
   display: flex;
   align-items: center;

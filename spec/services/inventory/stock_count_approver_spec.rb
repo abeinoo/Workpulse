@@ -2,7 +2,8 @@ require "rails_helper"
 
 RSpec.describe Inventory::StockCountApprover, type: :model do
   let(:business)  { create(:business) }
-  let(:user)      { create(:user, :super_admin, business: business) }
+  let(:user)      { create(:user, :super_admin, business: business) }   # counter / submitter
+  let(:approver)  { create(:user, :super_admin, business: business) }   # separate approver (no self-approval)
   let(:warehouse) { business.warehouses.create!(name: "Main") }
   let(:p1)        { business.products.create!(name: "A", sku: "A-1", initial_cost_price: 10, average_cost_price: 10) }
   let(:p2)        { business.products.create!(name: "B", sku: "B-1", initial_cost_price: 5, average_cost_price: 5) }
@@ -27,11 +28,11 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
   describe "#call" do
     it "approves variances as a single stock-count adjustment and corrects stock" do
       count = completed_count([ p1, 18 ], [ p2, 8 ])     # p1 short by 2, p2 matches
-      result = described_class.new(count, user: user).call
+      result = described_class.new(count, user: approver).call
 
       expect(result.ok?).to be(true)
       expect(count.reload).to be_approved
-      expect(count.approved_by).to eq(user)
+      expect(count.approved_by).to eq(approver)
       expect(count.approved_at).to be_present
       expect(p1.reload.current_stock).to eq(18)          # corrected down
       expect(p2.reload.current_stock).to eq(8)           # untouched
@@ -39,7 +40,7 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
 
     it "links a generated adjustment containing only the non-zero variances" do
       count = completed_count([ p1, 25 ], [ p2, 8 ])     # p1 surplus +5, p2 match
-      described_class.new(count, user: user).call
+      described_class.new(count, user: approver).call
 
       adj = count.reload.stock_adjustment
       expect(adj).to be_present
@@ -52,12 +53,12 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
 
     it "does not change the average cost (variances are valued at avg)" do
       count = completed_count([ p1, 15 ])
-      expect { described_class.new(count, user: user).call }.not_to change { p1.reload.average_cost_price }
+      expect { described_class.new(count, user: approver).call }.not_to change { p1.reload.average_cost_price }
     end
 
     it "approves a perfectly matching count with no adjustment" do
       count = completed_count([ p1, 20 ], [ p2, 8 ])
-      result = described_class.new(count, user: user).call
+      result = described_class.new(count, user: approver).call
       expect(result.ok?).to be(true)
       expect(count.reload.stock_adjustment).to be_nil
       expect(business.stock_adjustments.count).to eq(0)
@@ -70,7 +71,7 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
       i.items.build(product: p1, quantity: 5)
       Inventory::StockIssuePoster.new(i).call
 
-      described_class.new(count, user: user).call
+      described_class.new(count, user: approver).call
       # Counted 20 vs live 15 → +5 applied, ending at the counted 20.
       expect(p1.reload.current_stock).to eq(20)
       expect(count.reload.stock_adjustment.items.first.quantity_difference).to eq(5)
@@ -84,7 +85,7 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
       c.start_counting!(user)
       c.mark_completed!(user)
 
-      result = described_class.new(c, user: user).call
+      result = described_class.new(c, user: approver).call
       expect(result.ok?).to be(true)
       expect(c.reload).to be_approved
       expect(p1.reload.current_stock).to eq(18)           # corrected
@@ -94,8 +95,8 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
 
     it "refuses to approve a count that is not completed" do
       count = completed_count([ p1, 18 ])
-      described_class.new(count, user: user).call        # → approved
-      result = described_class.new(count.reload, user: user).call
+      described_class.new(count, user: approver).call        # → approved
+      result = described_class.new(count.reload, user: approver).call
       expect(result.ok?).to be(false)
     end
   end
@@ -103,7 +104,7 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
   describe "count ⇄ adjustment integration" do
     it "links the count and the generated adjustment both ways" do
       count = completed_count([ p1, 18 ])
-      described_class.new(count, user: user).call
+      described_class.new(count, user: approver).call
       adj = count.reload.stock_adjustment
 
       expect(adj).to be_present
@@ -113,7 +114,7 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
 
     it "exposes shortage / overage / net value from the frozen unit-cost snapshot" do
       count = completed_count([ p1, 18 ], [ p2, 13 ])    # p1 −2 @10 = −20; p2 +5 @5 = +25
-      described_class.new(count, user: user).call
+      described_class.new(count, user: approver).call
       adj = count.reload.stock_adjustment
 
       expect(adj.shortage_value).to eq(-20)
@@ -125,17 +126,17 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
   describe "duplicate prevention (req 6 & 7)" do
     it "cannot be approved twice — second call fails, only one adjustment exists" do
       count = completed_count([ p1, 18 ])
-      expect(described_class.new(count, user: user).call.ok?).to be(true)
+      expect(described_class.new(count, user: approver).call.ok?).to be(true)
 
       before = business.stock_adjustments.count
-      result = described_class.new(count.reload, user: user).call
+      result = described_class.new(count.reload, user: approver).call
       expect(result.ok?).to be(false)
       expect(business.stock_adjustments.count).to eq(before)   # no second adjustment
     end
 
     it "an approved count cannot be reopened (so it can never spawn a 2nd adjustment)" do
       count = completed_count([ p1, 18 ])
-      described_class.new(count, user: user).call
+      described_class.new(count, user: approver).call
       expect(count.reload).to be_approved
       expect(count.reopen!).to be(false)                  # reopen only works from completed
       expect(count.reload).to be_approved
@@ -148,9 +149,39 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
                                                  items_attributes: { "0" => { product_id: p1.id, quantity_difference: 1, unit_cost: 10 } })
       count.update_column(:stock_adjustment_id, other.id)
 
-      result = described_class.new(count.reload, user: user).call
+      result = described_class.new(count.reload, user: approver).call
       expect(result.ok?).to be(false)
       expect(count.errors[:base].join).to match(/already/i)
+    end
+  end
+
+  # Segregation of duties: the person who ran or submitted the count may not
+  # approve it. Enforced here at the service layer (direct call bypasses the UI).
+  describe "self-approval prevention" do
+    it "blocks the submitter from approving their own count" do
+      count  = completed_count([ p1, 18 ])   # created_by + completed_by = user
+      result = described_class.new(count, user: user).call
+
+      expect(result.ok?).to be(false)
+      expect(count.errors[:base].join).to eq("You cannot approve or reject your own request.")
+      expect(count.reload).to be_completed                 # unchanged, no adjustment posted
+      expect(count.stock_adjustment).to be_nil
+    end
+
+    it "blocks the counter (created_by) from approving even when someone else submitted it" do
+      count = completed_count([ p1, 18 ])
+      count.update_column(:completed_by_id, approver.id)   # a different user submitted
+      result = described_class.new(count.reload, user: user).call   # but the counter approves
+
+      expect(result.ok?).to be(false)
+      expect(count.errors[:base].join).to eq("You cannot approve or reject your own request.")
+    end
+
+    it "allows a separate authorized approver to approve" do
+      count  = completed_count([ p1, 18 ])
+      result = described_class.new(count, user: approver).call
+      expect(result.ok?).to be(true)
+      expect(count.reload).to be_approved
     end
   end
 end

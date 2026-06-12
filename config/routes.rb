@@ -64,16 +64,6 @@ Rails.application.routes.draw do
           patch :waive
         end
       end
-
-      resources :notifications, only: [ :index ] do
-        collection do
-          get   :unread_count
-          patch :mark_all_read
-        end
-        member do
-          patch :mark_read
-        end
-      end
     end
   end
 
@@ -216,16 +206,6 @@ Rails.application.routes.draw do
   get  "payroll_dashboard",    to: "payroll_dashboard#index",    as: :payroll_dashboard
   get  "operations_dashboard", to: "operations_dashboard#index", as: :operations_dashboard
 
-  # ── Notification center ───────────────────────────────────────────────────
-  resources :notifications, only: [ :index ] do
-    collection do
-      patch :mark_all_read
-    end
-    member do
-      patch :mark_read
-    end
-  end
-
   resources :payroll_periods, only: [ :index, :show, :new, :create, :destroy ] do
     member do
       patch :submit_for_review
@@ -263,7 +243,6 @@ Rails.application.routes.draw do
   end
 
   patch "preferences/locale", to: "preferences#update", as: :user_locale
-  resource :notification_preferences, only: [ :show, :update ]
   patch "locale", to: "locale#update", as: :set_locale
 
   # ── Profile (employee self-service) ───────────────────────────────────────

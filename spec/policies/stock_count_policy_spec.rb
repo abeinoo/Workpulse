@@ -46,4 +46,24 @@ RSpec.describe StockCountPolicy do
     expect(StockCountPolicy.new(counter, approved).update?).to be(false)
     expect(StockCountPolicy.new(approver, approved).approve?).to be(false)
   end
+
+  # Segregation of duties: an approver may not approve a count they ran or
+  # submitted themselves — another authorized approver must.
+  it "blocks an approver from approving a count they created (no self-approval)" do
+    own = count_at(:completed)
+    own.update_column(:created_by_id, approver.id)
+    expect(StockCountPolicy.new(approver, own.reload).approve?).to be(false)
+  end
+
+  it "blocks an approver from approving a count they submitted (no self-approval)" do
+    own = count_at(:completed)
+    own.update_column(:completed_by_id, approver.id)
+    expect(StockCountPolicy.new(approver, own.reload).approve?).to be(false)
+  end
+
+  it "still lets a different approver approve a count submitted by someone else" do
+    count = count_at(:completed)
+    count.update_column(:completed_by_id, counter.id)
+    expect(StockCountPolicy.new(approver, count.reload).approve?).to be(true)
+  end
 end

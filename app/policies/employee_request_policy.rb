@@ -1,8 +1,11 @@
 class EmployeeRequestPolicy < ApplicationPolicy
   def index?   = true  # scope handles isolation
   def show?    = can?(:view_requests) || can?(:approve_requests) || own_request?
-  def approve? = can?(:approve_requests)
-  def reject?  = can?(:approve_requests)
+  # Self-approval is blocked: an approver may not approve or reject a request they
+  # themselves submitted — another authorized approver must review it. Gates the UI
+  # buttons (views read policy.approve?/reject?) and the controller `authorize`.
+  def approve? = can?(:approve_requests) && !own_request?
+  def reject?  = can?(:approve_requests) && !own_request?
   def pay?     = can?(:pay_advances) && same_business?(record.user)
   def bulk_pay? = can?(:pay_advances)  # class-level; per-request scoping via policy_scope
   def update?  = own_request? && record.pending?
