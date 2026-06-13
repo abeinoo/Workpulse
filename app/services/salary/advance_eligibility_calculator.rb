@@ -2,13 +2,17 @@ module Salary
   # Calculates the maximum salary advance an employee may request and how much
   # of that limit remains after existing outstanding advances are deducted.
   #
-  # Monthly employees:
-  #   ceiling = base_salary × percentage / 100
+  # The ceiling is always a percentage of LIVE earned salary in the current
+  # payroll cycle (the calendar month), up to today — never a payroll snapshot:
   #
-  # Daily employees:
-  #   ceiling = recent_earnings × percentage / 100
-  #   where recent_earnings = base_salary from the most recent PayrollEntry, or,
-  #   if no payroll entry exists yet, daily_rate × days_worked in the last 30 days.
+  #   earned_basis = daily_rate × complete days worked this cycle (up to today)
+  #   ceiling      = earned_basis × percentage / 100
+  #
+  # daily_rate comes from the employee's active SalaryProfile (daily → base_amount;
+  # monthly → base_amount / working_days_per_month) and worked days are counted with
+  # AttendanceRecord#complete? — the same primitives Payroll::EntryCalculator uses.
+  # This makes eligibility track actual earned entitlement and stay completely
+  # independent of whether or when a PayrollEntry was generated/regenerated.
   #
   # Outstanding advances (reduces available amount):
   #   - Active Advance records still being repaid (remaining_amount)
@@ -44,15 +48,9 @@ module Salary
       profile = SalaryProfile.current_for(@user)
       return nil unless profile
 
-      if profile.monthly?
-        earned_basis    = profile.base_amount.to_f
-        basis           = :monthly
-        description_key = "monthly_basis"
-      else
-        earned_basis    = recent_daily_earnings
-        basis           = :daily
-        description_key = "daily_basis"
-      end
+      earned_basis    = earned_salary_to_date(profile)
+      basis           = profile.monthly? ? :monthly : :daily
+      description_key = profile.monthly? ? "monthly_basis" : "daily_basis"
 
       max_amount  = (earned_basis * percentage.to_f / 100.0).round(2)
       outstanding = outstanding_advance_balance
@@ -70,28 +68,28 @@ module Salary
 
     private
 
-    # For daily employees: the most recent payroll entry's base_salary is the
-    # most accurate view of what they actually earned in a period. Falls back to
-    # last-30-days attendance when no entry exists yet.
-    def recent_daily_earnings
-      last_entry = PayrollEntry
-        .where(user: @user, salary_type: "daily")
-        .order(created_at: :desc)
-        .first
-
-      return last_entry.base_salary.to_f if last_entry
-
-      # Fallback: daily_rate × days with attendance in the last 30 days
-      daily_rate  = Salary::DailyRateCalculator.for(
+    # Live earned salary for the current payroll cycle, up to today. Identical
+    # primitives to Payroll::EntryCalculator (active-profile daily_rate × complete
+    # worked days), so the figure reflects real entitlement and is independent of
+    # any generated PayrollEntry. Works the same for daily and monthly profiles —
+    # only the daily_rate derivation differs, which DailyRateCalculator handles.
+    def earned_salary_to_date(profile)
+      daily_rate = Salary::DailyRateCalculator.for(
         user: @user, business: @business
       ).daily_rate
-      worked_days = AttendanceRecord
-        .where(user: @user)
-        .where(work_date: 30.days.ago.to_date..Date.current)
-        .where.not(status: "absent")
-        .count
 
-      (daily_rate * worked_days).round(2)
+      (daily_rate * complete_days_in_current_cycle).round(2)
+    end
+
+    # The payroll cycle is the calendar month (see PayrollPeriod#period_start /
+    # #period_end). Count only days the employee actually completed both punches on,
+    # bounded above by today so eligibility never anticipates future work.
+    def complete_days_in_current_cycle
+      AttendanceRecord
+        .where(user: @user)
+        .for_period(Date.current.beginning_of_month, Date.current)
+        .to_a
+        .count(&:complete?)
     end
 
     # Sum of:

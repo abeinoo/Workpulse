@@ -340,10 +340,24 @@ RSpec.describe EmployeeRequest, type: :model do
   end
 
   describe "within_advance_limit" do
-    let(:business) { create(:business, max_salary_advance_percentage: 50) }
+    # Eligibility is a % of salary EARNED so far this cycle. With daily_rate 400
+    # (4_000 / 10 working days) and 10 complete days worked, earned = 4_000, so the
+    # 50% ceiling is 2_000 — matching the figures these examples assert against.
+    let(:business) { create(:business, max_salary_advance_percentage: 50, working_days_per_month: 10) }
     let(:user)     { create(:user, business: business) }
+    let(:branch)   { create(:branch, business: business) }
 
-    before { create(:salary_profile, :monthly, user: user, base_amount: 4_000) }
+    before do
+      create(:salary_profile, :monthly, user: user, base_amount: 4_000)
+      assignment = create(:shift_assignment, user: user, branch: branch,
+                          shift: create(:shift, :fixed_time, business: business),
+                          effective_from: 1.year.ago.to_date)
+      10.times do |i|
+        date = Date.current.beginning_of_month + i.days
+        create(:attendance_record, :checked_out, user: user, branch: branch,
+               shift_assignment: assignment, date: date, work_date: date)
+      end
+    end
 
     it "is valid when amount is within the available limit" do
       req = build(:employee_request, :salary_advance, user: user, amount: 1_000)
