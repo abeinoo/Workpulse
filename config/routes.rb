@@ -311,7 +311,9 @@ Rails.application.routes.draw do
   namespace :performance do
     root to: "dashboard#index"
 
-    resources :observations
+    resources :observations do
+      collection { get :criteria_options }
+    end
     resources :reviews do
       member do
         patch :submit

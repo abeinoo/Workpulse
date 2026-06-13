@@ -59,6 +59,21 @@ class Performance::ObservationsController < Performance::BaseController
     redirect_to performance_observations_path, notice: t("performance.observations.destroyed")
   end
 
+  # JSON used by the form's Stimulus controller to refresh the department display
+  # and criteria dropdown the moment an employee is picked.
+  def criteria_options
+    authorize PerformanceObservation, :new?
+    employee   = selectable_employees.find_by(id: params[:employee_id])
+    department = employee&.department
+
+    render json: {
+      employee_selected: employee.present?,
+      has_department:    department.present?,
+      department:        department && { id: department.id, name: department.name },
+      criteria:          criteria_for(employee).map { |c| { id: c.id, name: c.name } }
+    }
+  end
+
   private
 
   def set_observation
@@ -66,21 +81,24 @@ class Performance::ObservationsController < Performance::BaseController
   end
 
   def load_form_data
-    @employees = selectable_employees
-    @criteria  = criteria_for(@observation.employee)
+    @employees  = selectable_employees
+    @department = @observation.employee&.department
+    @criteria   = criteria_for(@observation.employee).to_a
+
+    # On edit, keep the already-attached criterion selectable even if it has since
+    # been deactivated or belongs to a historical template, so saving an existing
+    # observation never silently drops its criterion.
+    current = @observation.evaluation_criterion
+    @criteria << current if current && @criteria.exclude?(current)
   end
 
-  # Active criteria from the employee's department template; falls back to all
-  # active criteria in the business when the employee has no department yet.
+  # Active criteria from the active evaluation template of the employee's
+  # department — nothing else. No cross-department fallback: an employee with no
+  # department (or no active template) gets an empty list, and the form blocks
+  # creation rather than offering criteria from unrelated departments.
   def criteria_for(employee)
     template = employee&.department&.evaluation_templates&.active&.ordered&.first
-    if template
-      template.active_criteria
-    else
-      EvaluationCriterion.active.ordered
-        .joins(:evaluation_template)
-        .where(evaluation_templates: { business_id: current_user.business_id })
-    end
+    template ? template.active_criteria : EvaluationCriterion.none
   end
 
   def observation_params

@@ -2656,6 +2656,9 @@ en:
       detail_title: "Observation"
       employee: "Employee"
       select_employee: "Select an employee"
+      department: "Department"
+      no_department: "No department assigned"
+      no_department_warning: "This employee has no department assigned. Assign a department before recording an observation."
       criterion: "Criterion"
       select_criterion: "Select a criterion"
       criterion_hint: "Criteria come from the employee's department template."
@@ -3204,6 +3207,12 @@ en:
         already_voided: "has already been voided"
         void_would_oversell: "cannot void — only %{available} of %{product} (%{sku}) on hand in %{warehouse}, but reversing needs %{needed}"
       models:
+        performance_observation:
+          attributes:
+            employee:
+              without_department: "has no department assigned — assign one before recording an observation"
+            evaluation_criterion_id:
+              department_mismatch: "must belong to the employee's department"
         employee_obligation:
           attributes:
             remaining_amount:

@@ -592,6 +592,16 @@ body.is-guest .main-content {
   appearance: none;
 }
 
+/* Read-only display field (e.g. the auto-resolved department on the observation
+   form). Looks like a control but is non-editable and visually muted. */
+.form-control--readonly {
+  display: flex;
+  align-items: center;
+  background: var(--navy-700);
+  color: var(--text-2);
+  cursor: default;
+}
+
 .form-control::placeholder { color: var(--text-3); }
 
 .form-control:hover {

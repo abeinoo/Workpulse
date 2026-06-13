@@ -1,6 +1,15 @@
 <%# Model is PerformanceObservation, whose route key is already "performance_observation",
     so form_with infers the namespaced path without an extra :performance scope. %>
-<%= form_with model: observation, class: "form-card" do |f| %>
+<% employee_selected = observation.employee_id.present? %>
+<% has_department    = observation.employee&.department.present? %>
+<% blocked           = employee_selected && !has_department %>
+<%= form_with model: observation, class: "form-card",
+      data: {
+        controller: "observation-form",
+        observation_form_url_value: criteria_options_performance_observations_path,
+        observation_form_placeholder_value: t("performance.observations.no_department"),
+        observation_form_select_prompt_value: t("performance.observations.select_criterion")
+      } do |f| %>
   <%= render "shared/error_messages", object: observation %>
 
   <div class="form-grid">
@@ -8,7 +17,15 @@
       <%= f.label :employee_id, t("performance.observations.employee"), class: "form-label" %>
       <%= f.collection_select :employee_id, @employees, :id, :full_name,
             { prompt: t("performance.observations.select_employee") },
-            class: "form-control #{'is-error' if observation.errors[:employee].any?}" %>
+            class: "form-control #{'is-error' if observation.errors[:employee].any?}",
+            data: { observation_form_target: "employee", action: "change->observation-form#change" } %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :department_display, t("performance.observations.department"), class: "form-label" %>
+      <div class="form-control form-control--readonly" data-observation-form-target="department">
+        <%= observation.employee&.department&.name || t("performance.observations.no_department") %>
+      </div>
     </div>
 
     <div class="form-group">
@@ -20,7 +37,9 @@
       <%= f.label :evaluation_criterion_id, t("performance.observations.criterion"), class: "form-label" %>
       <%= f.collection_select :evaluation_criterion_id, @criteria, :id, :name,
             { prompt: t("performance.observations.select_criterion") },
-            class: "form-control #{'is-error' if observation.errors[:evaluation_criterion].any?}" %>
+            class: "form-control #{'is-error' if observation.errors[:evaluation_criterion].any?}",
+            disabled: blocked,
+            data: { observation_form_target: "criterion" } %>
       <p class="form-hint"><%= t("performance.observations.criterion_hint") %></p>
     </div>
 
@@ -39,8 +58,13 @@
     </div>
   </div>
 
+  <div class="alert alert-warning" data-observation-form-target="warning" <%= "hidden" unless blocked %>>
+    <%= t("performance.observations.no_department_warning") %>
+  </div>
+
   <div class="form-actions">
-    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= f.submit t("common.save"), class: "btn btn-primary",
+          disabled: blocked, data: { observation_form_target: "submit" } %>
     <%= link_to t("common.cancel"), performance_observations_path, class: "btn btn-ghost" %>
   </div>
 <% end %>

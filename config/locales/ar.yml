@@ -2688,6 +2688,9 @@ ar:
       detail_title: "ملاحظة"
       employee: "الموظف"
       select_employee: "اختر موظفًا"
+      department: "القسم"
+      no_department: "لا يوجد قسم معيّن"
+      no_department_warning: "هذا الموظف غير معيّن لأي قسم. عيّن قسمًا قبل تسجيل الملاحظة."
       criterion: "المعيار"
       select_criterion: "اختر معيارًا"
       criterion_hint: "تأتي المعايير من قالب تقييم قسم الموظف."
@@ -3240,6 +3243,12 @@ ar:
         already_voided: "تم إلغاؤه بالفعل"
         void_would_oversell: "تعذّر الإلغاء — يتوفر %{available} فقط من %{product} (%{sku}) في %{warehouse}، بينما يتطلب العكس %{needed}"
       models:
+        performance_observation:
+          attributes:
+            employee:
+              without_department: "غير معيّن لأي قسم — عيّن قسمًا قبل تسجيل الملاحظة"
+            evaluation_criterion_id:
+              department_mismatch: "يجب أن ينتمي إلى قسم الموظف"
         employee_obligation:
           attributes:
             remaining_amount:
