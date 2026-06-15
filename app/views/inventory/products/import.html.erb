@@ -7,7 +7,11 @@
   <% end %>
   <h1 class="page-title mb-6"><%= t("inventory.imports.products.title") %></h1>
 
-  <%= form_with url: run_import_inventory_products_path, method: :post, class: "form-card" do |f| %>
+  <%# multipart: required so Turbo keeps the file part (urlencoded forms drop File entries).
+      turbo: false — run_import renders import_result (a 200, not a redirect), which Turbo
+      Drive ignores for form POSTs, so use a classic submit. %>
+  <%= form_with url: run_import_inventory_products_path, method: :post,
+                multipart: true, class: "form-card", data: { turbo: false } do |f| %>
     <div class="flex items-center" style="justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap;">
       <p class="form-hint" style="margin: 0;"><%= t("inventory.imports.products.columns") %></p>
       <%= link_to t("inventory.imports.download_sample"), import_template_inventory_products_path,
