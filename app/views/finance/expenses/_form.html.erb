@@ -1,0 +1,127 @@
+<%= form_with model: [ :finance, expense ], class: "form-card",
+      data: { controller: "line-items" } do |f| %>
+  <%= render "shared/error_messages", object: expense %>
+
+  <h2 class="section-title"><%= t("finance.expenses.section_details") %></h2>
+  <div class="form-grid">
+
+    <div class="form-group">
+      <%= f.label :expense_category_id, t("finance.expenses.category"), class: "form-label" %>
+      <%= f.select :expense_category_id,
+            options_from_collection_for_select(@categories, :id, :name, expense.expense_category_id),
+            { include_blank: "— #{t('finance.expenses.select_category')}" },
+            class: "form-control #{'is-error' if expense.errors[:expense_category].any?}" %>
+    </div>
+    <div class="form-group">
+      <%= f.label :expense_type_id, t("finance.expenses.type"), class: "form-label" %>
+      <%= f.select :expense_type_id,
+            options_from_collection_for_select(@types, :id, :name, expense.expense_type_id),
+            { include_blank: "— #{t('finance.expenses.select_type')}" },
+            class: "form-control #{'is-error' if expense.errors[:expense_type].any?}" %>
+    </div>
+    <div class="form-group">
+      <%= f.label :amount, t("finance.expenses.amount"), class: "form-label" %>
+      <%= f.number_field :amount, step: "0.01", min: 0, class: "form-control #{'is-error' if expense.errors[:amount].any?}" %>
+    </div>
+    <div class="form-group">
+      <%= f.label :expense_date, t("finance.expenses.date"), class: "form-label" %>
+      <%= f.date_field :expense_date, class: "form-control #{'is-error' if expense.errors[:expense_date].any?}" %>
+    </div>
+
+    <% unless @hide_branch %>
+      <div class="form-group">
+        <%= f.label :branch_id, t("finance.expenses.branch"), class: "form-label" %>
+        <%= f.select :branch_id,
+              options_from_collection_for_select(@branches, :id, :name, expense.branch_id),
+              { include_blank: "— #{t('finance.expenses.no_branch')}" },
+              class: "form-control" %>
+        <p class="form-hint"><%= t("finance.expenses.branch_hint") %></p>
+      </div>
+    <% end %>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :notes, t("finance.common.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 2, required: true,
+            class: "form-control #{'is-error' if expense.errors[:notes].any?}" %>
+    </div>
+  </div>
+
+  <% if @tags.any? %>
+    <div class="divider"></div>
+    <h2 class="section-title"><%= t("finance.tags.title") %></h2>
+    <div class="checkbox-grid">
+      <%= f.collection_check_boxes :expense_tag_ids, @tags, :id, :name do |b| %>
+        <label class="form-check">
+          <%= b.check_box(class: "form-check-input") %>
+          <span class="form-check-label"><%= b.text %></span>
+        </label>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if current_user.owner? || current_user.manages_area? %>
+    <div class="divider"></div>
+    <h2 class="section-title"><%= t("finance.expenses.section_allocations") %></h2>
+    <p class="form-hint"><%= t("finance.expenses.allocations_hint") %></p>
+
+    <div class="form-group" style="max-width: 280px;">
+      <%= label_tag :allocation_mode, t("finance.expenses.allocation_mode"), class: "form-label" %>
+      <%= select_tag :allocation_mode,
+            options_for_select(
+              [ [ t("finance.expenses.modes.percentage"), "percentage" ],
+                [ t("finance.expenses.modes.equal"), "equal" ] ],
+              params[:allocation_mode] || "percentage"),
+            class: "form-control" %>
+    </div>
+
+    <div class="table-wrap">
+      <table class="line-items-table">
+        <thead><tr>
+          <th style="width: 60%;"><%= t("finance.expenses.branch") %></th>
+          <th><%= t("finance.expenses.percentage") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody data-line-items-target="rows">
+          <%= f.fields_for :expense_allocations do |alloc_f| %>
+            <%= render "allocation_fields", f: alloc_f, branches: @branches %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if expense.expense_allocations.any? %>>
+      <%= t("finance.expenses.no_allocations_hint") %>
+    </p>
+
+    <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add" style="margin-top: var(--space-3);">
+      + <%= t("finance.expenses.add_allocation") %>
+    </button>
+
+    <template data-line-items-target="template">
+      <%= f.fields_for :expense_allocations, ExpenseAllocation.new, child_index: "NEW_INDEX" do |alloc_f| %>
+        <%= render "allocation_fields", f: alloc_f, branches: @branches %>
+      <% end %>
+    </template>
+  <% end %>
+
+  <div class="divider"></div>
+  <div class="form-group">
+    <label class="form-check">
+      <%= f.check_box :deduct_from_balance, class: "form-check-input" %>
+      <span class="form-check-label"><%= t("finance.expenses.deduct_from_balance") %></span>
+    </label>
+    <p class="form-hint"><%= t("finance.expenses.deduct_from_balance_hint") %></p>
+  </div>
+
+  <div class="divider"></div>
+  <div class="form-group" style="grid-column: 1 / -1;">
+    <%= f.label :documents, t("finance.expenses.documents"), class: "form-label" %>
+    <%= f.file_field :documents, multiple: true, class: "form-control" %>
+    <p class="form-hint"><%= t("finance.expenses.documents_hint") %></p>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), finance_expenses_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

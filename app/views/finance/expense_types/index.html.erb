@@ -1,0 +1,45 @@
+<% content_for :title, t("finance.types.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("finance.types.title") %></h1>
+    <% if policy(ExpenseType).create? %>
+      <%= link_to t("finance.types.add"), new_finance_expense_type_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <% if @types.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("finance.types.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("finance.types.name") %></th>
+          <th><%= t("finance.types.category") %></th>
+          <th><%= t("finance.common.status") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @types.each do |type| %>
+            <tr>
+              <td><%= type.name %></td>
+              <td class="td-secondary"><%= type.expense_category.name %></td>
+              <td>
+                <% if type.active? %>
+                  <span class="badge badge-success"><%= t("finance.common.active") %></span>
+                <% else %>
+                  <span class="badge"><%= t("finance.common.inactive") %></span>
+                <% end %>
+              </td>
+              <td class="td-actions">
+                <% if policy(type).update? %>
+                  <%= link_to t("common.edit"), edit_finance_expense_type_path(type), class: "link-muted" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

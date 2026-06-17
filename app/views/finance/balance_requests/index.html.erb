@@ -1,0 +1,124 @@
+<% content_for :title, t("finance.balance_requests.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("finance.balance_requests.title") %></h1>
+    <div class="page-header__actions">
+      <% if policy(BalanceRequest).new? %>
+        <% if bypass_balance_account_requirement? || current_user_has_balance_account? %>
+          <%= link_to t("finance.balance_requests.add"), new_finance_balance_request_path, class: "btn btn-primary btn-sm" %>
+        <% else %>
+          <span class="btn btn-primary btn-sm disabled" title="<%= t('finance.common.no_balance_account_disabled') %>">
+            <%= t("finance.balance_requests.add") %>
+          </span>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Filter bar ─────────────────────────────────────────────────────────── %>
+  <%= form_with url: finance_balance_requests_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= f.label :status, t("finance.common.status"), class: "filter-bar__label" %>
+        <%= f.select :status,
+              options_for_select(
+                [[ t("finance.expenses.all_statuses"), "" ]] +
+                  BalanceRequest::STATUSES.map { |s| [ t("finance.balance_requests.statuses.#{s}"), s ] },
+                params[:status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+    </div>
+    <div class="filter-bar__actions">
+      <%= f.submit t("finance.common.filter"), class: "btn btn-primary btn-sm" %>
+      <% if params[:status].present? %>
+        <%= link_to t("finance.expenses.clear_filters"), finance_balance_requests_path, class: "btn btn-ghost btn-sm" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @requests.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("finance.balance_requests.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("finance.balance_requests.reference") %></th>
+            <th><%= t("finance.balance_requests.request_date") %></th>
+            <th><%= t("finance.expenses.branch") %></th>
+            <th><%= t("finance.balance_requests.requester") %></th>
+            <th style="text-align: end;"><%= t("finance.balance_requests.amount") %></th>
+            <th><%= t("finance.common.status") %></th>
+            <th></th>
+          </tr>
+        </thead>
+
+        <% @requests.each do |req| %>
+          <tbody data-controller="<%= 'collapsible' if policy(req).reject? %>">
+            <tr>
+              <td><%= link_to req.reference_number, finance_balance_request_path(req), class: "link" %></td>
+              <td><%= l(req.request_date, format: :long) %></td>
+              <td class="td-secondary"><%= req.branch&.name || "—" %></td>
+              <td class="td-secondary"><%= req.created_by.full_name %></td>
+              <td style="text-align: end;"><%= format_currency(req.amount) %></td>
+              <td><%= render "finance/balance_requests/status_badge", status: req.status %></td>
+              <td>
+                <div style="display: flex; gap: var(--space-1); align-items: center; flex-wrap: nowrap;">
+                  <% if policy(req).approve? %>
+                    <%= button_to t("finance.balance_requests.actions.approve"),
+                          approve_finance_balance_request_path(req),
+                          method: :patch,
+                          class: "btn btn-success btn-sm",
+                          form: { style: "display:inline" } %>
+                  <% end %>
+                  <% if policy(req).reject? %>
+                    <button type="button"
+                            class="btn btn-danger btn-sm"
+                            data-collapsible-target="trigger"
+                            data-action="click->collapsible#toggle">
+                      <%= t("finance.balance_requests.actions.reject") %>
+                    </button>
+                  <% end %>
+                  <% if policy(req).mark_paid? %>
+                    <%= button_to t("finance.balance_requests.actions.mark_paid"),
+                          mark_paid_finance_balance_request_path(req),
+                          method: :patch,
+                          class: "btn btn-primary btn-sm",
+                          form: { style: "display:inline" },
+                          data: { turbo_confirm: t("finance.balance_requests.confirm_mark_paid") } %>
+                  <% end %>
+                  <%= link_to t("finance.balance_requests.actions.view"),
+                        finance_balance_request_path(req),
+                        class: "btn btn-ghost btn-sm" %>
+                </div>
+              </td>
+            </tr>
+
+            <%# Inline reject form – revealed by collapsible trigger above %>
+            <% if policy(req).reject? %>
+              <tr data-collapsible-target="content" hidden>
+                <td colspan="7" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
+                  <%= form_with url: reject_finance_balance_request_path(req), method: :patch,
+                        style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+                    <%= text_field_tag :rejection_reason, nil,
+                          placeholder: t("finance.balance_requests.rejection_placeholder"),
+                          class: "form-control form-control--sm",
+                          style: "flex: 1; min-width: 200px;",
+                          required: true %>
+                    <%= submit_tag t("finance.balance_requests.actions.reject"), class: "btn btn-danger btn-sm" %>
+                    <button type="button" class="btn btn-ghost btn-sm"
+                            data-action="click->collapsible#toggle">
+                      <%= t("common.cancel") %>
+                    </button>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        <% end %>
+
+      </table>
+    </div>
+  <% end %>
+</div>

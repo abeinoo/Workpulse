@@ -1,0 +1,47 @@
+<% content_for :title, t("finance.categories.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("finance.categories.title") %></h1>
+    <% if policy(ExpenseCategory).create? %>
+      <%= link_to t("finance.categories.add"), new_finance_expense_category_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <% if @categories.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("finance.categories.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("finance.categories.name") %></th>
+          <th><%= t("finance.categories.description") %></th>
+          <th><%= t("finance.common.status") %></th>
+          <th style="text-align: end;"><%= t("finance.categories.types_count") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @categories.each do |category| %>
+            <tr>
+              <td><%= category.name %></td>
+              <td class="td-secondary"><%= truncate(category.description.to_s, length: 60).presence || "—" %></td>
+              <td>
+                <% if category.active? %>
+                  <span class="badge badge-success"><%= t("finance.common.active") %></span>
+                <% else %>
+                  <span class="badge"><%= t("finance.common.inactive") %></span>
+                <% end %>
+              </td>
+              <td style="text-align: end;"><%= category.expense_types.size %></td>
+              <td class="td-actions">
+                <% if policy(category).update? %>
+                  <%= link_to t("common.edit"), edit_finance_expense_category_path(category), class: "link-muted" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

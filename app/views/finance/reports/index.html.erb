@@ -1,0 +1,38 @@
+<% content_for :title, t("finance.reports.title") %>
+
+<div class="admin-page">
+  <h1 class="page-title mb-6"><%= t("finance.reports.title") %></h1>
+
+  <% sections = {
+       "finance.reports.groups.expenses" => [
+         [ :expenses_by_branch_report,   "finance.reports.titles.expenses_by_branch" ],
+         [ :expenses_by_category_report, "finance.reports.titles.expenses_by_category" ],
+         [ :expenses_by_type_report,     "finance.reports.titles.expenses_by_type" ],
+         [ :expense_trend_report,        "finance.reports.titles.expense_trend" ],
+         [ :shared_allocation_report,    "finance.reports.titles.shared_allocation" ],
+         [ :approvals_report,            "finance.reports.titles.approvals" ]
+       ],
+       "finance.reports.groups.recurring" => [
+         [ :recurring_report, "finance.reports.titles.recurring" ]
+       ],
+       "finance.reports.groups.custody" => [
+         [ :custody_balances_report,     "finance.reports.titles.custody_balances" ],
+         [ :custody_transactions_report, "finance.reports.titles.custody_transactions" ],
+         [ :negative_balances_report,    "finance.reports.titles.negative_balances" ]
+       ],
+       "finance.reports.groups.profitability" => [
+         [ :branch_profitability_report, "finance.reports.titles.branch_profitability" ]
+       ]
+     } %>
+
+  <% sections.each do |group_key, links| %>
+    <h2 class="section-title" style="margin-top: var(--space-5);"><%= t(group_key) %></h2>
+    <div class="card-grid">
+      <% links.each do |route, title_key| %>
+        <%= link_to public_send("finance_#{route}_path"), class: "card card--link" do %>
+          <span class="card__title"><%= t(title_key) %></span>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

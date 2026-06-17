@@ -1,7 +1,8 @@
 <%= form_with model: [ :admin, permission_role ],
              data: {
                controller: "permission-role-form",
-               "permission-role-form-deps-value": PermissionRole::PERMISSION_DEPENDENCIES.to_json
+               "permission-role-form-deps-value": PermissionRole::PERMISSION_DEPENDENCIES.to_json,
+               "permission-role-form-defaults-value": PermissionRole::DEFAULT_PERMISSIONS_BY_ROLE_TYPE.to_json
              } do |f| %>
   <%= render "shared/error_messages", resource: permission_role %>
 
@@ -21,12 +22,36 @@
             rows: 2,
             placeholder: t("admin.permission_roles.form.description_placeholder") %>
     </div>
+
+    <div class="form-group">
+      <%= f.label :role_type, t("admin.permission_roles.form.role_type_label"), class: "form-label" %>
+      <%= f.select :role_type,
+            options_for_select(
+              [[t("admin.permission_roles.form.role_type_blank"), ""]] +
+              PermissionRole::ROLE_TYPES.map { |rt| [t("admin.permission_roles.role_types.#{rt}"), rt] },
+              permission_role.role_type
+            ),
+            {},
+            class: "form-control",
+            data: {
+              "permission-role-form-target": "roleTypeSelect",
+              action: "change->permission-role-form#onRoleTypeChange"
+            } %>
+      <p class="form-hint"><%= t("admin.permission_roles.form.role_type_hint") %></p>
+    </div>
   </div>
 
   <div class="form-section">
     <div class="permission-groups-header">
       <h2 class="form-section-title"><%= t("admin.permission_roles.form.permissions_title") %></h2>
       <div class="permission-groups-header__actions">
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-action="permission-role-form#applyDefaults"
+                data-permission-role-form-target="applyDefaultsBtn"
+                data-confirm="<%= t("admin.permission_roles.form.apply_defaults_confirm") %>"
+                style="display:none">
+          <%= t("admin.permission_roles.form.apply_defaults_btn") %>
+        </button>
         <button type="button" class="btn btn-ghost btn-sm"
                 data-action="permission-role-form#selectAll">
           <%= t("admin.permission_roles.form.select_all") %>

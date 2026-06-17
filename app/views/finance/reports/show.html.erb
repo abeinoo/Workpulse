@@ -1,0 +1,24 @@
+<% content_for :title, @table.title %>
+
+<div class="admin-page">
+  <%= link_to finance_reports_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("finance.reports.title") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title"><%= @table.title %></h1>
+    <%= link_to t("finance.reports.export_csv"), url_for(format: :csv, from: @from, to: @to),
+          class: "btn btn-secondary btn-sm" %>
+  </div>
+
+  <% if @dated %>
+    <%= form_with url: request.path, method: :get, class: "filter-bar" do %>
+      <%= date_field_tag :from, @from&.iso8601, class: "form-control form-control--sm" %>
+      <%= date_field_tag :to, @to&.iso8601, class: "form-control form-control--sm" %>
+      <%= submit_tag t("finance.common.filter"), class: "btn btn-secondary btn-sm" %>
+    <% end %>
+  <% end %>
+
+  <%= render "table", table: @table %>
+</div>

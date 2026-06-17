@@ -1,0 +1,114 @@
+<% content_for :title, t("finance.dashboard.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("finance.dashboard.title") %></h1>
+    <% if policy(Expense).new? %>
+      <%= link_to t("finance.expenses.add"), new_finance_expense_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <div class="stats-grid">
+    <%= link_to finance_expenses_path(status: "pending_approval"), class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("finance.dashboard.pending_approvals") %></span>
+      <span class="stat-card__value"><%= @pending_count %></span>
+    <% end %>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("finance.dashboard.month_total") %></span>
+      <span class="stat-card__value"><%= format_currency(@month_total) %></span>
+    </div>
+  </div>
+
+  <% if @profitability %>
+    <div class="page-header" style="margin-top: var(--space-5);">
+      <h2 class="section-title" style="margin: 0;"><%= t("finance.dashboard.profitability") %></h2>
+      <%= link_to t("finance.dashboard.view_full_report"), finance_branch_profitability_report_path, class: "link" %>
+    </div>
+    <%= render "finance/reports/table", table: @profitability %>
+  <% end %>
+
+  <div class="dashboard-cols" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-top: var(--space-5);">
+    <%= render "breakdown", title: t("finance.dashboard.by_category"), rows: @by_category %>
+    <%= render "breakdown", title: t("finance.dashboard.by_branch"), rows: @by_branch %>
+  </div>
+
+  <% if @show_custody %>
+    <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.dashboard.outstanding_custody") %></h2>
+    <% if @outstanding.blank? %>
+      <div class="empty-state"><p class="empty-state__title"><%= t("finance.dashboard.no_outstanding") %></p></div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead><tr>
+            <th><%= t("finance.custody.accounts.name") %></th>
+            <th><%= t("finance.custody.accounts.holder") %></th>
+            <th style="text-align: end;"><%= t("finance.custody.accounts.balance") %></th>
+          </tr></thead>
+          <tbody>
+            <% @outstanding.each do |row| %>
+              <tr>
+                <td><%= row[:name] %></td>
+                <td class="td-secondary"><%= row[:holder] %></td>
+                <td style="text-align: end;"><%= format_currency(row[:balance]) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  <% end %>
+
+  <% if @show_recurring %>
+    <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.dashboard.upcoming_recurring") %></h2>
+    <% if @upcoming_recurring.blank? %>
+      <div class="empty-state"><p class="empty-state__title"><%= t("finance.dashboard.no_upcoming") %></p></div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead><tr>
+            <th><%= t("finance.expenses.category") %></th>
+            <th><%= t("finance.recurring.frequency") %></th>
+            <th><%= t("finance.recurring.next_run_on") %></th>
+            <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
+          </tr></thead>
+          <tbody>
+            <% @upcoming_recurring.each do |rec| %>
+              <tr>
+                <td><%= link_to rec.expense_category.name, finance_recurring_expense_path(rec), class: "link" %></td>
+                <td class="td-secondary"><%= t("finance.recurring.frequencies.#{rec.frequency}") %></td>
+                <td><%= l(rec.next_run_on, format: :long) %></td>
+                <td style="text-align: end;"><%= format_currency(rec.amount) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  <% end %>
+
+  <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.dashboard.pending_list") %></h2>
+  <% if @pending.blank? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("finance.dashboard.no_pending") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("finance.expenses.reference") %></th>
+          <th><%= t("finance.expenses.date") %></th>
+          <th><%= t("finance.expenses.category") %></th>
+          <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
+        </tr></thead>
+        <tbody>
+          <% @pending.each do |expense| %>
+            <tr>
+              <td><%= link_to expense.reference_number, finance_expense_path(expense), class: "link" %></td>
+              <td><%= l(expense.expense_date, format: :long) %></td>
+              <td class="td-secondary"><%= expense.expense_category.name %></td>
+              <td style="text-align: end;"><%= format_currency(expense.amount) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

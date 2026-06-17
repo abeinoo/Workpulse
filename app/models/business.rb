@@ -54,6 +54,17 @@ class Business < ApplicationRecord
   has_many :performance_reviews,      dependent: :destroy
   has_many :performance_observations, dependent: :destroy
 
+  # Financial Operations & Expense Management
+  has_many :expense_categories,    dependent: :destroy
+  has_many :expense_types,         dependent: :destroy
+  has_many :expense_tags,          dependent: :destroy
+  has_many :expenses,              dependent: :destroy
+  has_many :balance_requests,      dependent: :destroy
+  has_many :recurring_expenses,    dependent: :destroy
+  has_many :custody_accounts,      dependent: :destroy
+  has_many :custody_transactions,  dependent: :destroy
+  has_many :branch_revenues,       dependent: :destroy
+
   serialize :settings, coder: JSON
 
   validates :name,                presence: true

@@ -6,6 +6,10 @@ class InventoryMovement < ApplicationRecord
   belongs_to :business
   belongs_to :product
   belongs_to :warehouse
+  # Branch that consumed the stock (carried from the stock issue). Only OUT/
+  # stock_issue movements set it; receipts, transfers and adjustments leave it
+  # NULL and are unattributed in branch profitability — by design.
+  belongs_to :branch, optional: true
   belongs_to :source, polymorphic: true, optional: true
 
   DIRECTIONS = %w[in out].freeze
@@ -38,6 +42,12 @@ class InventoryMovement < ApplicationRecord
 
   scope :for_business, ->(business) { where(business: business) }
   scope :chronological, -> { order(:occurred_on, :id) }
+  # Stock consumed out of branches — the cost-of-consumption rows that branch
+  # profitability sums (quantity × unit_cost). Source-agnostic: a future Fresha
+  # importer writing the same OUT/stock_issue movements is picked up unchanged.
+  scope :consumption, -> { where(direction: "out", reason: "stock_issue") }
+  scope :for_branch,  ->(branch_id) { where(branch_id: branch_id) if branch_id.present? }
+  scope :occurred_between, ->(from, to) { where(occurred_on: from..to) }
 
   # Signed quantity: positive for IN, negative for OUT — used by stock sums.
   def signed_quantity

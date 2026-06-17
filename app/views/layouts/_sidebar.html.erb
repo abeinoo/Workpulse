@@ -273,6 +273,69 @@
         </details>
       <% end %>
 
+      <%# ── FINANCE (collapsible) ─────────────────────────────────────── %>
+      <% finance_perms = %i[view_finance_dashboard
+                            view_expenses create_expenses edit_expenses approve_expenses
+                            view_employee_balances manage_employee_balances
+                            create_balance_requests approve_balance_requests
+                            view_expense_reports manage_branch_revenue] %>
+      <% if current_user.owner? || finance_perms.any? { |p| current_user.can?(p) } %>
+        <% finance_active = request.path.start_with?("/finance") %>
+        <details class="sidebar__group" <%= 'open' if finance_active %>>
+          <summary class="sidebar__section-label sidebar__group-toggle">
+            <%= t("nav.section_finance") %>
+            <svg class="sidebar__group-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+
+          <% if current_user.owner? || current_user.can?(:view_finance_dashboard) %>
+            <%= link_to finance_root_path,
+                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('finance') ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+              <%= t("nav.finance_dashboard") %>
+            <% end %>
+          <% end %>
+
+          <% if current_user.can?(:view_expenses) || current_user.can?(:create_expenses) %>
+            <%= link_to finance_expenses_path,
+                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'expenses' ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+              <%= t("nav.finance_expenses") %>
+            <% end %>
+          <% end %>
+
+          <% if current_user.can?(:view_employee_balances) || current_user.can?(:manage_employee_balances) ||
+                current_user.can?(:create_balance_requests) %>
+            <%= link_to finance_custody_accounts_path,
+                  class: "sidebar__nav-item sidebar__nav-item--sub #{%w[custody_accounts custody_transactions balance_requests].include?(controller_name) ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              <%= t("nav.finance_custody") %>
+            <% end %>
+          <% end %>
+
+          <% if current_user.can?(:view_expense_reports) || current_user.can?(:manage_branch_revenue) %>
+            <%= link_to finance_branch_revenues_path,
+                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'branch_revenues' ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <%= t("nav.finance_branch_revenue") %>
+            <% end %>
+          <% end %>
+
+          <% if current_user.can?(:view_expense_reports) %>
+            <%= link_to finance_reports_path,
+                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reports' && controller_path.start_with?('finance') ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="14" y="6" width="3" height="11"/></svg>
+              <%= t("nav.finance_reports") %>
+            <% end %>
+          <% end %>
+
+        </details>
+      <% end %>
+
       <%# ── ADMINISTRATION (collapsible) ────────────────────────────── %>
       <% show_devices     = current_user.can?(:manage_devices) %>
       <% show_obligations = current_user.can?(:manage_obligations) %>

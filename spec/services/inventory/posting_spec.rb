@@ -17,7 +17,8 @@ RSpec.describe "Inventory posting & costing", type: :model do
   end
 
   def post_issue(qty:, wh: warehouse)
-    issue = business.stock_issues.build(warehouse: wh, issued_on: Date.current)
+    branch = business.branches.first_or_create!(name: "Issue Branch", active: true)
+    issue = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: Date.current)
     issue.items.build(product: product, quantity: qty)
     Inventory::StockIssuePoster.new(issue).call
   end

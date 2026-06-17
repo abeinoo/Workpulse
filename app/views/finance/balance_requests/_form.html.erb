@@ -1,0 +1,40 @@
+<%= form_with model: [ :finance, balance_request ], class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: balance_request %>
+
+  <h2 class="section-title"><%= t("finance.balance_requests.section_details") %></h2>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :amount, t("finance.balance_requests.amount"), class: "form-label" %>
+      <%= f.number_field :amount, step: "0.01", min: 0.01,
+            class: "form-control #{'is-error' if balance_request.errors[:amount].any?}" %>
+    </div>
+    <div class="form-group">
+      <%= f.label :request_date, t("finance.balance_requests.request_date"), class: "form-label" %>
+      <%= f.date_field :request_date,
+            class: "form-control #{'is-error' if balance_request.errors[:request_date].any?}" %>
+    </div>
+
+    <% unless @hide_branch %>
+      <div class="form-group">
+        <%= f.label :branch_id, t("finance.expenses.branch"), class: "form-label" %>
+        <%= f.select :branch_id,
+              options_from_collection_for_select(@branches, :id, :name, balance_request.branch_id),
+              { include_blank: "— #{t('finance.expenses.no_branch')}" },
+              class: "form-control" %>
+      </div>
+    <% end %>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :notes, t("finance.common.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 3, required: true,
+            class: "form-control #{'is-error' if balance_request.errors[:notes].any?}",
+            placeholder: t("finance.balance_requests.notes_placeholder") %>
+      <p class="form-hint"><%= t("finance.balance_requests.notes_hint") %></p>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), finance_balance_requests_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

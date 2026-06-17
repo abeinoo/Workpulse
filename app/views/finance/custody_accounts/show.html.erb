@@ -1,0 +1,313 @@
+<% content_for :title, @account.user.full_name %>
+
+<div class="admin-page">
+  <%= link_to finance_custody_accounts_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <%# ── Account summary card ────────────────────────────────────────────────── %>
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+        <h1 class="card-title" style="margin: 0; font-size: var(--text-lg);">
+          <%= @account.user.full_name %>
+        </h1>
+        <% if @account.active? %>
+          <span class="badge badge-success badge--md"><%= t("finance.common.active") %></span>
+        <% else %>
+          <span class="badge badge-neutral badge--md"><%= t("finance.common.inactive") %></span>
+        <% end %>
+        <% if @balance.negative? %>
+          <span class="badge badge-danger badge--md"><%= t("finance.custody.accounts.negative_balance") %></span>
+        <% end %>
+      </div>
+      <div class="page-header__actions">
+        <% if policy(@account).update? %>
+          <%= link_to t("common.edit"), edit_finance_custody_account_path(@account), class: "btn btn-secondary btn-sm" %>
+        <% end %>
+      </div>
+    </div>
+
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("finance.custody.accounts.balance") %></dt>
+        <dd>
+          <strong style="font-size: var(--text-xl); color: <%= @balance.negative? ? 'var(--danger)' : 'var(--success)' %>;">
+            <%= format_currency(@balance) %>
+          </strong>
+        </dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.custody.accounts.branch") %></dt>
+        <dd><%= @account.branch&.name || "—" %></dd>
+      </div>
+      <% if @transactions.first %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.custody.accounts.last_activity") %></dt>
+          <dd><%= l(@transactions.first.created_at.to_date, format: :long) %></dd>
+        </div>
+      <% end %>
+    </dl>
+
+    <%# Quick actions %>
+    <div style="padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;">
+      <% if policy(BalanceRequest).new? %>
+        <%= link_to t("finance.balance_requests.add"), new_finance_balance_request_path,
+              class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <%= link_to t("finance.custody.accounts.view_balance_requests"), finance_balance_requests_path,
+            class: "btn btn-ghost btn-sm" %>
+    </div>
+  </div>
+
+  <%# ── Deposit Balance card (collapsible) ─────────────────────────────────── %>
+  <% if policy(@new_transaction).create? && @account.active? %>
+    <div class="card" style="margin-bottom: var(--space-5);" data-controller="collapsible">
+      <div class="card-header" style="cursor: pointer;"
+           data-collapsible-target="trigger"
+           data-action="click->collapsible#toggle">
+        <h2 class="card-title"><%= t("finance.custody.transactions.deposit_title") %></h2>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--text-2);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div data-collapsible-target="content" hidden>
+        <%= form_with url: finance_custody_account_custody_transactions_path(@account), method: :post,
+              class: "form-card", style: "border: none; box-shadow: none; border-radius: 0;",
+              multipart: true do %>
+          <%= hidden_field_tag :txn_type, "top_up" %>
+          <div class="form-grid">
+            <div class="form-group">
+              <%= label_tag :magnitude, t("finance.custody.transactions.amount"), class: "form-label" %>
+              <%= number_field_tag :magnitude, nil, step: "0.01", min: 0, class: "form-control" %>
+              <p class="form-hint"><%= t("finance.custody.transactions.amount_hint") %></p>
+            </div>
+            <div class="form-group">
+              <%= label_tag :document, t("finance.custody.transactions.document"), class: "form-label" %>
+              <%= file_field_tag :document, class: "form-control" %>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <%= label_tag :notes, t("finance.common.notes"), class: "form-label" %>
+              <%= text_field_tag :notes, nil, class: "form-control" %>
+            </div>
+          </div>
+          <div class="form-actions">
+            <%= submit_tag t("finance.custody.transactions.record"), class: "btn btn-primary" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%# ── Manual Adjustment card (collapsible) ─────────────────────────────── %>
+    <div class="card" style="margin-bottom: var(--space-5);" data-controller="collapsible">
+      <div class="card-header" style="cursor: pointer;"
+           data-collapsible-target="trigger"
+           data-action="click->collapsible#toggle">
+        <h2 class="card-title"><%= t("finance.custody.transactions.adjustment_title") %></h2>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--text-2);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div data-collapsible-target="content" hidden>
+        <%= form_with url: finance_custody_account_custody_transactions_path(@account), method: :post,
+              class: "form-card", style: "border: none; box-shadow: none; border-radius: 0;",
+              multipart: true do %>
+          <%= hidden_field_tag :txn_type, "adjustment" %>
+          <div class="form-grid">
+            <div class="form-group">
+              <%= label_tag :magnitude, t("finance.custody.transactions.amount"), class: "form-label" %>
+              <%= number_field_tag :magnitude, nil, step: "0.01", min: 0, class: "form-control" %>
+              <p class="form-hint"><%= t("finance.custody.transactions.amount_hint") %></p>
+            </div>
+            <div class="form-group">
+              <%= label_tag :adjustment_direction, t("finance.custody.transactions.adjustment_direction"), class: "form-label" %>
+              <%= select_tag :adjustment_direction,
+                    options_for_select([ [ t("finance.custody.transactions.increase"), "increase" ],
+                                         [ t("finance.custody.transactions.decrease"), "decrease" ] ]),
+                    class: "form-control" %>
+              <p class="form-hint"><%= t("finance.custody.transactions.adjustment_hint") %></p>
+            </div>
+            <div class="form-group">
+              <%= label_tag :document, t("finance.custody.transactions.document"), class: "form-label" %>
+              <%= file_field_tag :document, class: "form-control" %>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <%= label_tag :notes, t("finance.common.notes"), class: "form-label" %>
+              <%= text_field_tag :notes, nil, class: "form-control" %>
+            </div>
+          </div>
+          <div class="form-actions">
+            <%= submit_tag t("finance.custody.transactions.record"), class: "btn btn-primary" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Balance Requests card ──────────────────────────────────────────────── %>
+  <% if @balance_requests.any? || policy(BalanceRequest).new? %>
+    <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card-header">
+        <h2 class="card-title"><%= t("finance.balance_requests.title") %></h2>
+        <% if policy(BalanceRequest).new? %>
+          <%= link_to t("finance.balance_requests.add"), new_finance_balance_request_path,
+                class: "btn btn-secondary btn-sm" %>
+        <% end %>
+      </div>
+
+      <% if @balance_requests.empty? %>
+        <div style="padding: var(--space-5);">
+          <div class="empty-state"><p class="empty-state__title"><%= t("finance.balance_requests.empty") %></p></div>
+        </div>
+      <% else %>
+        <div class="table-wrap" style="margin-bottom: 0;">
+          <table>
+            <thead>
+              <tr>
+                <th><%= t("finance.balance_requests.reference") %></th>
+                <th><%= t("finance.balance_requests.request_date") %></th>
+                <th style="text-align: end;"><%= t("finance.balance_requests.amount") %></th>
+                <th><%= t("finance.common.status") %></th>
+                <th><%= t("finance.balance_requests.requester") %></th>
+                <th></th>
+              </tr>
+            </thead>
+
+            <% @balance_requests.each do |req| %>
+              <tbody data-controller="<%= 'collapsible' if policy(req).reject? %>">
+                <tr>
+                  <td><%= link_to req.reference_number, finance_balance_request_path(req), class: "link" %></td>
+                  <td><%= l(req.request_date, format: :long) %></td>
+                  <td style="text-align: end;"><%= format_currency(req.amount) %></td>
+                  <td><%= render "finance/balance_requests/status_badge", status: req.status %></td>
+                  <td class="td-secondary"><%= req.created_by.full_name %></td>
+                  <td>
+                    <div style="display: flex; gap: var(--space-1); align-items: center; flex-wrap: nowrap;">
+                      <% if policy(req).approve? %>
+                        <%= button_to t("finance.balance_requests.actions.approve"),
+                              approve_finance_balance_request_path(req),
+                              method: :patch,
+                              class: "btn btn-success btn-sm",
+                              params: { return_to: finance_custody_account_path(@account) },
+                              form: { style: "display:inline" } %>
+                      <% end %>
+                      <% if policy(req).reject? %>
+                        <button type="button"
+                                class="btn btn-danger btn-sm"
+                                data-collapsible-target="trigger"
+                                data-action="click->collapsible#toggle">
+                          <%= t("finance.balance_requests.actions.reject") %>
+                        </button>
+                      <% end %>
+                      <% if policy(req).mark_paid? %>
+                        <%= button_to t("finance.balance_requests.actions.mark_paid"),
+                              mark_paid_finance_balance_request_path(req),
+                              method: :patch,
+                              class: "btn btn-primary btn-sm",
+                              params: { return_to: finance_custody_account_path(@account) },
+                              data: { turbo_confirm: t("finance.balance_requests.confirm_mark_paid") },
+                              form: { style: "display:inline" } %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+
+                <%# Inline reject form – revealed by collapsible trigger above %>
+                <% if policy(req).reject? %>
+                  <tr data-collapsible-target="content" hidden>
+                    <td colspan="6" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
+                      <%= form_with url: reject_finance_balance_request_path(req), method: :patch,
+                            style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+                        <%= hidden_field_tag :return_to, finance_custody_account_path(@account) %>
+                        <%= text_field_tag :rejection_reason, nil,
+                              placeholder: t("finance.balance_requests.rejection_placeholder"),
+                              class: "form-control form-control--sm",
+                              style: "flex: 1; min-width: 200px;",
+                              required: true %>
+                        <%= submit_tag t("finance.balance_requests.actions.reject"), class: "btn btn-danger btn-sm" %>
+                        <button type="button" class="btn btn-ghost btn-sm"
+                                data-action="click->collapsible#toggle">
+                          <%= t("common.cancel") %>
+                        </button>
+                      <% end %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            <% end %>
+
+          </table>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Transaction history card ────────────────────────────────────────────── %>
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title"><%= t("finance.custody.transactions.ledger") %></h2>
+    </div>
+    <% if @transactions.empty? %>
+      <div style="padding: var(--space-5);">
+        <div class="empty-state"><p class="empty-state__title"><%= t("finance.custody.transactions.empty") %></p></div>
+      </div>
+    <% else %>
+      <div class="table-wrap" style="margin-bottom: 0;">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("finance.expenses.date") %></th>
+              <th><%= t("finance.custody.transactions.type") %></th>
+              <th><%= t("finance.custody.transactions.reference") %></th>
+              <th style="text-align: end;"><%= t("finance.custody.transactions.amount") %></th>
+              <th style="text-align: end;"><%= t("finance.custody.transactions.running_balance") %></th>
+              <th><%= t("finance.custody.transactions.created_by") %></th>
+              <th><%= t("finance.common.notes") %></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% running = @balance %>
+            <% @transactions.each do |txn| %>
+              <tr class="<%= 'is-voided' if txn.voided? %>">
+                <td><%= l(txn.created_at.to_date, format: :long) %></td>
+                <td><%= render "finance/custody_accounts/txn_type_badge", txn: txn %></td>
+                <td class="td-secondary"><%= txn.expense&.reference_number || "—" %></td>
+                <td style="text-align: end; color: <%= txn.amount.negative? ? 'var(--danger)' : 'var(--success)' %>;">
+                  <%= format_currency(txn.amount) %>
+                </td>
+                <td style="text-align: end; color: <%= running.negative? ? 'var(--danger)' : 'inherit' %>;">
+                  <%= txn.voided? ? "—" : format_currency(running) %>
+                </td>
+                <td class="td-secondary"><%= txn.created_by&.full_name || "—" %></td>
+                <td class="td-secondary"><%= txn.notes.presence || "—" %></td>
+                <td>
+                  <% if !txn.voided? && policy(txn).void? %>
+                    <div data-controller="collapsible">
+                      <button type="button" class="btn btn-ghost btn-sm"
+                              style="color: var(--danger);"
+                              data-collapsible-target="trigger"
+                              data-action="click->collapsible#toggle">
+                        <%= t("finance.custody.transactions.void") %>
+                      </button>
+                      <div data-collapsible-target="content" hidden style="padding-top: var(--space-2); min-width: 220px;">
+                        <%= form_with url: void_finance_custody_account_custody_transaction_path(@account, txn), method: :patch do %>
+                          <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+                            <%= text_field_tag :void_reason, nil,
+                                  placeholder: t("finance.custody.transactions.void_reason"),
+                                  class: "form-control form-control--sm",
+                                  style: "flex: 1; min-width: 140px;",
+                                  required: true %>
+                            <%= submit_tag t("finance.custody.transactions.void"), class: "btn btn-danger btn-sm" %>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </td>
+              </tr>
+              <% running -= txn.amount unless txn.voided? %>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+</div>

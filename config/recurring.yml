@@ -18,3 +18,8 @@ production:
     class: Payroll::AutoGenerateJob
     queue: background
     schedule: every day at 6:00am
+
+  generate_due_recurring_expenses:
+    class: Finance::GenerateDueRecurringExpensesJob
+    queue: background
+    schedule: every day at 6:30am

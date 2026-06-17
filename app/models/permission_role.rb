@@ -2,31 +2,74 @@ class PermissionRole < ApplicationRecord
   belongs_to :business
   has_many   :users, dependent: :nullify
 
+  ROLE_TYPES = %w[branch_manager area_manager accountant employee].freeze
+
   PERMISSION_GROUPS = {
-    employees:      %w[view_employees manage_employees manage_salary_profiles],
-    attendance:     %w[view_attendance manage_attendance manage_devices],
-    payroll:        %w[view_payroll view_payroll_analytics view_payroll_audit_log
-                       create_payroll regenerate_payroll submit_payroll_review
-                       complete_branch_review approve_payroll_items
-                       manage_payroll_overrides manage_payroll_deduction_waivers
-                       finalize_payroll pay_payroll reopen_payroll delete_payroll
-                       pay_advances],
-    adjustments:    %w[manage_adjustments approve_adjustments],
-    requests:       %w[view_requests approve_requests],
-    shifts:         %w[view_shifts manage_shifts assign_shifts],
-    reports:        %w[view_reports export_reports],
-    inventory:      %w[view_inventory manage_inventory view_inventory_reports
-                       manage_suppliers manage_products manage_stock_receipts
-                       manage_stock_issues manage_stock_transfers
-                       manage_stock_counts post_stock_counts view_stock_count_reports],
-    performance:    %w[view_performance manage_evaluation_templates
-                       create_observations manage_reviews finalize_reviews],
-    settings:       %w[manage_settings manage_branches],
-    obligations:    %w[manage_obligations],
-    administration: %w[manage_roles]
+    employees:             %w[view_employees manage_employees manage_salary_profiles],
+    attendance:            %w[view_attendance manage_attendance manage_devices],
+    payroll:               %w[view_payroll view_payroll_analytics view_payroll_audit_log
+                               create_payroll regenerate_payroll submit_payroll_review
+                               complete_branch_review approve_payroll_items
+                               manage_payroll_overrides manage_payroll_deduction_waivers
+                               finalize_payroll pay_payroll reopen_payroll delete_payroll
+                               pay_advances],
+    adjustments:           %w[manage_adjustments approve_adjustments],
+    requests:              %w[view_requests approve_requests],
+    shifts:                %w[view_shifts manage_shifts assign_shifts],
+    reports:               %w[view_reports export_reports],
+    inventory:             %w[view_inventory manage_inventory view_inventory_reports
+                               manage_suppliers manage_products manage_stock_receipts
+                               manage_stock_issues manage_stock_transfers
+                               manage_stock_counts post_stock_counts view_stock_count_reports],
+    performance:           %w[view_performance manage_evaluation_templates
+                               create_observations manage_reviews finalize_reviews],
+    finance_overview:      %w[view_finance_dashboard],
+    expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
+    expense_administration: %w[manage_expense_categories manage_expense_types
+                                manage_expense_tags manage_recurring_expenses],
+    employee_balances:     %w[view_employee_balances manage_employee_balances
+                               create_balance_requests approve_balance_requests],
+    expense_reports:       %w[view_expense_reports manage_branch_revenue],
+    settings:              %w[manage_settings manage_branches],
+    obligations:           %w[manage_obligations],
+    administration:        %w[manage_roles]
   }.freeze
 
   ALL_PERMISSIONS = PERMISSION_GROUPS.values.flatten.freeze
+
+  # Default permission sets per role archetype. Applied when a new PermissionRole
+  # is created with a role_type and no permissions have been manually chosen.
+  DEFAULT_PERMISSIONS_BY_ROLE_TYPE = {
+    "branch_manager" => %w[
+      view_expenses create_expenses
+      view_employee_balances create_balance_requests
+      view_employees view_attendance view_shifts assign_shifts
+      view_requests view_payroll complete_branch_review
+    ],
+    "area_manager" => %w[
+      view_expenses create_expenses edit_expenses approve_expenses
+      view_employee_balances create_balance_requests
+      view_employees manage_employees view_attendance
+      view_shifts assign_shifts
+      view_requests approve_requests
+      view_payroll complete_branch_review
+      view_reports export_reports
+    ],
+    "accountant" => %w[
+      view_finance_dashboard
+      view_expenses create_expenses edit_expenses approve_expenses
+      manage_expense_categories manage_expense_types manage_expense_tags manage_recurring_expenses
+      view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
+      view_expense_reports manage_branch_revenue
+      view_payroll view_payroll_analytics view_payroll_audit_log
+      view_reports export_reports
+      view_inventory view_inventory_reports view_stock_count_reports
+    ],
+    "employee" => %w[
+      view_employee_balances create_balance_requests
+      view_requests
+    ]
+  }.freeze
 
   # Permissions where "which employees?" matters — these support data scopes.
   # Global-operation permissions (settings, reports, admin) have no scope.
@@ -39,6 +82,17 @@ class PermissionRole < ApplicationRecord
   #
   # complete_branch_review IS scopable — managers should be able to complete
   # reviews only for branches in their authorized scope.
+  # Branch-scoped permissions: financial records (expenses, balance accounts) are
+  # scoped by branch — resolved via BranchScope — rather than by employee.
+  # They share the same SCOPE_OPTIONS (self/branch/area/business); the policy layer
+  # picks which resolver applies. Listed separately, then merged into the canonical
+  # SCOPABLE_PERMISSIONS so the role editor still renders one scope dropdown per
+  # scopable permission.
+  BRANCH_SCOPABLE_PERMISSIONS = %w[
+    view_expenses create_expenses edit_expenses approve_expenses
+    view_employee_balances manage_branch_revenue
+  ].freeze
+
   SCOPABLE_PERMISSIONS = (
     PERMISSION_GROUPS.slice(:employees, :attendance, :payroll, :adjustments, :requests, :shifts, :performance)
                      .values.flatten -
@@ -46,7 +100,8 @@ class PermissionRole < ApplicationRecord
          approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
          view_payroll_audit_log
          approve_adjustments manage_devices manage_shifts
-         manage_evaluation_templates]
+         manage_evaluation_templates] +
+    BRANCH_SCOPABLE_PERMISSIONS
   ).freeze
 
   # Canonical data-scope names. Branch membership is shift-driven; "area" is a
@@ -109,7 +164,18 @@ class PermissionRole < ApplicationRecord
     "manage_evaluation_templates" => %w[view_performance],
     "create_observations"         => %w[view_performance],
     "manage_reviews"              => %w[view_performance],
-    "finalize_reviews"            => %w[view_performance manage_reviews]
+    "finalize_reviews"            => %w[view_performance manage_reviews],
+    "create_expenses"             => %w[view_expenses],
+    "edit_expenses"               => %w[view_expenses],
+    "approve_expenses"            => %w[view_expenses],
+    "manage_expense_categories"   => %w[view_expenses],
+    "manage_expense_types"        => %w[view_expenses],
+    "manage_expense_tags"         => %w[view_expenses],
+    "manage_recurring_expenses"   => %w[view_expenses],
+    "manage_employee_balances"    => %w[view_employee_balances],
+    "create_balance_requests"     => %w[view_employee_balances],
+    "approve_balance_requests"    => %w[view_employee_balances],
+    "manage_branch_revenue"       => %w[view_expense_reports]
   }.freeze
 
   # Reverse index: given a permission, which permissions depend on it?
@@ -119,6 +185,12 @@ class PermissionRole < ApplicationRecord
     end.freeze
 
   before_validation do
+    # Auto-fill default permissions when a role_type is set and no permissions
+    # have been explicitly chosen (new role creation convenience).
+    if role_type.present? && Array(permissions).reject(&:blank?).empty?
+      self.permissions = DEFAULT_PERMISSIONS_BY_ROLE_TYPE.fetch(role_type, [])
+    end
+
     self.permissions      = Array(permissions).reject(&:blank?).uniq
     self.permission_scopes = (permission_scopes || {})
       .select { |k, _| has_permission?(k) }
@@ -129,6 +201,7 @@ class PermissionRole < ApplicationRecord
   validates :name, presence: true,
                    uniqueness: { scope: :business_id, case_sensitive: false },
                    length: { maximum: 80 }
+  validates :role_type, inclusion: { in: ROLE_TYPES }, allow_blank: true
   validates :business, presence: true
   validate  :permissions_are_valid
   validate  :scopes_are_valid

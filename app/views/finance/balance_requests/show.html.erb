@@ -1,0 +1,143 @@
+<% content_for :title, @request.reference_number %>
+
+<div class="admin-page">
+  <%= link_to finance_balance_requests_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <%# ── Summary card ────────────────────────────────────────────────────────── %>
+  <div class="card" style="margin-bottom: var(--space-5);"
+       <%= "data-controller='collapsible'".html_safe if policy(@request).reject? %>>
+
+    <div class="card-header">
+      <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+        <h1 class="card-title" style="margin: 0; font-size: var(--text-lg);">
+          <%= @request.reference_number %>
+        </h1>
+        <%= render "finance/balance_requests/status_badge", status: @request.status, size: "md" %>
+      </div>
+
+      <div class="page-header__actions">
+        <% if policy(@request).update? %>
+          <%= link_to t("common.edit"), edit_finance_balance_request_path(@request), class: "btn btn-secondary btn-sm" %>
+        <% end %>
+        <% if policy(@request).submit? %>
+          <%= button_to t("finance.balance_requests.actions.submit"),
+                submit_finance_balance_request_path(@request),
+                method: :patch, class: "btn btn-primary btn-sm",
+                form: { style: "display:inline" } %>
+        <% end %>
+        <% if policy(@request).approve? %>
+          <%= button_to t("finance.balance_requests.actions.approve"),
+                approve_finance_balance_request_path(@request),
+                method: :patch, class: "btn btn-success btn-sm",
+                form: { style: "display:inline" } %>
+        <% end %>
+        <% if policy(@request).mark_paid? %>
+          <%= button_to t("finance.balance_requests.actions.mark_paid"),
+                mark_paid_finance_balance_request_path(@request),
+                method: :patch, class: "btn btn-primary btn-sm",
+                form: { style: "display:inline" },
+                data: { turbo_confirm: t("finance.balance_requests.confirm_mark_paid") } %>
+        <% end %>
+        <% if policy(@request).reject? %>
+          <button type="button" class="btn btn-danger btn-sm"
+                  data-collapsible-target="trigger"
+                  data-action="click->collapsible#toggle"
+                  aria-expanded="false">
+            <%= t("finance.balance_requests.actions.reject") %>
+          </button>
+        <% end %>
+        <% if policy(@request).destroy? %>
+          <%= button_to t("common.delete"), finance_balance_request_path(@request), method: :delete,
+                class: "btn btn-ghost btn-sm text-danger",
+                form: { style: "display:inline" },
+                data: { turbo_confirm: t("finance.balance_requests.confirm_delete") } %>
+        <% end %>
+      </div>
+    </div>
+
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("finance.balance_requests.amount") %></dt>
+        <dd><strong><%= format_currency(@request.amount) %></strong></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.balance_requests.request_date") %></dt>
+        <dd><%= l(@request.request_date, format: :long) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.balance_requests.requester") %></dt>
+        <dd><%= @request.created_by.full_name %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.branch") %></dt>
+        <dd><%= @request.branch&.name || "—" %></dd>
+      </div>
+      <% if @request.approved_by %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.expenses.approved_by") %></dt>
+          <dd><%= @request.approved_by.full_name %></dd>
+        </div>
+      <% end %>
+      <% if @request.paid_by %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.balance_requests.paid_by") %></dt>
+          <dd><%= @request.paid_by.full_name %></dd>
+        </div>
+      <% end %>
+      <% if @request.notes.present? %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.common.notes") %></dt>
+          <dd><%= simple_format(@request.notes) %></dd>
+        </div>
+      <% end %>
+      <% if @request.rejected? && @request.rejection_reason.present? %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.balance_requests.rejection_reason") %></dt>
+          <dd style="color: var(--danger);"><%= @request.rejection_reason %></dd>
+        </div>
+      <% end %>
+    </dl>
+
+    <% if policy(@request).reject? %>
+      <div data-collapsible-target="content" hidden
+           style="padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); background: var(--navy-700);">
+        <%= form_with url: reject_finance_balance_request_path(@request), method: :patch,
+              style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+          <%= text_field_tag :rejection_reason, nil,
+                placeholder: t("finance.balance_requests.rejection_placeholder"),
+                class: "form-control form-control--sm",
+                style: "flex: 1; min-width: 200px;",
+                required: true %>
+          <%= submit_tag t("finance.balance_requests.actions.reject"), class: "btn btn-danger btn-sm" %>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-action="click->collapsible#toggle">
+            <%= t("common.cancel") %>
+          </button>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Activity log card ──────────────────────────────────────────────────── %>
+  <% if @audit_logs.any? %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title"><%= t("finance.expenses.history") %></h2>
+      </div>
+      <div style="padding: 0 var(--space-5) var(--space-4);">
+        <ul class="timeline" style="margin-top: var(--space-3);">
+          <% @audit_logs.each do |log| %>
+            <li>
+              <strong><%= t("finance.balance_requests.audit.#{log.action}", default: log.action.humanize) %></strong>
+              — <%= log.actor.full_name %>
+              <span class="td-secondary"><%= l(log.created_at, format: :short) %></span>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  <% end %>
+</div>

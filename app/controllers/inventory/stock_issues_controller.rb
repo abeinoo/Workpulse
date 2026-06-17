@@ -48,6 +48,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
   def import
     authorize StockIssue, :create?
     @warehouses = accessible_warehouses
+    @branches   = current_user.business.branches.active.order(:name)
   end
 
   def import_template
@@ -60,12 +61,13 @@ class Inventory::StockIssuesController < Inventory::BaseController
     authorize StockIssue, :create?
     file      = params[:file]
     warehouse = accessible_warehouses.find_by(id: params[:warehouse_id])
-    if file.blank? || warehouse.nil?
-      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.file_and_warehouse_required") and return
+    branch    = current_user.business.branches.find_by(id: params[:branch_id])
+    if file.blank? || warehouse.nil? || branch.nil?
+      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.file_warehouse_and_branch_required") and return
     end
 
     @result = Inventory::Imports::StockIssueImporter.new(
-      current_user.business, file.read, warehouse: warehouse, user: current_user
+      current_user.business, file.read, warehouse: warehouse, branch: branch, user: current_user
     ).call
 
     if @result.ok?
@@ -83,12 +85,13 @@ class Inventory::StockIssuesController < Inventory::BaseController
 
   def load_options
     @warehouses = accessible_warehouses
+    @branches   = current_user.business.branches.active.order(:name)
     @products   = current_user.business.products.ordered
   end
 
   def issue_params
     params.require(:stock_issue).permit(
-      :warehouse_id, :issued_on, :notes,
+      :warehouse_id, :branch_id, :issued_on, :notes,
       items_attributes: [ :id, :product_id, :quantity, :_destroy ]
     )
   end

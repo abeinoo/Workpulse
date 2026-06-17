@@ -6,6 +6,14 @@ class Branch < ApplicationRecord
   has_many :attendance_records,  dependent: :destroy
   has_many :payroll_periods,     dependent: :destroy
 
+  # Financial Operations & Expense Management — financial history is restricted
+  # on delete (block, never silently orphan) to preserve the audit trail.
+  has_many :expenses,            dependent: :restrict_with_error
+  has_many :expense_allocations, dependent: :restrict_with_error
+  has_many :recurring_expenses,  dependent: :restrict_with_error
+  has_many :custody_accounts,    dependent: :restrict_with_error
+  has_many :branch_revenues,     dependent: :restrict_with_error
+
   validates :name,     presence: true
   validates :business, presence: true
   validates :latitude, :longitude, :radius_meters,

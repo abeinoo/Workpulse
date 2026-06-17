@@ -1,0 +1,190 @@
+<% content_for :title, t("finance.expenses.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("finance.expenses.title") %></h1>
+    <div class="page-header__actions">
+      <% if policy(ExpenseCategory).create? %>
+        <%= link_to t("finance.expenses.manage_categories"), finance_expense_categories_path, class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if policy(ExpenseType).create? %>
+        <%= link_to t("finance.expenses.manage_types"), finance_expense_types_path, class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if policy(ExpenseTag).create? %>
+        <%= link_to t("finance.expenses.manage_tags"), finance_expense_tags_path, class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if current_user.can?(:manage_recurring_expenses) %>
+        <%= link_to t("finance.expenses.recurring"), finance_recurring_expenses_path, class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if policy(Expense).new? %>
+        <%= link_to t("finance.expenses.add"), new_finance_expense_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Filter bar ─────────────────────────────────────────────────────────── %>
+  <%= form_with url: finance_expenses_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+
+      <div class="filter-bar__field">
+        <%= f.label :status, t("finance.common.status"), class: "filter-bar__label" %>
+        <%= f.select :status,
+              options_for_select(
+                [[ t("finance.expenses.all_statuses"), "" ]] +
+                  Expense::STATUSES.map { |s| [ t("finance.expenses.statuses.#{s}"), s ] },
+                params[:status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+
+      <% if @filter_branches.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :branch_id, t("finance.expenses.branch"), class: "filter-bar__label" %>
+          <%= f.select :branch_id,
+                options_for_select(
+                  [[ t("finance.expenses.all_branches"), "" ]] +
+                    @filter_branches.map { |b| [ b.name, b.id ] },
+                  params[:branch_id]),
+                {}, class: "filter-bar__select" %>
+        </div>
+      <% end %>
+
+      <% if @filter_categories.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :expense_category_id, t("finance.expenses.category"), class: "filter-bar__label" %>
+          <%= f.select :expense_category_id,
+                options_for_select(
+                  [[ t("finance.expenses.all_categories"), "" ]] +
+                    @filter_categories.map { |c| [ c.name, c.id ] },
+                  params[:expense_category_id]),
+                {}, class: "filter-bar__select" %>
+        </div>
+      <% end %>
+
+      <% if @filter_types.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :expense_type_id, t("finance.expenses.type"), class: "filter-bar__label" %>
+          <%= f.select :expense_type_id,
+                options_for_select(
+                  [[ t("finance.expenses.all_types"), "" ]] +
+                    @filter_types.map { |t| [ t.name, t.id ] },
+                  params[:expense_type_id]),
+                {}, class: "filter-bar__select" %>
+        </div>
+      <% end %>
+
+      <% if @filter_creators.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :created_by_id, t("finance.expenses.created_by"), class: "filter-bar__label" %>
+          <%= f.select :created_by_id,
+                options_for_select(
+                  [[ t("finance.expenses.all_creators"), "" ]] +
+                    @filter_creators.map { |u| [ u.full_name, u.id ] },
+                  params[:created_by_id]),
+                {}, class: "filter-bar__select" %>
+        </div>
+      <% end %>
+
+      <div class="filter-bar__field">
+        <%= f.label :from, t("finance.expenses.date_from"), class: "filter-bar__label" %>
+        <%= f.date_field :from, value: params[:from], class: "filter-bar__input" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :to, t("finance.expenses.date_to"), class: "filter-bar__label" %>
+        <%= f.date_field :to, value: params[:to], class: "filter-bar__input" %>
+      </div>
+
+    </div>
+    <div class="filter-bar__actions">
+      <%= f.submit t("finance.common.filter"), class: "btn btn-primary btn-sm" %>
+      <% if params[:status].present? || params[:branch_id].present? || params[:expense_category_id].present? || params[:expense_type_id].present? || params[:created_by_id].present? || params[:from].present? || params[:to].present? %>
+        <%= link_to t("finance.expenses.clear_filters"), finance_expenses_path, class: "btn btn-ghost btn-sm" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @expenses.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("finance.expenses.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("finance.expenses.reference") %></th>
+            <th><%= t("finance.expenses.date") %></th>
+            <th><%= t("finance.expenses.branch") %></th>
+            <th><%= t("finance.expenses.category") %></th>
+            <th><%= t("finance.expenses.type") %></th>
+            <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
+            <th><%= t("finance.common.status") %></th>
+            <th><%= t("finance.expenses.created_by") %></th>
+            <th></th>
+          </tr>
+        </thead>
+
+        <% @expenses.each do |expense| %>
+          <tbody data-controller="<%= 'collapsible' if policy(expense).reject? %>">
+            <tr>
+              <td>
+                <%= link_to expense.reference_number, finance_expense_path(expense), class: "link" %>
+              </td>
+              <td><%= l(expense.expense_date, format: :long) %></td>
+              <td class="td-secondary">
+                <%= expense.is_shared? ? t("finance.expenses.shared") : (expense.branch&.name || "—") %>
+              </td>
+              <td class="td-secondary"><%= expense.expense_category.name %></td>
+              <td class="td-secondary"><%= expense.expense_type&.name || "—" %></td>
+              <td style="text-align: end;"><%= format_currency(expense.amount) %></td>
+              <td><%= render "finance/expenses/status_badge", status: expense.status %></td>
+              <td class="td-secondary"><%= expense.created_by&.full_name || "—" %></td>
+              <td>
+                <div style="display: flex; gap: var(--space-1); align-items: center; flex-wrap: nowrap;">
+                  <% if policy(expense).approve? %>
+                    <%= button_to t("finance.expenses.actions.approve"),
+                          approve_finance_expense_path(expense),
+                          method: :patch,
+                          class: "btn btn-success btn-sm",
+                          form: { style: "display:inline" } %>
+                  <% end %>
+                  <% if policy(expense).reject? %>
+                    <button type="button"
+                            class="btn btn-danger btn-sm"
+                            data-collapsible-target="trigger"
+                            data-action="click->collapsible#toggle">
+                      <%= t("finance.expenses.actions.reject") %>
+                    </button>
+                  <% end %>
+                  <%= link_to t("finance.expenses.actions.view"),
+                        finance_expense_path(expense),
+                        class: "btn btn-ghost btn-sm" %>
+                </div>
+              </td>
+            </tr>
+
+            <%# Inline reject form – revealed by collapsible trigger above %>
+            <% if policy(expense).reject? %>
+              <tr data-collapsible-target="content" hidden>
+                <td colspan="9" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
+                  <%= form_with url: reject_finance_expense_path(expense), method: :patch,
+                        style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+                    <%= text_field_tag :rejection_reason, nil,
+                          placeholder: t("finance.expenses.rejection_placeholder"),
+                          class: "form-control form-control--sm",
+                          style: "flex: 1; min-width: 200px;",
+                          required: true %>
+                    <%= submit_tag t("finance.expenses.actions.reject"), class: "btn btn-danger btn-sm" %>
+                    <button type="button" class="btn btn-ghost btn-sm"
+                            data-action="click->collapsible#toggle">
+                      <%= t("common.cancel") %>
+                    </button>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        <% end %>
+
+      </table>
+    </div>
+  <% end %>
+</div>

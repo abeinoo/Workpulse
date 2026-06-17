@@ -1,0 +1,12 @@
+<%
+  color_class = {
+    "top_up"            => "badge badge-success",
+    "expense_deduction" => "badge badge-danger",
+    "adjustment"        => "badge badge-warning",
+    "transfer"          => "badge badge-accent"
+  }.fetch(txn.txn_type, "badge badge-neutral")
+%>
+<span class="<%= color_class %>"><%= t("finance.custody.transactions.types.#{txn.txn_type}") %></span>
+<% if txn.voided? %>
+  <span class="badge badge-neutral"><%= t("finance.custody.transactions.voided_label") %></span>
+<% end %>

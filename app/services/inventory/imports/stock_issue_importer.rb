@@ -35,10 +35,11 @@ module Inventory
 
       Skip = Struct.new(:row_number, :sku, :reason, keyword_init: true)
 
-      def initialize(business, csv_data, warehouse:, user: nil)
+      def initialize(business, csv_data, warehouse:, branch:, user: nil)
         @business  = business
         @csv_data  = csv_data
         @warehouse = warehouse
+        @branch    = branch
         @user      = user
       end
 
@@ -65,7 +66,8 @@ module Inventory
 
         return Result.new(issue: nil, skipped: skipped) if lines.empty?
 
-        issue = @business.stock_issues.build(warehouse: @warehouse, issued_on: Date.current, created_by: @user)
+        issue = @business.stock_issues.build(warehouse: @warehouse, branch: @branch,
+                                             issued_on: Date.current, created_by: @user)
         lines.each { |l| issue.items.build(product: l[:product], quantity: l[:quantity]) }
 
         result = StockIssuePoster.new(issue).call

@@ -78,9 +78,10 @@ RSpec.describe "Inventory", type: :request do
       expect(product.reload.current_stock).to eq(10)
       expect(product.average_cost_price).to eq(12)
 
+      branch = business.branches.create!(name: "Main Branch", active: true)
       post inventory_stock_issues_path, params: {
         stock_issue: {
-          warehouse_id: warehouse.id, issued_on: Date.current,
+          warehouse_id: warehouse.id, branch_id: branch.id, issued_on: Date.current,
           items_attributes: { "0" => { product_id: product.id, quantity: 3 } }
         }
       }

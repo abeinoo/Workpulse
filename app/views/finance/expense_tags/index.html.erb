@@ -1,0 +1,43 @@
+<% content_for :title, t("finance.tags.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("finance.tags.title") %></h1>
+    <% if policy(ExpenseTag).create? %>
+      <%= link_to t("finance.tags.add"), new_finance_expense_tag_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <% if @tags.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("finance.tags.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("finance.tags.name") %></th>
+          <th><%= t("finance.common.status") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @tags.each do |tag| %>
+            <tr>
+              <td><%= tag.name %></td>
+              <td>
+                <% if tag.active? %>
+                  <span class="badge badge-success"><%= t("finance.common.active") %></span>
+                <% else %>
+                  <span class="badge"><%= t("finance.common.inactive") %></span>
+                <% end %>
+              </td>
+              <td class="td-actions">
+                <% if policy(tag).update? %>
+                  <%= link_to t("common.edit"), edit_finance_expense_tag_path(tag), class: "link-muted" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

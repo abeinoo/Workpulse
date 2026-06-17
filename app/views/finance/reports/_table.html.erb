@@ -1,0 +1,41 @@
+<% if table.rows.empty? %>
+  <div class="empty-state"><p class="empty-state__title"><%= t("finance.reports.no_data") %></p></div>
+<% else %>
+  <div class="table-wrap table-wrap--cards">
+    <table>
+      <thead><tr>
+        <% table.columns.each do |col| %>
+          <th style="<%= 'text-align: end;' if col.money %>"><%= col.label %></th>
+        <% end %>
+      </tr></thead>
+      <tbody>
+        <% table.rows.each do |row| %>
+          <tr>
+            <% table.columns.each do |col| %>
+              <td style="<%= 'text-align: end;' if col.money %>">
+                <%= col.money ? format_currency(row[col.key]) : row[col.key] %>
+              </td>
+            <% end %>
+          </tr>
+        <% end %>
+      </tbody>
+      <% if table.totals? %>
+        <tfoot>
+          <tr>
+            <% table.columns.each_with_index do |col, i| %>
+              <td style="<%= 'text-align: end;' if col.money %>">
+                <strong>
+                  <% if table.totals.key?(col.key) %>
+                    <%= col.money ? format_currency(table.totals[col.key]) : table.totals[col.key] %>
+                  <% elsif i.zero? %>
+                    <%= t("finance.reports.total") %>
+                  <% end %>
+                </strong>
+              </td>
+            <% end %>
+          </tr>
+        </tfoot>
+      <% end %>
+    </table>
+  </div>
+<% end %>

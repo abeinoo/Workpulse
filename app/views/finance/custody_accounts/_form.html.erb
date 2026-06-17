@@ -1,0 +1,35 @@
+<%= form_with model: [ :finance, account ], class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: account %>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :user_id, t("finance.custody.accounts.holder"), class: "form-label" %>
+      <%= f.select :user_id,
+            options_from_collection_for_select(@users, :id, :full_name, account.user_id),
+            { include_blank: "— #{t('finance.custody.accounts.select_holder')}" },
+            class: "form-control #{'is-error' if account.errors[:user].any?}" %>
+      <p class="form-hint"><%= t("finance.custody.accounts.holder_hint") %></p>
+    </div>
+    <div class="form-group">
+      <%= f.label :branch_id, t("finance.custody.accounts.branch"), class: "form-label" %>
+      <%= f.select :branch_id,
+            options_from_collection_for_select(@branches, :id, :name, account.branch_id),
+            { include_blank: "— #{t('finance.custody.accounts.no_branch')}" },
+            class: "form-control" %>
+    </div>
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :name, t("finance.custody.accounts.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if account.errors[:name].any?}",
+            placeholder: t("finance.custody.accounts.name_placeholder") %>
+    </div>
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <div class="form-check">
+        <%= f.check_box :active, class: "form-check-input" %>
+        <%= f.label :active, t("finance.common.active"), class: "form-check-label" %>
+      </div>
+    </div>
+  </div>
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), finance_custody_accounts_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

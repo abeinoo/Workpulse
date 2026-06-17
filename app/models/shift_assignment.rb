@@ -1,7 +1,7 @@
 class ShiftAssignment < ApplicationRecord
   belongs_to :user
   belongs_to :shift
-  belongs_to :branch,       optional: true
+  belongs_to :branch
   belongs_to :rule_profile, class_name: "ShiftRuleProfile",
                             foreign_key: :shift_rule_profile_id, optional: true
   belongs_to :created_by,      class_name: "User",          optional: true
@@ -218,6 +218,6 @@ class ShiftAssignment < ApplicationRecord
   end
 
   def intervals_overlap?(s1, e1, s2, e2)
-    [s1, s2].max < [e1, e2].min
+    [ s1, s2 ].max < [ e1, e2 ].min
   end
 end

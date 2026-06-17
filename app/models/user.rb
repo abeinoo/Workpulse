@@ -53,6 +53,10 @@ class User < ApplicationRecord
   has_many :performance_reviews,      dependent: :destroy, foreign_key: :employee_id
   has_many :performance_observations, dependent: :destroy, foreign_key: :employee_id
 
+  # Custody (عهد) — any employee may hold one or more custody accounts. Restricted
+  # on delete so a user with custody history can't be silently removed.
+  has_many :custody_accounts, dependent: :restrict_with_error
+
   EMPLOYMENT_TYPES = %w[full_time part_time contract intern].freeze
 
   enum :employment_type, {

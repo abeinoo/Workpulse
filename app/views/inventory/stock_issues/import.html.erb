@@ -23,6 +23,12 @@
               options_from_collection_for_select(@warehouses, :id, :name),
               include_blank: "— #{t('inventory.stock_issues.select_warehouse')}", class: "form-control", required: true %>
       </div>
+      <div class="form-group">
+        <%= label_tag :branch_id, t("inventory.stock_issues.branch"), class: "form-label" %>
+        <%= select_tag :branch_id,
+              options_from_collection_for_select(@branches, :id, :name),
+              include_blank: "— #{t('inventory.stock_issues.select_branch')}", class: "form-control", required: true %>
+      </div>
       <div class="form-group" style="grid-column: 1 / -1;">
         <%= label_tag :file, t("inventory.imports.file"), class: "form-label" %>
         <%= file_field_tag :file, accept: ".csv", class: "form-control", required: true %>

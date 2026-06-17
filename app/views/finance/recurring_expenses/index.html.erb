@@ -1,0 +1,47 @@
+<% content_for :title, t("finance.recurring.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("finance.recurring.title") %></h1>
+    <% if policy(RecurringExpense).new? %>
+      <%= link_to t("finance.recurring.add"), new_finance_recurring_expense_path, class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <p class="form-hint mb-4"><%= t("finance.recurring.intro") %></p>
+
+  <% if @recurring_expenses.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("finance.recurring.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("finance.expenses.category") %></th>
+          <th><%= t("finance.recurring.frequency") %></th>
+          <th><%= t("finance.expenses.branch") %></th>
+          <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
+          <th><%= t("finance.recurring.next_run_on") %></th>
+          <th><%= t("finance.common.status") %></th>
+        </tr></thead>
+        <tbody>
+          <% @recurring_expenses.each do |rec| %>
+            <tr>
+              <td><%= link_to rec.expense_category.name, finance_recurring_expense_path(rec), class: "link" %></td>
+              <td class="td-secondary"><%= t("finance.recurring.frequencies.#{rec.frequency}") %></td>
+              <td class="td-secondary"><%= rec.recurring_expense_allocations.any? ? t("finance.expenses.shared") : (rec.branch&.name || "—") %></td>
+              <td style="text-align: end;"><%= format_currency(rec.amount) %></td>
+              <td><%= l(rec.next_run_on, format: :long) %></td>
+              <td>
+                <% if rec.active? %>
+                  <span class="badge badge-success"><%= t("finance.common.active") %></span>
+                <% else %>
+                  <span class="badge"><%= t("finance.common.inactive") %></span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

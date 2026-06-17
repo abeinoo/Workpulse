@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_17_000006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -136,6 +136,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
     t.index ["created_at"], name: "index_audit_logs_on_created_at"
   end
 
+  create_table "balance_requests", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.bigint "branch_id"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.text "notes", null: false
+    t.datetime "paid_at"
+    t.bigint "paid_by_id"
+    t.string "reference_number"
+    t.text "rejection_reason"
+    t.date "request_date", null: false
+    t.string "status", default: "draft", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_balance_requests_on_approved_by_id"
+    t.index ["branch_id"], name: "index_balance_requests_on_branch_id"
+    t.index ["business_id", "status"], name: "index_balance_requests_on_business_id_and_status"
+    t.index ["business_id"], name: "index_balance_requests_on_business_id"
+    t.index ["created_by_id"], name: "index_balance_requests_on_created_by_id"
+    t.index ["paid_by_id"], name: "index_balance_requests_on_paid_by_id"
+    t.index ["reference_number"], name: "index_balance_requests_on_reference_number", unique: true, where: "(reference_number IS NOT NULL)"
+  end
+
   create_table "biometric_devices", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "business_id", null: false
@@ -177,6 +202,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
     t.index ["punched_at"], name: "index_biometric_punch_logs_on_punched_at"
     t.index ["received_at"], name: "index_biometric_punch_logs_on_received_at"
     t.index ["source"], name: "index_biometric_punch_logs_on_source"
+  end
+
+  create_table "branch_revenues", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.text "notes"
+    t.date "period_month", null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id", "period_month"], name: "index_branch_revenues_on_branch_id_and_period_month", unique: true
+    t.index ["branch_id"], name: "index_branch_revenues_on_branch_id"
+    t.index ["business_id"], name: "index_branch_revenues_on_business_id"
+    t.index ["created_by_id"], name: "index_branch_revenues_on_created_by_id"
   end
 
   create_table "branches", force: :cascade do |t|
@@ -227,6 +267,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
     t.datetime "updated_at", null: false
     t.integer "working_days_per_month", default: 26, null: false
     t.index ["owner_id"], name: "index_businesses_on_owner_id"
+  end
+
+  create_table "custody_accounts", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "branch_id"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.decimal "current_balance", precision: 12, scale: 2, default: "0.0", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["branch_id"], name: "index_custody_accounts_on_branch_id"
+    t.index ["business_id", "user_id"], name: "index_custody_accounts_on_business_id_and_user_id", unique: true
+    t.index ["business_id"], name: "index_custody_accounts_on_business_id"
+    t.index ["user_id"], name: "index_custody_accounts_on_user_id"
+  end
+
+  create_table "custody_transactions", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.bigint "custody_account_id", null: false
+    t.bigint "expense_id"
+    t.text "notes"
+    t.bigint "transfer_counterparty_id"
+    t.string "txn_type", null: false
+    t.datetime "updated_at", null: false
+    t.text "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.index ["approved_by_id"], name: "index_custody_transactions_on_approved_by_id"
+    t.index ["business_id", "txn_type"], name: "index_custody_transactions_on_business_id_and_txn_type"
+    t.index ["business_id"], name: "index_custody_transactions_on_business_id"
+    t.index ["created_by_id"], name: "index_custody_transactions_on_created_by_id"
+    t.index ["custody_account_id"], name: "index_custody_transactions_on_custody_account_id"
+    t.index ["expense_id"], name: "index_custody_transactions_on_expense_id"
+    t.index ["transfer_counterparty_id"], name: "index_custody_transactions_on_transfer_counterparty_id"
+    t.index ["voided_by_id"], name: "index_custody_transactions_on_voided_by_id"
   end
 
   create_table "departments", force: :cascade do |t|
@@ -315,6 +396,96 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
     t.index ["department_id"], name: "index_evaluation_templates_on_department_id"
   end
 
+  create_table "expense_allocations", force: :cascade do |t|
+    t.decimal "allocated_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "allocation_percentage", precision: 5, scale: 2, default: "0.0", null: false
+    t.bigint "branch_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "expense_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id"], name: "index_expense_allocations_on_branch_id"
+    t.index ["expense_id", "branch_id"], name: "index_expense_allocations_on_expense_id_and_branch_id", unique: true
+    t.index ["expense_id"], name: "index_expense_allocations_on_expense_id"
+  end
+
+  create_table "expense_categories", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((name)::text)", name: "index_expense_categories_on_business_id_and_lower_name", unique: true
+    t.index ["business_id"], name: "index_expense_categories_on_business_id"
+  end
+
+  create_table "expense_taggings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "expense_id", null: false
+    t.bigint "expense_tag_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["expense_id", "expense_tag_id"], name: "index_expense_taggings_on_expense_id_and_expense_tag_id", unique: true
+    t.index ["expense_id"], name: "index_expense_taggings_on_expense_id"
+    t.index ["expense_tag_id"], name: "index_expense_taggings_on_expense_tag_id"
+  end
+
+  create_table "expense_tags", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((name)::text)", name: "index_expense_tags_on_business_id_and_lower_name", unique: true
+    t.index ["business_id"], name: "index_expense_tags_on_business_id"
+  end
+
+  create_table "expense_types", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.bigint "expense_category_id", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "expense_category_id, lower((name)::text)", name: "index_expense_types_on_category_id_and_lower_name", unique: true
+    t.index ["business_id"], name: "index_expense_types_on_business_id"
+    t.index ["expense_category_id"], name: "index_expense_types_on_expense_category_id"
+  end
+
+  create_table "expenses", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.bigint "branch_id"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.boolean "deduct_from_balance", default: true, null: false
+    t.text "description"
+    t.bigint "expense_category_id", null: false
+    t.date "expense_date", null: false
+    t.bigint "expense_type_id"
+    t.boolean "is_shared", default: false, null: false
+    t.text "notes"
+    t.string "reference_number", null: false
+    t.datetime "rejected_at"
+    t.text "rejection_reason"
+    t.bigint "source_recurring_expense_id"
+    t.string "status", default: "draft", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_expenses_on_approved_by_id"
+    t.index ["branch_id", "expense_date"], name: "index_expenses_on_branch_id_and_expense_date"
+    t.index ["business_id", "expense_date"], name: "index_expenses_on_business_id_and_expense_date"
+    t.index ["business_id", "reference_number"], name: "index_expenses_on_business_id_and_reference_number", unique: true
+    t.index ["business_id", "status"], name: "index_expenses_on_business_id_and_status"
+    t.index ["business_id"], name: "index_expenses_on_business_id"
+    t.index ["created_by_id"], name: "index_expenses_on_created_by_id"
+    t.index ["expense_category_id"], name: "index_expenses_on_expense_category_id"
+    t.index ["expense_type_id"], name: "index_expenses_on_expense_type_id"
+    t.index ["source_recurring_expense_id", "expense_date"], name: "index_expenses_on_recurring_source_and_date", unique: true, where: "(source_recurring_expense_id IS NOT NULL)"
+    t.index ["source_recurring_expense_id"], name: "index_expenses_on_source_recurring_expense_id"
+  end
+
   create_table "goods_receipt_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "goods_receipt_id", null: false
@@ -349,6 +520,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
   end
 
   create_table "inventory_movements", force: :cascade do |t|
+    t.bigint "branch_id"
     t.bigint "business_id", null: false
     t.datetime "created_at", null: false
     t.string "direction", null: false
@@ -361,6 +533,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
     t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
     t.datetime "updated_at", null: false
     t.bigint "warehouse_id", null: false
+    t.index ["branch_id", "occurred_on"], name: "index_inventory_movements_on_branch_id_and_occurred_on"
     t.index ["business_id", "occurred_on"], name: "index_inventory_movements_on_business_id_and_occurred_on"
     t.index ["business_id"], name: "index_inventory_movements_on_business_id"
     t.index ["product_id", "warehouse_id"], name: "index_inventory_movements_on_product_id_and_warehouse_id"
@@ -644,6 +817,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
     t.string "name", null: false
     t.jsonb "permission_scopes", default: {}, null: false
     t.jsonb "permissions", default: [], null: false
+    t.string "role_type"
     t.datetime "updated_at", null: false
     t.index ["business_id", "name"], name: "index_permission_roles_on_business_id_and_name", unique: true
     t.index ["business_id"], name: "index_permission_roles_on_business_id"
@@ -695,6 +869,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
     t.index ["business_id"], name: "index_products_on_business_id"
     t.index ["default_supplier_id"], name: "index_products_on_default_supplier_id"
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
+  end
+
+  create_table "recurring_expense_allocations", force: :cascade do |t|
+    t.decimal "allocation_percentage", precision: 5, scale: 2, default: "0.0", null: false
+    t.bigint "branch_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "recurring_expense_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id"], name: "index_recurring_expense_allocations_on_branch_id"
+    t.index ["recurring_expense_id", "branch_id"], name: "index_recurring_allocations_on_recurring_and_branch", unique: true
+    t.index ["recurring_expense_id"], name: "index_recurring_expense_allocations_on_recurring_expense_id"
+  end
+
+  create_table "recurring_expenses", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.bigint "branch_id"
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.date "end_date"
+    t.bigint "expense_category_id", null: false
+    t.bigint "expense_type_id"
+    t.string "frequency", null: false
+    t.date "last_generated_on"
+    t.date "next_run_on", null: false
+    t.date "start_date", null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id"], name: "index_recurring_expenses_on_branch_id"
+    t.index ["business_id", "active", "next_run_on"], name: "idx_on_business_id_active_next_run_on_34340a316c"
+    t.index ["business_id"], name: "index_recurring_expenses_on_business_id"
+    t.index ["created_by_id"], name: "index_recurring_expenses_on_created_by_id"
+    t.index ["expense_category_id"], name: "index_recurring_expenses_on_expense_category_id"
+    t.index ["expense_type_id"], name: "index_recurring_expenses_on_expense_type_id"
   end
 
   create_table "salary_profiles", force: :cascade do |t|
@@ -1027,6 +1235,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
   end
 
   create_table "stock_issues", force: :cascade do |t|
+    t.bigint "branch_id"
     t.bigint "business_id", null: false
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
@@ -1038,6 +1247,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
     t.datetime "voided_at"
     t.bigint "voided_by_id"
     t.bigint "warehouse_id", null: false
+    t.index ["branch_id"], name: "index_stock_issues_on_branch_id"
     t.index ["business_id", "issue_number"], name: "index_stock_issues_on_business_id_and_issue_number", unique: true
     t.index ["business_id"], name: "index_stock_issues_on_business_id"
     t.index ["created_by_id"], name: "index_stock_issues_on_created_by_id"
@@ -1180,16 +1390,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
   add_foreign_key "attendance_records", "users"
   add_foreign_key "audit_logs", "businesses"
   add_foreign_key "audit_logs", "users", column: "actor_id"
+  add_foreign_key "balance_requests", "branches"
+  add_foreign_key "balance_requests", "businesses"
+  add_foreign_key "balance_requests", "users", column: "approved_by_id"
+  add_foreign_key "balance_requests", "users", column: "created_by_id"
+  add_foreign_key "balance_requests", "users", column: "paid_by_id"
   add_foreign_key "biometric_devices", "businesses"
   add_foreign_key "biometric_punch_logs", "attendance_records"
   add_foreign_key "biometric_punch_logs", "biometric_devices"
   add_foreign_key "biometric_punch_logs", "businesses"
   add_foreign_key "biometric_punch_logs", "users", column: "employee_id"
+  add_foreign_key "branch_revenues", "branches"
+  add_foreign_key "branch_revenues", "businesses"
+  add_foreign_key "branch_revenues", "users", column: "created_by_id"
   add_foreign_key "branches", "businesses"
   add_foreign_key "branches", "users", column: "area_manager_id"
   add_foreign_key "branches", "users", column: "branch_manager_id"
   add_foreign_key "brands", "businesses"
   add_foreign_key "businesses", "users", column: "owner_id"
+  add_foreign_key "custody_accounts", "branches"
+  add_foreign_key "custody_accounts", "businesses"
+  add_foreign_key "custody_accounts", "users"
+  add_foreign_key "custody_transactions", "businesses"
+  add_foreign_key "custody_transactions", "custody_accounts"
+  add_foreign_key "custody_transactions", "custody_transactions", column: "transfer_counterparty_id"
+  add_foreign_key "custody_transactions", "expenses"
+  add_foreign_key "custody_transactions", "users", column: "approved_by_id"
+  add_foreign_key "custody_transactions", "users", column: "created_by_id"
+  add_foreign_key "custody_transactions", "users", column: "voided_by_id"
   add_foreign_key "departments", "businesses"
   add_foreign_key "employee_obligations", "businesses"
   add_foreign_key "employee_obligations", "users"
@@ -1199,6 +1427,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
   add_foreign_key "evaluation_criteria", "evaluation_templates"
   add_foreign_key "evaluation_templates", "businesses"
   add_foreign_key "evaluation_templates", "departments"
+  add_foreign_key "expense_allocations", "branches"
+  add_foreign_key "expense_allocations", "expenses"
+  add_foreign_key "expense_categories", "businesses"
+  add_foreign_key "expense_taggings", "expense_tags"
+  add_foreign_key "expense_taggings", "expenses"
+  add_foreign_key "expense_tags", "businesses"
+  add_foreign_key "expense_types", "businesses"
+  add_foreign_key "expense_types", "expense_categories"
+  add_foreign_key "expenses", "branches"
+  add_foreign_key "expenses", "businesses"
+  add_foreign_key "expenses", "expense_categories"
+  add_foreign_key "expenses", "expense_types"
+  add_foreign_key "expenses", "recurring_expenses", column: "source_recurring_expense_id"
+  add_foreign_key "expenses", "users", column: "approved_by_id"
+  add_foreign_key "expenses", "users", column: "created_by_id"
   add_foreign_key "goods_receipt_items", "goods_receipts"
   add_foreign_key "goods_receipt_items", "products"
   add_foreign_key "goods_receipts", "businesses"
@@ -1206,6 +1449,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
   add_foreign_key "goods_receipts", "users", column: "created_by_id"
   add_foreign_key "goods_receipts", "users", column: "voided_by_id"
   add_foreign_key "goods_receipts", "warehouses"
+  add_foreign_key "inventory_movements", "branches"
   add_foreign_key "inventory_movements", "businesses"
   add_foreign_key "inventory_movements", "products"
   add_foreign_key "inventory_movements", "warehouses"
@@ -1253,6 +1497,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
   add_foreign_key "products", "businesses"
   add_foreign_key "products", "product_categories"
   add_foreign_key "products", "suppliers", column: "default_supplier_id"
+  add_foreign_key "recurring_expense_allocations", "branches"
+  add_foreign_key "recurring_expense_allocations", "recurring_expenses"
+  add_foreign_key "recurring_expenses", "branches"
+  add_foreign_key "recurring_expenses", "businesses"
+  add_foreign_key "recurring_expenses", "expense_categories"
+  add_foreign_key "recurring_expenses", "expense_types"
+  add_foreign_key "recurring_expenses", "users", column: "created_by_id"
   add_foreign_key "salary_profiles", "users"
   add_foreign_key "shift_assignments", "branches"
   add_foreign_key "shift_assignments", "shift_rule_profiles"
@@ -1291,6 +1542,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_000001) do
   add_foreign_key "stock_counts", "warehouses"
   add_foreign_key "stock_issue_items", "products"
   add_foreign_key "stock_issue_items", "stock_issues"
+  add_foreign_key "stock_issues", "branches"
   add_foreign_key "stock_issues", "businesses"
   add_foreign_key "stock_issues", "users", column: "created_by_id"
   add_foreign_key "stock_issues", "users", column: "voided_by_id"

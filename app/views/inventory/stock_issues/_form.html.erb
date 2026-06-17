@@ -11,6 +11,14 @@
             class: "form-control #{'is-error' if stock_issue.errors[:warehouse].any?}" %>
     </div>
     <div class="form-group">
+      <%= f.label :branch_id, t("inventory.stock_issues.branch"), class: "form-label" %>
+      <%= f.select :branch_id,
+            options_from_collection_for_select(@branches, :id, :name, stock_issue.branch_id),
+            { include_blank: "— #{t('inventory.stock_issues.select_branch')}" },
+            class: "form-control #{'is-error' if stock_issue.errors[:branch].any? || stock_issue.errors[:branch_id].any?}" %>
+      <p class="form-hint"><%= t("inventory.stock_issues.branch_hint") %></p>
+    </div>
+    <div class="form-group">
       <%= f.label :issued_on, t("inventory.stock_issues.date"), class: "form-label" %>
       <%= f.date_field :issued_on, class: "form-control" %>
     </div>

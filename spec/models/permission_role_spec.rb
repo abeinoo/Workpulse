@@ -109,12 +109,12 @@ RSpec.describe PermissionRole, type: :model do
 
   # ── Constants ───────────────────────────────────────────────────────────────
   describe "PERMISSION_GROUPS" do
-    it "covers exactly 11 groups" do
-      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(11)
+    it "covers exactly 15 groups" do
+      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(15)
     end
 
-    it "has 45 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(45)
+    it "has 62 total permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(62)
     end
 
     it "includes view_payroll_analytics as a separate permission from view_payroll" do

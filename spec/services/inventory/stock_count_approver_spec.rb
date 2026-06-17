@@ -67,7 +67,7 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
     it "recomputes system quantity at approval time, not from the stale snapshot" do
       count = completed_count([ p1, 20 ])                 # snapshot system=20, counted=20 (diff 0)
       # Stock changes after the count was taken: issue 5 → live system now 15.
-      i = business.stock_issues.build(warehouse: warehouse, issued_on: Date.current)
+      i = business.stock_issues.build(warehouse: warehouse, branch: business.branches.first_or_create!(name: "Count Branch", active: true), issued_on: Date.current)
       i.items.build(product: p1, quantity: 5)
       Inventory::StockIssuePoster.new(i).call
 

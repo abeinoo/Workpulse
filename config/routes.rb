@@ -307,6 +307,57 @@ Rails.application.routes.draw do
     get "reports/supplier_purchases", to: "reports#supplier_purchases", as: :supplier_purchases_report
   end
 
+  # ── Financial Operations & Expense Management ─────────────────────────────
+  namespace :finance do
+    root to: "dashboard#index"
+
+    resources :expenses do
+      member do
+        patch :submit
+        patch :approve
+        patch :reject
+      end
+    end
+
+    resources :balance_requests do
+      member do
+        patch :submit
+        patch :approve
+        patch :reject
+        patch :mark_paid
+      end
+    end
+
+    resources :expense_categories, except: [ :show ]
+    resources :expense_types,      except: [ :show ]
+    resources :expense_tags,       except: [ :show ]
+    resources :branch_revenues,    except: [ :show ]
+
+    resources :recurring_expenses do
+      member { post :generate }
+    end
+
+    # ── Reports & Branch Profitability ────────────────────────────────────
+    get "reports",                      to: "reports#index",                as: :reports
+    get "reports/expenses_by_branch",   to: "reports#expenses_by_branch",   as: :expenses_by_branch_report
+    get "reports/expenses_by_category", to: "reports#expenses_by_category", as: :expenses_by_category_report
+    get "reports/expenses_by_type",     to: "reports#expenses_by_type",     as: :expenses_by_type_report
+    get "reports/expense_trend",        to: "reports#expense_trend",        as: :expense_trend_report
+    get "reports/shared_allocation",    to: "reports#shared_allocation",    as: :shared_allocation_report
+    get "reports/recurring",            to: "reports#recurring",            as: :recurring_report
+    get "reports/custody_balances",     to: "reports#custody_balances",     as: :custody_balances_report
+    get "reports/custody_transactions", to: "reports#custody_transactions", as: :custody_transactions_report
+    get "reports/negative_balances",    to: "reports#negative_balances",    as: :negative_balances_report
+    get "reports/approvals",            to: "reports#approvals",            as: :approvals_report
+    get "reports/branch_profitability", to: "reports#branch_profitability", as: :branch_profitability_report
+
+    resources :custody_accounts do
+      resources :custody_transactions, only: [ :create ] do
+        member { patch :void }
+      end
+    end
+  end
+
   # ── Performance Evaluation ────────────────────────────────────────────────
   namespace :performance do
     root to: "dashboard#index"

@@ -1,0 +1,28 @@
+<% content_for :title, @table.title %>
+
+<div class="admin-page">
+  <%= link_to finance_reports_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("finance.reports.title") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title"><%= @table.title %></h1>
+    <%= link_to t("finance.reports.export_csv"), url_for(format: :csv, year: @year, month: @month),
+          class: "btn btn-secondary btn-sm" %>
+  </div>
+
+  <p class="form-hint mb-4"><%= t("finance.reports.profitability_formula") %></p>
+
+  <%= form_with url: finance_branch_profitability_report_path, method: :get, class: "filter-bar" do %>
+    <%= select_tag :month,
+          options_for_select((1..12).map { |m| [ I18n.l(Date.new(2000, m, 1), format: "%B"), m ] }, @month),
+          class: "form-control form-control--sm" %>
+    <%= select_tag :year,
+          options_for_select(((Date.current.year - 4)..Date.current.year).to_a.reverse, @year),
+          class: "form-control form-control--sm" %>
+    <%= submit_tag t("finance.common.filter"), class: "btn btn-secondary btn-sm" %>
+  <% end %>
+
+  <%= render "table", table: @table %>
+</div>

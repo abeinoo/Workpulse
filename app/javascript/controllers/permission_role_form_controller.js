@@ -6,11 +6,13 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static targets = ["group", "groupToggle", "checkbox", "scopeRow", "scopeSelect",
-                    "searchInput", "groupsContainer", "noResults"]
-  static values  = { deps: Object }  // populated from data-permission-role-form-deps-value
+                    "searchInput", "groupsContainer", "noResults",
+                    "roleTypeSelect", "applyDefaultsBtn"]
+  static values  = { deps: Object, defaults: Object }
 
   connect() {
     this.updateAllGroupToggles()
+    this._syncApplyDefaultsBtn()
   }
 
   // ── Bulk select ────────────────────────────────────────────────────────────
@@ -51,6 +53,30 @@ export default class extends Controller {
 
   updateAllGroupToggles() {
     this.groupTargets.forEach(g => this._syncGroupToggle(g))
+  }
+
+  // ── Role archetype ────────────────────────────────────────────────────────
+
+  onRoleTypeChange() {
+    this._syncApplyDefaultsBtn()
+  }
+
+  applyDefaults(event) {
+    const btn = event.currentTarget
+    if (btn.dataset.confirm && !confirm(btn.dataset.confirm)) return
+
+    const roleType = this.roleTypeSelectTarget.value
+    const defaults = this.defaultsValue[roleType] || []
+
+    this.checkboxTargets.forEach(cb => { cb.checked = defaults.includes(cb.dataset.perm) })
+    this._syncAllScopeRows()
+    this.updateAllGroupToggles()
+  }
+
+  _syncApplyDefaultsBtn() {
+    if (!this.hasApplyDefaultsBtnTarget || !this.hasRoleTypeSelectTarget) return
+    const roleType = this.roleTypeSelectTarget.value
+    this.applyDefaultsBtnTarget.style.display = roleType ? "" : "none"
   }
 
   // ── Per-permission change: enforce dependency rules ────────────────────────

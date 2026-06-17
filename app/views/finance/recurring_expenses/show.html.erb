@@ -1,0 +1,75 @@
+<% content_for :title, t("finance.recurring.show_title") %>
+
+<div class="admin-page">
+  <%= link_to finance_recurring_expenses_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="page-header">
+    <h1 class="page-title">
+      <%= @recurring.expense_category.name %>
+      <% if @recurring.active? %><span class="badge badge-success"><%= t("finance.common.active") %></span>
+      <% else %><span class="badge"><%= t("finance.common.inactive") %></span><% end %>
+    </h1>
+    <div class="page-header__actions">
+      <% if policy(@recurring).update? %>
+        <%= link_to t("common.edit"), edit_finance_recurring_expense_path(@recurring), class: "btn btn-secondary btn-sm" %>
+      <% end %>
+      <% if policy(@recurring).generate? %>
+        <%= button_to t("finance.recurring.generate_now"), generate_finance_recurring_expense_path(@recurring),
+              method: :post, class: "btn btn-primary btn-sm",
+              data: { turbo_confirm: t("finance.recurring.generate_confirm") } %>
+      <% end %>
+      <% if policy(@recurring).destroy? %>
+        <%= button_to t("common.delete"), finance_recurring_expense_path(@recurring), method: :delete,
+              class: "btn btn-ghost btn-sm text-danger", data: { turbo_confirm: t("finance.recurring.confirm_delete") } %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div class="detail-item"><span class="detail-label"><%= t("finance.expenses.amount") %></span>
+      <span class="detail-value"><%= format_currency(@recurring.amount) %></span></div>
+    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.frequency") %></span>
+      <span class="detail-value"><%= t("finance.recurring.frequencies.#{@recurring.frequency}") %></span></div>
+    <div class="detail-item"><span class="detail-label"><%= t("finance.expenses.type") %></span>
+      <span class="detail-value"><%= @recurring.expense_type&.name || "—" %></span></div>
+    <div class="detail-item"><span class="detail-label"><%= t("finance.expenses.branch") %></span>
+      <span class="detail-value"><%= @recurring.recurring_expense_allocations.any? ? t("finance.expenses.shared") : (@recurring.branch&.name || "—") %></span></div>
+    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.start_date") %></span>
+      <span class="detail-value"><%= l(@recurring.start_date, format: :long) %></span></div>
+    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.end_date") %></span>
+      <span class="detail-value"><%= @recurring.end_date ? l(@recurring.end_date, format: :long) : "—" %></span></div>
+    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.next_run_on") %></span>
+      <span class="detail-value"><%= l(@recurring.next_run_on, format: :long) %></span></div>
+    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.last_generated_on") %></span>
+      <span class="detail-value"><%= @recurring.last_generated_on ? l(@recurring.last_generated_on, format: :long) : "—" %></span></div>
+  </div>
+
+  <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.recurring.generated_expenses") %></h2>
+  <% if @generated.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("finance.recurring.no_generated") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("finance.expenses.reference") %></th>
+          <th><%= t("finance.expenses.date") %></th>
+          <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
+          <th><%= t("finance.common.status") %></th>
+        </tr></thead>
+        <tbody>
+          <% @generated.each do |expense| %>
+            <tr>
+              <td><%= link_to expense.reference_number, finance_expense_path(expense), class: "link" %></td>
+              <td><%= l(expense.expense_date, format: :long) %></td>
+              <td style="text-align: end;"><%= format_currency(expense.amount) %></td>
+              <td><%= render "finance/expenses/status_badge", status: expense.display_status %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

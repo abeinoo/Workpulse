@@ -71,6 +71,7 @@ module Inventory
         business:    @issue.business,
         product:     item.product,
         warehouse:   @issue.warehouse,
+        branch:      @issue.branch,
         direction:   :out,
         reason:      :stock_issue,
         quantity:    item.quantity,

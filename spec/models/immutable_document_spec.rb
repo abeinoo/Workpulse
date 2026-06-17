@@ -18,7 +18,7 @@ RSpec.describe ImmutableDocument, type: :model do
 
   def posted_issue
     posted_receipt
-    i = business.stock_issues.build(warehouse: warehouse, issued_on: Date.current)
+    i = business.stock_issues.build(warehouse: warehouse, branch: business.branches.first_or_create!(name: "Doc Branch", active: true), issued_on: Date.current)
     i.items.build(product: product, quantity: 2)
     Inventory::StockIssuePoster.new(i).call.issue
   end
