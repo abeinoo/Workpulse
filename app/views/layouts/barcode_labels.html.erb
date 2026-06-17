@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="<%= I18n.locale %>" dir="<%= I18n.locale.to_s == "ar" ? "rtl" : "ltr" %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= content_for?(:title) ? yield(:title) : t("inventory.barcode_labels.title") %> — <%= t("app_name") %></title>
+  <%= csrf_meta_tags %>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; color: #111; }
+
+    /* ── Screen-only controls ── */
+    .print-controls {
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .print-controls h1 { font-size: 16px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+    .btn-primary  { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .btn-ghost    { background: transparent; color: #374151; border-color: #d1d5db; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .print-hint   { font-size: 13px; color: #6b7280; }
+
+    /* ── Label grid — 4-across on A4 ── */
+    .label-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4mm;
+      padding: 8mm;
+      justify-content: flex-start;
+      align-content: flex-start;
+    }
+
+    /* ── Individual label ── */
+    .label {
+      width: 62mm;
+      min-height: 34mm;
+      background: #fff;
+      border: 0.5mm solid #bbb;
+      border-radius: 2mm;
+      padding: 3mm 3.5mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5mm;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .label__name {
+      font-size: 9pt;
+      font-weight: 700;
+      text-align: center;
+      max-width: 100%;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+
+    .label__sku {
+      font-size: 7pt;
+      color: #555;
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+
+    .label__variant {
+      font-size: 8pt;
+      font-weight: 600;
+      text-align: center;
+      color: #333;
+    }
+
+    .label__barcode {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      padding: 1mm 0;
+    }
+    .label__barcode svg { display: block; max-width: 56mm; height: auto; }
+
+    .label__code {
+      font-size: 8pt;
+      font-family: "Courier New", Courier, monospace;
+      text-align: center;
+      letter-spacing: 0.08em;
+      color: #111;
+    }
+
+    .label__price {
+      font-size: 11pt;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .label__type {
+      font-size: 6pt;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Separator between products in bulk view ── */
+    .product-section + .product-section { margin-top: 4mm; }
+
+    /* ── Empty state ── */
+    .empty-label {
+      padding: 60px 40px;
+      text-align: center;
+      color: #888;
+      font-size: 15px;
+    }
+
+    /* ── Print rules ── */
+    @media print {
+      body { background: white; }
+      .print-controls { display: none !important; }
+      .label-grid { padding: 0; gap: 3mm; }
+      .label { border-color: #999; box-shadow: none; }
+      @page { margin: 8mm; size: A4 portrait; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-controls no-print">
+    <h1><%= content_for?(:title) ? yield(:title) : t("inventory.barcode_labels.title") %></h1>
+    <button class="btn btn-primary" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <%= t("inventory.barcode_labels.print") %>
+    </button>
+    <button class="btn btn-ghost" onclick="window.close()"><%= t("common.close") %></button>
+  </div>
+
+  <%= yield %>
+
+  <%# JsBarcode for Code128 rendering — loaded after body so DOMContentLoaded fires %>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (typeof JsBarcode === "undefined") return;
+      document.querySelectorAll(".barcode-svg[data-value]").forEach(function (el) {
+        var code = el.dataset.value;
+        if (!code) return;
+        try {
+          JsBarcode(el, code, {
+            format:       "CODE128",
+            displayValue: false,
+            width:        1.6,
+            height:       38,
+            margin:       0,
+            background:   "#ffffff",
+            lineColor:    "#000000"
+          });
+        } catch (e) {
+          el.setAttribute("data-barcode-error", e.message);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

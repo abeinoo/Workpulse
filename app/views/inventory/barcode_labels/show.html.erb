@@ -1,0 +1,28 @@
+<% content_for :title, "#{@product.name} — #{t('inventory.barcode_labels.title')}" %>
+<% if @barcodes.none? %>
+  <div class="empty-label"><%= t("inventory.barcode_labels.no_barcodes") %></div>
+<% else %>
+  <div class="label-grid">
+    <% @barcodes.each do |bc| %>
+      <% @quantity.times do %>
+        <div class="label">
+          <div class="label__name"><%= @product.name %></div>
+          <% if bc.product_variant.present? %>
+            <div class="label__variant"><%= bc.product_variant.name %></div>
+          <% end %>
+          <% if @product.sku.present? %>
+            <div class="label__sku"><%= @product.sku %></div>
+          <% end %>
+          <div class="label__barcode">
+            <svg class="barcode-svg" data-value="<%= bc.barcode %>"></svg>
+          </div>
+          <div class="label__code"><%= bc.barcode %></div>
+          <% if @show_price && @product.selling_price.to_d > 0 %>
+            <div class="label__price"><%= format_currency(@product.selling_price) %></div>
+          <% end %>
+          <div class="label__type"><%= t("inventory.products.barcode_types.#{bc.barcode_type}", default: bc.barcode_type) %></div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

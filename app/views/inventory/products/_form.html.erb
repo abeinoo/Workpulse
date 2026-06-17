@@ -38,10 +38,6 @@
       <%= f.text_field :sku, class: "form-control #{'is-error' if product.errors[:sku].any?}" %>
     </div>
     <div class="form-group">
-      <%= f.label :barcode, t("inventory.products.barcode"), class: "form-label" %>
-      <%= f.text_field :barcode, class: "form-control #{'is-error' if product.errors[:barcode].any?}" %>
-    </div>
-    <div class="form-group">
       <%= f.label :brand_id, t("inventory.products.brand"), class: "form-label" %>
       <%= f.select :brand_id,
             options_from_collection_for_select(@brands, :id, :name, product.brand_id),
@@ -60,6 +56,75 @@
             { include_blank: "— #{t('inventory.products.no_default_supplier')}" }, class: "form-control" %>
       <p class="form-hint"><%= t("inventory.products.default_supplier_hint") %></p>
     </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── Variants ──────────────────────────────────────────── %>
+  <div data-controller="line-items">
+    <h2 class="section-title"><%= t("inventory.products.section_variants") %></h2>
+    <p class="form-hint"><%= t("inventory.products.variants_hint") %></p>
+
+    <div data-line-items-target="rows" class="variant-list">
+      <%= f.fields_for :product_variants do |v_f| %>
+        <%= render "variant_fields", f: v_f %>
+      <% end %>
+    </div>
+
+    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_variants.any? %>>
+      <%= t("inventory.products.no_variants") %>
+    </p>
+
+    <div style="margin-top: var(--space-3);">
+      <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
+        + <%= t("inventory.products.add_variant") %>
+      </button>
+    </div>
+
+    <template data-line-items-target="template">
+      <%= f.fields_for :product_variants, ProductVariant.new, child_index: "NEW_INDEX" do |v_f| %>
+        <%= render "variant_fields", f: v_f %>
+      <% end %>
+    </template>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── Barcodes ──────────────────────────────────────────── %>
+  <% product_variants_for_barcodes = product.product_variants.loaded? ? product.product_variants.to_a : product.product_variants.ordered.to_a %>
+  <div data-controller="line-items barcode-list"
+       data-barcode-list-generate-url-value="<%= next_barcode_code_inventory_products_path(format: :json) %>"
+       <%= "data-barcode-list-generate-save-url-value=\"#{generate_barcode_inventory_product_path(product, format: :json)}\"".html_safe if product.persisted? %>>
+    <h2 class="section-title"><%= t("inventory.products.barcodes") %></h2>
+    <p class="form-hint"><%= t("inventory.products.barcodes_hint") %></p>
+
+    <div data-line-items-target="rows" class="barcode-list">
+      <%= f.fields_for :product_barcodes do |bc_f| %>
+        <%= render "barcode_fields", f: bc_f, variants: product_variants_for_barcodes %>
+      <% end %>
+    </div>
+
+    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_barcodes.any? %>>
+      <%= t("inventory.products.no_barcodes") %>
+    </p>
+
+    <div class="flex" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
+      <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
+        + <%= t("inventory.products.add_barcode") %>
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" data-action="barcode-list#generate">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="4" height="18"/><rect x="9" y="3" width="2" height="18"/><rect x="13" y="3" width="4" height="18"/><rect x="19" y="3" width="2" height="9"/>
+        </svg>
+        <%= t("inventory.products.generate_barcode") %>
+      </button>
+    </div>
+
+    <template data-line-items-target="template">
+      <%= f.fields_for :product_barcodes, ProductBarcode.new, child_index: "NEW_INDEX" do |bc_f| %>
+        <%= render "barcode_fields", f: bc_f, variants: product_variants_for_barcodes %>
+      <% end %>
+    </template>
   </div>
 
   <div class="divider"></div>
@@ -83,6 +148,38 @@
     <div class="form-group">
       <%= f.label :reorder_quantity, t("inventory.products.reorder_quantity"), class: "form-label" %>
       <%= f.number_field :reorder_quantity, step: "0.001", min: 0, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <%# ── Inventory tracking & notifications ─────────────────── %>
+  <h2 class="section-title"><%= t("inventory.products.section_inventory_tracking") %></h2>
+  <div class="form-grid" data-controller="inventory-tracking">
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <div class="form-check">
+        <%= f.check_box :track_inventory, class: "form-check-input",
+              data: { action: "change->inventory-tracking#toggle" } %>
+        <%= f.label :track_inventory, t("inventory.products.track_inventory"), class: "form-check-label" %>
+      </div>
+      <p class="form-hint"><%= t("inventory.products.track_inventory_hint") %></p>
+    </div>
+
+    <div class="form-group" data-inventory-tracking-target="notificationFields"
+         <%= "hidden" unless product.track_inventory? %>>
+      <div class="form-check">
+        <%= f.check_box :receive_low_stock_notification, class: "form-check-input" %>
+        <%= f.label :receive_low_stock_notification,
+              t("inventory.products.receive_low_stock_notification"), class: "form-check-label" %>
+      </div>
+      <p class="form-hint"><%= t("inventory.products.receive_low_stock_notification_hint") %></p>
+    </div>
+
+    <div class="form-group" data-inventory-tracking-target="notificationFields"
+         <%= "hidden" unless product.track_inventory? %>>
+      <%= f.label :reorder_level, t("inventory.products.reorder_level"), class: "form-label" %>
+      <%= f.number_field :reorder_level, step: 1, min: 0, class: "form-control" %>
+      <p class="form-hint"><%= t("inventory.products.reorder_level_hint") %></p>
     </div>
   </div>
 

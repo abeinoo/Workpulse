@@ -1,0 +1,72 @@
+<div data-line-row class="barcode-list__row">
+  <%= f.hidden_field :id if f.object.persisted? %>
+  <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } if f.object.persisted? %>
+
+  <div class="barcode-list__input-wrap"
+       data-controller="camera-scanner"
+       data-camera-scanner-mode-value="fill"
+       data-camera-scanner-i18n-title="<%= t('inventory.camera_scanner.title') %>"
+       data-camera-scanner-i18n-close="<%= t('inventory.camera_scanner.close') %>"
+       data-camera-scanner-i18n-hint="<%= t('inventory.camera_scanner.hint') %>"
+       data-camera-scanner-i18n-starting="<%= t('inventory.camera_scanner.starting') %>"
+       data-camera-scanner-i18n-permission-denied="<%= t('inventory.camera_scanner.permission_denied') %>"
+       data-camera-scanner-i18n-no-camera="<%= t('inventory.camera_scanner.no_camera') %>"
+       data-camera-scanner-i18n-start-error="<%= t('inventory.camera_scanner.start_error') %>"
+       data-camera-scanner-i18n-switch-camera="<%= t('inventory.camera_scanner.switch_camera') %>">
+    <%= f.label :barcode, t("inventory.products.barcode_value"), class: "form-label" %>
+    <div class="barcode-input-group">
+      <%= f.text_field :barcode,
+            class: "form-control",
+            autocomplete: "off",
+            data: { "camera-scanner-target": "fill" } %>
+      <button type="button" class="btn btn-secondary barcode-camera-btn"
+              data-action="camera-scanner#open"
+              aria-label="<%= t('inventory.camera_scanner.open_camera') %>">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <span class="barcode-camera-btn__label"><%= t("inventory.camera_scanner.scan_button") %></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="form-group barcode-list__type">
+    <%= f.label :barcode_type, t("inventory.products.barcode_type"), class: "form-label" %>
+    <%= f.select :barcode_type,
+          ProductBarcode::BARCODE_TYPES.map { |type|
+            [ t("inventory.products.barcode_types.#{type}"), type ]
+          },
+          { selected: f.object.barcode_type.presence || "manufacturer", include_blank: false },
+          class: "form-control" %>
+  </div>
+
+  <% available_variants = local_assigns[:variants] || [] %>
+  <% if available_variants.any? %>
+    <div class="form-group barcode-list__variant">
+      <%= f.label :variant_id, t("inventory.products.barcode_variant"), class: "form-label" %>
+      <%= f.select :variant_id,
+            [ [ t("inventory.products.barcode_no_variant"), "" ] ] +
+              available_variants.map { |v| [ v.active? ? v.name : "#{v.name} (#{t('common.inactive')})", v.id ] },
+            { selected: f.object.variant_id.to_s },
+            class: "form-control",
+            data: { "variant-id-select": true } %>
+    </div>
+  <% end %>
+
+  <div class="form-group barcode-list__primary">
+    <label class="form-label"><%= t("inventory.products.barcode_primary") %></label>
+    <div class="form-check">
+      <%= f.check_box :is_primary,
+            class: "form-check-input",
+            data: { "primary-cb": true, action: "change->barcode-list#setPrimary" } %>
+      <%= f.label :is_primary, t("inventory.products.barcode_primary_label"), class: "form-check-label" %>
+    </div>
+  </div>
+
+  <div class="barcode-list__actions">
+    <button type="button" class="btn btn-ghost btn-sm text-danger"
+            data-action="line-items#remove"
+            aria-label="<%= t('common.delete') %>">×</button>
+  </div>
+</div>

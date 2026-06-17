@@ -2,20 +2,45 @@
   Drop-in barcode-scanner input for any line-items document form. Lives inside the
   form (so it can reach the rows/template markers) above the items table. Reusable
   by stock count / purchase orders / adjustments with no changes.
+
+  Both a hardware-scanner text input AND a mobile camera button are rendered.
+  The camera-scanner controller shares the same element so it can target the same
+  input and drive it through the existing barcode-scanner pipeline on scan.
 %>
 <% scanner_mode = local_assigns.fetch(:scanner_mode, "select") %>
-<div class="form-group" data-controller="barcode-scanner"
+<div class="form-group" data-controller="barcode-scanner camera-scanner"
      data-barcode-scanner-mode-value="<%= scanner_mode %>"
-     data-barcode-scanner-lookup-url-value="<%= inventory_barcode_lookup_path %>">
+     data-barcode-scanner-lookup-url-value="<%= inventory_barcode_lookup_path %>"
+     data-camera-scanner-mode-value="fill"
+     data-camera-scanner-i18n-title="<%= t('inventory.camera_scanner.title') %>"
+     data-camera-scanner-i18n-close="<%= t('inventory.camera_scanner.close') %>"
+     data-camera-scanner-i18n-hint="<%= t('inventory.camera_scanner.hint') %>"
+     data-camera-scanner-i18n-starting="<%= t('inventory.camera_scanner.starting') %>"
+     data-camera-scanner-i18n-permission-denied="<%= t('inventory.camera_scanner.permission_denied') %>"
+     data-camera-scanner-i18n-no-camera="<%= t('inventory.camera_scanner.no_camera') %>"
+     data-camera-scanner-i18n-start-error="<%= t('inventory.camera_scanner.start_error') %>"
+     data-camera-scanner-i18n-switch-camera="<%= t('inventory.camera_scanner.switch_camera') %>">
   <%= label_tag :barcode_scan, t("inventory.barcode.scan_label"), class: "form-label" %>
-  <%= text_field_tag :barcode_scan, nil,
-        class: "form-control",
-        autocomplete: "off",
-        placeholder: t("inventory.barcode.scan_placeholder"),
-        data: {
-          "barcode-scanner-target": "input",
-          action: "keydown.enter->barcode-scanner#scan input->barcode-scanner#debouncedScan"
-        } %>
+  <div class="barcode-input-group">
+    <%= text_field_tag :barcode_scan, nil,
+          class: "form-control",
+          autocomplete: "off",
+          placeholder: t("inventory.barcode.scan_placeholder"),
+          data: {
+            "barcode-scanner-target": "input",
+            "camera-scanner-target":  "fill",
+            action: "keydown.enter->barcode-scanner#scan input->barcode-scanner#debouncedScan"
+          } %>
+    <button type="button" class="btn btn-secondary barcode-camera-btn"
+            data-action="camera-scanner#open"
+            aria-label="<%= t('inventory.camera_scanner.open_camera') %>">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+      <span class="barcode-camera-btn__label"><%= t("inventory.camera_scanner.scan_button") %></span>
+    </button>
+  </div>
   <p class="td-secondary text-danger" hidden
      data-barcode-scanner-target="feedback"
      data-not-found="<%= t('inventory.barcode.not_found', code: '%{code}') %>"></p>

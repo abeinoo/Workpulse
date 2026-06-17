@@ -8,12 +8,16 @@ class Inventory::BarcodeLookupsController < Inventory::BaseController
 
     result = Inventory::BarcodeLookup.new(policy_scope(Product)).find(params[:code])
     if result
+      product = result.product
       render json: {
-        id:         result.product.id,
-        name:       result.product.name,
-        sku:        result.product.sku,
-        barcode:    result.product.barcode,
-        matched_on: result.matched_on
+        id:           product.id,
+        name:         product.name,
+        sku:          product.sku,
+        barcode:      product.barcode,
+        barcodes:     product.product_barcodes.pluck(:barcode),
+        matched_on:   result.matched_on,
+        variant_id:   result.variant&.id,
+        variant_name: result.variant&.name
       }
     else
       render json: { error: "not_found" }, status: :not_found

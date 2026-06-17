@@ -17,8 +17,14 @@ module InventoryHelper
   def inventory_product_options(products, selected_id)
     options_for_select(
       products.map { |p|
+        all_barcodes = if p.association(:product_barcodes).loaded?
+                         p.product_barcodes.map(&:barcode).compact
+                       else
+                         [ p.barcode ].compact
+                       end
         [ "#{p.name} (#{p.sku})", p.id, {
-          "data-barcode"             => p.barcode,
+          "data-barcode"             => all_barcodes.first,
+          "data-barcodes"            => all_barcodes.join("|"),
           "data-sku"                 => p.sku,
           "data-default-supplier-id" => p.default_supplier_id
         } ]

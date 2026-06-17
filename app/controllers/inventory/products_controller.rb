@@ -2,11 +2,14 @@ class Inventory::ProductsController < Inventory::BaseController
   def index
     authorize Product
     @products = policy_scope(Product).ordered.includes(:brand, :product_category, image_attachment: :blob)
-    @products = @products.where(brand_id: params[:brand_id])            if params[:brand_id].present?
+    @products = @products.where(brand_id: params[:brand_id])               if params[:brand_id].present?
     @products = @products.where(product_category_id: params[:category_id]) if params[:category_id].present?
     if params[:q].present?
       term = "%#{params[:q].strip.downcase}%"
-      @products = @products.where("LOWER(name) LIKE :t OR LOWER(sku) LIKE :t OR LOWER(barcode) LIKE :t", t: term)
+      @products = @products
+        .left_joins(:product_barcodes)
+        .where("LOWER(products.name) LIKE :t OR LOWER(products.sku) LIKE :t OR LOWER(product_barcodes.barcode) LIKE :t", t: term)
+        .distinct
     end
 
     @stock_totals = Inventory::StockLevels.totals_for(current_user.business)
@@ -15,7 +18,9 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   def show
-    @product = find_product
+    @product = policy_scope(Product)
+                 .includes(:product_variants, product_barcodes: :product_variant)
+                 .find(params[:id])
     authorize @product
     wh_ids = accessible_warehouse_ids   # nil = all warehouses
     @warehouses = current_user.business.warehouses.ordered.index_by(&:id)
@@ -41,6 +46,8 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def new
     @product = current_user.business.products.build
+    @product.barcode = params[:barcode].presence if params[:barcode].present?
+    @product.product_barcodes.build if @product.product_barcodes.empty?
     authorize @product
     load_options
   end
@@ -58,8 +65,9 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   def edit
-    @product = find_product
+    @product = policy_scope(Product).includes(:product_variants, :product_barcodes).find(params[:id])
     authorize @product
+    @product.product_barcodes.build if @product.product_barcodes.empty?
     load_options
   end
 
@@ -93,6 +101,48 @@ class Inventory::ProductsController < Inventory::BaseController
     authorize Product, :create?
     send_data Inventory::Imports::ProductImporter.sample_csv,
               filename: "products_import_sample.csv", type: "text/csv"
+  end
+
+  def next_barcode_code
+    authorize Product, :index?
+    render json: { code: Inventory::BarcodeGenerator.next_code }
+  end
+
+  # POST /inventory/products/:id/generate_barcode
+  # Atomically generates and saves a sequential internal barcode.
+  # Retries up to 5 times on uniqueness collision from concurrent requests.
+  def generate_barcode
+    @product = find_product
+    authorize @product, :update?
+
+    barcode = nil
+    5.times do
+      code = Inventory::BarcodeGenerator.next_code
+      pb   = @product.product_barcodes.build(
+        barcode:      code,
+        barcode_type: "internal",
+        variant_id:   nil,
+        is_primary:   !@product.product_barcodes.where(variant_id: nil, is_primary: true).exists?
+      )
+      if pb.save
+        barcode = pb
+        break
+      end
+      # Retry only on uniqueness collision; other errors are terminal
+      break unless pb.errors[:barcode].any? { |msg| msg.match?(/taken/i) }
+    end
+
+    if barcode&.persisted?
+      render json: {
+        id:           barcode.id,
+        barcode:      barcode.barcode,
+        barcode_type: barcode.barcode_type,
+        is_primary:   barcode.is_primary
+      }
+    else
+      render json: { error: t("inventory.products.generate_barcode_failed") },
+             status: :unprocessable_entity
+    end
   end
 
   def run_import
@@ -136,10 +186,13 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def product_params
     params.require(:product).permit(
-      :name, :sku, :barcode, :brand_id, :product_category_id, :default_supplier_id,
+      :name, :sku, :brand_id, :product_category_id, :default_supplier_id,
       :initial_cost_price, :low_stock_level, :reorder_quantity,
+      :track_inventory, :receive_low_stock_notification, :reorder_level,
       :selling_markup_percentage, :notes, :image,
-      product_warehouse_settings_attributes: [ :id, :warehouse_id, :low_stock_level, :reorder_quantity, :_destroy ]
+      product_warehouse_settings_attributes: [ :id, :warehouse_id, :low_stock_level, :reorder_quantity, :_destroy ],
+      product_barcodes_attributes:           [ :id, :barcode, :barcode_type, :is_primary, :variant_id, :_destroy ],
+      product_variants_attributes:           [ :id, :name, :sku, :active, :position, :_destroy ]
     )
   end
 end

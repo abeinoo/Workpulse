@@ -3,7 +3,9 @@
    counted = f.object.counted?
    diff = f.object.difference.to_d
    diff_class = !counted ? "badge-neutral" : (diff.zero? ? "badge-success" : (diff.positive? ? "badge-warning" : "badge-danger")) %>
-<tr data-line-row data-product-id="<%= product.id %>" data-barcode="<%= product.barcode %>" data-sku="<%= product.sku %>" data-system-quantity="<%= system_qty %>">
+<% pb_loaded = product.association(:product_barcodes).loaded?
+   all_barcodes = pb_loaded ? product.product_barcodes.map(&:barcode).compact.join("|") : product.barcode.to_s %>
+<tr data-line-row data-product-id="<%= product.id %>" data-barcode="<%= product.barcode %>" data-barcodes="<%= all_barcodes %>" data-sku="<%= product.sku %>" data-system-quantity="<%= system_qty %>">
   <td>
     <%= product.name %> <span class="td-secondary">(<%= product.sku %>)</span>
     <%= f.hidden_field :id %>

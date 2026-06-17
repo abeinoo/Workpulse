@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_17_000006) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_17_000011) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -823,6 +823,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000006) do
     t.index ["business_id"], name: "index_permission_roles_on_business_id"
   end
 
+  create_table "product_barcodes", force: :cascade do |t|
+    t.string "barcode", null: false
+    t.string "barcode_type", null: false
+    t.datetime "created_at", null: false
+    t.boolean "is_primary", default: false, null: false
+    t.bigint "product_id", null: false
+    t.bigint "variant_id"
+    t.index "lower((barcode)::text)", name: "index_product_barcodes_on_lower_barcode", unique: true
+    t.index ["product_id"], name: "index_product_barcodes_on_product_id"
+  end
+
   create_table "product_categories", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "business_id", null: false
@@ -832,6 +843,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000006) do
     t.datetime "updated_at", null: false
     t.index "business_id, lower((name)::text)", name: "index_product_categories_on_business_id_and_lower_name", unique: true
     t.index ["business_id"], name: "index_product_categories_on_business_id"
+  end
+
+  create_table "product_variants", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "product_id", null: false
+    t.string "sku"
+    t.datetime "updated_at", null: false
+    t.index ["product_id", "position"], name: "index_product_variants_on_product_id_and_position"
+    t.index ["product_id"], name: "index_product_variants_on_product_id"
   end
 
   create_table "product_warehouse_settings", force: :cascade do |t|
@@ -859,9 +882,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000006) do
     t.string "name", null: false
     t.text "notes"
     t.bigint "product_category_id"
+    t.boolean "receive_low_stock_notification", default: true, null: false
+    t.integer "reorder_level", default: 0, null: false
     t.decimal "reorder_quantity", precision: 12, scale: 3, default: "0.0", null: false
     t.decimal "selling_markup_percentage", precision: 8, scale: 2, default: "0.0", null: false
     t.string "sku", null: false
+    t.boolean "track_inventory", default: true, null: false
     t.datetime "updated_at", null: false
     t.index "business_id, lower((barcode)::text)", name: "index_products_on_business_id_and_lower_barcode", unique: true, where: "((barcode IS NOT NULL) AND ((barcode)::text <> ''::text))"
     t.index "business_id, lower((sku)::text)", name: "index_products_on_business_id_and_lower_sku", unique: true
@@ -1490,7 +1516,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000006) do
   add_foreign_key "performance_reviews", "users", column: "employee_id"
   add_foreign_key "performance_reviews", "users", column: "reviewer_id"
   add_foreign_key "permission_roles", "businesses"
+  add_foreign_key "product_barcodes", "product_variants", column: "variant_id"
+  add_foreign_key "product_barcodes", "products"
   add_foreign_key "product_categories", "businesses"
+  add_foreign_key "product_variants", "products"
   add_foreign_key "product_warehouse_settings", "products"
   add_foreign_key "product_warehouse_settings", "warehouses"
   add_foreign_key "products", "brands"

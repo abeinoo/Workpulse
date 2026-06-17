@@ -76,7 +76,7 @@ module Inventory
             if seen_skus[sku.downcase] || @business.products.where("LOWER(sku) = ?", sku.downcase).exists?
               skipped << Skip.new(row_number: line, sku: sku, reason: :duplicate_sku); next
             end
-            if barcode && (seen_barcodes[barcode.downcase] || @business.products.where("LOWER(barcode) = ?", barcode.downcase).exists?)
+            if barcode && (seen_barcodes[barcode.downcase] || ProductBarcode.where("LOWER(barcode) = ?", barcode.downcase).exists?)
               skipped << Skip.new(row_number: line, sku: sku, reason: :duplicate_barcode); next
             end
 

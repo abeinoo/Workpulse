@@ -60,8 +60,17 @@ export default class extends Controller {
   #findRow(code) {
     const needle = code.toLowerCase()
     return Array.from(this.#rowsContainer().querySelectorAll("[data-line-row]"))
-      .find(r => (r.dataset.barcode || "").toLowerCase() === needle ||
+      .find(r => this.#matchesAnyBarcode(r, needle) ||
                  (r.dataset.sku || "").toLowerCase() === needle)
+  }
+
+  // Check if a code matches either the primary barcode or any barcode in the
+  // pipe-separated data-barcodes list (populated when product_barcodes are preloaded).
+  #matchesAnyBarcode(element, needle) {
+    const primary = (element.dataset.barcode || "").toLowerCase()
+    if (primary === needle) return true
+    const all = (element.dataset.barcodes || "").split("|")
+    return all.some(b => b.toLowerCase() === needle)
   }
 
   #focusRow(row) {
@@ -72,12 +81,14 @@ export default class extends Controller {
   }
 
   #addCountRow(product) {
+    const allBarcodes = Array.isArray(product.barcodes) ? product.barcodes : (product.barcode ? [ product.barcode ] : [])
     const html = this.#template().innerHTML
       .replace(/NEW_INDEX/g, Date.now())
       .replace(/__PID__/g, product.id)
       .replace(/__NAME__/g, this.#escape(product.name))
       .replace(/__SKU__/g, this.#escape(product.sku))
       .replace(/__BARCODE__/g, this.#escape(product.barcode || ""))
+      .replace(/__BARCODES__/g, this.#escape(allBarcodes.join("|")))
     this.#rowsContainer().insertAdjacentHTML("beforeend", html)
     this.#focusRow(this.#rowsContainer().lastElementChild)
     this.#reset()
@@ -102,7 +113,7 @@ export default class extends Controller {
     if (!select) return null
 
     const options = Array.from(select.options)
-    const opt = options.find(o => (o.dataset.barcode || "").toLowerCase() === needle) ||
+    const opt = options.find(o => this.#matchesAnyBarcode(o, needle)) ||
                 options.find(o => (o.dataset.sku || "").toLowerCase() === needle)
     return opt ? opt.value : null
   }

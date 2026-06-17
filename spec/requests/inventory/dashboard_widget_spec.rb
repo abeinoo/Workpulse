@@ -6,7 +6,7 @@ RSpec.describe "Main dashboard inventory low-stock widget", type: :request do
   let!(:wh)      { business.warehouses.create!(name: "Main") }
   let!(:product) do
     business.products.create!(name: "LowItem", sku: "LOW-1", initial_cost_price: 10,
-                              average_cost_price: 10, low_stock_level: 5, reorder_quantity: 20)
+                              average_cost_price: 10, low_stock_level: 5, reorder_level: 5, reorder_quantity: 20)
   end
 
   before do
@@ -33,7 +33,7 @@ RSpec.describe "Main dashboard inventory low-stock widget", type: :request do
   it "scopes the widget to the manager's warehouse" do
     other_wh = business.warehouses.create!(name: "Other")
     other_product = business.products.create!(name: "OtherLow", sku: "OL-1", initial_cost_price: 1,
-                                              average_cost_price: 1, low_stock_level: 5)
+                                              average_cost_price: 1, low_stock_level: 5, reorder_level: 5)
     r = business.goods_receipts.build(warehouse: other_wh, received_on: Date.current)
     r.items.build(product: other_product, quantity: 1, unit_cost: 1)
     Inventory::GoodsReceiptPoster.new(r).call

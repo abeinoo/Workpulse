@@ -267,8 +267,13 @@ Rails.application.routes.draw do
         get  :import
         post :run_import, path: "import"
         get  :import_template
+        get  :next_barcode_code
+      end
+      member do
+        post :generate_barcode
       end
     end
+    resources :barcode_labels, only: [ :index, :show ]
     resources :goods_receipts,  only: [ :index, :show, :new, :create ] do
       member { patch :void }
     end

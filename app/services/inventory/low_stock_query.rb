@@ -66,14 +66,14 @@ module Inventory
           next if @warehouse_ids && !present_ids.include?(product.id)
 
           total = totals[product.id] || 0
-          next unless total <= product.low_stock_level
+          next unless total <= product.reorder_level
 
           results << Alert.new(
             product:          product,
             warehouse_id:     nil,
             warehouse_name:   nil,
             on_hand:          total,
-            low_stock_level:  product.low_stock_level,
+            low_stock_level:  product.reorder_level,
             reorder_quantity: product.reorder_quantity
           )
         end
@@ -85,7 +85,10 @@ module Inventory
     private
 
     def products
-      @business.products.includes(:product_warehouse_settings)
+      @business.products
+               .inventory_tracked
+               .where(receive_low_stock_notification: true)
+               .includes(:product_warehouse_settings)
     end
 
     def movement_levels

@@ -11011,3 +11011,461 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
 .rank-bar__fill { background: var(--accent); height: 100%; }
 .rank-bar--danger { background: var(--danger-muted); }
 .rank-bar--danger .rank-bar__fill { background: var(--danger); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Camera Barcode Scanner
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Barcode input group (text input + camera button side by side) ── */
+.barcode-input-group {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+.barcode-input-group .form-control { flex: 1 1 0; min-width: 0; }
+
+.barcode-camera-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.barcode-camera-btn__label { display: none; }
+@media (min-width: 480px) {
+  .barcode-camera-btn__label { display: inline; }
+}
+
+/* ── Camera modal backdrop ── */
+.cs-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+@media (min-width: 600px) {
+  .cs-modal { align-items: center; }
+}
+
+.cs-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ── Dialog card ── */
+.cs-dialog {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface-1, #fff);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  overflow: hidden;
+  box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.35);
+}
+@media (min-width: 600px) {
+  .cs-dialog {
+    border-radius: var(--radius-xl);
+    box-shadow: 0 8px 60px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Dark mode dialog */
+.dark .cs-dialog { background: var(--surface-1, #1a2233); }
+
+/* ── Header ── */
+.cs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-1, rgba(0,0,0,0.08));
+}
+.cs-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.cs-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  border: none;
+  background: var(--surface-2, rgba(0,0,0,0.06));
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.cs-close:hover { background: var(--danger-muted); color: var(--danger); }
+.dark .cs-close { background: rgba(255,255,255,0.08); }
+.dark .cs-close:hover { background: var(--danger-muted); color: var(--danger); }
+
+/* ── Header action group (switch + close) ── */
+.cs-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── Switch-camera button ── */
+.cs-switch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  border: none;
+  background: var(--surface-2, rgba(0,0,0,0.06));
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s, transform 0.2s ease;
+  flex-shrink: 0;
+}
+.cs-switch-btn:hover:not(:disabled) {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+.cs-switch-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.cs-switch-btn:not(:disabled):active { transform: rotate(180deg); }
+.dark .cs-switch-btn { background: rgba(255,255,255,0.08); }
+.dark .cs-switch-btn:hover:not(:disabled) { background: var(--accent-muted); color: var(--accent); }
+
+/* ── Video viewfinder ── */
+.cs-viewfinder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  overflow: hidden;
+}
+/* Taller on landscape phones to avoid black bars */
+@media (max-height: 500px) and (orientation: landscape) {
+  .cs-viewfinder { aspect-ratio: 16 / 9; }
+}
+
+.cs-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Scan overlay ── */
+.cs-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* semi-transparent outer mask */
+  background:
+    linear-gradient(rgba(0,0,0,0.45) 0%, transparent 20%),
+    linear-gradient(transparent 80%, rgba(0,0,0,0.45) 100%),
+    linear-gradient(to right, rgba(0,0,0,0.45) 0%, transparent 20%),
+    linear-gradient(to left, rgba(0,0,0,0.45) 0%, transparent 20%);
+  pointer-events: none;
+}
+
+/* ── Corner-bracket frame ── */
+.cs-frame {
+  position: relative;
+  width: 65%;
+  max-width: 240px;
+  aspect-ratio: 3 / 2;
+}
+
+.cs-corner {
+  position: absolute;
+  width: 22px; height: 22px;
+  border-color: #fff;
+  border-style: solid;
+  border-width: 0;
+}
+.cs-corner--tl { top: 0; left: 0;  border-top-width: 3px; border-left-width: 3px;  border-radius: 3px 0 0 0; }
+.cs-corner--tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; border-radius: 0 3px 0 0; }
+.cs-corner--bl { bottom: 0; left: 0;  border-bottom-width: 3px; border-left-width: 3px;  border-radius: 0 0 0 3px; }
+.cs-corner--br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 3px 0; }
+
+/* ── Animated scan line ── */
+.cs-scan-line {
+  position: absolute;
+  left: 4px; right: 4px;
+  height: 2px;
+  background: linear-gradient(to right, transparent, rgba(2,118,174,0.8) 30%, #0276AE, rgba(2,118,174,0.8) 70%, transparent);
+  border-radius: 1px;
+  animation: cs-scan 2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(2, 118, 174, 0.6);
+}
+@keyframes cs-scan {
+  0%   { top: 4px; opacity: 1; }
+  48%  { top: calc(100% - 6px); opacity: 1; }
+  50%  { top: calc(100% - 6px); opacity: 0; }
+  52%  { top: 4px; opacity: 0; }
+  54%  { top: 4px; opacity: 1; }
+  100% { top: 4px; opacity: 1; }
+}
+
+/* ── Success flash overlay ── */
+.cs-success {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background: rgba(4, 120, 87, 0.88);
+  animation: cs-fade-in 0.18s ease;
+}
+.cs-success__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px; height: 56px;
+  background: #fff;
+  border-radius: var(--radius-full);
+  color: var(--success, #047857);
+}
+.cs-success__code {
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: rgba(0,0,0,0.3);
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Status / error text ── */
+.cs-status {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 0, 0, 0.70);
+  color: #fff;
+  font-size: var(--text-sm);
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ── Hint text below viewfinder ── */
+.cs-hint {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  text-align: center;
+  background: var(--surface-1, #fff);
+}
+.dark .cs-hint { background: var(--surface-1, #1a2233); }
+
+/* ── "Not found" dialog (shown after failed lookup) ── */
+.cs-not-found-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+.cs-not-found-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.60);
+}
+.cs-not-found-box {
+  position: relative;
+  z-index: 1;
+  background: var(--surface-1, #fff);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.30);
+  text-align: center;
+}
+.dark .cs-not-found-box { background: var(--surface-1, #1a2233); }
+.cs-not-found-msg {
+  margin: 0 0 var(--space-5);
+  color: var(--text-1);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+.cs-not-found-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+@media (min-width: 360px) {
+  .cs-not-found-actions { flex-direction: row; justify-content: center; }
+}
+
+/* ── Shared animation ── */
+@keyframes cs-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── RTL support ── */
+[dir="rtl"] .barcode-input-group { flex-direction: row-reverse; }
+
+/* ── Product barcode list (form + show page) ── */
+.barcode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.barcode-list__row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.barcode-list__row:last-child { border-bottom: none; }
+
+.barcode-list__input-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.barcode-list__type {
+  width: 130px;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.barcode-list__primary {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.barcode-list__actions {
+  flex-shrink: 0;
+  padding-bottom: 2px;
+}
+
+.barcode-list__variant {
+  width: 160px;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .barcode-list__row { flex-wrap: wrap; }
+  .barcode-list__type { width: 100%; }
+  .barcode-list__variant { width: 100%; }
+  .barcode-list__actions { align-self: flex-start; }
+}
+
+/* Variants section on product form */
+.variant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.variant-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.variant-row:last-child { border-bottom: none; }
+
+.variant-row__name {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.variant-row__sku {
+  width: 130px;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.variant-row__active {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.variant-row__actions {
+  flex-shrink: 0;
+  padding-bottom: 2px;
+}
+
+@media (max-width: 640px) {
+  .variant-row { flex-wrap: wrap; }
+  .variant-row__sku { width: 100%; }
+}
+
+/* Show page barcode tag list */
+.barcode-tag-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.barcode-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-sm);
+}
+
+.barcode-tag--primary .barcode-tag__value {
+  font-weight: 600;
+}
+
+.barcode-tag__type {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-family: var(--font-base);
+}
+
+.barcode-tag__badge {
+  font-family: var(--font-base);
+}
+
+.barcode-tag__print {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 2px 4px;
+  border-radius: 4px;
+  text-decoration: none;
+}
+.barcode-tag__print:hover { color: var(--text-primary); background: var(--bg-subtle); }
+.barcode-tag:hover .barcode-tag__print { opacity: 1; }
+
+[dir="rtl"] .barcode-list__row { flex-direction: row-reverse; }
