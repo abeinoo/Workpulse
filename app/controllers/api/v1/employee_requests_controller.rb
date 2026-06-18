@@ -1,7 +1,7 @@
 module Api
   module V1
     class EmployeeRequestsController < BaseController
-      before_action :set_request, only: [ :show, :approve, :reject ]
+      before_action :set_request, only: [ :show, :approve, :reject, :cancel ]
 
       def index
         authorize EmployeeRequest
@@ -43,6 +43,16 @@ module Api
           request:       @request,
           reviewed_by:   current_user,
           response_note: params[:response_note]
+        )
+        handle_result(result)
+      end
+
+      def cancel
+        authorize @request, :cancel?
+        result = Requests::Canceller.cancel(
+          request:      @request,
+          cancelled_by: current_user,
+          reason:       params[:cancellation_reason]
         )
         handle_result(result)
       end

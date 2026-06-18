@@ -76,6 +76,13 @@ class Finance::BalanceRequestsController < Finance::BaseController
     transition_redirect(result, :rejected)
   end
 
+  def cancel
+    @request = find_request
+    authorize @request, :cancel?
+    result = approval.cancel!(reason: params[:cancellation_reason])
+    transition_redirect(result, :cancelled)
+  end
+
   private
 
   def find_request

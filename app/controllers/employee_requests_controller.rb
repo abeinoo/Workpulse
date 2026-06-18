@@ -121,6 +121,24 @@ class EmployeeRequestsController < ApplicationController
     end
   end
 
+  def cancel
+    @request = policy_scope(EmployeeRequest).find(params[:id])
+    authorize @request
+
+    result = Requests::Canceller.cancel(
+      request:      @request,
+      cancelled_by: current_user,
+      reason:       params[:cancellation_reason]
+    )
+
+    if result.success?
+      redirect_back fallback_location: employee_request_path(@request),
+                    notice: t("flash.request_cancelled")
+    else
+      redirect_back fallback_location: employee_request_path(@request), alert: result.error
+    end
+  end
+
   # Bulk "Mark Selected as Paid": disburses the chosen approved salary advances
   # in a single transaction, skipping and reporting any that are no longer
   # payable. Selection is scoped through policy_scope so an accountant can only

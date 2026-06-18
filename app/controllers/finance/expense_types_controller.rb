@@ -6,6 +6,13 @@ class Finance::ExpenseTypesController < Finance::BaseController
     @types = policy_scope(ExpenseType).ordered.includes(:expense_category)
   end
 
+  def options
+    authorize ExpenseType, :index?
+    types = current_user.business.expense_types.active
+    types = types.for_category(params[:category_id]) if params[:category_id].present?
+    render json: types.ordered.select(:id, :name)
+  end
+
   def new
     @type = current_user.business.expense_types.build(active: true)
     authorize @type

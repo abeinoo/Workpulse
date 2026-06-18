@@ -12,6 +12,16 @@ class EmployeeRequestPolicy < ApplicationPolicy
   def destroy? = false
   def new?     = create?
 
+  # Employees cancel their own pending requests.
+  # Authorized reviewers (approve_requests or pay_advances) can cancel pending
+  # or approved requests on behalf of the business (e.g. before payroll runs).
+  def cancel?
+    return false unless record.status.in?(%w[pending approved])
+    return true  if own_request? && record.pending?
+
+    (can?(:approve_requests) || can?(:pay_advances)) && same_business?(record.user)
+  end
+
   def create?
     effective_user = record.user || user
     return false unless effective_user.business_id == user.business_id

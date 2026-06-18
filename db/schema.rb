@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_17_000011) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -142,6 +142,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000011) do
     t.bigint "approved_by_id"
     t.bigint "branch_id"
     t.bigint "business_id", null: false
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
     t.datetime "created_at", null: false
     t.bigint "created_by_id", null: false
     t.text "notes", null: false
@@ -156,6 +159,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000011) do
     t.index ["branch_id"], name: "index_balance_requests_on_branch_id"
     t.index ["business_id", "status"], name: "index_balance_requests_on_business_id_and_status"
     t.index ["business_id"], name: "index_balance_requests_on_business_id"
+    t.index ["cancelled_by_id"], name: "index_balance_requests_on_cancelled_by_id"
     t.index ["created_by_id"], name: "index_balance_requests_on_created_by_id"
     t.index ["paid_by_id"], name: "index_balance_requests_on_paid_by_id"
     t.index ["reference_number"], name: "index_balance_requests_on_reference_number", unique: true, where: "(reference_number IS NOT NULL)"
@@ -351,11 +355,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000011) do
     t.boolean "affects_payroll", default: false, null: false
     t.decimal "amount", precision: 12, scale: 2
     t.string "approved_time"
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
     t.string "correction_type"
     t.datetime "created_at", null: false
     t.integer "duration_minutes"
     t.datetime "original_check_in_at"
+    t.string "original_check_in_source"
     t.datetime "original_check_out_at"
+    t.string "original_check_out_source"
     t.date "proposed_date"
     t.string "proposed_time"
     t.text "reason", null: false
@@ -367,6 +376,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000011) do
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.index ["cancelled_by_id"], name: "index_employee_requests_on_cancelled_by_id"
     t.index ["reviewed_by_id"], name: "index_employee_requests_on_reviewed_by_id"
     t.index ["user_id", "request_type", "requested_for_date"], name: "idx_on_user_id_request_type_requested_for_date_bed206bfdf"
     t.index ["user_id"], name: "index_employee_requests_on_user_id"
@@ -1419,6 +1429,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000011) do
   add_foreign_key "balance_requests", "branches"
   add_foreign_key "balance_requests", "businesses"
   add_foreign_key "balance_requests", "users", column: "approved_by_id"
+  add_foreign_key "balance_requests", "users", column: "cancelled_by_id"
   add_foreign_key "balance_requests", "users", column: "created_by_id"
   add_foreign_key "balance_requests", "users", column: "paid_by_id"
   add_foreign_key "biometric_devices", "businesses"
@@ -1449,6 +1460,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000011) do
   add_foreign_key "employee_obligations", "users"
   add_foreign_key "employee_obligations", "users", column: "created_by_id"
   add_foreign_key "employee_requests", "users"
+  add_foreign_key "employee_requests", "users", column: "cancelled_by_id"
   add_foreign_key "employee_requests", "users", column: "reviewed_by_id"
   add_foreign_key "evaluation_criteria", "evaluation_templates"
   add_foreign_key "evaluation_templates", "businesses"

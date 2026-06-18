@@ -23,7 +23,14 @@
   </div>
 
   <%# ── Filter bar ─────────────────────────────────────────────────────────── %>
-  <%= form_with url: finance_expenses_path, method: :get, local: true, class: "filter-bar" do |f| %>
+  <%= form_with url: finance_expenses_path, method: :get, local: true, class: "filter-bar",
+        data: {
+          controller: "expense-type-select",
+          expense_type_select_url_value: options_finance_expense_types_path,
+          expense_type_select_placeholder_value: t("finance.expenses.all_types"),
+          expense_type_select_initial_type_id_value: params[:expense_type_id],
+          expense_type_select_disable_when_empty_value: false
+        } do |f| %>
     <div class="filter-bar__fields">
 
       <div class="filter-bar__field">
@@ -56,7 +63,10 @@
                   [[ t("finance.expenses.all_categories"), "" ]] +
                     @filter_categories.map { |c| [ c.name, c.id ] },
                   params[:expense_category_id]),
-                {}, class: "filter-bar__select" %>
+                {},
+                class: "filter-bar__select",
+                data: { expense_type_select_target: "categorySelect",
+                        action: "change->expense-type-select#categoryChanged" } %>
         </div>
       <% end %>
 
@@ -68,7 +78,9 @@
                   [[ t("finance.expenses.all_types"), "" ]] +
                     @filter_types.map { |t| [ t.name, t.id ] },
                   params[:expense_type_id]),
-                {}, class: "filter-bar__select" %>
+                {},
+                class: "filter-bar__select",
+                data: { expense_type_select_target: "typeSelect" } %>
         </div>
       <% end %>
 

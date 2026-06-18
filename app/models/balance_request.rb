@@ -1,20 +1,22 @@
 class BalanceRequest < ApplicationRecord
   include AuditLoggable
 
-  STATUSES = %w[draft pending_approval approved paid rejected].freeze
+  STATUSES = %w[draft pending_approval approved paid rejected cancelled].freeze
 
   belongs_to :business
-  belongs_to :created_by,  class_name: "User"
-  belongs_to :branch,      optional: true
-  belongs_to :approved_by, class_name: "User", optional: true
-  belongs_to :paid_by,     class_name: "User", optional: true
+  belongs_to :created_by,   class_name: "User"
+  belongs_to :branch,       optional: true
+  belongs_to :approved_by,  class_name: "User", optional: true
+  belongs_to :paid_by,      class_name: "User", optional: true
+  belongs_to :cancelled_by, class_name: "User", optional: true
 
   enum :status, {
     draft:            "draft",
     pending_approval: "pending_approval",
     approved:         "approved",
     paid:             "paid",
-    rejected:         "rejected"
+    rejected:         "rejected",
+    cancelled:        "cancelled"
   }
 
   validates :amount,       presence: true, numericality: { greater_than: 0 }

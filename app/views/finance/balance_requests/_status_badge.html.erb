@@ -4,7 +4,8 @@
     "pending_approval" => "badge badge-warning",
     "approved"         => "badge badge-accent",
     "paid"             => "badge badge-success",
-    "rejected"         => "badge badge-danger"
+    "rejected"         => "badge badge-danger",
+    "cancelled"        => "badge badge-neutral"
   }.fetch(status, "badge badge-neutral")
   size_class = local_assigns[:size] == "md" ? " badge--md" : ""
 %>

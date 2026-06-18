@@ -209,4 +209,52 @@
     </div>
   <% end %>
 
+  <%# Cancellation ── shown to employee (own pending) and authorized reviewers (pending/approved) %>
+  <% if policy(@request).cancel? %>
+    <div class="form-card" style="margin-top: 1rem;" data-controller="collapsible">
+      <button type="button" class="btn btn-danger"
+              data-action="click->collapsible#toggle"
+              data-collapsible-target="trigger"
+              aria-expanded="false">
+        <%= t("requests.cancel") %>
+      </button>
+      <div data-collapsible-target="content" hidden style="margin-top: 0.75rem;">
+        <%= form_with url: cancel_employee_request_path(@request), method: :patch, local: true do |f| %>
+          <div class="form-group form-group--full">
+            <%= label_tag :cancellation_reason,
+                  t("requests.show.cancellation_reason_label"),
+                  class: "form-label form-label--required" %>
+            <%= text_area_tag :cancellation_reason, nil, rows: 2, class: "form-control",
+                  required: true,
+                  placeholder: t("requests.show.cancellation_reason_placeholder") %>
+          </div>
+          <div class="form-actions">
+            <%= f.submit t("requests.show.confirm_cancel_btn"), class: "btn btn-danger" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Cancellation audit trail %>
+  <% if @request.cancelled? %>
+    <div class="info-card" style="margin-top: 1rem;">
+      <div class="info-card__row">
+        <span class="info-card__label"><%= t("requests.cancelled_at") %></span>
+        <span>
+          <%= local_datetime(@request.cancelled_at) %>
+          <% if @request.cancelled_by %>
+            <%= t("requests.by_actor", name: @request.cancelled_by.full_name) %>
+          <% end %>
+        </span>
+      </div>
+      <% if @request.cancellation_reason.present? %>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("requests.cancellation_reason") %></span>
+          <span><%= @request.cancellation_reason %></span>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
 </div>

@@ -1,9 +1,12 @@
 module Finance
-  # Handles BalanceRequest lifecycle: submit → approve → mark_paid, plus reject.
+  # Handles BalanceRequest lifecycle: submit → approve → mark_paid, plus reject / cancel.
   #
   # Unlike expenses, balance requests require an explicit mark_paid step because
   # money is being physically issued. mark_paid creates the top_up transaction
   # on the creator's balance account, increasing their balance.
+  #
+  # cancel! is available on draft / pending_approval / approved — once paid the
+  # custody transaction cannot be reversed through this pathway.
   #
   # Self-approval is blocked with the usual business-owner exception.
   class BalanceRequestApproval
@@ -41,6 +44,32 @@ module Finance
                  metadata: { reason: reason }) do
         @request.rejection_reason = reason
       end
+    end
+
+    # draft | pending_approval | approved → cancelled
+    # No financial side-effects to reverse (top_up only happens at mark_paid!).
+    def cancel!(reason:)
+      unless @request.status.in?(%w[draft pending_approval approved])
+        return Result.new(ok: false, balance_request: @request,
+                          error: I18n.t("finance.balance_requests.errors.cannot_cancel"))
+      end
+
+      prior_status = @request.status
+
+      ActiveRecord::Base.transaction do
+        @request.status             = "cancelled"
+        @request.cancelled_by       = @actor
+        @request.cancelled_at       = Time.current
+        @request.cancellation_reason = reason
+        @request.save!
+        log_audit(actor: @actor, auditable: @request, action: "cancel",
+                  changes: { status: [ prior_status, "cancelled" ] },
+                  metadata: { reason: reason }.compact)
+      end
+      Result.new(ok: true, balance_request: @request)
+    rescue ActiveRecord::RecordInvalid => e
+      Result.new(ok: false, balance_request: @request,
+                 error: e.record.errors.full_messages.to_sentence)
     end
 
     # approved → paid

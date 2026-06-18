@@ -1,17 +1,20 @@
 class EmployeeRequest < ApplicationRecord
   belongs_to :user
-  belongs_to :reviewed_by, class_name: "User", optional: true
+  belongs_to :reviewed_by,   class_name: "User", optional: true
+  belongs_to :cancelled_by,  class_name: "User", optional: true
   has_one    :advance, dependent: :destroy
 
   REQUEST_TYPES    = %w[salary_advance late_permission early_leave punch_correction].freeze
   CORRECTION_TYPES = %w[missing_check_in missing_check_out wrong_check_in_time wrong_check_out_time].freeze
-  STATUSES         = %w[pending approved rejected paid].freeze
+  STATUSES         = %w[pending approved rejected paid cancelled].freeze
 
   enum :request_type, { salary_advance: "salary_advance", late_permission: "late_permission",
                         early_leave: "early_leave", punch_correction: "punch_correction" }
   # salary advances:    pending → approved (manager) → paid (accountant/admin, creates Advance)
   # other types:        pending → approved | rejected
-  enum :status, { pending: "pending", approved: "approved", rejected: "rejected", paid: "paid" }
+  # any cancellable:    pending | approved → cancelled
+  enum :status, { pending: "pending", approved: "approved", rejected: "rejected",
+                  paid: "paid", cancelled: "cancelled" }
   enum :correction_type, { missing_check_in: "missing_check_in", missing_check_out: "missing_check_out",
                             wrong_check_in_time: "wrong_check_in_time",
                             wrong_check_out_time: "wrong_check_out_time" }, prefix: :correction

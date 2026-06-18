@@ -90,10 +90,11 @@ module ApplicationHelper
 
   def request_status_badge_class(request)
     case request.status
-    when "approved" then "badge-success"
-    when "rejected" then "badge-danger"
-    when "paid"     then "badge-accent"
-    else                 "badge-neutral"
+    when "approved"   then "badge-success"
+    when "rejected"   then "badge-danger"
+    when "paid"       then "badge-accent"
+    when "cancelled"  then "badge-neutral"
+    else                   "badge-neutral"
     end
   end
 

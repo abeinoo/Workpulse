@@ -2,7 +2,8 @@ module Requests
   # Applies an approved PunchCorrection request to the employee's AttendanceRecord.
   #
   # On success:
-  #   - Snapshots original check_in_at / check_out_at onto the request.
+  #   - Snapshots original check_in_at / check_out_at / check_in_source / check_out_source
+  #     onto the request so cancellation can fully restore the pre-correction state.
   #   - Updates the attendance record's relevant punch time (check_in_at or check_out_at).
   #   - Recomputes late_minutes, early_leave_minutes, worked_minutes, status via RecordRecomputer.
   #   - Propagates the change to any open payroll entry via Payroll::PunchCorrectionApplier.
@@ -33,8 +34,10 @@ module Requests
 
       ActiveRecord::Base.transaction do
         @request.update_columns(
-          original_check_in_at:  record.check_in_at,
-          original_check_out_at: record.check_out_at
+          original_check_in_at:      record.check_in_at,
+          original_check_out_at:     record.check_out_at,
+          original_check_in_source:  record.check_in_source,
+          original_check_out_source: record.check_out_source
         )
 
         effective_dt = build_datetime(@request.approved_time || @request.proposed_time)

@@ -8,7 +8,7 @@
 
   <%# ── Summary card ────────────────────────────────────────────────────────── %>
   <div class="card" style="margin-bottom: var(--space-5);"
-       <%= "data-controller='collapsible'".html_safe if policy(@request).reject? %>>
+       <%= "data-controller='collapsible'".html_safe if policy(@request).reject? || policy(@request).cancel? %>>
 
     <div class="card-header">
       <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
@@ -55,6 +55,14 @@
                 form: { style: "display:inline" },
                 data: { turbo_confirm: t("finance.balance_requests.confirm_delete") } %>
         <% end %>
+        <% if policy(@request).cancel? %>
+          <button type="button" class="btn btn-danger btn-sm"
+                  data-collapsible-target="trigger"
+                  data-action="click->collapsible#toggle"
+                  aria-expanded="false">
+            <%= t("finance.balance_requests.actions.cancel") %>
+          </button>
+        <% end %>
       </div>
     </div>
 
@@ -99,6 +107,23 @@
           <dd style="color: var(--danger);"><%= @request.rejection_reason %></dd>
         </div>
       <% end %>
+      <% if @request.cancelled? %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.balance_requests.cancelled_at") %></dt>
+          <dd>
+            <%= l(@request.cancelled_at, format: :short) if @request.cancelled_at %>
+            <% if @request.cancelled_by %>
+              <%= t("finance.balance_requests.by_actor", name: @request.cancelled_by.full_name) %>
+            <% end %>
+          </dd>
+        </div>
+        <% if @request.cancellation_reason.present? %>
+          <div class="detail-list__row">
+            <dt><%= t("finance.balance_requests.cancellation_reason") %></dt>
+            <dd style="color: var(--danger);"><%= @request.cancellation_reason %></dd>
+          </div>
+        <% end %>
+      <% end %>
     </dl>
 
     <% if policy(@request).reject? %>
@@ -112,6 +137,24 @@
                 style: "flex: 1; min-width: 200px;",
                 required: true %>
           <%= submit_tag t("finance.balance_requests.actions.reject"), class: "btn btn-danger btn-sm" %>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-action="click->collapsible#toggle">
+            <%= t("common.cancel") %>
+          </button>
+        <% end %>
+      </div>
+    <% end %>
+    <% if policy(@request).cancel? %>
+      <div data-collapsible-target="content" hidden
+           style="padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); background: var(--navy-700);">
+        <%= form_with url: cancel_finance_balance_request_path(@request), method: :patch,
+              style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+          <%= text_field_tag :cancellation_reason, nil,
+                placeholder: t("finance.balance_requests.cancellation_placeholder"),
+                class: "form-control form-control--sm",
+                style: "flex: 1; min-width: 200px;",
+                required: true %>
+          <%= submit_tag t("finance.balance_requests.actions.cancel"), class: "btn btn-danger btn-sm" %>
           <button type="button" class="btn btn-ghost btn-sm"
                   data-action="click->collapsible#toggle">
             <%= t("common.cancel") %>

@@ -1018,6 +1018,9 @@ ar:
       rejection_reason_placeholder: "اشرح سبب رفض هذا الطلب"
       rejection_reason_hint: "سيرى الموظف هذا السبب."
       confirm_reject_btn: "تأكيد الرفض"
+      cancellation_reason_label: "سبب الإلغاء"
+      cancellation_reason_placeholder: "اشرح سبب إلغاء هذا الطلب"
+      confirm_cancel_btn: "تأكيد الإلغاء"
     type: "النوع"
     date: "التاريخ"
     status: "الحالة"
@@ -1029,8 +1032,11 @@ ar:
     reviewed: "تمت المراجعة"
     rejected_by: "تم الرفض"
     rejection_reason: "سبب الرفض"
+    cancelled_at: "ألغي"
+    cancellation_reason: "سبب الإلغاء"
     by_actor: "بواسطة %{name}"
     note: "ملاحظة"
+    cancel: "إلغاء الطلب"
     actions: "الإجراءات"
     no_requests: "لا توجد طلبات."
     paid_disbursed: "مدفوع / مصروف"
@@ -1054,6 +1060,7 @@ ar:
       approved: "مقبول"
       rejected: "مرفوض"
       paid: "مدفوع / مصروف"
+      cancelled: "ملغى"
     pay: "تحديد كمدفوع"
     mark_all_paid: "تحديد الكل كمدفوع"
     bulk:
@@ -1080,6 +1087,11 @@ ar:
       exceeds_monthly_limit: "يتجاوز الحد الشهري (%{remaining} دقيقة متبقية من أصل %{limit})"
       unavailable_for_hour_based: "غير متاح للموظفين المعيَّنين على ورديات مرنة (بالساعة)"
       exceeds_advance_limit: "يتجاوز الحد المتاح للسلفة (%{available} %{currency} متبقية)"
+      already_cancelled: "تم إلغاء هذا الطلب بالفعل."
+      cannot_cancel_paid: "لا يمكن إلغاء الطلبات المصروفة."
+      cannot_cancel: "لا يمكن إلغاء هذا الطلب."
+      cannot_cancel_finalized: "لا يمكن إلغاء هذا الطلب لأن دورة الراتب قد اعتُمدت أو دُفعت بالفعل."
+      no_attendance_record: "لم يُعثر على سجل حضور لتاريخ هذا الطلب."
 
   approvals:
     errors:
@@ -2588,6 +2600,7 @@ ar:
     request_submitted: "تم تقديم الطلب."
     request_approved: "تمت الموافقة على الطلب."
     request_rejected: "تم رفض الطلب."
+    request_cancelled: "تم إلغاء الطلب."
     advance_paid: "تم تحديد السلفة كمدفوعة."
     bulk_pay:
       paid:
@@ -3863,23 +3876,31 @@ ar:
         approved: "موافق عليه"
         paid: "مصروف"
         rejected: "مرفوض"
+        cancelled: "ملغى"
       rejection_reason: "سبب الرفض"
       rejection_placeholder: "سبب الرفض"
+      cancelled_at: "ألغي"
+      cancellation_reason: "سبب الإلغاء"
+      cancellation_placeholder: "سبب الإلغاء"
+      by_actor: "بواسطة %{name}"
       actions:
         submit: "تقديم للموافقة"
         approve: "موافقة"
         reject: "رفض"
         mark_paid: "تسجيل الصرف"
+        cancel: "إلغاء الطلب"
         view: "عرض"
       audit:
         submit: "تم تقديمه للموافقة"
         approve: "موافق عليه"
         reject: "مرفوض"
         mark_paid: "تم تسجيل الصرف"
+        cancel: "ملغى"
       errors:
         invalid_transition: "لا يُسمح بهذا الإجراء من الحالة الحالية."
         must_be_approved: "يجب أن يكون الطلب موافقًا عليه قبل تسجيل الصرف."
         no_balance_account: "%{name} لا يملك حساب رصيد نشطًا."
+        cannot_cancel: "لا يمكن إلغاء هذا الطلب."
     custody:
       errors:
         amount_required: "أدخل مبلغًا أكبر من صفر."

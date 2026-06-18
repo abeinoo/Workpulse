@@ -32,6 +32,7 @@ Rails.application.routes.draw do
           patch :approve
           patch :reject
           patch :pay
+          patch :cancel
         end
       end
 
@@ -204,6 +205,7 @@ Rails.application.routes.draw do
       patch :approve
       patch :reject
       patch :pay
+      patch :cancel
     end
   end
 
@@ -330,11 +332,14 @@ Rails.application.routes.draw do
         patch :approve
         patch :reject
         patch :mark_paid
+        patch :cancel
       end
     end
 
     resources :expense_categories, except: [ :show ]
-    resources :expense_types,      except: [ :show ]
+    resources :expense_types, except: [ :show ] do
+      collection { get :options, defaults: { format: :json } }
+    end
     resources :expense_tags,       except: [ :show ]
     resources :branch_revenues,    except: [ :show ]
 
