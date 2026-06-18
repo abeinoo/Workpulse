@@ -3,7 +3,7 @@ class Finance::CustodyTransactionsController < Finance::BaseController
 
   def create
     # Build a record for authorization (checks the account is in the user's scope).
-    record = @account.custody_transactions.build(custody_account: @account)
+    record = @account.custody_transactions.build(business: @account.business, custody_account: @account)
     authorize record, :create?
 
     result = Finance::CustodyTransactionCreator.new(

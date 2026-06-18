@@ -24,9 +24,12 @@ RSpec.describe Finance::AllocationCalculator, type: :model do
     it "absorbs the rounding residual on the last row for an uneven split" do
       e = expense_with(100, { b1 => nil, b2 => nil, b3 => nil })
       described_class.new(e, mode: :equal).call
-      amounts = e.expense_allocations.map(&:allocated_amount)
-      expect(amounts.sum).to eq(100)            # reconciles exactly
+      amounts     = e.expense_allocations.map(&:allocated_amount)
+      percentages = e.expense_allocations.map(&:allocation_percentage)
+      expect(amounts.sum).to eq(100)
       expect(amounts).to eq([ 33.33, 33.33, 33.34 ])
+      expect(percentages.sum).to eq(100)
+      expect(percentages).to eq([ 33.33, 33.33, 33.34 ])
     end
   end
 

@@ -3,9 +3,12 @@
 <div class="admin-page">
   <div class="page-header">
     <h1 class="page-title"><%= t("inventory.brands.title") %></h1>
-    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
-      <%= link_to t("inventory.brands.add"), new_inventory_brand_path, class: "btn btn-primary btn-sm" %>
-    <% end %>
+    <div class="page-header__actions">
+      <%= link_to t("inventory.brands.back_to_products"), inventory_products_path, class: "btn btn-secondary btn-sm" %>
+      <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
+        <%= link_to t("inventory.brands.add"), new_inventory_brand_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
   </div>
 
   <% if @brands.empty? %>

@@ -28,7 +28,7 @@ class Expense < ApplicationRecord
 
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :expense_date, presence: true
-  validates :notes, presence: true, unless: :system_generated?
+
   validates :reference_number, presence: true,
                                uniqueness: { scope: :business_id, case_sensitive: false }
   validate  :branch_in_same_business

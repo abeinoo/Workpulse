@@ -1,5 +1,5 @@
 <%= form_with model: [ :finance, expense ], class: "form-card",
-      data: { controller: "line-items" } do |f| %>
+      data: { controller: "line-items allocation" } do |f| %>
   <%= render "shared/error_messages", object: expense %>
 
   <h2 class="section-title"><%= t("finance.expenses.section_details") %></h2>
@@ -38,12 +38,18 @@
         <p class="form-hint"><%= t("finance.expenses.branch_hint") %></p>
       </div>
     <% end %>
+  </div>
 
-    <div class="form-group" style="grid-column: 1 / -1;">
-      <%= f.label :notes, t("finance.common.notes"), class: "form-label" %>
-      <%= f.text_area :notes, rows: 2, required: true,
-            class: "form-control #{'is-error' if expense.errors[:notes].any?}" %>
-    </div>
+  <div class="form-group" style="margin-top: var(--space-4);">
+    <%= f.label :documents, t("finance.expenses.documents"), class: "form-label" %>
+    <%= f.file_field :documents, multiple: true, class: "form-control" %>
+    <p class="form-hint"><%= t("finance.expenses.documents_hint") %></p>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :notes, t("finance.common.notes"), class: "form-label" %>
+    <%= f.text_area :notes, rows: 2,
+          class: "form-control #{'is-error' if expense.errors[:notes].any?}" %>
   </div>
 
   <% if @tags.any? %>
@@ -62,7 +68,13 @@
   <% if current_user.owner? || current_user.manages_area? %>
     <div class="divider"></div>
     <h2 class="section-title"><%= t("finance.expenses.section_allocations") %></h2>
-    <p class="form-hint"><%= t("finance.expenses.allocations_hint") %></p>
+
+    <p class="form-hint" data-allocation-target="pctMsg">
+      <%= t("finance.expenses.hint_percentage_mode") %>
+    </p>
+    <p class="form-hint" data-allocation-target="equalMsg" hidden>
+      <%= t("finance.expenses.hint_equal_mode") %>
+    </p>
 
     <div class="form-group" style="max-width: 280px;">
       <%= label_tag :allocation_mode, t("finance.expenses.allocation_mode"), class: "form-label" %>
@@ -71,14 +83,15 @@
               [ [ t("finance.expenses.modes.percentage"), "percentage" ],
                 [ t("finance.expenses.modes.equal"), "equal" ] ],
               params[:allocation_mode] || "percentage"),
-            class: "form-control" %>
+            class: "form-control",
+            data: { allocation_target: "modeSelect", action: "change->allocation#modeChanged" } %>
     </div>
 
     <div class="table-wrap">
       <table class="line-items-table">
         <thead><tr>
           <th style="width: 60%;"><%= t("finance.expenses.branch") %></th>
-          <th><%= t("finance.expenses.percentage") %></th>
+          <th data-allocation-target="pctHeader"><%= t("finance.expenses.percentage") %></th>
           <th></th>
         </tr></thead>
         <tbody data-line-items-target="rows">
@@ -88,6 +101,8 @@
         </tbody>
       </table>
     </div>
+
+    <p data-allocation-target="summary" class="form-hint" style="margin-top: var(--space-2);"></p>
 
     <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if expense.expense_allocations.any? %>>
       <%= t("finance.expenses.no_allocations_hint") %>
@@ -113,15 +128,9 @@
     <p class="form-hint"><%= t("finance.expenses.deduct_from_balance_hint") %></p>
   </div>
 
-  <div class="divider"></div>
-  <div class="form-group" style="grid-column: 1 / -1;">
-    <%= f.label :documents, t("finance.expenses.documents"), class: "form-label" %>
-    <%= f.file_field :documents, multiple: true, class: "form-control" %>
-    <p class="form-hint"><%= t("finance.expenses.documents_hint") %></p>
-  </div>
-
   <div class="form-actions">
-    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= f.submit t("common.save"), class: "btn btn-primary",
+          data: { allocation_target: "submitBtn" } %>
     <%= link_to t("common.cancel"), finance_expenses_path, class: "btn btn-ghost" %>
   </div>
 <% end %>

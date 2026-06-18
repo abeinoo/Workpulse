@@ -7,8 +7,13 @@ class Inventory::ProductsController < Inventory::BaseController
     if params[:q].present?
       term = "%#{params[:q].strip.downcase}%"
       @products = @products
-        .left_joins(:product_barcodes)
-        .where("LOWER(products.name) LIKE :t OR LOWER(products.sku) LIKE :t OR LOWER(product_barcodes.barcode) LIKE :t", t: term)
+        .left_joins(:product_barcodes, :product_variants)
+        .where(
+          "LOWER(products.name) LIKE :t OR LOWER(products.sku) LIKE :t OR " \
+          "LOWER(product_barcodes.barcode) LIKE :t OR " \
+          "LOWER(product_variants.name) LIKE :t OR LOWER(product_variants.sku) LIKE :t",
+          t: term
+        )
         .distinct
     end
 
@@ -110,10 +115,14 @@ class Inventory::ProductsController < Inventory::BaseController
 
   # POST /inventory/products/:id/generate_barcode
   # Atomically generates and saves a sequential internal barcode.
+  # Accepts an optional variant_id param to assign the barcode directly to a variant.
   # Retries up to 5 times on uniqueness collision from concurrent requests.
   def generate_barcode
     @product = find_product
     authorize @product, :update?
+
+    variant_id = resolve_generate_variant_id
+    return if performed?   # rendered error inside resolve_generate_variant_id
 
     barcode = nil
     5.times do
@@ -121,8 +130,8 @@ class Inventory::ProductsController < Inventory::BaseController
       pb   = @product.product_barcodes.build(
         barcode:      code,
         barcode_type: "internal",
-        variant_id:   nil,
-        is_primary:   !@product.product_barcodes.where(variant_id: nil, is_primary: true).exists?
+        variant_id:   variant_id,
+        is_primary:   !@product.product_barcodes.where(variant_id: variant_id, is_primary: true).exists?
       )
       if pb.save
         barcode = pb
@@ -137,7 +146,8 @@ class Inventory::ProductsController < Inventory::BaseController
         id:           barcode.id,
         barcode:      barcode.barcode,
         barcode_type: barcode.barcode_type,
-        is_primary:   barcode.is_primary
+        is_primary:   barcode.is_primary,
+        variant_id:   barcode.variant_id
       }
     else
       render json: { error: t("inventory.products.generate_barcode_failed") },
@@ -169,6 +179,18 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def find_product
     policy_scope(Product).find(params[:id])
+  end
+
+  # Returns the variant_id to use for barcode generation, or nil for product-level.
+  # Renders a 404 JSON error and returns :error if the supplied variant_id is invalid.
+  def resolve_generate_variant_id
+    return nil if params[:variant_id].blank?
+    variant = @product.product_variants.find_by(id: params[:variant_id])
+    unless variant
+      render json: { error: t("inventory.products.variant_not_found") }, status: :not_found
+      return :error
+    end
+    variant.id
   end
 
   def load_options

@@ -12,7 +12,8 @@ import { Controller } from "@hotwired/stimulus"
 //   • generateUrl      (GET)  — new-product page: fetches the next code
 //     and fills a form row; the barcode is saved when the product is saved.
 export default class extends Controller {
-  static values = { generateUrl: String, generateSaveUrl: String }
+  static targets = ["variantSelect"]
+  static values  = { generateUrl: String, generateSaveUrl: String }
 
   setPrimary(event) {
     if (!event.target.checked) return
@@ -37,21 +38,27 @@ export default class extends Controller {
 
     try {
       const useSave = this.hasGenerateSaveUrlValue && this.generateSaveUrlValue.length > 0
+      // Which variant (if any) to assign the generated barcode to.
+      const variantId = this.hasVariantSelectTarget ? (this.variantSelectTarget.value || "") : ""
 
-      let code, savedId, isPrimary
+      let code, savedId, isPrimary, savedVariantId
 
       if (useSave) {
         const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+        const body = new URLSearchParams()
+        if (variantId) body.append("variant_id", variantId)
         const res = await fetch(this.generateSaveUrlValue, {
           method:  "POST",
-          headers: { Accept: "application/json", "X-CSRF-Token": csrf }
+          headers: { Accept: "application/json", "X-CSRF-Token": csrf },
+          body:    body
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
         if (data.error) throw new Error(data.error)
-        code      = data.barcode
-        savedId   = data.id
-        isPrimary = data.is_primary
+        code           = data.barcode
+        savedId        = data.id
+        isPrimary      = data.is_primary
+        savedVariantId = data.variant_id != null ? String(data.variant_id) : ""
       } else {
         const res = await fetch(this.generateUrlValue, { headers: { Accept: "application/json" } })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -73,9 +80,16 @@ export default class extends Controller {
       const input = newRow.querySelector('input[type="text"], input:not([type])')
       if (input) { input.value = code; input.dispatchEvent(new Event("input", { bubbles: true })) }
 
-      // Set barcode type to "internal"
-      const select = newRow.querySelector("select")
-      if (select) select.value = "internal"
+      // Set barcode type to "internal" (targets the type select, not the variant select)
+      const typeSelect = newRow.querySelector("select:not([data-variant-id-select])")
+      if (typeSelect) typeSelect.value = "internal"
+
+      // Pre-select the variant in the new row's variant dropdown
+      const effectiveVariantId = savedVariantId ?? variantId
+      if (effectiveVariantId) {
+        const variantSel = newRow.querySelector("select[data-variant-id-select]")
+        if (variantSel) variantSel.value = effectiveVariantId
+      }
 
       if (savedId) {
         // Barcode already persisted — inject hidden id so the form submit
@@ -87,11 +101,15 @@ export default class extends Controller {
         if (idField.name) newRow.prepend(idField)
       }
 
-      // Auto-mark primary
+      // Auto-mark primary and demote any sibling primary in the same variant group.
       const noPrimaryYet = !this.element.querySelector("input[data-primary-cb]:checked")
-      if (savedId ? isPrimary : noPrimaryYet) {
+      const shouldBePrimary = savedId ? isPrimary : noPrimaryYet
+      if (shouldBePrimary) {
         const cb = newRow.querySelector("input[data-primary-cb]")
-        if (cb) cb.checked = true
+        if (cb) {
+          cb.checked = true
+          cb.dispatchEvent(new Event("change", { bubbles: true })) // triggers setPrimary
+        }
       }
 
       // Hide empty state

@@ -108,7 +108,7 @@
       <%= t("inventory.products.no_barcodes") %>
     </p>
 
-    <div class="flex" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
+    <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
       <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
         + <%= t("inventory.products.add_barcode") %>
       </button>
@@ -118,6 +118,17 @@
         </svg>
         <%= t("inventory.products.generate_barcode") %>
       </button>
+      <% if product_variants_for_barcodes.any? && product.persisted? %>
+        <select class="form-control form-control--sm"
+                style="width: auto; min-width: 130px;"
+                data-barcode-list-target="variantSelect"
+                aria-label="<%= t('inventory.products.generate_for_variant') %>">
+          <option value=""><%= t("inventory.products.barcode_no_variant") %></option>
+          <% product_variants_for_barcodes.each do |v| %>
+            <option value="<%= v.id %>"><%= v.active? ? v.name : "#{v.name} (#{t('common.inactive')})" %></option>
+          <% end %>
+        </select>
+      <% end %>
     </div>
 
     <template data-line-items-target="template">

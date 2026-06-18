@@ -5,9 +5,13 @@
           { include_blank: "— #{t('finance.expenses.select_branch')}" },
           class: "form-control" %>
   </td>
-  <td>
-    <%= f.number_field :allocation_percentage, step: "0.01", min: 0, max: 100,
-          class: "form-control", placeholder: "%" %>
+  <td data-allocation-target="pctCell">
+    <%= f.number_field :allocation_percentage,
+          step: "0.01", min: 0, max: 100,
+          value: (f.object.new_record? ? nil : f.object.allocation_percentage),
+          class: "form-control",
+          placeholder: "%",
+          data: { allocation_target: "pctInput", action: "input->allocation#inputChanged" } %>
   </td>
   <td class="td-actions">
     <% if f.object.persisted? %>

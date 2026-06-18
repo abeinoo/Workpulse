@@ -2842,6 +2842,7 @@ en:
       products_count: "Products"
       new_title: "New Brand"
       edit_title: "Edit Brand"
+      back_to_products: "Back to Products"
     product_categories:
       title: "Categories"
       add: "Add Category"
@@ -2857,6 +2858,7 @@ en:
       products_count: "Products"
       new_title: "New Category"
       edit_title: "Edit Category"
+      back_to_products: "Back to Products"
     imports:
       file: "CSV File"
       upload: "Upload & Import"
@@ -2990,6 +2992,8 @@ en:
       variant_active: "Active"
       barcode_variant: "Variant"
       barcode_no_variant: "Product (no variant)"
+      generate_for_variant: "Generate for variant"
+      variant_not_found: "Variant not found."
       stock_by_warehouse: "Stock by Warehouse"
       no_stock_yet: "No stock recorded yet."
       warehouse: "Warehouse"
@@ -3659,6 +3663,8 @@ en:
       filter: "Filter"
       no_balance_account: "No balance account is assigned to your user. Please contact your administrator to add a balance account for you."
       no_balance_account_disabled: "No balance account is assigned to your account"
+      confirm_delete: "Are you sure you want to delete this item?"
+      back_to_expenses: "Back to Expenses"
     dashboard:
       title: "Finance"
       pending_approvals: "Pending Approvals"
@@ -3712,6 +3718,7 @@ en:
       created: "Tag created."
       updated: "Tag updated."
       deleted: "Tag deleted."
+      delete_failed: "This tag can't be deleted while it is assigned to expenses."
     branch_revenues:
       title: "Branch Revenue"
       add: "Add Revenue"
@@ -3753,6 +3760,8 @@ en:
       section_details: "Expense Details"
       section_allocations: "Branch Allocation (shared expenses)"
       allocations_hint: "Add a row per branch to split a shared expense. Percentages must total 100%."
+      hint_percentage_mode: "Enter each branch's share. Percentages must total 100%."
+      hint_equal_mode: "Select branches only — the expense will be divided equally among them automatically."
       allocation_mode: "Allocation mode"
       modes:
         percentage: "By percentage"

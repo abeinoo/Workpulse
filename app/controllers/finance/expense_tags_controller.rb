@@ -36,8 +36,12 @@ class Finance::ExpenseTagsController < Finance::BaseController
 
   def destroy
     authorize @tag
-    @tag.destroy
-    redirect_to finance_expense_tags_path, notice: t("finance.tags.deleted")
+    if @tag.destroy
+      redirect_to finance_expense_tags_path, notice: t("finance.tags.deleted")
+    else
+      redirect_to finance_expense_tags_path,
+                  alert: @tag.errors.full_messages.to_sentence.presence || t("finance.tags.delete_failed")
+    end
   end
 
   private

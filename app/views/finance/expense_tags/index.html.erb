@@ -3,9 +3,12 @@
 <div class="admin-page">
   <div class="page-header">
     <h1 class="page-title"><%= t("finance.tags.title") %></h1>
-    <% if policy(ExpenseTag).create? %>
-      <%= link_to t("finance.tags.add"), new_finance_expense_tag_path, class: "btn btn-primary btn-sm" %>
-    <% end %>
+    <div class="page-header__actions">
+      <%= link_to t("finance.common.back_to_expenses"), finance_expenses_path, class: "btn btn-secondary btn-sm" %>
+      <% if policy(ExpenseTag).create? %>
+        <%= link_to t("finance.tags.add"), new_finance_expense_tag_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
   </div>
 
   <% if @tags.empty? %>
@@ -32,6 +35,12 @@
               <td class="td-actions">
                 <% if policy(tag).update? %>
                   <%= link_to t("common.edit"), edit_finance_expense_tag_path(tag), class: "link-muted" %>
+                <% end %>
+                <% if policy(tag).destroy? %>
+                  <%= button_to t("common.delete"), finance_expense_tag_path(tag),
+                        method: :delete,
+                        class: "link-danger",
+                        data: { turbo_confirm: t("finance.common.confirm_delete") } %>
                 <% end %>
               </td>
             </tr>

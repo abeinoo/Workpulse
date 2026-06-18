@@ -88,6 +88,8 @@ class ApplicationPolicy
   def can?(permission) = user.can?(permission)
 
   def same_business?(target = record)
+    return true if user.owner?
+
     target.respond_to?(:business_id) && target.business_id == user.business_id
   end
 

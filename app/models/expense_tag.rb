@@ -1,7 +1,7 @@
 class ExpenseTag < ApplicationRecord
   belongs_to :business
 
-  has_many :expense_taggings, dependent: :destroy
+  has_many :expense_taggings, dependent: :restrict_with_error
   has_many :expenses, through: :expense_taggings
 
   validates :name, presence: true, length: { maximum: 60 },

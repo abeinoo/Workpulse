@@ -37,7 +37,9 @@ module Finance
     def apply_equal(allocations)
       n   = allocations.size
       pct = (BigDecimal(100) / n).round(2)
-      allocations.each { |a| a.allocation_percentage = pct }
+      allocations.each_with_index do |a, i|
+        a.allocation_percentage = (i == n - 1) ? 100 - (pct * (n - 1)) : pct
+      end
       distribute_amounts(allocations)
     end
 
