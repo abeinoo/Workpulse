@@ -7,7 +7,7 @@
       <p class="page-subtitle"><%= local_date(@request.requested_for_date) %></p>
     </div>
     <span class="badge <%= request_status_badge_class(@request) %>">
-      <%= t("requests.statuses.#{@request.status}") %>
+      <%= request_status_label(@request) %>
     </span>
   </div>
 

@@ -1067,6 +1067,7 @@ ar:
     statuses:
       pending: "قيد الانتظار"
       approved: "مقبول"
+      approved_awaiting_payment: "مقبول – في انتظار الصرف"
       rejected: "مرفوض"
       paid: "مدفوع / مصروف"
       cancelled: "ملغى"
@@ -3930,7 +3931,7 @@ ar:
       statuses:
         draft: "مسودة"
         pending_approval: "قيد الموافقة"
-        approved: "موافق عليه"
+        approved: "موافق عليه – في انتظار الصرف"
         paid: "مصروف"
         rejected: "مرفوض"
         cancelled: "ملغى"

@@ -1068,6 +1068,7 @@ en:
     statuses:
       pending: "Pending"
       approved: "Approved"
+      approved_awaiting_payment: "Approved – Awaiting Payment"
       rejected: "Rejected"
       paid: "Paid / Disbursed"
       cancelled: "Cancelled"
@@ -3906,7 +3907,7 @@ en:
       statuses:
         draft: "Draft"
         pending_approval: "Pending Approval"
-        approved: "Approved"
+        approved: "Approved – Awaiting Payment"
         paid: "Paid"
         rejected: "Rejected"
         cancelled: "Cancelled"

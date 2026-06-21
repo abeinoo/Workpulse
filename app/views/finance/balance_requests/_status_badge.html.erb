@@ -2,11 +2,12 @@
   color_class = {
     "draft"            => "badge badge-neutral",
     "pending_approval" => "badge badge-warning",
-    "approved"         => "badge badge-accent",
+    "approved"         => "badge badge-warning",
     "paid"             => "badge badge-success",
     "rejected"         => "badge badge-danger",
     "cancelled"        => "badge badge-neutral"
   }.fetch(status, "badge badge-neutral")
   size_class = local_assigns[:size] == "md" ? " badge--md" : ""
+  label = t("finance.balance_requests.statuses.#{status}")
 %>
-<span class="<%= color_class %><%= size_class %>"><%= t("finance.balance_requests.statuses.#{status}") %></span>
+<span class="<%= color_class %><%= size_class %>"><%= label %></span>

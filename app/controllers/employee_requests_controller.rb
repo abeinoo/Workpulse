@@ -28,15 +28,22 @@ class EmployeeRequestsController < ApplicationController
 
     @total_count = base.count
 
-    # Sorting
-    sort_col = %w[created_at employee_name request_type status].include?(@filters[:sort]) ? @filters[:sort] : "created_at"
+    # Sorting — default is priority order (pending → awaiting payment → paid → rejected).
+    # Explicit sort columns override it; CSV export always uses created_at DESC (unchanged).
+    sort_col = %w[created_at employee_name request_type status].include?(@filters[:sort]) ? @filters[:sort] : nil
     sort_dir = @filters[:dir] == "asc" ? "asc" : "desc"
 
-    sorted = case sort_col
-             when "created_at"    then base.order(created_at: sort_dir.to_sym)
-             when "employee_name" then base.left_joins(:user).order(Arel.sql("users.first_name #{sort_dir}, users.last_name #{sort_dir}"))
-             when "request_type"  then base.order(request_type: sort_dir.to_sym)
-             when "status"        then base.order(status: sort_dir.to_sym)
+    sorted = if sort_col.nil?
+               base.left_joins(:advance)
+                   .order(Arel.sql(EmployeeRequest.priority_case_sql))
+                   .order(created_at: :desc)
+             else
+               case sort_col
+               when "created_at"    then base.order(created_at: sort_dir.to_sym)
+               when "employee_name" then base.left_joins(:user).order(Arel.sql("users.first_name #{sort_dir}, users.last_name #{sort_dir}"))
+               when "request_type"  then base.order(request_type: sort_dir.to_sym)
+               when "status"        then base.order(status: sort_dir.to_sym)
+               end
              end
 
     # Pagination

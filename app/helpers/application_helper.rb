@@ -89,13 +89,31 @@ module ApplicationHelper
   end
 
   def request_status_badge_class(request)
+    return "badge-warning" if employee_request_awaiting_payment?(request)
+
     case request.status
+    when "pending"    then "badge-warning"
     when "approved"   then "badge-success"
     when "rejected"   then "badge-danger"
-    when "paid"       then "badge-accent"
+    when "paid"       then "badge-success"
     when "cancelled"  then "badge-neutral"
     else                   "badge-neutral"
     end
+  end
+
+  def request_status_label(request)
+    if employee_request_awaiting_payment?(request)
+      t("requests.statuses.approved_awaiting_payment")
+    else
+      t("requests.statuses.#{request.status}")
+    end
+  end
+
+  def employee_request_awaiting_payment?(request)
+    request.respond_to?(:salary_advance?) &&
+      request.approved? &&
+      request.salary_advance? &&
+      request.advance.nil?
   end
 
   def period_status_badge_class(period_or_status)

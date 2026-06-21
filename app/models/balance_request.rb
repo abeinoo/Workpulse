@@ -30,6 +30,25 @@ class BalanceRequest < ApplicationRecord
   scope :pending,      -> { where(status: "pending_approval") }
   scope :recent,       -> { order(created_at: :desc) }
 
+  # UI default ordering:
+  #   1 – Pending approval (actionable)
+  #   2 – Approved, awaiting payment (actionable)
+  #   3 – Paid (completed)
+  #   4 – Rejected
+  #   5 – Draft / cancelled / other
+  scope :priority_order, -> {
+    priority_sql = <<~SQL.squish
+      CASE status
+        WHEN 'pending_approval' THEN 1
+        WHEN 'approved'         THEN 2
+        WHEN 'paid'             THEN 3
+        WHEN 'rejected'         THEN 4
+        ELSE 5
+      END
+    SQL
+    order(Arel.sql(priority_sql)).order(created_at: :desc)
+  }
+
   private
 
   def branch_in_same_business

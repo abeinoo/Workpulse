@@ -55,6 +55,34 @@ class EmployeeRequest < ApplicationRecord
     order(Arel.sql(review_priority_case)).order(created_at: :desc)
   }
 
+  # Priority ordering for the UI index:
+  #   1 – Pending (actionable for managers)
+  #   2 – Approved salary advances awaiting disbursement (actionable for accountants)
+  #   3 – Paid / other approved requests (completed)
+  #   4 – Rejected
+  #   5 – Everything else (cancelled, etc.)
+  # Requires a LEFT JOIN on advances so we can distinguish "approved + no advance"
+  # (awaiting payment) from "approved + advance exists" (already disbursed).
+  scope :priority_order, -> {
+    left_joins(:advance)
+      .order(Arel.sql(priority_case_sql))
+      .order(created_at: :desc)
+  }
+
+  def self.priority_case_sql
+    <<~SQL.squish
+      CASE
+        WHEN employee_requests.status = 'pending' THEN 1
+        WHEN employee_requests.status = 'approved'
+             AND employee_requests.request_type = 'salary_advance'
+             AND advances.id IS NULL THEN 2
+        WHEN employee_requests.status IN ('paid', 'approved') THEN 3
+        WHEN employee_requests.status = 'rejected' THEN 4
+        ELSE 5
+      END
+    SQL
+  end
+
   # ── Index filters (all no-op when the value is blank, so they compose freely) ──
   scope :with_status, ->(status)  { where(status: status) if status.present? }
   scope :for_user,    ->(user_id) { where(user_id: user_id) if user_id.present? }

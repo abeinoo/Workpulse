@@ -275,7 +275,7 @@
             </td>
             <td data-label="<%= t("requests.status") %>">
               <span class="badge <%= request_status_badge_class(req) %>">
-                <%= t("requests.statuses.#{req.status}") %>
+                <%= request_status_label(req) %>
               </span>
             </td>
             <td class="td-actions">

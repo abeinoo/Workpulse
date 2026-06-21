@@ -5,7 +5,7 @@ class Finance::BalanceRequestsController < Finance::BaseController
     authorize BalanceRequest
     @requests = policy_scope(BalanceRequest)
                   .with_status(params[:status])
-                  .recent
+                  .priority_order
                   .includes(:branch, :created_by, :approved_by)
   end
 
