@@ -88,7 +88,7 @@ module Inventory
       @business.products
                .inventory_tracked
                .where(receive_low_stock_notification: true)
-               .includes(:product_warehouse_settings)
+               .includes(:product_warehouse_settings, :parent_product)
     end
 
     def movement_levels

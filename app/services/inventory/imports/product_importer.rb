@@ -6,6 +6,9 @@ module Inventory
     #   Product Name, SKU, Barcode, Brand, Category, Initial Cost,
     #   Current Stock, Low Stock Level, Reorder Quantity
     #
+    # Each row creates one product. Use Parent/Child Products for grouping
+    # (not the removed Variant system).
+    #
     # Validates duplicate SKU / barcode (against the database AND within the file)
     # before importing — offending rows are skipped and reported. Brands and
     # categories are matched by name (created on demand). If a target warehouse is
@@ -76,7 +79,9 @@ module Inventory
             if seen_skus[sku.downcase] || @business.products.where("LOWER(sku) = ?", sku.downcase).exists?
               skipped << Skip.new(row_number: line, sku: sku, reason: :duplicate_sku); next
             end
-            if barcode && (seen_barcodes[barcode.downcase] || ProductBarcode.where("LOWER(barcode) = ?", barcode.downcase).exists?)
+            if barcode && (seen_barcodes[barcode.downcase] ||
+                           ProductBarcode.joins(:product).where(product: { business: @business })
+                                         .where("LOWER(product_barcodes.barcode) = ?", barcode.downcase).exists?)
               skipped << Skip.new(row_number: line, sku: sku, reason: :duplicate_barcode); next
             end
 

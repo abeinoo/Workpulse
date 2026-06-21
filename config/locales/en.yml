@@ -945,7 +945,16 @@ en:
     index:
       title: "Requests"
       page_title: "Requests — WorkPulse"
+      page_info: "Showing %{from}–%{to} of %{total} requests (page %{page} of %{pages})"
+      summary:
+        pending: "Pending"
+        approved: "Approved"
+        rejected: "Rejected"
+        paid: "Paid"
     filters:
+      type: "Type"
+      all_types: "All Types"
+      per_page: "Per page"
       status: "Status"
       employee: "Employee"
       branch: "Branch"
@@ -2159,6 +2168,7 @@ en:
         branding: "Branding"
         automation: "Automation"
         employee_numbering: "Employee Numbering"
+        barcode_numbering: "Barcode Numbering"
       timezone_label: "Timezone"
       timezone_hint: "Used for all attendance, payroll, and business-day calculations. Stored as an IANA timezone identifier (e.g. Asia/Riyadh)."
       business_day_label: "Business Day Start Hour"
@@ -2191,6 +2201,12 @@ en:
       employee_code_start_info: "New employees are automatically assigned a numeric employee code. The next code is always one higher than the highest existing code, so numbers never repeat."
       employee_code_start_label: "Starting Employee Number"
       employee_code_start_hint: "The first auto-generated employee code uses this number (e.g. 500 → 500, 501, 502 …). It only applies until a higher code already exists; existing codes are never changed."
+      barcode_numbering_info: "When a product is created without a barcode, one is generated automatically using the sequence below. The counter advances after every auto-generated code so numbers are never reused."
+      barcode_prefix_label: "Barcode Prefix"
+      barcode_prefix_placeholder: "e.g. PRD"
+      barcode_prefix_hint: 'Optional text prepended to every auto-generated barcode (max 10 characters). Example: prefix "PRD" + number 42 → PRD000042.'
+      barcode_next_number_label: "Next Barcode Number"
+      barcode_next_number_hint: "The sequence counter for the next auto-generated barcode. Advances automatically — you can set it forward to leave a gap, but never backward past existing codes."
     payroll_periods:
       index:
         title: "Payroll Periods"
@@ -2808,6 +2824,8 @@ en:
       all_warehouses: "All warehouses"
       low_stock_title: "Low Stock Alerts"
       low_stock_empty: "No products are low on stock."
+      family_low_stock_title: "Product Families with Low Stock"
+      low_children_count: "Low-Stock Children"
       recent_receipts: "Recent Goods Receipts"
       recent_issues: "Recent Stock Issues"
       none_yet: "Nothing yet."
@@ -2925,6 +2943,7 @@ en:
       scan_label: "Scan barcode"
       scan_placeholder: "Scan or type a barcode, then press Enter"
       not_found: 'No product found for "%{code}"'
+      parent_product: '"%{name}" is a product family — scan a child product instead.'
       matched_by_sku: "Matched by SKU"
     camera_scanner:
       title: "Scan Barcode"
@@ -2996,17 +3015,6 @@ en:
       receive_low_stock_notification_hint: "Send a low stock alert when total stock reaches or falls below the reorder level."
       reorder_level: "Reorder Level"
       reorder_level_hint: "Alert fires when total stock is at or below this quantity."
-      section_variants: "Variants"
-      variants_hint: "Variants let you track different versions of this product (e.g. size, colour, scent). Inventory is always tracked at the product level."
-      no_variants: "No variants added."
-      add_variant: "Add Variant"
-      variant_name: "Variant Name"
-      variant_sku: "Variant SKU"
-      variant_active: "Active"
-      barcode_variant: "Variant"
-      barcode_no_variant: "Product (no variant)"
-      generate_for_variant: "Generate for variant"
-      variant_not_found: "Variant not found."
       stock_by_warehouse: "Stock by Warehouse"
       no_stock_yet: "No stock recorded yet."
       warehouse: "Warehouse"
@@ -3021,6 +3029,44 @@ en:
       default_threshold: "default"
       new_title: "New Product"
       edit_title: "Edit Product"
+      section_family: "Product Family"
+      family_hint: "Assign this product to a parent to group related products (e.g. sizes or colours). The parent product acts as a container only and cannot carry stock itself."
+      parent_product: "Parent Product"
+      parent_product_hint: "Only root-level products can become parents."
+      no_parent_product: "None (standalone product)"
+      parent_no_tracking_notice: "This product is a parent container. Stock tracking and low-stock notifications are managed by its child products."
+      parent_history_warning: "This product already has stock movements. Assigning it a parent will not affect existing movements, but it will be excluded from new transactions."
+      parent_barcodes_readonly_notice: "Parent products cannot be used in transactions and barcodes cannot be scanned at the point of sale. Existing barcodes are preserved for historical reference. To add or edit barcodes, remove all child products first."
+      parent_barcodes_show_notice: "This barcode belongs to a parent product and cannot be scanned in transactions. Scan a child product instead."
+      expand_children: "Expand children"
+      children_count:
+        one: "%{count} child"
+        other: "%{count} children"
+      family_stock_label: "family total"
+      family_total_stock: "Family Total Stock"
+      child_products: "Child Products"
+      child_products_count: "Children"
+      no_children_yet: "No child products yet. Edit this product to assign child products."
+      filter_all: "All Products"
+      filter_root: "Parent Products"
+      filter_child: "Child Products"
+      filter_standalone: "Standalone Products"
+      status_active: "Active"
+      status_archived: "Archived"
+      status_all: "All"
+      archived_badge: "Archived"
+      archived_notice: "This product was archived on %{date}. It is preserved for historical records but excluded from new transactions."
+      archive: "Archive"
+      archive_confirm: "Archive this product? It will be hidden from all transaction forms but its history is preserved."
+      archive_family: "Archive Family"
+      archive_family_confirm: "Archive this product and all its child products? They will be hidden from all transaction forms but history is preserved."
+      restore: "Restore"
+      archived: "Product archived successfully."
+      restored: "Product restored successfully."
+      family_archived: "Product family archived successfully."
+      delete_confirm: "Permanently delete this product? This cannot be undone."
+      has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
+      archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
     movements:
       date: "Date"
       warehouse: "Warehouse"
@@ -3289,6 +3335,11 @@ en:
       performance_review_score: "Score"
       performance_observation: "Observation"
     attributes:
+      user:
+        first_name: "First name"
+        last_name: "Last name"
+        email: "Email"
+        phone_number: "Phone number"
       employee_obligation:
         user: "Employee"
         obligation_type: "Obligation type"
@@ -3406,6 +3457,11 @@ en:
           attributes:
             base:
               no_balance_account: "You do not have an employee balance account. Please contact your manager."
+        product:
+          attributes:
+            base:
+              has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
+              archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
   date:
     formats:
       default: "%b %-d, %Y"

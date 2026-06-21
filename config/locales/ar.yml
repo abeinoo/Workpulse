@@ -944,7 +944,16 @@ ar:
     index:
       title: "الطلبات"
       page_title: "الطلبات — ووركبلس"
+      page_info: "عرض %{from}–%{to} من %{total} طلب (صفحة %{page} من %{pages})"
+      summary:
+        pending: "قيد الانتظار"
+        approved: "مقبولة"
+        rejected: "مرفوضة"
+        paid: "مدفوعة"
     filters:
+      type: "النوع"
+      all_types: "كل الأنواع"
+      per_page: "لكل صفحة"
       status: "الحالة"
       employee: "الموظف"
       branch: "الفرع"
@@ -1511,6 +1520,7 @@ ar:
     temporary_badge: "مؤقت"
     expiring_soon_badge: "ينتهي قريباً"
     resumes_on: "القادم: %{shift} من %{date}"
+    reverts_to: "يعود إلى الوردية العادية: %{shift} من %{date}"
 
     progress: "%{pct}% منقضي"
     open_ended_bar: "مفتوح"
@@ -2147,6 +2157,7 @@ ar:
         branding: "الهوية البصرية"
         automation: "الأتمتة"
         employee_numbering: "ترقيم الموظفين"
+        barcode_numbering: "ترقيم الباركود"
       timezone_label: "المنطقة الزمنية"
       timezone_hint: "تُستخدم لجميع حسابات الحضور والرواتب وأيام العمل."
       business_day_label: "ساعة بداية يوم العمل"
@@ -2179,6 +2190,12 @@ ar:
       employee_code_start_info: "يُمنح الموظفون الجدد كود موظف رقمي تلقائياً. يكون الكود التالي دائماً أكبر بواحد من أعلى كود موجود، لذا لا تتكرر الأرقام."
       employee_code_start_label: "رقم الموظف الابتدائي"
       employee_code_start_hint: "يستخدم أول كود موظف يُنشأ تلقائياً هذا الرقم (مثال: 500 ← 500، 501، 502 …). يُطبَّق فقط حتى يوجد كود أعلى منه؛ ولا تتغيّر الأكواد الحالية أبداً."
+      barcode_numbering_info: "عند إنشاء منتج بدون باركود، يُولَّد باركود تلقائياً باستخدام التسلسل أدناه. يتقدم العداد بعد كل باركود مُولَّد تلقائياً حتى لا تتكرر الأرقام."
+      barcode_prefix_label: "بادئة الباركود"
+      barcode_prefix_placeholder: "مثال: PRD"
+      barcode_prefix_hint: "نص اختياري يُضاف قبل كل باركود مُولَّد تلقائياً (10 أحرف كحد أقصى). مثال: البادئة \"PRD\" + الرقم 42 = PRD000042."
+      barcode_next_number_label: "رقم الباركود التالي"
+      barcode_next_number_hint: "عداد التسلسل للباركود التالي المُولَّد تلقائياً. يتقدم تلقائياً — يمكنك ضبطه للأمام لترك فجوة، لكن لا يجوز ضبطه للخلف."
     payroll_periods:
       index:
         title: "فترات الرواتب"
@@ -2844,6 +2861,8 @@ ar:
       all_warehouses: "كل المستودعات"
       low_stock_title: "تنبيهات انخفاض المخزون"
       low_stock_empty: "لا توجد منتجات منخفضة المخزون."
+      family_low_stock_title: "عائلات المنتجات ذات المخزون المنخفض"
+      low_children_count: "منتجات فرعية منخفضة"
       recent_receipts: "أحدث إذونات الاستلام"
       recent_issues: "أحدث إذونات الصرف"
       none_yet: "لا يوجد بعد."
@@ -2961,6 +2980,7 @@ ar:
       scan_label: "مسح الباركود"
       scan_placeholder: "امسح أو اكتب الباركود ثم اضغط Enter"
       not_found: 'لا يوجد منتج للباركود "%{code}"'
+      parent_product: '"%{name}" منتج أصل — امسح منتجاً فرعياً بدلاً من ذلك.'
       matched_by_sku: "تمت المطابقة عبر رمز SKU"
     camera_scanner:
       title: "مسح الباركود"
@@ -3032,17 +3052,6 @@ ar:
       receive_low_stock_notification_hint: "إرسال تنبيه عندما ينخفض إجمالي المخزون إلى مستوى إعادة الطلب أو أدناه."
       reorder_level: "مستوى إعادة الطلب"
       reorder_level_hint: "يُرسَل التنبيه عندما يكون إجمالي المخزون عند هذه الكمية أو أقل منها."
-      section_variants: "المتغيرات"
-      variants_hint: "تتيح المتغيرات تتبع إصدارات مختلفة من هذا المنتج (مثل الحجم أو اللون أو العطر). يظل تتبع المخزون دائمًا على مستوى المنتج."
-      no_variants: "لم تُضَف أي متغيرات."
-      add_variant: "إضافة متغير"
-      variant_name: "اسم المتغير"
-      variant_sku: "رمز المتغير"
-      variant_active: "نشط"
-      barcode_variant: "المتغير"
-      barcode_no_variant: "المنتج (بدون متغير)"
-      generate_for_variant: "إنشاء رمز للمتغير"
-      variant_not_found: "المتغير غير موجود."
       stock_by_warehouse: "المخزون حسب المستودع"
       no_stock_yet: "لا يوجد مخزون مسجل بعد."
       warehouse: "المستودع"
@@ -3057,6 +3066,44 @@ ar:
       default_threshold: "افتراضي"
       new_title: "منتج جديد"
       edit_title: "تعديل المنتج"
+      section_family: "عائلة المنتج"
+      family_hint: "قم بتعيين هذا المنتج لمنتج أصل لتجميع المنتجات المرتبطة (مثل المقاسات أو الألوان). المنتج الأصل حاوية فقط ولا يحمل مخزوناً."
+      parent_product: "المنتج الأصل"
+      parent_product_hint: "يمكن فقط للمنتجات في المستوى الجذر أن تصبح منتجات أصل."
+      no_parent_product: "بدون أصل (منتج مستقل)"
+      parent_no_tracking_notice: "هذا المنتج حاوية أصل. يُدار تتبع المخزون والإشعارات عبر منتجاته الفرعية."
+      parent_history_warning: "يحتوي هذا المنتج على حركات مخزون سابقة. تعيينه كمنتج أصل لن يؤثر على الحركات الموجودة، لكنه سيُستبعد من المعاملات الجديدة."
+      parent_barcodes_readonly_notice: "لا يمكن استخدام منتجات الأصل في المعاملات ولا يمكن مسح بركوداتها. الباركودات الموجودة محفوظة للرجوع إليها. لإضافة باركودات أو تعديلها، احذف جميع المنتجات الفرعية أولاً."
+      parent_barcodes_show_notice: "هذا الباركود يخص منتج أصل ولا يمكن مسحه في المعاملات. امسح منتجاً فرعياً بدلاً من ذلك."
+      expand_children: "توسيع المنتجات الفرعية"
+      children_count:
+        one: "منتج فرعي واحد"
+        other: "%{count} منتجات فرعية"
+      family_stock_label: "إجمالي العائلة"
+      family_total_stock: "إجمالي مخزون العائلة"
+      child_products: "المنتجات الفرعية"
+      child_products_count: "فرعية"
+      no_children_yet: "لا توجد منتجات فرعية بعد. قم بتعديل هذا المنتج لإضافة منتجات فرعية."
+      filter_all: "جميع المنتجات"
+      filter_root: "المنتجات الأصل"
+      filter_child: "المنتجات الفرعية"
+      filter_standalone: "المنتجات المستقلة"
+      status_active: "النشطة"
+      status_archived: "المؤرشفة"
+      status_all: "الكل"
+      archived_badge: "مؤرشف"
+      archived_notice: "تم أرشفة هذا المنتج في %{date}. محفوظ للسجلات التاريخية ولكنه مستبعد من المعاملات الجديدة."
+      archive: "أرشفة"
+      archive_confirm: "أرشفة هذا المنتج؟ سيُخفى من جميع نماذج المعاملات مع الحفاظ على سجله التاريخي."
+      archive_family: "أرشفة العائلة"
+      archive_family_confirm: "أرشفة هذا المنتج وجميع المنتجات الفرعية التابعة له؟ سيُخفوا من جميع نماذج المعاملات مع الحفاظ على السجل التاريخي."
+      restore: "استعادة"
+      archived: "تم أرشفة المنتج بنجاح."
+      restored: "تم استعادة المنتج بنجاح."
+      family_archived: "تم أرشفة عائلة المنتجات بنجاح."
+      delete_confirm: "حذف هذا المنتج نهائياً؟ لا يمكن التراجع عن هذا الإجراء."
+      has_history_cannot_delete: "هذا المنتج له سجلات مخزون تاريخية ولا يمكن حذفه. قم بأرشفته بدلاً من ذلك."
+      archive_has_active_children: "لا يمكن أرشفة منتج أصل يحتوي على منتجات فرعية نشطة. أرشف المنتجات الفرعية أولاً أو استخدم أرشفة العائلة."
     movements:
       date: "التاريخ"
       warehouse: "المستودع"
@@ -3325,6 +3372,11 @@ ar:
       performance_review_score: "درجة"
       performance_observation: "ملاحظة"
     attributes:
+      user:
+        first_name: "الاسم الأول"
+        last_name: "اسم العائلة"
+        email: "البريد الإلكتروني"
+        phone_number: "رقم الهاتف"
       employee_obligation:
         user: "الموظف"
         obligation_type: "نوع الالتزام"
@@ -3442,6 +3494,11 @@ ar:
           attributes:
             base:
               no_balance_account: "لا يوجد حساب رصيد مرتبط بك. برجاء التواصل مع المسؤول."
+        product:
+          attributes:
+            base:
+              has_history_cannot_delete: "هذا المنتج له سجلات مخزون تاريخية ولا يمكن حذفه. قم بأرشفته بدلاً من ذلك."
+              archive_has_active_children: "لا يمكن أرشفة منتج أصل يحتوي على منتجات فرعية نشطة. أرشف المنتجات الفرعية أولاً أو استخدم أرشفة العائلة."
 
   ops_dashboard:
     page_title: "لوحة العمليات"

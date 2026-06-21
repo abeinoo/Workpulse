@@ -7,9 +7,6 @@
       <% @quantity.times do %>
         <div class="label">
           <div class="label__name"><%= @product.name %></div>
-          <% if bc.product_variant.present? %>
-            <div class="label__variant"><%= bc.product_variant.name %></div>
-          <% end %>
           <% if @product.sku.present? %>
             <div class="label__sku"><%= @product.sku %></div>
           <% end %>

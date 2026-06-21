@@ -60,7 +60,7 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
 
   def load_options
     @warehouses = accessible_warehouses
-    @products   = current_user.business.products.ordered
+    @products   = current_user.business.products.transactable.ordered
   end
 
   def adjustment_params

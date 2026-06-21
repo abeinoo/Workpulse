@@ -20,6 +20,16 @@
     </div>
   </div>
 
+  <%# ── Status tabs ──────────────────────────────────────────────────────── %>
+  <div class="tab-bar" style="margin-bottom: var(--space-4);">
+    <%= link_to t("inventory.products.status_active"), inventory_products_path(params.permit(:q, :brand_id, :category_id, :family_type).merge(status: "active")),
+          class: "tab-bar__tab #{"tab-bar__tab--active" if @status_filter.to_s == "active"}" %>
+    <%= link_to t("inventory.products.status_archived"), inventory_products_path(params.permit(:q, :brand_id, :category_id, :family_type).merge(status: "archived")),
+          class: "tab-bar__tab #{"tab-bar__tab--active" if @status_filter.to_s == "archived"}" %>
+    <%= link_to t("inventory.products.status_all"), inventory_products_path(params.permit(:q, :brand_id, :category_id, :family_type).merge(status: "all")),
+          class: "tab-bar__tab #{"tab-bar__tab--active" if @status_filter.to_s == "all"}" %>
+  </div>
+
   <div data-controller="camera-scanner"
        data-camera-scanner-mode-value="lookup"
        data-camera-scanner-lookup-url-value="<%= inventory_barcode_lookup_path %>"
@@ -37,6 +47,7 @@
        data-camera-scanner-i18n-create-product="<%= t('inventory.camera_scanner.create_product') %>"
        data-camera-scanner-i18n-dismiss="<%= t('inventory.camera_scanner.dismiss') %>">
     <%= form_with url: inventory_products_path, method: :get, class: "filter-bar" do |f| %>
+      <%= f.hidden_field :status, value: @status_filter %>
       <div class="barcode-input-group">
         <%= f.text_field :q, value: params[:q], placeholder: t("inventory.products.search_placeholder"), class: "form-control" %>
         <button type="button" class="btn btn-secondary barcode-camera-btn"
@@ -53,11 +64,19 @@
             { include_blank: t("inventory.products.all_brands") }, class: "form-control" %>
       <%= f.select :category_id, options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
             { include_blank: t("inventory.products.all_categories") }, class: "form-control" %>
+      <%= f.select :family_type,
+            [
+              [ t("inventory.products.filter_all"),        "" ],
+              [ t("inventory.products.filter_root"),       "root" ],
+              [ t("inventory.products.filter_child"),      "child" ],
+              [ t("inventory.products.filter_standalone"), "standalone" ]
+            ],
+            { selected: params[:family_type] }, class: "form-control" %>
       <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm" %>
     <% end %>
   </div>
 
-  <% if @products.empty? %>
+  <% if @root_products.empty? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("inventory.products.empty") %></p></div>
   <% else %>
     <div class="table-wrap table-wrap--cards">
@@ -77,9 +96,15 @@
           <th></th>
         </tr></thead>
         <tbody>
-          <% @products.each do |product| %>
-            <% stock = @stock_totals[product.id] || 0 %>
-            <tr>
+          <% @root_products.each do |product| %>
+            <%
+              child_count  = @child_counts[product.id] || 0
+              is_parent    = child_count > 0
+              display_stock = is_parent ?
+                (@family_stock_totals[product.id] || 0) :
+                (@stock_totals[product.id] || 0)
+            %>
+            <tr <%= "data-controller=product-family data-product-family-url-value=#{children_inventory_product_path(product)} data-product-id=#{product.id}".html_safe if is_parent %>>
               <td>
                 <input type="checkbox"
                        data-product-select-target="checkbox"
@@ -87,27 +112,59 @@
                        data-action="product-select#toggle"
                        aria-label="<%= product.name %>">
               </td>
-              <td><%= link_to product.name, inventory_product_path(product), class: "link" %></td>
+              <td>
+                <% if is_parent %>
+                  <button type="button"
+                          class="btn btn-ghost btn-xs"
+                          style="padding: 0 var(--space-1); margin-inline-end: var(--space-1);"
+                          data-action="click->product-family#toggle"
+                          data-product-family-target="trigger"
+                          aria-expanded="false"
+                          aria-label="<%= t('inventory.products.expand_children') %>">▶</button>
+                <% end %>
+                <%= link_to product.name, inventory_product_path(product), class: "link" %>
+                <% if product.archived? %>
+                  <span class="badge badge-neutral" style="margin-inline-start: var(--space-1);"><%= t("inventory.products.archived_badge") %></span>
+                <% end %>
+                <% if is_parent %>
+                  <span class="badge badge-neutral" style="margin-inline-start: var(--space-1);">
+                    <%= t("inventory.products.children_count", count: child_count) %>
+                  </span>
+                <% end %>
+                <% if product.child? %>
+                  <span class="td-secondary" style="display: block; font-size: 0.8em;">
+                    ↳ <%= product.parent_product.name %>
+                  </span>
+                <% end %>
+              </td>
               <td class="td-secondary"><%= product.sku %></td>
               <td class="td-secondary"><%= product.brand&.name || "—" %></td>
               <td style="text-align: end;">
-                <% if product.track_inventory? && stock <= product.low_stock_level %>
-                  <span class="badge badge-warning"><%= stock.to_i %></span>
+                <% if !is_parent && product.track_inventory? && display_stock <= product.low_stock_level %>
+                  <span class="badge badge-warning"><%= display_stock.to_i %></span>
                 <% else %>
-                  <%= stock.to_i %>
+                  <%= display_stock.to_i %>
+                  <% if is_parent %><span class="td-secondary" style="font-size: 0.8em;"> <%= t("inventory.products.family_stock_label") %></span><% end %>
                 <% end %>
               </td>
-              <td style="text-align: end;"><%= format_currency(product.average_cost_price) %></td>
+              <td style="text-align: end;"><%= is_parent ? "—" : format_currency(product.average_cost_price) %></td>
               <td class="td-actions">
                 <%= link_to inventory_barcode_label_path(product), target: "_blank", rel: "noopener",
                       class: "link-muted", title: t("inventory.barcode_labels.print_barcode") do %>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 <% end %>
                 <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
-                  <%= link_to t("common.edit"), edit_inventory_product_path(product), class: "link-muted" %>
+                  <% if product.archived? %>
+                    <%= button_to t("inventory.products.restore"), restore_inventory_product_path(product),
+                          method: :patch, class: "btn btn-ghost btn-xs" %>
+                  <% else %>
+                    <%= link_to t("common.edit"), edit_inventory_product_path(product), class: "link-muted" %>
+                  <% end %>
                 <% end %>
               </td>
             </tr>
+            <%# Children are lazy-loaded by product-family Stimulus controller.
+                Standalone products (no children) render as normal rows above. %>
           <% end %>
         </tbody>
       </table>

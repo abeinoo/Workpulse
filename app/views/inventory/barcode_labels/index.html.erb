@@ -4,7 +4,7 @@
 <% else %>
   <div class="label-grid">
     <% @products.each do |product| %>
-      <% barcodes = product.product_barcodes.loaded? ? product.product_barcodes.sort_by { |pb| [pb.is_primary? ? 0 : 1, pb.created_at.to_i] } : product.product_barcodes.includes(:product_variant).ordered.to_a %>
+      <% barcodes = product.product_barcodes.loaded? ? product.product_barcodes.sort_by { |pb| [pb.is_primary? ? 0 : 1, pb.created_at.to_i] } : product.product_barcodes.ordered.to_a %>
       <% if barcodes.none? %>
         <%# Skip products without barcodes in bulk print %>
       <% else %>
@@ -12,9 +12,6 @@
           <% @quantity.times do %>
             <div class="label">
               <div class="label__name"><%= product.name %></div>
-              <% if bc.product_variant.present? %>
-                <div class="label__variant"><%= bc.product_variant.name %></div>
-              <% end %>
               <% if product.sku.present? %>
                 <div class="label__sku"><%= product.sku %></div>
               <% end %>

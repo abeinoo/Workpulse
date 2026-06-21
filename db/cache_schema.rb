@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -253,6 +253,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
 
   create_table "businesses", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.integer "barcode_next_number", default: 1, null: false
+    t.string "barcode_prefix"
     t.integer "business_day_start_hour", default: 6, null: false
     t.datetime "created_at", null: false
     t.string "currency", default: "SAR", null: false
@@ -269,6 +271,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
     t.text "settings"
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
+    t.boolean "variant_system_enabled", default: true, null: false
     t.integer "working_days_per_month", default: 26, null: false
     t.index ["owner_id"], name: "index_businesses_on_owner_id"
   end
@@ -836,11 +839,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
   create_table "product_barcodes", force: :cascade do |t|
     t.string "barcode", null: false
     t.string "barcode_type", null: false
+    t.bigint "business_id", null: false
     t.datetime "created_at", null: false
     t.boolean "is_primary", default: false, null: false
     t.bigint "product_id", null: false
     t.bigint "variant_id"
-    t.index "lower((barcode)::text)", name: "index_product_barcodes_on_lower_barcode", unique: true
+    t.index "business_id, lower((barcode)::text)", name: "index_product_barcodes_on_business_id_lower_barcode", unique: true
     t.index ["product_id"], name: "index_product_barcodes_on_product_id"
   end
 
@@ -880,6 +884,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
   end
 
   create_table "products", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "archived_at"
     t.decimal "average_cost_price", precision: 12, scale: 4, default: "0.0", null: false
     t.string "barcode"
     t.bigint "brand_id"
@@ -891,6 +897,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
     t.decimal "low_stock_level", precision: 12, scale: 3, default: "0.0", null: false
     t.string "name", null: false
     t.text "notes"
+    t.bigint "parent_product_id"
     t.bigint "product_category_id"
     t.boolean "receive_low_stock_notification", default: true, null: false
     t.integer "reorder_level", default: 0, null: false
@@ -902,8 +909,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
     t.index "business_id, lower((barcode)::text)", name: "index_products_on_business_id_and_lower_barcode", unique: true, where: "((barcode IS NOT NULL) AND ((barcode)::text <> ''::text))"
     t.index "business_id, lower((sku)::text)", name: "index_products_on_business_id_and_lower_sku", unique: true
     t.index ["brand_id"], name: "index_products_on_brand_id"
+    t.index ["business_id", "active"], name: "index_products_on_business_id_and_active"
+    t.index ["business_id", "parent_product_id"], name: "index_products_on_business_id_and_parent_product_id"
     t.index ["business_id"], name: "index_products_on_business_id"
     t.index ["default_supplier_id"], name: "index_products_on_default_supplier_id"
+    t.index ["parent_product_id"], name: "index_products_on_parent_product_id"
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
   end
 
@@ -1528,6 +1538,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
   add_foreign_key "performance_reviews", "users", column: "employee_id"
   add_foreign_key "performance_reviews", "users", column: "reviewer_id"
   add_foreign_key "permission_roles", "businesses"
+  add_foreign_key "product_barcodes", "businesses"
   add_foreign_key "product_barcodes", "product_variants", column: "variant_id"
   add_foreign_key "product_barcodes", "products"
   add_foreign_key "product_categories", "businesses"
@@ -1537,6 +1548,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_094142) do
   add_foreign_key "products", "brands"
   add_foreign_key "products", "businesses"
   add_foreign_key "products", "product_categories"
+  add_foreign_key "products", "products", column: "parent_product_id", on_delete: :nullify
   add_foreign_key "products", "suppliers", column: "default_supplier_id"
   add_foreign_key "recurring_expense_allocations", "branches"
   add_foreign_key "recurring_expense_allocations", "recurring_expenses"

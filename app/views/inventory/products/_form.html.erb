@@ -60,83 +60,96 @@
 
   <div class="divider"></div>
 
-  <%# ── Variants ──────────────────────────────────────────── %>
-  <div data-controller="line-items">
-    <h2 class="section-title"><%= t("inventory.products.section_variants") %></h2>
-    <p class="form-hint"><%= t("inventory.products.variants_hint") %></p>
+  <%# ── Product Family ────────────────────────────────────── %>
+  <h2 class="section-title"><%= t("inventory.products.section_family") %></h2>
+  <p class="form-hint"><%= t("inventory.products.family_hint") %></p>
 
-    <div data-line-items-target="rows" class="variant-list">
-      <%= f.fields_for :product_variants do |v_f| %>
-        <%= render "variant_fields", f: v_f %>
-      <% end %>
+  <% if product.parent? %>
+    <div class="alert alert-info" style="margin-bottom: var(--space-3);">
+      <%= t("inventory.products.parent_no_tracking_notice") %>
     </div>
+  <% end %>
 
-    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_variants.any? %>>
-      <%= t("inventory.products.no_variants") %>
-    </p>
-
-    <div style="margin-top: var(--space-3);">
-      <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
-        + <%= t("inventory.products.add_variant") %>
-      </button>
+  <% if product.persisted? && !product.parent? && product.inventory_movements.exists? %>
+    <div class="alert alert-warning" style="margin-bottom: var(--space-3);">
+      <%= t("inventory.products.parent_history_warning") %>
     </div>
+  <% end %>
 
-    <template data-line-items-target="template">
-      <%= f.fields_for :product_variants, ProductVariant.new, child_index: "NEW_INDEX" do |v_f| %>
-        <%= render "variant_fields", f: v_f %>
-      <% end %>
-    </template>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :parent_product_id, t("inventory.products.parent_product"), class: "form-label" %>
+      <%= f.select :parent_product_id,
+            options_from_collection_for_select(@parent_product_options, :id, :name, product.parent_product_id),
+            { include_blank: "— #{t('inventory.products.no_parent_product')}" },
+            class: "form-control" %>
+      <p class="form-hint"><%= t("inventory.products.parent_product_hint") %></p>
+    </div>
   </div>
 
   <div class="divider"></div>
 
   <%# ── Barcodes ──────────────────────────────────────────── %>
-  <% product_variants_for_barcodes = product.product_variants.loaded? ? product.product_variants.to_a : product.product_variants.ordered.to_a %>
-  <div data-controller="line-items barcode-list"
-       data-barcode-list-generate-url-value="<%= next_barcode_code_inventory_products_path(format: :json) %>"
-       <%= "data-barcode-list-generate-save-url-value=\"#{generate_barcode_inventory_product_path(product, format: :json)}\"".html_safe if product.persisted? %>>
-    <h2 class="section-title"><%= t("inventory.products.barcodes") %></h2>
-    <p class="form-hint"><%= t("inventory.products.barcodes_hint") %></p>
-
-    <div data-line-items-target="rows" class="barcode-list">
-      <%= f.fields_for :product_barcodes do |bc_f| %>
-        <%= render "barcode_fields", f: bc_f, variants: product_variants_for_barcodes %>
-      <% end %>
-    </div>
-
-    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_barcodes.any? %>>
-      <%= t("inventory.products.no_barcodes") %>
-    </p>
-
-    <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
-      <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
-        + <%= t("inventory.products.add_barcode") %>
-      </button>
-      <button type="button" class="btn btn-secondary btn-sm" data-action="barcode-list#generate">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="4" height="18"/><rect x="9" y="3" width="2" height="18"/><rect x="13" y="3" width="4" height="18"/><rect x="19" y="3" width="2" height="9"/>
-        </svg>
-        <%= t("inventory.products.generate_barcode") %>
-      </button>
-      <% if product_variants_for_barcodes.any? && product.persisted? %>
-        <select class="form-control form-control--sm"
-                style="width: auto; min-width: 130px;"
-                data-barcode-list-target="variantSelect"
-                aria-label="<%= t('inventory.products.generate_for_variant') %>">
-          <option value=""><%= t("inventory.products.barcode_no_variant") %></option>
-          <% product_variants_for_barcodes.each do |v| %>
-            <option value="<%= v.id %>"><%= v.active? ? v.name : "#{v.name} (#{t('common.inactive')})" %></option>
+  <% if product.parent? %>
+    <%# Parent products: read-only barcode display with explanatory notice. %>
+    <%# Existing barcodes are preserved in the database but may not be scanned %>
+    <%# for transactions. Editing is blocked so no sequence numbers are wasted. %>
+    <div>
+      <h2 class="section-title"><%= t("inventory.products.barcodes") %></h2>
+      <div class="notice notice-info" style="margin-bottom: var(--space-3);">
+        <%= t("inventory.products.parent_barcodes_readonly_notice") %>
+      </div>
+      <% if product.product_barcodes.any? %>
+        <ul class="barcode-tag-list">
+          <% product.product_barcodes.each do |pb| %>
+            <li class="barcode-tag<%= " barcode-tag--primary" if pb.is_primary? %>">
+              <span class="barcode-tag__value"><%= pb.barcode %></span>
+              <% if pb.is_primary? %>
+                <span class="badge badge-neutral barcode-tag__badge"><%= t("inventory.products.barcode_primary") %></span>
+              <% end %>
+            </li>
           <% end %>
-        </select>
+        </ul>
+      <% else %>
+        <p class="td-secondary"><%= t("inventory.products.no_barcodes") %></p>
       <% end %>
     </div>
+  <% else %>
+    <div data-controller="line-items barcode-list"
+         data-barcode-list-generate-url-value="<%= next_barcode_code_inventory_products_path(format: :json) %>"
+         <%= "data-barcode-list-generate-save-url-value=\"#{generate_barcode_inventory_product_path(product, format: :json)}\"".html_safe if product.persisted? %>>
+      <h2 class="section-title"><%= t("inventory.products.barcodes") %></h2>
+      <p class="form-hint"><%= t("inventory.products.barcodes_hint") %></p>
 
-    <template data-line-items-target="template">
-      <%= f.fields_for :product_barcodes, ProductBarcode.new, child_index: "NEW_INDEX" do |bc_f| %>
-        <%= render "barcode_fields", f: bc_f, variants: product_variants_for_barcodes %>
-      <% end %>
-    </template>
-  </div>
+      <div data-line-items-target="rows" class="barcode-list">
+        <%= f.fields_for :product_barcodes do |bc_f| %>
+          <%= render "barcode_fields", f: bc_f %>
+        <% end %>
+      </div>
+
+      <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_barcodes.any? %>>
+        <%= t("inventory.products.no_barcodes") %>
+      </p>
+
+      <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
+        <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
+          + <%= t("inventory.products.add_barcode") %>
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" data-action="barcode-list#generate">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="4" height="18"/><rect x="9" y="3" width="2" height="18"/><rect x="13" y="3" width="4" height="18"/><rect x="19" y="3" width="2" height="9"/>
+          </svg>
+          <%= t("inventory.products.generate_barcode") %>
+        </button>
+      </div>
+
+      <template data-line-items-target="template">
+        <%= f.fields_for :product_barcodes, ProductBarcode.new, child_index: "NEW_INDEX" do |bc_f| %>
+          <%= render "barcode_fields", f: bc_f %>
+        <% end %>
+      </template>
+    </div>
+  <% end %>
 
   <div class="divider"></div>
 
@@ -168,12 +181,18 @@
   <h2 class="section-title"><%= t("inventory.products.section_inventory_tracking") %></h2>
   <div class="form-grid" data-controller="inventory-tracking">
     <div class="form-group" style="grid-column: 1 / -1;">
-      <div class="form-check">
-        <%= f.check_box :track_inventory, class: "form-check-input",
-              data: { action: "change->inventory-tracking#toggle" } %>
-        <%= f.label :track_inventory, t("inventory.products.track_inventory"), class: "form-check-label" %>
-      </div>
-      <p class="form-hint"><%= t("inventory.products.track_inventory_hint") %></p>
+      <% if product.parent? %>
+        <div class="alert alert-info">
+          <%= t("inventory.products.parent_no_tracking_notice") %>
+        </div>
+      <% else %>
+        <div class="form-check">
+          <%= f.check_box :track_inventory, class: "form-check-input",
+                data: { action: "change->inventory-tracking#toggle" } %>
+          <%= f.label :track_inventory, t("inventory.products.track_inventory"), class: "form-check-label" %>
+        </div>
+        <p class="form-hint"><%= t("inventory.products.track_inventory_hint") %></p>
+      <% end %>
     </div>
 
     <div class="form-group" data-inventory-tracking-target="notificationFields"
@@ -204,7 +223,7 @@
     <% if @warehouses.blank? %>
       <p class="td-secondary"><%= t("inventory.products.no_warehouses") %></p>
     <% else %>
-      <div class="table-wrap">
+      <div class="table-wrap table-wrap--form-cards">
         <table class="line-items-table">
           <thead><tr>
             <th style="width: 45%;"><%= t("inventory.products.warehouse") %></th>

@@ -17,7 +17,7 @@ document.addEventListener("turbo:render", syncHtmlLocale)
 // Auto-populate data-label on <td> cells in card tables by reading <th> text.
 // Runs on every page load so Turbo navigation stays in sync.
 function labelCardTables() {
-  document.querySelectorAll(".table-wrap--cards").forEach(wrap => {
+  document.querySelectorAll(".table-wrap--cards, .table-wrap--form-cards").forEach(wrap => {
     const table = wrap.querySelector("table");
     if (!table) return;
     const headers = [...table.querySelectorAll("thead th")].map(th => th.textContent.trim());

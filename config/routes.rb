@@ -272,7 +272,11 @@ Rails.application.routes.draw do
         get  :next_barcode_code
       end
       member do
-        post :generate_barcode
+        post  :generate_barcode
+        get   :children
+        patch :archive
+        patch :restore
+        patch :archive_family
       end
     end
     resources :barcode_labels, only: [ :index, :show ]

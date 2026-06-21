@@ -41,19 +41,6 @@
           class: "form-control" %>
   </div>
 
-  <% available_variants = local_assigns[:variants] || [] %>
-  <% if available_variants.any? %>
-    <div class="form-group barcode-list__variant">
-      <%= f.label :variant_id, t("inventory.products.barcode_variant"), class: "form-label" %>
-      <%= f.select :variant_id,
-            [ [ t("inventory.products.barcode_no_variant"), "" ] ] +
-              available_variants.map { |v| [ v.active? ? v.name : "#{v.name} (#{t('common.inactive')})", v.id ] },
-            { selected: f.object.variant_id.to_s },
-            class: "form-control",
-            data: { "variant-id-select": true } %>
-    </div>
-  <% end %>
-
   <div class="form-group barcode-list__primary">
     <label class="form-label"><%= t("inventory.products.barcode_primary") %></label>
     <div class="form-check">

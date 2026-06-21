@@ -86,7 +86,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
   def load_options
     @warehouses = accessible_warehouses
     @branches   = current_user.business.branches.active.order(:name)
-    @products   = current_user.business.products.ordered
+    @products   = current_user.business.products.transactable.ordered
   end
 
   def issue_params

@@ -75,6 +75,38 @@
     <% end %>
   </section>
 
+  <%# ── Family low stock alerts ──────────────────────────────── %>
+  <% if @family_low_stock.any? %>
+    <section class="card" style="margin-bottom: var(--space-6);">
+      <div class="card__header flex items-center justify-between">
+        <h2 class="card__title" style="margin: 0;">
+          <%= t("inventory.dashboard.family_low_stock_title") %>
+          <span class="badge badge-warning"><%= @family_low_stock.values.sum(&:size) %></span>
+        </h2>
+      </div>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("inventory.products.parent_product") %></th>
+              <th style="text-align: end;"><%= t("inventory.dashboard.low_children_count") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @family_low_stock.each do |parent, alerts| %>
+              <tr>
+                <td><%= link_to parent.name, inventory_product_path(parent), class: "link" %></td>
+                <td style="text-align: end;">
+                  <span class="badge badge-warning"><%= alerts.size %></span>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
+
   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5);">
     <section class="card">
       <div class="card__header"><h2 class="card__title" style="margin: 0;"><%= t("inventory.dashboard.recent_receipts") %></h2></div>

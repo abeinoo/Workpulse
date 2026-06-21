@@ -5,13 +5,14 @@ class ProductBarcode < ApplicationRecord
   # carton       — barcode on the outer carton or shipping box
   BARCODE_TYPES = %w[manufacturer internal carton].freeze
 
+  belongs_to :business
   belongs_to :product
-  belongs_to :product_variant, optional: true, foreign_key: :variant_id, inverse_of: :product_barcodes
 
   validates :barcode,      presence: true, length: { maximum: 100 }
   validates :barcode_type, inclusion: { in: BARCODE_TYPES }, allow_blank: false
-  validates :barcode,      uniqueness: { case_sensitive: false }
+  validates :barcode,      uniqueness: { scope: :business_id, case_sensitive: false }
 
+  before_validation :set_business_id
   before_validation :normalize_barcode
   before_validation :infer_barcode_type  # runs before inclusion check so nil type gets set
 
@@ -23,6 +24,10 @@ class ProductBarcode < ApplicationRecord
   scope :ordered, -> { order(is_primary: :desc, created_at: :asc) }
 
   private
+
+  def set_business_id
+    self.business_id ||= product&.business_id
+  end
 
   def normalize_barcode
     self.barcode = barcode.to_s.strip.presence
@@ -37,6 +42,6 @@ class ProductBarcode < ApplicationRecord
   end
 
   def demote_siblings
-    product.product_barcodes.where(variant_id: variant_id).where.not(id: id).update_all(is_primary: false)
+    product.product_barcodes.where.not(id: id).update_all(is_primary: false)
   end
 end

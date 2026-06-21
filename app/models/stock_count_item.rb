@@ -11,6 +11,12 @@ class StockCountItem < ApplicationRecord
   validates :counted_quantity, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validate  :counted_quantity_is_whole
   validates :product_id, uniqueness: { scope: :stock_count_id }
+  validate  :product_is_transactable
+
+  def product_is_transactable
+    return unless product
+    errors.add(:product_id, :parent_not_allowed) if Product.where(parent_product_id: product.id).exists?
+  end
 
   before_validation :compute_difference
 

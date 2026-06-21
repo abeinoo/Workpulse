@@ -82,17 +82,6 @@ RSpec.describe ProductBarcode, type: :model do
       expect(second.reload.is_primary).to be true
     end
 
-    it "does not demote barcodes from a different variant group" do
-      variant = product.product_variants.create!(name: "Honey")
-      product_pb = product.product_barcodes.create!(barcode: "PROD-PRI", barcode_type: "manufacturer", is_primary: true)
-      var_pb1    = product.product_barcodes.create!(barcode: "VAR-ONE",  barcode_type: "manufacturer", is_primary: true,  variant_id: variant.id)
-      var_pb2    = product.product_barcodes.create!(barcode: "VAR-TWO",  barcode_type: "internal",     is_primary: false, variant_id: variant.id)
-
-      var_pb2.update!(is_primary: true)
-
-      expect(var_pb1.reload.is_primary).to be false  # demoted within variant group
-      expect(product_pb.reload.is_primary).to be true # untouched — different group
-    end
   end
 
   describe "primary enforcement via Product#ensure_single_primary_barcode" do
@@ -112,19 +101,5 @@ RSpec.describe ProductBarcode, type: :model do
       expect(product.product_barcodes.reload.where(is_primary: true).count).to eq(1)
     end
 
-    it "enforces one primary per variant group independently" do
-      variant = product.product_variants.create!(name: "Rose")
-      product.update!(
-        product_barcodes_attributes: [
-          { barcode: "PROD-A", barcode_type: "manufacturer", is_primary: true },
-          { barcode: "VAR-A",  barcode_type: "manufacturer", is_primary: true, variant_id: variant.id },
-          { barcode: "VAR-B",  barcode_type: "internal",     is_primary: true, variant_id: variant.id }
-        ]
-      )
-      product_primaries = product.product_barcodes.reload.where(variant_id: nil,       is_primary: true).count
-      variant_primaries = product.product_barcodes.reload.where(variant_id: variant.id, is_primary: true).count
-      expect(product_primaries).to eq(1)
-      expect(variant_primaries).to eq(1)
-    end
   end
 end

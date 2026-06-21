@@ -7,6 +7,15 @@
     cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
   end
   col_count = 5 + (show_employee ? 1 : 0) + (can_bulk ? 1 : 0)
+
+  # Sort-link helper: preserves all current query params, flips dir if same column
+  sort_link = ->(col, label) {
+    next_dir = (@filters[:sort] == col && @filters[:dir] == "asc") ? "desc" : "asc"
+    arrow    = @filters[:sort] == col ? (@filters[:dir] == "asc" ? " ↑" : " ↓") : ""
+    link_to "#{label}#{arrow}".html_safe,
+            employee_requests_path(request.query_parameters.merge(sort: col, dir: next_dir, page: 1)),
+            class: "th-sort-link"
+  }
 %>
 
 <%# data-controller wraps the whole page so checkboxes, action bar and modal
@@ -23,6 +32,26 @@
     <% unless can_bulk %>
       <%= link_to t("requests.new.title"), new_employee_request_path, class: "btn btn-primary btn-sm" %>
     <% end %>
+  </div>
+
+  <%# ── Status summary cards ────────────────────────────────────────────────── %>
+  <div class="stats-grid" style="margin-bottom: var(--space-6);">
+    <div class="stat-card stat-card--warning">
+      <p class="stat-card__label"><%= t("requests.index.summary.pending") %></p>
+      <p class="stat-card__value"><%= @status_counts["pending"] || 0 %></p>
+    </div>
+    <div class="stat-card stat-card--success">
+      <p class="stat-card__label"><%= t("requests.index.summary.approved") %></p>
+      <p class="stat-card__value"><%= @status_counts["approved"] || 0 %></p>
+    </div>
+    <div class="stat-card stat-card--danger">
+      <p class="stat-card__label"><%= t("requests.index.summary.rejected") %></p>
+      <p class="stat-card__value"><%= @status_counts["rejected"] || 0 %></p>
+    </div>
+    <div class="stat-card stat-card--accent">
+      <p class="stat-card__label"><%= t("requests.index.summary.paid") %></p>
+      <p class="stat-card__value"><%= @status_counts["paid"] || 0 %></p>
+    </div>
   </div>
 
   <%# ── Accountant/Admin: salary advance management panel ─────────────────── %>
@@ -61,7 +90,22 @@
 
   <%# ── Filter bar (GET form → filters live in the URL query string) ────────── %>
   <%= form_with url: employee_requests_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <%# Preserve sort/dir so filtering doesn't reset the column sort %>
+    <%= f.hidden_field :sort, value: @filters[:sort] if @filters[:sort].present? %>
+    <%= f.hidden_field :dir,  value: @filters[:dir]  if @filters[:dir].present? %>
+
     <div class="filter-bar__fields">
+
+      <%# Request Type %>
+      <div class="filter-bar__field">
+        <%= f.label :request_type, t("requests.filters.type"), class: "filter-bar__label" %>
+        <%= f.select :request_type,
+              options_for_select(
+                [[ t("requests.filters.all_types"), "" ]] +
+                  EmployeeRequest::REQUEST_TYPES.map { |rt| [ t("requests.types.#{rt}"), rt ] },
+                @filters[:request_type]),
+              {}, class: "filter-bar__select" %>
+      </div>
 
       <%# Status %>
       <div class="filter-bar__field">
@@ -69,7 +113,7 @@
         <%= f.select :status,
               options_for_select(
                 [[ t("requests.filters.all_statuses"), "" ]] +
-                  EmployeeRequest::REVIEW_PRIORITY.map { |s| [ t("requests.statuses.#{s}"), s ] },
+                  EmployeeRequest::STATUSES.map { |s| [ t("requests.statuses.#{s}"), s ] },
                 @filters[:status]),
               {}, class: "filter-bar__select" %>
       </div>
@@ -111,6 +155,16 @@
         <%= f.date_field :date_to, value: @filters[:date_to], class: "filter-bar__input" %>
       </div>
 
+      <%# Per-page selector %>
+      <div class="filter-bar__field">
+        <%= f.label :per_page, t("requests.filters.per_page"), class: "filter-bar__label" %>
+        <%= f.select :per_page,
+              options_for_select(
+                EmployeeRequestsController::PER_PAGE_OPTIONS.map { |n| [ n.to_s, n ] },
+                @per_page),
+              {}, class: "filter-bar__select" %>
+      </div>
+
     </div>
 
     <div class="filter-bar__actions">
@@ -125,6 +179,9 @@
   <% if @active_filters %>
     <%
       chips = []
+      if @filters[:request_type].present?
+        chips << [ :request_type, "#{t('requests.filters.type')}: #{t("requests.types.#{@filters[:request_type]}", default: @filters[:request_type])}" ]
+      end
       if @filters[:status].present?
         chips << [ :status, "#{t('requests.filters.status')}: #{t("requests.statuses.#{@filters[:status]}", default: @filters[:status])}" ]
       end
@@ -152,6 +209,18 @@
     </div>
   <% end %>
 
+  <%# ── Results meta ─────────────────────────────────────────────────────────── %>
+  <% if @total_count > 0 %>
+    <p class="table-meta">
+      <%= t("requests.index.page_info",
+            from:  [(@page - 1) * @per_page + 1, @total_count].min,
+            to:    [@page * @per_page, @total_count].min,
+            total: @total_count,
+            page:  @page,
+            pages: @total_pages) %>
+    </p>
+  <% end %>
+
   <div class="table-wrap table-wrap--cards">
     <table>
       <thead>
@@ -165,12 +234,12 @@
             </th>
           <% end %>
           <% if show_employee %>
-            <th><%= t("requests.employee") %></th>
+            <th><%= sort_link.call("employee_name", t("requests.employee")) %></th>
           <% end %>
-          <th><%= t("requests.type") %></th>
-          <th><%= t("requests.date") %></th>
+          <th><%= sort_link.call("request_type", t("requests.type")) %></th>
+          <th><%= sort_link.call("created_at", t("requests.date")) %></th>
           <th><%= t("requests.amount") %></th>
-          <th><%= t("requests.status") %></th>
+          <th><%= sort_link.call("status", t("requests.status")) %></th>
           <th></th>
         </tr>
       </thead>
@@ -240,6 +309,46 @@
       </tbody>
     </table>
   </div>
+
+  <%# ── Pagination ─────────────────────────────────────────────────────────── %>
+  <% if @total_pages > 1 %>
+    <nav class="pagination" aria-label="<%= t("pagination.label") %>">
+      <% if @page > 1 %>
+        <%= link_to t("pagination.prev"),
+              employee_requests_path(request.query_parameters.merge(page: @page - 1)),
+              class: "pagination__btn pagination__btn--prev" %>
+      <% end %>
+
+      <% start_page = [[@page - 2, 1].max, [@total_pages - 4, 1].max].min
+         end_page   = [start_page + 4, @total_pages].min %>
+
+      <% if start_page > 1 %>
+        <%= link_to "1",
+              employee_requests_path(request.query_parameters.merge(page: 1)),
+              class: "pagination__btn" %>
+        <span class="pagination__ellipsis">…</span>
+      <% end %>
+
+      <% (start_page..end_page).each do |p| %>
+        <%= link_to p.to_s,
+              employee_requests_path(request.query_parameters.merge(page: p)),
+              class: "pagination__btn #{'pagination__btn--active' if p == @page}" %>
+      <% end %>
+
+      <% if end_page < @total_pages %>
+        <span class="pagination__ellipsis">…</span>
+        <%= link_to @total_pages.to_s,
+              employee_requests_path(request.query_parameters.merge(page: @total_pages)),
+              class: "pagination__btn" %>
+      <% end %>
+
+      <% if @page < @total_pages %>
+        <%= link_to t("pagination.next"),
+              employee_requests_path(request.query_parameters.merge(page: @page + 1)),
+              class: "pagination__btn pagination__btn--next" %>
+      <% end %>
+    </nav>
+  <% end %>
 
   <%# ── CSV export for accountants ─────────────────────────────────────────── %>
   <% if can_bulk %>

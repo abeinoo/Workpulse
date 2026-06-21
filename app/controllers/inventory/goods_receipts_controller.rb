@@ -54,7 +54,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   def load_options
     @warehouses = accessible_warehouses
     @suppliers  = current_user.business.suppliers.ordered
-    @products   = current_user.business.products.ordered
+    @products   = current_user.business.products.transactable.ordered
   end
 
   def receipt_params

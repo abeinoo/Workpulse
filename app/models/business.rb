@@ -75,6 +75,7 @@ class Business < ApplicationRecord
   validates :business_day_start_hour,
             numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 23 }
   validates :default_locale, inclusion: { in: %w[en ar] }, allow_blank: true
+
   validates :currency, inclusion: { in: CURRENCIES.keys }, allow_blank: false
   validates :max_salary_advance_percentage,
             numericality: { greater_than: 0, less_than_or_equal_to: 100 }, allow_nil: true
@@ -87,6 +88,9 @@ class Business < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 28 }
   validates :employee_code_start,
             numericality: { only_integer: true, greater_than_or_equal_to: 1 }
+  validates :barcode_next_number,
+            numericality: { only_integer: true, greater_than_or_equal_to: 1 }
+  validates :barcode_prefix, length: { maximum: 10 }, allow_blank: true
 
   def auto_payroll_enabled?
     payroll_auto_generate_day.present?

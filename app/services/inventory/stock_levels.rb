@@ -38,5 +38,17 @@ module Inventory
       relation.group(:product_id)
               .sum(Arel.sql("CASE WHEN direction = 'in' THEN quantity ELSE -quantity END"))
     end
+
+    # Family stock for a parent product: single query summing movements across
+    # all child products. Fully warehouse-scoped when warehouse_ids is provided.
+    def self.family_total(parent_product, warehouse_ids: nil)
+      child_ids = parent_product.child_products.loaded? ?
+                    parent_product.child_products.map(&:id) :
+                    parent_product.child_products.pluck(:id)
+      return 0 if child_ids.empty?
+      relation = InventoryMovement.where(product_id: child_ids)
+      relation = relation.where(warehouse_id: warehouse_ids) if warehouse_ids
+      relation.pick(Arel.sql(SIGNED_SUM)) || 0
+    end
   end
 end

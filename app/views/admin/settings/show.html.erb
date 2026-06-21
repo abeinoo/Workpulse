@@ -172,6 +172,41 @@
 
     <div class="divider"></div>
 
+    <%# ── Barcode Numbering ──────────────────────────────────────────── %>
+    <h2 class="section-title"><%= t("admin.settings.sections.barcode_numbering") %></h2>
+
+    <div class="settings-info-box">
+      <p class="form-hint"><%= t("admin.settings.barcode_numbering_info") %></p>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :barcode_prefix, t("admin.settings.barcode_prefix_label"), class: "form-label" %>
+        <%= f.text_field :barcode_prefix,
+              class: "form-control #{'is-error' if @business.errors[:barcode_prefix].any?}",
+              maxlength: 10,
+              placeholder: t("admin.settings.barcode_prefix_placeholder") %>
+        <p class="form-hint"><%= t("admin.settings.barcode_prefix_hint") %></p>
+        <% if @business.errors[:barcode_prefix].any? %>
+          <p class="form-error"><%= @business.errors[:barcode_prefix].first %></p>
+        <% end %>
+      </div>
+      <div class="form-group">
+        <%= f.label :barcode_next_number, t("admin.settings.barcode_next_number_label"), class: "form-label" %>
+        <%= f.number_field :barcode_next_number,
+              class: "form-control #{'is-error' if @business.errors[:barcode_next_number].any?}",
+              min: 1,
+              step: 1,
+              placeholder: "1" %>
+        <p class="form-hint"><%= t("admin.settings.barcode_next_number_hint") %></p>
+        <% if @business.errors[:barcode_next_number].any? %>
+          <p class="form-error"><%= @business.errors[:barcode_next_number].first %></p>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
     <%# ── Branding ────────────────────────────────────────────────────── %>
     <h2 class="section-title"><%= t("admin.settings.sections.branding") %></h2>
 

@@ -12,7 +12,9 @@ module Inventory
 
       def rows
         totals = StockLevels.totals_for(@business, warehouse_ids: @warehouse_ids)
-        @business.products.ordered.includes(:brand).map do |product|
+        # Exclude parent products — they carry no inventory; their children appear
+        # as their own rows and reflect the real stock values.
+        @business.products.non_parent.ordered.includes(:brand).map do |product|
           on_hand = totals[product.id] || 0
           Row.new(
             product:     product,

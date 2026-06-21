@@ -5,6 +5,12 @@ class StockTransferItem < ApplicationRecord
   has_one :business, through: :stock_transfer
 
   validates :quantity, numericality: { greater_than: 0 }
+  validate  :product_is_transactable
+
+  def product_is_transactable
+    return unless product
+    errors.add(:product_id, :parent_not_allowed) if Product.where(parent_product_id: product.id).exists?
+  end
 
   before_validation :compute_total_cost
 

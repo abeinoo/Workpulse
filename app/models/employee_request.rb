@@ -63,6 +63,7 @@ class EmployeeRequest < ApplicationRecord
   scope :for_branch,  ->(branch_id) {
     where(user_id: ShiftAssignment.user_ids_for_branches([ branch_id ])) if branch_id.present?
   }
+  scope :with_request_type,       ->(type) { where(request_type: type) if type.present? }
   scope :requested_on_or_after,  ->(date) { where(requested_for_date: date..) if date.present? }
   scope :requested_on_or_before, ->(date) { where(requested_for_date: ..date) if date.present? }
 

@@ -40,7 +40,7 @@ class Inventory::StockCountsController < Inventory::BaseController
   def edit
     @stock_count = find_count
     authorize @stock_count
-    @products = current_user.business.products.ordered
+    @products = current_user.business.products.transactable.ordered
   end
 
   # Saving counted quantities; the first save moves draft → in_progress.
@@ -53,7 +53,7 @@ class Inventory::StockCountsController < Inventory::BaseController
     end
     redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.updated")
   rescue ActiveRecord::RecordInvalid
-    @products = current_user.business.products.ordered
+    @products = current_user.business.products.transactable.ordered
     render :edit, status: :unprocessable_entity
   end
 
@@ -135,7 +135,7 @@ class Inventory::StockCountsController < Inventory::BaseController
   # Build a count row for every product, snapshotting its on-hand in the warehouse.
   def preload_products(count)
     return if count.warehouse.nil?
-    current_user.business.products.ordered.each do |product|
+    current_user.business.products.transactable.ordered.each do |product|
       count.items.build(product: product, system_quantity: product.stock_in(count.warehouse))
     end
   end

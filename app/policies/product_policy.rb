@@ -3,6 +3,9 @@ class ProductPolicy < ApplicationPolicy
   def show?    = index?
   def create?  = can?(:manage_inventory) || can?(:manage_products)
   def update?  = create?
+  def archive? = create?
+  def restore? = create?
+  def archive_family? = create?
   def destroy? = create?
 
   class Scope < ApplicationPolicy::Scope

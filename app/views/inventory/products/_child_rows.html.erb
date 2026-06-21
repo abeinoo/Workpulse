@@ -1,0 +1,45 @@
+<%# Partial for lazy-loaded child product rows.
+    Rendered by Inventory::ProductsController#children and injected into the
+    products index table by the product-family Stimulus controller.
+
+    Locals:
+      children       [Array<Product>] child products for one parent
+      stock_totals   [Hash{id => Numeric}] warehouse-scoped stock per child
+      parent_product [Product]
+%>
+<% children.each do |child| %>
+  <% stock = stock_totals[child.id] || 0 %>
+  <tr data-parent-id="<%= parent_product.id %>" hidden>
+    <td>
+      <input type="checkbox"
+             data-product-select-target="checkbox"
+             data-product-id="<%= child.id %>"
+             data-action="product-select#toggle"
+             aria-label="<%= child.name %>">
+    </td>
+    <td style="padding-inline-start: calc(var(--space-5) + 20px);">
+      <%# Indent to show hierarchy %>
+      <span class="td-secondary" aria-hidden="true" style="margin-inline-end: var(--space-1);">└</span>
+      <%= link_to child.name, inventory_product_path(child), class: "link" %>
+    </td>
+    <td class="td-secondary"><%= child.sku %></td>
+    <td class="td-secondary"><%= child.brand&.name || "—" %></td>
+    <td style="text-align: end;">
+      <% if child.track_inventory? && stock <= child.low_stock_level %>
+        <span class="badge badge-warning"><%= stock.to_i %></span>
+      <% else %>
+        <%= stock.to_i %>
+      <% end %>
+    </td>
+    <td style="text-align: end;"><%= format_currency(child.average_cost_price) %></td>
+    <td class="td-actions">
+      <%= link_to inventory_barcode_label_path(child), target: "_blank", rel: "noopener",
+            class: "link-muted", title: t("inventory.barcode_labels.print_barcode") do %>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <% end %>
+      <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
+        <%= link_to t("common.edit"), edit_inventory_product_path(child), class: "link-muted" %>
+      <% end %>
+    </td>
+  </tr>
+<% end %>

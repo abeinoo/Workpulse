@@ -51,8 +51,11 @@ export default class extends Controller {
     if (row) { this.#focusRow(row); this.#reset(); return }
 
     const product = await this.#lookupProduct(code)
-    if (product) this.#addCountRow(product)
-    else this.#notFound(code)
+    if (!product || product.error) {
+      product?.error === "parent_product" ? this.#parentProduct(code, product.name) : this.#notFound(code)
+    } else {
+      this.#addCountRow(product)
+    }
   }
 
   // Match across all rows (even those hidden by an active filter) so a scan never
@@ -119,15 +122,18 @@ export default class extends Controller {
   }
 
   async #lookupRemote(code) {
-    const product = await this.#lookupProduct(code)
-    return product ? String(product.id) : null
+    const result = await this.#lookupProduct(code)
+    if (!result) return null
+    if (result.error === "parent_product") { this.#parentProduct(code, result.name); return null }
+    return result.id ? String(result.id) : null
   }
 
   async #lookupProduct(code) {
     try {
       const res = await fetch(`${this.lookupUrlValue}?code=${encodeURIComponent(code)}`,
                               { headers: { Accept: "application/json" } })
-      return res.ok ? await res.json() : null
+      const data = await res.json()
+      return (res.ok || data.error) ? data : null
     } catch {
       return null
     }
@@ -175,6 +181,15 @@ export default class extends Controller {
     if (this.hasFeedbackTarget) {
       const tpl = this.feedbackTarget.dataset.notFound || 'No product found for "%{code}"'
       this.feedbackTarget.textContent = tpl.replace("%{code}", code)
+      this.feedbackTarget.hidden = false
+    }
+    this.inputTarget.select()
+  }
+
+  #parentProduct(code, name) {
+    if (this.hasFeedbackTarget) {
+      const tpl = this.feedbackTarget.dataset.parentProduct || '"%{name}" is a product family — scan a child product instead.'
+      this.feedbackTarget.textContent = tpl.replace("%{name}", name || code)
       this.feedbackTarget.hidden = false
     }
     this.inputTarget.select()

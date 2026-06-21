@@ -34,6 +34,7 @@ class Admin::SettingsController < Admin::BaseController
       :overtime_grace_minutes,
       :payroll_auto_generate_day, :payroll_cutoff_day,
       :employee_code_start,
+      :barcode_prefix, :barcode_next_number,
       :logo, :stamp_image,
       :remove_logo, :remove_stamp_image
     )

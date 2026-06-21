@@ -1,30 +1,63 @@
 class EmployeeRequestsController < ApplicationController
   before_action :authenticate_user!
 
+  PER_PAGE_OPTIONS = [ 25, 50, 100 ].freeze
+  DEFAULT_PER_PAGE = 25
+
   def index
-    # Expose filter params to the view (filter_params is private and not visible there).
     @filters = filter_params
 
-    # All filtering and sorting happens in the database; the view never loads or
-    # sifts the full request set in Ruby.
-    @requests = policy_scope(EmployeeRequest)
-                  .includes(:user, :advance)
-                  .with_status(@filters[:status])
-                  .for_user(@filters[:user_id])
-                  .then { |s| @filters[:branch_id].present? ? s.for_branch(@filters[:branch_id]) : s }
-                  .requested_on_or_after(parsed_date(@filters[:date_from]))
-                  .requested_on_or_before(parsed_date(@filters[:date_to]))
-                  .sorted_for_review
+    # Base filtered scope (no includes, no pagination — used for counts)
+    base = policy_scope(EmployeeRequest)
+             .with_status(@filters[:status])
+             .with_request_type(@filters[:request_type])
+             .for_user(@filters[:user_id])
+             .then { |s| @filters[:branch_id].present? ? s.for_branch(@filters[:branch_id]) : s }
+             .requested_on_or_after(parsed_date(@filters[:date_from]))
+             .requested_on_or_before(parsed_date(@filters[:date_to]))
+
+    # Status summary counts using the same filters minus the status filter,
+    # so all tiles remain visible regardless of which status is selected.
+    count_base = policy_scope(EmployeeRequest)
+                   .with_request_type(@filters[:request_type])
+                   .for_user(@filters[:user_id])
+                   .then { |s| @filters[:branch_id].present? ? s.for_branch(@filters[:branch_id]) : s }
+                   .requested_on_or_after(parsed_date(@filters[:date_from]))
+                   .requested_on_or_before(parsed_date(@filters[:date_to]))
+    @status_counts = count_base.group(:status).count
+
+    @total_count = base.count
+
+    # Sorting
+    sort_col = %w[created_at employee_name request_type status].include?(@filters[:sort]) ? @filters[:sort] : "created_at"
+    sort_dir = @filters[:dir] == "asc" ? "asc" : "desc"
+
+    sorted = case sort_col
+             when "created_at"    then base.order(created_at: sort_dir.to_sym)
+             when "employee_name" then base.left_joins(:user).order(Arel.sql("users.first_name #{sort_dir}, users.last_name #{sort_dir}"))
+             when "request_type"  then base.order(request_type: sort_dir.to_sym)
+             when "status"        then base.order(status: sort_dir.to_sym)
+             end
+
+    # Pagination
+    @per_page    = PER_PAGE_OPTIONS.include?(@filters[:per_page].to_i) ? @filters[:per_page].to_i : DEFAULT_PER_PAGE
+    @page        = [ @filters[:page].to_i, 1 ].max
+    @total_pages = [ (@total_count.to_f / @per_page).ceil, 1 ].max
+    @page        = [ @page, @total_pages ].min
+
+    @requests = sorted.includes(:user, :advance).offset((@page - 1) * @per_page).limit(@per_page)
 
     # Filter-bar option sources, scoped to what this user may see.
     @filter_employees = requestable_employees.active.order(:first_name, :last_name)
     @filter_branches  = Branch.for_business(current_user.business).active.order(:name)
-    @active_filters   = @filters.values.any?(&:present?)
+    @active_filters   = @filters.slice(:status, :request_type, :user_id, :branch_id, :date_from, :date_to).values.any?(&:present?)
 
     respond_to do |format|
       format.html
       format.csv do
         authorize EmployeeRequest, :index?
+        # Re-fetch without pagination so the export covers all matching records
+        @csv_requests = base.includes(:user, :reviewed_by).order(created_at: :desc)
         send_data salary_advances_csv, filename: "salary_advances_#{Date.current}.csv",
                   type: "text/csv"
       end
@@ -202,7 +235,8 @@ class EmployeeRequestsController < ApplicationController
   # Whitelisted index filters. Kept in the URL query string (GET form) so they
   # survive reloads, the CSV export link, and back/forward navigation.
   def filter_params
-    params.permit(:status, :user_id, :branch_id, :date_from, :date_to)
+    params.permit(:status, :request_type, :user_id, :branch_id, :date_from, :date_to,
+                  :sort, :dir, :page, :per_page)
   end
 
   def parsed_date(value)
@@ -292,8 +326,8 @@ class EmployeeRequestsController < ApplicationController
 
   def salary_advances_csv
     require "csv"
-    # Export only approved advances awaiting disbursement.
-    advances = @requests.select { |r| r.salary_advance? && r.approved? }
+    # Export only approved advances awaiting disbursement (all pages, not just current).
+    advances = @csv_requests.select { |r| r.salary_advance? && r.approved? }
     CSV.generate(headers: true) do |csv|
       csv << [ "Employee Name", "Phone Number", "Identity Card Number",
                "Amount (#{current_user.business.currency})", "Request Date", "Approved By Manager", "Status" ]

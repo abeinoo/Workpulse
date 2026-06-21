@@ -6,58 +6,103 @@
     <%= t("forms.back") %>
   <% end %>
 
+  <% if @product.archived? %>
+    <div class="alert alert-warning" style="margin-bottom: var(--space-4);">
+      <%= t("inventory.products.archived_notice", date: local_date(@product.archived_at)) %>
+    </div>
+  <% end %>
+
   <div class="page-header">
     <h1 class="page-title">
       <%= @product.name %>
-      <% if @product.low_stock? %><span class="badge badge-warning"><%= t("inventory.products.low_stock_badge") %></span><% end %>
+      <% if @product.archived? %>
+        <span class="badge badge-neutral"><%= t("inventory.products.archived_badge") %></span>
+      <% elsif @product.low_stock? %>
+        <span class="badge badge-warning"><%= t("inventory.products.low_stock_badge") %></span>
+      <% end %>
     </h1>
     <div class="flex items-center" style="gap: var(--space-2); flex-wrap: wrap;">
-      <% if @product.product_barcodes.loaded? ? @product.product_barcodes.any? : @product.product_barcodes.exists? %>
-        <%= link_to inventory_barcode_label_path(@product), target: "_blank", rel: "noopener",
-              class: "btn btn-ghost btn-sm" do %>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-          <%= t("inventory.barcode_labels.print_all") %>
+      <% unless @product.archived? %>
+        <% if @product.product_barcodes.loaded? ? @product.product_barcodes.any? : @product.product_barcodes.exists? %>
+          <%= link_to inventory_barcode_label_path(@product), target: "_blank", rel: "noopener",
+                class: "btn btn-ghost btn-sm" do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <%= t("inventory.barcode_labels.print_all") %>
+          <% end %>
         <% end %>
       <% end %>
       <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
-        <%= link_to t("common.edit"), edit_inventory_product_path(@product), class: "btn btn-secondary btn-sm" %>
+        <% if @product.archived? %>
+          <%= button_to t("inventory.products.restore"), restore_inventory_product_path(@product),
+                method: :patch, class: "btn btn-secondary btn-sm" %>
+          <%= button_to t("inventory.products.delete"), inventory_product_path(@product),
+                method: :delete,
+                form: { data: { turbo_confirm: t("inventory.products.delete_confirm") } },
+                class: "btn btn-danger btn-sm" %>
+        <% else %>
+          <%= link_to t("common.edit"), edit_inventory_product_path(@product), class: "btn btn-secondary btn-sm" %>
+          <% if @product.parent? %>
+            <%= button_to t("inventory.products.archive_family"), archive_family_inventory_product_path(@product),
+                  method: :patch,
+                  form: { data: { turbo_confirm: t("inventory.products.archive_family_confirm") } },
+                  class: "btn btn-ghost btn-sm" %>
+          <% else %>
+            <%= button_to t("inventory.products.archive"), archive_inventory_product_path(@product),
+                  method: :patch,
+                  form: { data: { turbo_confirm: t("inventory.products.archive_confirm") } },
+                  class: "btn btn-ghost btn-sm" %>
+          <% end %>
+        <% end %>
       <% end %>
     </div>
   </div>
 
-  <div class="stats-grid" style="margin-bottom: var(--space-6);">
-    <div class="stat-card <%= 'stat-card--warning' if @display_stock <= @product.low_stock_level %>">
-      <span class="stat-card__label"><%= t("inventory.products.current_stock") %></span>
-      <span class="stat-card__value"><%= @display_stock.to_i %></span>
+  <% if @product.parent? %>
+    <%# ── Parent product stat cards (family aggregates, no avg cost) ── %>
+    <div class="stats-grid" style="margin-bottom: var(--space-6);">
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("inventory.products.family_total_stock") %></span>
+        <span class="stat-card__value"><%= @family_stock.to_i %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("inventory.products.child_products_count") %></span>
+        <span class="stat-card__value"><%= @product.child_products.size %></span>
+      </div>
     </div>
-    <div class="stat-card">
-      <span class="stat-card__label"><%= t("inventory.products.avg_cost") %></span>
-      <span class="stat-card__value"><%= format_currency(@product.average_cost_price) %></span>
+  <% else %>
+    <%# ── Standard product stat cards ── %>
+    <div class="stats-grid" style="margin-bottom: var(--space-6);">
+      <div class="stat-card <%= 'stat-card--warning' if @display_stock <= @product.low_stock_level %>">
+        <span class="stat-card__label"><%= t("inventory.products.current_stock") %></span>
+        <span class="stat-card__value"><%= @display_stock.to_i %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("inventory.products.avg_cost") %></span>
+        <span class="stat-card__value"><%= format_currency(@product.average_cost_price) %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("inventory.products.last_purchase_price") %></span>
+        <span class="stat-card__value"><%= format_currency(@product.last_purchase_price) %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("inventory.products.stock_value") %></span>
+        <span class="stat-card__value"><%= format_currency(@display_stock_value) %></span>
+      </div>
     </div>
-    <div class="stat-card">
-      <span class="stat-card__label"><%= t("inventory.products.last_purchase_price") %></span>
-      <span class="stat-card__value"><%= format_currency(@product.last_purchase_price) %></span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-card__label"><%= t("inventory.products.stock_value") %></span>
-      <span class="stat-card__value"><%= format_currency(@display_stock_value) %></span>
-    </div>
-  </div>
+  <% end %>
 
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <dl class="detail-list">
       <div class="detail-list__row"><dt><%= t("inventory.products.sku") %></dt><dd><%= @product.sku %></dd></div>
-      <%
-        all_barcodes   = @product.product_barcodes.loaded? ? @product.product_barcodes.to_a : @product.product_barcodes.includes(:product_variant).ordered.to_a
-        product_barcodes = all_barcodes.select { |pb| pb.variant_id.nil? }
-        variant_barcodes = all_barcodes.select { |pb| pb.variant_id.present? }
-      %>
+      <% if @product.child? %>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.parent_product") %></dt>
+          <dd><%= link_to @product.parent_product.name, inventory_product_path(@product.parent_product), class: "link" %></dd>
+        </div>
+      <% end %>
+      <% all_barcodes = @product.product_barcodes.loaded? ? @product.product_barcodes.to_a : @product.product_barcodes.ordered.to_a %>
       <% if all_barcodes.any? %>
-        <%# Product-level barcodes (no variant) %>
-        <% product_barcodes_by_type = product_barcodes.group_by(&:barcode_type) %>
-        <% ProductBarcode::BARCODE_TYPES.each do |type| %>
-          <% type_barcodes = product_barcodes_by_type[type] || [] %>
-          <% next if type_barcodes.empty? %>
+        <% all_barcodes.group_by(&:barcode_type).each do |type, type_barcodes| %>
           <div class="detail-list__row">
             <dt><%= t("inventory.products.barcode_types.#{type}") %></dt>
             <dd>
@@ -66,45 +111,24 @@
                   <li class="barcode-tag<%= " barcode-tag--primary" if pb.is_primary? %>">
                     <span class="barcode-tag__value"><%= pb.barcode %></span>
                     <% if pb.is_primary? %><span class="badge badge-neutral barcode-tag__badge"><%= t("inventory.products.barcode_primary") %></span><% end %>
-                    <%= link_to inventory_barcode_label_path(@product, barcode_id: pb.id),
-                          target: "_blank", rel: "noopener",
-                          class: "barcode-tag__print",
-                          title: t("inventory.barcode_labels.print_barcode") do %>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    <% end %>
-                  </li>
-                <% end %>
-              </ul>
-            </dd>
-          </div>
-        <% end %>
-        <%# Variant barcodes, grouped by variant %>
-        <% variant_barcodes.group_by(&:product_variant).each do |variant, vbs| %>
-          <% next if variant.nil? %>
-          <% vbs_by_type = vbs.group_by(&:barcode_type) %>
-          <% ProductBarcode::BARCODE_TYPES.each do |type| %>
-            <% type_barcodes = vbs_by_type[type] || [] %>
-            <% next if type_barcodes.empty? %>
-            <div class="detail-list__row">
-              <dt><%= variant.name %> — <%= t("inventory.products.barcode_types.#{type}") %></dt>
-              <dd>
-                <ul class="barcode-tag-list">
-                  <% type_barcodes.each do |pb| %>
-                    <li class="barcode-tag<%= " barcode-tag--primary" if pb.is_primary? %>">
-                      <span class="barcode-tag__value"><%= pb.barcode %></span>
-                      <% if pb.is_primary? %><span class="badge badge-neutral barcode-tag__badge"><%= t("inventory.products.barcode_primary") %></span><% end %>
+                    <% unless @product.parent? %>
                       <%= link_to inventory_barcode_label_path(@product, barcode_id: pb.id),
                             target: "_blank", rel: "noopener",
                             class: "barcode-tag__print",
                             title: t("inventory.barcode_labels.print_barcode") do %>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                       <% end %>
-                    </li>
-                  <% end %>
-                </ul>
-              </dd>
-            </div>
-          <% end %>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+              <% if @product.parent? %>
+                <p class="form-hint" style="margin-top: var(--space-1);">
+                  <%= t("inventory.products.parent_barcodes_show_notice") %>
+                </p>
+              <% end %>
+            </dd>
+          </div>
         <% end %>
       <% else %>
         <div class="detail-list__row">
@@ -152,111 +176,122 @@
     </dl>
   </div>
 
-  <%# ── Variants ──────────────────────────────────────────── %>
-  <% variants = @product.product_variants.loaded? ? @product.product_variants.to_a : @product.product_variants.ordered.to_a %>
-  <% if variants.any? %>
-    <h2 class="section-title"><%= t("inventory.products.section_variants") %></h2>
-    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
-      <table>
-        <thead><tr>
-          <th><%= t("inventory.products.variant_name") %></th>
-          <th><%= t("inventory.products.variant_sku") %></th>
-          <th><%= t("inventory.products.barcodes") %></th>
-          <th><%= t("common.status") %></th>
-        </tr></thead>
-        <tbody>
-          <% variants.each do |v| %>
-            <% v_barcodes = all_barcodes.select { |pb| pb.variant_id == v.id } %>
-            <tr>
-              <td><%= v.name %></td>
-              <td class="td-secondary"><%= v.sku.presence || "—" %></td>
-              <td class="td-secondary"><%= v_barcodes.map(&:barcode).join(", ").presence || "—" %></td>
-              <td>
-                <% if v.active? %>
-                  <span class="badge badge-success"><%= t("common.active") %></span>
-                <% else %>
-                  <span class="badge badge-neutral"><%= t("common.inactive") %></span>
-                <% end %>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  <% end %>
-
-  <%# ── Stock per warehouse ───────────────────────────────── %>
-  <h2 class="section-title"><%= t("inventory.products.stock_by_warehouse") %></h2>
-  <% if @warehouse_row_ids.empty? %>
-    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.products.no_stock_yet") %></p></div>
+  <% if @product.parent? %>
+    <%# ── Child products table for parent products ───────────── %>
+    <h2 class="section-title"><%= t("inventory.products.child_products") %></h2>
+    <% if @product.child_products.empty? %>
+      <div class="empty-state empty-state--compact">
+        <p class="empty-state__text"><%= t("inventory.products.no_children_yet") %></p>
+      </div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
+        <table>
+          <thead><tr>
+            <th><%= t("inventory.products.name") %></th>
+            <th><%= t("inventory.products.sku") %></th>
+            <th style="text-align: end;"><%= t("inventory.products.current_stock") %></th>
+            <th style="text-align: end;"><%= t("inventory.products.avg_cost") %></th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            <% @product.child_products.ordered.each do |child| %>
+              <% stock = @child_stock_totals[child.id] || 0 %>
+              <tr>
+                <td><%= link_to child.name, inventory_product_path(child), class: "link" %></td>
+                <td class="td-secondary"><%= child.sku %></td>
+                <td style="text-align: end;">
+                  <% if child.track_inventory? && stock <= child.low_stock_level %>
+                    <span class="badge badge-warning"><%= stock.to_i %></span>
+                  <% else %>
+                    <%= stock.to_i %>
+                  <% end %>
+                </td>
+                <td style="text-align: end;"><%= format_currency(child.average_cost_price) %></td>
+                <td class="td-actions">
+                  <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
+                    <%= link_to t("common.edit"), edit_inventory_product_path(child), class: "link-muted" %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
   <% else %>
-    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
-      <table>
-        <thead><tr>
-          <th><%= t("inventory.products.warehouse") %></th>
-          <th style="text-align: end;"><%= t("inventory.products.on_hand") %></th>
-          <th style="text-align: end;"><%= t("inventory.products.low_stock_level") %></th>
-          <th style="text-align: end;"><%= t("inventory.products.reorder_quantity") %></th>
-          <th></th>
-        </tr></thead>
-        <tbody>
-          <% @warehouse_row_ids.each do |warehouse_id| %>
-            <% warehouse = @warehouses[warehouse_id] %>
-            <% next if warehouse.nil? %>
-            <% on_hand = (@stock_by_warehouse[warehouse_id] || 0) %>
-            <% low = @product.low_stock_level_for(warehouse) %>
-            <% has_override = @product.setting_for(warehouse).present? %>
-            <tr>
-              <td>
-                <%= warehouse.name %>
-                <% unless has_override %><span class="td-secondary">(<%= t("inventory.products.default_threshold") %>)</span><% end %>
-              </td>
-              <td style="text-align: end;">
-                <% if on_hand <= low %>
-                  <span class="badge badge-warning"><%= on_hand.to_i %></span>
-                <% else %>
-                  <%= on_hand.to_i %>
-                <% end %>
-              </td>
-              <td style="text-align: end;"><%= low.to_i %></td>
-              <td style="text-align: end;"><%= @product.reorder_quantity_for(warehouse).to_i %></td>
-              <td><% if on_hand <= low %><span class="badge badge-warning"><%= t("inventory.products.low_stock_badge") %></span><% end %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  <% end %>
+    <%# ── Stock per warehouse ───────────────────────────────── %>
+    <h2 class="section-title"><%= t("inventory.products.stock_by_warehouse") %></h2>
+    <% if @warehouse_row_ids.empty? %>
+      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.products.no_stock_yet") %></p></div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
+        <table>
+          <thead><tr>
+            <th><%= t("inventory.products.warehouse") %></th>
+            <th style="text-align: end;"><%= t("inventory.products.on_hand") %></th>
+            <th style="text-align: end;"><%= t("inventory.products.low_stock_level") %></th>
+            <th style="text-align: end;"><%= t("inventory.products.reorder_quantity") %></th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            <% @warehouse_row_ids.each do |warehouse_id| %>
+              <% warehouse = @warehouses[warehouse_id] %>
+              <% next if warehouse.nil? %>
+              <% on_hand = (@stock_by_warehouse[warehouse_id] || 0) %>
+              <% low = @product.low_stock_level_for(warehouse) %>
+              <% has_override = @product.setting_for(warehouse).present? %>
+              <tr>
+                <td>
+                  <%= warehouse.name %>
+                  <% unless has_override %><span class="td-secondary">(<%= t("inventory.products.default_threshold") %>)</span><% end %>
+                </td>
+                <td style="text-align: end;">
+                  <% if on_hand <= low %>
+                    <span class="badge badge-warning"><%= on_hand.to_i %></span>
+                  <% else %>
+                    <%= on_hand.to_i %>
+                  <% end %>
+                </td>
+                <td style="text-align: end;"><%= low.to_i %></td>
+                <td style="text-align: end;"><%= @product.reorder_quantity_for(warehouse).to_i %></td>
+                <td><% if on_hand <= low %><span class="badge badge-warning"><%= t("inventory.products.low_stock_badge") %></span><% end %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
 
-  <%# ── Recent movements ──────────────────────────────────── %>
-  <h2 class="section-title"><%= t("inventory.products.recent_movements") %></h2>
-  <% if @recent_movements.empty? %>
-    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.dashboard.none_yet") %></p></div>
-  <% else %>
-    <div class="table-wrap table-wrap--cards">
-      <table>
-        <thead><tr>
-          <th><%= t("inventory.movements.date") %></th>
-          <th><%= t("inventory.movements.warehouse") %></th>
-          <th><%= t("inventory.movements.type") %></th>
-          <th style="text-align: end;"><%= t("inventory.movements.quantity") %></th>
-        </tr></thead>
-        <tbody>
-          <% @recent_movements.each do |m| %>
-            <tr>
-              <td class="td-secondary"><%= local_date(m.occurred_on) %></td>
-              <td class="td-secondary"><%= m.warehouse.name %></td>
-              <td>
-                <span class="badge <%= m.direction_in? ? 'badge-success' : 'badge-neutral' %>">
-                  <%= t("inventory.movements.directions.#{m.direction}") %>
-                </span>
-                <span class="td-secondary"><%= t("inventory.movements.reasons.#{m.reason}") %></span>
-              </td>
-              <td style="text-align: end;"><%= m.direction_in? ? "+" : "−" %><%= m.quantity.to_i %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+    <%# ── Recent movements ──────────────────────────────────── %>
+    <h2 class="section-title"><%= t("inventory.products.recent_movements") %></h2>
+    <% if @recent_movements.empty? %>
+      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.dashboard.none_yet") %></p></div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead><tr>
+            <th><%= t("inventory.movements.date") %></th>
+            <th><%= t("inventory.movements.warehouse") %></th>
+            <th><%= t("inventory.movements.type") %></th>
+            <th style="text-align: end;"><%= t("inventory.movements.quantity") %></th>
+          </tr></thead>
+          <tbody>
+            <% @recent_movements.each do |m| %>
+              <tr>
+                <td class="td-secondary"><%= local_date(m.occurred_on) %></td>
+                <td class="td-secondary"><%= m.warehouse.name %></td>
+                <td>
+                  <span class="badge <%= m.direction_in? ? 'badge-success' : 'badge-neutral' %>">
+                    <%= t("inventory.movements.directions.#{m.direction}") %>
+                  </span>
+                  <span class="td-secondary"><%= t("inventory.movements.reasons.#{m.reason}") %></span>
+                </td>
+                <td style="text-align: end;"><%= m.direction_in? ? "+" : "−" %><%= m.quantity.to_i %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
   <% end %>
 </div>
