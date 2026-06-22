@@ -30,8 +30,13 @@ class Inventory::ProductsController < Inventory::BaseController
     if params[:q].present?
       term = "%#{params[:q].strip.downcase}%"
 
-      # Phase A: find directly matching IDs across name, SKU, and barcodes
-      matching_ids = @products.where(
+      # Phase A: find directly matching IDs across name, SKU, and barcodes.
+      # reorder(nil) strips the inherited ORDER BY name so that PostgreSQL does
+      # not reject the query — SELECT DISTINCT id … ORDER BY name is invalid
+      # because name is absent from the select list.  Ordering is irrelevant
+      # here since we only need the ID set; duplicate IDs cannot arise because
+      # the EXISTS subquery never joins product_barcodes into the outer row.
+      matching_ids = @products.reorder(nil).where(
         "LOWER(products.name) LIKE :t OR LOWER(products.sku) LIKE :t OR " \
         "EXISTS (" \
           "SELECT 1 FROM product_barcodes pb2 " \
@@ -39,7 +44,7 @@ class Inventory::ProductsController < Inventory::BaseController
           "AND LOWER(pb2.barcode) LIKE :t" \
         ")",
         t: term
-      ).distinct.pluck(:id)
+      ).pluck(:id)
 
       # Phase B: expand to full family so context is always visible.
       # Matched child  → pull in its parent and siblings.
