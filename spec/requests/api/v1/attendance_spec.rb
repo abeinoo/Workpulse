@@ -146,6 +146,158 @@ RSpec.describe "API V1 Attendance", type: :request do
     end
   end
 
+  # ── Security: branch assignment enforcement ──────────────────────────────────
+
+  describe "check-in security — branch assignment" do
+    it "rejects check-in at a branch the employee is not assigned to" do
+      other_branch = create(:branch, business: business)
+      post "/api/v1/attendance/check_in", params: { branch_id: other_branch.id }, as: :json
+      expect(response).to have_http_status(:not_found)
+      expect(AttendanceRecord.count).to eq(0)
+    end
+
+    it "rejects check-in when no branch_id is supplied" do
+      post "/api/v1/attendance/check_in", params: {}, as: :json
+      expect(response).to have_http_status(:not_found)
+      expect(AttendanceRecord.count).to eq(0)
+    end
+
+    it "rejects check-in when the shift assignment is expired" do
+      ShiftAssignment.where(user: user).update_all(effective_to: 1.day.ago.to_date)
+      post "/api/v1/attendance/check_in", params: { branch_id: branch.id }, as: :json
+      expect(response).to have_http_status(:not_found)
+      expect(AttendanceRecord.count).to eq(0)
+    end
+
+    it "rejects check-in when the shift assignment has not started yet" do
+      ShiftAssignment.where(user: user).update_all(
+        effective_from: 1.day.from_now.to_date,
+        effective_to:   nil
+      )
+      post "/api/v1/attendance/check_in", params: { branch_id: branch.id }, as: :json
+      expect(response).to have_http_status(:not_found)
+      expect(AttendanceRecord.count).to eq(0)
+    end
+
+    it "rejects check-in when the employee has no shift assignment at all" do
+      ShiftAssignment.where(user: user).delete_all
+      post "/api/v1/attendance/check_in", params: { branch_id: branch.id }, as: :json
+      expect(response).to have_http_status(:not_found)
+      expect(AttendanceRecord.count).to eq(0)
+    end
+
+    it "rejects check-in when the employee is in a gap between two assignments" do
+      ShiftAssignment.where(user: user).update_all(effective_to: 1.day.ago.to_date)
+      create(:shift_assignment, user: user, branch: branch, shift: shift,
+             effective_from: 1.day.from_now.to_date)
+      post "/api/v1/attendance/check_in", params: { branch_id: branch.id }, as: :json
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "rejects check-in at a branch from another business" do
+      other_business = create(:business)
+      foreign_branch = create(:branch, business: other_business)
+      post "/api/v1/attendance/check_in", params: { branch_id: foreign_branch.id }, as: :json
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "check-in security — geofence enforcement" do
+    let(:geo_user) do
+      create(:user, business: business, allow_mobile_attendance: true)
+    end
+    let(:geo_branch) do
+      create(:branch, :with_geolocation, business: business,
+             latitude: 24.7136, longitude: 46.6753, radius_meters: 100)
+    end
+
+    before do
+      create(:shift_assignment, user: geo_user, branch: geo_branch, shift: shift,
+             effective_from: 1.month.ago.to_date)
+      sign_in geo_user
+    end
+
+    it "rejects check-in from outside the geofence" do
+      post "/api/v1/attendance/check_in",
+           params: { branch_id: geo_branch.id, latitude: 25.0, longitude: 47.0 },
+           as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(AttendanceRecord.count).to eq(0)
+    end
+
+    it "accepts check-in from inside the geofence" do
+      post "/api/v1/attendance/check_in",
+           params: { branch_id: geo_branch.id, latitude: 24.7136, longitude: 46.6753 },
+           as: :json
+      expect(response).to have_http_status(:created)
+    end
+
+    it "rejects check-in when GPS coordinates are omitted and geofence is enabled" do
+      post "/api/v1/attendance/check_in", params: { branch_id: geo_branch.id }, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(AttendanceRecord.count).to eq(0)
+    end
+  end
+
+  describe "check-out security — geofence bypass prevention" do
+    let(:geo_user) do
+      create(:user, business: business, allow_mobile_attendance: true)
+    end
+    let(:geo_branch) do
+      create(:branch, :with_geolocation, business: business,
+             latitude: 24.7136, longitude: 46.6753, radius_meters: 100)
+    end
+    let(:open_branch) { create(:branch, business: business) } # no geofence
+
+    before do
+      create(:shift_assignment, user: geo_user, branch: geo_branch, shift: shift,
+             effective_from: 1.month.ago.to_date)
+      sign_in geo_user
+      post "/api/v1/attendance/check_in",
+           params: { branch_id: geo_branch.id, latitude: 24.7136, longitude: 46.6753 },
+           as: :json
+      expect(response).to have_http_status(:created)
+    end
+
+    it "rejects checkout at wrong coordinates even when supplied branch has no geofence" do
+      # Attacker substitutes a branch_id with no geofence at checkout to bypass location check.
+      post "/api/v1/attendance/check_out",
+           params: { branch_id: open_branch.id, latitude: 25.0, longitude: 47.0 },
+           as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(AttendanceRecord.last.check_out_at).to be_nil
+    end
+
+    it "accepts checkout with correct coordinates via any supplied branch_id" do
+      post "/api/v1/attendance/check_out",
+           params: { branch_id: open_branch.id, latitude: 24.7136, longitude: 46.6753 },
+           as: :json
+      expect(response).to have_http_status(:ok)
+      expect(AttendanceRecord.last.check_out_at).to be_present
+    end
+  end
+
+  describe "mobile attendance gate" do
+    let(:blocked_user) { create(:user, business: business, allow_mobile_attendance: false) }
+
+    before do
+      create(:shift_assignment, user: blocked_user, branch: branch, shift: shift,
+             effective_from: 1.month.ago.to_date)
+      sign_in blocked_user
+    end
+
+    it "rejects check-in for users without mobile attendance permission" do
+      post "/api/v1/attendance/check_in", params: { branch_id: branch.id }, as: :json
+      expect(response).to have_http_status(:forbidden)
+      expect(AttendanceRecord.count).to eq(0)
+    end
+
+    it "rejects check-out for users without mobile attendance permission" do
+      post "/api/v1/attendance/check_out", params: { branch_id: branch.id }, as: :json
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
   describe "GET /api/v1/attendance/today" do
     it "returns nil record when not checked in" do
       get "/api/v1/attendance/today", as: :json

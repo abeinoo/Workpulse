@@ -125,4 +125,42 @@ RSpec.describe Attendance::CheckOutService do
       expect(result).to be_success
     end
   end
+
+  # ── Security: geofence bypass via attacker-supplied branch ───────────────────
+
+  describe "checkout geofence bypass prevention" do
+    let(:geo_user) { create(:user, business: business) }
+    let(:geo_branch) do
+      create(:branch, :with_geolocation, business: business,
+             latitude: 24.7136, longitude: 46.6753, radius_meters: 100)
+    end
+    let(:open_branch) { create(:branch, business: business) } # no geofence
+    let!(:geo_record) do
+      create(:attendance_record, user: geo_user, branch: geo_branch, shift: shift)
+    end
+
+    it "rejects checkout even when the supplied branch has no geofence" do
+      # Attacker provides a branch without geofence to bypass location validation.
+      # The service must validate against the check-in branch (geo_branch), not the supplied one.
+      result = described_class.call(user: geo_user, branch: open_branch,
+                                    latitude: 25.0000, longitude: 47.0000)
+      expect(result).not_to be_success
+      expect(result.error).to eq("You are outside the allowed check-out area")
+    end
+
+    it "succeeds when inside the geofence of the check-in branch, regardless of supplied branch" do
+      result = described_class.call(user: geo_user, branch: open_branch,
+                                    latitude: 24.7136, longitude: 46.6753)
+      expect(result).to be_success
+    end
+
+    it "rejects checkout from a completely different business branch" do
+      other_business = create(:business)
+      other_branch   = create(:branch, business: other_business)
+      result = described_class.call(user: geo_user, branch: other_branch,
+                                    latitude: 25.0000, longitude: 47.0000)
+      expect(result).not_to be_success
+      expect(result.error).to eq("You are outside the allowed check-out area")
+    end
+  end
 end

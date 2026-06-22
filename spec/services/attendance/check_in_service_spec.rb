@@ -117,6 +117,75 @@ RSpec.describe Attendance::CheckInService do
     end
   end
 
+  # ── Security: shift-assignment boundary cases ────────────────────────────────
+
+  describe "future assignment (not yet active today)" do
+    it "rejects check-in because the assignment does not cover today" do
+      # Move the assignment entirely into the future so ShiftAssignment.current returns nothing.
+      ShiftAssignment.where(user: user).update_all(
+        effective_from: 1.day.from_now.to_date,
+        effective_to:   1.month.from_now.to_date
+      )
+      result = call
+      expect(result).not_to be_success
+      expect(result.error).to eq("You are not assigned to this branch")
+    end
+  end
+
+  describe "assignment gap — previous ended, new not yet started" do
+    it "rejects check-in when the employee is in a gap between two assignments" do
+      # Old assignment expired yesterday; new one starts tomorrow — nothing covers today.
+      ShiftAssignment.where(user: user).update_all(effective_to: 1.day.ago.to_date)
+      create(:shift_assignment, user: user, branch: branch, shift: shift,
+             effective_from: 1.day.from_now.to_date)
+      result = call
+      expect(result).not_to be_success
+      expect(result.error).to eq("You are not assigned to this branch")
+    end
+  end
+
+  describe "cross-branch attempt" do
+    it "rejects check-in at a branch the employee is not assigned to" do
+      other_branch = create(:branch, business: business)
+      result = described_class.call(user: user, branch: other_branch)
+      expect(result).not_to be_success
+      expect(result.error).to eq("You are not assigned to this branch")
+    end
+
+    it "does not create an attendance record for the wrong branch" do
+      other_branch = create(:branch, business: business)
+      expect {
+        described_class.call(user: user, branch: other_branch)
+      }.not_to change(AttendanceRecord, :count)
+    end
+
+    it "rejects even when the employee has a valid assignment at their own branch" do
+      # Employee has a current assignment at `branch` but tries to check in at `other_branch`.
+      other_branch = create(:branch, business: business)
+      result = described_class.call(user: user, branch: other_branch)
+      expect(result).not_to be_success
+    end
+  end
+
+  describe "assignment active on boundary dates" do
+    it "accepts check-in on effective_from date (assignment starts today)" do
+      ShiftAssignment.where(user: user).update_all(effective_from: Date.current)
+      expect(call).to be_success
+    end
+
+    it "accepts check-in on effective_to date (assignment ends today)" do
+      ShiftAssignment.where(user: user).update_all(effective_to: Date.current)
+      expect(call).to be_success
+    end
+
+    it "rejects check-in the day after effective_to (assignment expired)" do
+      ShiftAssignment.where(user: user).update_all(effective_to: 1.day.ago.to_date)
+      result = call
+      expect(result).not_to be_success
+      expect(result.error).to eq("You are not assigned to this branch")
+    end
+  end
+
   describe "geolocation enforcement" do
     let(:geo_user) { create(:user, business: business) }
     let(:geo_branch) do

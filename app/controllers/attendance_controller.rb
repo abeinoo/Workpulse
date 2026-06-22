@@ -4,7 +4,9 @@ class AttendanceController < ApplicationController
 
   def check_in
     branch = resolve_checkin_branch
-    return redirect_to(root_path, alert: t("flash.branch_not_found")) if params[:branch_id].present? && branch.nil?
+    # Require a valid branch at all times — omitting branch_id must not bypass
+    # the shift-assignment check and geofence enforcement.
+    return redirect_to(root_path, alert: t("flash.branch_not_found")) unless branch
 
     result = Attendance::CheckInService.call(
       user:      current_user,

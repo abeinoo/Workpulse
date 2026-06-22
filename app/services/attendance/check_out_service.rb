@@ -61,13 +61,18 @@ module Attendance
     end
 
     def open_record
-      AttendanceRecord.where(user: @user, check_out_at: nil).order(check_in_at: :desc).first
+      # Memoized so location_valid? can reuse it without a second DB query.
+      @open_record ||= AttendanceRecord.where(user: @user, check_out_at: nil).order(check_in_at: :desc).first
     end
 
     def location_valid?
-      return true unless @branch
+      # Always validate against the branch stored on the open check-in record.
+      # Using @branch (from params) would let an attacker supply a branch with no
+      # geofence to bypass the enforcement that was active at check-in time.
+      effective_branch = open_record&.branch || @branch
+      return true unless effective_branch
       GeolocationValidator.within_radius?(
-        branch: @branch, latitude: @latitude, longitude: @longitude
+        branch: effective_branch, latitude: @latitude, longitude: @longitude
       )
     end
 
