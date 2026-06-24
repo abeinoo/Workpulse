@@ -5,14 +5,14 @@ class Inventory::DashboardController < Inventory::BaseController
 
     @warehouse_count = accessible_warehouses.count
     # Exclude parent products — they carry no inventory; count only transactable ones.
-    @product_count   = business.products.inventory_tracked.non_parent.count
+    @product_count   = business.products.active.inventory_tracked.non_parent.count
     @supplier_count  = business.suppliers.count
 
     @totals = Inventory::StockLevels.totals_for(business, warehouse_ids: wh_ids)
     @low_stock_alerts = Inventory::LowStockQuery.new(business, warehouse_ids: wh_ids).alerts
 
     # Stock value: only non-parent tracked products (parents have no movements).
-    tracked_products = business.products.inventory_tracked.non_parent
+    tracked_products = business.products.active.inventory_tracked.non_parent
     @stock_value = tracked_products.sum { |p| (@totals[p.id] || 0) * p.average_cost_price }
 
     # Family low-stock: group child-product alerts by their parent so the dashboard

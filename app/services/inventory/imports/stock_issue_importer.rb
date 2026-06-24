@@ -57,7 +57,7 @@ module Inventory
           if sku.blank? || !qty.positive?
             skipped << Skip.new(row_number: line, sku: sku, reason: :invalid_row); next
           end
-          product = @business.products.find_by("LOWER(sku) = ?", sku.downcase)
+          product = @business.products.active.find_by("LOWER(sku) = ?", sku.downcase)
           if product.nil?
             skipped << Skip.new(row_number: line, sku: sku, reason: :unknown_sku); next
           end

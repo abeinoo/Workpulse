@@ -5,7 +5,7 @@ class Inventory::BarcodeLabelsController < Inventory::BaseController
   # GET /inventory/barcode_labels/:id
   def show
     authorize Product, :index?
-    @product  = policy_scope(Product).includes(:product_barcodes).find(params[:id])
+    @product  = policy_scope(Product).active.includes(:product_barcodes).find(params[:id])
     @barcodes = if params[:barcode_id].present?
                   @product.product_barcodes.where(id: params[:barcode_id])
                 else
@@ -20,7 +20,7 @@ class Inventory::BarcodeLabelsController < Inventory::BaseController
   def index
     authorize Product, :index?
     product_ids = Array(params[:product_ids]).map(&:to_i).uniq.first(100)
-    @products   = policy_scope(Product).includes(:product_barcodes).where(id: product_ids).ordered
+    @products   = policy_scope(Product).active.includes(:product_barcodes).where(id: product_ids).ordered
     @quantity   = (params[:quantity].presence || 1).to_i.clamp(1, 20)
     @show_price = params[:show_price] != "0"
   end

@@ -86,6 +86,7 @@ module Inventory
 
     def products
       @business.products
+               .active
                .inventory_tracked
                .where(receive_low_stock_notification: true)
                .includes(:product_warehouse_settings, :parent_product)

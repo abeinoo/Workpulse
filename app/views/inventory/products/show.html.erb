@@ -262,6 +262,112 @@
       </div>
     <% end %>
 
+    <%# ── Purchase Information ─────────────────────────────── %>
+    <h2 class="section-title"><%= t("inventory.products.purchase_information") %></h2>
+    <% if @last_gr_item %>
+      <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+        <dl class="detail-list">
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.last_supplier") %></dt>
+            <dd>
+              <% if @last_gr_item.goods_receipt.supplier %>
+                <%= link_to @last_gr_item.goods_receipt.supplier.name,
+                      inventory_supplier_path(@last_gr_item.goods_receipt.supplier), class: "link" %>
+              <% else %>
+                —
+              <% end %>
+            </dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.last_purchase_date") %></dt>
+            <dd><%= local_date(@last_gr_item.goods_receipt.received_on) %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.last_purchase_unit_price") %></dt>
+            <dd><%= format_currency(@last_gr_item.unit_cost) %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.last_purchase_quantity") %></dt>
+            <dd><%= @last_gr_item.quantity.to_i %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.last_gr_reference") %></dt>
+            <dd>
+              <%= link_to @last_gr_item.goods_receipt.receipt_number,
+                    inventory_goods_receipt_path(@last_gr_item.goods_receipt), class: "link" %>
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <%# ── Supplier Purchase History ────────────────────────── %>
+      <h2 class="section-title"><%= t("inventory.products.supplier_purchase_history") %></h2>
+      <% if @supplier_purchase_rows.any? %>
+        <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
+          <table>
+            <thead><tr>
+              <th><%= t("inventory.products.supplier") %></th>
+              <th><%= t("inventory.products.last_purchase_date") %></th>
+              <th style="text-align: end;"><%= t("inventory.products.last_purchase_unit_price") %></th>
+              <th style="text-align: end;"><%= t("inventory.products.total_purchased_quantity") %></th>
+              <th style="text-align: end;"><%= t("inventory.products.purchase_count") %></th>
+            </tr></thead>
+            <tbody>
+              <% @supplier_purchase_rows.each do |row| %>
+                <tr>
+                  <td>
+                    <% if row[:supplier] %>
+                      <%= link_to row[:supplier].name,
+                            inventory_supplier_path(row[:supplier]), class: "link" %>
+                    <% else %>
+                      <span class="td-secondary">—</span>
+                    <% end %>
+                  </td>
+                  <td class="td-secondary"><%= local_date(row[:last_purchase_date]) %></td>
+                  <td style="text-align: end;"><%= format_currency(row[:last_purchase_price]) %></td>
+                  <td style="text-align: end;"><%= row[:total_quantity].to_i %></td>
+                  <td style="text-align: end;"><%= row[:purchase_count] %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+
+      <%# ── Consumption Stats ────────────────────────────────── %>
+      <h2 class="section-title"><%= t("inventory.products.consumption_stats") %></h2>
+      <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+        <dl class="detail-list">
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.last_used_in_service") %></dt>
+            <dd><%= @last_consumed_on ? local_date(@last_consumed_on) : "—" %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.consumed_this_month") %></dt>
+            <dd><%= @consumed_this_month.to_i %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.avg_monthly_consumption") %></dt>
+            <dd><%= @avg_monthly_consumption %></dd>
+          </div>
+          <div class="detail-list__row">
+            <dt><%= t("inventory.products.estimated_days_remaining") %></dt>
+            <dd>
+              <% if @estimated_days_remaining %>
+                <%= t("inventory.products.days_remaining_value", count: @estimated_days_remaining) %>
+              <% else %>
+                —
+              <% end %>
+            </dd>
+          </div>
+        </dl>
+      </div>
+    <% else %>
+      <div class="empty-state empty-state--compact" style="margin-bottom: var(--space-5);">
+        <p class="empty-state__text"><%= t("inventory.products.no_purchase_history") %></p>
+      </div>
+    <% end %>
+
     <%# ── Recent movements ──────────────────────────────────── %>
     <h2 class="section-title"><%= t("inventory.products.recent_movements") %></h2>
     <% if @recent_movements.empty? %>

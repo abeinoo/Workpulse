@@ -78,7 +78,7 @@ class Product < ApplicationRecord
   scope :active,             -> { where(active: true) }
   scope :archived,           -> { where(active: false) }
   scope :inventory_tracked,  -> { where(track_inventory: true) }
-  scope :low_stock_notifiable, -> { inventory_tracked.where(receive_low_stock_notification: true) }
+  scope :low_stock_notifiable, -> { active.inventory_tracked.where(receive_low_stock_notification: true) }
   # Exclude products that have children — parents carry no inventory of their own.
   scope :non_parent, -> {
     where("NOT EXISTS (SELECT 1 FROM products c WHERE c.parent_product_id = products.id)")
@@ -133,7 +133,7 @@ class Product < ApplicationRecord
   end
 
   def low_stock?
-    track_inventory? && current_stock <= low_stock_level
+    active? && track_inventory? && current_stock <= low_stock_level
   end
 
   # Warehouse-specific threshold, falling back to the product-level default
@@ -148,7 +148,7 @@ class Product < ApplicationRecord
 
   # True when this product is at/below its threshold IN the given warehouse.
   def low_stock_in?(warehouse)
-    track_inventory? && stock_in(warehouse) <= low_stock_level_for(warehouse)
+    active? && track_inventory? && stock_in(warehouse) <= low_stock_level_for(warehouse)
   end
 
   def setting_for(warehouse)

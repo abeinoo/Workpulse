@@ -122,6 +122,9 @@ class Inventory::ProductsController < Inventory::BaseController
       movements = @product.inventory_movements.includes(:warehouse)
       movements = movements.where(warehouse_id: wh_ids) if wh_ids
       @recent_movements = movements.order(occurred_on: :desc, id: :desc).limit(15)
+
+      load_purchase_history
+      load_consumption_stats
     end
   end
 
@@ -291,12 +294,75 @@ class Inventory::ProductsController < Inventory::BaseController
     if @result.ok?
       @warehouses = accessible_warehouses
       render :import_result
+    elsif @result.header_error == :malformed_csv
+      err = @result.parse_error
+      redirect_to import_inventory_products_path,
+                  alert: t("inventory.imports.malformed_csv",
+                            line: err.line_number, content: err.raw_line)
     else
       redirect_to import_inventory_products_path, alert: t("inventory.imports.invalid_headers")
     end
   end
 
   private
+
+  def load_purchase_history
+    # Single query: all non-voided GR items for this product, newest first.
+    gr_items = GoodsReceiptItem
+      .joins(:goods_receipt)
+      .includes(goods_receipt: :supplier)
+      .where(
+        goods_receipts: {
+          business_id: current_user.business.id,
+          voided_at:   nil
+        },
+        product_id: @product.id
+      )
+      .order("goods_receipts.received_on DESC, goods_receipts.id DESC")
+
+    @last_gr_item = gr_items.first
+
+    # Group in Ruby — avoids N+1 and complex window-function SQL for catalog sizes.
+    by_supplier = gr_items.group_by { |i| i.goods_receipt.supplier_id }
+    @supplier_purchase_rows = by_supplier.map do |_supplier_id, items|
+      latest     = items.first
+      supplier   = latest.goods_receipt.supplier
+      {
+        supplier:            supplier,
+        last_purchase_date:  latest.goods_receipt.received_on,
+        last_purchase_price: latest.unit_cost,
+        total_quantity:      items.sum(&:quantity),
+        purchase_count:      items.size
+      }
+    end.sort_by { |r| r[:last_purchase_date] }.reverse
+  end
+
+  def load_consumption_stats
+    consumption = @product.inventory_movements.consumption
+
+    @last_consumed_on = consumption.maximum(:occurred_on)
+
+    month_start = Time.current.beginning_of_month.to_date
+    month_end   = Time.current.end_of_month.to_date
+    @consumed_this_month = consumption
+      .where(occurred_on: month_start..month_end)
+      .sum(:quantity)
+
+    first_movement_date = @product.inventory_movements.minimum(:occurred_on)
+    if first_movement_date
+      months_elapsed = ((Date.current - first_movement_date).to_f / 30.44).ceil.clamp(1, Float::INFINITY)
+      total_consumed = consumption.sum(:quantity)
+      @avg_monthly_consumption = (total_consumed.to_f / months_elapsed).round(1)
+    else
+      @avg_monthly_consumption = 0
+    end
+
+    if @avg_monthly_consumption > 0 && @display_stock > 0
+      @estimated_days_remaining = (@display_stock / (@avg_monthly_consumption / 30.44)).round
+    else
+      @estimated_days_remaining = nil
+    end
+  end
 
   def find_product
     policy_scope(Product).find(params[:id])

@@ -42,7 +42,9 @@ module Inventory
         end
       end
 
-      Result = Struct.new(:created, :skipped, :opening_adjustment, :header_error, keyword_init: true) do
+      ParseError = Struct.new(:line_number, :raw_line, :message, keyword_init: true)
+
+      Result = Struct.new(:created, :skipped, :opening_adjustment, :header_error, :parse_error, keyword_init: true) do
         def ok?            = header_error.nil?
         def created_count  = created.size
         def skipped_count  = skipped.size
@@ -59,6 +61,9 @@ module Inventory
 
       def call
         table = parse
+        if table.is_a?(ParseError)
+          return Result.new(created: [], skipped: [], header_error: :malformed_csv, parse_error: table)
+        end
         return Result.new(created: [], skipped: [], header_error: :invalid_headers) unless headers_valid?(table)
 
         created  = []
@@ -118,7 +123,17 @@ module Inventory
       private
 
       def parse
-        CSV.parse(@csv_data, headers: true, header_converters: ->(h) { h.to_s.strip.downcase })
+        data = @csv_data.dup.force_encoding("UTF-8")
+        data = data.delete_prefix("\xEF\xBB\xBF")  # strip Excel UTF-8 BOM
+        CSV.parse(data, headers: true,
+                        header_converters: ->(h) { h.to_s.strip.downcase },
+                        liberal_parsing: true)
+      rescue CSV::MalformedCSVError => e
+        ParseError.new(
+          line_number: e.line_number,
+          raw_line:    @csv_data.lines[e.line_number - 1].to_s.strip,
+          message:     e.message
+        )
       end
 
       def headers_valid?(table)
