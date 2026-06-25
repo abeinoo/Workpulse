@@ -15,7 +15,7 @@ class PermissionRole < ApplicationRecord
                                pay_advances],
     adjustments:           %w[manage_adjustments approve_adjustments],
     requests:              %w[view_requests approve_requests],
-    shifts:                %w[view_shifts manage_shifts assign_shifts],
+    shifts:                %w[view_shifts manage_shifts assign_shifts create_shift_closing],
     reports:               %w[view_reports export_reports],
     inventory:             %w[view_inventory manage_inventory view_inventory_reports
                                manage_suppliers manage_products manage_stock_receipts
@@ -23,7 +23,8 @@ class PermissionRole < ApplicationRecord
                                manage_stock_counts post_stock_counts view_stock_count_reports],
     performance:           %w[view_performance manage_evaluation_templates
                                create_observations manage_reviews finalize_reviews],
-    finance_overview:      %w[view_finance_dashboard],
+    finance_overview:      %w[view_finance_dashboard
+                               view_daily_reconciliation verify_daily_reconciliation],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
                                 manage_expense_tags manage_recurring_expenses

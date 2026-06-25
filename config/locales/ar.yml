@@ -2359,6 +2359,7 @@ ar:
         view_shifts: "عرض أنواع الورديات"
         manage_shifts: "إدارة أنواع الورديات"
         assign_shifts: "تعيين الموظفين للورديات"
+        create_shift_closing: "تقديم إغلاق الوردية"
         view_reports: "عرض التقارير"
         export_reports: "تصدير التقارير"
         manage_settings: "إدارة إعدادات المنشأة"
@@ -2383,6 +2384,8 @@ ar:
         manage_reviews: "إنشاء / تعديل التقييمات"
         finalize_reviews: "اعتماد التقييمات"
         view_finance_dashboard: "عرض لوحة المالية"
+        view_daily_reconciliation: "عرض التسوية اليومية"
+        verify_daily_reconciliation: "تأكيد التسوية اليومية"
         view_expenses: "عرض المصروفات"
         create_expenses: "إنشاء المصروفات"
         edit_expenses: "تعديل المصروفات"
@@ -2434,6 +2437,7 @@ ar:
         view_shifts: "عرض إعدادات أنواع الورديات"
         manage_shifts: "إنشاء أنواع الورديات وتعديلها"
         assign_shifts: "تعيين الموظفين للورديات"
+        create_shift_closing: "تسليم الكاشير في نهاية الوردية أو الإعلان كمودع نهائي"
         view_reports: "الوصول إلى تقارير الحضور والرواتب"
         export_reports: "تصدير التقارير بصيغة CSV"
         manage_settings: "تحديث إعدادات المنشأة"
@@ -2457,6 +2461,8 @@ ar:
         manage_reviews: "إنشاء وتعديل تقييمات الأداء الشهرية"
         finalize_reviews: "اعتماد التقييمات نهائيًا (لا يمكن تعديلها بعد ذلك)"
         view_finance_dashboard: "الوصول إلى نظرة مالية شاملة تتضمن ملخصات المصروفات وأرصدة الموظفين والربحية — مقتصر على المالك والمحاسب افتراضيًا"
+        view_daily_reconciliation: "عرض تقرير تسوية الكاشير اليومية لأي فرع"
+        verify_daily_reconciliation: "تعليم يوم التسوية على أنه تمت مراجعته وتأكيده"
         view_expenses: "عرض سجلات المصروفات عبر الفروع"
         create_expenses: "تقديم سجلات مصروفات جديدة"
         edit_expenses: "تعديل سجلات المصروفات المعلّقة والمسودة"
@@ -3809,6 +3815,18 @@ ar:
       no_data: "لا توجد بيانات هذا الشهر."
       profitability: "ربحية الفروع — هذا الشهر"
       view_full_report: "التقرير الكامل ←"
+    daily_reconciliations:
+      title: "التسوية اليومية"
+      subtitle: "مراجعة وتأكيد إغلاقات الكاشير اليومية لكل فرع."
+      verified: "تم تعليم التسوية على أنها مؤكدة."
+      unverified_badge: "قيد المراجعة"
+      verified_badge: "مؤكدة"
+      verify_action: "تعليم كمؤكدة"
+      handover_chain: "سلسلة التسليم"
+      deposits: "الإيداعات المسجلة"
+      collected_by_method: "المحصّل حسب وسيلة الدفع"
+      total_deposited: "إجمالي الإيداعات"
+      no_reconciliations: "لا توجد تسويات يومية."
     payment_methods:
       title: "وسائل الدفع"
       subtitle: "تهيئة وسائل الدفع المقبولة في هذا النشاط التجاري."
@@ -4178,3 +4196,26 @@ ar:
     no: "لا"
     move_up: "تحريك لأعلى"
     move_down: "تحريك لأسفل"
+
+  till_handovers:
+    created: "تم تقديم إغلاق الوردية بنجاح."
+    accepted: "تم قبول التسليم. أنت الآن حامل الكاشير."
+    errors:
+      not_current_holder: "فقط حامل الكاشير الحالي يمكنه تقديم إغلاق."
+      not_acceptable: "لا يمكن قبول هذا التسليم."
+      wrong_recipient: "هذا التسليم ليس موجهًا إليك."
+
+  till_deposits:
+    created: "تم تسجيل الإيداع."
+    voided: "تم إلغاء الإيداع."
+    errors:
+      handover_not_depositor: "لا يمكن تسجيل الإيداعات إلا على تسليم من نوع 'مودع'."
+      not_depositor: "فقط المودع المُعلَن يمكنه تسجيل الإيداعات."
+
+  activerecord:
+    errors:
+      models:
+        till_deposit:
+          attributes:
+            payment_method:
+              not_cash_like: "يجب أن تكون وسيلة دفع نقدية"

@@ -256,6 +256,17 @@ Rails.application.routes.draw do
     resource :password, only: [ :edit, :update ]
   end
 
+  # ── Till Handover (receptionist-facing, no finance terminology) ────────────
+  get "my_shift", to: "till_handovers#my_shift", as: :my_shift
+
+  resources :till_handovers, only: %i[new create show] do
+    member { patch :accept }
+  end
+
+  resources :till_deposits, only: %i[new create] do
+    member { patch :void }
+  end
+
   # ── Inventory Management ──────────────────────────────────────────────────
   namespace :inventory do
     root to: "dashboard#index"
@@ -376,6 +387,10 @@ Rails.application.routes.draw do
       resources :custody_transactions, only: [ :create ] do
         member { patch :void }
       end
+    end
+
+    resources :daily_reconciliations, only: %i[index show] do
+      member { patch :verify }
     end
   end
 

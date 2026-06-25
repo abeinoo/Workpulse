@@ -2369,6 +2369,7 @@ en:
         view_shifts: "View Shift Types"
         manage_shifts: "Manage Shift Types"
         assign_shifts: "Assign Shifts to Employees"
+        create_shift_closing: "Submit Shift Closing"
         view_reports: "View Reports"
         export_reports: "Export Reports"
         manage_settings: "Manage Business Settings"
@@ -2393,6 +2394,8 @@ en:
         manage_reviews: "Create / Edit Reviews"
         finalize_reviews: "Finalize Reviews"
         view_finance_dashboard: "View Finance Dashboard"
+        view_daily_reconciliation: "View Daily Reconciliation"
+        verify_daily_reconciliation: "Verify Daily Reconciliation"
         view_expenses: "View Expenses"
         create_expenses: "Create Expenses"
         edit_expenses: "Edit Expenses"
@@ -2444,6 +2447,7 @@ en:
         view_shifts: "View shift type configurations"
         manage_shifts: "Create and edit shift type configurations"
         assign_shifts: "Assign employees to shifts"
+        create_shift_closing: "Hand over the till at end of shift or declare as final depositor"
         view_reports: "Access attendance and payroll reports"
         export_reports: "Export reports to CSV"
         manage_settings: "Update business-level settings"
@@ -2467,6 +2471,8 @@ en:
         manage_reviews: "Create and edit monthly performance reviews"
         finalize_reviews: "Lock reviews as final (cannot be edited afterwards)"
         view_finance_dashboard: "Access the finance overview with expense summaries, custody balances, and profitability — restricted to owners and accountants by default"
+        view_daily_reconciliation: "View the daily till reconciliation report for any branch"
+        verify_daily_reconciliation: "Mark a daily reconciliation as reviewed and verified"
         view_expenses: "View expense records across branches"
         create_expenses: "Submit new expense records"
         edit_expenses: "Edit pending and draft expense records"
@@ -3785,6 +3791,18 @@ en:
       no_data: "No data this month."
       profitability: "Branch Profitability — This Month"
       view_full_report: "Full report →"
+    daily_reconciliations:
+      title: "Daily Reconciliation"
+      subtitle: "Review and verify end-of-day till closings for each branch."
+      verified: "Reconciliation marked as verified."
+      unverified_badge: "Pending Review"
+      verified_badge: "Verified"
+      verify_action: "Mark as Verified"
+      handover_chain: "Handover Chain"
+      deposits: "Deposits Recorded"
+      collected_by_method: "Collected by Payment Method"
+      total_deposited: "Total Deposited"
+      no_reconciliations: "No daily reconciliations found."
     payment_methods:
       title: "Payment Methods"
       subtitle: "Configure the payment methods accepted at this business."
@@ -4154,3 +4172,26 @@ en:
     no: "No"
     move_up: "Move Up"
     move_down: "Move Down"
+
+  till_handovers:
+    created: "Shift closing submitted successfully."
+    accepted: "Handover accepted. You are now the current till holder."
+    errors:
+      not_current_holder: "Only the current till holder can submit a closing."
+      not_acceptable: "This handover cannot be accepted."
+      wrong_recipient: "This handover is not addressed to you."
+
+  till_deposits:
+    created: "Deposit recorded."
+    voided: "Deposit voided."
+    errors:
+      handover_not_depositor: "Deposits can only be recorded on a depositor-type handover."
+      not_depositor: "Only the declared depositor may record deposits."
+
+  activerecord:
+    errors:
+      models:
+        till_deposit:
+          attributes:
+            payment_method:
+              not_cash_like: "must be a cash-type method"

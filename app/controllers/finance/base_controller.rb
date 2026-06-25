@@ -13,6 +13,7 @@ class Finance::BaseController < ApplicationController
     manage_payment_methods
     view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
     view_expense_reports manage_branch_revenue
+    view_daily_reconciliation verify_daily_reconciliation
   ].freeze
 
   def require_finance_access!

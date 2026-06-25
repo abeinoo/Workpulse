@@ -436,8 +436,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
     t.datetime "updated_at", null: false
     t.datetime "verified_at"
     t.bigint "verified_by_id"
-    t.index ["branch_id", "business_date"], name: "idx_daily_reconciliations_unique_per_branch_day", unique: true
     t.index ["branch_id"], name: "index_daily_reconciliations_on_branch_id"
+    t.index ["business_id", "branch_id", "business_date"], name: "idx_daily_reconciliations_unique_per_branch_day", unique: true
     t.index ["business_id"], name: "index_daily_reconciliations_on_business_id"
     t.index ["verified_by_id"], name: "index_daily_reconciliations_on_verified_by_id"
   end
