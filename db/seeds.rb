@@ -1089,6 +1089,23 @@ end
 puts "Permission roles: #{PermissionRole.where(business: business).count} roles (owner can rename/delete/add freely)"
 
 # ---------------------------------------------------------------------------
+# Payment Methods
+# ---------------------------------------------------------------------------
+[
+  { name: "Cash",      name_ar: "نقداً",           settlement_type: "cash",    supports_refunds: true,  position: 0 },
+  { name: "Visa",      name_ar: "فيزا",            settlement_type: "card",    supports_refunds: true,  position: 1 },
+  { name: "Instapay",  name_ar: "إنستاباي",        settlement_type: "ewallet", supports_refunds: false, position: 2 },
+  { name: "Gift Card", name_ar: "بطاقة هدية",      settlement_type: "voucher", supports_refunds: false, position: 3 }
+].each_with_index do |attrs, _|
+  PaymentMethod.find_or_initialize_by(business: business, name: attrs[:name]).tap do |pm|
+    pm.assign_attributes(attrs)
+    pm.active = true
+    pm.save!
+  end
+end
+puts "Payment methods: #{PaymentMethod.for_business(business).count} configured"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 puts "\n== Seed Complete =="
@@ -1100,6 +1117,7 @@ puts "  Requests  : #{EmployeeRequest.for_business(business).count} employee req
 puts "  Payroll   : #{PayrollPeriod.where(business: business).count} periods, #{PayrollEntry.joins(:payroll_period).where(payroll_periods: { business: business }).count} entries"
 puts "  Inventory : #{Warehouse.for_business(business).count} warehouses, #{Product.for_business(business).count} products, #{business.inventory_movements.count} movements"
 puts "  Performance: #{Department.where(business: business).count} departments, #{EvaluationTemplate.for_business(business).count} templates, #{EvaluationCriterion.joins(:evaluation_template).where(evaluation_templates: { business_id: business.id }).count} criteria"
+puts "  Payment Methods: #{PaymentMethod.for_business(business).count}"
 puts "\n  Credentials (password: password123)"
 puts "    admin@workpulse.dev          — Owner"
 puts "    area.manager@workpulse.dev   — Area Manager (all branches)"

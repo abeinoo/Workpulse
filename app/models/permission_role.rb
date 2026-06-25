@@ -26,7 +26,8 @@ class PermissionRole < ApplicationRecord
     finance_overview:      %w[view_finance_dashboard],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
-                                manage_expense_tags manage_recurring_expenses],
+                                manage_expense_tags manage_recurring_expenses
+                                manage_payment_methods],
     employee_balances:     %w[view_employee_balances manage_employee_balances
                                create_balance_requests approve_balance_requests],
     expense_reports:       %w[view_expense_reports manage_branch_revenue],

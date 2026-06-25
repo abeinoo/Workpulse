@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -165,6 +165,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.index ["reference_number"], name: "index_balance_requests_on_reference_number", unique: true, where: "(reference_number IS NOT NULL)"
   end
 
+  create_table "bank_accounts", force: :cascade do |t|
+    t.string "account_name", null: false
+    t.boolean "active", default: true, null: false
+    t.string "bank_name", null: false
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id", "active"], name: "index_bank_accounts_on_branch_id_and_active"
+    t.index ["branch_id"], name: "index_bank_accounts_on_branch_id"
+    t.index ["business_id"], name: "index_bank_accounts_on_business_id"
+  end
+
   create_table "biometric_devices", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "business_id", null: false
@@ -251,11 +264,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.index ["business_id"], name: "index_brands_on_business_id"
   end
 
+  create_table "business_closing_locks", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "locked_by_id", null: false
+    t.date "locked_through_date", null: false
+    t.text "notes"
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "locked_through_date"], name: "index_closing_locks_on_business_and_date"
+    t.index ["business_id"], name: "index_business_closing_locks_on_business_id"
+    t.index ["locked_by_id"], name: "index_business_closing_locks_on_locked_by_id"
+  end
+
   create_table "businesses", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.integer "barcode_next_number", default: 1, null: false
     t.string "barcode_prefix"
     t.integer "business_day_start_hour", default: 6, null: false
+    t.decimal "closing_variance_threshold", precision: 8, scale: 2, default: "10.0", null: false
     t.datetime "created_at", null: false
     t.string "currency", default: "SAR", null: false
     t.string "default_locale", default: "en", null: false
@@ -274,6 +300,54 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.boolean "variant_system_enabled", default: true, null: false
     t.integer "working_days_per_month", default: 26, null: false
     t.index ["owner_id"], name: "index_businesses_on_owner_id"
+  end
+
+  create_table "cash_deposits", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.bigint "bank_account_id"
+    t.datetime "created_at", null: false
+    t.bigint "daily_closing_id", null: false
+    t.bigint "deposited_by_id", null: false
+    t.date "deposited_on", null: false
+    t.text "notes"
+    t.string "reference_number"
+    t.datetime "updated_at", null: false
+    t.text "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.index ["bank_account_id", "deposited_on"], name: "index_cash_deposits_on_bank_account_id_and_deposited_on"
+    t.index ["bank_account_id"], name: "index_cash_deposits_on_bank_account_id"
+    t.index ["daily_closing_id", "deposited_on"], name: "index_cash_deposits_on_daily_closing_id_and_deposited_on"
+    t.index ["daily_closing_id"], name: "index_cash_deposits_on_daily_closing_id"
+    t.index ["deposited_by_id"], name: "index_cash_deposits_on_deposited_by_id"
+    t.index ["voided_at"], name: "index_cash_deposits_on_voided_at"
+    t.index ["voided_by_id"], name: "index_cash_deposits_on_voided_by_id"
+  end
+
+  create_table "cash_handovers", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.bigint "daily_closing_id"
+    t.bigint "from_staff_closing_id", null: false
+    t.bigint "from_user_id", null: false
+    t.text "notes"
+    t.datetime "responded_at"
+    t.bigint "responded_by_id"
+    t.text "response_notes"
+    t.string "status", default: "pending", null: false
+    t.bigint "to_user_id", null: false
+    t.datetime "transferred_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["daily_closing_id"], name: "idx_cash_handovers_daily_closing"
+    t.index ["daily_closing_id"], name: "index_cash_handovers_on_daily_closing_id"
+    t.index ["from_staff_closing_id"], name: "idx_cash_handovers_from_staff_closing"
+    t.index ["from_staff_closing_id"], name: "index_cash_handovers_on_from_staff_closing_id"
+    t.index ["from_user_id", "status"], name: "idx_cash_handovers_from_user_status"
+    t.index ["from_user_id"], name: "idx_cash_handovers_from_user"
+    t.index ["from_user_id"], name: "index_cash_handovers_on_from_user_id"
+    t.index ["to_user_id", "status"], name: "idx_cash_handovers_to_user_status"
+    t.index ["to_user_id"], name: "idx_cash_handovers_to_user"
+    t.index ["to_user_id"], name: "index_cash_handovers_on_to_user_id"
   end
 
   create_table "custody_accounts", force: :cascade do |t|
@@ -315,6 +389,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.index ["expense_id"], name: "index_custody_transactions_on_expense_id"
     t.index ["transfer_counterparty_id"], name: "index_custody_transactions_on_transfer_counterparty_id"
     t.index ["voided_by_id"], name: "index_custody_transactions_on_voided_by_id"
+  end
+
+  create_table "daily_closing_entries", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "daily_closing_id", null: false
+    t.text "notes"
+    t.bigint "payment_method_id", null: false
+    t.decimal "refunds_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "sales_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["daily_closing_id", "payment_method_id"], name: "idx_closing_entries_on_closing_and_method", unique: true
+    t.index ["daily_closing_id"], name: "index_daily_closing_entries_on_daily_closing_id"
+    t.index ["payment_method_id"], name: "index_daily_closing_entries_on_payment_method_id"
+  end
+
+  create_table "daily_closings", force: :cascade do |t|
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.date "closing_date", null: false
+    t.datetime "created_at", null: false
+    t.text "investigation_notes"
+    t.integer "lock_version", default: 0, null: false
+    t.text "notes"
+    t.string "status", default: "draft", null: false
+    t.datetime "submitted_at"
+    t.bigint "submitted_by_id"
+    t.datetime "updated_at", null: false
+    t.datetime "verified_at"
+    t.bigint "verified_by_id"
+    t.index ["branch_id", "closing_date"], name: "index_daily_closings_on_branch_id_and_closing_date", unique: true
+    t.index ["branch_id"], name: "index_daily_closings_on_branch_id"
+    t.index ["business_id", "closing_date"], name: "index_daily_closings_on_business_id_and_closing_date"
+    t.index ["business_id", "status"], name: "index_daily_closings_on_business_id_and_status"
+    t.index ["business_id"], name: "index_daily_closings_on_business_id"
+    t.index ["submitted_by_id"], name: "index_daily_closings_on_submitted_by_id"
+    t.index ["verified_by_id"], name: "index_daily_closings_on_verified_by_id"
   end
 
   create_table "departments", force: :cascade do |t|
@@ -499,6 +609,58 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.index ["source_recurring_expense_id"], name: "index_expenses_on_source_recurring_expense_id"
   end
 
+  create_table "external_sales_imports", force: :cascade do |t|
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "confirmed_at"
+    t.bigint "confirmed_by_id"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.bigint "daily_closing_id"
+    t.integer "error_count", default: 0
+    t.integer "mapped_count", default: 0
+    t.string "original_filename"
+    t.text "parse_errors"
+    t.integer "row_count", default: 0
+    t.date "sales_date", null: false
+    t.integer "skipped_count", default: 0
+    t.string "source", null: false
+    t.decimal "source_gross", precision: 14, scale: 2
+    t.decimal "source_net", precision: 14, scale: 2
+    t.decimal "source_refunds", precision: 14, scale: 2
+    t.string "source_version"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "uploaded_by_id", null: false
+    t.index ["branch_id", "status"], name: "index_external_sales_imports_on_branch_id_and_status"
+    t.index ["branch_id"], name: "index_external_sales_imports_on_branch_id"
+    t.index ["business_id", "sales_date"], name: "index_external_sales_imports_on_business_id_and_sales_date"
+    t.index ["business_id"], name: "index_external_sales_imports_on_business_id"
+    t.index ["confirmed_by_id"], name: "index_external_sales_imports_on_confirmed_by_id"
+    t.index ["daily_closing_id"], name: "idx_ext_sales_imports_on_daily_closing"
+    t.index ["daily_closing_id"], name: "index_external_sales_imports_on_daily_closing_id"
+    t.index ["uploaded_by_id"], name: "index_external_sales_imports_on_uploaded_by_id"
+  end
+
+  create_table "external_sales_rows", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "external_sales_import_id", null: false
+    t.decimal "gross_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "net_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.text "notes"
+    t.bigint "payment_method_id"
+    t.text "raw_data"
+    t.decimal "refund_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.string "row_status", default: "mapped", null: false
+    t.string "source_payment_method"
+    t.integer "source_row_number"
+    t.datetime "updated_at", null: false
+    t.index ["external_sales_import_id", "payment_method_id"], name: "idx_on_external_sales_import_id_payment_method_id_f467af8bd8"
+    t.index ["external_sales_import_id", "row_status"], name: "idx_on_external_sales_import_id_row_status_608612d9ec"
+    t.index ["external_sales_import_id"], name: "index_external_sales_rows_on_external_sales_import_id"
+    t.index ["payment_method_id"], name: "index_external_sales_rows_on_payment_method_id"
+  end
+
   create_table "goods_receipt_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "goods_receipt_id", null: false
@@ -587,6 +749,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.index ["employee_obligation_id", "payroll_period_id"], name: "idx_obligation_deductions_unique", unique: true
     t.index ["employee_obligation_id"], name: "index_obligation_deductions_on_employee_obligation_id"
     t.index ["payroll_period_id"], name: "index_obligation_deductions_on_payroll_period_id"
+  end
+
+  create_table "payment_methods", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.string "name_ar"
+    t.integer "position", default: 0, null: false
+    t.string "settlement_type", default: "other", null: false
+    t.boolean "supports_refunds", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((name)::text)", name: "index_payment_methods_on_business_id_and_lower_name", unique: true
+    t.index ["business_id", "active", "position"], name: "index_payment_methods_on_business_id_and_active_and_position"
+    t.index ["business_id", "settlement_type"], name: "index_payment_methods_on_business_id_and_settlement_type"
+    t.index ["business_id"], name: "index_payment_methods_on_business_id"
   end
 
   create_table "payroll_adjustments", force: :cascade do |t|
@@ -836,6 +1014,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.index ["business_id"], name: "index_permission_roles_on_business_id"
   end
 
+  create_table "pos_terminals", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name"
+    t.text "notes"
+    t.string "provider"
+    t.string "terminal_id", null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((terminal_id)::text)", name: "index_pos_terminals_on_business_id_and_lower_terminal_id", unique: true
+    t.index ["branch_id", "active"], name: "index_pos_terminals_on_branch_id_and_active"
+    t.index ["branch_id"], name: "index_pos_terminals_on_branch_id"
+    t.index ["business_id"], name: "index_pos_terminals_on_business_id"
+  end
+
   create_table "product_barcodes", force: :cascade do |t|
     t.string "barcode", null: false
     t.string "barcode_type", null: false
@@ -951,6 +1145,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.index ["expense_type_id"], name: "index_recurring_expenses_on_expense_type_id"
   end
 
+  create_table "reopen_requests", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "daily_closing_id", null: false
+    t.text "reason", null: false
+    t.bigint "requested_by_id", null: false
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
+    t.text "reviewer_notes"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["daily_closing_id", "status"], name: "index_reopen_requests_on_daily_closing_id_and_status"
+    t.index ["daily_closing_id"], name: "index_reopen_requests_on_daily_closing_id"
+    t.index ["requested_by_id"], name: "index_reopen_requests_on_requested_by_id"
+    t.index ["reviewed_by_id"], name: "index_reopen_requests_on_reviewed_by_id"
+  end
+
   create_table "salary_profiles", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.decimal "base_amount", precision: 12, scale: 2, null: false
@@ -963,6 +1173,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.integer "user_id", null: false
     t.index ["user_id", "active"], name: "index_salary_profiles_on_user_id_and_active"
     t.index ["user_id"], name: "index_salary_profiles_on_user_id"
+  end
+
+  create_table "sales_mapping_profiles", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.text "column_map"
+    t.datetime "created_at", null: false
+    t.boolean "default", default: false, null: false
+    t.text "method_map"
+    t.string "name", null: false
+    t.string "source", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "source"], name: "idx_mapping_profiles_on_business_and_source", unique: true
+    t.index ["business_id"], name: "index_sales_mapping_profiles_on_business_id"
   end
 
   create_table "shift_assignments", force: :cascade do |t|
@@ -1196,6 +1419,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
     t.index ["expires_at"], name: "index_solid_queue_semaphores_on_expires_at"
     t.index ["key", "value"], name: "index_solid_queue_semaphores_on_key_and_value"
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
+  end
+
+  create_table "staff_closing_entries", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "notes"
+    t.bigint "payment_method_id", null: false
+    t.decimal "refunds_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "sales_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.bigint "staff_closing_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["payment_method_id"], name: "index_staff_closing_entries_on_payment_method_id"
+    t.index ["staff_closing_id", "payment_method_id"], name: "idx_staff_closing_entries_on_closing_and_method", unique: true
+    t.index ["staff_closing_id"], name: "index_staff_closing_entries_on_staff_closing_id"
+  end
+
+  create_table "staff_closings", force: :cascade do |t|
+    t.bigint "branch_id", null: false
+    t.date "business_date", null: false
+    t.decimal "closing_cash", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.bigint "daily_closing_id"
+    t.text "expenses_notes"
+    t.decimal "expenses_paid", precision: 12, scale: 2, default: "0.0", null: false
+    t.text "notes"
+    t.decimal "opening_cash", precision: 12, scale: 2, default: "0.0", null: false
+    t.string "status", default: "open", null: false
+    t.datetime "submitted_at"
+    t.bigint "submitted_by_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.text "variance_note"
+    t.index ["branch_id", "business_date"], name: "idx_staff_closings_branch_date"
+    t.index ["branch_id", "status"], name: "idx_staff_closings_branch_status"
+    t.index ["branch_id"], name: "index_staff_closings_on_branch_id"
+    t.index ["daily_closing_id"], name: "idx_staff_closings_daily_closing"
+    t.index ["daily_closing_id"], name: "index_staff_closings_on_daily_closing_id"
+    t.index ["submitted_by_id"], name: "index_staff_closings_on_submitted_by_id"
+    t.index ["user_id", "business_date"], name: "idx_staff_closings_user_date"
+    t.index ["user_id"], name: "index_staff_closings_on_user_id"
   end
 
   create_table "stock_adjustment_items", force: :cascade do |t|
@@ -1442,6 +1704,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   add_foreign_key "balance_requests", "users", column: "cancelled_by_id"
   add_foreign_key "balance_requests", "users", column: "created_by_id"
   add_foreign_key "balance_requests", "users", column: "paid_by_id"
+  add_foreign_key "bank_accounts", "branches"
+  add_foreign_key "bank_accounts", "businesses"
   add_foreign_key "biometric_devices", "businesses"
   add_foreign_key "biometric_punch_logs", "attendance_records"
   add_foreign_key "biometric_punch_logs", "biometric_devices"
@@ -1454,7 +1718,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   add_foreign_key "branches", "users", column: "area_manager_id"
   add_foreign_key "branches", "users", column: "branch_manager_id"
   add_foreign_key "brands", "businesses"
+  add_foreign_key "business_closing_locks", "businesses"
+  add_foreign_key "business_closing_locks", "users", column: "locked_by_id"
   add_foreign_key "businesses", "users", column: "owner_id"
+  add_foreign_key "cash_deposits", "bank_accounts"
+  add_foreign_key "cash_deposits", "daily_closings"
+  add_foreign_key "cash_deposits", "users", column: "deposited_by_id"
+  add_foreign_key "cash_deposits", "users", column: "voided_by_id"
+  add_foreign_key "cash_handovers", "daily_closings"
+  add_foreign_key "cash_handovers", "staff_closings", column: "from_staff_closing_id"
+  add_foreign_key "cash_handovers", "users", column: "from_user_id"
+  add_foreign_key "cash_handovers", "users", column: "responded_by_id"
+  add_foreign_key "cash_handovers", "users", column: "to_user_id"
   add_foreign_key "custody_accounts", "branches"
   add_foreign_key "custody_accounts", "businesses"
   add_foreign_key "custody_accounts", "users"
@@ -1465,6 +1740,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   add_foreign_key "custody_transactions", "users", column: "approved_by_id"
   add_foreign_key "custody_transactions", "users", column: "created_by_id"
   add_foreign_key "custody_transactions", "users", column: "voided_by_id"
+  add_foreign_key "daily_closing_entries", "daily_closings"
+  add_foreign_key "daily_closing_entries", "payment_methods"
+  add_foreign_key "daily_closings", "branches"
+  add_foreign_key "daily_closings", "businesses"
+  add_foreign_key "daily_closings", "users", column: "submitted_by_id"
+  add_foreign_key "daily_closings", "users", column: "verified_by_id"
   add_foreign_key "departments", "businesses"
   add_foreign_key "employee_obligations", "businesses"
   add_foreign_key "employee_obligations", "users"
@@ -1490,6 +1771,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   add_foreign_key "expenses", "recurring_expenses", column: "source_recurring_expense_id"
   add_foreign_key "expenses", "users", column: "approved_by_id"
   add_foreign_key "expenses", "users", column: "created_by_id"
+  add_foreign_key "external_sales_imports", "branches"
+  add_foreign_key "external_sales_imports", "businesses"
+  add_foreign_key "external_sales_imports", "daily_closings"
+  add_foreign_key "external_sales_imports", "users", column: "confirmed_by_id"
+  add_foreign_key "external_sales_imports", "users", column: "uploaded_by_id"
+  add_foreign_key "external_sales_rows", "external_sales_imports"
+  add_foreign_key "external_sales_rows", "payment_methods"
   add_foreign_key "goods_receipt_items", "goods_receipts"
   add_foreign_key "goods_receipt_items", "products"
   add_foreign_key "goods_receipts", "businesses"
@@ -1504,6 +1792,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   add_foreign_key "notifications", "users"
   add_foreign_key "obligation_deductions", "employee_obligations"
   add_foreign_key "obligation_deductions", "payroll_periods"
+  add_foreign_key "payment_methods", "businesses"
   add_foreign_key "payroll_adjustments", "businesses"
   add_foreign_key "payroll_adjustments", "payroll_periods"
   add_foreign_key "payroll_adjustments", "users"
@@ -1538,6 +1827,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   add_foreign_key "performance_reviews", "users", column: "employee_id"
   add_foreign_key "performance_reviews", "users", column: "reviewer_id"
   add_foreign_key "permission_roles", "businesses"
+  add_foreign_key "pos_terminals", "branches"
+  add_foreign_key "pos_terminals", "businesses"
   add_foreign_key "product_barcodes", "businesses"
   add_foreign_key "product_barcodes", "product_variants", column: "variant_id"
   add_foreign_key "product_barcodes", "products"
@@ -1557,7 +1848,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   add_foreign_key "recurring_expenses", "expense_categories"
   add_foreign_key "recurring_expenses", "expense_types"
   add_foreign_key "recurring_expenses", "users", column: "created_by_id"
+  add_foreign_key "reopen_requests", "daily_closings"
+  add_foreign_key "reopen_requests", "users", column: "requested_by_id"
+  add_foreign_key "reopen_requests", "users", column: "reviewed_by_id"
   add_foreign_key "salary_profiles", "users"
+  add_foreign_key "sales_mapping_profiles", "businesses"
   add_foreign_key "shift_assignments", "branches"
   add_foreign_key "shift_assignments", "shift_rule_profiles"
   add_foreign_key "shift_assignments", "shift_templates", column: "source_template_id"
@@ -1579,6 +1874,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_052556) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "staff_closing_entries", "payment_methods"
+  add_foreign_key "staff_closing_entries", "staff_closings"
+  add_foreign_key "staff_closings", "branches"
+  add_foreign_key "staff_closings", "daily_closings"
+  add_foreign_key "staff_closings", "users"
+  add_foreign_key "staff_closings", "users", column: "submitted_by_id"
   add_foreign_key "stock_adjustment_items", "products"
   add_foreign_key "stock_adjustment_items", "stock_adjustments"
   add_foreign_key "stock_adjustments", "businesses"

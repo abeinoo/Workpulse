@@ -1,0 +1,95 @@
+<% content_for :title, t("finance.payment_methods.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.payment_methods.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.payment_methods.subtitle") %></p>
+    </div>
+    <div class="page-header__actions">
+      <% if policy(PaymentMethod).create? %>
+        <%= link_to t("finance.payment_methods.add"), new_finance_payment_method_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @payment_methods.empty? %>
+    <div class="empty-state">
+      <p class="empty-state__title"><%= t("finance.payment_methods.empty") %></p>
+    </div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 2.5rem;"></th>
+            <th><%= t("finance.payment_methods.name") %></th>
+            <th><%= t("finance.payment_methods.name_ar") %></th>
+            <th><%= t("finance.payment_methods.settlement_type") %></th>
+            <th><%= t("finance.payment_methods.supports_refunds") %></th>
+            <th><%= t("finance.common.status") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @payment_methods.each_with_index do |pm, i| %>
+            <tr>
+              <td>
+                <% if policy(pm).update? %>
+                  <div style="display: flex; flex-direction: column; gap: 0.125rem;">
+                    <% unless i == 0 %>
+                      <%= button_to "↑", move_up_finance_payment_method_path(pm),
+                            method: :patch,
+                            class: "btn btn-ghost btn-xs",
+                            title: t("common.move_up"),
+                            style: "padding: 0 0.25rem; line-height: 1; min-width: 0;" %>
+                    <% end %>
+                    <% unless i == @payment_methods.length - 1 %>
+                      <%= button_to "↓", move_down_finance_payment_method_path(pm),
+                            method: :patch,
+                            class: "btn btn-ghost btn-xs",
+                            title: t("common.move_down"),
+                            style: "padding: 0 0.25rem; line-height: 1; min-width: 0;" %>
+                    <% end %>
+                  </div>
+                <% end %>
+              </td>
+              <td><strong><%= pm.name %></strong></td>
+              <td class="td-secondary"><%= pm.name_ar.presence || "—" %></td>
+              <td>
+                <span class="badge <%= settlement_type_badge_class(pm.settlement_type) %>">
+                  <%= t("finance.payment_methods.settlement_types.#{pm.settlement_type}") %>
+                </span>
+              </td>
+              <td>
+                <% if pm.supports_refunds? %>
+                  <span class="badge badge-success"><%= t("common.yes") %></span>
+                <% else %>
+                  <span class="badge"><%= t("common.no") %></span>
+                <% end %>
+              </td>
+              <td>
+                <% if pm.active? %>
+                  <span class="badge badge-success"><%= t("finance.common.active") %></span>
+                <% else %>
+                  <span class="badge"><%= t("finance.common.inactive") %></span>
+                <% end %>
+              </td>
+              <td class="td-actions">
+                <% if policy(pm).update? %>
+                  <%= link_to t("common.edit"), edit_finance_payment_method_path(pm), class: "link-muted" %>
+                <% end %>
+                <% if policy(pm).destroy? %>
+                  <%= button_to t("common.delete"), finance_payment_method_path(pm),
+                        method: :delete,
+                        class: "link-danger",
+                        data: { turbo_confirm: t("finance.common.confirm_delete") } %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

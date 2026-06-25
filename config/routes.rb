@@ -340,6 +340,13 @@ Rails.application.routes.draw do
       end
     end
 
+    resources :payment_methods, except: [ :show ] do
+      member do
+        patch :move_up
+        patch :move_down
+      end
+    end
+
     resources :expense_categories, except: [ :show ]
     resources :expense_types, except: [ :show ] do
       collection { get :options, defaults: { format: :json } }

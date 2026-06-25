@@ -278,7 +278,8 @@
                             view_expenses create_expenses edit_expenses approve_expenses
                             view_employee_balances manage_employee_balances
                             create_balance_requests approve_balance_requests
-                            view_expense_reports manage_branch_revenue] %>
+                            view_expense_reports manage_branch_revenue
+                            manage_payment_methods] %>
       <% if current_user.owner? || finance_perms.any? { |p| current_user.can?(p) } %>
         <% finance_active = request.path.start_with?("/finance") %>
         <details class="sidebar__group" <%= 'open' if finance_active %>>
@@ -330,6 +331,15 @@
                   data: { action: "click->sidebar#close" } do %>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="14" y="6" width="3" height="11"/></svg>
               <%= t("nav.finance_reports") %>
+            <% end %>
+          <% end %>
+
+          <% if current_user.owner? || current_user.can?(:manage_payment_methods) %>
+            <%= link_to finance_payment_methods_path,
+                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'payment_methods' ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+              <%= t("nav.finance_payment_methods") %>
             <% end %>
           <% end %>
 
