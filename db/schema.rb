@@ -427,6 +427,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
     t.index ["verified_by_id"], name: "index_daily_closings_on_verified_by_id"
   end
 
+  create_table "daily_reconciliations", force: :cascade do |t|
+    t.bigint "branch_id", null: false
+    t.date "business_date", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.text "notes"
+    t.datetime "updated_at", null: false
+    t.datetime "verified_at"
+    t.bigint "verified_by_id"
+    t.index ["branch_id", "business_date"], name: "idx_daily_reconciliations_unique_per_branch_day", unique: true
+    t.index ["branch_id"], name: "index_daily_reconciliations_on_branch_id"
+    t.index ["business_id"], name: "index_daily_reconciliations_on_business_id"
+    t.index ["verified_by_id"], name: "index_daily_reconciliations_on_verified_by_id"
+  end
+
   create_table "departments", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "business_id", null: false
@@ -1611,6 +1626,60 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
     t.index ["business_id"], name: "index_suppliers_on_business_id"
   end
 
+  create_table "till_deposits", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "deposited_at", null: false
+    t.bigint "deposited_by_id", null: false
+    t.text "notes"
+    t.bigint "payment_method_id", null: false
+    t.string "reference"
+    t.bigint "till_handover_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.index ["deposited_by_id"], name: "index_till_deposits_on_deposited_by_id"
+    t.index ["payment_method_id"], name: "index_till_deposits_on_payment_method_id"
+    t.index ["till_handover_id", "payment_method_id"], name: "idx_till_deposits_handover_method"
+    t.index ["till_handover_id"], name: "index_till_deposits_on_till_handover_id"
+    t.index ["voided_by_id"], name: "index_till_deposits_on_voided_by_id"
+  end
+
+  create_table "till_handover_lines", force: :cascade do |t|
+    t.decimal "collected_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.bigint "payment_method_id", null: false
+    t.decimal "refund_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.bigint "till_handover_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["payment_method_id"], name: "index_till_handover_lines_on_payment_method_id"
+    t.index ["till_handover_id", "payment_method_id"], name: "idx_till_handover_lines_unique_method", unique: true
+    t.index ["till_handover_id"], name: "index_till_handover_lines_on_till_handover_id"
+  end
+
+  create_table "till_handovers", force: :cascade do |t|
+    t.datetime "accepted_at"
+    t.bigint "branch_id", null: false
+    t.date "business_date", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "from_user_id", null: false
+    t.string "handover_type", null: false
+    t.text "notes"
+    t.bigint "previous_handover_id"
+    t.bigint "to_user_id"
+    t.datetime "updated_at", null: false
+    t.index ["branch_id", "business_date"], name: "idx_till_handovers_branch_date"
+    t.index ["branch_id", "business_date"], name: "idx_till_handovers_unique_chain_head", unique: true, where: "(previous_handover_id IS NULL)"
+    t.index ["branch_id"], name: "index_till_handovers_on_branch_id"
+    t.index ["business_id"], name: "index_till_handovers_on_business_id"
+    t.index ["from_user_id", "business_date"], name: "idx_till_handovers_from_user_date"
+    t.index ["from_user_id"], name: "index_till_handovers_on_from_user_id"
+    t.index ["previous_handover_id"], name: "idx_till_handovers_unique_successor", unique: true, where: "(previous_handover_id IS NOT NULL)"
+    t.index ["to_user_id"], name: "index_till_handovers_on_to_user_id"
+  end
+
   create_table "user_audit_logs", force: :cascade do |t|
     t.string "action", null: false
     t.bigint "actor_id", null: false
@@ -1746,6 +1815,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
   add_foreign_key "daily_closings", "businesses"
   add_foreign_key "daily_closings", "users", column: "submitted_by_id"
   add_foreign_key "daily_closings", "users", column: "verified_by_id"
+  add_foreign_key "daily_reconciliations", "branches"
+  add_foreign_key "daily_reconciliations", "businesses"
+  add_foreign_key "daily_reconciliations", "users", column: "verified_by_id"
   add_foreign_key "departments", "businesses"
   add_foreign_key "employee_obligations", "businesses"
   add_foreign_key "employee_obligations", "users"
@@ -1909,6 +1981,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
   add_foreign_key "stock_transfers", "warehouses", column: "destination_warehouse_id"
   add_foreign_key "stock_transfers", "warehouses", column: "source_warehouse_id"
   add_foreign_key "suppliers", "businesses"
+  add_foreign_key "till_deposits", "payment_methods"
+  add_foreign_key "till_deposits", "till_handovers"
+  add_foreign_key "till_deposits", "users", column: "deposited_by_id"
+  add_foreign_key "till_deposits", "users", column: "voided_by_id"
+  add_foreign_key "till_handover_lines", "payment_methods"
+  add_foreign_key "till_handover_lines", "till_handovers"
+  add_foreign_key "till_handovers", "branches"
+  add_foreign_key "till_handovers", "businesses"
+  add_foreign_key "till_handovers", "till_handovers", column: "previous_handover_id"
+  add_foreign_key "till_handovers", "users", column: "from_user_id"
+  add_foreign_key "till_handovers", "users", column: "to_user_id"
   add_foreign_key "user_audit_logs", "users", column: "actor_id"
   add_foreign_key "user_audit_logs", "users", column: "target_user_id"
   add_foreign_key "users", "businesses"
