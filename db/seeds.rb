@@ -1040,6 +1040,10 @@ puts "Performance: #{Department.where(business: business).count} departments, " 
       manage_adjustments approve_adjustments
       view_requests approve_requests
       view_shifts manage_shifts assign_shifts
+      create_till_session view_daily_reconciliation view_session_totals
+      close_till_session accept_till_handover create_till_deposit
+      verify_daily_reconciliation edit_session_totals void_till_handover void_till_deposit
+      view_finance_dashboard manage_payment_methods
       view_reports export_reports
       view_inventory manage_inventory view_inventory_reports
       manage_suppliers manage_products manage_stock_receipts

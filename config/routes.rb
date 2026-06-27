@@ -256,11 +256,21 @@ Rails.application.routes.draw do
     resource :password, only: [ :edit, :update ]
   end
 
-  # ── Till Handover (receptionist-facing, no finance terminology) ────────────
+  # ── Till (cashier workflow) ───────────────────────────────────────────────
+  # DEPRECATED: my_shift was the old standalone cashier landing page.
+  # All till operations now flow through Daily Reconciliation (/finance/daily_reconciliations).
+  # Route kept for backward compatibility (bookmarks); no longer linked in the UI.
   get "my_shift", to: "till_handovers#my_shift", as: :my_shift
 
   resources :till_handovers, only: %i[new create show] do
     member { patch :accept }
+  end
+
+  resources :deposit_responsibility_transfers, only: %i[show] do
+    member do
+      patch :accept
+      patch :cancel
+    end
   end
 
   resources :till_deposits, only: %i[new create] do
@@ -389,8 +399,24 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :daily_reconciliations, only: %i[index show] do
-      member { patch :verify }
+    resources :daily_reconciliations, only: %i[index show new create] do
+      member do
+        patch :verify
+        patch :assign_depositor
+      end
+    end
+
+    resources :remaining_deposit_balances, only: %i[index show] do
+      collection do
+        get  :export
+        get  :employee_profile
+        post :bulk_settle
+      end
+      member do
+        patch :settle
+        patch :write_off
+        patch :reassign
+      end
     end
   end
 

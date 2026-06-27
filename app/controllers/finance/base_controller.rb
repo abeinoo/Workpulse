@@ -13,7 +13,10 @@ class Finance::BaseController < ApplicationController
     manage_payment_methods
     view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
     view_expense_reports manage_branch_revenue
-    view_daily_reconciliation verify_daily_reconciliation
+    create_till_session view_daily_reconciliation view_session_totals
+    close_till_session accept_till_handover create_till_deposit
+    verify_daily_reconciliation edit_session_totals void_till_handover void_till_deposit
+    settle_remaining_deposit_balance
   ].freeze
 
   def require_finance_access!
@@ -81,4 +84,44 @@ class Finance::BaseController < ApplicationController
     current_user.business.branches.active.where(id: ids).order(:name)
   end
   helper_method :assignable_branches
+
+  # ── Expense-specific branch scope ─────────────────────────────────────────
+  # Separate from the balance-account logic; driven by the user's permission
+  # scope for create_expenses rather than their custody account.
+
+  # "branch" / "self" → hide selector, auto-assign from shift assignment.
+  # "area"            → show selector, list only the user's area branches.
+  # "business" / nil  → show selector, list all branches.
+  def expense_branch_scope
+    return "business" if current_user.owner?
+    current_user.scope_for(:create_expenses) || "branch"
+  end
+  helper_method :expense_branch_scope
+
+  def hide_expense_branch_selector?
+    %w[self branch].include?(expense_branch_scope)
+  end
+
+  def assignable_expense_branches
+    case expense_branch_scope
+    when "business"
+      current_user.business.branches.active.order(:name)
+    when "area"
+      ids = current_user.area_managed_branch_ids
+      current_user.business.branches.active.where(id: ids).order(:name)
+    else
+      []
+    end
+  end
+
+  # Auto-set branch on an expense from the user's active shift assignment.
+  # Only runs for branch-scoped users (those who won't see the selector).
+  def auto_assign_expense_branch(expense)
+    return unless hide_expense_branch_selector?
+    return if expense.branch_id.present?
+
+    assignment = current_user.shift_assignments.active_on(Date.current)
+                             .order(effective_from: :desc).first
+    expense.branch_id = assignment&.branch_id
+  end
 end

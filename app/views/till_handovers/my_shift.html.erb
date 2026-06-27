@@ -1,0 +1,56 @@
+<% content_for :title, t("my_shift.title") %>
+
+<div class="emp-dashboard">
+
+  <div class="emp-dashboard__greeting">
+    <p class="emp-dashboard__greeting-time"><%= current_user.first_name %></p>
+    <p class="emp-dashboard__greeting-name">
+      <%= @branch ? @branch.name : t("my_shift.title") %>
+    </p>
+  </div>
+
+  <% case @state
+
+     when :no_branch %>
+    <div style="background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-8) var(--space-6); text-align: center;">
+      <div style="width: 52px; height: 52px; border-radius: 50%; background: var(--surface-3, var(--surface-2)); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-4);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <p style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-2);">
+        <%= t("my_shift.guide.no_branch_title") %>
+      </p>
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0; line-height: 1.6;">
+        <%= t("my_shift.guide.no_branch_body") %>
+      </p>
+    </div>
+
+  <% else %>
+    <%# :no_activity — no active session for this user %>
+    <div style="background: rgba(var(--accent-rgb), 0.06); border: 2px dashed rgba(var(--accent-rgb), 0.30); border-radius: var(--radius-lg); padding: var(--space-8) var(--space-6); text-align: center;">
+      <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(var(--accent-rgb), 0.10); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-4);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <p style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-2);">
+        <%= t("my_shift.guide.no_session_title") %>
+      </p>
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 0; line-height: 1.6;">
+        <% if current_user.can?(:create_till_session) %>
+          <%= t("my_shift.guide.open_session_body") %>
+        <% else %>
+          <%= t("my_shift.guide.no_session_body") %>
+        <% end %>
+      </p>
+    </div>
+
+    <% if current_user.can?(:create_till_session) %>
+      <div style="margin-top: var(--space-4); text-align: center;">
+        <%= button_to t("my_shift.guide.open_session_btn"),
+              finance_daily_reconciliations_path,
+              method: :post,
+              class: "btn btn-primary",
+              data: { turbo: false } %>
+      </div>
+    <% end %>
+  <% end %>
+
+</div>

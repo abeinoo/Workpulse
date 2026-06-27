@@ -57,4 +57,11 @@ class ApplicationController < ActionController::Base
   def handle_pundit_unauthorized
     redirect_to root_path, alert: t("flash.not_authorized")
   end
+
+  # Single source of truth for loading a business's active payment methods.
+  # Business has no has_many :payment_methods — always query via PaymentMethod directly.
+  def business_payment_methods
+    PaymentMethod.where(business: current_user.business).active.ordered
+  end
+  helper_method :business_payment_methods
 end

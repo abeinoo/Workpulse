@@ -7,14 +7,17 @@ class Finance::PaymentMethodsController < Finance::BaseController
   end
 
   def new
-    @payment_method = current_user.business.payment_methods.build(
+    @payment_method = PaymentMethod.new(
+      business: current_user.business,
       active: true, supports_refunds: true, settlement_type: "other"
     )
     authorize @payment_method
   end
 
   def create
-    @payment_method = current_user.business.payment_methods.build(payment_method_params)
+    @payment_method = PaymentMethod.new(
+      payment_method_params.merge(business: current_user.business)
+    )
     @payment_method.position = next_position if @payment_method.position.blank?
     authorize @payment_method
 

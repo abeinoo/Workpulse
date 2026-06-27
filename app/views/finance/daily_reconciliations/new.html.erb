@@ -1,0 +1,53 @@
+<% content_for :title, t("finance.daily_reconciliations.new.title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.daily_reconciliations.new.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.daily_reconciliations.new.subtitle") %></p>
+    </div>
+    <%= link_to t("finance.daily_reconciliations.index.title"),
+          finance_daily_reconciliations_path,
+          class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <div style="max-width: 480px;">
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-sm);">
+      <%= form_with url: finance_daily_reconciliations_path, method: :post do |f| %>
+
+        <% if @branches.one? %>
+          <%# Single accessible branch — just confirm %>
+          <%= f.hidden_field :branch_id, value: @branches.first.id %>
+          <div style="margin-bottom: var(--space-5);">
+            <p style="font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin: 0 0 var(--space-1);">
+              <%= t("finance.daily_reconciliations.new.branch_label") %>
+            </p>
+            <p style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin: 0;">
+              <%= @branches.first.name %>
+            </p>
+          </div>
+        <% else %>
+          <%# Multiple branches — show picker %>
+          <div class="form-group" style="margin-bottom: var(--space-5);">
+            <%= f.label :branch_id, t("finance.daily_reconciliations.new.branch_label"), class: "form-label" %>
+            <%= f.select :branch_id,
+                  @branches.map { |b| [b.name, b.id] },
+                  { include_blank: t("finance.daily_reconciliations.new.branch_placeholder") },
+                  class: "form-control",
+                  required: true %>
+          </div>
+        <% end %>
+
+        <div style="display: flex; justify-content: flex-end; gap: var(--space-3);">
+          <%= link_to finance_daily_reconciliations_path, class: "btn btn-ghost btn-sm" do %>
+            <%= t("finance.daily_reconciliations.new.cancel") %>
+          <% end %>
+          <%= f.submit t("finance.daily_reconciliations.new.submit"), class: "btn btn-primary" %>
+        </div>
+
+      <% end %>
+    </div>
+  </div>
+
+</div>

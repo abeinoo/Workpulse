@@ -2,14 +2,13 @@ class TillDeposit < ApplicationRecord
   include Voidable
   include AuditLoggable
 
-  belongs_to :till_handover
+  belongs_to :daily_reconciliation, inverse_of: :till_deposits
   belongs_to :payment_method
   belongs_to :deposited_by, class_name: "User"
 
   validates :amount,       presence: true, numericality: { greater_than: 0 }
   validates :deposited_at, presence: true
 
-  # Only cash-like payment methods reach the ATM.
   validate :payment_method_must_be_cash_like
 
   private

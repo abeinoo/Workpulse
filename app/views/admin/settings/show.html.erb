@@ -294,6 +294,57 @@
       </div>
     </div>
 
+    <div class="divider"></div>
+
+    <%# ── Finance Rules ───────────────────────────────────────────────── %>
+    <h2 class="section-title"><%= t("admin.settings.sections.finance_rules") %></h2>
+    <p class="section-subtitle" style="color: var(--text-2); font-size: var(--text-sm); margin-top: calc(-1 * var(--space-3)); margin-bottom: var(--space-4);">
+      <%= t("admin.settings.finance_rules_hint") %>
+    </p>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :finance_overdue_days, t("admin.settings.finance_overdue_days_label"), class: "form-label" %>
+        <%= f.number_field :finance_overdue_days,
+              min: 1, max: 90, step: 1,
+              class: "form-control",
+              value: @business.finance_overdue_days %>
+        <p class="form-hint"><%= t("admin.settings.finance_overdue_days_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :finance_notify_thresholds, t("admin.settings.finance_notify_thresholds_label"), class: "form-label" %>
+        <%= f.text_field :finance_notify_thresholds,
+              class: "form-control",
+              value: @business.finance_notify_thresholds.join(", "),
+              placeholder: "3, 7, 14" %>
+        <p class="form-hint"><%= t("admin.settings.finance_notify_thresholds_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :finance_max_write_off_amount, t("admin.settings.finance_max_write_off_label"), class: "form-label" %>
+        <%= f.number_field :finance_max_write_off_amount,
+              min: 0, step: "0.01",
+              class: "form-control",
+              value: @business.finance_max_write_off_amount,
+              placeholder: t("admin.settings.finance_max_write_off_placeholder") %>
+        <p class="form-hint"><%= t("admin.settings.finance_max_write_off_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><%= t("admin.settings.finance_allow_partial_label") %></label>
+        <div style="display: flex; align-items: center; gap: var(--space-3); padding-top: var(--space-1);">
+          <%= f.check_box :finance_allow_partial_settlement,
+                checked: @business.finance_allow_partial_settlement?,
+                class: "form-check",
+                id: "finance_allow_partial_settlement" %>
+          <label for="finance_allow_partial_settlement" style="font-size: var(--text-sm); color: var(--text-1);">
+            <%= t("admin.settings.finance_allow_partial_hint") %>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <div class="form-actions">
       <%= f.submit t("admin.settings.save"), class: "btn btn-primary" %>
     </div>

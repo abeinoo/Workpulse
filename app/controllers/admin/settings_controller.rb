@@ -36,7 +36,9 @@ class Admin::SettingsController < Admin::BaseController
       :employee_code_start,
       :barcode_prefix, :barcode_next_number,
       :logo, :stamp_image,
-      :remove_logo, :remove_stamp_image
+      :remove_logo, :remove_stamp_image,
+      :finance_overdue_days, :finance_allow_partial_settlement,
+      :finance_max_write_off_amount, :finance_notify_thresholds
     )
   end
 end

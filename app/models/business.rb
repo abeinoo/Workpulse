@@ -131,6 +131,52 @@ class Business < ApplicationRecord
     currency_info[:symbol_en]
   end
 
+  # ── Finance settings (stored in JSON settings column) ──────────────────────
+  FINANCE_SETTING_DEFAULTS = {
+    "finance_overdue_days"             => 3,
+    "finance_allow_partial_settlement" => true,
+    "finance_max_write_off_amount"     => nil,
+    "finance_notify_thresholds"        => "3,7,14"
+  }.freeze
+
+  def finance_overdue_days
+    (settings || {}).fetch("finance_overdue_days", FINANCE_SETTING_DEFAULTS["finance_overdue_days"]).to_i.clamp(1, 90)
+  end
+
+  def finance_overdue_days=(val)
+    self.settings = (settings || {}).merge("finance_overdue_days" => val.to_i)
+  end
+
+  def finance_allow_partial_settlement
+    (settings || {}).fetch("finance_allow_partial_settlement", FINANCE_SETTING_DEFAULTS["finance_allow_partial_settlement"])
+  end
+
+  def finance_allow_partial_settlement=(val)
+    self.settings = (settings || {}).merge("finance_allow_partial_settlement" => ActiveModel::Type::Boolean.new.cast(val))
+  end
+
+  def finance_allow_partial_settlement?
+    finance_allow_partial_settlement != false
+  end
+
+  def finance_max_write_off_amount
+    v = (settings || {}).fetch("finance_max_write_off_amount", nil)
+    v.present? ? v.to_d : nil
+  end
+
+  def finance_max_write_off_amount=(val)
+    self.settings = (settings || {}).merge("finance_max_write_off_amount" => val.presence)
+  end
+
+  def finance_notify_thresholds
+    raw = (settings || {}).fetch("finance_notify_thresholds", FINANCE_SETTING_DEFAULTS["finance_notify_thresholds"])
+    raw.to_s.split(",").map(&:strip).filter_map { |n| n.to_i if n.to_i > 0 }.sort
+  end
+
+  def finance_notify_thresholds=(val)
+    self.settings = (settings || {}).merge("finance_notify_thresholds" => val.to_s.strip)
+  end
+
   private
 
   def timezone_recognized

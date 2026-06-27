@@ -21,6 +21,36 @@ class Finance::DashboardController < Finance::BaseController
     @show_recurring    = current_user.can?(:view_expenses) || current_user.can?(:manage_recurring_expenses)
     @upcoming_recurring = upcoming_recurring if @show_recurring
 
+    # Outstanding deposit balances — visible to anyone who can settle or view DRs.
+    @show_outstanding = current_user.can?(:settle_remaining_deposit_balance) ||
+                        current_user.can?(:view_daily_reconciliation)
+    if @show_outstanding
+      overdue_days           = current_user.business.finance_overdue_days
+      notify_thresholds      = current_user.business.finance_notify_thresholds
+      all_rdb                = policy_scope(RemainingDepositBalance)
+      @rdb_open_count        = all_rdb.open.count
+      @rdb_open_amount       = all_rdb.open.sum(:remaining_amount)
+      @rdb_overdue           = all_rdb.overdue(days: overdue_days)
+                                      .includes(:responsible_user, daily_reconciliation: :branch)
+                                      .order(:created_at).limit(10)
+      @rdb_overdue_days      = overdue_days
+      # Threshold alerts: count open balances that have passed each notification threshold
+      @rdb_threshold_alerts  = notify_thresholds.map do |days|
+        count = all_rdb.open.where("remaining_deposit_balances.created_at < ?", days.days.ago).count
+        { days: days, count: count } if count > 0
+      end.compact
+      today                  = Time.current.beginning_of_day..Time.current.end_of_day
+      business_rdb_ids       = all_rdb.pluck(:id)
+      @rdb_settled_today     = RemainingDepositBalanceTransaction
+                                 .where(remaining_deposit_balance_id: business_rdb_ids,
+                                        transaction_type: "settlement", created_at: today)
+                                 .sum(:amount)
+      @rdb_written_off_today = RemainingDepositBalanceTransaction
+                                 .where(remaining_deposit_balance_id: business_rdb_ids,
+                                        transaction_type: "write_off", created_at: today)
+                                 .sum(:amount)
+    end
+
     # Branch profitability is business-wide reporting — same gate as the report.
     if current_user.can?(:view_expense_reports)
       @profitability = Finance::Reports::BranchProfitability.new(

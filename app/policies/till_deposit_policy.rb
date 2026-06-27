@@ -1,25 +1,24 @@
 class TillDepositPolicy < ApplicationPolicy
-  def index?  = show?
-  def show?   = can?(:create_shift_closing) || can?(:view_daily_reconciliation) || owner?
+  def index? = show?
+  def show?  = can?(:create_till_deposit) || can?(:view_daily_reconciliation)
 
-  # Only the holder of a depositor-type handover may record deposits.
   def create?
-    can?(:create_shift_closing) &&
-      record.till_handover.depositor? &&
-      record.till_handover.from_user_id == user.id
+    can?(:create_till_deposit) &&
+      record.daily_reconciliation.closed? &&
+      record.daily_reconciliation.till_session&.depositor_id == user.id
   end
 
-  def void? = can?(:verify_daily_reconciliation) || owner?
+  def void? = can?(:void_till_deposit)
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.owner? || user.can?(:view_daily_reconciliation)
-        scope.joins(:till_handover)
-             .where(till_handovers: { business_id: user.business_id })
+      if user.can?(:view_daily_reconciliation)
+        scope.joins(:daily_reconciliation)
+             .where(daily_reconciliations: { business_id: user.business_id })
       else
-        scope.joins(:till_handover)
-             .where(till_handovers: { business_id: user.business_id,
-                                      from_user_id: user.id })
+        scope.joins(daily_reconciliation: :till_session)
+             .where(daily_reconciliations: { business_id: user.business_id })
+             .where(till_sessions: { depositor_id: user.id })
       end
     end
   end

@@ -86,6 +86,89 @@
     <% end %>
   <% end %>
 
+  <%# ── Outstanding Deposit Balances ──────────────────────────────────────── %>
+  <% if @show_outstanding %>
+    <div style="margin-top: var(--space-5); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);">
+      <h2 class="section-title" style="margin: 0;"><%= t("finance.dashboard.outstanding_balances") %></h2>
+      <%= link_to t("finance.dashboard.view_all_balances"), finance_remaining_deposit_balances_path, class: "link" %>
+    </div>
+
+    <div class="stats-grid" style="margin-top: var(--space-3);">
+      <%= link_to finance_remaining_deposit_balances_path, class: "stat-card #{@rdb_open_count > 0 ? 'stat-card--warning' : ''}" do %>
+        <span class="stat-card__label"><%= t("finance.dashboard.rdb_open_count") %></span>
+        <span class="stat-card__value"><%= @rdb_open_count %></span>
+        <% if @rdb_open_amount > 0 %>
+          <span class="stat-card__sub" style="font-variant-numeric: tabular-nums;">
+            <%= number_to_currency(@rdb_open_amount, unit: "", separator: ".", delimiter: ",") %>
+          </span>
+        <% end %>
+      <% end %>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("finance.dashboard.rdb_settled_today") %></span>
+        <span class="stat-card__value" style="font-size: var(--text-lg); color: var(--success,#16a34a);">
+          <%= number_to_currency(@rdb_settled_today, unit: "", separator: ".", delimiter: ",") %>
+        </span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("finance.dashboard.rdb_written_off_today") %></span>
+        <span class="stat-card__value" style="font-size: var(--text-lg); color: var(--text-3);">
+          <%= number_to_currency(@rdb_written_off_today, unit: "", separator: ".", delimiter: ",") %>
+        </span>
+      </div>
+    </div>
+
+    <%# Notification threshold badges %>
+    <% if @rdb_threshold_alerts&.any? %>
+      <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3);">
+        <% @rdb_threshold_alerts.each do |alert| %>
+          <%= link_to finance_remaining_deposit_balances_path(quick: "overdue"),
+                style: "display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.25); border-radius: 999px; text-decoration: none;" do %>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger,#dc2626)" stroke-width="2.5" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span style="font-size: var(--text-xs); font-weight: 700; color: var(--danger,#dc2626);">
+              <%= t("finance.dashboard.rdb_threshold_alert", days: alert[:days], count: alert[:count]) %>
+            </span>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if @rdb_overdue.any? %>
+      <div style="margin-top: var(--space-4); background: rgba(220,38,38,0.04); border: 1px solid rgba(220,38,38,0.2); border-radius: var(--radius-lg); overflow: hidden;">
+        <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid rgba(220,38,38,0.15); display: flex; align-items: center; gap: var(--space-2);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger,#dc2626)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <p style="font-size: var(--text-sm); font-weight: 700; color: var(--danger,#dc2626); margin: 0;">
+            <%= t("finance.dashboard.overdue_heading", days: @rdb_overdue_days) %>
+          </p>
+        </div>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tbody>
+            <% @rdb_overdue.each do |rdb| %>
+              <tr style="border-bottom: 1px solid rgba(220,38,38,0.1);">
+                <td style="padding: var(--space-2) var(--space-4); font-size: var(--text-sm); color: var(--text-1);">
+                  <%= rdb.responsible_user.full_name %>
+                </td>
+                <td style="padding: var(--space-2) var(--space-4); font-size: var(--text-sm); color: var(--text-2);">
+                  <%= rdb.daily_reconciliation.branch.name %>
+                </td>
+                <td style="padding: var(--space-2) var(--space-4); text-align: end; font-size: var(--text-sm); font-weight: 700; color: var(--danger,#dc2626); font-variant-numeric: tabular-nums;">
+                  <%= number_to_currency(rdb.remaining_amount, unit: "", separator: ".", delimiter: ",") %>
+                </td>
+                <td style="padding: var(--space-2) var(--space-4); font-size: var(--text-xs); font-weight: 700; color: var(--danger,#dc2626); white-space: nowrap;">
+                  <%= rdb.age_display %>
+                </td>
+                <td style="padding: var(--space-2) var(--space-4); text-align: end;">
+                  <%= link_to t("remaining_deposit_balances.index.view"),
+                        finance_remaining_deposit_balance_path(rdb),
+                        style: "font-size: var(--text-sm); font-weight: 600; color: var(--accent); text-decoration: none;" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  <% end %>
+
   <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.dashboard.pending_list") %></h2>
   <% if @pending.blank? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("finance.dashboard.no_pending") %></p></div>

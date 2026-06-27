@@ -1,0 +1,209 @@
+<% content_for :title, t("finance.daily_reconciliations.index.title") %>
+
+<div class="admin-page">
+
+  <%# ── Page header ──────────────────────────────────────────────────────── %>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.daily_reconciliations.index.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.daily_reconciliations.index.subtitle") %></p>
+    </div>
+    <% if policy(:daily_reconciliation).create? %>
+      <%= button_to t("finance.daily_reconciliations.index.create_button"),
+            finance_daily_reconciliations_path,
+            method: :post,
+            class: "btn btn-primary" %>
+    <% end %>
+  </div>
+
+  <% if @reconciliations.empty? %>
+
+    <div class="empty-state" style="padding: var(--space-16) var(--space-8);">
+      <div class="empty-state__icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+          <line x1="1" y1="10" x2="23" y2="10"/>
+        </svg>
+      </div>
+      <p class="empty-state__title"><%= t("finance.daily_reconciliations.index.empty") %></p>
+      <p class="empty-state__text" style="max-width: 360px; margin-inline: auto;">
+        <%= t("finance.daily_reconciliations.index.empty_hint") %>
+      </p>
+      <% if policy(:daily_reconciliation).create? %>
+        <div style="margin-top: var(--space-6);">
+          <%= button_to t("finance.daily_reconciliations.index.create_button"),
+                finance_daily_reconciliations_path,
+                method: :post,
+                class: "btn btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+
+  <% else %>
+
+    <%# ── Summary stats ─────────────────────────────────────────────────── %>
+    <%
+      total_count      = @reconciliations.size
+      verified_count   = @reconciliations.count(&:verified?)
+      unverified_count = total_count - verified_count
+      deposited_count  = @reconciliations.count(&:deposited?)
+      open_depositors  = @reconciliations.count { |dr| dr.closed? && dr.till_session&.depositor_id.present? }
+    %>
+    <div class="stats-grid" style="margin-bottom: var(--space-6);">
+
+      <div class="stat-card <%= unverified_count > 0 ? 'stat-card--warning' : 'stat-card--success' %>">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_unverified") %></p>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: <%= unverified_count > 0 ? 'var(--warning)' : 'var(--success)' %>; margin-top:1px;">
+            <% if unverified_count > 0 %>
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <% else %>
+              <polyline points="20 6 9 17 4 12"/>
+            <% end %>
+          </svg>
+        </div>
+        <p class="stat-card__value" style="color: <%= unverified_count > 0 ? 'var(--warning)' : 'var(--success)' %>;"><%= unverified_count %></p>
+        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_unverified_sub", total: total_count) %></p>
+      </div>
+
+      <div class="stat-card stat-card--success">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_verified") %></p>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: var(--success); margin-top:1px;"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <p class="stat-card__value" style="color: var(--success);"><%= verified_count %></p>
+        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.of_n_days", count: total_count) %></p>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_deposited") %></p>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: var(--accent); margin-top:1px;"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        </div>
+        <p class="stat-card__value"><%= deposited_count %></p>
+        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_deposited_sub") %></p>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_in_till") %></p>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: var(--accent); margin-top:1px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <p class="stat-card__value"><%= open_depositors %></p>
+        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_in_till_sub") %></p>
+      </div>
+
+    </div>
+
+    <%# ── Reconciliation rows ────────────────────────────────────────────── %>
+    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+
+      <% @reconciliations.each do |dr| %>
+        <%
+          session   = dr.till_session
+          verified  = dr.verified?
+          depositor = session&.depositor
+          holder    = session&.current_holder
+
+          status_color =
+            if verified         then 'var(--success-rgb)'
+            elsif dr.deposited? then 'var(--accent-rgb)'
+            elsif dr.open?      then 'var(--accent-rgb)'
+            else                     'var(--warning-rgb)'
+            end
+        %>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+          <div style="display: flex; align-items: stretch; gap: 0;">
+
+            <%# Status stripe %>
+            <div style="width: 4px; background: rgba(<%= status_color %>, <%= verified ? '0.8' : '0.5' %>); flex-shrink: 0; border-radius: var(--radius-lg) 0 0 var(--radius-lg);"></div>
+
+            <div style="flex: 1; padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; min-width: 0;">
+
+              <%# Date + branch %>
+              <div style="min-width: 140px; flex: 0 0 140px;">
+                <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                  <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1);">
+                    <% if dr.business_date %>
+                      <%= l(dr.business_date, format: :short) %>
+                    <% else %>
+                      <%= l(dr.opened_at.to_date, format: :short) %>
+                    <% end %>
+                  </span>
+                </div>
+                <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+                  <%= dr.branch.name %>
+                </p>
+              </div>
+
+              <%# Till holder / depositor %>
+              <div style="flex: 1; min-width: 120px;">
+                <p style="font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin: 0 0 var(--space-1);">
+                  <%= t("finance.daily_reconciliations.index.col_holder") %>
+                </p>
+                <% if dr.deposited? || dr.verified? %>
+                  <span style="font-size: var(--text-sm); color: var(--success); font-weight: 600; display: flex; align-items: center; gap: var(--space-1);">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                    <%= t("finance.daily_reconciliations.index.deposited") %>
+                  </span>
+                <% elsif depositor %>
+                  <span style="font-size: var(--text-sm); color: var(--text-1); font-weight: 500;"><%= depositor.full_name %></span>
+                <% elsif holder %>
+                  <span style="font-size: var(--text-sm); color: var(--text-1); font-weight: 500;"><%= holder.full_name %></span>
+                <% else %>
+                  <span style="font-size: var(--text-sm); color: var(--text-3);">—</span>
+                <% end %>
+              </div>
+
+              <%# State badge %>
+              <div style="flex: 0 0 auto;">
+                <p style="font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin: 0 0 var(--space-1);">
+                  <%= t("finance.daily_reconciliations.index.col_status_session") %>
+                </p>
+                <%
+                  state_badge = case dr.state
+                                when "open"      then ["badge-neutral", t("till_sessions.states.open")]
+                                when "closed"    then ["badge-warning", t("till_sessions.states.closed")]
+                                when "deposited" then ["badge-accent",  t("till_sessions.states.deposited")]
+                                when "verified"  then ["badge-success", t("till_sessions.states.verified")]
+                                else                  ["badge-neutral", dr.state]
+                                end
+                %>
+                <span class="badge <%= state_badge[0] %>"><%= state_badge[1] %></span>
+              </div>
+
+              <%# Verification status %>
+              <div style="flex: 0 0 auto;">
+                <p style="font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin: 0 0 var(--space-1);">
+                  <%= t("finance.daily_reconciliations.index.col_status") %>
+                </p>
+                <% if verified %>
+                  <span class="badge badge-success" style="display: flex; align-items: center; gap: 4px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                    <%= t("finance.daily_reconciliations.index.verified") %>
+                  </span>
+                <% else %>
+                  <span class="badge badge-neutral"><%= t("finance.daily_reconciliations.index.unverified") %></span>
+                <% end %>
+              </div>
+
+              <%# Action link %>
+              <div style="flex: 0 0 auto; margin-inline-start: auto;">
+                <%= link_to finance_daily_reconciliation_path(dr),
+                      style: "display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-sm); font-weight: 500; color: var(--accent); text-decoration: none; padding: var(--space-2) var(--space-3); border-radius: var(--radius); border: 1px solid rgba(var(--accent-rgb), 0.25); background: rgba(var(--accent-rgb), 0.06);" do %>
+                  <%= t("finance.daily_reconciliations.index.view") %>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                <% end %>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      <% end %>
+    </div>
+
+  <% end %>
+
+</div>

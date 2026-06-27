@@ -117,5 +117,17 @@
     <% end %>
 
     <%= render "layouts/pwa_install_banner" %>
+
+    <%# ── Global modal overlay (Turbo Frame target) ──────────────────────── %>
+    <div id="modal-overlay"
+         data-controller="modal"
+         data-action="click->modal#backdropClick keydown.esc@window->modal#close"
+         style="display:none; position:fixed; inset:0; z-index:200; align-items:flex-end; justify-content:center; background:rgba(0,0,0,0.55); backdrop-filter:blur(2px);">
+      <div data-action="click->modal#stopPropagation"
+           style="position:relative; width:100%; max-width:680px; max-height:92vh; overflow-y:auto; background:var(--surface); border-radius:var(--radius-xl, 16px) var(--radius-xl, 16px) 0 0; box-shadow:0 -4px 32px rgba(0,0,0,0.18);">
+        <turbo-frame id="modal" data-modal-target="frame">
+        </turbo-frame>
+      </div>
+    </div>
   </body>
 </html>

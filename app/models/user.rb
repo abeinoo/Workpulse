@@ -187,7 +187,9 @@ class User < ApplicationRecord
       can?(:approve_adjustments) || can?(:pay_advances) || can?(:manage_adjustments) ||
       can?(:manage_salary_profiles) ||
       can?(:view_performance)     || can?(:create_observations) || can?(:manage_reviews) ||
-      can?(:finalize_reviews)     || can?(:manage_evaluation_templates)
+      can?(:finalize_reviews)     || can?(:manage_evaluation_templates) ||
+      can?(:view_daily_reconciliation) || can?(:verify_daily_reconciliation) ||
+      can?(:edit_session_totals)  || can?(:void_till_handover) || can?(:void_till_deposit)
   end
 
   def can?(permission)

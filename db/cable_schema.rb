@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -427,6 +427,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
     t.index ["verified_by_id"], name: "index_daily_closings_on_verified_by_id"
   end
 
+  create_table "daily_reconciliations", force: :cascade do |t|
+    t.bigint "branch_id", null: false
+    t.date "business_date"
+    t.bigint "business_id", null: false
+    t.datetime "closed_at"
+    t.datetime "created_at", null: false
+    t.datetime "deposited_at"
+    t.text "notes"
+    t.datetime "opened_at", null: false
+    t.string "state", default: "open", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "verified_at"
+    t.bigint "verified_by_id"
+    t.index ["branch_id"], name: "idx_dr_one_open_per_branch", unique: true, where: "((state)::text = 'open'::text)"
+    t.index ["branch_id"], name: "index_dr_on_branch_id"
+    t.index ["business_id"], name: "index_dr_on_business_id"
+    t.index ["verified_by_id"], name: "index_daily_reconciliations_on_verified_by_id"
+  end
+
   create_table "departments", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "business_id", null: false
@@ -435,6 +454,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
     t.datetime "updated_at", null: false
     t.index "business_id, lower((name)::text)", name: "index_departments_on_business_id_and_lower_name", unique: true
     t.index ["business_id"], name: "index_departments_on_business_id"
+  end
+
+  create_table "deposit_responsibility_transfers", force: :cascade do |t|
+    t.datetime "accepted_at"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
+    t.datetime "created_at", null: false
+    t.bigint "daily_reconciliation_id", null: false
+    t.bigint "from_user_id", null: false
+    t.bigint "to_user_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cancelled_by_id"], name: "index_deposit_responsibility_transfers_on_cancelled_by_id"
+    t.index ["daily_reconciliation_id"], name: "idx_drt_one_pending_per_dr", unique: true, where: "((accepted_at IS NULL) AND (cancelled_at IS NULL))"
+    t.index ["daily_reconciliation_id"], name: "idx_on_daily_reconciliation_id_5e4449e75b"
+    t.index ["from_user_id"], name: "index_deposit_responsibility_transfers_on_from_user_id"
+    t.index ["to_user_id"], name: "index_deposit_responsibility_transfers_on_to_user_id"
   end
 
   create_table "employee_obligations", force: :cascade do |t|
@@ -462,6 +497,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
     t.index ["created_by_id"], name: "index_employee_obligations_on_created_by_id"
     t.index ["user_id", "status"], name: "index_employee_obligations_on_user_id_and_status"
     t.index ["user_id"], name: "index_employee_obligations_on_user_id"
+  end
+
+  create_table "employee_reconciliation_summaries", force: :cascade do |t|
+    t.datetime "computed_at", null: false
+    t.datetime "created_at", null: false
+    t.bigint "daily_reconciliation_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["daily_reconciliation_id", "user_id"], name: "idx_emp_recon_summaries_unique_per_dr_user", unique: true
+    t.index ["daily_reconciliation_id"], name: "idx_on_daily_reconciliation_id_e999f303be"
+    t.index ["user_id"], name: "index_employee_reconciliation_summaries_on_user_id"
+  end
+
+  create_table "employee_reconciliation_summary_amounts", force: :cascade do |t|
+    t.decimal "collected_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.bigint "employee_reconciliation_summary_id", null: false
+    t.bigint "payment_method_id", null: false
+    t.string "payment_method_name", null: false
+    t.decimal "refund_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["employee_reconciliation_summary_id", "payment_method_id"], name: "idx_emp_recon_amounts_unique_per_summary_pm", unique: true
+    t.index ["employee_reconciliation_summary_id"], name: "idx_on_employee_reconciliation_summary_id_f8938bb653"
+    t.index ["payment_method_id"], name: "idx_on_payment_method_id_f81f5cca62"
   end
 
   create_table "employee_requests", force: :cascade do |t|
@@ -1145,6 +1204,49 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
     t.index ["expense_type_id"], name: "index_recurring_expenses_on_expense_type_id"
   end
 
+  create_table "remaining_deposit_balance_transactions", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2
+    t.datetime "created_at", null: false
+    t.bigint "new_responsible_user_id"
+    t.text "notes"
+    t.bigint "payment_method_id"
+    t.bigint "performed_by_id", null: false
+    t.bigint "previous_responsible_user_id"
+    t.string "reference_number"
+    t.bigint "remaining_deposit_balance_id", null: false
+    t.string "transaction_type", null: false
+    t.index ["new_responsible_user_id"], name: "idx_rdbt_on_new_user_id"
+    t.index ["payment_method_id"], name: "idx_on_payment_method_id_43b68ad05c"
+    t.index ["performed_by_id"], name: "idx_rdbt_on_performed_by_id"
+    t.index ["previous_responsible_user_id"], name: "idx_rdbt_on_prev_user_id"
+    t.index ["remaining_deposit_balance_id"], name: "idx_rdbt_on_rdb_id"
+    t.index ["transaction_type"], name: "idx_rdbt_on_type"
+  end
+
+  create_table "remaining_deposit_balances", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "closed_at"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.bigint "daily_reconciliation_id", null: false
+    t.text "notes"
+    t.decimal "remaining_amount", precision: 12, scale: 2, null: false
+    t.bigint "responsible_user_id", null: false
+    t.string "status", default: "open", null: false
+    t.bigint "till_deposit_id"
+    t.datetime "updated_at", null: false
+    t.index ["branch_id"], name: "index_rdb_on_branch_id"
+    t.index ["business_id", "status"], name: "index_rdb_on_business_and_status"
+    t.index ["business_id"], name: "index_rdb_on_business_id"
+    t.index ["created_by_id"], name: "index_rdb_on_created_by_id"
+    t.index ["daily_reconciliation_id"], name: "index_rdb_on_daily_reconciliation_id"
+    t.index ["responsible_user_id"], name: "index_rdb_on_responsible_user_id"
+    t.index ["status"], name: "index_rdb_on_status"
+    t.index ["till_deposit_id"], name: "index_rdb_on_till_deposit_id"
+  end
+
   create_table "reopen_requests", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "daily_closing_id", null: false
@@ -1611,6 +1713,81 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
     t.index ["business_id"], name: "index_suppliers_on_business_id"
   end
 
+  create_table "till_deposits", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.bigint "daily_reconciliation_id", null: false
+    t.datetime "deposited_at", null: false
+    t.bigint "deposited_by_id", null: false
+    t.text "notes"
+    t.bigint "payment_method_id", null: false
+    t.string "reference"
+    t.datetime "updated_at", null: false
+    t.string "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.index ["daily_reconciliation_id"], name: "index_till_deposits_on_dr_id"
+    t.index ["deposited_by_id"], name: "index_till_deposits_on_deposited_by_id"
+    t.index ["payment_method_id"], name: "index_till_deposits_on_payment_method_id"
+    t.index ["voided_by_id"], name: "index_till_deposits_on_voided_by_id"
+  end
+
+  create_table "till_handover_amounts", force: :cascade do |t|
+    t.decimal "collected_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.string "kind", default: "operational", null: false
+    t.bigint "payment_method_id", null: false
+    t.string "payment_method_name", null: false
+    t.decimal "refund_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.bigint "till_handover_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["payment_method_id"], name: "index_till_handover_amounts_on_payment_method_id"
+    t.index ["till_handover_id", "payment_method_id", "kind"], name: "idx_till_handover_amounts_unique_method_kind", unique: true
+    t.index ["till_handover_id"], name: "index_till_handover_amounts_on_till_handover_id"
+  end
+
+  create_table "till_handovers", force: :cascade do |t|
+    t.datetime "accepted_at"
+    t.text "accepted_notes"
+    t.datetime "created_at", null: false
+    t.bigint "daily_reconciliation_id", null: false
+    t.decimal "float_amount", precision: 12, scale: 2
+    t.date "fresha_date"
+    t.text "from_notes"
+    t.bigint "from_user_id", null: false
+    t.text "notes"
+    t.boolean "self_deposit", default: false, null: false
+    t.bigint "to_user_id"
+    t.datetime "updated_at", null: false
+    t.index ["daily_reconciliation_id"], name: "index_till_handovers_on_dr_id"
+  end
+
+  create_table "till_session_amounts", force: :cascade do |t|
+    t.decimal "collected_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.bigint "daily_reconciliation_id", null: false
+    t.bigint "payment_method_id", null: false
+    t.string "payment_method_name", null: false
+    t.decimal "refund_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["daily_reconciliation_id", "payment_method_id"], name: "idx_till_session_amounts_unique_dr_pm", unique: true
+    t.index ["daily_reconciliation_id"], name: "index_till_session_amounts_on_daily_reconciliation_id"
+    t.index ["payment_method_id"], name: "index_till_session_amounts_on_payment_method_id"
+  end
+
+  create_table "till_sessions", force: :cascade do |t|
+    t.bigint "closed_by_id"
+    t.datetime "created_at", null: false
+    t.bigint "current_holder_id"
+    t.bigint "daily_reconciliation_id", null: false
+    t.bigint "depositor_id"
+    t.datetime "updated_at", null: false
+    t.index ["closed_by_id"], name: "index_till_sessions_on_closed_by_id"
+    t.index ["current_holder_id"], name: "index_till_sessions_on_current_holder_id"
+    t.index ["daily_reconciliation_id"], name: "idx_till_sessions_unique_dr", unique: true
+    t.index ["depositor_id"], name: "index_till_sessions_on_depositor_id"
+  end
+
   create_table "user_audit_logs", force: :cascade do |t|
     t.string "action", null: false
     t.bigint "actor_id", null: false
@@ -1626,6 +1803,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
 
   create_table "users", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.text "admin_notes"
     t.boolean "allow_biometric_attendance", default: true, null: false
     t.boolean "allow_mobile_attendance", default: true, null: false
     t.integer "business_id"
@@ -1746,10 +1924,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
   add_foreign_key "daily_closings", "businesses"
   add_foreign_key "daily_closings", "users", column: "submitted_by_id"
   add_foreign_key "daily_closings", "users", column: "verified_by_id"
+  add_foreign_key "daily_reconciliations", "branches"
+  add_foreign_key "daily_reconciliations", "businesses"
+  add_foreign_key "daily_reconciliations", "users", column: "verified_by_id"
   add_foreign_key "departments", "businesses"
+  add_foreign_key "deposit_responsibility_transfers", "daily_reconciliations"
+  add_foreign_key "deposit_responsibility_transfers", "users", column: "cancelled_by_id"
+  add_foreign_key "deposit_responsibility_transfers", "users", column: "from_user_id"
+  add_foreign_key "deposit_responsibility_transfers", "users", column: "to_user_id"
   add_foreign_key "employee_obligations", "businesses"
   add_foreign_key "employee_obligations", "users"
   add_foreign_key "employee_obligations", "users", column: "created_by_id"
+  add_foreign_key "employee_reconciliation_summaries", "daily_reconciliations"
+  add_foreign_key "employee_reconciliation_summaries", "users"
+  add_foreign_key "employee_reconciliation_summary_amounts", "employee_reconciliation_summaries"
+  add_foreign_key "employee_reconciliation_summary_amounts", "payment_methods"
   add_foreign_key "employee_requests", "users"
   add_foreign_key "employee_requests", "users", column: "cancelled_by_id"
   add_foreign_key "employee_requests", "users", column: "reviewed_by_id"
@@ -1848,6 +2037,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
   add_foreign_key "recurring_expenses", "expense_categories"
   add_foreign_key "recurring_expenses", "expense_types"
   add_foreign_key "recurring_expenses", "users", column: "created_by_id"
+  add_foreign_key "remaining_deposit_balance_transactions", "payment_methods"
+  add_foreign_key "remaining_deposit_balance_transactions", "remaining_deposit_balances"
+  add_foreign_key "remaining_deposit_balance_transactions", "users", column: "new_responsible_user_id"
+  add_foreign_key "remaining_deposit_balance_transactions", "users", column: "performed_by_id"
+  add_foreign_key "remaining_deposit_balance_transactions", "users", column: "previous_responsible_user_id"
+  add_foreign_key "remaining_deposit_balances", "branches"
+  add_foreign_key "remaining_deposit_balances", "businesses"
+  add_foreign_key "remaining_deposit_balances", "daily_reconciliations"
+  add_foreign_key "remaining_deposit_balances", "till_deposits"
+  add_foreign_key "remaining_deposit_balances", "users", column: "created_by_id"
+  add_foreign_key "remaining_deposit_balances", "users", column: "responsible_user_id"
   add_foreign_key "reopen_requests", "daily_closings"
   add_foreign_key "reopen_requests", "users", column: "requested_by_id"
   add_foreign_key "reopen_requests", "users", column: "reviewed_by_id"
@@ -1909,6 +2109,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_25_100000) do
   add_foreign_key "stock_transfers", "warehouses", column: "destination_warehouse_id"
   add_foreign_key "stock_transfers", "warehouses", column: "source_warehouse_id"
   add_foreign_key "suppliers", "businesses"
+  add_foreign_key "till_deposits", "daily_reconciliations"
+  add_foreign_key "till_deposits", "payment_methods"
+  add_foreign_key "till_deposits", "users", column: "deposited_by_id"
+  add_foreign_key "till_deposits", "users", column: "voided_by_id"
+  add_foreign_key "till_handover_amounts", "payment_methods"
+  add_foreign_key "till_handover_amounts", "till_handovers"
+  add_foreign_key "till_handovers", "daily_reconciliations"
+  add_foreign_key "till_handovers", "users", column: "from_user_id"
+  add_foreign_key "till_handovers", "users", column: "to_user_id"
+  add_foreign_key "till_session_amounts", "daily_reconciliations"
+  add_foreign_key "till_session_amounts", "payment_methods"
+  add_foreign_key "till_sessions", "daily_reconciliations"
+  add_foreign_key "till_sessions", "users", column: "closed_by_id"
+  add_foreign_key "till_sessions", "users", column: "current_holder_id"
+  add_foreign_key "till_sessions", "users", column: "depositor_id"
   add_foreign_key "user_audit_logs", "users", column: "actor_id"
   add_foreign_key "user_audit_logs", "users", column: "target_user_id"
   add_foreign_key "users", "businesses"

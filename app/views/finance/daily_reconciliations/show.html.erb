@@ -1,0 +1,1315 @@
+<% content_for :title, t("finance.daily_reconciliations.show.title") %>
+
+<div class="admin-page">
+
+  <%# ── Page header ──────────────────────────────────────────────────────── %>
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <% if @reconciliation.business_date %>
+          <%= l(@reconciliation.business_date, format: :long) %>
+          <span style="font-weight: 400; color: var(--text-3);">·</span>
+        <% end %>
+        <%= @reconciliation.branch.name %>
+      </h1>
+      <p class="page-subtitle"><%= t("finance.daily_reconciliations.show.subtitle") %></p>
+    </div>
+    <div class="page-header__actions">
+      <% if @reconciliation.verified? %>
+        <span class="badge badge-success" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3); display: flex; align-items: center; gap: 4px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <%= t("finance.daily_reconciliations.index.verified") %>
+        </span>
+      <% elsif @reconciliation.open? %>
+        <span class="badge badge-warning" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3);">
+          <%= t("finance.daily_reconciliations.show.state_open") %>
+        </span>
+      <% end %>
+      <% if policy(@reconciliation).index? %>
+        <%= link_to t("finance.daily_reconciliations.index.title"),
+              finance_daily_reconciliations_path,
+              class: "btn btn-ghost btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Pending till handover banner ───────────────────────────────────── %>
+  <% if @pending_handover_for_me %>
+    <div style="background: rgba(var(--warning-rgb, 234,179,8), 0.10); border: 1.5px solid rgba(var(--warning-rgb, 234,179,8), 0.40); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-2);">
+      <div style="flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgba(var(--warning-rgb, 234,179,8), 0.15); display: flex; align-items: center; justify-content: center; color: var(--warning, #ca8a04);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3H3v7l9 9 7-7-9-9z"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 2px;">
+          <%= t("finance.daily_reconciliations.show.pending_banner_title",
+                name: @pending_handover_for_me.from_user.full_name) %>
+        </p>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+          <%= t("finance.daily_reconciliations.show.pending_banner_body") %>
+        </p>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Pending deposit responsibility transfer banner (target employee) ── %>
+  <% if @pending_deposit_transfer_for_me %>
+    <div style="background: rgba(var(--warning-rgb, 234,179,8), 0.10); border: 1.5px solid rgba(var(--warning-rgb, 234,179,8), 0.40); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-2);">
+      <div style="flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgba(var(--warning-rgb, 234,179,8), 0.15); display: flex; align-items: center; justify-content: center; color: var(--warning, #ca8a04);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 2px;">
+          <%= t("finance.daily_reconciliations.show.deposit_transfer_banner_title",
+                name: @pending_deposit_transfer_for_me.from_user.full_name) %>
+        </p>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+          <%= t("finance.daily_reconciliations.show.deposit_transfer_banner_body") %>
+        </p>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Awaiting acceptance banner (original depositor / from_user) ──────── %>
+  <% if @pending_deposit_transfer_from_me %>
+    <div style="background: rgba(var(--accent-rgb, 99,102,241), 0.07); border: 1.5px solid rgba(var(--accent-rgb, 99,102,241), 0.30); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-2);">
+      <div style="flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgba(var(--accent-rgb, 99,102,241), 0.12); display: flex; align-items: center; justify-content: center; color: var(--accent);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 2px;">
+          <%= t("finance.daily_reconciliations.show.deposit_transfer_waiting_title",
+                name: @pending_deposit_transfer_from_me.to_user.full_name) %>
+        </p>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+          <%= t("finance.daily_reconciliations.show.deposit_transfer_waiting_body") %>
+        </p>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Action bar ──────────────────────────────────────────────────────── %>
+  <% show_action_bar = @pending_handover_for_me ||
+                       @pending_deposit_transfer_for_me ||
+                       @pending_deposit_transfer_from_me ||
+                       (@reconciliation.open? && policy(TillHandover.new).create?) ||
+                       (@i_am_depositor && (@reconciliation.closed? || @reconciliation.deposited?)) %>
+  <% if show_action_bar %>
+    <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-2);">
+      <%# Accept incoming till handover %>
+      <% if @pending_handover_for_me %>
+        <%= link_to till_handover_path(@pending_handover_for_me),
+              class: "btn btn-primary",
+              data: { turbo_frame: "modal" },
+              style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <%= t("finance.daily_reconciliations.show.action_accept") %>
+        <% end %>
+      <% end %>
+
+      <%# Accept deposit responsibility (target employee) %>
+      <% if @pending_deposit_transfer_for_me %>
+        <%= link_to deposit_responsibility_transfer_path(@pending_deposit_transfer_for_me),
+              class: "btn btn-primary",
+              data: { turbo_frame: "modal" },
+              style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/></svg>
+          <%= t("finance.daily_reconciliations.show.action_accept_deposit_transfer") %>
+        <% end %>
+      <% end %>
+
+      <%# Cancel pending deposit responsibility transfer (from_user or manager) %>
+      <% if @pending_deposit_transfer_from_me && policy(@pending_deposit_transfer_from_me).cancel? %>
+        <%= button_to cancel_deposit_responsibility_transfer_path(@pending_deposit_transfer_from_me),
+              method: :patch,
+              class: "btn btn-ghost",
+              data: { turbo_confirm: t("finance.daily_reconciliations.show.confirm_cancel_deposit_transfer") },
+              style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <%= t("finance.daily_reconciliations.show.action_cancel_deposit_transfer") %>
+        <% end %>
+      <% end %>
+
+      <%# Handover / close till %>
+      <% if @reconciliation.open? && policy(TillHandover.new).create? %>
+        <% if @pending_outgoing_handover %>
+          <span style="display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: 600; color: var(--warning, #ca8a04); background: rgba(var(--warning-rgb, 202,138,4), 0.10); border: 1.5px solid rgba(var(--warning-rgb, 202,138,4), 0.30); border-radius: var(--radius); padding: var(--space-2) var(--space-4);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <%= t("finance.daily_reconciliations.show.action_pending_outgoing",
+                  name: @pending_outgoing_handover.to_user&.full_name || "—") %>
+          </span>
+        <% else %>
+          <%= link_to new_till_handover_path,
+                class: "btn btn-primary",
+                data: { turbo_frame: "modal" },
+                style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            <%= t("finance.daily_reconciliations.show.action_handover") %>
+          <% end %>
+        <% end %>
+      <% end %>
+
+      <%# Record deposit %>
+      <% if @i_am_depositor && (@reconciliation.closed? || @reconciliation.deposited?) %>
+        <% deposit_dummy = TillDeposit.new(daily_reconciliation: @reconciliation) %>
+        <% if policy(deposit_dummy).create? %>
+          <%= link_to new_till_deposit_path(daily_reconciliation_id: @reconciliation.id),
+                class: "btn btn-primary",
+                data: { turbo_frame: "modal" },
+                style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/></svg>
+            <%= t("finance.daily_reconciliations.show.action_deposit") %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Audit stat cards ──────────────────────────────────────────────────── %>
+  <div class="stats-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin-bottom: var(--space-6);">
+
+    <%# 1. Current holder %>
+    <div class="stat-card">
+      <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.q_holder") %></p>
+      <% if @session&.current_holder %>
+        <p class="stat-card__value" style="font-size: var(--text-lg); font-weight: 700;">
+          <%= @session.current_holder.full_name %>
+        </p>
+        <p class="stat-card__sub">
+          <%= t("finance.daily_reconciliations.show.holding_since",
+                time: l(@reconciliation.opened_at, format: :time_only)) %>
+        </p>
+      <% else %>
+        <p class="stat-card__value" style="font-size: var(--text-base); color: var(--text-2);">
+          <%= t("finance.daily_reconciliations.show.no_current_holder") %>
+        </p>
+      <% end %>
+    </div>
+
+    <%# 2. Depositor (shows pending state when a transfer is awaiting acceptance) %>
+    <div class="stat-card <%= @pending_deposit_transfer ? 'stat-card--warning' : (@session&.depositor ? 'stat-card--success' : '') %>">
+      <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.q_depositor") %></p>
+      <% if @pending_deposit_transfer %>
+        <p class="stat-card__value" style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin-bottom: var(--space-1);">
+          <%= @pending_deposit_transfer.to_user.full_name %>
+        </p>
+        <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--warning, #ca8a04); background: rgba(var(--warning-rgb, 202,138,4), 0.12); border: 1px solid rgba(var(--warning-rgb, 202,138,4), 0.30); border-radius: 99px; padding: 2px 8px; margin-bottom: var(--space-1);">
+          <svg width="7" height="7" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="5"/></svg>
+          <%= t("finance.daily_reconciliations.show.depositor_status_pending") %>
+        </span>
+        <p class="stat-card__sub" style="margin-top: var(--space-1);">
+          <%= t("finance.daily_reconciliations.show.depositor_currently",
+                name: @session&.depositor&.full_name || "—") %>
+        </p>
+      <% elsif @session&.depositor %>
+        <p class="stat-card__value" style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin-bottom: var(--space-1);">
+          <%= @session.depositor.full_name %>
+        </p>
+        <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--success, #16a34a); background: rgba(var(--success-rgb, 22,163,74), 0.10); border: 1px solid rgba(var(--success-rgb, 22,163,74), 0.25); border-radius: 99px; padding: 2px 8px; margin-bottom: var(--space-1);">
+          <svg width="7" height="7" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="5"/></svg>
+          <%= t("finance.daily_reconciliations.show.depositor_status_confirmed") %>
+        </span>
+        <% if @reconciliation.closed_at %>
+          <p class="stat-card__sub" style="margin-top: var(--space-1);">
+            <%= t("finance.daily_reconciliations.show.since",
+                  time: l(@reconciliation.closed_at, format: :time_only)) %>
+          </p>
+        <% end %>
+      <% else %>
+        <p class="stat-card__value" style="font-size: var(--text-base); color: var(--text-2);">
+          <%= t("finance.daily_reconciliations.show.none_yet") %>
+        </p>
+      <% end %>
+    </div>
+
+    <%# 3. Pending handovers %>
+    <%
+      pending_handovers  = @handovers.select(&:pending?)
+      accepted_handovers = @handovers.select(&:accepted?)
+    %>
+    <div class="stat-card <%= pending_handovers.any? ? 'stat-card--warning' : (@handovers.any? ? 'stat-card--success' : '') %>">
+      <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.q_accepted") %></p>
+      <% if @handovers.empty? %>
+        <p class="stat-card__value" style="font-size: var(--text-base); color: var(--text-2);">
+          <%= t("finance.daily_reconciliations.show.no_transfers") %>
+        </p>
+      <% elsif pending_handovers.empty? %>
+        <p class="stat-card__value" style="font-size: var(--text-lg); color: var(--success);">
+          <%= t("finance.daily_reconciliations.show.all_accepted") %>
+        </p>
+      <% else %>
+        <p class="stat-card__value" style="font-size: var(--text-lg); color: var(--warning);">
+          <%= t("finance.daily_reconciliations.show.pending_count", count: pending_handovers.size) %>
+        </p>
+      <% end %>
+    </div>
+
+    <%# 4. Total deposited — extended with ledger summary when cash expected %>
+    <% expected_cash = @reconciliation.expected_cash_deposit %>
+    <% has_outstanding = @total_remaining_balance.to_d > 0 %>
+    <% has_closed_balances = (@total_settled_later.to_d + @total_written_off.to_d) > 0 %>
+    <div class="stat-card <%= has_outstanding ? 'stat-card--warning' : (@total_deposited > 0 ? 'stat-card--success' : '') %>">
+      <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.q_deposited") %></p>
+      <% if expected_cash > 0 %>
+        <div style="display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-1);">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+            <span style="font-size: var(--text-xs); color: var(--text-3);">
+              <%= t("finance.daily_reconciliations.show.expected_deposit") %>
+            </span>
+            <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); font-variant-numeric: tabular-nums;">
+              <%= number_to_currency(expected_cash, unit: "", separator: ".", delimiter: ",") %>
+            </span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+            <span style="font-size: var(--text-xs); color: var(--text-3);">
+              <%= t("finance.daily_reconciliations.show.actual_deposited") %>
+            </span>
+            <span style="font-size: var(--text-sm); font-weight: 700; color: var(--success,#16a34a); font-variant-numeric: tabular-nums;">
+              <%= number_to_currency(@total_deposited, unit: "", separator: ".", delimiter: ",") %>
+            </span>
+          </div>
+          <% if has_outstanding %>
+            <%
+              open_balances = @all_remaining_balances.select(&:open?)
+              rdb_link = open_balances.size == 1 \
+                ? finance_remaining_deposit_balance_path(open_balances.first) \
+                : finance_remaining_deposit_balances_path
+            %>
+            <%= link_to rdb_link, style: "display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-1); margin-top: var(--space-1); text-decoration: none;" do %>
+              <span style="font-size: var(--text-xs); color: var(--warning,#ca8a04); font-weight: 600; display: flex; align-items: center; gap: var(--space-1);">
+                <%= t("finance.daily_reconciliations.show.outstanding_balance") %>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              </span>
+              <span style="font-size: var(--text-sm); font-weight: 700; color: var(--warning,#ca8a04); font-variant-numeric: tabular-nums;">
+                <%= number_to_currency(@total_remaining_balance, unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            <% end %>
+          <% end %>
+          <% if @total_settled_later.to_d > 0 %>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+              <span style="font-size: var(--text-xs); color: var(--success,#16a34a);">
+                <%= t("finance.daily_reconciliations.show.settled_later") %>
+              </span>
+              <span style="font-size: var(--text-sm); font-weight: 600; color: var(--success,#16a34a); font-variant-numeric: tabular-nums;">
+                <%= number_to_currency(@total_settled_later, unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            </div>
+          <% end %>
+          <% if @total_written_off.to_d > 0 %>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+              <span style="font-size: var(--text-xs); color: var(--text-3);">
+                <%= t("finance.daily_reconciliations.show.written_off") %>
+              </span>
+              <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; text-decoration: line-through;">
+                <%= number_to_currency(@total_written_off, unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="stat-card__value">
+          <%= number_to_currency(@total_deposited, unit: "", separator: ".", delimiter: ",") %>
+        </p>
+      <% end %>
+      <p class="stat-card__sub">
+        <%= t("finance.daily_reconciliations.show.deposit_count", count: @deposits.size) %>
+      </p>
+    </div>
+
+    <%# 5. Verified? %>
+    <div class="stat-card <%= @reconciliation.verified? ? 'stat-card--success' : '' %>">
+      <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.q_verified") %></p>
+      <% if @reconciliation.verified? %>
+        <p class="stat-card__value" style="font-size: var(--text-lg); color: var(--success);">
+          <%= @reconciliation.verified_by.full_name %>
+        </p>
+        <p class="stat-card__sub"><%= l(@reconciliation.verified_at, format: :time_only) %></p>
+      <% else %>
+        <p class="stat-card__value" style="font-size: var(--text-base); color: var(--text-2);">
+          <%= t("finance.daily_reconciliations.show.not_verified") %>
+        </p>
+      <% end %>
+    </div>
+
+  </div>
+
+  <%# ── Two-column body ───────────────────────────────────────────────────── %>
+  <div class="dashboard-cols" style="margin-bottom: var(--space-6);">
+
+    <%# ── Audit timeline ─────────────────────────────────────────────────── %>
+    <%# Architecture:
+        - Events are built in Finance::DailyReconciliationsController#build_timeline_events
+        - To add a new event type: push a hash there, add it to a stage_def below, add a `when` block
+        - Every event hash: { type: Symbol, time: Time, actor: User|nil, data: AR record }
+        - Expanded detail panels: each `when` block owns its own detail panel markup;
+          future features (expenses, adjustments, comments) add new `when` blocks without
+          touching existing ones.
+    %>
+    <% if @timeline_events.any? %>
+      <%
+        base_date  = @reconciliation.opened_at.to_date
+        # Close time is the moment the day_closed event fired (self-deposit handover).
+        close_event = @timeline_events.find { |e| e[:type] == :day_closed }
+        close_time  = close_event&.dig(:time)
+
+        # Returns a short relative-to-close label ("12 min before close") or nil.
+        close_label = ->(t) {
+          next nil unless close_time
+          diff_min = ((close_time - t) / 60.0).round
+          next nil if diff_min.abs < 2
+          if diff_min > 0
+            count = diff_min < 60 ? "#{diff_min} min" : "#{(diff_min / 60.0).ceil} hr"
+            I18n.t("finance.daily_reconciliations.show.timeline.before_close", count: count)
+          else
+            count = diff_min.abs < 60 ? "#{diff_min.abs} min" : "#{(diff_min.abs / 60.0).ceil} hr"
+            I18n.t("finance.daily_reconciliations.show.timeline.after_close", count: count)
+          end
+        }
+
+        # Stage definitions — controls visual grouping and connector scope.
+        # Order matters: stages render top-to-bottom.
+        # Add a new event type to exactly one stage; empty stages are hidden.
+        stage_defs = [
+          { key: :during_day,   types: %i[handover_created handover_accepted] },
+          { key: :end_of_day,   types: %i[day_closed deposit_assigned deposit_cancelled] },
+          { key: :deposit,      types: %i[deposit_accepted deposit_recorded deposit_voided
+                                           remaining_created remaining_settled remaining_reassigned
+                                           remaining_written_off remaining_adjusted] },
+          { key: :verification, types: %i[day_verified] },
+        ]
+
+        # Per-type visual config. lbl = locale key under timeline.label_*
+        tl_cfg = {
+          handover_created:  {
+            dot: "var(--accent)", lbl: "label_till_handover",
+            lc: "var(--accent)", lb: "rgba(var(--accent-rgb,99,102,241),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0 4.5-4.5M3 16.5h13.5m0-9L21 3m0 0-4.5 4.5M21 3H7.5"/>',
+          },
+          handover_accepted: {
+            dot: "var(--accent)", lbl: "label_till_handover",
+            lc: "var(--accent)", lb: "rgba(var(--accent-rgb,99,102,241),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>',
+          },
+          day_closed:        {
+            dot: "var(--success,#16a34a)", lbl: "label_day_closed",
+            lc: "var(--success,#16a34a)", lb: "rgba(var(--success-rgb,22,163,74),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z"/>',
+          },
+          deposit_assigned:  {
+            dot: "var(--warning,#ca8a04)", lbl: "label_deposit_responsibility",
+            lc: "var(--warning,#ca8a04)", lb: "rgba(var(--warning-rgb,202,138,4),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z"/>',
+          },
+          deposit_accepted:  {
+            dot: "var(--success,#16a34a)", lbl: "label_deposit_responsibility",
+            lc: "var(--success,#16a34a)", lb: "rgba(var(--success-rgb,22,163,74),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>',
+          },
+          deposit_cancelled: {
+            dot: "var(--text-3,#9ca3af)", lbl: "label_deposit_responsibility",
+            lc: "var(--text-3,#9ca3af)", lb: "rgba(156,163,175,0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>',
+          },
+          deposit_recorded:  {
+            dot: "#7c3aed", lbl: "label_deposit_recorded",
+            lc: "#7c3aed", lb: "rgba(124,58,237,0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/>',
+          },
+          deposit_voided:    {
+            dot: "var(--danger,#dc2626)", lbl: "label_deposit_voided",
+            lc: "var(--danger,#dc2626)", lb: "rgba(220,38,38,0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>',
+          },
+          day_verified:      {
+            dot: "var(--success,#16a34a)", lbl: "label_verified",
+            lc: "var(--success,#16a34a)", lb: "rgba(var(--success-rgb,22,163,74),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>',
+          },
+          remaining_created: {
+            dot: "var(--warning,#ca8a04)",    lbl: "label_remaining_created",
+            lc: "var(--warning,#ca8a04)", lb: "rgba(var(--warning-rgb,202,138,4),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>',
+          },
+          remaining_settled: {
+            dot: "var(--success,#16a34a)",    lbl: "label_remaining_settled",
+            lc: "var(--success,#16a34a)", lb: "rgba(var(--success-rgb,22,163,74),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>',
+          },
+          remaining_reassigned: {
+            dot: "var(--accent)",            lbl: "label_remaining_reassigned",
+            lc: "var(--accent)", lb: "rgba(var(--accent-rgb,99,102,241),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0 4.5-4.5M3 16.5h13.5m0-9L21 3m0 0-4.5 4.5M21 3H7.5"/>',
+          },
+          remaining_written_off: {
+            dot: "var(--text-3,#9ca3af)",     lbl: "label_remaining_written_off",
+            lc: "var(--text-3)", lb: "var(--surface-2)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>',
+          },
+          remaining_adjusted: {
+            dot: "var(--accent)",            lbl: "label_remaining_adjusted",
+            lc: "var(--accent)", lb: "rgba(var(--accent-rgb,99,102,241),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>',
+          },
+        }
+
+        stage_groups = stage_defs.filter_map do |sd|
+          evts = @timeline_events.select { |e| sd[:types].include?(e[:type]) }
+          evts.any? ? [sd[:key], evts] : nil
+        end
+
+        # Shared inline style fragments used in detail panels.
+        dl_row  = "display: flex; gap: var(--space-4); margin-bottom: var(--space-1); align-items: baseline;"
+        dl_lbl  = "font-size: 11px; color: var(--text-3); min-width: 120px; flex-shrink: 0;"
+        dl_val  = "font-size: 11px; color: var(--text-1); font-weight: 500;"
+        cur_fmt = { unit: "", separator: ".", delimiter: "," }
+      %>
+      <div>
+        <%# Section header with description %>
+        <div style="margin-bottom: var(--space-4);">
+          <h2 class="dashboard-section__title" style="margin-bottom: var(--space-1);">
+            <%= t("finance.daily_reconciliations.show.timeline_title") %>
+          </h2>
+          <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+            <%= t("finance.daily_reconciliations.show.timeline.description") %>
+          </p>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm);">
+
+          <% stage_groups.each_with_index do |(stage_key, stage_events), si| %>
+
+            <% if si > 0 %>
+              <div style="margin: var(--space-5) 0 var(--space-4);">
+                <div style="height: 1px; background: var(--border);"></div>
+              </div>
+            <% end %>
+
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
+              <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-3); white-space: nowrap;">
+                <%= t("finance.daily_reconciliations.show.timeline.stage_#{stage_key}") %>
+              </span>
+              <div style="flex: 1; height: 1px; background: var(--border);"></div>
+            </div>
+
+            <% stage_events.each_with_index do |item, ei| %>
+              <% cfg             = tl_cfg[item[:type]] %>
+              <% next unless cfg %>
+              <% is_last         = ei == stage_events.size - 1 %>
+              <% on_next_day     = item[:time].to_date != base_date %>
+              <% rel_label       = close_label.call(item[:time]) %>
+
+              <div data-controller="timeline-event"
+                   style="display: flex; gap: var(--space-3); align-items: flex-start; position: relative; padding-bottom: <%= is_last ? '0' : 'var(--space-5)' %>;">
+
+                <% unless is_last %>
+                  <div style="position: absolute; inset-inline-start: calc(60px + var(--space-3) + 13px); top: 28px; bottom: 0; width: 2px; background: var(--border); z-index: 0;"></div>
+                <% end %>
+
+                <%# Timestamp column: absolute time + relative context %>
+                <div style="flex-shrink: 0; width: 60px; text-align: end; padding-top: 6px; line-height: 1.3;">
+                  <span style="font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; font-weight: 500;">
+                    <%= l(item[:time], format: :time_only) %>
+                  </span>
+                  <% if on_next_day %>
+                    <span style="display: block; font-size: 10px; color: var(--warning,#ca8a04); font-weight: 600; line-height: 1.2; margin-top: 2px;">
+                      <%= t("finance.daily_reconciliations.show.timeline.next_day") %>
+                    </span>
+                  <% end %>
+                  <% if rel_label %>
+                    <span style="display: block; font-size: 10px; color: var(--text-3); line-height: 1.2; margin-top: 2px; font-style: italic;">
+                      (<%= rel_label %>)
+                    </span>
+                  <% end %>
+                </div>
+
+                <%# Icon dot %>
+                <div style="flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; background: <%= cfg[:dot] %>; display: flex; align-items: center; justify-content: center; z-index: 1;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <%= cfg[:icon].html_safe %>
+                  </svg>
+                </div>
+
+                <%# Event content column %>
+                <div style="flex: 1; min-width: 0; padding-top: 4px;">
+
+                  <%# Header row: type chip + expand toggle %>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: <%= cfg[:lc] %>; background: <%= cfg[:lb] %>; border-radius: 4px; padding: 1px 6px;">
+                      <%= t("finance.daily_reconciliations.show.timeline.#{cfg[:lbl]}") %>
+                    </span>
+                    <button data-action="click->timeline-event#toggle"
+                            style="background: none; border: none; cursor: pointer; padding: 2px; color: var(--text-3); display: flex; align-items: center; border-radius: var(--radius-sm);"
+                            title="<%= t("finance.daily_reconciliations.show.timeline.expand_hint") %>">
+                      <svg data-timeline-event-target="chevron"
+                           style="transition: transform 0.15s ease;"
+                           width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                      </svg>
+                    </button>
+                  </div>
+
+                  <%# ── Story sentence + collapsed preview (per event type) ── %>
+                  <% case item[:type]
+                  when :handover_created %>
+                    <% h = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-2);">
+                      <%= t("finance.daily_reconciliations.show.timeline.handover_created",
+                            from: h.from_user.full_name, to: h.to_user&.full_name || "—") %>
+                      <% unless h.accepted? %>
+                        <span class="badge badge-neutral" style="font-size: 10px; margin-inline-start: var(--space-1);">
+                          <%= t("finance.daily_reconciliations.show.pending_badge") %>
+                        </span>
+                      <% end %>
+                    </p>
+                    <% operational = h.amounts.select { |a| a.kind == "operational" }.reject { |a| a.collected_amount.zero? && a.refund_amount.zero? } %>
+                    <% if operational.any? %>
+                      <div style="display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-1);">
+                        <% operational.each do |amt| %>
+                          <span style="font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 7px; color: var(--text-2);">
+                            <%= amt.payment_method_name %>: <strong style="color: var(--text-1);"><%= number_to_currency(amt.net_amount, **cur_fmt) %></strong>
+                          </span>
+                        <% end %>
+                      </div>
+                    <% end %>
+
+                    <%# Expanded detail panel %>
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_handover", id: h.id) %>
+                      </div>
+                      <% if h.from_notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= h.from_notes %></span>
+                        </div>
+                      <% end %>
+                      <% if h.accepted_notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_accepted_notes") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= h.accepted_notes %></span>
+                        </div>
+                      <% end %>
+                      <% all_amounts = h.amounts.reject { |a| a.collected_amount.zero? && a.refund_amount.zero? } %>
+                      <% if all_amounts.any? %>
+                        <div style="margin-top: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-2);">
+                          <div style="font-size: 10px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2);">
+                            <%= t("finance.daily_reconciliations.show.timeline.detail.label_amounts") %>
+                          </div>
+                          <% all_amounts.each do |amt| %>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 2px 0; border-bottom: 1px dashed var(--border);">
+                              <span style="color: var(--text-2);">
+                                <%= amt.payment_method_name %>
+                                <% if amt.kind != "operational" %>
+                                  <span style="font-size: 10px; color: var(--text-3);">(<%= amt.kind %>)</span>
+                                <% end %>
+                              </span>
+                              <div style="display: flex; gap: var(--space-3); align-items: center;">
+                                <% if amt.refund_amount > 0 %>
+                                  <span style="color: var(--danger,#dc2626); font-size: 10px;">− <%= number_to_currency(amt.refund_amount, **cur_fmt) %></span>
+                                <% end %>
+                                <span style="font-weight: 600; color: var(--text-1);"><%= number_to_currency(amt.net_amount, **cur_fmt) %></span>
+                              </div>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                      <%# SLOT: photos, documents, manager comments — rendered here by future features %>
+                    </div>
+
+                  <% when :handover_accepted %>
+                    <% h = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.handover_accepted",
+                            name: h.to_user.full_name, from: h.from_user.full_name) %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_handover", id: h.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_originally_by") %></span>
+                        <span style="<%= dl_val %>"><%= h.from_user.full_name %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_accepted_at") %></span>
+                        <span style="<%= dl_val %>"><%= l(h.accepted_at, format: :long) %></span>
+                      </div>
+                      <% if h.accepted_notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= h.accepted_notes %></span>
+                        </div>
+                      <% end %>
+                      <%# SLOT: photos, documents, manager comments — rendered here by future features %>
+                    </div>
+
+                  <% when :day_closed %>
+                    <% h = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
+                      <%= t("finance.daily_reconciliations.show.timeline.day_closed", name: h.from_user.full_name) %>
+                    </p>
+                    <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: var(--success,#16a34a); background: rgba(var(--success-rgb,22,163,74),0.10); border: 1px solid rgba(var(--success-rgb,22,163,74),0.25); border-radius: 99px; padding: 2px 9px; margin-bottom: var(--space-1);">
+                      <svg width="7" height="7" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="5"/></svg>
+                      <%= t("finance.daily_reconciliations.show.final_holder_badge") %>
+                    </span>
+                    <% operational = h.amounts.select { |a| a.kind == "operational" }.reject { |a| a.collected_amount.zero? && a.refund_amount.zero? } %>
+                    <% if operational.any? %>
+                      <div style="display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1);">
+                        <% operational.each do |amt| %>
+                          <span style="font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 7px; color: var(--text-2);">
+                            <%= amt.payment_method_name %>: <strong style="color: var(--text-1);"><%= number_to_currency(amt.net_amount, **cur_fmt) %></strong>
+                          </span>
+                        <% end %>
+                      </div>
+                    <% end %>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_handover", id: h.id) %>
+                      </div>
+                      <% if h.from_notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= h.from_notes %></span>
+                        </div>
+                      <% end %>
+                      <% if h.float_amount.present? && h.float_amount > 0 %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_float") %></span>
+                          <span style="<%= dl_val %>"><%= number_to_currency(h.float_amount, **cur_fmt) %></span>
+                        </div>
+                      <% end %>
+                      <% all_amounts = h.amounts.reject { |a| a.collected_amount.zero? && a.refund_amount.zero? } %>
+                      <% if all_amounts.any? %>
+                        <div style="margin-top: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-2);">
+                          <div style="font-size: 10px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2);">
+                            <%= t("finance.daily_reconciliations.show.timeline.detail.label_amounts") %>
+                          </div>
+                          <% all_amounts.each do |amt| %>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 2px 0; border-bottom: 1px dashed var(--border);">
+                              <span style="color: var(--text-2);">
+                                <%= amt.payment_method_name %>
+                                <% if amt.kind != "operational" %>
+                                  <span style="font-size: 10px; color: var(--text-3);">(<%= amt.kind %>)</span>
+                                <% end %>
+                              </span>
+                              <div style="display: flex; gap: var(--space-3); align-items: center;">
+                                <% if amt.refund_amount > 0 %>
+                                  <span style="color: var(--danger,#dc2626); font-size: 10px;">− <%= number_to_currency(amt.refund_amount, **cur_fmt) %></span>
+                                <% end %>
+                                <span style="font-weight: 600; color: var(--text-1);"><%= number_to_currency(amt.net_amount, **cur_fmt) %></span>
+                              </div>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                      <%# SLOT: photos, documents, manager comments — rendered here by future features %>
+                    </div>
+
+                  <% when :deposit_assigned %>
+                    <% drt = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.deposit_assigned",
+                            actor: drt.from_user.full_name, name: drt.to_user.full_name) %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_transfer", id: drt.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_assigned_by") %></span>
+                        <span style="<%= dl_val %>"><%= drt.from_user.full_name %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_assigned_to") %></span>
+                        <span style="<%= dl_val %>"><%= drt.to_user.full_name %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_status") %></span>
+                        <span style="<%= dl_val %>">
+                          <% if drt.accepted? %>
+                            <span style="color: var(--success,#16a34a);"><%= t("finance.daily_reconciliations.show.timeline.detail.status_accepted") %></span>
+                          <% elsif drt.cancelled? %>
+                            <span style="color: var(--text-3,#9ca3af);"><%= t("finance.daily_reconciliations.show.timeline.detail.status_cancelled") %></span>
+                          <% else %>
+                            <span style="color: var(--warning,#ca8a04);"><%= t("finance.daily_reconciliations.show.timeline.detail.status_pending") %></span>
+                          <% end %>
+                        </span>
+                      </div>
+                      <%# SLOT: investigation notes — rendered here by future features %>
+                    </div>
+
+                  <% when :deposit_accepted %>
+                    <% drt = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.deposit_accepted", name: drt.to_user.full_name) %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_transfer", id: drt.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_originally_by") %></span>
+                        <span style="<%= dl_val %>"><%= drt.from_user.full_name %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_accepted_at") %></span>
+                        <span style="<%= dl_val %>"><%= l(drt.accepted_at, format: :long) %></span>
+                      </div>
+                      <%# SLOT: investigation notes — rendered here by future features %>
+                    </div>
+
+                  <% when :deposit_cancelled %>
+                    <% drt = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.deposit_cancelled",
+                            actor: drt.cancelled_by&.full_name || drt.from_user.full_name,
+                            name:  drt.to_user.full_name) %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_transfer", id: drt.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_was_assigned_to") %></span>
+                        <span style="<%= dl_val %>"><%= drt.to_user.full_name %></span>
+                      </div>
+                      <% if drt.cancelled_by %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_cancelled_by") %></span>
+                          <span style="<%= dl_val %>"><%= drt.cancelled_by.full_name %></span>
+                        </div>
+                      <% end %>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_cancelled_at") %></span>
+                        <span style="<%= dl_val %>"><%= l(drt.cancelled_at, format: :long) %></span>
+                      </div>
+                      <%# SLOT: investigation notes — rendered here by future features %>
+                    </div>
+
+                  <% when :deposit_recorded %>
+                    <% d = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
+                      <%= t("finance.daily_reconciliations.show.timeline.deposit_recorded", name: d.deposited_by.full_name) %>
+                    </p>
+                    <span style="font-size: 11px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.20); border-radius: var(--radius-sm); padding: 2px 8px; color: #7c3aed; font-weight: 600;">
+                      <%= number_to_currency(d.amount, **cur_fmt) %>
+                      <% if d.payment_method %>· <%= d.payment_method.display_name %><% end %>
+                    </span>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_deposit", id: d.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_amount") %></span>
+                        <span style="<%= dl_val %>; color: #7c3aed;"><%= number_to_currency(d.amount, **cur_fmt) %></span>
+                      </div>
+                      <% if d.payment_method %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_payment_method") %></span>
+                          <span style="<%= dl_val %>"><%= d.payment_method.display_name %></span>
+                        </div>
+                      <% end %>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_deposited_at") %></span>
+                        <span style="<%= dl_val %>"><%= l(d.deposited_at, format: :long) %></span>
+                      </div>
+                      <% if d.reference.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_reference") %></span>
+                          <span style="<%= dl_val %>; font-family: monospace;"><%= d.reference %></span>
+                        </div>
+                      <% end %>
+                      <% if d.notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= d.notes %></span>
+                        </div>
+                      <% end %>
+                      <%# SLOT: bank receipt photos, scanned documents — rendered here by future features %>
+                    </div>
+
+                  <% when :deposit_voided %>
+                    <% d = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
+                      <%= t("finance.daily_reconciliations.show.timeline.deposit_voided",
+                            actor: d.voided_by&.full_name || "—") %>
+                    </p>
+                    <% if d.void_reason.present? %>
+                      <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0 0 var(--space-1); font-style: italic;">
+                        <%= d.void_reason %>
+                      </p>
+                    <% end %>
+                    <span style="font-size: 11px; background: rgba(220,38,38,0.06); border: 1px solid rgba(220,38,38,0.20); border-radius: var(--radius-sm); padding: 2px 8px; color: var(--danger,#dc2626); font-weight: 600; text-decoration: line-through;">
+                      <%= number_to_currency(d.amount, **cur_fmt) %>
+                      <% if d.payment_method %>· <%= d.payment_method.display_name %><% end %>
+                    </span>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_deposit", id: d.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_original_amount") %></span>
+                        <span style="<%= dl_val %>; text-decoration: line-through; color: var(--text-2);"><%= number_to_currency(d.amount, **cur_fmt) %></span>
+                      </div>
+                      <% if d.payment_method %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_payment_method") %></span>
+                          <span style="<%= dl_val %>"><%= d.payment_method.display_name %></span>
+                        </div>
+                      <% end %>
+                      <% if d.void_reason.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_void_reason") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= d.void_reason %></span>
+                        </div>
+                      <% end %>
+                      <% if d.voided_by %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_voided_by") %></span>
+                          <span style="<%= dl_val %>"><%= d.voided_by.full_name %></span>
+                        </div>
+                      <% end %>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_voided_at") %></span>
+                        <span style="<%= dl_val %>"><%= l(d.voided_at, format: :long) %></span>
+                      </div>
+                      <%# SLOT: investigation notes, manager override comment — rendered here by future features %>
+                    </div>
+
+                  <% when :day_verified %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.day_verified",
+                            name: item[:actor]&.full_name || "—") %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_verification", id: @reconciliation.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_verified_by") %></span>
+                        <span style="<%= dl_val %>"><%= item[:actor]&.full_name || "—" %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_verified_at") %></span>
+                        <span style="<%= dl_val %>"><%= l(@reconciliation.verified_at, format: :long) %></span>
+                      </div>
+                      <%# SLOT: accountant comments, audit notes — rendered here by future features %>
+                    </div>
+
+                  <% when :remaining_created %>
+                    <% txn = item[:data]; rdb = item[:balance] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.remaining_created",
+                            name: rdb.responsible_user.full_name) %>
+                    </p>
+                    <p style="font-size: var(--text-sm); color: var(--warning,#ca8a04); font-weight: 700; margin: var(--space-1) 0 0; font-variant-numeric: tabular-nums;">
+                      <%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_remaining", id: rdb.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_remaining_amount") %></span>
+                        <span style="<%= dl_val %>; color: var(--warning,#ca8a04);">
+                          <%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
+                        </span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_responsible") %></span>
+                        <span style="<%= dl_val %>"><%= rdb.responsible_user.full_name %></span>
+                      </div>
+                      <% if rdb.till_deposit_id %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_from_deposit") %></span>
+                          <span style="<%= dl_val %>">
+                            <%= t("finance.daily_reconciliations.show.timeline.detail.ref_deposit", id: rdb.till_deposit_id) %>
+                          </span>
+                        </div>
+                      <% end %>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_status") %></span>
+                        <span style="<%= dl_val %>">
+                          <%= t("remaining_deposit_balances.statuses.#{rdb.status}") %>
+                          <%= link_to "↗", finance_remaining_deposit_balance_path(rdb),
+                                style: "color: var(--accent); font-size: var(--text-xs); margin-inline-start: var(--space-1);" %>
+                        </span>
+                      </div>
+                    </div>
+
+                  <% when :remaining_settled %>
+                    <% txn = item[:data]; rdb = item[:balance] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.remaining_settled",
+                            actor: item[:actor]&.full_name || "—",
+                            name:  rdb.responsible_user.full_name) %>
+                    </p>
+                    <p style="font-size: var(--text-sm); color: var(--success,#16a34a); font-weight: 700; margin: var(--space-1) 0 0; font-variant-numeric: tabular-nums;">
+                      <%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_remaining", id: rdb.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_settled_amount") %></span>
+                        <span style="<%= dl_val %>; color: var(--success,#16a34a);">
+                          <%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
+                        </span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_settled_by") %></span>
+                        <span style="<%= dl_val %>"><%= item[:actor]&.full_name || "—" %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_settled_at") %></span>
+                        <span style="<%= dl_val %>"><%= l(txn.created_at, format: :long) %></span>
+                      </div>
+                      <% if txn.notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
+                          <span style="<%= dl_val %>"><%= txn.notes %></span>
+                        </div>
+                      <% end %>
+                    </div>
+
+                  <% when :remaining_reassigned %>
+                    <% txn = item[:data]; rdb = item[:balance] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.remaining_reassigned",
+                            actor: item[:actor]&.full_name || "—",
+                            from:  txn.previous_responsible_user&.full_name || "?",
+                            to:    txn.new_responsible_user&.full_name || "?") %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_remaining", id: rdb.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_prev_responsible") %></span>
+                        <span style="<%= dl_val %>"><%= txn.previous_responsible_user&.full_name || "?" %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_new_responsible") %></span>
+                        <span style="<%= dl_val %>"><%= txn.new_responsible_user&.full_name || "?" %></span>
+                      </div>
+                      <% if txn.notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
+                          <span style="<%= dl_val %>"><%= txn.notes %></span>
+                        </div>
+                      <% end %>
+                    </div>
+
+                  <% when :remaining_written_off %>
+                    <% txn = item[:data]; rdb = item[:balance] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.remaining_written_off",
+                            actor: item[:actor]&.full_name || "—",
+                            name:  rdb.responsible_user.full_name) %>
+                    </p>
+                    <p style="font-size: var(--text-sm); color: var(--text-3); font-weight: 700; margin: var(--space-1) 0 0; font-variant-numeric: tabular-nums; text-decoration: line-through;">
+                      <%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_remaining", id: rdb.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_written_off_amount") %></span>
+                        <span style="<%= dl_val %>; color: var(--text-3); text-decoration: line-through;">
+                          <%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
+                        </span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_settled_by") %></span>
+                        <span style="<%= dl_val %>"><%= item[:actor]&.full_name || "—" %></span>
+                      </div>
+                      <% if txn.notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
+                          <span style="<%= dl_val %>"><%= txn.notes %></span>
+                        </div>
+                      <% end %>
+                    </div>
+
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+
+        </div>
+      </div>
+    <% end %>
+
+    <%# ── Right column: session totals + deposits ────────────────────── %>
+    <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+
+      <%# Session amounts (official financial totals) %>
+      <% if @amounts_by_method.any? %>
+        <div>
+          <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+            <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.collected_title") %></h2>
+          </div>
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+            <% @amounts_by_method.each do |sa| %>
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
+                <span style="font-size: var(--text-sm); color: var(--text-2);"><%= sa.payment_method_name %></span>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 1px;">
+                  <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1);">
+                    <%= number_to_currency(sa.net_amount, unit: "", separator: ".", delimiter: ",") %>
+                  </span>
+                  <% if sa.refund_amount > 0 %>
+                    <span style="font-size: 11px; color: var(--danger);">
+                      − <%= number_to_currency(sa.refund_amount, unit: "", separator: ".", delimiter: ",") %>
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-5); background: var(--surface-2);">
+              <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+                <%= t("finance.daily_reconciliations.show.total_collected") %>
+              </span>
+              <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1);">
+                <%= number_to_currency(@amounts_by_method.sum(&:net_amount), unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%# Deposits %>
+      <div>
+        <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+          <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.deposits_title") %></h2>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+          <% if @deposits.empty? %>
+            <p style="padding: var(--space-5); color: var(--text-2); font-size: var(--text-sm); margin: 0;">
+              <%= t("finance.daily_reconciliations.show.no_deposits") %>
+            </p>
+          <% else %>
+            <% @deposits.each do |deposit| %>
+              <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
+                  <div style="min-width: 0;">
+                    <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0 0 2px;">
+                      <%= deposit.payment_method.display_name %>
+                    </p>
+                    <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+                      <%= deposit.deposited_by.full_name %>
+                      · <%= l(deposit.deposited_at, format: :time_only) %>
+                      <% if deposit.reference.present? %>
+                        · <%= deposit.reference %>
+                      <% end %>
+                    </p>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0;">
+                    <span style="font-size: var(--text-sm); font-weight: 600;">
+                      <%= number_to_currency(deposit.amount, unit: "", separator: ".", delimiter: ",") %>
+                    </span>
+                    <% if policy(@reconciliation).verify? && !@reconciliation.verified? %>
+                      <%= button_to void_till_deposit_path(deposit),
+                            method: :patch,
+                            params: { void_reason: "Voided during reconciliation review" },
+                            class: "btn btn-danger btn-sm",
+                            data: { turbo_confirm: t("common.are_you_sure") },
+                            form_class: "inline" do %>
+                        <%= t("common.void") %>
+                      <% end %>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-5); background: var(--surface-2);">
+              <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+                <%= t("finance.daily_reconciliations.show.total_deposited") %>
+              </span>
+              <span style="font-size: var(--text-base); font-weight: 700; color: var(--success);">
+                <%= number_to_currency(@total_deposited, unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <%# ── Employee Reconciliation Summary ───────────────────────────────────── %>
+  <div style="margin-bottom: var(--space-6);">
+    <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+      <div>
+        <h2 class="dashboard-section__title">
+          <%= t("finance.daily_reconciliations.show.employee_summary_title") %>
+        </h2>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+          <%= t("finance.daily_reconciliations.show.employee_summary_subtitle") %>
+        </p>
+      </div>
+      <% if @reconciliation.open? && @employee_summaries.any? %>
+        <span style="font-size: 11px; font-weight: 600; color: var(--warning); background: rgba(var(--warning-rgb,202,138,4),0.10); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.30); border-radius: var(--radius-sm); padding: 3px 8px; white-space: nowrap;">
+          <%= t("finance.daily_reconciliations.show.employee_summary_live_hint") %>
+        </span>
+      <% end %>
+    </div>
+
+    <% if @employee_summaries.empty? %>
+      <p style="font-size: var(--text-sm); color: var(--text-2); padding: var(--space-4) 0;">
+        <%= t("finance.daily_reconciliations.show.employee_summary_empty") %>
+      </p>
+    <% else %>
+      <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+        <% @employee_summaries.each do |summary| %>
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+
+            <%# ── Employee header ──────────────────────────────────────────── %>
+            <div style="padding: var(--space-4) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);">
+              <div style="display: flex; align-items: center; gap: var(--space-3);">
+                <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(var(--accent-rgb),0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1);">
+                  <%= summary.user.full_name %>
+                </span>
+              </div>
+              <div style="text-align: end;">
+                <p style="font-size: 11px; color: var(--text-3); margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.06em;">
+                  <%= t("finance.daily_reconciliations.show.employee_summary_grand_total") %>
+                </p>
+                <p style="font-size: var(--text-lg); font-weight: 700; color: var(--text-1); margin: 0;">
+                  <%= number_to_currency(summary.grand_total, unit: "", separator: ".", delimiter: ",") %>
+                </p>
+              </div>
+            </div>
+
+            <%# ── Per-payment-method breakdown (table rows) ───────────────── %>
+            <% visible_amounts = summary.amounts.reject { |a| a.collected_amount.zero? && a.refund_amount.zero? } %>
+            <% if visible_amounts.any? %>
+              <%# Column headers %>
+              <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 140px)); gap: 0; padding: var(--space-2) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"></span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+                  <%= t("finance.daily_reconciliations.show.employee_summary_collected") %>
+                </span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+                  <%= t("finance.daily_reconciliations.show.employee_summary_refunds") %>
+                </span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+                  <%= t("finance.daily_reconciliations.show.employee_summary_net") %>
+                </span>
+              </div>
+
+              <%# One row per payment method %>
+              <% visible_amounts.each do |amt| %>
+                <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 140px)); gap: 0; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: baseline;">
+                  <span style="font-size: var(--text-sm); color: var(--text-2);">
+                    <%= amt.payment_method_name %>
+                  </span>
+                  <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end;">
+                    <%= number_to_currency(amt.collected_amount, unit: "", separator: ".", delimiter: ",") %>
+                  </span>
+                  <span style="font-size: var(--text-sm); font-weight: 500; color: <%= amt.refund_amount > 0 ? 'var(--danger)' : 'var(--text-3)' %>; text-align: end;">
+                    <%= number_to_currency(amt.refund_amount, unit: "", separator: ".", delimiter: ",") %>
+                  </span>
+                  <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); text-align: end;">
+                    <%= number_to_currency(amt.net_amount, unit: "", separator: ".", delimiter: ",") %>
+                  </span>
+                </div>
+              <% end %>
+            <% end %>
+
+            <%# ── Grand total footer ───────────────────────────────────────── %>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-4) var(--space-5); background: rgba(var(--accent-rgb),0.05);">
+              <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+                <%= t("finance.daily_reconciliations.show.employee_summary_grand_total") %>
+              </span>
+              <span style="font-size: var(--text-lg); font-weight: 700; color: var(--text-1);">
+                <%= number_to_currency(summary.grand_total, unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            </div>
+
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Verification notes ──────────────────────────────────────────────── %>
+  <% if @reconciliation.notes.present? %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-5); box-shadow: var(--shadow-sm);">
+      <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin: 0 0 var(--space-3);">
+        <%= t("common.notes") %>
+      </h2>
+      <p style="font-size: var(--text-sm); color: var(--text-1); margin: 0; white-space: pre-line; line-height: 1.6;">
+        <%= @reconciliation.notes %>
+      </p>
+    </div>
+  <% end %>
+
+  <%# ── Verify form / verified footer ──────────────────────────────────── %>
+  <% if policy(@reconciliation).verify? && !@reconciliation.verified? %>
+    <div style="background: var(--surface); border: 2px solid rgba(var(--accent-rgb), 0.35); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: flex-start; gap: var(--space-4);">
+        <div style="flex-shrink: 0; width: 40px; height: 40px; border-radius: var(--radius); background: rgba(var(--accent-rgb), 0.10); display: flex; align-items: center; justify-content: center; color: var(--accent);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <h2 style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-1);">
+            <%= t("finance.daily_reconciliations.show.verify_heading") %>
+          </h2>
+          <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 var(--space-4);">
+            <%= t("finance.daily_reconciliations.show.verify_hint") %>
+          </p>
+          <%= form_with url: verify_finance_daily_reconciliation_path(@reconciliation), method: :patch do |f| %>
+            <div class="form-group" style="margin-bottom: var(--space-4);">
+              <%= label_tag :notes, t("finance.daily_reconciliations.show.verify_notes_label"), class: "form-label" %>
+              <%= text_area_tag :notes, @reconciliation.notes,
+                    class: "form-control",
+                    rows: 2,
+                    placeholder: t("finance.daily_reconciliations.show.verify_notes_placeholder") %>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              <%= f.submit t("finance.daily_reconciliations.show.verify_submit"), class: "btn btn-primary" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% elsif @reconciliation.verified? %>
+    <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-4) 0; color: var(--text-2); font-size: var(--text-sm);">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+      <%= t("finance.daily_reconciliations.show.verified_on",
+            name: @reconciliation.verified_by.full_name,
+            time: l(@reconciliation.verified_at, format: :time_only)) %>
+    </div>
+  <% end %>
+
+</div>

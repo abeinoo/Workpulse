@@ -15,7 +15,7 @@ class PermissionRole < ApplicationRecord
                                pay_advances],
     adjustments:           %w[manage_adjustments approve_adjustments],
     requests:              %w[view_requests approve_requests],
-    shifts:                %w[view_shifts manage_shifts assign_shifts create_shift_closing],
+    shifts:                %w[view_shifts manage_shifts assign_shifts],
     reports:               %w[view_reports export_reports],
     inventory:             %w[view_inventory manage_inventory view_inventory_reports
                                manage_suppliers manage_products manage_stock_receipts
@@ -23,8 +23,18 @@ class PermissionRole < ApplicationRecord
                                manage_stock_counts post_stock_counts view_stock_count_reports],
     performance:           %w[view_performance manage_evaluation_templates
                                create_observations manage_reviews finalize_reviews],
-    finance_overview:      %w[view_finance_dashboard
-                               view_daily_reconciliation verify_daily_reconciliation],
+    daily_reconciliation:  %w[create_till_session
+                               view_daily_reconciliation
+                               view_session_totals
+                               close_till_session
+                               accept_till_handover
+                               create_till_deposit
+                               verify_daily_reconciliation
+                               edit_session_totals
+                               void_till_handover
+                               void_till_deposit
+                               settle_remaining_deposit_balance],
+    finance_overview:      %w[view_finance_dashboard],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
                                 manage_expense_tags manage_recurring_expenses
@@ -95,6 +105,26 @@ class PermissionRole < ApplicationRecord
     view_employee_balances manage_branch_revenue
   ].freeze
 
+  # Management-level Daily Reconciliation permissions — the only DR permissions
+  # that are scopable (branch/area/business) because they control cross-branch
+  # data visibility. Cashier-level DR permissions (create_till_session,
+  # view_session_totals, close_till_session, accept_till_handover,
+  # create_till_deposit) are NOT scopable — they always operate on the current
+  # branch session determined by the user's shift assignment.
+  DR_MANAGEMENT_PERMISSIONS = %w[
+    view_daily_reconciliation
+    verify_daily_reconciliation
+    edit_session_totals
+    void_till_handover
+    void_till_deposit
+    settle_remaining_deposit_balance
+  ].freeze
+
+  # Permissions where the minimum scope is "branch" — "Personal Only" (self)
+  # makes no sense because these permissions always relate to a branch, not
+  # an individual user's data. The permission form excludes "self" for these.
+  BRANCH_MINIMUM_SCOPE_PERMISSIONS = DR_MANAGEMENT_PERMISSIONS.freeze
+
   SCOPABLE_PERMISSIONS = (
     PERMISSION_GROUPS.slice(:employees, :attendance, :payroll, :adjustments, :requests, :shifts, :performance)
                      .values.flatten -
@@ -103,7 +133,8 @@ class PermissionRole < ApplicationRecord
          view_payroll_audit_log
          approve_adjustments manage_devices manage_shifts
          manage_evaluation_templates] +
-    BRANCH_SCOPABLE_PERMISSIONS
+    BRANCH_SCOPABLE_PERMISSIONS +
+    DR_MANAGEMENT_PERMISSIONS
   ).freeze
 
   # Canonical data-scope names. Branch membership is shift-driven; "area" is a
@@ -154,7 +185,14 @@ class PermissionRole < ApplicationRecord
     "approve_adjustments"    => %w[view_payroll],
     "approve_requests"       => %w[view_requests],
     "assign_shifts"          => %w[view_shifts],
-    "manage_obligations"     => %w[view_employees],
+    "create_till_deposit"    => %w[close_till_session],
+    "view_session_totals"    => %w[view_daily_reconciliation],
+    "verify_daily_reconciliation" => %w[view_daily_reconciliation],
+    "edit_session_totals"    => %w[view_daily_reconciliation],
+    "void_till_handover"     => %w[view_daily_reconciliation],
+    "void_till_deposit"                => %w[view_daily_reconciliation],
+    "settle_remaining_deposit_balance" => %w[view_daily_reconciliation],
+    "manage_obligations"               => %w[view_employees],
     "manage_inventory"       => %w[view_inventory],
     "manage_suppliers"       => %w[view_inventory],
     "manage_products"        => %w[view_inventory],

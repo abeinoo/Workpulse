@@ -1,6 +1,6 @@
 <%= form_with model: [ :finance, expense ], class: "form-card",
       data: {
-        controller: "line-items allocation expense-type-select",
+        controller: "line-items allocation expense-type-select expense-scope",
         expense_type_select_url_value: options_finance_expense_types_path,
         expense_type_select_placeholder_value: "— #{t('finance.expenses.select_type')}",
         expense_type_select_initial_type_id_value: expense.expense_type_id
@@ -42,7 +42,9 @@
         <%= f.select :branch_id,
               options_from_collection_for_select(@branches, :id, :name, expense.branch_id),
               { include_blank: "— #{t('finance.expenses.no_branch')}" },
-              class: "form-control" %>
+              class: "form-control",
+              data: { action: "change->expense-scope#branchChanged",
+                      "expense-scope-target": "branchSelect" } %>
         <p class="form-hint"><%= t("finance.expenses.branch_hint") %></p>
       </div>
     <% end %>
@@ -73,7 +75,8 @@
     </div>
   <% end %>
 
-  <% if current_user.owner? || current_user.manages_area? %>
+  <% if @show_shared_section %>
+  <div data-expense-scope-target="allocationSection"<%= expense.branch_id.present? ? " hidden" : "" %>>
     <div class="divider"></div>
     <h2 class="section-title"><%= t("finance.expenses.section_allocations") %></h2>
 
@@ -125,6 +128,7 @@
         <%= render "allocation_fields", f: alloc_f, branches: @branches %>
       <% end %>
     </template>
+  </div>
   <% end %>
 
   <div class="divider"></div>

@@ -148,6 +148,20 @@
     </div>
   </div>
 
+  <%# Internal Administrative Notes — only visible to managers, not employees %>
+  <% if @user.admin_notes.present? %>
+    <div class="card" style="margin-top: var(--space-6);">
+      <div class="card-header">
+        <h2 class="card-title" style="font-size: var(--text-lg);">
+          <%= t("admin.users.show.admin_notes") %>
+        </h2>
+      </div>
+      <div style="padding: var(--space-4);">
+        <p style="white-space: pre-wrap; font-size: var(--text-sm); color: var(--text-1); line-height: 1.6; margin: 0;"><%= @user.admin_notes %></p>
+      </div>
+    </div>
+  <% end %>
+
   <%# Documents — national ID front & back %>
   <% if @user.national_id_front.attached? || @user.national_id_back.attached? %>
     <div class="card" style="margin-top: var(--space-6);">

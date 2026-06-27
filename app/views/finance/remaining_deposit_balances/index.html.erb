@@ -1,0 +1,338 @@
+<% content_for :title, t("remaining_deposit_balances.index.title") %>
+<% business = current_user.business %>
+<% overdue_days = business.finance_overdue_days %>
+
+<%# ── Page header ── %>
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-5); flex-wrap: wrap;">
+  <div>
+    <h1 style="font-size: var(--text-2xl); font-weight: 800; color: var(--text-1); margin: 0 0 var(--space-1);">
+      <%= t("remaining_deposit_balances.index.title") %>
+    </h1>
+    <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0;">
+      <%= t("remaining_deposit_balances.index.subtitle") %>
+    </p>
+  </div>
+  <div style="display: flex; gap: var(--space-2); flex-shrink: 0;">
+    <%= link_to export_finance_remaining_deposit_balances_path(
+          status: @status_filter, quick: @quick_filter,
+          branch_id: @branch_filter, responsible_user_id: @employee_filter),
+          style: "display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: var(--text-sm); font-weight: 600; color: var(--text-2); text-decoration: none;" do %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <%= t("remaining_deposit_balances.index.export") %>
+    <% end %>
+  </div>
+</div>
+
+<%# ── Aging Dashboard — 5 summary cards ── %>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5);">
+  <%# Open cases %>
+  <div style="background: <%= @open_count > 0 ? 'rgba(202,138,4,0.06)' : 'var(--surface)' %>; border: 1px solid <%= @open_count > 0 ? 'rgba(202,138,4,0.3)' : 'var(--border)' %>; border-radius: var(--radius-lg); padding: var(--space-4);">
+    <p style="font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: 0 0 var(--space-1);">
+      <%= t("remaining_deposit_balances.index.open_balances_label") %>
+    </p>
+    <p style="font-size: var(--text-2xl); font-weight: 800; color: <%= @open_count > 0 ? 'var(--warning,#ca8a04)' : 'var(--text-1)' %>; margin: 0; font-variant-numeric: tabular-nums;">
+      <%= @open_count %>
+    </p>
+  </div>
+  <%# Total outstanding %>
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4);">
+    <p style="font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: 0 0 var(--space-1);">
+      <%= t("remaining_deposit_balances.index.total_outstanding") %>
+    </p>
+    <p style="font-size: var(--text-2xl); font-weight: 800; color: var(--warning,#ca8a04); margin: 0; font-variant-numeric: tabular-nums;">
+      <%= number_to_currency(@total_outstanding, unit: "", separator: ".", delimiter: ",") %>
+    </p>
+  </div>
+  <%# Overdue %>
+  <div style="background: <%= @overdue_count > 0 ? 'rgba(220,38,38,0.05)' : 'var(--surface)' %>; border: 1px solid <%= @overdue_count > 0 ? 'rgba(220,38,38,0.25)' : 'var(--border)' %>; border-radius: var(--radius-lg); padding: var(--space-4);">
+    <p style="font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: <%= @overdue_count > 0 ? 'var(--danger,#dc2626)' : 'var(--text-3)' %>; margin: 0 0 var(--space-1);">
+      <%= t("remaining_deposit_balances.index.overdue_label", days: overdue_days) %>
+    </p>
+    <p style="font-size: var(--text-2xl); font-weight: 800; color: <%= @overdue_count > 0 ? 'var(--danger,#dc2626)' : 'var(--text-1)' %>; margin: 0;">
+      <%= @overdue_count %>
+    </p>
+  </div>
+  <%# Oldest outstanding %>
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4);">
+    <p style="font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: 0 0 var(--space-1);">
+      <%= t("remaining_deposit_balances.index.oldest_open") %>
+    </p>
+    <p style="font-size: var(--text-2xl); font-weight: 800; margin: 0; font-variant-numeric: tabular-nums; color: <%= @oldest_days && @oldest_days >= overdue_days ? 'var(--danger,#dc2626)' : 'var(--text-1)' %>;">
+      <% if @oldest_days %>
+        <%= @oldest_days %><span style="font-size: var(--text-sm); font-weight: 500; color: var(--text-2);"> d</span>
+      <% else %>
+        —
+      <% end %>
+    </p>
+  </div>
+  <%# Average days open %>
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4);">
+    <p style="font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: 0 0 var(--space-1);">
+      <%= t("remaining_deposit_balances.index.avg_days_open") %>
+    </p>
+    <p style="font-size: var(--text-2xl); font-weight: 800; color: var(--text-1); margin: 0; font-variant-numeric: tabular-nums;">
+      <% if @avg_days_open %>
+        <%= @avg_days_open %><span style="font-size: var(--text-sm); font-weight: 500; color: var(--text-2);"> d</span>
+      <% else %>
+        —
+      <% end %>
+    </p>
+  </div>
+</div>
+
+<%# ── Status filter tabs ── %>
+<%
+  current_filter_params = {
+    status:              @status_filter,
+    quick:               @quick_filter,
+    branch_id:           @branch_filter,
+    responsible_user_id: @employee_filter
+  }.compact
+%>
+<div style="display: flex; gap: var(--space-1); border-bottom: 1px solid var(--border); margin-bottom: var(--space-4);">
+  <% [["open",       t("remaining_deposit_balances.statuses.open")],
+      ["settled",    t("remaining_deposit_balances.statuses.settled")],
+      ["written_off",t("remaining_deposit_balances.statuses.written_off")],
+      ["all",        t("remaining_deposit_balances.index.filter_all")]].each do |val, label| %>
+    <% active = @status_filter == val %>
+    <%= link_to label,
+          finance_remaining_deposit_balances_path(current_filter_params.merge(status: val, quick: nil)),
+          style: "padding: var(--space-2) var(--space-4); font-size: var(--text-sm); font-weight: #{active ? '700' : '500'}; color: #{active ? 'var(--accent)' : 'var(--text-2)'}; text-decoration: none; border-bottom: 2px solid #{active ? 'var(--accent)' : 'transparent'}; margin-bottom: -1px;" %>
+  <% end %>
+</div>
+
+<%# ── Quick filters + dropdowns ── %>
+<%= form_with url: finance_remaining_deposit_balances_path, method: :get,
+      style: "display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: flex-end; margin-bottom: var(--space-5);" do %>
+  <%= hidden_field_tag :status, @status_filter %>
+
+  <div style="display: flex; gap: var(--space-1); flex-wrap: wrap;">
+    <% [["overdue",   t("remaining_deposit_balances.index.filter_overdue")],
+        ["today",     t("remaining_deposit_balances.index.filter_today")],
+        ["this_week", t("remaining_deposit_balances.index.filter_this_week")]].each do |val, label| %>
+      <% active = @quick_filter == val %>
+      <%= link_to label,
+            finance_remaining_deposit_balances_path(current_filter_params.merge(quick: active ? nil : val)),
+            style: "display: inline-flex; align-items: center; padding: var(--space-1) var(--space-3); font-size: var(--text-xs); font-weight: 600; border-radius: 999px; border: 1px solid #{active ? 'var(--accent)' : 'var(--border)'}; background: #{active ? 'rgba(99,102,241,0.08)' : 'var(--surface)'}; color: #{active ? 'var(--accent)' : 'var(--text-2)'}; text-decoration: none;" %>
+    <% end %>
+  </div>
+
+  <% if @branches.size > 1 %>
+    <%= select_tag :branch_id,
+          options_for_select([[t("remaining_deposit_balances.index.filter_all_branches"), ""]] +
+            @branches.map { |b| [b.name, b.id] }, @branch_filter),
+          onchange: "this.form.submit()",
+          style: "padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); font-size: var(--text-sm); background: var(--surface);" %>
+  <% end %>
+
+  <%= select_tag :responsible_user_id,
+        options_for_select([[t("remaining_deposit_balances.index.filter_all_employees"), ""]] +
+          @employees.map { |u| [u.full_name, u.id] }, @employee_filter),
+        onchange: "this.form.submit()",
+        style: "padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); font-size: var(--text-sm); background: var(--surface);" %>
+
+  <% if @quick_filter || @branch_filter || @employee_filter %>
+    <%= link_to t("remaining_deposit_balances.index.clear_filters"),
+          finance_remaining_deposit_balances_path(status: @status_filter),
+          style: "font-size: var(--text-xs); color: var(--text-3); text-decoration: underline; align-self: center;" %>
+  <% end %>
+<% end %>
+
+<%# ── Balance list with checkboxes for batch operations ── %>
+<% if @balances.empty? %>
+  <div style="text-align: center; padding: var(--space-12) var(--space-6); color: var(--text-2);">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin: 0 auto var(--space-3); display: block; opacity: 0.4;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <p style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-1);"><%= t("remaining_deposit_balances.index.empty_title") %></p>
+    <p style="font-size: var(--text-sm); margin: 0;"><%= t("remaining_deposit_balances.index.empty_subtitle") %></p>
+  </div>
+<% else %>
+  <%# Select-all bar %>
+  <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); padding: var(--space-2) 0;">
+    <label style="display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-2); cursor: pointer; user-select: none;">
+      <input type="checkbox" id="bulk-select-all" style="width: 15px; height: 15px; cursor: pointer;">
+      <%= t("remaining_deposit_balances.index.select_all") %>
+    </label>
+    <span id="bulk-count-label" style="font-size: var(--text-xs); color: var(--text-3); display: none;"></span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+    <% @balances.each do |balance| %>
+      <% dr         = balance.daily_reconciliation %>
+      <% pm         = balance.till_deposit&.payment_method %>
+      <% deposited  = balance.till_deposit&.amount || 0 %>
+      <% expected   = deposited + balance.amount %>
+      <% is_open    = balance.open? %>
+      <% is_overdue = is_open && balance.age_hours >= overdue_days * 24 %>
+
+      <div class="rdb-card" data-balance-id="<%= balance.id %>" data-is-open="<%= is_open %>"
+           style="background: var(--surface); border: 1px solid <%= is_overdue ? 'rgba(220,38,38,0.3)' : 'var(--border)' %>; border-radius: var(--radius-lg); overflow: hidden; transition: border-color 0.1s;">
+
+        <%# Top row: checkbox + identity + CTA %>
+        <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border);">
+          <% if is_open %>
+            <input type="checkbox" class="bulk-checkbox" value="<%= balance.id %>"
+                   style="width: 15px; height: 15px; flex-shrink: 0; cursor: pointer;">
+          <% else %>
+            <div style="width: 15px; flex-shrink: 0;"></div>
+          <% end %>
+
+          <% dot_color = if is_open
+                           is_overdue ? 'var(--danger,#dc2626)' : 'var(--warning,#ca8a04)'
+                         elsif balance.settled?
+                           'var(--success,#16a34a)'
+                         else
+                           'var(--text-3)'
+                         end %>
+          <div style="width: 9px; height: 9px; border-radius: 50%; background: <%= dot_color %>; flex-shrink: 0;"></div>
+
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+              <%= link_to employee_profile_finance_remaining_deposit_balances_path(user_id: balance.responsible_user_id),
+                    style: "font-size: var(--text-sm); font-weight: 700; color: var(--text-1); text-decoration: none; hover:text-decoration: underline;" do %>
+                <%= balance.responsible_user.full_name %>
+              <% end %>
+              <span style="font-size: var(--text-xs); color: var(--text-3);">
+                <%= dr.branch.name %> &middot;
+                <%= l(dr.business_date || dr.opened_at.to_date, format: :medium) rescue dr.opened_at.strftime("%d %b %Y") %>
+              </span>
+              <% if pm %>
+                <span style="font-size: var(--text-xs); background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px var(--space-2);">
+                  <%= pm.display_name %>
+                </span>
+              <% end %>
+            </div>
+          </div>
+
+          <% if is_open %>
+            <div style="text-align: end; flex-shrink: 0;">
+              <p style="font-size: var(--text-xs); font-weight: 700; color: <%= balance.age_color %>; margin: 0;">
+                <%= balance.age_display %>
+              </p>
+            </div>
+          <% end %>
+
+          <%= link_to finance_remaining_deposit_balance_path(balance),
+                style: "display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-4); background: #{is_open ? 'var(--accent)' : 'var(--surface-2)'}; color: #{is_open ? 'white' : 'var(--text-2)'}; border-radius: var(--radius); font-size: var(--text-sm); font-weight: 600; text-decoration: none; flex-shrink: 0;" do %>
+            <%= is_open ? t("remaining_deposit_balances.index.action_receive") : t("remaining_deposit_balances.index.action_view") %>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+          <% end %>
+        </div>
+
+        <%# Bottom row: financial figures %>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr);">
+          <div style="padding: var(--space-3) var(--space-5); border-inline-end: 1px solid var(--border);">
+            <p style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); margin: 0 0 2px;">
+              <%= t("remaining_deposit_balances.index.col_expected") %>
+            </p>
+            <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0; font-variant-numeric: tabular-nums;">
+              <%= number_to_currency(expected, unit: "", separator: ".", delimiter: ",") %>
+            </p>
+          </div>
+          <div style="padding: var(--space-3) var(--space-5); border-inline-end: 1px solid var(--border);">
+            <p style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); margin: 0 0 2px;">
+              <%= t("remaining_deposit_balances.index.col_deposited") %>
+            </p>
+            <p style="font-size: var(--text-sm); font-weight: 700; color: var(--success,#16a34a); margin: 0; font-variant-numeric: tabular-nums;">
+              <%= number_to_currency(deposited, unit: "", separator: ".", delimiter: ",") %>
+            </p>
+          </div>
+          <div style="padding: var(--space-3) var(--space-5);">
+            <p style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); margin: 0 0 2px;">
+              <%= t("remaining_deposit_balances.index.col_outstanding") %>
+            </p>
+            <p style="font-size: var(--text-sm); font-weight: 800; color: <%= is_open ? 'var(--warning,#ca8a04)' : 'var(--text-2)' %>; margin: 0; font-variant-numeric: tabular-nums;">
+              <%= number_to_currency(is_open ? balance.remaining_amount : 0, unit: "", separator: ".", delimiter: ",") %>
+              <% unless is_open %>
+                <span style="font-size: var(--text-xs); font-weight: 600; color: var(--text-3);">(<%= t("remaining_deposit_balances.statuses.#{balance.status}") %>)</span>
+              <% end %>
+            </p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Floating bulk action bar ── %>
+  <div id="bulk-action-bar"
+       style="display: none; position: fixed; bottom: var(--space-6); left: 50%; transform: translateX(-50%); z-index: 50; background: var(--text-1); color: white; border-radius: var(--radius-lg); padding: var(--space-3) var(--space-5); box-shadow: 0 8px 32px rgba(0,0,0,0.25); display: none; align-items: center; gap: var(--space-4); flex-wrap: wrap; min-width: 420px;">
+    <span id="bulk-bar-label" style="font-size: var(--text-sm); font-weight: 600; white-space: nowrap;"></span>
+
+    <%# Bulk settle form %>
+    <%= form_with url: bulk_settle_finance_remaining_deposit_balances_path, method: :post,
+          id: "bulk-settle-form", style: "display: contents;" do |f| %>
+      <input type="hidden" name="balance_ids" id="bulk-ids-input" value="">
+      <div style="display: flex; align-items: center; gap: var(--space-2);">
+        <%= select_tag "payment_method_id",
+              options_for_select(business_payment_methods.map { |pm| [pm.display_name, pm.id] }),
+              prompt: t("remaining_deposit_balances.bulk.select_pm"),
+              style: "padding: var(--space-2) var(--space-3); border-radius: var(--radius); font-size: var(--text-sm); border: none; background: rgba(255,255,255,0.15); color: white;" %>
+        <%= f.submit t("remaining_deposit_balances.bulk.settle_all_btn"),
+              style: "padding: var(--space-2) var(--space-4); background: var(--success,#16a34a); color: white; border: none; border-radius: var(--radius); font-size: var(--text-sm); font-weight: 700; cursor: pointer; white-space: nowrap;" %>
+      </div>
+    <% end %>
+
+    <%# Export selected %>
+    <a id="bulk-export-link" href="#"
+       style="padding: var(--space-2) var(--space-4); background: rgba(255,255,255,0.15); color: white; border-radius: var(--radius); font-size: var(--text-sm); font-weight: 600; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: var(--space-1);">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <%= t("remaining_deposit_balances.bulk.export_btn") %>
+    </a>
+
+    <button onclick="clearBulkSelection()"
+            style="padding: var(--space-2); background: transparent; border: none; color: rgba(255,255,255,0.6); cursor: pointer; font-size: var(--text-sm);">✕</button>
+  </div>
+<% end %>
+
+<%# ── Bulk selection JS ── %>
+<%= javascript_tag nonce: true do %>
+(function() {
+  const EXPORT_BASE = "<%= j export_finance_remaining_deposit_balances_path %>"
+  const COUNT_LABEL_TPL = "<%= j t('remaining_deposit_balances.index.selected_count', count: '__N__') %>"
+
+  const bar        = document.getElementById("bulk-action-bar")
+  const idsInput   = document.getElementById("bulk-ids-input")
+  const exportLink = document.getElementById("bulk-export-link")
+  const barLabel   = document.getElementById("bulk-bar-label")
+  const countLabel = document.getElementById("bulk-count-label")
+  const selectAll  = document.getElementById("bulk-select-all")
+
+  function getChecked() {
+    return Array.from(document.querySelectorAll(".bulk-checkbox:checked")).map(cb => cb.value)
+  }
+
+  function update() {
+    const ids    = getChecked()
+    const count  = ids.length
+    const joined = ids.join(",")
+
+    if (bar) {
+      bar.style.display = count > 0 ? "flex" : "none"
+    }
+    if (idsInput)   idsInput.value = joined
+    if (exportLink) exportLink.href = EXPORT_BASE + "?balance_ids=" + joined + "&status=all"
+    if (barLabel)   barLabel.textContent = COUNT_LABEL_TPL.replace("__N__", count)
+    if (countLabel) {
+      countLabel.textContent = count > 0 ? COUNT_LABEL_TPL.replace("__N__", count) : ""
+      countLabel.style.display = count > 0 ? "inline" : "none"
+    }
+    if (selectAll) {
+      const all = document.querySelectorAll(".bulk-checkbox")
+      selectAll.indeterminate = count > 0 && count < all.length
+      selectAll.checked       = all.length > 0 && count === all.length
+    }
+  }
+
+  window.clearBulkSelection = function() {
+    document.querySelectorAll(".bulk-checkbox:checked").forEach(cb => cb.checked = false)
+    if (selectAll) selectAll.checked = false
+    update()
+  }
+
+  document.addEventListener("change", function(e) {
+    if (e.target.id === "bulk-select-all") {
+      document.querySelectorAll(".bulk-checkbox").forEach(cb => cb.checked = e.target.checked)
+    }
+    update()
+  })
+})()
+<% end %>

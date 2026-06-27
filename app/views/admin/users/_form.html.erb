@@ -342,6 +342,15 @@
     </div>
   </div>
 
+  <%# ── Internal Administrative Notes ─────────────────────────────── %>
+  <div class="form-group form-group--full">
+    <%= f.label :admin_notes, t("admin.users.form.admin_notes"), class: "form-label" %>
+    <%= f.text_area :admin_notes, rows: 4,
+          class: "form-control",
+          placeholder: t("admin.users.form.admin_notes_placeholder") %>
+    <p class="form-hint"><%= t("admin.users.form.admin_notes_hint") %></p>
+  </div>
+
   <div class="form-actions">
     <%= f.submit f.object.persisted? ? t("admin.users.edit.submit") : t("admin.users.new.submit"), class: "btn btn-primary" %>
     <%= link_to t("forms.cancel"), admin_users_path, class: "btn btn-ghost" %>

@@ -28,7 +28,7 @@ class Finance::ExpensesController < Finance::BaseController
 
   def new
     @expense = current_user.business.expenses.build(expense_date: Date.current)
-    auto_assign_branch_from_balance_account(@expense)
+    auto_assign_expense_branch(@expense)
     authorize @expense
     load_options
   end
@@ -36,7 +36,7 @@ class Finance::ExpensesController < Finance::BaseController
   def create
     @expense = current_user.business.expenses.build(expense_params)
     @expense.created_by = current_user
-    auto_assign_branch_from_balance_account(@expense)
+    auto_assign_expense_branch(@expense)
     authorize @expense
 
     if save_expense
@@ -129,11 +129,12 @@ class Finance::ExpensesController < Finance::BaseController
   end
 
   def load_options
-    @categories  = current_user.business.expense_categories.active.ordered
-    @types       = current_user.business.expense_types.active.ordered
-    @tags        = current_user.business.expense_tags.active.ordered
-    @hide_branch = hide_branch_selector?
-    @branches    = @hide_branch ? [] : assignable_branches
+    @categories          = current_user.business.expense_categories.active.ordered
+    @types               = current_user.business.expense_types.active.ordered
+    @tags                = current_user.business.expense_tags.active.ordered
+    @hide_branch         = hide_expense_branch_selector?
+    @branches            = @hide_branch ? [] : assignable_expense_branches
+    @show_shared_section = expense_branch_scope == "business"
   end
 
   def expense_params

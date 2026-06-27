@@ -132,6 +132,13 @@
                 <% end %>
 
                 <% if PermissionRole::SCOPABLE_PERMISSIONS.include?(perm) %>
+                  <%
+                    scope_choices = if PermissionRole::BRANCH_MINIMUM_SCOPE_PERMISSIONS.include?(perm)
+                                      PermissionRole::SCOPE_OPTIONS.reject { |s| s == "self" }
+                                    else
+                                      PermissionRole::SCOPE_OPTIONS
+                                    end
+                  %>
                   <div class="permission-scope-row"
                        data-permission-role-form-target="scopeRow"
                        data-for-perm="<%= perm %>"
@@ -139,7 +146,7 @@
                     <span class="permission-scope-row__label"><%= t("admin.permission_roles.form.scope_label") %></span>
                     <%= select_tag "permission_role[permission_scopes][#{perm}]",
                           options_for_select(
-                            PermissionRole::SCOPE_OPTIONS.map { |s| [t("admin.permission_roles.scopes.#{s}"), s] },
+                            scope_choices.map { |s| [t("admin.permission_roles.scopes.#{s}"), s] },
                             permission_role.scope_for(perm)
                           ),
                           class: "form-control form-control--xs permission-scope-select",
