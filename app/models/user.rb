@@ -173,23 +173,15 @@ class User < ApplicationRecord
     Branch.where(area_manager_id: id).pluck(:id)
   end
 
-  # True when the user has any management-level permission. Used only to select
-  # the management sidebar vs. the employee sidebar — every individual feature
-  # is still gated by its own can?() check.
-  def management_access?
-    can?(:view_employees)   || can?(:manage_employees)  ||
-      can?(:view_attendance) || can?(:manage_attendance) ||
-      can?(:view_payroll)    || can?(:finalize_payroll) ||
-      can?(:approve_requests) || can?(:view_requests)   ||
-      can?(:assign_shifts)   || can?(:manage_shifts)    || can?(:view_shifts)   ||
-      can?(:manage_branches) || can?(:manage_devices)   || can?(:manage_obligations) ||
-      can?(:manage_roles)    || can?(:manage_settings)  ||
-      can?(:approve_adjustments) || can?(:pay_advances) || can?(:manage_adjustments) ||
-      can?(:manage_salary_profiles) ||
-      can?(:view_performance)     || can?(:create_observations) || can?(:manage_reviews) ||
-      can?(:finalize_reviews)     || can?(:manage_evaluation_templates) ||
-      can?(:view_daily_reconciliation) || can?(:verify_daily_reconciliation) ||
-      can?(:edit_session_totals)  || can?(:void_till_handover) || can?(:void_till_deposit)
+  # Returns true when this user should see the management sidebar layout.
+  # Owners always get the management sidebar. All other users are routed by
+  # the workspace field on their PermissionRole — "management" → grouped
+  # management sidebar; "employee" → flat personal sidebar. Adding new
+  # permissions never requires touching this method.
+  def management_sidebar?
+    return true if owner?
+
+    permission_role&.management_workspace? || false
   end
 
   def can?(permission)

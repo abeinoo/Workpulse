@@ -2,6 +2,8 @@ module Finance
   # Writes off the full outstanding amount of an open RemainingDepositBalance.
   # Appends a write_off ledger transaction and closes the balance.
   class RemainingDepositBalanceWriteOff
+    include AuditLoggable
+
     Result = Struct.new(:ok, :balance, :transaction, :error, keyword_init: true) { def ok? = ok }
 
     def initialize(balance, actor:, notes: nil)
@@ -26,6 +28,9 @@ module Finance
           status:           "written_off",
           closed_at:        Time.current
         )
+
+        log_audit(actor: @actor, auditable: @balance, action: "write_off",
+                  metadata: { amount: @balance.amount.to_s })
 
         Result.new(ok: true, balance: @balance, transaction: txn)
       end

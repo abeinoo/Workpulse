@@ -1,5 +1,5 @@
 class Performance::DashboardController < Performance::BaseController
-  before_action :require_reporting_access!
+  before_action :require_dashboard_access!
 
   def index
     @year      = (params[:year].presence || Date.current.year).to_i
@@ -17,8 +17,8 @@ class Performance::DashboardController < Performance::BaseController
 
   private
 
-  def require_reporting_access!
-    return if current_user.can?(:view_performance) || current_user.can?(:manage_reviews)
+  def require_dashboard_access!
+    return if current_user.can?(:view_performance_dashboard)
 
     redirect_to root_path, alert: t("flash.not_authorized")
   end

@@ -39,6 +39,18 @@
             } %>
       <p class="form-hint"><%= t("admin.permission_roles.form.role_type_hint") %></p>
     </div>
+
+    <div class="form-group">
+      <%= f.label :workspace, t("admin.permission_roles.form.workspace_label"), class: "form-label" %>
+      <%= f.select :workspace,
+            options_for_select(
+              PermissionRole.workspaces.keys.map { |w| [t("admin.permission_roles.workspaces.#{w}"), w] },
+              permission_role.workspace
+            ),
+            {},
+            class: "form-control" %>
+      <p class="form-hint"><%= t("admin.permission_roles.form.workspace_hint") %></p>
+    </div>
   </div>
 
   <div class="form-section">

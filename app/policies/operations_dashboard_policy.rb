@@ -1,3 +1,3 @@
 class OperationsDashboardPolicy < ApplicationPolicy
-  def index? = can?(:view_payroll) || can?(:view_attendance) || can?(:approve_requests)
+  def index? = can?(:view_reports)
 end

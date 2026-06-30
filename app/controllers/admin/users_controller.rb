@@ -42,7 +42,7 @@ class Admin::UsersController < Admin::BaseController
     @salary_profiles = @user.salary_profiles.order(effective_from: :desc)
 
     # Performance tab — finalized reviews for this employee, newest first.
-    if current_user.can?(:view_performance)
+    if current_user.can?(:view_monthly_reviews)
       @performance_reviews = @user.performance_reviews
                                   .includes(:department)
                                   .finalized_reviews.recent_first.limit(12)

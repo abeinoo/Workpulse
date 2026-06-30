@@ -4,13 +4,16 @@ class Performance::BaseController < ApplicationController
 
   private
 
-  # Anyone who can view, observe, review, finalize, or manage templates may
-  # enter the module; finer-grained authorization is per-action via Pundit.
+  # Any of the four view permissions or any write permission grants entry to the
+  # module. Per-action authorization is enforced by Pundit in each controller.
   def require_performance_access!
-    return if current_user.can?(:view_performance)        ||
-              current_user.can?(:create_observations)     ||
-              current_user.can?(:manage_reviews)          ||
-              current_user.can?(:finalize_reviews)        ||
+    return if current_user.can?(:view_performance_dashboard) ||
+              current_user.can?(:view_notes)                 ||
+              current_user.can?(:view_monthly_reviews)       ||
+              current_user.can?(:view_performance_reports)   ||
+              current_user.can?(:create_observations)        ||
+              current_user.can?(:manage_reviews)             ||
+              current_user.can?(:finalize_reviews)           ||
               current_user.can?(:manage_evaluation_templates)
 
     redirect_to root_path, alert: t("flash.not_authorized")
@@ -21,7 +24,8 @@ class Performance::BaseController < ApplicationController
   def selectable_employees
     base = current_user.business.users.active
     configured = current_user.scope_for(:create_observations) ||
-                 current_user.scope_for(:view_performance)
+                 current_user.scope_for(:view_notes)          ||
+                 current_user.scope_for(:view_performance_dashboard)
 
     if current_user.owner? || configured == "business"
       base.order(:first_name, :last_name)

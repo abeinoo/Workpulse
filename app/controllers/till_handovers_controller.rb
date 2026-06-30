@@ -1,6 +1,6 @@
 class TillHandoversController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_handover, only: %i[show accept]
+  before_action :set_handover, only: %i[show accept cancel reverse_form reverse new_adjustment create_adjustment]
 
   # GET /my_shift
   # Redirects cashiers to the active reconciliation page.
@@ -12,6 +12,11 @@ class TillHandoversController < ApplicationController
       @state = :no_branch
       return
     end
+
+    # A waiting_for_opening DR takes precedence — cashier must receive the float
+    # before any other till operations are available.
+    waiting_recon = DailyReconciliation.waiting_for(branch)
+    return redirect_to finance_daily_reconciliation_path(waiting_recon) if waiting_recon
 
     open_recon = DailyReconciliation.open_for(branch)
     if open_recon
@@ -77,6 +82,84 @@ class TillHandoversController < ApplicationController
     @amounts = @handover.amounts.eager_load(:payment_method).order("payment_methods.position")
   end
 
+  # PATCH /till_handovers/:id/cancel
+  def cancel
+    authorize @handover
+
+    result = Finance::TillHandoverCanceller.new(@handover, actor: current_user).call
+
+    dest = finance_daily_reconciliation_path(@handover.daily_reconciliation)
+
+    if result.ok?
+      redirect_to dest, notice: t("till_handovers.cancelled")
+    else
+      redirect_to dest, alert: result.error
+    end
+  end
+
+  # GET /till_handovers/:id/reverse_form
+  def reverse_form
+    authorize @handover, :reverse?
+    @reason_codes = Finance::TillHandoverReverser::REVERSAL_REASON_CODES
+    @amounts = @handover.amounts.eager_load(:payment_method).order("payment_methods.position")
+  end
+
+  # PATCH /till_handovers/:id/reverse
+  def reverse
+    authorize @handover, :reverse?
+
+    result = Finance::TillHandoverReverser.new(
+      handover:     @handover,
+      actor:        current_user,
+      reason_code:  params[:reason_code],
+      reason_notes: params[:reason_notes]
+    ).call
+
+    dest = finance_daily_reconciliation_path(@handover.daily_reconciliation)
+
+    if result.ok?
+      redirect_to dest, notice: t("till_handovers.reversed")
+    else
+      @reason_codes = Finance::TillHandoverReverser::REVERSAL_REASON_CODES
+      @amounts = @handover.amounts.eager_load(:payment_method).order("payment_methods.position")
+      flash.now[:alert] = result.error
+      render :reverse_form, status: :unprocessable_entity
+    end
+  end
+
+  # GET /till_handovers/:id/new_adjustment
+  def new_adjustment
+    authorize @handover, :adjust?
+    @reason_codes  = Finance::TillHandoverAdjuster::REASON_CODES
+    @amounts       = @handover.amounts.eager_load(:payment_method).order("payment_methods.position")
+    @payment_methods = business_payment_methods
+  end
+
+  # POST /till_handovers/:id/create_adjustment
+  def create_adjustment
+    authorize @handover, :adjust?
+
+    result = Finance::TillHandoverAdjuster.new(
+      handover:    @handover,
+      actor:       current_user,
+      reason_code: params[:reason_code],
+      notes:       params[:notes],
+      after_data:  after_data_params
+    ).call
+
+    dest = finance_daily_reconciliation_path(@handover.daily_reconciliation)
+
+    if result.ok?
+      redirect_to dest, notice: t("till_handovers.adjustment_recorded")
+    else
+      @reason_codes    = Finance::TillHandoverAdjuster::REASON_CODES
+      @amounts         = @handover.amounts.eager_load(:payment_method).order("payment_methods.position")
+      @payment_methods = business_payment_methods
+      flash.now[:alert] = result.error
+      render :new_adjustment, status: :unprocessable_entity
+    end
+  end
+
   # PATCH /till_handovers/:id/accept
   def accept
     authorize @handover
@@ -116,9 +199,11 @@ class TillHandoversController < ApplicationController
                                                &.pending
                                                &.exists?(from_user_id: current_user.id,
                                                          self_deposit: false)
-    @can_close_session = holder.present? &&
-                         holder == current_user &&
-                         !has_pending_outgoing
+    # Allow closing when nobody explicitly holds the till (nil) OR when the
+    # actor is the current holder.  Only block if someone else holds it.
+    # This mirrors validate_actor_is_holder! in TillHandoverCreator exactly.
+    nobody_else_holds = holder.nil? || holder == current_user
+    @can_close_session = nobody_else_holds && !has_pending_outgoing
 
     last_received = @open_reconciliation&.till_handovers
                                         &.accepted
@@ -164,5 +249,19 @@ class TillHandoversController < ApplicationController
       amounts: {},
       next_day_amounts: {}
     )
+  end
+
+  # Collects the after_amounts hash from the adjustment form.
+  # Each key is a payment_method_id; value is a hash with collected/refund amounts.
+  def after_data_params
+    return [] unless params[:after_data].present?
+
+    params.require(:after_data).to_unsafe_h.map do |pm_id, values|
+      {
+        payment_method_id:   pm_id.to_i,
+        collected_amount:    values[:collected_amount].to_s,
+        refund_amount:       values[:refund_amount].to_s
+      }
+    end.reject { |e| e[:collected_amount].blank? && e[:refund_amount].blank? }
   end
 end

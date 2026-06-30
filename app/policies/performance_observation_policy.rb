@@ -1,5 +1,5 @@
 class PerformanceObservationPolicy < ApplicationPolicy
-  def index?  = can?(:view_performance) || can?(:create_observations)
+  def index?  = can?(:view_notes) || can?(:create_observations)
   def show?   = index? && same_business?
   def create? = can?(:create_observations)
   def new?    = create?
@@ -13,7 +13,7 @@ class PerformanceObservationPolicy < ApplicationPolicy
     def resolve
       base = scope.for_business(user.business)
 
-      configured = user.scope_for(:view_performance) || user.scope_for(:create_observations)
+      configured = user.scope_for(:view_notes) || user.scope_for(:create_observations)
       if user.owner? || configured == "business"
         base
       elsif configured

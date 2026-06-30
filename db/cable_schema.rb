@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_400000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -436,13 +436,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
     t.datetime "deposited_at"
     t.text "notes"
     t.datetime "opened_at", null: false
+    t.bigint "opening_float_source_handover_id"
     t.string "state", default: "open", null: false
     t.datetime "updated_at", null: false
     t.datetime "verified_at"
     t.bigint "verified_by_id"
+    t.index ["branch_id", "business_date"], name: "idx_dr_unique_closed_per_branch_per_date", unique: true, where: "((business_date IS NOT NULL) AND ((state)::text <> ALL ((ARRAY['open'::character varying, 'waiting_for_opening'::character varying])::text[])))"
     t.index ["branch_id"], name: "idx_dr_one_open_per_branch", unique: true, where: "((state)::text = 'open'::text)"
+    t.index ["branch_id"], name: "idx_dr_one_waiting_per_branch", unique: true, where: "((state)::text = 'waiting_for_opening'::text)"
     t.index ["branch_id"], name: "index_dr_on_branch_id"
     t.index ["business_id"], name: "index_dr_on_business_id"
+    t.index ["opening_float_source_handover_id"], name: "index_dr_on_opening_float_source_handover_id"
     t.index ["verified_by_id"], name: "index_daily_reconciliations_on_verified_by_id"
   end
 
@@ -718,6 +722,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
     t.index ["external_sales_import_id", "row_status"], name: "idx_on_external_sales_import_id_row_status_608612d9ec"
     t.index ["external_sales_import_id"], name: "index_external_sales_rows_on_external_sales_import_id"
     t.index ["payment_method_id"], name: "index_external_sales_rows_on_payment_method_id"
+  end
+
+  create_table "financial_adjustments", force: :cascade do |t|
+    t.bigint "actor_id", null: false
+    t.bigint "adjustable_id", null: false
+    t.string "adjustable_type", null: false
+    t.jsonb "after_data", default: {}, null: false
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.jsonb "before_data", default: {}, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.text "notes", null: false
+    t.string "reason_code", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_financial_adjustments_on_actor_id"
+    t.index ["adjustable_type", "adjustable_id"], name: "index_financial_adjustments_on_adjustable"
+    t.index ["approved_by_id"], name: "index_financial_adjustments_on_approved_by_id"
+    t.index ["business_id"], name: "index_financial_adjustments_on_business_id"
+    t.index ["created_at"], name: "index_financial_adjustments_on_created_at"
+    t.index ["reason_code"], name: "index_financial_adjustments_on_reason_code"
   end
 
   create_table "goods_receipt_items", force: :cascade do |t|
@@ -1069,8 +1094,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
     t.jsonb "permissions", default: [], null: false
     t.string "role_type"
     t.datetime "updated_at", null: false
+    t.string "workspace", default: "management", null: false
     t.index ["business_id", "name"], name: "index_permission_roles_on_business_id_and_name", unique: true
     t.index ["business_id"], name: "index_permission_roles_on_business_id"
+    t.index ["workspace"], name: "index_permission_roles_on_workspace"
   end
 
   create_table "pos_terminals", force: :cascade do |t|
@@ -1749,6 +1776,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
   create_table "till_handovers", force: :cascade do |t|
     t.datetime "accepted_at"
     t.text "accepted_notes"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
     t.datetime "created_at", null: false
     t.bigint "daily_reconciliation_id", null: false
     t.decimal "float_amount", precision: 12, scale: 2
@@ -1756,10 +1785,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
     t.text "from_notes"
     t.bigint "from_user_id", null: false
     t.text "notes"
+    t.bigint "reversal_of_handover_id"
+    t.text "reversal_reason"
+    t.datetime "reversed_at"
+    t.bigint "reversed_by_id"
     t.boolean "self_deposit", default: false, null: false
     t.bigint "to_user_id"
     t.datetime "updated_at", null: false
+    t.index ["cancelled_by_id"], name: "index_till_handovers_on_cancelled_by_id"
     t.index ["daily_reconciliation_id"], name: "index_till_handovers_on_dr_id"
+    t.index ["reversal_of_handover_id"], name: "idx_till_handovers_one_reversal_per_original", unique: true, where: "(reversal_of_handover_id IS NOT NULL)"
+    t.index ["reversal_of_handover_id"], name: "index_till_handovers_on_reversal_of_handover_id"
+    t.index ["reversed_by_id"], name: "index_till_handovers_on_reversed_by_id"
   end
 
   create_table "till_session_amounts", force: :cascade do |t|
@@ -1926,6 +1963,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
   add_foreign_key "daily_closings", "users", column: "verified_by_id"
   add_foreign_key "daily_reconciliations", "branches"
   add_foreign_key "daily_reconciliations", "businesses"
+  add_foreign_key "daily_reconciliations", "till_handovers", column: "opening_float_source_handover_id"
   add_foreign_key "daily_reconciliations", "users", column: "verified_by_id"
   add_foreign_key "departments", "businesses"
   add_foreign_key "deposit_responsibility_transfers", "daily_reconciliations"
@@ -1967,6 +2005,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
   add_foreign_key "external_sales_imports", "users", column: "uploaded_by_id"
   add_foreign_key "external_sales_rows", "external_sales_imports"
   add_foreign_key "external_sales_rows", "payment_methods"
+  add_foreign_key "financial_adjustments", "businesses"
+  add_foreign_key "financial_adjustments", "users", column: "actor_id"
+  add_foreign_key "financial_adjustments", "users", column: "approved_by_id"
   add_foreign_key "goods_receipt_items", "goods_receipts"
   add_foreign_key "goods_receipt_items", "products"
   add_foreign_key "goods_receipts", "businesses"
@@ -2116,7 +2157,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_140000) do
   add_foreign_key "till_handover_amounts", "payment_methods"
   add_foreign_key "till_handover_amounts", "till_handovers"
   add_foreign_key "till_handovers", "daily_reconciliations"
+  add_foreign_key "till_handovers", "till_handovers", column: "reversal_of_handover_id"
+  add_foreign_key "till_handovers", "users", column: "cancelled_by_id"
   add_foreign_key "till_handovers", "users", column: "from_user_id"
+  add_foreign_key "till_handovers", "users", column: "reversed_by_id"
   add_foreign_key "till_handovers", "users", column: "to_user_id"
   add_foreign_key "till_session_amounts", "daily_reconciliations"
   add_foreign_key "till_session_amounts", "payment_methods"

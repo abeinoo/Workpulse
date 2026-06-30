@@ -1,5 +1,5 @@
 class Performance::ReportsController < Performance::BaseController
-  before_action :require_reporting_access!
+  before_action :require_reports_access!
   before_action :set_analytics
 
   def index
@@ -27,8 +27,8 @@ class Performance::ReportsController < Performance::BaseController
     @analytics = Performance::Analytics.new(current_user.business, year: @year)
   end
 
-  def require_reporting_access!
-    return if current_user.can?(:view_performance) || current_user.can?(:manage_reviews)
+  def require_reports_access!
+    return if current_user.can?(:view_performance_reports)
 
     redirect_to root_path, alert: t("flash.not_authorized")
   end

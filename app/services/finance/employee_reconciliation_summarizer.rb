@@ -55,13 +55,18 @@ module Finance
 
     # Returns summaries ready for display.
     # Loads from DB if already persisted; computes live otherwise.
-    def summaries
+    # Pass for_user: to restrict results to a single user (own-only permission).
+    def summaries(for_user: nil)
       stored = @dr.employee_reconciliation_summaries
                   .includes(:user, amounts: :payment_method)
                   .order(:created_at)
+      stored = stored.where(user: for_user) if for_user
       return db_to_rows(stored) if stored.any?
 
-      live_rows
+      rows = live_rows
+      return rows.select { |r| r.user&.id == for_user.id } if for_user
+
+      rows
     end
 
     private

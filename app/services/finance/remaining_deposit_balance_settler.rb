@@ -3,6 +3,8 @@ module Finance
   # a ledger transaction.  The balance closes automatically when remaining_amount
   # reaches zero.
   class RemainingDepositBalanceSettler
+    include AuditLoggable
+
     Result = Struct.new(:ok, :balance, :transaction, :error, keyword_init: true) { def ok? = ok }
 
     def initialize(balance, actor:, amount:, notes: nil, payment_method_id: nil, reference_number: nil)
@@ -37,6 +39,11 @@ module Finance
           status:           fully_settled ? "settled" : "open",
           closed_at:        fully_settled ? Time.current : nil
         )
+
+        log_audit(actor: @actor, auditable: @balance, action: "settle",
+                  metadata: { amount: @amount.to_s, fully_settled: fully_settled,
+                               payment_method_id: @payment_method_id,
+                               reference_number:  @reference_number })
 
         Result.new(ok: true, balance: @balance, transaction: txn)
       end

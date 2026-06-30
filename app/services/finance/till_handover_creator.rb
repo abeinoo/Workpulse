@@ -19,13 +19,21 @@ module Finance
       @daily_reconciliation = daily_reconciliation
       @business             = daily_reconciliation.business
       @params               = params
-      @fresha_date          = BusinessDay.current(context: @business)
+      # Use the DR's own business_date as the single source of truth.
+      # Falling back to BusinessDay.current only for legacy open DRs that were
+      # created before business_date was stamped at open time.
+      @fresha_date = daily_reconciliation.business_date ||
+                     BusinessDay.current(context: @business)
     end
 
     def call
       ActiveRecord::Base.transaction do
         session = @daily_reconciliation.till_session
         raise ArgumentError, I18n.t("till_handovers.errors.no_open_session") unless session
+
+        if @daily_reconciliation.blocked_by_opening_float?
+          raise ArgumentError, I18n.t("till_handovers.errors.opening_float_pending")
+        end
 
         validate_no_pending_outgoing!
         validate_actor_is_holder!(session) if self_deposit?
@@ -202,9 +210,10 @@ module Finance
       end
 
       @daily_reconciliation.update!(
-        state:         "closed",
-        closed_at:     now,
-        business_date: @fresha_date
+        state:     "closed",
+        closed_at: now
+        # business_date is stamped at DR creation via create_for! — do not
+        # override here, which would corrupt DRs closed after midnight.
       )
 
       session.update!(closed_by: @actor, depositor: @actor)
@@ -221,6 +230,16 @@ module Finance
       end
 
       Finance::EmployeeReconciliationSummarizer.new(@daily_reconciliation).persist!
+
+      if next_day_amounts_present?
+        result = Finance::NextDayDrPreparer.new(
+          branch:          @daily_reconciliation.branch,
+          business:        @business,
+          actor:           @actor,
+          source_handover: handover
+        ).call
+        raise ArgumentError, result.error unless result.ok?
+      end
     end
   end
 end

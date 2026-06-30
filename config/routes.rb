@@ -263,7 +263,14 @@ Rails.application.routes.draw do
   get "my_shift", to: "till_handovers#my_shift", as: :my_shift
 
   resources :till_handovers, only: %i[new create show] do
-    member { patch :accept }
+    member do
+      patch :accept
+      patch :cancel
+      get   :reverse_form
+      patch :reverse
+      get   :new_adjustment
+      post  :create_adjustment
+    end
   end
 
   resources :deposit_responsibility_transfers, only: %i[show] do
@@ -403,15 +410,17 @@ Rails.application.routes.draw do
       member do
         patch :verify
         patch :assign_depositor
+        post  :receive_opening_float
+        get   :edit_session_totals
+        patch :update_session_totals
+      end
+      collection do
+        post :bulk_receive_opening_float
+        post :bulk_settle
       end
     end
 
-    resources :remaining_deposit_balances, only: %i[index show] do
-      collection do
-        get  :export
-        get  :employee_profile
-        post :bulk_settle
-      end
+    resources :remaining_deposit_balances, only: %i[show] do
       member do
         patch :settle
         patch :write_off

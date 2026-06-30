@@ -3,6 +3,8 @@ module Finance
   # without changing the outstanding amount.  Appends a ledger transaction so
   # the full chain of custody is preserved.
   class RemainingDepositBalanceReassigner
+    include AuditLoggable
+
     Result = Struct.new(:ok, :balance, :transaction, :error, keyword_init: true) { def ok? = ok }
 
     def initialize(balance, actor:, new_user:, notes: nil)
@@ -28,6 +30,9 @@ module Finance
         )
 
         @balance.update!(responsible_user: @new_user)
+
+        log_audit(actor: @actor, auditable: @balance, action: "reassign",
+                  metadata: { from_user_id: prev_user.id, to_user_id: @new_user.id })
 
         Result.new(ok: true, balance: @balance, transaction: txn)
       end

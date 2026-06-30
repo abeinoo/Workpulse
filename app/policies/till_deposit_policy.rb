@@ -4,11 +4,13 @@ class TillDepositPolicy < ApplicationPolicy
 
   def create?
     can?(:create_till_deposit) &&
-      record.daily_reconciliation.closed? &&
+      (record.daily_reconciliation.closed? || record.daily_reconciliation.deposited?) &&
       record.daily_reconciliation.till_session&.depositor_id == user.id
   end
 
-  def void? = can?(:void_till_deposit)
+  def void?
+    can?(:void_till_deposit) && !record.daily_reconciliation.verified?
+  end
 
   class Scope < ApplicationPolicy::Scope
     def resolve

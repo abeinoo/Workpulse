@@ -369,7 +369,7 @@
   <% end %>
 
   <%# ── Performance tab ─────────────────────────────────────── %>
-  <% if current_user.can?(:view_performance) %>
+  <% if current_user.can?(:view_monthly_reviews) %>
     <div class="card" style="margin-top: var(--space-5);">
       <div class="card-header">
         <h2 class="section-title" style="margin: 0;"><%= t("performance.profile.title") %></h2>

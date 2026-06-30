@@ -8,7 +8,7 @@
 
   <nav class="sidebar__nav" aria-label="<%= t('nav.dashboard') %>">
 
-    <% if current_user.management_access? %>
+    <% if current_user.management_sidebar? %>
 
       <%# ── DASHBOARD ────────────────────────────────────────────────── %>
       <span class="sidebar__section-label"><%= t("nav.section_dashboard") %></span>
@@ -20,7 +20,7 @@
         <%= t("nav.dashboard") %>
       <% end %>
 
-      <% if current_user.can?(:view_payroll) || current_user.can?(:view_attendance) || current_user.can?(:approve_requests) %>
+      <% if current_user.can?(:view_reports) %>
         <%= link_to operations_dashboard_path,
               class: "sidebar__nav-item #{controller_name == 'operations_dashboard' ? 'is-active' : ''}",
               data: { action: "click->sidebar#close" } do %>
@@ -77,7 +77,7 @@
           <%= link_to admin_shift_rule_profiles_path,
                 class: "sidebar__nav-item #{controller_name == 'shift_rule_profiles' ? 'is-active' : ''}",
                 data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
             <%= t("nav.shift_rule_profiles") %>
           <% end %>
         <% end %>
@@ -94,7 +94,7 @@
           <%= link_to attendance_records_path,
                 class: "sidebar__nav-item #{controller_name == 'attendance_records' && !request.path.start_with?('/admin') ? 'is-active' : ''}",
                 data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 01-2 2H5a2 2 01-2-2V5a2 2 012-2h11"/></svg>
             <%= t("nav.attendance_logs") %>
           <% end %>
         <% end %>
@@ -146,134 +146,84 @@
         <% end %>
       <% end %>
 
-      <%# ── INVENTORY (collapsible) ──────────────────────────────────── %>
+      <%# ── INVENTORY ────────────────────────────────────────────────── %>
       <% if current_user.can?(:view_inventory) || current_user.can?(:manage_inventory) || current_user.can?(:view_inventory_reports) %>
-        <% inventory_active = request.path.start_with?("/inventory") %>
-        <details class="sidebar__group" <%= 'open' if inventory_active %>>
-          <summary class="sidebar__section-label sidebar__group-toggle">
-            <%= t("nav.section_inventory") %>
-            <svg class="sidebar__group-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-          </summary>
+        <span class="sidebar__section-label"><%= t("nav.section_inventory") %></span>
 
-          <%= link_to inventory_root_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('inventory') ? 'is-active' : ''}",
+        <%= link_to inventory_root_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('inventory') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <%= t("nav.inventory_dashboard") %>
+        <% end %>
+
+        <%= link_to inventory_products_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name.in?(%w[products brands product_categories]) && controller_path.start_with?('inventory') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          <%= t("nav.inventory_products") %>
+        <% end %>
+
+        <%= link_to inventory_warehouses_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'warehouses' ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35"/><path d="M2 8.35l10-5.5 10 5.5"/><path d="M6 22V12h12v10"/></svg>
+          <%= t("nav.inventory_warehouses") %>
+        <% end %>
+
+        <%= link_to inventory_suppliers_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'suppliers' ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          <%= t("nav.inventory_suppliers") %>
+        <% end %>
+
+        <%= link_to inventory_goods_receipts_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'goods_receipts' ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>
+          <%= t("nav.inventory_goods_receipts") %>
+        <% end %>
+
+        <%= link_to inventory_stock_issues_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'stock_issues' ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+          <%= t("nav.inventory_stock_issues") %>
+        <% end %>
+
+        <%= link_to inventory_stock_transfers_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'stock_transfers' ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          <%= t("nav.inventory_stock_transfers") %>
+        <% end %>
+
+        <%= link_to inventory_stock_adjustments_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'stock_adjustments' ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          <%= t("nav.inventory_stock_adjustments") %>
+        <% end %>
+
+        <%= link_to inventory_stock_counts_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'stock_counts' ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <%= t("nav.inventory_stock_counts") %>
+        <% end %>
+
+        <% if current_user.can?(:view_inventory_reports) || current_user.can?(:view_inventory) || current_user.can?(:manage_inventory) %>
+          <%= link_to inventory_reports_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reports' && controller_path.start_with?('inventory') ? 'is-active' : ''}",
                 data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            <%= t("nav.inventory_dashboard") %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+            <%= t("nav.inventory_reports") %>
           <% end %>
-
-          <%= link_to inventory_products_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name.in?(%w[products brands product_categories]) && controller_path.start_with?('inventory') ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-            <%= t("nav.inventory_products") %>
-          <% end %>
-
-          <%= link_to inventory_warehouses_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'warehouses' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35"/><path d="M2 8.35l10-5.5 10 5.5"/><path d="M6 22V12h12v10"/></svg>
-            <%= t("nav.inventory_warehouses") %>
-          <% end %>
-
-          <%= link_to inventory_suppliers_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'suppliers' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-            <%= t("nav.inventory_suppliers") %>
-          <% end %>
-
-          <%= link_to inventory_goods_receipts_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'goods_receipts' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>
-            <%= t("nav.inventory_goods_receipts") %>
-          <% end %>
-
-          <%= link_to inventory_stock_issues_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'stock_issues' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
-            <%= t("nav.inventory_stock_issues") %>
-          <% end %>
-
-          <%= link_to inventory_stock_transfers_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'stock_transfers' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-            <%= t("nav.inventory_stock_transfers") %>
-          <% end %>
-
-          <%= link_to inventory_stock_adjustments_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'stock_adjustments' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
-            <%= t("nav.inventory_stock_adjustments") %>
-          <% end %>
-
-          <%= link_to inventory_stock_counts_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'stock_counts' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            <%= t("nav.inventory_stock_counts") %>
-          <% end %>
-
-          <% if current_user.can?(:view_inventory_reports) || current_user.can?(:view_inventory) || current_user.can?(:manage_inventory) %>
-            <%= link_to inventory_reports_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reports' && controller_path.start_with?('inventory') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-              <%= t("nav.inventory_reports") %>
-            <% end %>
-          <% end %>
-        </details>
+        <% end %>
       <% end %>
 
-      <%# ── PERFORMANCE (collapsible) ─────────────────────────────────── %>
-      <% if current_user.can?(:view_performance) || current_user.can?(:create_observations) ||
-            current_user.can?(:manage_reviews)   || current_user.can?(:finalize_reviews) %>
-        <% performance_active = request.path.start_with?("/performance") %>
-        <details class="sidebar__group" <%= 'open' if performance_active %>>
-          <summary class="sidebar__section-label sidebar__group-toggle">
-            <%= t("nav.section_performance") %>
-            <svg class="sidebar__group-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-          </summary>
-
-          <% if current_user.can?(:view_performance) || current_user.can?(:manage_reviews) %>
-            <%= link_to performance_root_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('performance') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-              <%= t("nav.performance_dashboard") %>
-            <% end %>
-          <% end %>
-
-          <%= link_to performance_observations_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'observations' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            <%= t("nav.performance_observations") %>
-          <% end %>
-
-          <%= link_to performance_reviews_path,
-                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reviews' ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/></svg>
-            <%= t("nav.performance_reviews") %>
-          <% end %>
-
-          <% if current_user.can?(:view_performance) || current_user.can?(:manage_reviews) %>
-            <%= link_to performance_reports_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reports' && controller_path.start_with?('performance') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="14" y="6" width="3" height="11"/></svg>
-              <%= t("nav.performance_reports") %>
-            <% end %>
-          <% end %>
-        </details>
-      <% end %>
-
-      <%# ── FINANCE (collapsible) ─────────────────────────────────────── %>
+      <%# ── FINANCE ──────────────────────────────────────────────────── %>
       <% finance_perms = %i[view_finance_dashboard
                             view_expenses create_expenses edit_expenses approve_expenses
                             view_employee_balances manage_employee_balances
@@ -286,87 +236,116 @@
                             void_till_handover void_till_deposit
                             settle_remaining_deposit_balance] %>
       <% if finance_perms.any? { |p| current_user.can?(p) } %>
-        <% finance_active = request.path.start_with?("/finance") %>
-        <details class="sidebar__group" <%= 'open' if finance_active %>>
-          <summary class="sidebar__section-label sidebar__group-toggle">
-            <%= t("nav.section_finance") %>
-            <svg class="sidebar__group-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-          </summary>
+        <span class="sidebar__section-label"><%= t("nav.section_finance") %></span>
 
-          <% if current_user.can?(:view_finance_dashboard) %>
-            <%= link_to finance_root_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('finance') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-              <%= t("nav.finance_dashboard") %>
-            <% end %>
+        <% if current_user.can?(:view_finance_dashboard) %>
+          <%= link_to finance_root_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('finance') ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+            <%= t("nav.finance_dashboard") %>
           <% end %>
+        <% end %>
 
-          <% if current_user.can?(:view_expenses) || current_user.can?(:create_expenses) %>
-            <%= link_to finance_expenses_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'expenses' ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-              <%= t("nav.finance_expenses") %>
-            <% end %>
+        <% if current_user.can?(:view_expenses) || current_user.can?(:create_expenses) %>
+          <%= link_to finance_expenses_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'expenses' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            <%= t("nav.finance_expenses") %>
           <% end %>
+        <% end %>
 
-          <% if current_user.can?(:view_employee_balances) || current_user.can?(:manage_employee_balances) ||
-                current_user.can?(:create_balance_requests) %>
-            <%= link_to finance_custody_accounts_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{%w[custody_accounts custody_transactions balance_requests].include?(controller_name) ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-              <%= t("nav.finance_custody") %>
-            <% end %>
+        <% if current_user.can?(:view_employee_balances) || current_user.can?(:manage_employee_balances) ||
+              current_user.can?(:create_balance_requests) %>
+          <%= link_to finance_custody_accounts_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{%w[custody_accounts custody_transactions balance_requests].include?(controller_name) ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            <%= t("nav.finance_custody") %>
           <% end %>
+        <% end %>
 
-          <% if current_user.can?(:view_expense_reports) || current_user.can?(:manage_branch_revenue) %>
-            <%= link_to finance_branch_revenues_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'branch_revenues' ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              <%= t("nav.finance_branch_revenue") %>
-            <% end %>
+        <% if current_user.can?(:view_expense_reports) || current_user.can?(:manage_branch_revenue) %>
+          <%= link_to finance_branch_revenues_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'branch_revenues' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <%= t("nav.finance_branch_revenue") %>
           <% end %>
+        <% end %>
 
-          <% if current_user.can?(:view_expense_reports) %>
-            <%= link_to finance_reports_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reports' && controller_path.start_with?('finance') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="14" y="6" width="3" height="11"/></svg>
-              <%= t("nav.finance_reports") %>
-            <% end %>
+        <% if current_user.can?(:view_expense_reports) %>
+          <%= link_to finance_reports_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reports' && controller_path.start_with?('finance') ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="14" y="6" width="3" height="11"/></svg>
+            <%= t("nav.finance_reports") %>
           <% end %>
+        <% end %>
 
-          <% if current_user.can?(:manage_payment_methods) %>
-            <%= link_to finance_payment_methods_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'payment_methods' ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-              <%= t("nav.finance_payment_methods") %>
-            <% end %>
+        <% if current_user.can?(:manage_payment_methods) %>
+          <%= link_to finance_payment_methods_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'payment_methods' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            <%= t("nav.finance_payment_methods") %>
           <% end %>
+        <% end %>
 
-          <% if current_user.can?(:view_daily_reconciliation) || current_user.can?(:verify_daily_reconciliation) %>
-            <%= link_to finance_daily_reconciliations_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'daily_reconciliations' ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-              <%= t("nav.finance_reconciliation") %>
-            <% end %>
+        <% if current_user.can?(:view_daily_reconciliation) || current_user.can?(:verify_daily_reconciliation) %>
+          <%= link_to finance_daily_reconciliations_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'daily_reconciliations' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 01-2 2H5a2 2 01-2-2V5a2 2 012-2h11"/></svg>
+            <%= t("nav.finance_reconciliation") %>
           <% end %>
+        <% end %>
 
-          <% if current_user.can?(:settle_remaining_deposit_balance) || current_user.can?(:view_daily_reconciliation) %>
-            <%= link_to finance_remaining_deposit_balances_path,
-                  class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'remaining_deposit_balances' ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <%= t("nav.finance_outstanding_balances") %>
-            <% end %>
+      <% end %>
+
+      <%# ── PERFORMANCE ──────────────────────────────────────────────── %>
+      <% if current_user.can?(:view_performance_dashboard) || current_user.can?(:view_notes)          ||
+            current_user.can?(:view_monthly_reviews)       || current_user.can?(:view_performance_reports) ||
+            current_user.can?(:create_observations)        || current_user.can?(:manage_reviews)      ||
+            current_user.can?(:finalize_reviews)           || current_user.can?(:manage_evaluation_templates) %>
+        <span class="sidebar__section-label"><%= t("nav.section_performance") %></span>
+
+        <% if current_user.can?(:view_performance_dashboard) %>
+          <%= link_to performance_root_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('performance') ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+            <%= t("nav.performance_dashboard") %>
           <% end %>
+        <% end %>
 
-        </details>
+        <% if current_user.can?(:view_notes) || current_user.can?(:create_observations) %>
+          <%= link_to performance_observations_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'observations' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <%= t("nav.performance_observations") %>
+          <% end %>
+        <% end %>
+
+        <% if current_user.can?(:view_monthly_reviews) || current_user.can?(:manage_reviews) || current_user.can?(:finalize_reviews) %>
+          <%= link_to performance_reviews_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reviews' && controller_path.start_with?('performance') ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/></svg>
+            <%= t("nav.performance_reviews") %>
+          <% end %>
+        <% end %>
+
+        <% if current_user.can?(:view_performance_reports) %>
+          <%= link_to performance_reports_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'reports' && controller_path.start_with?('performance') ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="14" y="6" width="3" height="11"/></svg>
+            <%= t("nav.performance_reports") %>
+          <% end %>
+        <% end %>
       <% end %>
 
       <%# ── ADMINISTRATION (collapsible) ────────────────────────────── %>
@@ -397,7 +376,7 @@
               <%= link_to admin_employee_obligations_path,
                     class: "sidebar__nav-item sidebar__nav-item--sub #{request.path.start_with?('/admin/employee_obligations') ? 'is-active' : ''}",
                     data: { action: "click->sidebar#close" } do %>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
                 <%= t("nav.employee_obligations") %>
               <% end %>
             <% end %>
@@ -452,7 +431,7 @@
       <%= link_to attendance_records_path,
             class: "sidebar__nav-item #{controller_name == 'attendance_records' ? 'is-active' : ''}",
             data: { action: "click->sidebar#close" } do %>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 01-2 2H5a2 2 01-2-2V5a2 2 012-2h11"/></svg>
         <%= t("nav.my_attendance") %>
       <% end %>
 
@@ -485,12 +464,13 @@
         <%= t("nav.adjustments") %>
       <% end %>
 
-      <%# Employees see only their own finalized performance reviews. %>
-      <%= link_to performance_reviews_path,
-            class: "sidebar__nav-item #{controller_name == 'reviews' && controller_path.start_with?('performance') ? 'is-active' : ''}",
-            data: { action: "click->sidebar#close" } do %>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/></svg>
-        <%= t("nav.my_reviews") %>
+      <% if current_user.can?(:view_monthly_reviews) %>
+        <%= link_to performance_reviews_path,
+              class: "sidebar__nav-item #{controller_name == 'reviews' && controller_path.start_with?('performance') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/></svg>
+          <%= t("nav.my_reviews") %>
+        <% end %>
       <% end %>
 
     <% end %>

@@ -10,15 +10,10 @@
 
   <%# ── Back link + employee profile link ─────────────────────────────── %>
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
-    <%= link_to finance_remaining_deposit_balances_path,
+    <%= link_to finance_daily_reconciliation_path(@balance.daily_reconciliation),
           style: "display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-2); text-decoration: none;" do %>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
       <%= t("remaining_deposit_balances.show.back") %>
-    <% end %>
-    <%= link_to employee_profile_finance_remaining_deposit_balances_path(user_id: @balance.responsible_user_id),
-          style: "display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: 600; color: var(--accent); text-decoration: none;" do %>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <%= t("remaining_deposit_balances.show.view_employee_history") %>
     <% end %>
   </div>
 

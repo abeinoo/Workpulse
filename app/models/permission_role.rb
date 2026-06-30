@@ -4,6 +4,16 @@ class PermissionRole < ApplicationRecord
 
   ROLE_TYPES = %w[branch_manager area_manager accountant employee].freeze
 
+  # Workspace controls which sidebar layout users of this role see.
+  # :employee   → flat personal sidebar (attendance, shifts, requests, payroll)
+  # :management → grouped management sidebar (all operational sections)
+  # Intentionally independent of role_type: a "Cashier Supervisor" could have
+  # role_type nil but workspace :employee, for example. The enum provides
+  # employee_workspace? / management_workspace? predicates and eliminates
+  # raw "employee"/"management" strings throughout the codebase.
+  enum :workspace, { employee: "employee", management: "management" },
+       suffix: :workspace, default: "management"
+
   PERMISSION_GROUPS = {
     employees:             %w[view_employees manage_employees manage_salary_profiles],
     attendance:            %w[view_attendance manage_attendance manage_devices],
@@ -16,12 +26,13 @@ class PermissionRole < ApplicationRecord
     adjustments:           %w[manage_adjustments approve_adjustments],
     requests:              %w[view_requests approve_requests],
     shifts:                %w[view_shifts manage_shifts assign_shifts],
-    reports:               %w[view_reports export_reports],
+    reports:               %w[view_dashboard view_reports export_reports],
     inventory:             %w[view_inventory manage_inventory view_inventory_reports
                                manage_suppliers manage_products manage_stock_receipts
                                manage_stock_issues manage_stock_transfers
                                manage_stock_counts post_stock_counts view_stock_count_reports],
-    performance:           %w[view_performance manage_evaluation_templates
+    performance:           %w[view_performance_dashboard view_notes view_monthly_reviews
+                               view_performance_reports manage_evaluation_templates
                                create_observations manage_reviews finalize_reviews],
     daily_reconciliation:  %w[create_till_session
                                view_daily_reconciliation
@@ -32,8 +43,12 @@ class PermissionRole < ApplicationRecord
                                verify_daily_reconciliation
                                edit_session_totals
                                void_till_handover
+                               reverse_till_handover
+                               adjust_till_handover
                                void_till_deposit
-                               settle_remaining_deposit_balance],
+                               settle_remaining_deposit_balance
+                               view_own_employee_reconciliation_summary
+                               view_all_employee_reconciliation_summary],
     finance_overview:      %w[view_finance_dashboard],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
@@ -53,33 +68,38 @@ class PermissionRole < ApplicationRecord
   # is created with a role_type and no permissions have been manually chosen.
   DEFAULT_PERMISSIONS_BY_ROLE_TYPE = {
     "branch_manager" => %w[
+      view_dashboard view_reports
       view_expenses create_expenses
       view_employee_balances create_balance_requests
       view_employees view_attendance view_shifts assign_shifts
       view_requests view_payroll complete_branch_review
+      view_performance_dashboard view_notes view_monthly_reviews
     ],
     "area_manager" => %w[
+      view_dashboard view_reports export_reports
       view_expenses create_expenses edit_expenses approve_expenses
       view_employee_balances create_balance_requests
       view_employees manage_employees view_attendance
       view_shifts assign_shifts
       view_requests approve_requests
       view_payroll complete_branch_review
-      view_reports export_reports
+      view_performance_dashboard view_notes view_monthly_reviews view_performance_reports
     ],
     "accountant" => %w[
+      view_dashboard view_reports export_reports
       view_finance_dashboard
       view_expenses create_expenses edit_expenses approve_expenses
       manage_expense_categories manage_expense_types manage_expense_tags manage_recurring_expenses
       view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
       view_expense_reports manage_branch_revenue
       view_payroll view_payroll_analytics view_payroll_audit_log
-      view_reports export_reports
       view_inventory view_inventory_reports view_stock_count_reports
     ],
     "employee" => %w[
       view_employee_balances create_balance_requests
       view_requests
+      view_own_employee_reconciliation_summary
+      view_monthly_reviews
     ]
   }.freeze
 
@@ -116,8 +136,11 @@ class PermissionRole < ApplicationRecord
     verify_daily_reconciliation
     edit_session_totals
     void_till_handover
+    reverse_till_handover
+    adjust_till_handover
     void_till_deposit
     settle_remaining_deposit_balance
+    view_all_employee_reconciliation_summary
   ].freeze
 
   # Permissions where the minimum scope is "branch" — "Personal Only" (self)
@@ -132,7 +155,7 @@ class PermissionRole < ApplicationRecord
          approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
          view_payroll_audit_log
          approve_adjustments manage_devices manage_shifts
-         manage_evaluation_templates] +
+         manage_evaluation_templates view_performance_reports] +
     BRANCH_SCOPABLE_PERMISSIONS +
     DR_MANAGEMENT_PERMISSIONS
   ).freeze
@@ -190,8 +213,11 @@ class PermissionRole < ApplicationRecord
     "verify_daily_reconciliation" => %w[view_daily_reconciliation],
     "edit_session_totals"    => %w[view_daily_reconciliation],
     "void_till_handover"     => %w[view_daily_reconciliation],
+    "reverse_till_handover"  => %w[view_daily_reconciliation],
+    "adjust_till_handover"   => %w[view_daily_reconciliation],
     "void_till_deposit"                => %w[view_daily_reconciliation],
-    "settle_remaining_deposit_balance" => %w[view_daily_reconciliation],
+    "settle_remaining_deposit_balance"            => %w[view_daily_reconciliation],
+    "view_all_employee_reconciliation_summary"    => %w[view_daily_reconciliation],
     "manage_obligations"               => %w[view_employees],
     "manage_inventory"       => %w[view_inventory],
     "manage_suppliers"       => %w[view_inventory],
@@ -201,10 +227,10 @@ class PermissionRole < ApplicationRecord
     "manage_stock_transfers" => %w[view_inventory],
     "manage_stock_counts"    => %w[view_inventory],
     "post_stock_counts"      => %w[view_inventory],
-    "manage_evaluation_templates" => %w[view_performance],
-    "create_observations"         => %w[view_performance],
-    "manage_reviews"              => %w[view_performance],
-    "finalize_reviews"            => %w[view_performance manage_reviews],
+    "manage_evaluation_templates" => %w[view_performance_dashboard],
+    "create_observations"         => %w[view_notes],
+    "manage_reviews"              => %w[view_monthly_reviews],
+    "finalize_reviews"            => %w[view_monthly_reviews manage_reviews],
     "create_expenses"             => %w[view_expenses],
     "edit_expenses"               => %w[view_expenses],
     "approve_expenses"            => %w[view_expenses],

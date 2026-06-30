@@ -70,9 +70,11 @@ class DashboardController < ApplicationController
     current_user.can?(:view_payroll)
   end
 
-  # Business-wide operational analytics.
+  # Business-wide operational analytics — requires view_dashboard in addition
+  # to business-wide attendance access. This is the management analytics tier
+  # (KPIs, branch rankings, trends) that view_dashboard specifically gates.
   def show_analytics_section?
-    business_wide_attendance?
+    current_user.can?(:view_dashboard) && business_wide_attendance?
   end
 
   # ── Scope helpers (data scope — never visibility) ─────────────────────────

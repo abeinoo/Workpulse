@@ -1,16 +1,20 @@
 class Finance::DailyReconciliationsController < Finance::BaseController
-  before_action :set_reconciliation, only: %i[show verify assign_depositor]
+  before_action :set_reconciliation, only: %i[show verify assign_depositor receive_opening_float
+                                               edit_session_totals update_session_totals]
 
   # GET /finance/daily_reconciliations
   def index
     authorize DailyReconciliation
 
+    @current_business_day = BusinessDay.current(context: current_user.business)
+
     query = DailyReconciliation
               .where(business_id: current_user.business_id)
-              .includes(:branch,
+              .includes(:branch, :remaining_deposit_balances,
+                        opening_float_source_handover: :from_user,
                         till_session: %i[current_holder depositor])
               .order(opened_at: :desc)
-              .limit(60)
+              .limit(200)
 
     unless current_user.owner?
       scope_name = current_user.scope_for(:view_daily_reconciliation)
@@ -23,7 +27,107 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       end
     end
 
-    @reconciliations = query
+    # ── Optional filters ─────────────────────────────────────────────────────
+    @filter_status = params[:status].presence
+    @filter_branch = params[:branch_id].presence
+    @filter_date   = params[:business_date].presence
+
+    query = apply_dr_filters(query)
+
+    @reconciliations    = query
+    @accessible_branches = accessible_branches_for_dr
+  end
+
+  # POST /finance/daily_reconciliations/bulk_settle
+  def bulk_settle
+    authorize DailyReconciliation, :bulk_settle?
+
+    ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
+    if ids.empty?
+      return redirect_to finance_daily_reconciliations_path,
+                         alert: t("finance.daily_reconciliations.errors.bulk_none_selected")
+    end
+
+    pm = business_payment_methods.find_by(id: params[:payment_method_id])
+    unless pm
+      return redirect_to finance_daily_reconciliations_path,
+                         alert: t("finance.daily_reconciliations.errors.bulk_settle_no_pm")
+    end
+
+    reconciliations = policy_scope(DailyReconciliation)
+                        .where(id: ids)
+                        .includes(:business, :branch,
+                                  remaining_deposit_balances: :balance_transactions)
+
+    successes = 0
+    failures  = 0
+
+    reconciliations.each do |dr|
+      dr.remaining_deposit_balances.open.each do |rdb|
+        result = Finance::RemainingDepositBalanceSettler.new(
+          rdb,
+          actor:             current_user,
+          amount:            rdb.remaining_amount,
+          notes:             params[:notes].presence || t("finance.daily_reconciliations.bulk_settle_default_notes"),
+          payment_method_id: pm.id,
+          reference_number:  params[:reference_number].presence
+        ).call
+        result.ok? ? successes += 1 : failures += 1
+      end
+    end
+
+    if failures.zero? && successes > 0
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  notice: t("finance.daily_reconciliations.bulk_settle_done", count: successes)
+    elsif successes > 0
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  notice: t("finance.daily_reconciliations.bulk_settle_partial",
+                             success: successes, failure: failures)
+    else
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  alert: t("finance.daily_reconciliations.errors.bulk_settle_failed")
+    end
+  end
+
+  # POST /finance/daily_reconciliations/bulk_receive_opening_float
+  def bulk_receive_opening_float
+    authorize DailyReconciliation, :bulk_receive_opening_float?
+
+    ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
+    if ids.empty?
+      return redirect_to finance_daily_reconciliations_path,
+                         alert: t("finance.daily_reconciliations.errors.bulk_none_selected")
+    end
+
+    reconciliations = policy_scope(DailyReconciliation)
+                        .where(id: ids)
+                        .includes(:business, :branch, :till_session,
+                                  opening_float_source_handover: { amounts: :payment_method, from_user: [] })
+
+    successes = 0
+    failures  = 0
+
+    reconciliations.each do |dr|
+      next unless dr.opening_float_receivable?
+
+      result = Finance::OpeningFloatReceiver.new(
+        daily_reconciliation: dr,
+        actor: current_user
+      ).call
+      result.ok? ? successes += 1 : failures += 1
+    end
+
+    if failures.zero? && successes > 0
+      redirect_to finance_daily_reconciliations_path,
+                  notice: t("finance.daily_reconciliations.bulk_opening_float_received", count: successes)
+    elsif successes > 0
+      redirect_to finance_daily_reconciliations_path,
+                  notice: t("finance.daily_reconciliations.bulk_opening_float_partial",
+                             success: successes, failure: failures)
+    else
+      redirect_to finance_daily_reconciliations_path,
+                  alert: t("finance.daily_reconciliations.errors.bulk_receive_failed")
+    end
   end
 
   # GET /finance/daily_reconciliations/new
@@ -39,8 +143,18 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     authorize @reconciliation
     @session  = @reconciliation.till_session
     @handovers = @reconciliation.till_handovers
-                                .includes(:from_user, :to_user, amounts: :payment_method)
+                                .includes(:from_user, :to_user, :cancelled_by,
+                                          :reversed_by,
+                                          reversal_of_handover: :from_user,
+                                          amounts:              :payment_method,
+                                          seeded_daily_reconciliation: [])
                                 .order(:created_at)
+    @waiting_for_opening_float      = @reconciliation.blocked_by_opening_float?
+    @opening_float_receivable       = @reconciliation.opening_float_receivable?
+    @opening_float_source_handover = if @waiting_for_opening_float
+                                       @reconciliation.opening_float_source_handover
+                                                      &.then { |h| h.amounts.next_day.includes(:payment_method).order("payment_methods.position").to_a }
+    end
     @deposits  = @reconciliation.active_deposits
                                .includes(:payment_method, :deposited_by)
                                .order(:deposited_at)
@@ -77,8 +191,35 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @total_settled_later      = @reconciliation.total_settled_later
     @total_written_off        = @reconciliation.total_written_off
 
-    @employee_summaries  = Finance::EmployeeReconciliationSummarizer.new(@reconciliation).summaries
-    @timeline_events     = build_timeline_events
+    @can_view_session_totals  = policy(@reconciliation).view_session_totals?
+    @can_edit_session_totals  = policy(@reconciliation).edit_session_totals?
+    @can_view_all_summary     = policy(@reconciliation).view_all_employee_reconciliation_summary?
+    @can_view_own_summary     = policy(@reconciliation).view_own_employee_reconciliation_summary?
+
+    summarizer = Finance::EmployeeReconciliationSummarizer.new(@reconciliation)
+    @employee_summaries = if @can_view_all_summary
+      summarizer.summaries
+    elsif @can_view_own_summary
+      summarizer.summaries(for_user: current_user)
+    end
+
+    @session_amount_edits = AuditLog
+                              .where(auditable: @reconciliation, action: "edit_session_totals")
+                              .includes(:actor)
+                              .order(:created_at)
+                              .to_a
+
+    handover_ids = @handovers.map(&:id)
+    @all_adjustments = handover_ids.any? ?
+      FinancialAdjustment
+        .where(adjustable_type: "TillHandover", adjustable_id: handover_ids)
+        .includes(:actor, :approved_by)
+        .order(:created_at) :
+      []
+    # Grouped for O(1) lookup per handover in the view (avoids N+1 on .select).
+    @adjustments_by_handover_id = @all_adjustments.group_by(&:adjustable_id)
+
+    @timeline_events = build_timeline_events
   end
 
   # POST /finance/daily_reconciliations
@@ -88,12 +229,18 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     branch = resolve_branch
     return unless branch
 
-    today = Date.current
+    today = BusinessDay.current(context: branch.business)
 
     open_recon = DailyReconciliation.open_for(branch)
     if open_recon
       return redirect_to finance_daily_reconciliation_path(open_recon),
                          notice: t("finance.daily_reconciliations.errors.already_exists")
+    end
+
+    waiting_recon = DailyReconciliation.waiting_for(branch)
+    if waiting_recon
+      return redirect_to finance_daily_reconciliation_path(waiting_recon),
+                         notice: t("finance.daily_reconciliations.errors.already_waiting")
     end
 
     closed_today = DailyReconciliation.where(branch: branch, business_date: today).first
@@ -107,6 +254,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                 notice: t("finance.daily_reconciliations.created")
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     existing = DailyReconciliation.open_for(branch) ||
+               DailyReconciliation.waiting_for(branch) ||
                DailyReconciliation.where(branch: branch, business_date: today).first
     if existing
       redirect_to finance_daily_reconciliation_path(existing),
@@ -136,6 +284,65 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
   end
 
+  # POST /finance/daily_reconciliations/:id/receive_opening_float
+  def receive_opening_float
+    authorize @reconciliation, :receive_opening_float?
+
+    result = Finance::OpeningFloatReceiver.new(
+      daily_reconciliation: @reconciliation,
+      actor:                current_user
+    ).call
+
+    if result.ok?
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  notice: t("finance.daily_reconciliations.opening_float_received")
+    else
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  alert: result.error
+    end
+  end
+
+  # GET /finance/daily_reconciliations/:id/edit_session_totals
+  def edit_session_totals
+    authorize @reconciliation, :edit_session_totals?
+    @amounts_by_method = @reconciliation.session_amounts
+                                        .includes(:payment_method)
+                                        .order("payment_methods.position")
+    @edit_history = AuditLog
+                      .where(auditable: @reconciliation, action: "edit_session_totals")
+                      .includes(:actor)
+                      .order(:created_at)
+  end
+
+  # PATCH /finance/daily_reconciliations/:id/update_session_totals
+  def update_session_totals
+    authorize @reconciliation, :edit_session_totals?
+
+    result = Finance::SessionAmountsEditor.new(
+      @reconciliation,
+      actor:   current_user,
+      amounts: (params[:amounts]&.to_unsafe_h || {}).transform_values { |v|
+                 { collected_amount: v[:collected_amount], refund_amount: v[:refund_amount] }
+               },
+      notes:   params[:notes]
+    ).call
+
+    if result.ok?
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  notice: t("finance.daily_reconciliations.session_totals_updated")
+    else
+      @amounts_by_method = @reconciliation.session_amounts
+                                          .includes(:payment_method)
+                                          .order("payment_methods.position")
+      @edit_history = AuditLog
+                        .where(auditable: @reconciliation, action: "edit_session_totals")
+                        .includes(:actor)
+                        .order(:created_at)
+      flash.now[:alert] = result.error
+      render :edit_session_totals, status: :unprocessable_entity
+    end
+  end
+
   # PATCH /finance/daily_reconciliations/:id/assign_depositor
   def assign_depositor
     authorize @reconciliation, :assign_depositor?
@@ -147,6 +354,10 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     depositor = current_user.business.users.active.find(params[:depositor_id])
     @reconciliation.till_session.update!(depositor: depositor)
+    @reconciliation.log_audit(actor: current_user, auditable: @reconciliation,
+                               action: "assign_depositor",
+                               metadata: { depositor_id: depositor.id,
+                                           depositor_name: depositor.full_name })
     redirect_to finance_daily_reconciliation_path(@reconciliation),
                 notice: t("finance.daily_reconciliations.depositor_assigned")
   rescue ActiveRecord::RecordNotFound
@@ -165,13 +376,37 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   def build_timeline_events
     events = []
 
+    # The handover that received today's opening float (first transfer on this DR
+    # when opening_float_source_handover is present).  Rendered differently from
+    # a regular handover so it carries its own event type.
+    opening_receipt_handover = if @reconciliation.opening_float_source_handover
+                                 @handovers.first
+    end
+
     @handovers.each do |h|
       if h.self_deposit?
-        events << { type: :day_closed,        time: h.created_at,  actor: h.from_user, data: h }
+        events << { type: :day_closed, time: h.created_at, actor: h.from_user, data: h }
+        # If this self-deposit seeded the next day's DR, record the prepared event.
+        # Pass the seeded DR (not the handover) so the view can display its business_date.
+        if h.seeded_daily_reconciliation.present?
+          events << { type: :opening_float_prepared, time: h.created_at, actor: h.from_user,
+                      data: h.seeded_daily_reconciliation }
+        end
+      elsif h == opening_receipt_handover
+        events << { type: :opening_float_received, time: h.accepted_at, actor: h.to_user, data: h } if h.accepted?
+      elsif h.reversal?
+        # A compensating reversal handover — auto-accepted by the service.
+        events << { type: :handover_reversal_applied, time: h.accepted_at, actor: h.from_user, data: h }
       else
-        events << { type: :handover_created,  time: h.created_at,  actor: h.from_user, data: h }
-        events << { type: :handover_accepted, time: h.accepted_at, actor: h.to_user,   data: h } if h.accepted?
+        events << { type: :handover_created,   time: h.created_at,   actor: h.from_user,    data: h }
+        events << { type: :handover_accepted,  time: h.accepted_at,  actor: h.to_user,      data: h } if h.accepted? && !h.reversed?
+        events << { type: :handover_cancelled, time: h.cancelled_at, actor: h.cancelled_by, data: h } if h.cancelled?
+        events << { type: :handover_reversed,  time: h.reversed_at,  actor: h.reversed_by,  data: h } if h.reversed?
       end
+    end
+
+    (@all_adjustments || []).each do |adj|
+      events << { type: :handover_adjusted, time: adj.created_at, actor: adj.actor, data: adj }
     end
 
     (@all_deposit_transfers || []).each do |drt|
@@ -203,6 +438,10 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       end
     end
 
+    (@session_amount_edits || []).each do |log|
+      events << { type: :session_totals_edited, time: log.created_at, actor: log.actor, data: log }
+    end
+
     if @reconciliation.verified?
       events << { type: :day_verified, time: @reconciliation.verified_at,
                   actor: @reconciliation.verified_by, data: @reconciliation }
@@ -214,8 +453,9 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   def set_reconciliation
     @reconciliation = policy_scope(DailyReconciliation)
                         .includes(:branch, :business, :verified_by,
-                                  session_amounts: :payment_method,
-                                  till_session:    %i[depositor closed_by current_holder])
+                                  session_amounts:               :payment_method,
+                                  till_session:                  %i[depositor closed_by current_holder],
+                                  opening_float_source_handover: { amounts: :payment_method, from_user: [] })
                         .find(params[:id])
   end
 
@@ -250,16 +490,46 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     scope_name = current_user.scope_for(:view_daily_reconciliation)
 
-    if scope_name
-      ids = BranchScope.new(current_user).for_scope(scope_name)
-      if ids.empty? && scope_name != "business"
-        shift_branch = current_user.shift_assignments.current.first&.branch
-        return shift_branch ? [shift_branch] : []
-      end
-      return current_user.business.branches.active.where(id: ids).order(:name).to_a
+    # nil scope is consistent with the index query: no explicit restriction → all branches.
+    # An explicit scope (branch / area / business) narrows access via BranchScope.
+    return current_user.business.branches.active.order(:name).to_a unless scope_name
+
+    ids = BranchScope.new(current_user).for_scope(scope_name)
+    if ids.empty? && scope_name != "business"
+      shift_branch = current_user.shift_assignments.current.first&.branch
+      return shift_branch ? [ shift_branch ] : []
+    end
+    current_user.business.branches.active.where(id: ids).order(:name).to_a
+  end
+
+  def apply_dr_filters(query)
+    case @filter_status
+    when "waiting_opening"
+      query = query.waiting_for_opening
+    when "outstanding"
+      query = query.joins(:remaining_deposit_balances)
+                   .where(remaining_deposit_balances: { status: "open" })
+                   .distinct
+    when "waiting_verification"
+      query = query.where(state: "closed").or(query.where(state: "deposited"))
+                   .where(verified_at: nil)
+    when "verified"
+      query = query.where.not(verified_at: nil)
     end
 
-    shift_branch = current_user.shift_assignments.current.first&.branch
-    shift_branch ? [shift_branch] : []
+    if @filter_branch.present?
+      query = query.where(branch_id: @filter_branch.to_i)
+    end
+
+    if @filter_date.present?
+      date = Date.parse(@filter_date) rescue nil
+      query = query.where(business_date: date) if date
+    end
+
+    query
+  end
+
+  def filter_params
+    params.permit(:status, :branch_id, :business_date)
   end
 end

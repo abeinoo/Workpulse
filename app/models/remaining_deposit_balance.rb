@@ -32,8 +32,7 @@ class RemainingDepositBalance < ApplicationRecord
   scope :unsettled,    ->    { open }
   scope :overdue,      ->(days: 3) { open.where("remaining_deposit_balances.created_at < ?", days.days.ago) }
 
-  def settable? = open?
-  def closed?   = settled? || written_off?
+  def closed? = settled? || written_off?
 
   # Who closed this balance — derived from the last closure transaction.
   def closed_by

@@ -19,7 +19,7 @@ module Finance
     end
 
     def call
-      unless @daily_reconciliation.closed?
+      unless @daily_reconciliation.closed? || @daily_reconciliation.deposited?
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.session_not_closed"))
       end
 
@@ -63,6 +63,11 @@ module Finance
                   metadata: { amount: deposit.amount.to_s,
                                daily_reconciliation_id: @daily_reconciliation.id })
 
+        # Advance DR to "deposited" state on first deposit so downstream logic
+        # (verifier guard, index stat card, view conditions) can distinguish
+        # "closed but not yet deposited" from "deposited but not yet verified".
+        @daily_reconciliation.update!(state: "deposited") if @daily_reconciliation.closed?
+
         if remaining_amount
           balance = @daily_reconciliation.remaining_deposit_balances.create!(
             till_deposit:     deposit,
@@ -93,7 +98,21 @@ module Finance
         Result.new(ok: true, deposit: deposit, remaining_amount: remaining_amount)
       end
     rescue ActiveRecord::RecordInvalid => e
-      Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
+      # When e.record is the DailyReconciliation (e.g. from validates_associated
+      # :till_deposits firing during the update! call), the raw error is the
+      # generic "Till deposits is invalid" message, which hides the real cause.
+      # Find the invalid deposit in memory and surface its specific field errors.
+      Result.new(ok: false, error: deposit_error_from(e.record))
+    end
+
+    private
+
+    def deposit_error_from(failing_record)
+      if failing_record.is_a?(DailyReconciliation) && failing_record.errors[:till_deposits].any?
+        invalid_deposit = failing_record.till_deposits.find { |d| d.errors.any? }
+        return invalid_deposit.errors.full_messages.to_sentence if invalid_deposit
+      end
+      failing_record.errors.full_messages.to_sentence
     end
   end
 end

@@ -1,10 +1,10 @@
 class PerformanceReviewPolicy < ApplicationPolicy
   def index? = true # scope handles isolation (managers see scope, employees see own)
 
-  # Managers see reviews in their scope; an employee may see only their OWN
-  # finalized review.
+  # Managers with view_monthly_reviews see all reviews in their scope.
+  # An employee may always see their OWN finalized reviews regardless of permissions.
   def show?
-    return true if can?(:view_performance) && same_business?
+    return true if can?(:view_monthly_reviews) && same_business?
     own_finalized_review?
   end
 
@@ -22,8 +22,8 @@ class PerformanceReviewPolicy < ApplicationPolicy
     def resolve
       base = scope.for_business(user.business)
 
-      if user.can?(:view_performance)
-        configured = user.scope_for(:view_performance)
+      if user.can?(:view_monthly_reviews)
+        configured = user.scope_for(:view_monthly_reviews)
         if user.owner? || configured == "business"
           base
         elsif configured

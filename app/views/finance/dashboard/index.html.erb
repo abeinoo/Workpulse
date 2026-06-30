@@ -90,11 +90,11 @@
   <% if @show_outstanding %>
     <div style="margin-top: var(--space-5); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);">
       <h2 class="section-title" style="margin: 0;"><%= t("finance.dashboard.outstanding_balances") %></h2>
-      <%= link_to t("finance.dashboard.view_all_balances"), finance_remaining_deposit_balances_path, class: "link" %>
+      <%= link_to t("finance.dashboard.view_all_balances"), finance_daily_reconciliations_path, class: "link" %>
     </div>
 
     <div class="stats-grid" style="margin-top: var(--space-3);">
-      <%= link_to finance_remaining_deposit_balances_path, class: "stat-card #{@rdb_open_count > 0 ? 'stat-card--warning' : ''}" do %>
+      <%= link_to finance_daily_reconciliations_path, class: "stat-card #{@rdb_open_count > 0 ? 'stat-card--warning' : ''}" do %>
         <span class="stat-card__label"><%= t("finance.dashboard.rdb_open_count") %></span>
         <span class="stat-card__value"><%= @rdb_open_count %></span>
         <% if @rdb_open_amount > 0 %>
@@ -121,7 +121,7 @@
     <% if @rdb_threshold_alerts&.any? %>
       <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3);">
         <% @rdb_threshold_alerts.each do |alert| %>
-          <%= link_to finance_remaining_deposit_balances_path(quick: "overdue"),
+          <%= link_to finance_daily_reconciliations_path,
                 style: "display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.25); border-radius: 999px; text-decoration: none;" do %>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger,#dc2626)" stroke-width="2.5" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span style="font-size: var(--text-xs); font-weight: 700; color: var(--danger,#dc2626);">
