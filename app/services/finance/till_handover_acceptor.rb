@@ -10,13 +10,19 @@ module Finance
 
     Result = Struct.new(:ok, :handover, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(handover, actor:, accepted_notes: nil)
-      @handover       = handover
+    def initialize(handover_id, actor:, accepted_notes: nil)
+      @handover_id    = handover_id
       @actor          = actor
       @accepted_notes = accepted_notes
     end
 
     def call
+      @handover = TillHandover
+                    .joins(:daily_reconciliation)
+                    .where(daily_reconciliations: { business_id: @actor.business_id })
+                    .includes(daily_reconciliation: :till_session)
+                    .find(@handover_id)
+
       return Result.new(ok: false, error: I18n.t("till_handovers.errors.not_acceptable")) unless @handover.pending?
       return Result.new(ok: false, error: I18n.t("till_handovers.errors.wrong_recipient")) unless @handover.to_user_id == @actor.id
 

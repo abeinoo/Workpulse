@@ -408,9 +408,53 @@
           <% end %>
         </div>
       <% else %>
-        <p class="stat-card__value">
-          <%= number_to_currency(@total_deposited, unit: "", separator: ".", delimiter: ",") %>
-        </p>
+        <div style="display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-1);">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+            <span style="font-size: var(--text-xs); color: var(--text-3);">
+              <%= t("finance.daily_reconciliations.show.actual_deposited") %>
+            </span>
+            <span style="font-size: var(--text-sm); font-weight: 700; color: var(--success,#16a34a); font-variant-numeric: tabular-nums;">
+              <%= number_to_currency(@total_deposited, unit: "", separator: ".", delimiter: ",") %>
+            </span>
+          </div>
+          <% if has_outstanding %>
+            <%
+              open_balances = @all_remaining_balances.select(&:open?)
+              rdb_link = open_balances.size == 1 \
+                ? finance_remaining_deposit_balance_path(open_balances.first) \
+                : finance_daily_reconciliation_path(@reconciliation)
+            %>
+            <%= link_to rdb_link, style: "display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-1); margin-top: var(--space-1); text-decoration: none;" do %>
+              <span style="font-size: var(--text-xs); color: var(--warning,#ca8a04); font-weight: 600; display: flex; align-items: center; gap: var(--space-1);">
+                <%= t("finance.daily_reconciliations.show.outstanding_balance") %>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              </span>
+              <span style="font-size: var(--text-sm); font-weight: 700; color: var(--warning,#ca8a04); font-variant-numeric: tabular-nums;">
+                <%= number_to_currency(@total_remaining_balance, unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            <% end %>
+          <% end %>
+          <% if @total_settled_later.to_d > 0 %>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+              <span style="font-size: var(--text-xs); color: var(--success,#16a34a);">
+                <%= t("finance.daily_reconciliations.show.settled_later") %>
+              </span>
+              <span style="font-size: var(--text-sm); font-weight: 600; color: var(--success,#16a34a); font-variant-numeric: tabular-nums;">
+                <%= number_to_currency(@total_settled_later, unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            </div>
+          <% end %>
+          <% if @total_written_off.to_d > 0 %>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+              <span style="font-size: var(--text-xs); color: var(--text-3);">
+                <%= t("finance.daily_reconciliations.show.written_off") %>
+              </span>
+              <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; text-decoration: line-through;">
+                <%= number_to_currency(@total_written_off, unit: "", separator: ".", delimiter: ",") %>
+              </span>
+            </div>
+          <% end %>
+        </div>
       <% end %>
       <p class="stat-card__sub">
         <%= t("finance.daily_reconciliations.show.deposit_count", count: @deposits.size) %>

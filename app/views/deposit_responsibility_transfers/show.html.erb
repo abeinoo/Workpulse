@@ -49,6 +49,129 @@
     </div>
   </div>
 
+  <%# ── Financial summary ──────────────────────────────────────────────── %>
+  <% if @session_summary.any? %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: var(--space-4);">
+      <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); background: var(--surface-2);">
+        <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0;">
+          <%= t("deposit_responsibility_transfers.show.summary_heading") %>
+        </p>
+      </div>
+
+      <%# Session context row %>
+      <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: var(--space-5);">
+        <div>
+          <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.06em;">
+            <%= t("deposit_responsibility_transfers.show.cashier_label") %>
+          </p>
+          <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+            <%= @transfer.from_user.full_name %>
+          </p>
+        </div>
+        <div>
+          <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.06em;">
+            <%= t("deposit_responsibility_transfers.show.branch_label") %>
+          </p>
+          <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+            <%= @transfer.branch.name %>
+          </p>
+        </div>
+        <% if @transfer.daily_reconciliation.business_date %>
+          <div>
+            <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.06em;">
+              <%= t("deposit_responsibility_transfers.show.date_label") %>
+            </p>
+            <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+              <%= l(@transfer.daily_reconciliation.business_date, format: :long) %>
+            </p>
+          </div>
+        <% end %>
+        <% if @transfer.daily_reconciliation.closed_at %>
+          <div>
+            <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.06em;">
+              <%= t("deposit_responsibility_transfers.show.closed_at_label") %>
+            </p>
+            <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+              <%= l(@transfer.daily_reconciliation.closed_at, format: :time_only) %>
+            </p>
+          </div>
+        <% end %>
+      </div>
+
+      <%# Per-payment-method rows %>
+      <% @session_summary.each do |row| %>
+        <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;">
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1);">
+            <%= row[:name] %>
+          </span>
+          <div style="display: flex; gap: var(--space-5); font-variant-numeric: tabular-nums;">
+            <span style="font-size: var(--text-xs); color: var(--text-3);">
+              <%= t("deposit_responsibility_transfers.show.expected_label") %>
+              <strong style="color: var(--text-1); margin-inline-start: 4px; font-size: var(--text-sm);">
+                <%= format_currency(row[:expected]) %>
+              </strong>
+            </span>
+            <span style="font-size: var(--text-xs); color: var(--text-3);">
+              <%= t("deposit_responsibility_transfers.show.deposited_label") %>
+              <strong style="color: var(--text-1); margin-inline-start: 4px; font-size: var(--text-sm);">
+                <%= format_currency(row[:deposited]) %>
+              </strong>
+            </span>
+            <% if row[:remaining] > 0 %>
+              <span style="font-size: var(--text-xs); color: var(--warning);">
+                <%= t("deposit_responsibility_transfers.show.remaining_label") %>
+                <strong style="margin-inline-start: 4px; font-size: var(--text-sm);">
+                  <%= format_currency(row[:remaining]) %>
+                </strong>
+              </span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%# Totals row %>
+      <div style="padding: var(--space-4) var(--space-5); background: var(--surface-2); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;">
+        <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+          <%= t("deposit_responsibility_transfers.show.total_label") %>
+        </span>
+        <div style="display: flex; gap: var(--space-5); font-variant-numeric: tabular-nums;">
+          <span style="font-size: var(--text-xs); color: var(--text-3);">
+            <%= t("deposit_responsibility_transfers.show.expected_label") %>
+            <strong style="color: var(--text-1); margin-inline-start: 4px; font-size: var(--text-base);">
+              <%= format_currency(@total_expected) %>
+            </strong>
+          </span>
+          <span style="font-size: var(--text-xs); color: var(--text-3);">
+            <%= t("deposit_responsibility_transfers.show.deposited_label") %>
+            <strong style="color: var(--text-1); margin-inline-start: 4px; font-size: var(--text-base);">
+              <%= format_currency(@total_deposited) %>
+            </strong>
+          </span>
+          <% if @total_remaining > 0 %>
+            <span style="font-size: var(--text-xs); font-weight: 700; color: var(--warning);">
+              <%= t("deposit_responsibility_transfers.show.remaining_label") %>
+              <strong style="margin-inline-start: 4px; font-size: var(--text-base);">
+                <%= format_currency(@total_remaining) %>
+              </strong>
+            </span>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Notes %>
+      <% if @transfer.daily_reconciliation.notes.present? %>
+        <div style="padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border);">
+          <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.06em;">
+            <%= t("deposit_responsibility_transfers.show.notes_label") %>
+          </p>
+          <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0; line-height: 1.5;">
+            <%= @transfer.daily_reconciliation.notes %>
+          </p>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
   <%# ── What this means ────────────────────────────────────────────────── %>
   <div style="background: rgba(var(--warning-rgb), 0.06); border: 1px solid rgba(var(--warning-rgb), 0.25); border-radius: var(--radius); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4);">
     <p style="font-size: var(--text-sm); color: var(--text-1); margin: 0; line-height: 1.6;">

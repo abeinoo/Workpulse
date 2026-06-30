@@ -111,8 +111,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       next unless dr.opening_float_receivable?
 
       result = Finance::OpeningFloatReceiver.new(
-        daily_reconciliation: dr,
-        actor: current_user
+        daily_reconciliation_id: dr.id,
+        actor:                   current_user
       ).call
       result.ok? ? successes += 1 : failures += 1
     end
@@ -270,7 +270,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     authorize @reconciliation, :verify?
 
     result = Finance::DailyReconciliationVerifier.new(
-      @reconciliation,
+      @reconciliation.id,
       actor: current_user,
       notes: params[:notes]
     ).call
@@ -289,8 +289,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     authorize @reconciliation, :receive_opening_float?
 
     result = Finance::OpeningFloatReceiver.new(
-      daily_reconciliation: @reconciliation,
-      actor:                current_user
+      daily_reconciliation_id: @reconciliation.id,
+      actor:                   current_user
     ).call
 
     if result.ok?
@@ -347,22 +347,19 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   def assign_depositor
     authorize @reconciliation, :assign_depositor?
 
-    if @reconciliation.deposit_responsibility_transfers.pending.exists?
-      return redirect_to finance_daily_reconciliation_path(@reconciliation),
-                         alert: t("finance.daily_reconciliations.errors.pending_transfer_exists")
-    end
+    result = Finance::DepositorAssigner.new(
+      @reconciliation.id,
+      actor:        current_user,
+      depositor_id: params[:depositor_id]
+    ).call
 
-    depositor = current_user.business.users.active.find(params[:depositor_id])
-    @reconciliation.till_session.update!(depositor: depositor)
-    @reconciliation.log_audit(actor: current_user, auditable: @reconciliation,
-                               action: "assign_depositor",
-                               metadata: { depositor_id: depositor.id,
-                                           depositor_name: depositor.full_name })
-    redirect_to finance_daily_reconciliation_path(@reconciliation),
-                notice: t("finance.daily_reconciliations.depositor_assigned")
-  rescue ActiveRecord::RecordNotFound
-    redirect_to finance_daily_reconciliation_path(@reconciliation),
-                alert: t("finance.daily_reconciliations.errors.invalid_depositor")
+    if result.ok?
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  notice: t("finance.daily_reconciliations.depositor_assigned")
+    else
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  alert: result.error
+    end
   end
 
   private

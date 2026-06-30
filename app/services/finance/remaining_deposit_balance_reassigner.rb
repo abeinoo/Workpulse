@@ -7,14 +7,18 @@ module Finance
 
     Result = Struct.new(:ok, :balance, :transaction, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(balance, actor:, new_user:, notes: nil)
-      @balance  = balance
-      @actor    = actor
-      @new_user = new_user
-      @notes    = notes
+    def initialize(balance_id, actor:, new_user_id:, notes: nil)
+      @balance_id  = balance_id
+      @actor       = actor
+      @new_user_id = new_user_id.to_i
+      @notes       = notes
     end
 
     def call
+      @balance  = RemainingDepositBalance.where(business_id: @actor.business_id).find(@balance_id)
+      @new_user = User.where(business_id: @actor.business_id, active: true).find_by(id: @new_user_id)
+      return err("invalid_user") if @new_user.nil?
+
       return err("not_open")   unless @balance.open?
       return err("same_user")  if @new_user.id == @balance.responsible_user_id
 

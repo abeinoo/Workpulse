@@ -12,13 +12,18 @@ module Finance
 
     Result = Struct.new(:ok, :deposit, :remaining_amount, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(daily_reconciliation, actor:, params:)
-      @daily_reconciliation = daily_reconciliation
-      @actor                = actor
-      @params               = params
+    def initialize(daily_reconciliation_id, actor:, params:)
+      @daily_reconciliation_id = daily_reconciliation_id
+      @actor                   = actor
+      @params                  = params
     end
 
     def call
+      @daily_reconciliation = DailyReconciliation
+                                .where(business_id: @actor.business_id)
+                                .includes(:till_session, :business, :branch)
+                                .find(@daily_reconciliation_id)
+
       unless @daily_reconciliation.closed? || @daily_reconciliation.deposited?
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.session_not_closed"))
       end
@@ -98,21 +103,7 @@ module Finance
         Result.new(ok: true, deposit: deposit, remaining_amount: remaining_amount)
       end
     rescue ActiveRecord::RecordInvalid => e
-      # When e.record is the DailyReconciliation (e.g. from validates_associated
-      # :till_deposits firing during the update! call), the raw error is the
-      # generic "Till deposits is invalid" message, which hides the real cause.
-      # Find the invalid deposit in memory and surface its specific field errors.
-      Result.new(ok: false, error: deposit_error_from(e.record))
-    end
-
-    private
-
-    def deposit_error_from(failing_record)
-      if failing_record.is_a?(DailyReconciliation) && failing_record.errors[:till_deposits].any?
-        invalid_deposit = failing_record.till_deposits.find { |d| d.errors.any? }
-        return invalid_deposit.errors.full_messages.to_sentence if invalid_deposit
-      end
-      failing_record.errors.full_messages.to_sentence
+      Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
     end
   end
 end

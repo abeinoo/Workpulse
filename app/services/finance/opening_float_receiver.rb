@@ -20,12 +20,17 @@ module Finance
 
     Result = Struct.new(:ok, :handover, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(daily_reconciliation:, actor:)
-      @dr    = daily_reconciliation
+    def initialize(daily_reconciliation_id:, actor:)
+      @dr_id = daily_reconciliation_id
       @actor = actor
     end
 
     def call
+      @dr = DailyReconciliation
+              .where(business_id: @actor.business_id)
+              .includes(:till_session, opening_float_source_handover: :from_user)
+              .find(@dr_id)
+
       unless @dr.blocked_by_opening_float?
         return err("not_waiting")
       end

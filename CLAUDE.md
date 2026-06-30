@@ -170,6 +170,8 @@ These rules must never be violated by any feature, fix, or refactor.
 
 **Scope resolution has a single path.** Employee visibility goes through `EmployeeScope`; branch visibility goes through `BranchScope`. Never write ad-hoc `where(branch_id: ...)` in a policy — use `filter_by_branch_scope` so scope configuration changes propagate automatically.
 
+**Services accept IDs for the aggregate they mutate.** When a service calls `update!`, `save!`, or any state transition on an AR record, that record must be loaded by the service itself at the top of `call` — not accepted as a pre-loaded object from the controller. The controller passes `record.id`; the service calls `Model.where(business_id: actor.business_id).find(id)`. This prevents Rails' `inverse_of` / `save_collection_association` from autosaving blank controller-side records (built for Pundit authorization) into the service's transaction. Reference implementations: `Finance::TillDepositRecorder`, `Finance::DailyReconciliationVerifier`, `Finance::TillHandoverCreator`, `Finance::OpeningFloatReceiver`.
+
 ---
 
 ## Money Rules
@@ -197,10 +199,10 @@ These rules must never be violated by any feature, fix, or refactor.
 ## Extension Points
 
 **Adding a new financial workflow**
-1. Create a service in `app/services/` returning a `Result` struct.
+1. Create a service in `app/services/` returning a `Result` struct. Accept the aggregate's **ID**, not the AR object — load it with `Model.where(business_id: actor.business_id).find(id)` at the top of `call`.
 2. Include `AuditLoggable` and call `log_audit` inside the transaction.
 3. Add a policy method (instance-level for single-record actions, `bulk_*?` for class-level).
-4. Add routes and a thin controller action that calls the service.
+4. Add routes and a thin controller action that calls the service, passing `record.id`.
 5. Push timeline events into `build_timeline_events` for any new event types.
 
 **Adding a new permission**

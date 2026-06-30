@@ -5,13 +5,17 @@ module Finance
 
     Result = Struct.new(:ok, :reconciliation, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(reconciliation, actor:, notes: nil)
-      @reconciliation = reconciliation
-      @actor          = actor
-      @notes          = notes
+    def initialize(reconciliation_id, actor:, notes: nil)
+      @reconciliation_id = reconciliation_id
+      @actor             = actor
+      @notes             = notes
     end
 
     def call
+      @reconciliation = DailyReconciliation
+                          .where(business_id: @actor.business_id)
+                          .find(@reconciliation_id)
+
       return err(:already_verified) if @reconciliation.verified?
 
       unless @reconciliation.closed? || @reconciliation.deposited?
@@ -49,20 +53,10 @@ module Finance
         Result.new(ok: true, reconciliation: @reconciliation)
       end
     rescue ActiveRecord::RecordInvalid => e
-      Result.new(ok: false, error: record_error_message(e.record))
+      Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
     end
 
     private
-
-    def record_error_message(failing_record)
-      # If the DR itself fails with an association-level error (e.g. "Till deposits
-      # is invalid"), propagate the child record's specific field errors instead.
-      if failing_record.is_a?(DailyReconciliation) && failing_record.errors[:till_deposits].any?
-        invalid_deposit = failing_record.till_deposits.find { |d| d.errors.any? }
-        return invalid_deposit.errors.full_messages.to_sentence if invalid_deposit
-      end
-      failing_record.errors.full_messages.to_sentence
-    end
 
     def err(key)
       Result.new(ok: false,

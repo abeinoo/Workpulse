@@ -6,13 +6,15 @@ module Finance
 
     Result = Struct.new(:ok, :balance, :transaction, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(balance, actor:, notes: nil)
-      @balance = balance
-      @actor   = actor
-      @notes   = notes
+    def initialize(balance_id, actor:, notes: nil)
+      @balance_id = balance_id
+      @actor      = actor
+      @notes      = notes
     end
 
     def call
+      @balance = RemainingDepositBalance.where(business_id: @actor.business_id).find(@balance_id)
+
       return err("not_open") unless @balance.open?
 
       ActiveRecord::Base.transaction do

@@ -14,19 +14,24 @@ module Finance
 
     Result = Struct.new(:ok, :handover, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(actor:, daily_reconciliation:, params:)
-      @actor                = actor
-      @daily_reconciliation = daily_reconciliation
-      @business             = daily_reconciliation.business
-      @params               = params
-      # Use the DR's own business_date as the single source of truth.
-      # Falling back to BusinessDay.current only for legacy open DRs that were
-      # created before business_date was stamped at open time.
-      @fresha_date = daily_reconciliation.business_date ||
-                     BusinessDay.current(context: @business)
+    def initialize(actor:, daily_reconciliation_id:, params:)
+      @actor    = actor
+      @dr_id    = daily_reconciliation_id
+      @params   = params
     end
 
     def call
+      @daily_reconciliation = DailyReconciliation
+                                .where(business_id: @actor.business_id)
+                                .includes(:business, :till_session, :branch)
+                                .find(@dr_id)
+      @business    = @daily_reconciliation.business
+      # Use the DR's own business_date as the single source of truth.
+      # Falling back to BusinessDay.current only for legacy open DRs that were
+      # created before business_date was stamped at open time.
+      @fresha_date = @daily_reconciliation.business_date ||
+                     BusinessDay.current(context: @business)
+
       ActiveRecord::Base.transaction do
         session = @daily_reconciliation.till_session
         raise ArgumentError, I18n.t("till_handovers.errors.no_open_session") unless session

@@ -61,9 +61,9 @@ class TillHandoversController < ApplicationController
                        alert: t("till_handovers.errors.no_open_session") unless reconciliation
 
     result = Finance::TillHandoverCreator.new(
-      actor:                current_user,
-      daily_reconciliation: reconciliation,
-      params:               handover_params
+      actor:                   current_user,
+      daily_reconciliation_id: reconciliation.id,
+      params:                  handover_params
     ).call
 
     if result.ok?
@@ -86,7 +86,7 @@ class TillHandoversController < ApplicationController
   def cancel
     authorize @handover
 
-    result = Finance::TillHandoverCanceller.new(@handover, actor: current_user).call
+    result = Finance::TillHandoverCanceller.new(@handover.id, actor: current_user).call
 
     dest = finance_daily_reconciliation_path(@handover.daily_reconciliation)
 
@@ -109,7 +109,7 @@ class TillHandoversController < ApplicationController
     authorize @handover, :reverse?
 
     result = Finance::TillHandoverReverser.new(
-      handover:     @handover,
+      handover_id:  @handover.id,
       actor:        current_user,
       reason_code:  params[:reason_code],
       reason_notes: params[:reason_notes]
@@ -165,7 +165,7 @@ class TillHandoversController < ApplicationController
     authorize @handover
 
     result = Finance::TillHandoverAcceptor.new(
-      @handover,
+      @handover.id,
       actor:          current_user,
       accepted_notes: params[:accepted_notes]
     ).call

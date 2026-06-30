@@ -11,12 +11,17 @@ module Finance
 
     Result = Struct.new(:ok, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(transfer, actor:)
-      @transfer = transfer
-      @actor    = actor
+    def initialize(transfer_id, actor:)
+      @transfer_id = transfer_id
+      @actor       = actor
     end
 
     def call
+      @transfer = DepositResponsibilityTransfer
+                    .joins(:daily_reconciliation)
+                    .where(daily_reconciliations: { business_id: @actor.business_id })
+                    .find(@transfer_id)
+
       return Result.new(ok: false, error: I18n.t("deposit_responsibility_transfers.errors.not_pending")) unless @transfer.pending?
 
       ActiveRecord::Base.transaction do

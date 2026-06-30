@@ -15,7 +15,7 @@ class Finance::RemainingDepositBalancesController < Finance::BaseController
     authorize @balance, :settle?
 
     result = Finance::RemainingDepositBalanceSettler.new(
-      @balance,
+      @balance.id,
       actor:             current_user,
       amount:            params[:amount],
       notes:             params[:notes],
@@ -39,7 +39,7 @@ class Finance::RemainingDepositBalancesController < Finance::BaseController
     authorize @balance, :write_off?
 
     result = Finance::RemainingDepositBalanceWriteOff.new(
-      @balance,
+      @balance.id,
       actor:  current_user,
       notes:  params[:notes]
     ).call
@@ -59,12 +59,11 @@ class Finance::RemainingDepositBalancesController < Finance::BaseController
   def reassign
     authorize @balance, :reassign?
 
-    new_user = current_user.business.users.active.find(params[:new_responsible_user_id])
-    result   = Finance::RemainingDepositBalanceReassigner.new(
-      @balance,
-      actor:    current_user,
-      new_user: new_user,
-      notes:    params[:notes]
+    result = Finance::RemainingDepositBalanceReassigner.new(
+      @balance.id,
+      actor:       current_user,
+      new_user_id: params[:new_responsible_user_id],
+      notes:       params[:notes]
     ).call
 
     if result.ok?
@@ -76,9 +75,6 @@ class Finance::RemainingDepositBalancesController < Finance::BaseController
       @payment_methods   = business_payment_methods
       render :show, status: :unprocessable_entity
     end
-  rescue ActiveRecord::RecordNotFound
-    redirect_to finance_remaining_deposit_balance_path(@balance),
-                alert: t("remaining_deposit_balances.errors.invalid_user")
   end
 
   private

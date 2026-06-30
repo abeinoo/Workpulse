@@ -7,8 +7,8 @@ module Finance
 
     Result = Struct.new(:ok, :balance, :transaction, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(balance, actor:, amount:, notes: nil, payment_method_id: nil, reference_number: nil)
-      @balance           = balance
+    def initialize(balance_id, actor:, amount:, notes: nil, payment_method_id: nil, reference_number: nil)
+      @balance_id        = balance_id
       @actor             = actor
       @amount            = amount.to_d
       @notes             = notes
@@ -17,6 +17,8 @@ module Finance
     end
 
     def call
+      @balance = RemainingDepositBalance.where(business_id: @actor.business_id).find(@balance_id)
+
       return err("not_open")       unless @balance.open?
       return err("amount_required") unless @amount > 0
       return err("exceeds_balance") if @amount > @balance.remaining_amount

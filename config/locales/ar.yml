@@ -4833,6 +4833,16 @@ ar:
       cancel_submit: "إلغاء التحويل"
       confirm_cancel: "هل أنت متأكد من إلغاء هذا التحويل؟ ستظل مسؤولاً عن الإيداع."
       cancelled_note: "تم إلغاء هذا التحويل."
+      summary_heading: "ملخص الإيداع"
+      cashier_label: "الكاشير"
+      branch_label: "الفرع"
+      date_label: "يوم العمل"
+      closed_at_label: "وقت إغلاق الجلسة"
+      expected_label: "المتوقع"
+      deposited_label: "المودَع"
+      remaining_label: "المتبقي"
+      total_label: "الإجمالي"
+      notes_label: "ملاحظات"
 
   till_sessions:
     closed: "تم إغلاق الجلسة. في انتظار الإيداع."

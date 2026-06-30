@@ -4809,6 +4809,16 @@ en:
       cancel_submit: "Cancel Transfer"
       confirm_cancel: "Are you sure you want to cancel this transfer? You will remain responsible for the deposit."
       cancelled_note: "This transfer was cancelled."
+      summary_heading: "Deposit Summary"
+      cashier_label: "Cashier"
+      branch_label: "Branch"
+      date_label: "Business Date"
+      closed_at_label: "Session Closed"
+      expected_label: "Expected"
+      deposited_label: "Deposited"
+      remaining_label: "Remaining"
+      total_label: "Total"
+      notes_label: "Notes"
 
   till_sessions:
     closed: "Session closed. Awaiting deposit."

@@ -8,12 +8,17 @@ module Finance
 
     Result = Struct.new(:ok, :handover, :error, keyword_init: true) { def ok? = ok }
 
-    def initialize(handover, actor:)
-      @handover = handover
-      @actor    = actor
+    def initialize(handover_id, actor:)
+      @handover_id = handover_id
+      @actor       = actor
     end
 
     def call
+      @handover = TillHandover
+                    .joins(:daily_reconciliation)
+                    .where(daily_reconciliations: { business_id: @actor.business_id })
+                    .find(@handover_id)
+
       unless @handover.pending?
         return Result.new(
           ok:    false,

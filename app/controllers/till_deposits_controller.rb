@@ -18,7 +18,7 @@ class TillDepositsController < ApplicationController
     authorize @deposit
 
     result = Finance::TillDepositRecorder.new(
-      @reconciliation,
+      @reconciliation.id,
       actor:  current_user,
       params: deposit_params
     ).call

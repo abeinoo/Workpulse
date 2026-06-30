@@ -26,14 +26,20 @@ module Finance
       other
     ].freeze
 
-    def initialize(handover:, actor:, reason_code:, reason_notes: nil)
-      @handover     = handover
+    def initialize(handover_id:, actor:, reason_code:, reason_notes: nil)
+      @handover_id  = handover_id
       @actor        = actor
       @reason_code  = reason_code
       @reason_notes = reason_notes
     end
 
     def call
+      @handover = TillHandover
+                    .joins(:daily_reconciliation)
+                    .where(daily_reconciliations: { business_id: @actor.business_id })
+                    .includes(:amounts, daily_reconciliation: :till_session)
+                    .find(@handover_id)
+
       validate!
       perform
     rescue ActiveRecord::RecordInvalid => e
