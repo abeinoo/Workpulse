@@ -221,7 +221,7 @@ module Finance
         # override here, which would corrupt DRs closed after midnight.
       )
 
-      session.update!(closed_by: @actor, depositor: @actor)
+      session.update!(closed_by: @actor, depositor: @actor, current_holder: nil)
 
       if @params[:depositor_type] == "other"
         transfer = DepositResponsibilityTransfer.create!(
