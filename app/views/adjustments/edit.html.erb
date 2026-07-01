@@ -1,0 +1,89 @@
+<% content_for :title, t("adjustments.edit.page_title", id: @adjustment.id) %>
+
+<div class="form-page">
+  <%= link_to adjustment_path(@adjustment), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    <%= t("adjustments.edit.back") %>
+  <% end %>
+
+  <h1 class="page-title"><%= t("adjustments.edit.title", id: @adjustment.id) %></h1>
+  <p class="page-subtitle"><%= t("adjustments.edit.subtitle") %></p>
+
+  <%# Warn that editing resets approval and blocks payroll until re-approved. %>
+  <div class="alert alert-warning adj-edit__warn">
+    <%= t("adjustments.edit.reapproval_warning") %>
+  </div>
+
+  <%= form_with model: @adjustment, url: adjustment_path(@adjustment), method: :patch,
+        local: true, class: "form-card",
+        data: { controller: "payroll-adjustment-form" } do |f| %>
+    <%= render "shared/error_messages", object: @adjustment %>
+
+    <%# Employee and period are immutable — display only, not editable. %>
+    <div class="form-grid">
+      <div class="form-group form-group--full">
+        <span class="form-label"><%= t("adjustments.employee") %></span>
+        <div class="adj-edit__locked-field">
+          <%= user_avatar_tag(@adjustment.user, size: :thumb) %>
+          <span><%= @adjustment.user.full_name %></span>
+        </div>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= label_tag "payroll_adjustment[period_key]", t("adjustments.new.period_label"),
+              class: "form-label form-label--required" %>
+        <%= select_tag "payroll_adjustment[period_key]",
+              options_for_select(@selectable_periods, @selected_period_key),
+              { include_blank: false, class: "form-control" } %>
+        <p class="form-hint"><%= t("adjustments.edit.period_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <% selected_type = @adjustment.adjustment_type.presence || "cash_incentive" %>
+        <%= f.label :adjustment_type, t("adjustments.new.type_label"), class: "form-label form-label--required" %>
+        <%= f.select :adjustment_type,
+              PayrollAdjustment::ADJUSTMENT_TYPES.map { |type| [t("adjustments.types.#{type}"), type] },
+              { selected: selected_type },
+              class: "form-control",
+              data: { payroll_adjustment_form_target: "type",
+                      action: "change->payroll-adjustment-form#onChange" } %>
+        <p class="form-hint"><%= t("adjustments.new.type_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :amount, t("adjustments.new.amount_label"), class: "form-label form-label--required" %>
+        <%= f.number_field :amount,
+              class: "form-control",
+              min: 0.01,
+              step: "0.01",
+              value: @adjustment.amount %>
+      </div>
+
+      <div class="form-group form-group--full">
+        <%= f.label :reason, t("adjustments.new.reason_label"), class: "form-label form-label--required" %>
+        <%= f.text_area :reason,
+              rows: 3,
+              class: "form-control",
+              value: @adjustment.reason %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("adjustments.edit.submit"), class: "btn btn-primary" %>
+      <%= link_to t("forms.cancel"), adjustment_path(@adjustment), class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>
+
+<style>
+  .adj-edit__warn { margin-bottom: var(--space-4); }
+  .adj-edit__locked-field {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-2); border: 1px solid var(--border-1);
+    border-radius: var(--radius-1); color: var(--text-2); font-size: 0.9rem;
+  }
+</style>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_01_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_01_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -849,6 +849,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_100000) do
     t.index ["business_id", "active", "position"], name: "index_payment_methods_on_business_id_and_active_and_position"
     t.index ["business_id", "settlement_type"], name: "index_payment_methods_on_business_id_and_settlement_type"
     t.index ["business_id"], name: "index_payment_methods_on_business_id"
+  end
+
+  create_table "payroll_adjustment_edits", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "edited_by_id", null: false
+    t.string "new_adjustment_type", null: false
+    t.decimal "new_amount", precision: 10, scale: 2, null: false
+    t.integer "new_period_month", null: false
+    t.integer "new_period_year", null: false
+    t.text "new_reason"
+    t.string "old_adjustment_type", null: false
+    t.decimal "old_amount", precision: 10, scale: 2, null: false
+    t.integer "old_period_month", null: false
+    t.integer "old_period_year", null: false
+    t.text "old_reason"
+    t.bigint "payroll_adjustment_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_payroll_adjustment_edits_on_business_id"
+    t.index ["edited_by_id"], name: "index_payroll_adjustment_edits_on_edited_by_id"
+    t.index ["payroll_adjustment_id"], name: "index_payroll_adjustment_edits_on_payroll_adjustment_id"
   end
 
   create_table "payroll_adjustments", force: :cascade do |t|
@@ -2024,6 +2045,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_01_100000) do
   add_foreign_key "obligation_deductions", "employee_obligations"
   add_foreign_key "obligation_deductions", "payroll_periods"
   add_foreign_key "payment_methods", "businesses"
+  add_foreign_key "payroll_adjustment_edits", "businesses"
+  add_foreign_key "payroll_adjustment_edits", "payroll_adjustments"
+  add_foreign_key "payroll_adjustment_edits", "users", column: "edited_by_id"
   add_foreign_key "payroll_adjustments", "businesses"
   add_foreign_key "payroll_adjustments", "payroll_periods"
   add_foreign_key "payroll_adjustments", "users"

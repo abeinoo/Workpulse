@@ -7,6 +7,8 @@ class PayrollAdjustment < ApplicationRecord
   belongs_to :approved_by, class_name: "User", optional: true
   belongs_to :rejected_by, class_name: "User", optional: true
 
+  has_many :payroll_adjustment_edits, dependent: :destroy
+
   # Positive adjustments add to salary; negative adjustments deduct.
   # already_paid: positive adjustments that were already handed to the employee in cash.
   # They appear in payroll reporting/history but do NOT increase net payable salary.

@@ -145,7 +145,7 @@ Rails.application.routes.draw do
   end
 
   # ── Standalone Adjustments (pre-payroll, manager creates / admin approves) ─
-  resources :adjustments, only: [ :index, :show, :new, :create, :destroy ] do
+  resources :adjustments, only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
     collection do
       post :bulk_approve
       post :bulk_reject

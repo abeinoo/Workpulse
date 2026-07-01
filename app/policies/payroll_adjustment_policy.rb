@@ -32,6 +32,18 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
   def approve? = can_review?
   def reject?  = can_review?
 
+  # Only approved adjustments may be edited, and only by users who hold the
+  # dedicated edit_approved_adjustments permission. The period-finalized guard
+  # lives in the service so the controller can render the appropriate guidance.
+  def edit?
+    return false unless same_business?
+    return false unless record.approved?
+
+    can?(:edit_approved_adjustments)
+  end
+
+  def update? = edit?
+
   # Bulk approve/reject gate the COLLECTION action: the user must hold
   # approve_adjustments at all. Per-record eligibility (creator ≠ approver, pending
   # only) is still enforced row-by-row by Adjustments::BulkReview, so employees —

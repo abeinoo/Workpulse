@@ -23,7 +23,7 @@ class PermissionRole < ApplicationRecord
                                manage_payroll_overrides manage_payroll_deduction_waivers
                                finalize_payroll pay_payroll reopen_payroll delete_payroll
                                pay_advances],
-    adjustments:           %w[manage_adjustments approve_adjustments],
+    adjustments:           %w[manage_adjustments approve_adjustments edit_approved_adjustments],
     requests:              %w[view_requests approve_requests],
     shifts:                %w[view_shifts manage_shifts assign_shifts],
     reports:               %w[view_dashboard view_reports export_reports],
@@ -154,7 +154,7 @@ class PermissionRole < ApplicationRecord
       %w[finalize_payroll pay_payroll delete_payroll reopen_payroll
          approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
          view_payroll_audit_log
-         approve_adjustments manage_devices manage_shifts
+         approve_adjustments edit_approved_adjustments manage_devices manage_shifts
          manage_evaluation_templates view_performance_reports] +
     BRANCH_SCOPABLE_PERMISSIONS +
     DR_MANAGEMENT_PERMISSIONS
@@ -204,8 +204,9 @@ class PermissionRole < ApplicationRecord
     "reopen_payroll"         => %w[view_payroll],
     "delete_payroll"         => %w[view_payroll],
     "pay_advances"           => %w[view_requests],
-    "manage_adjustments"     => %w[view_payroll],
-    "approve_adjustments"    => %w[view_payroll],
+    "manage_adjustments"          => %w[view_payroll],
+    "approve_adjustments"         => %w[view_payroll],
+    "edit_approved_adjustments"   => %w[manage_adjustments],
     "approve_requests"       => %w[view_requests],
     "assign_shifts"          => %w[view_shifts],
     "create_till_deposit"    => %w[close_till_session],

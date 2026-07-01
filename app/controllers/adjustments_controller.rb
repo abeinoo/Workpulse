@@ -1,6 +1,6 @@
 class AdjustmentsController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_adjustment, only: [ :approve, :reject, :destroy ]
+  before_action :set_adjustment, only: [ :show, :edit, :update, :approve, :reject, :destroy ]
 
   def index
     authorize PayrollAdjustment.new(business: current_user.business)
@@ -51,10 +51,39 @@ class AdjustmentsController < ApplicationController
   end
 
   def show
-    @adjustment = policy_scope(PayrollAdjustment)
-                    .includes(:user, :created_by, :approved_by, :rejected_by, :reviewed_by, :payroll_period)
-                    .find(params[:id])
     authorize @adjustment
+    @edit_history = @adjustment.payroll_adjustment_edits.includes(:edited_by).order(created_at: :asc)
+  end
+
+  def edit
+    authorize @adjustment
+    load_edit_form_data
+  end
+
+  def update
+    authorize @adjustment
+
+    result = Payroll::AdjustmentEditor.call(
+      adjustment_id: @adjustment.id,
+      actor:         current_user,
+      params:        adjustment_edit_params
+    )
+
+    if result.ok?
+      redirect_to adjustment_path(@adjustment),
+                  notice: t("adjustments.edit.updated")
+    elsif result.period_finalized?
+      redirect_to adjustment_path(@adjustment),
+                  alert: t("adjustments.errors.period_processed_edit")
+    elsif result.target_period_locked?
+      load_edit_form_data
+      flash.now[:alert] = t("adjustments.errors.target_period_locked")
+      render :edit, status: :unprocessable_entity
+    else
+      load_edit_form_data
+      flash.now[:alert] = result.error
+      render :edit, status: :unprocessable_entity
+    end
   end
 
   # Quick-action shortcuts pass ?adjustment_type=… so the form opens with the
@@ -158,7 +187,29 @@ class AdjustmentsController < ApplicationController
   private
 
   def set_adjustment
-    @adjustment = policy_scope(PayrollAdjustment).find(params[:id])
+    @adjustment = policy_scope(PayrollAdjustment)
+                    .includes(:user, :created_by, :approved_by, :rejected_by, :reviewed_by,
+                               :payroll_period, :payroll_adjustment_edits)
+                    .find(params[:id])
+  end
+
+  def load_edit_form_data
+    @employees          = manageable_employees
+    @selectable_periods = Adjustments::SelectablePeriods.new(current_user.business).options
+
+    # Always ensure the adjustment's current period appears in the list — it may
+    # sit outside the SelectablePeriods forward window for older draft periods.
+    current_key = "#{@adjustment.period_year}-#{@adjustment.period_month}"
+    unless @selectable_periods.any? { |_, key| key == current_key }
+      label = "#{I18n.t('date.month_names')[@adjustment.period_month]} #{@adjustment.period_year}"
+      @selectable_periods = [[label, current_key]] + @selectable_periods
+    end
+
+    @selected_period_key = params.dig(:payroll_adjustment, :period_key).presence || current_key
+  end
+
+  def adjustment_edit_params
+    params.require(:payroll_adjustment).permit(:adjustment_type, :amount, :reason, :period_key)
   end
 
   # The chosen rows, always re-scoped through policy_scope so a reviewer can never

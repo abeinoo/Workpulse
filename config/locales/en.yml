@@ -1121,6 +1121,8 @@ en:
       all: "All Types"
     errors:
       period_processed: "Payroll for this period has already been processed. Adjustments can no longer be added."
+      period_processed_edit: "This adjustment has already been included in a finalized payroll and cannot be edited. Reopen the payroll period or create a new adjustment in the next period."
+      target_period_locked: "The selected payroll period is locked and cannot accept adjustments. Choose an open period."
       period_under_review: "Adjustments cannot be created after payroll has been submitted for review."
       creator_is_approver: "cannot be the same person who created the adjustment"
       no_open_period: "There is no open payroll period available. Adjustments can only be added to periods that have not yet been processed."
@@ -1225,6 +1227,17 @@ en:
     pending:
       one: "1 adjustment awaiting your review"
       other: "%{count} adjustments awaiting your review"
+    edit:
+      page_title: "Edit Adjustment #%{id} — WorkPulse"
+      title: "Edit Adjustment #%{id}"
+      back: "Back to Adjustment"
+      subtitle: "Editing an approved adjustment resets it to Pending Review. A new approval is required before it affects payroll."
+      reapproval_warning: "Saving this edit will revert the adjustment to Pending Review and remove it from payroll until it is re-approved by an authorised reviewer."
+      submit: "Save Changes"
+      updated: "Adjustment updated. It has been reset to Pending Review and requires re-approval."
+      locked: "locked"
+      button: "Edit"
+      period_hint: "Select the open payroll period this adjustment should apply to. Locked or finalized periods are not shown."
     show:
       page_title: "Adjustment #%{id} — WorkPulse"
       title: "Adjustment #%{id}"
@@ -1238,13 +1251,23 @@ en:
       rejection_date: "Rejection Date"
       none: "—"
       locked_notice: "This adjustment has been %{status} and can no longer be edited."
+      finalized_warning:
+        title: "Included in Finalized Payroll"
+        body: "This adjustment has already been included in a finalized payroll period. Editing is not permitted. You can reopen the payroll to make changes, or create a new adjustment in the next period."
+        reopen: "Reopen Payroll"
+        new_next_period: "New Adjustment (Next Period)"
+      edit_history_heading: "Edit History"
+      edit_number: "Edit #%{n}"
       timeline:
-        heading: "History"
+        heading: "Activity"
         created: "Created"
         submitted: "Submitted for review"
         approved: "Approved"
+        reapproved: "Re-approved"
         rejected: "Rejected"
         pending: "Awaiting review"
+        awaiting_desc: "Pending approval from a reviewer."
+        edited: "Edited"
         by: "by %{name}"
 
   bulk_adjustments:

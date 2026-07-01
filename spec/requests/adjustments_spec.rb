@@ -458,4 +458,150 @@ RSpec.describe "Adjustments workflow", type: :request do
       end
     end
   end
+
+  describe "Edit / Update approved adjustment" do
+    let(:editor_role) do
+      create(:permission_role, business: business,
+             permissions: %w[view_payroll manage_adjustments edit_approved_adjustments],
+             permission_scopes: { "view_payroll" => "business", "manage_adjustments" => "business" })
+    end
+    let(:editor) { create(:user, business: business, permission_role: editor_role) }
+
+    let!(:approved_adjustment) do
+      create(:payroll_adjustment, :cash_incentive, :approved,
+             payroll_period: draft_period, business: business,
+             user: employee, created_by: manager, amount: 500.0, reason: "Original")
+    end
+
+    describe "GET /adjustments/:id/edit" do
+      it "renders the edit form for a user with edit_approved_adjustments" do
+        sign_in editor
+        get edit_adjustment_path(approved_adjustment)
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include(I18n.t("adjustments.edit.title", id: approved_adjustment.id))
+      end
+
+      it "denies access to a user without edit_approved_adjustments" do
+        sign_in manager  # has manage_adjustments but NOT edit_approved_adjustments
+        get edit_adjustment_path(approved_adjustment)
+        expect(response).not_to have_http_status(:ok)
+      end
+
+      it "denies access for a pending adjustment (not approved)" do
+        pending_adj = create(:payroll_adjustment, :cash_incentive,
+                             payroll_period: draft_period, business: business,
+                             user: employee, created_by: manager)
+        sign_in editor
+        get edit_adjustment_path(pending_adj)
+        expect(response).not_to have_http_status(:ok)
+      end
+    end
+
+    describe "PATCH /adjustments/:id" do
+      def update_params(overrides = {})
+        {
+          payroll_adjustment: {
+            adjustment_type: "cash_incentive",
+            amount:          "750",
+            reason:          "Revised reason"
+          }.merge(overrides)
+        }
+      end
+
+      it "updates the adjustment and resets it to pending_review" do
+        sign_in editor
+        patch adjustment_path(approved_adjustment), params: update_params
+
+        approved_adjustment.reload
+        expect(approved_adjustment.amount).to eq(750.0)
+        expect(approved_adjustment.reason).to eq("Revised reason")
+        expect(approved_adjustment.review_status).to eq("pending_review")
+        expect(approved_adjustment.approved_by_id).to be_nil
+      end
+
+      it "redirects to the adjustment show page with a notice" do
+        sign_in editor
+        patch adjustment_path(approved_adjustment), params: update_params
+        expect(response).to redirect_to(adjustment_path(approved_adjustment))
+        expect(flash[:notice]).to eq(I18n.t("adjustments.edit.updated"))
+      end
+
+      it "creates a PayrollAdjustmentEdit audit record" do
+        sign_in editor
+        expect {
+          patch adjustment_path(approved_adjustment), params: update_params
+        }.to change(PayrollAdjustmentEdit, :count).by(1)
+
+        edit = PayrollAdjustmentEdit.last
+        expect(edit.edited_by).to eq(editor)
+        expect(edit.old_amount).to eq(500.0)
+        expect(edit.new_amount).to eq(750.0)
+      end
+
+      it "redirects with alert when the period is finalized" do
+        draft_period.update_column(:status, "finalized")
+        sign_in editor
+        patch adjustment_path(approved_adjustment), params: update_params
+        expect(response).to redirect_to(adjustment_path(approved_adjustment))
+        expect(flash[:alert]).to eq(I18n.t("adjustments.errors.period_processed_edit"))
+      end
+
+      it "denies a user without edit_approved_adjustments" do
+        sign_in manager
+        patch adjustment_path(approved_adjustment), params: update_params
+        approved_adjustment.reload
+        expect(approved_adjustment.amount).to eq(500.0)
+      end
+    end
+
+    describe "show page — Edit button visibility" do
+      it "shows the Edit button to a user with edit_approved_adjustments" do
+        sign_in editor
+        get adjustment_path(approved_adjustment)
+        expect(response.body).to include(edit_adjustment_path(approved_adjustment))
+      end
+
+      it "does not show the Edit button to a user without the permission" do
+        sign_in manager
+        get adjustment_path(approved_adjustment)
+        expect(response.body).not_to include(edit_adjustment_path(approved_adjustment))
+      end
+
+      it "does not show the Edit button for a pending adjustment" do
+        pending_adj = create(:payroll_adjustment, :cash_incentive,
+                             payroll_period: draft_period, business: business,
+                             user: employee, created_by: editor)
+        sign_in editor
+        get adjustment_path(pending_adj)
+        expect(response.body).not_to include(edit_adjustment_path(pending_adj))
+      end
+    end
+
+    describe "show page — edit history in timeline" do
+      before do
+        # Create an edit record directly to simulate past edits
+        PayrollAdjustmentEdit.create!(
+          payroll_adjustment: approved_adjustment,
+          business:           business,
+          edited_by:          editor,
+          old_adjustment_type: "cash_incentive",
+          new_adjustment_type: "cash_incentive",
+          old_amount:          500.0,
+          new_amount:          750.0,
+          old_reason:          "Original",
+          new_reason:          "Revised reason",
+          old_period_month:    draft_period.period_month,
+          new_period_month:    draft_period.period_month,
+          old_period_year:     draft_period.period_year,
+          new_period_year:     draft_period.period_year
+        )
+      end
+
+      it "renders the Edited timeline entry on the show page" do
+        sign_in editor
+        get adjustment_path(approved_adjustment)
+        expect(response.body).to include(I18n.t("adjustments.show.timeline.edited"))
+      end
+    end
+  end
 end

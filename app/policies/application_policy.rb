@@ -88,9 +88,12 @@ class ApplicationPolicy
   def can?(permission) = user.can?(permission)
 
   def same_business?(target = record)
-    return true if user.owner?
-
-    target.respond_to?(:business_id) && target.business_id == user.business_id
+    if target.respond_to?(:business_id) && target.business_id.present?
+      target.business_id == user.business_id
+    else
+      # Class-level or unsaved records with no business_id: owners always pass.
+      user.owner?
+    end
   end
 
   # ── Branch write-scope enforcement (shared by financial policies) ──────────
