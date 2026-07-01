@@ -30,6 +30,12 @@ FactoryBot.define do
       reason          { "Customer complaint penalty" }
     end
 
+    trait :penalty do
+      adjustment_type { :penalty }
+      amount          { 150.0 }
+      reason          { "Policy violation" }
+    end
+
     trait :already_paid do
       already_paid    { true }
       payment_method  { "cash" }

@@ -74,6 +74,37 @@ RSpec.describe Adjustments::BulkReview do
       expect(result.total).to eq(1)
       expect(result.any_succeeded?).to be true
     end
+
+    context "when a PayrollEntry exists for the employee" do
+      let!(:entry) do
+        create(:payroll_entry,
+               payroll_period:   period,
+               user:             employee,
+               base_salary:      5_000.0,
+               net_salary:       5_000.0,
+               total_bonuses:    0.0,
+               total_deductions: 0.0)
+      end
+
+      it "materialises the approved adjustment into the entry" do
+        adj = adjustment  # cash_incentive, 500.0
+        described_class.approve(adjustments: [ adj ], reviewer: approver)
+
+        entry.reload
+        expect(entry.payroll_line_items.where(item_type: "cash_incentive").count).to eq(1)
+        expect(entry.total_bonuses).to eq(500.0)
+        expect(entry.net_salary).to eq(5_500.0)
+      end
+
+      it "does NOT update the entry for a rejected adjustment" do
+        adj = adjustment
+        described_class.reject(adjustments: [ adj ], reviewer: approver)
+
+        entry.reload
+        expect(entry.payroll_line_items.where(source_type: "PayrollAdjustment", source_id: adj.id)).to be_empty
+        expect(entry.net_salary).to eq(5_000.0)
+      end
+    end
   end
 
   describe ".reject" do

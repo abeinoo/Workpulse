@@ -101,6 +101,9 @@ class AdjustmentsController < ApplicationController
     authorize @adjustment
 
     @adjustment.approve_by!(current_user)
+    # Materialise the approved adjustment into the existing PayrollEntry (if any)
+    # so the entry and its totals stay in sync without requiring a full regeneration.
+    Payroll::AdjustmentApplier.call(adjustment: @adjustment)
 
     redirect_back fallback_location: adjustments_path, notice: t("flash.adjustment_approved")
   rescue => e

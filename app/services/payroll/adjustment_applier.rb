@@ -16,10 +16,18 @@ module Payroll
     end
 
     def call
-      entry = PayrollEntry.find_by(
-        payroll_period: @adjustment.payroll_period,
-        user:           @adjustment.user
-      )
+      # Standalone adjustments (created outside the payroll-review flow) have no
+      # payroll_period_id. Fall back to looking up the period by business/month/year
+      # so approval of a standalone adjustment can still materialise into an existing
+      # PayrollEntry without requiring a full regeneration.
+      period = @adjustment.payroll_period ||
+               PayrollPeriod.find_by(
+                 business:     @adjustment.business,
+                 period_month: @adjustment.period_month,
+                 period_year:  @adjustment.period_year
+               )
+
+      entry = period && PayrollEntry.find_by(payroll_period: period, user: @adjustment.user)
       return Result.new(success: true, line_item: nil) unless entry
 
       ActiveRecord::Base.transaction do

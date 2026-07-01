@@ -173,6 +173,47 @@ RSpec.describe "Adjustments workflow", type: :request do
       expect(adjustment.approved_by).to eq(approver)
       expect(adjustment.approved_by).not_to eq(adjustment.created_by)
     end
+
+    context "when a PayrollEntry already exists for the employee and period" do
+      let!(:entry) do
+        create(:payroll_entry,
+               payroll_period: draft_period,
+               user:           employee,
+               base_salary:    5_000.0,
+               net_salary:     5_000.0,
+               total_bonuses:  0.0,
+               total_deductions: 0.0)
+      end
+
+      it "materialises the approval into the existing entry immediately" do
+        sign_in approver
+        patch approve_adjustment_path(adjustment)
+
+        entry.reload
+        expect(entry.payroll_line_items.where(item_type: "cash_incentive").count).to eq(1)
+        expect(entry.total_bonuses).to eq(500.0)
+        expect(entry.net_salary).to eq(5_500.0)
+      end
+
+      context "with a manual_deduction" do
+        let!(:deduction_adj) do
+          create(:payroll_adjustment, :manual_deduction,
+                 payroll_period: draft_period, business: business,
+                 user: employee, created_by: manager, review_status: :pending_review,
+                 amount: 200.0)
+        end
+
+        it "subtracts the deduction from net_salary on approval" do
+          sign_in approver
+          patch approve_adjustment_path(deduction_adj)
+
+          entry.reload
+          expect(entry.payroll_line_items.where(item_type: "manual_deduction").count).to eq(1)
+          expect(entry.total_deductions).to eq(200.0)
+          expect(entry.net_salary).to eq(4_800.0)
+        end
+      end
+    end
   end
 
   describe "Bulk approve / reject" do

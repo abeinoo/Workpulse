@@ -113,5 +113,89 @@ RSpec.describe Payroll::AdjustmentApplier do
         expect(result.line_item).to be_nil
       end
     end
+
+    # Standalone adjustments (created outside the payroll-review flow) have no
+    # payroll_period_id. The applier must still find the correct PayrollEntry by
+    # looking up the period by business/month/year.
+    context "when the adjustment has no payroll_period_id (standalone)" do
+      let(:standalone_adjustment) do
+        adj = build(:payroll_adjustment, :manual_deduction, :approved,
+          payroll_period: nil,
+          business:       business,
+          user:           employee,
+          created_by:     manager,
+          period_month:   period.period_month,
+          period_year:    period.period_year,
+          amount:         150.0
+        )
+        adj.save!(validate: false)
+        adj
+      end
+
+      it "finds the entry by business/period_month/period_year and creates a line item" do
+        described_class.call(adjustment: standalone_adjustment)
+        li = entry.reload.payroll_line_items.find_by(
+          source_type: "PayrollAdjustment", source_id: standalone_adjustment.id
+        )
+        expect(li).to be_present
+        expect(li.item_type).to eq("manual_deduction")
+        expect(li.amount).to eq(-150.0)
+      end
+
+      it "decrements net_salary on the existing entry" do
+        described_class.call(adjustment: standalone_adjustment)
+        expect(entry.reload.net_salary).to eq(4_850.0)
+      end
+    end
+
+    context "when an approved commission adjustment is applied" do
+      let(:adjustment) do
+        create(:payroll_adjustment, :commission,
+          payroll_period: period,
+          user:           employee,
+          created_by:     manager,
+          review_status:  :approved,
+          amount:         300.0
+        )
+      end
+
+      it "creates a commission line item" do
+        described_class.call(adjustment: adjustment)
+        li = entry.reload.payroll_line_items.find_by(source_type: "PayrollAdjustment", source_id: adjustment.id)
+        expect(li).to be_present
+        expect(li.item_type).to eq("commission")
+        expect(li.amount).to eq(300.0)
+      end
+
+      it "increases net_salary by the commission amount" do
+        described_class.call(adjustment: adjustment)
+        expect(entry.reload.net_salary).to eq(5_300.0)
+      end
+    end
+
+    context "when an approved penalty adjustment is applied" do
+      let(:adjustment) do
+        create(:payroll_adjustment, :penalty,
+          payroll_period: period,
+          user:           employee,
+          created_by:     manager,
+          review_status:  :approved,
+          amount:         150.0
+        )
+      end
+
+      it "creates a penalty line item with a negative amount" do
+        described_class.call(adjustment: adjustment)
+        li = entry.reload.payroll_line_items.find_by(source_type: "PayrollAdjustment", source_id: adjustment.id)
+        expect(li).to be_present
+        expect(li.item_type).to eq("penalty")
+        expect(li.amount).to eq(-150.0)
+      end
+
+      it "decreases net_salary by the penalty amount" do
+        described_class.call(adjustment: adjustment)
+        expect(entry.reload.net_salary).to eq(4_850.0)
+      end
+    end
   end
 end

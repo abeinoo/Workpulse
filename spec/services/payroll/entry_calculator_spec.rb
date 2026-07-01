@@ -497,6 +497,156 @@ RSpec.describe Payroll::EntryCalculator do
     end
   end
 
+  describe "approved adjustment types — entry integration" do
+    # Full month of perfect attendance so net starts at base (8 800) with no
+    # attendance deductions or overtime. Each context adds one adjustment and verifies
+    # that the correct line_item and totals land on the entry.
+    before do
+      (period_start..period_end).reject { |d| d.saturday? || d.sunday? }.first(22).each do |date|
+        create_record(date, worked: 480)
+      end
+    end
+
+    context "approved manual_deduction" do
+      let!(:adj) do
+        create(:payroll_adjustment, :manual_deduction, :approved,
+               payroll_period: period, user: user, business: business, amount: 300.0)
+      end
+
+      it "creates a manual_deduction line item with a negative amount" do
+        entry = run
+        li = entry.payroll_line_items.find_by(item_type: "manual_deduction")
+        expect(li).to be_present
+        expect(li.amount).to eq(-300.0)
+        expect(li.review_status).to eq("approved")
+      end
+
+      it "adds the deduction to total_deductions and subtracts from net_salary" do
+        entry = run
+        expect(entry.total_deductions).to eq(300.0)
+        expect(entry.net_salary).to eq(8_500.0)
+      end
+    end
+
+    context "approved cash_incentive (not already_paid)" do
+      let!(:adj) do
+        create(:payroll_adjustment, :cash_incentive, :approved,
+               payroll_period: period, user: user, business: business, amount: 400.0)
+      end
+
+      it "creates a cash_incentive line item with a positive amount" do
+        entry = run
+        li = entry.payroll_line_items.find_by(item_type: "cash_incentive")
+        expect(li).to be_present
+        expect(li.amount).to eq(400.0)
+        expect(li.review_status).to eq("approved")
+      end
+
+      it "adds to total_bonuses and increases net_salary" do
+        entry = run
+        expect(entry.total_bonuses).to eq(400.0)
+        expect(entry.net_salary).to eq(9_200.0)
+      end
+    end
+
+    context "approved commission" do
+      let!(:adj) do
+        create(:payroll_adjustment, :commission, :approved,
+               payroll_period: period, user: user, business: business, amount: 250.0)
+      end
+
+      it "creates a commission line item" do
+        entry = run
+        li = entry.payroll_line_items.find_by(item_type: "commission")
+        expect(li).to be_present
+        expect(li.amount).to eq(250.0)
+      end
+
+      it "adds commission to total_bonuses and net_salary" do
+        entry = run
+        expect(entry.total_bonuses).to eq(250.0)
+        expect(entry.net_salary).to eq(9_050.0)
+      end
+    end
+
+    context "approved penalty" do
+      let!(:adj) do
+        create(:payroll_adjustment, :penalty, :approved,
+               payroll_period: period, user: user, business: business, amount: 150.0)
+      end
+
+      it "creates a penalty line item with a negative amount" do
+        entry = run
+        li = entry.payroll_line_items.find_by(item_type: "penalty")
+        expect(li).to be_present
+        expect(li.amount).to eq(-150.0)
+        expect(li.review_status).to eq("approved")
+      end
+
+      it "adds the penalty to total_deductions and subtracts from net_salary" do
+        entry = run
+        expect(entry.total_deductions).to eq(150.0)
+        expect(entry.net_salary).to eq(8_650.0)
+      end
+    end
+
+    context "pending_review adjustment" do
+      let!(:adj) do
+        create(:payroll_adjustment, :cash_incentive,
+               payroll_period: period, user: user, business: business,
+               amount: 500.0, review_status: :pending_review)
+      end
+
+      it "is excluded from totals and net_salary" do
+        entry = run
+        expect(entry.total_bonuses).to eq(0.0)
+        expect(entry.net_salary).to eq(8_800.0)
+      end
+
+      it "creates no line item for the pending adjustment" do
+        entry = run
+        expect(entry.payroll_line_items.where(source_type: "PayrollAdjustment", source_id: adj.id)).to be_empty
+      end
+    end
+
+    context "rejected adjustment" do
+      let!(:adj) do
+        create(:payroll_adjustment, :manual_deduction,
+               payroll_period: period, user: user, business: business,
+               amount: 200.0, review_status: :rejected)
+      end
+
+      it "is excluded from totals and net_salary" do
+        entry = run
+        expect(entry.total_deductions).to eq(0.0)
+        expect(entry.net_salary).to eq(8_800.0)
+      end
+
+      it "creates no line item for the rejected adjustment" do
+        entry = run
+        expect(entry.payroll_line_items.where(source_type: "PayrollAdjustment", source_id: adj.id)).to be_empty
+      end
+    end
+
+    context "multiple approved adjustments of different types" do
+      let!(:bonus) do
+        create(:payroll_adjustment, :cash_incentive, :approved,
+               payroll_period: period, user: user, business: business, amount: 200.0)
+      end
+      let!(:deduction) do
+        create(:payroll_adjustment, :manual_deduction, :approved,
+               payroll_period: period, user: user, business: business, amount: 100.0)
+      end
+
+      it "applies all adjustments independently" do
+        entry = run
+        expect(entry.total_bonuses).to eq(200.0)
+        expect(entry.total_deductions).to eq(100.0)
+        expect(entry.net_salary).to eq(8_900.0)  # 8800 + 200 - 100
+      end
+    end
+  end
+
   describe "daily salary employee" do
     let!(:daily_profile) do
       salary_profile.update!(active: false)

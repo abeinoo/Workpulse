@@ -77,6 +77,9 @@ module Adjustments
         adjustment.reject_by!(@reviewer, notes: @notes)
       else
         adjustment.approve_by!(@reviewer)
+        # Materialise into an existing PayrollEntry so the entry stays in sync
+        # without requiring a full period regeneration. No-ops when no entry exists.
+        Payroll::AdjustmentApplier.call(adjustment: adjustment)
       end
     end
 
