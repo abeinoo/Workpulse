@@ -3,10 +3,14 @@ module Finance
   #
   # If the deposited amount is less than the expected cash total for this
   # payment method, a RemainingDepositBalance is created in the same
-  # transaction to track the shortfall.  Both records succeed or fail
-  # together — there is no partial state.
+  # transaction to track the shortfall.
   #
-  # Result#remaining_amount is non-nil when a remaining balance was created.
+  # If a prior deposit already created an open RDB for the same PM, the new
+  # deposit auto-settles or partially reduces that balance rather than creating
+  # a second one.  All changes succeed or fail together — no partial state.
+  #
+  # Result#remaining_amount is non-nil when an outstanding shortfall still
+  # exists for this PM after the deposit.
   class TillDepositRecorder
     include AuditLoggable
 
@@ -73,37 +77,63 @@ module Finance
         # "closed but not yet deposited" from "deposited but not yet verified".
         @daily_reconciliation.update!(state: "deposited") if @daily_reconciliation.closed?
 
-        if remaining_amount
-          balance = @daily_reconciliation.remaining_deposit_balances.create!(
-            till_deposit:     deposit,
-            responsible_user: @actor,
-            created_by:       @actor,
-            business:         @daily_reconciliation.business,
-            branch:           @daily_reconciliation.branch,
-            amount:           remaining_amount,
-            remaining_amount: remaining_amount,
-            status:           "open"
-          )
-
-          # Seed the opening ledger transaction immediately so the audit trail
-          # starts from the moment of creation, not from the first settlement.
-          balance.balance_transactions.create!(
-            transaction_type: "created",
-            amount:           remaining_amount,
-            performed_by:     @actor,
-            notes:            @params[:notes]
-          )
-
-          log_audit(actor: @actor, auditable: balance, action: "create",
-                    metadata: { amount:                  remaining_amount.to_s,
-                                 daily_reconciliation_id: @daily_reconciliation.id,
-                                 till_deposit_id:         deposit.id })
-        end
+        reconcile_remaining_balance!(pm, deposit, remaining_amount) if pm.cash_like?
 
         Result.new(ok: true, deposit: deposit, remaining_amount: remaining_amount)
       end
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
+    end
+
+    private
+
+    # Keeps the open RemainingDepositBalance for this PM in sync after each deposit.
+    #
+    # new_shortfall is the amount still owed for this PM after the current deposit
+    # (nil means fully covered).
+    #
+    # Three cases:
+    #   1. Existing open RDB + new shortfall reduced  → settle the difference
+    #   2. Existing open RDB + no shortfall remaining → fully settle the RDB
+    #   3. No existing RDB  + shortfall still exists  → create a new RDB
+    def reconcile_remaining_balance!(pm, deposit, new_shortfall)
+      open_rdb = @daily_reconciliation.remaining_deposit_balances
+                   .open
+                   .joins(:till_deposit)
+                   .where(till_deposits: { payment_method_id: pm.id })
+                   .first
+
+      if open_rdb
+        settlement_amount = open_rdb.remaining_amount - new_shortfall.to_d
+        if settlement_amount > 0
+          Finance::RemainingDepositBalanceSettler.new(
+            open_rdb.id,
+            actor:  @actor,
+            amount: settlement_amount
+          ).call
+        end
+      elsif new_shortfall
+        balance = @daily_reconciliation.remaining_deposit_balances.create!(
+          till_deposit:     deposit,
+          responsible_user: @actor,
+          created_by:       @actor,
+          business:         @daily_reconciliation.business,
+          branch:           @daily_reconciliation.branch,
+          amount:           new_shortfall,
+          remaining_amount: new_shortfall,
+          status:           "open"
+        )
+        balance.balance_transactions.create!(
+          transaction_type: "created",
+          amount:           new_shortfall,
+          performed_by:     @actor,
+          notes:            @params[:notes]
+        )
+        log_audit(actor: @actor, auditable: balance, action: "create",
+                  metadata: { amount:                  new_shortfall.to_s,
+                               daily_reconciliation_id: @daily_reconciliation.id,
+                               till_deposit_id:         deposit.id })
+      end
     end
   end
 end

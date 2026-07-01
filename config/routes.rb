@@ -262,6 +262,8 @@ Rails.application.routes.draw do
   # Route kept for backward compatibility (bookmarks); no longer linked in the UI.
   get "my_shift", to: "till_handovers#my_shift", as: :my_shift
 
+  resources :opening_floats, only: %i[new create]
+
   resources :till_handovers, only: %i[new create show] do
     member do
       patch :accept

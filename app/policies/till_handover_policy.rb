@@ -13,6 +13,8 @@ class TillHandoverPolicy < ApplicationPolicy
     can?(:close_till_session)
   end
 
+  def leave_opening_float? = can?(:close_till_session)
+
   def accept?
     can?(:accept_till_handover) &&
       record.pending? &&

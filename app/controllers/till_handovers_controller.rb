@@ -246,8 +246,7 @@ class TillHandoversController < ApplicationController
   def handover_params
     params.require(:till_handover).permit(
       :to_user_id, :notes, :self_deposit, :depositor_type, :depositor_id,
-      amounts: {},
-      next_day_amounts: {}
+      amounts: {}
     )
   end
 

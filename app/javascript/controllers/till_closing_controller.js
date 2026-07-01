@@ -3,8 +3,6 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = [
     "recipientSection",
-    "nextDayWrapper",
-    "nextDaySection",
     "depositorWrapper",
     "depositorPickerSection"
   ]
@@ -16,12 +14,7 @@ export default class extends Controller {
   handoverTypeChanged({ target }) {
     const isCloseDay = target.value === "1"
     this.recipientSectionTarget.hidden = isCloseDay
-    this.nextDayWrapperTarget.hidden   = !isCloseDay
     if (this.hasDepositorWrapperTarget) this.depositorWrapperTarget.hidden = !isCloseDay
-  }
-
-  nextDayToggleChanged({ target }) {
-    this.nextDaySectionTarget.hidden = target.value !== "1"
   }
 
   depositorTypeChanged({ target }) {
@@ -112,14 +105,8 @@ export default class extends Controller {
     const typeChecked = this.element.querySelector('input[name="till_handover[self_deposit]"]:checked')
     if (typeChecked) {
       const isCloseDay = typeChecked.value === "1"
-      if (this.hasRecipientSectionTarget)       this.recipientSectionTarget.hidden  = isCloseDay
-      if (this.hasNextDayWrapperTarget)         this.nextDayWrapperTarget.hidden    = !isCloseDay
-      if (this.hasDepositorWrapperTarget)       this.depositorWrapperTarget.hidden  = !isCloseDay
-    }
-
-    const nextDayChecked = this.element.querySelector('input[name="till_handover[has_next_day]"]:checked')
-    if (nextDayChecked && this.hasNextDaySectionTarget) {
-      this.nextDaySectionTarget.hidden = nextDayChecked.value !== "1"
+      if (this.hasRecipientSectionTarget) this.recipientSectionTarget.hidden = isCloseDay
+      if (this.hasDepositorWrapperTarget) this.depositorWrapperTarget.hidden = !isCloseDay
     }
 
     const depositorTypeChecked = this.element.querySelector('input[name="till_handover[depositor_type]"]:checked')

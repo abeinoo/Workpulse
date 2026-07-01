@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_400000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_01_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1785,6 +1785,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_400000) do
     t.text "from_notes"
     t.bigint "from_user_id", null: false
     t.text "notes"
+    t.boolean "opening_float_declaration", default: false, null: false
     t.bigint "reversal_of_handover_id"
     t.text "reversal_reason"
     t.datetime "reversed_at"

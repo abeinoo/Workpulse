@@ -3,6 +3,7 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def verify?                = can?(:verify_daily_reconciliation)
   def assign_depositor?      = can?(:verify_daily_reconciliation)
   def create?                = can?(:create_till_session) || can?(:verify_daily_reconciliation)
+  def leave_opening_float?         = can?(:close_till_session)
   def receive_opening_float?       = cashier_permission?
   def bulk_receive_opening_float?  = can?(:create_till_session) || can?(:verify_daily_reconciliation)
   def bulk_settle?                 = can?(:settle_remaining_deposit_balance)

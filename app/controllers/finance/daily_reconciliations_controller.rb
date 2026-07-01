@@ -191,6 +191,10 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @total_settled_later      = @reconciliation.total_settled_later
     @total_written_off        = @reconciliation.total_written_off
 
+    @opening_float_leavable = (@reconciliation.closed? || @reconciliation.deposited?) &&
+                              @handovers.none?(&:opening_float_declaration?) &&
+                              BusinessDay.current(context: @reconciliation.business) == @reconciliation.business_date
+
     @can_view_session_totals  = policy(@reconciliation).view_session_totals?
     @can_edit_session_totals  = policy(@reconciliation).edit_session_totals?
     @can_view_all_summary     = policy(@reconciliation).view_all_employee_reconciliation_summary?
@@ -381,7 +385,13 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
 
     @handovers.each do |h|
-      if h.self_deposit?
+      if h.self_deposit? && h.opening_float_declaration?
+        # A standalone "Leave Opening Float" action recorded after day close.
+        if h.seeded_daily_reconciliation.present?
+          events << { type: :opening_float_left, time: h.created_at, actor: h.from_user,
+                      data: h.seeded_daily_reconciliation }
+        end
+      elsif h.self_deposit?
         events << { type: :day_closed, time: h.created_at, actor: h.from_user, data: h }
         # If this self-deposit seeded the next day's DR, record the prepared event.
         # Pass the seeded DR (not the handover) so the view can display its business_date.

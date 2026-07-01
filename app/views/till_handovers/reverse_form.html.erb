@@ -1,10 +1,10 @@
 <% content_for :title, t("till_handovers.reverse.title") %>
 
 <turbo-frame id="modal">
-<div style="padding: var(--space-5);">
+<div style="padding: var(--space-5) var(--space-5) var(--space-8); display: flex; flex-direction: column; gap: var(--space-4);">
 
   <%# ── Header ────────────────────────────────────────────────────────── %>
-  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
     <div>
       <p style="font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--danger); margin: 0 0 2px;">
         <%= t("till_handovers.reverse.modal_label") %>
@@ -22,7 +22,7 @@
   </div>
 
   <%# ── Warning banner ────────────────────────────────────────────────── %>
-  <div style="background: rgba(var(--danger-rgb), 0.07); border: 1px solid rgba(var(--danger-rgb), 0.3); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-4);">
+  <div style="background: rgba(var(--danger-rgb), 0.07); border: 1px solid rgba(var(--danger-rgb), 0.3); border-radius: var(--radius-lg); padding: var(--space-4);">
     <p style="font-size: var(--text-sm); color: var(--danger); font-weight: 600; margin: 0 0 var(--space-1);">
       <%= t("till_handovers.reverse.warning_title") %>
     </p>
@@ -32,7 +32,7 @@
   </div>
 
   <%# ── Original handover summary ─────────────────────────────────────── %>
-  <div style="background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4);">
+  <div style="background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4);">
     <p style="font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: 0 0 var(--space-2);">
       <%= t("till_handovers.reverse.original_handover") %>
     </p>
@@ -61,9 +61,10 @@
 
   <%# ── Reversal form ──────────────────────────────────────────────────── %>
   <%= form_with url: reverse_till_handover_path(@handover), method: :patch,
-                data: { turbo_frame: "_top" } do |f| %>
+                data: { turbo_frame: "_top" },
+                style: "display: flex; flex-direction: column; gap: var(--space-4);" do |f| %>
 
-    <div class="form-group" style="margin-bottom: var(--space-3);">
+    <div class="form-group" style="margin: 0;">
       <%= label_tag :reason_code, t("till_handovers.reverse.reason_code_label"), class: "form-label" %>
       <%= select_tag :reason_code,
             options_for_select(
@@ -73,7 +74,7 @@
             required: true %>
     </div>
 
-    <div class="form-group" style="margin-bottom: var(--space-4);">
+    <div class="form-group" style="margin: 0;">
       <%= label_tag :reason_notes, t("till_handovers.reverse.reason_notes_label"), class: "form-label" %>
       <%= text_area_tag :reason_notes, nil, class: "form-control", rows: 3,
             placeholder: t("till_handovers.reverse.reason_notes_placeholder") %>

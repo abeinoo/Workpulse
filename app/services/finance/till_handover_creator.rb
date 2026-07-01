@@ -57,7 +57,6 @@ module Finance
         )
 
         build_amounts(handover, "operational", @params[:amounts])
-        build_amounts(handover, "next_day", @params[:next_day_amounts]) if next_day_amounts_present?
 
         close_day!(session, handover) if self_deposit?
 
@@ -77,12 +76,6 @@ module Finance
 
     def self_deposit?
       @self_deposit ||= @params[:self_deposit].to_s.in?(%w[1 true])
-    end
-
-    def next_day_amounts_present?
-      (@params[:next_day_amounts] || {}).values.any? { |a|
-        a[:collected_amount].to_d > 0 || a[:refund_amount].to_d > 0
-      }
     end
 
     def validate_no_pending_outgoing!
@@ -157,8 +150,7 @@ module Finance
     end
 
     def validate_payment_methods!
-      all_ids = (Array((@params[:amounts] || {}).keys) +
-                 Array((@params[:next_day_amounts] || {}).keys)).map(&:to_s).uniq
+      all_ids = Array((@params[:amounts] || {}).keys).map(&:to_s).uniq
       return if all_ids.empty?
       valid_ids = PaymentMethod.for_business(@business).active.pluck(:id).map(&:to_s)
       unless (all_ids - valid_ids).empty?
@@ -174,26 +166,13 @@ module Finance
         pm = payment_methods[pm_id.to_s]
         next unless pm
 
-        if kind == "next_day"
-          amount = attrs[:collected_amount].to_d
-          refund = attrs[:refund_amount].to_d
-          next if amount.zero? && refund.zero?
-          handover.amounts.create!(
-            payment_method:      pm,
-            payment_method_name: pm.display_name,
-            collected_amount:    amount,
-            refund_amount:       refund,
-            kind:                "next_day"
-          )
-        else
-          handover.amounts.create!(
-            payment_method:      pm,
-            payment_method_name: pm.display_name,
-            collected_amount:    attrs[:collected_amount].to_d,
-            refund_amount:       attrs[:refund_amount].to_d,
-            kind:                "operational"
-          )
-        end
+        handover.amounts.create!(
+          payment_method:      pm,
+          payment_method_name: pm.display_name,
+          collected_amount:    attrs[:collected_amount].to_d,
+          refund_amount:       attrs[:refund_amount].to_d,
+          kind:                kind
+        )
       end
     end
 
@@ -235,16 +214,6 @@ module Finance
       end
 
       Finance::EmployeeReconciliationSummarizer.new(@daily_reconciliation).persist!
-
-      if next_day_amounts_present?
-        result = Finance::NextDayDrPreparer.new(
-          branch:          @daily_reconciliation.branch,
-          business:        @business,
-          actor:           @actor,
-          source_handover: handover
-        ).call
-        raise ArgumentError, result.error unless result.ok?
-      end
     end
   end
 end
