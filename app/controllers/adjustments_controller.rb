@@ -231,9 +231,10 @@ class AdjustmentsController < ApplicationController
   end
 
   def load_form_data
-    @employees           = manageable_employees
-    @selectable_periods  = Adjustments::SelectablePeriods.new(current_user.business).options
-    @selected_period_key = selected_period_key
+    @employees  = manageable_employees
+    sp          = Adjustments::SelectablePeriods.new(current_user.business)
+    @selectable_periods  = sp.options
+    @selected_period_key = selected_period_key(sp)
   end
 
   def manageable_employees
@@ -273,13 +274,13 @@ class AdjustmentsController < ApplicationController
     adjustment.period_month = Regexp.last_match(2).to_i
   end
 
-  # Pre-selected period for the form: an explicit param wins, otherwise the first
-  # open period offered by the dropdown (or nil → user must choose).
-  def selected_period_key
+  # Pre-selected period for the form: an explicit param wins, otherwise the smart
+  # default (previous draft period → current month → first selectable).
+  def selected_period_key(sp)
     if params[:period_year].present? && params[:period_month].present?
       "#{params[:period_year].to_i}-#{params[:period_month].to_i}"
     else
-      @selectable_periods.first&.last
+      sp.default_key
     end
   end
 

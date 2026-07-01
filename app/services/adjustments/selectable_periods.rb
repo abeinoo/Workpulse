@@ -20,11 +20,33 @@ module Adjustments
 
     # => [["June 2026", "2026-6"], ["July 2026", "2026-7"], ...]
     def options
-      candidate_dates
+      @options ||= candidate_dates
         .reject { |date| locked_keys.include?([ date.year, date.month ]) }
         .uniq
         .sort
         .map { |date| [ label_for(date), "#{date.year}-#{date.month}" ] }
+    end
+
+    # Smart default for form pre-selection:
+    #   1. Previous calendar month — if a PayrollPeriod record exists for it and
+    #      is still draft (open). Rationale: adjustments for the just-closed period
+    #      are more likely to be the next action than staging a future month.
+    #   2. Current calendar month — if it is selectable (not locked).
+    #   3. First selectable period — fallback when the current month is also locked.
+    def default_key
+      prev_date = @today.beginning_of_month << 1
+      prev = PayrollPeriod.for_business(@business)
+                          .find_by(period_year: prev_date.year, period_month: prev_date.month,
+                                   status: "draft")
+      if prev
+        prev_key = "#{prev.period_year}-#{prev.period_month}"
+        return prev_key if options.any? { |_, k| k == prev_key }
+      end
+
+      curr_key = "#{@today.year}-#{@today.month}"
+      return curr_key if options.any? { |_, k| k == curr_key }
+
+      options.first&.last
     end
 
     private

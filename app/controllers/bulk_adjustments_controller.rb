@@ -174,16 +174,18 @@ class BulkAdjustmentsController < ApplicationController
   # Open payroll periods an adjustment may target (current month + upcoming, minus
   # any period already processed). Shared by the manual and CSV-import forms.
   def load_selectable_periods
-    @selectable_periods  = Adjustments::SelectablePeriods.new(current_user.business).options
-    @selected_period_key = params[:period_key].presence || @selectable_periods.first&.last
+    sp                   = Adjustments::SelectablePeriods.new(current_user.business)
+    @selectable_periods  = sp.options
+    @selected_period_key = params[:period_key].presence || sp.default_key
   end
 
   def reload_new_form(bp)
     @employees           = manageable_employees
     @branches            = branches_for_user
     @default_type        = "cash_incentive"
-    @selectable_periods  = Adjustments::SelectablePeriods.new(current_user.business).options
-    @selected_period_key = bp[:period_key].presence || @selectable_periods.first&.last
+    sp                   = Adjustments::SelectablePeriods.new(current_user.business)
+    @selectable_periods  = sp.options
+    @selected_period_key = bp[:period_key].presence || sp.default_key
   end
 
   # Splits a "YYYY-M" period key into [year, month]; returns [nil, nil] when absent
