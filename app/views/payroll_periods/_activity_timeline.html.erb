@@ -6,9 +6,9 @@
         dot_class = case log.action_type
                     when "finalized", "paid"
                       "payroll-timeline__dot--done"
-                    when "submitted_for_review", "branch_review_completed"
+                    when "submitted_for_review", "branch_review_completed", "resubmitted_for_review"
                       "payroll-timeline__dot--live"
-                    when "deleted", "adjustment_rejected", "adjustment_removed"
+                    when "deleted", "adjustment_rejected", "adjustment_removed", "branch_changes_requested"
                       "payroll-timeline__dot--warn"
                     else
                       ""
@@ -38,6 +38,15 @@
             <span class="badge <%= period_status_badge_class(log.to_status) %>" style="font-size: 10px; padding: 1px 6px;">
               <%= t("payroll.statuses.#{log.to_status}") %>
             </span>
+          <% end %>
+          <% if log.action_type == "branch_changes_requested" && meta["branch_name"].present? %>
+            &middot; <span class="td-secondary"><%= meta["branch_name"] %></span>
+          <% end %>
+          <% if log.action_type == "branch_changes_requested" && meta["comment"].present? %>
+            <div class="payroll-timeline__reason"><em><%= meta["comment"] %></em></div>
+          <% end %>
+          <% if log.action_type == "reopened" && meta["reason"].present? %>
+            <div class="payroll-timeline__reason"><em><%= meta["reason"] %></em></div>
           <% end %>
         </div>
       </div>

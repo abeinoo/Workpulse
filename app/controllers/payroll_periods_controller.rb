@@ -72,7 +72,8 @@ class PayrollPeriodsController < ApplicationController
     end
     @total_pending = @pending_counts.values.sum
 
-    @branch_reviews_for_manager = manager_branch_reviews
+    @branch_reviews_for_manager    = manager_branch_reviews
+    @has_changes_requested_reviews = @period.payroll_period_branch_reviews.changes_requested.exists?
 
     # Non-analytical, non-sensitive operational lookups.
     if current_user.can?(:view_payroll)
@@ -183,6 +184,56 @@ class PayrollPeriodsController < ApplicationController
       redirect_to payroll_period_path(@period), alert: error
     else
       redirect_to payroll_period_path(@period), notice: t("flash.branch_review_completed")
+    end
+  end
+
+  def request_changes
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :request_changes?
+
+    comment = params[:comment].to_s.strip
+    if comment.blank?
+      return redirect_to payroll_period_path(@period),
+                         alert: t("flash.changes_request_comment_required")
+    end
+
+    authorized_branch_ids = reviewable_branch_ids_for(current_user)
+    pending_reviews       = @period.payroll_period_branch_reviews
+                                   .where(branch_id: authorized_branch_ids, status: :pending)
+                                   .includes(:branch)
+
+    if pending_reviews.empty?
+      return redirect_to payroll_period_path(@period),
+                         alert: t("flash.no_pending_branch_reviews")
+    end
+
+    error = nil
+    pending_reviews.each do |review|
+      result = Payroll::ChangesRequester.call(
+        period:   @period,
+        branch:   review.branch,
+        reviewer: current_user,
+        comment:  comment
+      )
+      error ||= result.error unless result.success?
+    end
+
+    if error
+      redirect_to payroll_period_path(@period), alert: error
+    else
+      redirect_to payroll_period_path(@period), notice: t("flash.changes_requested")
+    end
+  end
+
+  def resubmit_for_review
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :resubmit_for_review?
+
+    result = Payroll::SubmitForReview.call(period: @period, by: current_user)
+    if result.success?
+      redirect_to payroll_period_path(@period), notice: t("flash.resubmitted_for_review")
+    else
+      redirect_to payroll_period_path(@period), alert: result.error
     end
   end
 

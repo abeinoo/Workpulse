@@ -78,7 +78,7 @@ RSpec.describe "Adjustments workflow", type: :request do
   describe "GET /adjustments/new (employee picker scope)" do
     it "shows ALL business employees for a business-wide adjustments manager" do
       role = create(:permission_role, business: business,
-                    permissions: %w[view_payroll manage_adjustments],
+                    permissions: %w[view_adjustments manage_adjustments],
                     permission_scopes: { "manage_adjustments" => "business_wide" })
       wide_mgr  = create(:user, business: business, permission_role: role)
       unmanaged = create(:user, business: business, first_name: "Unmanaged", last_name: "Person")
@@ -90,7 +90,7 @@ RSpec.describe "Adjustments workflow", type: :request do
 
     it "limits a branch-scoped adjustments manager to their branch" do
       role = create(:permission_role, business: business,
-                    permissions: %w[view_payroll manage_adjustments],
+                    permissions: %w[view_adjustments manage_adjustments],
                     permission_scopes: { "manage_adjustments" => "branch" })
       restricted = create(:user, business: business, permission_role: role)
       r_branch   = create(:branch, business: business, branch_manager_id: restricted.id)
@@ -462,8 +462,8 @@ RSpec.describe "Adjustments workflow", type: :request do
   describe "Edit / Update approved adjustment" do
     let(:editor_role) do
       create(:permission_role, business: business,
-             permissions: %w[view_payroll manage_adjustments edit_approved_adjustments],
-             permission_scopes: { "view_payroll" => "business", "manage_adjustments" => "business" })
+             permissions: %w[view_adjustments manage_adjustments edit_approved_adjustments],
+             permission_scopes: { "view_adjustments" => "business", "manage_adjustments" => "business" })
     end
     let(:editor) { create(:user, business: business, permission_role: editor_role) }
 
@@ -601,6 +601,163 @@ RSpec.describe "Adjustments workflow", type: :request do
         sign_in editor
         get adjustment_path(approved_adjustment)
         expect(response.body).to include(I18n.t("adjustments.show.timeline.edited"))
+      end
+    end
+  end
+
+  # ── Permission Decoupling Verification ──────────────────────────────────────
+  #
+  # These tests prove that Payroll and Adjustments are fully independent modules.
+  # Holding one set of permissions must never grant access to the other module.
+  describe "Permission decoupling — Payroll and Adjustments are independent" do
+    let(:payroll_period) do
+      create(:payroll_period, business: business, status: "draft",
+             period_month: 6, period_year: 2026)
+    end
+
+    # ── Scenario 1: Receptionist ─────────────────────────────────────────────
+    # Has adjustment permissions only. Must never see or reach Payroll.
+    context "Receptionist (view_adjustments + manage_adjustments, no Payroll permissions)" do
+      let(:receptionist_role) do
+        create(:permission_role, business: business,
+               name:        "Receptionist",
+               workspace:   "management",
+               permissions: %w[view_adjustments manage_adjustments])
+      end
+      let(:receptionist) { create(:user, business: business, permission_role: receptionist_role) }
+
+      before { sign_in receptionist }
+
+      it "can access the Adjustments index" do
+        get adjustments_path
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "cannot access the Payroll management view — scope shows only personal finalized periods" do
+        get payroll_periods_path
+        expect(response).to have_http_status(:ok)
+        # The page should render in employee mode (no management table, no create button)
+        expect(response.body).not_to include(I18n.t("payroll_periods.index.new_period"))
+      end
+
+      it "cannot view a draft payroll period directly" do
+        payroll_period  # ensure it exists
+        get payroll_period_path(payroll_period)
+        # The scope excludes draft periods for non-view_payroll users, so find raises
+        # RecordNotFound (404) — more secure than 403 because it doesn't reveal existence.
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "sidebar shows the Adjustments section and not the Payroll section" do
+        get adjustments_path
+        expect(response.body).to     include(I18n.t("nav.section_adjustments"))
+        expect(response.body).not_to include(I18n.t("nav.section_payroll"))
+      end
+    end
+
+    # ── Scenario 2: Payroll Manager ──────────────────────────────────────────
+    # Has Payroll permissions only. Must not gain Adjustment management access.
+    context "Payroll Manager (view_payroll only, no Adjustment permissions)" do
+      let(:payroll_role) do
+        create(:permission_role, business: business,
+               name:        "Payroll Manager",
+               workspace:   "management",
+               permissions: %w[view_payroll])
+      end
+      let(:payroll_manager) { create(:user, business: business, permission_role: payroll_role) }
+      # Payroll managers can see submitted periods but NOT drafts (draft is accounting-only).
+      let(:submitted_period) do
+        create(:payroll_period, :under_review, business: business,
+               period_month: 5, period_year: 2026)
+      end
+
+      before { sign_in payroll_manager }
+
+      it "can access the Payroll index" do
+        get payroll_periods_path
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "can view a submitted (under_review) payroll period" do
+        get payroll_period_path(submitted_period)
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "cannot view a draft payroll period — draft is accounting-only" do
+        get payroll_period_path(payroll_period)
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "cannot create an adjustment — policy blocks manage_adjustments" do
+        post adjustments_path, params: {
+          payroll_adjustment: {
+            user_id:          employee.id,
+            adjustment_type:  "cash_incentive",
+            amount:           100,
+            reason:           "Test bonus",
+            period_month:     7,
+            period_year:      2026
+          }
+        }
+        expect(response).to redirect_to(root_path).or(have_http_status(:forbidden))
+      end
+
+      it "cannot reach the new adjustment form" do
+        get new_adjustment_path
+        expect(response).to redirect_to(root_path).or(have_http_status(:forbidden))
+      end
+
+      it "sidebar shows the Payroll section and not the Adjustments section" do
+        get payroll_periods_path
+        expect(response.body).to     include(I18n.t("nav.section_payroll"))
+        expect(response.body).not_to include(I18n.t("nav.section_adjustments"))
+      end
+    end
+
+    # ── Scenario 3: Manager with both permissions ────────────────────────────
+    # Holds both view_payroll and view_adjustments. Both modules accessible
+    # independently; neither permission depends on the other.
+    context "Manager (view_payroll + view_adjustments, independently assigned)" do
+      let(:full_role) do
+        create(:permission_role, business: business,
+               name:        "Full Manager",
+               workspace:   "management",
+               permissions: %w[view_payroll view_adjustments manage_adjustments])
+      end
+      let(:full_manager) { create(:user, business: business, permission_role: full_role) }
+
+      before { sign_in full_manager }
+
+      it "can access the Payroll index" do
+        get payroll_periods_path
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "can access the Adjustments index" do
+        get adjustments_path
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "sidebar shows both the Payroll section and the Adjustments section" do
+        get adjustments_path
+        expect(response.body).to include(I18n.t("nav.section_payroll"))
+        expect(response.body).to include(I18n.t("nav.section_adjustments"))
+      end
+
+      it "revoking view_payroll does not affect Adjustment access" do
+        full_role.update!(permissions: %w[view_adjustments manage_adjustments])
+        get adjustments_path
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include(I18n.t("nav.section_payroll"))
+        expect(response.body).to     include(I18n.t("nav.section_adjustments"))
+      end
+
+      it "revoking view_adjustments does not affect Payroll access" do
+        full_role.update!(permissions: %w[view_payroll])
+        get payroll_periods_path
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to     include(I18n.t("nav.section_payroll"))
+        expect(response.body).not_to include(I18n.t("nav.section_adjustments"))
       end
     end
   end

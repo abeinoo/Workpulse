@@ -33,6 +33,16 @@ class PayrollPeriodPolicy < ApplicationPolicy
     can?(:complete_branch_review) && same_business?
   end
 
+  # Branch managers may request changes from accounting during the review cycle.
+  def request_changes?
+    can?(:complete_branch_review) && same_business? && record.under_review?
+  end
+
+  # Accounting can resubmit to branch managers after addressing requested changes.
+  def resubmit_for_review?
+    can?(:submit_payroll_review) && same_business? && record.under_review?
+  end
+
   # Viewing the payroll audit log is gated separately from viewing payroll.
   def view_audit_log? = can?(:view_payroll_audit_log)
 
@@ -41,12 +51,19 @@ class PayrollPeriodPolicy < ApplicationPolicy
   def export_payroll_bank_csv? = can?(:view_payroll) && record.locked?
 
   class Scope < ApplicationPolicy::Scope
-    VISIBLE_TO_EMPLOYEE = %w[finalized paid].freeze
+    VISIBLE_TO_EMPLOYEE     = %w[finalized paid].freeze
+    VISIBLE_AFTER_SUBMITTED = %w[under_review branch_review_completed finalized paid].freeze
 
     def resolve
-      if user.can?(:view_payroll)
+      if user.owner? || user.can?(:view_draft_payroll)
+        # Owners and anyone explicitly granted view_draft_payroll see all statuses including draft.
         scope.where(business: user.business)
+      elsif user.can?(:view_payroll)
+        # Branch managers and other payroll viewers see from under_review onward.
+        scope.where(business: user.business)
+             .where(status: VISIBLE_AFTER_SUBMITTED)
       else
+        # Employees — only their own finalized/paid entries.
         scope.where(business: user.business)
              .where(status: VISIBLE_TO_EMPLOYEE)
              .joins(:payroll_entries)

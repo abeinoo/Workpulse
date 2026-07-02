@@ -251,10 +251,9 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       expect(body_without).not_to include(section_header("nav.section_payroll")), "Payroll section must disappear after revoke"
     end
 
-    it "Adjustments link disappears when view_payroll is revoked" do
-      expect(sidebar_html(user)).to include(adjustments_path)
-      role.update!(permissions: %w[view_employees])
-      user.reload
+    it "Adjustments link is NOT present when only view_payroll is granted (Payroll and Adjustments are decoupled)" do
+      # Starting role has view_employees + view_payroll — but NOT view_adjustments.
+      # Adjustments sidebar is gated on adjustment permissions, not payroll permissions.
       expect(sidebar_html(user)).not_to include(adjustments_path)
     end
 
@@ -273,12 +272,13 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       expect(sidebar_html(user)).to include(I18n.t("nav.permission_roles"))
     end
 
-    it "Adjustments link only appears with view_payroll" do
-      # Initially has view_payroll → adjustments visible.
-      expect(sidebar_html(user)).to include(I18n.t("nav.adjustments"))
-      role.update!(permissions: %w[view_employees])
-      user.reload
+    it "Adjustments link only appears with view_adjustments (not with view_payroll alone)" do
+      # Starting role has view_payroll but NOT view_adjustments → no adjustments link.
       expect(sidebar_html(user)).not_to include(I18n.t("nav.adjustments"))
+      # Grant view_adjustments → adjustments link appears independently of payroll.
+      role.update!(permissions: role.permissions | %w[view_adjustments])
+      user.reload
+      expect(sidebar_html(user)).to include(I18n.t("nav.adjustments"))
     end
   end
 
@@ -460,7 +460,9 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
 
     let(:records_only) { payroll_user(:view_payroll) }
     let(:analyst)      { payroll_user(:view_payroll, :view_payroll_analytics) }
-    let!(:period)      { create(:payroll_period, business: business) }
+    # Use under_review so view_payroll users (who can't see draft) can access the period.
+    # Draft visibility is restricted to accounting-level users (create/submit/finalize/etc).
+    let!(:period)      { create(:payroll_period, :under_review, business: business) }
     let!(:other_user)  { create(:user, business: business) }
     let!(:entry)       { create(:payroll_entry, payroll_period: period, user: other_user,
                                 base_salary: 5000, total_overtime: 200,
@@ -595,7 +597,7 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       role = PermissionRole.create!(
         business:    business,
         name:        "WflRole-#{SecureRandom.hex(4)}",
-        permissions: (perms.map(&:to_s) | %w[view_payroll]).uniq
+        permissions: (perms.map(&:to_s) | %w[view_payroll view_draft_payroll]).uniq
       )
       create(:user, business: business, permission_role: role)
     end

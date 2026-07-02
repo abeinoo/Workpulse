@@ -10,9 +10,9 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
   def show?
     return false unless same_business?
 
-    # Reviewers (payroll view/manage) and creators see the adjustment in any status —
+    # Reviewers (adjustment view/manage) and creators see the adjustment in any status —
     # reviewers need pending items to act on, creators see what they authored.
-    return true if can?(:view_payroll) || can?(:manage_adjustments)
+    return true if can?(:view_adjustments) || can?(:manage_adjustments)
     return true if record.created_by_id == user.id
 
     # A plain employee may view an adjustment about themselves only once it has been
@@ -70,12 +70,12 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
     def resolve
       business_scoped = scope.where(business: user.business)
 
-      if user.can?(:view_payroll) || user.can?(:manage_adjustments)
+      if user.can?(:view_adjustments) || user.can?(:manage_adjustments)
         # Reviewers/managers see their reviewable employee set (any status, so they
         # can act on pending items), plus anything they created or are the subject of.
         own = "payroll_adjustments.created_by_id = :me OR payroll_adjustments.user_id = :me"
         reviewable_ids =
-          if (configured = user.scope_for(:view_payroll))
+          if (configured = user.scope_for(:view_adjustments))
             EmployeeScope.new(user).for_scope(configured).select(:id)
           else
             EmployeeScope.new(user).relation.select(:id)
@@ -98,13 +98,13 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
   private
 
   # A "Business-scope" adjustments user: the owner (always business-wide), or a
-  # user whose manage_adjustments / view_payroll authority is explicitly scoped to
-  # the whole business. A nil (unset) or narrower (branch/area/self) scope does not
-  # qualify, so branch and area managers are excluded.
+  # user whose manage_adjustments / view_adjustments authority is explicitly scoped
+  # to the whole business. A nil (unset) or narrower (branch/area/self) scope does
+  # not qualify, so branch and area managers are excluded.
   def business_scope_user?
     return true if user.owner?
 
-    %i[manage_adjustments view_payroll].any? do |permission|
+    %i[manage_adjustments view_adjustments].any? do |permission|
       user.can?(permission) && user.scope_for(permission) == "business"
     end
   end

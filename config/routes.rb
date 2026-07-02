@@ -216,6 +216,8 @@ Rails.application.routes.draw do
     member do
       patch :submit_for_review
       patch :complete_branch_review
+      patch :request_changes
+      patch :resubmit_for_review
       patch :finalize
       patch :mark_paid
       patch :regenerate

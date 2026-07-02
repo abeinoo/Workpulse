@@ -17,10 +17,22 @@ module Payroll
     end
 
     def call
-      unless @period.draft?
-        return err("Only draft periods can be submitted for review")
+      if @period.draft?
+        submit_initial!
+      elsif @period.under_review? && @period.payroll_period_branch_reviews.changes_requested.any?
+        resubmit!
+      else
+        return err("Period must be draft (initial submission) or under_review with changes requested (resubmission)")
       end
 
+      Result.new(success: true, period: @period)
+    rescue StandardError => e
+      Result.new(success: false, error: e.message)
+    end
+
+    private
+
+    def submit_initial!
       ActiveRecord::Base.transaction do
         create_branch_review_slots!
         @period.update!(status: :under_review)
@@ -32,13 +44,22 @@ module Payroll
           to_status:      "under_review"
         )
       end
-
-      Result.new(success: true, period: @period)
-    rescue StandardError => e
-      Result.new(success: false, error: e.message)
     end
 
-    private
+    def resubmit!
+      ActiveRecord::Base.transaction do
+        @period.payroll_period_branch_reviews.changes_requested.update_all(
+          status:       "pending",
+          completed_at: nil,
+          notes:        nil
+        )
+        PayrollAuditLog.create!(
+          payroll_period: @period,
+          actor:          @by,
+          action_type:    :resubmitted_for_review
+        )
+      end
+    end
 
     def create_branch_review_slots!
       branches_needing_review.each do |branch|

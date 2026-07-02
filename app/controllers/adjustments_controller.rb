@@ -238,11 +238,11 @@ class AdjustmentsController < ApplicationController
   end
 
   def manageable_employees
-    # Resolve scope most-specific-first (manage_adjustments → view_payroll →
+    # Resolve scope most-specific-first (manage_adjustments → view_adjustments →
     # view_employees) so a business-wide manager sees every employee. Falls back
     # to the managed hierarchy when none is configured.
     EmployeeScope.new(current_user)
-                 .for_permissions(:manage_adjustments, :view_payroll, :view_employees)
+                 .for_permissions(:manage_adjustments, :view_adjustments, :view_employees)
                  .active.order(:first_name, :last_name)
   end
 

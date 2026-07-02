@@ -26,6 +26,14 @@
     <% end %>
   <% end %>
 
+  <% if current_user.can?(:view_adjustments) || current_user.can?(:manage_adjustments) || current_user.can?(:approve_adjustments) %>
+    <%= link_to adjustments_path,
+          class: "bottom-nav__item #{controller_name == 'adjustments' && !request.path.start_with?('/admin') ? 'is-active' : ''}" do %>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+      <span><%= t("nav.adjustments") %></span>
+    <% end %>
+  <% end %>
+
   <% if current_user.can?(:manage_settings) || current_user.can?(:manage_roles) || current_user.can?(:manage_devices) || current_user.can?(:manage_obligations) %>
     <%= link_to admin_root_path,
           class: "bottom-nav__item #{request.path.start_with?('/admin') ? 'is-active' : ''}" do %>

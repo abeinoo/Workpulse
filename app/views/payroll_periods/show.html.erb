@@ -13,8 +13,12 @@
       <% if @total_pending > 0 %>
         <span class="badge badge-warning"><%= t("payroll.show.pending_count", count: @total_pending) %></span>
       <% end %>
-      <% if @branch_reviews_for_manager&.any? && @period.under_review? && @branch_reviews_for_manager.all?(&:completed?) %>
-        <span class="badge badge-success"><%= t("payroll.show.review_complete_badge") %></span>
+      <% if @branch_reviews_for_manager&.any? && @period.under_review? %>
+        <% if @branch_reviews_for_manager.all?(&:completed?) %>
+          <span class="badge badge-success"><%= t("payroll.show.review_complete_badge") %></span>
+        <% elsif @branch_reviews_for_manager.any?(&:changes_requested?) %>
+          <span class="badge badge-danger"><%= t("payroll.show.changes_requested_badge") %></span>
+        <% end %>
       <% end %>
     </div>
   </div>
@@ -49,12 +53,23 @@
             data: { turbo_confirm: t("payroll.confirm.submit_for_review") } %>
     <% end %>
 
-    <% if @branch_reviews_for_manager&.any? && @period.under_review? && !@branch_reviews_for_manager.all?(&:completed?) %>
-      <%= button_to t("payroll.complete_branch_review"),
+    <%# Branch manager: approve button (shown when manager has pending reviews) %>
+    <% if @branch_reviews_for_manager&.any? && @period.under_review? &&
+          @branch_reviews_for_manager.any?(&:pending?) %>
+      <%= button_to t("payroll.approve_branch_review"),
             complete_branch_review_payroll_period_path(@period),
             method: :patch,
             class: "btn btn-primary",
             data: { turbo_confirm: t("payroll.confirm.complete_branch_review") } %>
+    <% end %>
+
+    <%# Accounting: resubmit after addressing changes requested by branch managers %>
+    <% if policy(@period).resubmit_for_review? && @has_changes_requested_reviews %>
+      <%= button_to t("payroll.resubmit_for_review"),
+            resubmit_for_review_payroll_period_path(@period),
+            method: :patch,
+            class: "btn btn-secondary",
+            data: { turbo_confirm: t("payroll.confirm.resubmit_for_review") } %>
     <% end %>
 
     <% if policy(@period).approve_all_pending? && @total_pending > 0 %>
@@ -169,28 +184,64 @@
     </div>
   <% end %>
 
-  <%# ── Branch review notice (branch managers only) ───────────────────────── %>
+  <%# ── Branch review panel (branch/area managers only — isolated to own branches) ── %>
   <% if @branch_reviews_for_manager&.any? %>
-    <% all_complete = @branch_reviews_for_manager.all?(&:completed?) %>
-    <div class="alert <%= all_complete ? 'alert-success' : 'alert-warning' %>">
+    <% all_complete        = @branch_reviews_for_manager.all?(&:completed?) %>
+    <% any_changes_req     = @branch_reviews_for_manager.any?(&:changes_requested?) %>
+    <% any_pending         = @branch_reviews_for_manager.any?(&:pending?) %>
+    <% alert_class = all_complete ? 'alert-success' : (any_changes_req ? 'alert-warning' : 'alert-info') %>
+    <div class="alert <%= alert_class %>">
       <% if @branch_reviews_for_manager.size == 1 %>
-        <%= all_complete ? t("payroll.show.area_all_reviewed") : t("payroll.show.branch_review_notice") %>
+        <% br = @branch_reviews_for_manager.first %>
+        <% if br.completed? %>
+          <p><%= t("payroll.show.area_all_reviewed") %></p>
+        <% elsif br.changes_requested? %>
+          <p><strong><%= t("payroll.show.changes_requested_notice") %></strong></p>
+          <% if br.notes.present? %>
+            <p class="mt-1 text-sm"><em><%= br.notes %></em></p>
+          <% end %>
+          <p class="mt-1 text-sm"><%= t("payroll.show.changes_requested_waiting") %></p>
+        <% else %>
+          <p><%= t("payroll.show.branch_review_notice") %></p>
+        <% end %>
       <% else %>
         <div class="branch-review-list">
           <% @branch_reviews_for_manager.each do |br| %>
             <div class="branch-review-row">
               <span><%= br.branch.name %></span>
-              <span class="badge <%= br.completed? ? 'badge-success' : 'badge-warning' %>">
+              <span class="badge <%= br.completed? ? 'badge-success' : (br.changes_requested? ? 'badge-warning' : 'badge-neutral') %>">
                 <%= t("payroll.branch_review_statuses.#{br.status}") %>
               </span>
+              <% if br.changes_requested? && br.notes.present? %>
+                <span class="td-secondary text-sm"><em><%= br.notes %></em></span>
+              <% end %>
             </div>
           <% end %>
         </div>
-        <% unless all_complete %>
+        <% if any_pending %>
           <p class="mt-2 text-sm"><%= t("payroll.show.branch_review_notice") %></p>
+        <% elsif any_changes_req %>
+          <p class="mt-2 text-sm"><%= t("payroll.show.changes_requested_waiting") %></p>
         <% end %>
       <% end %>
     </div>
+
+    <%# Request Changes form — shown only when there are pending reviews %>
+    <% if @period.under_review? && any_pending && policy(@period).request_changes? %>
+      <div class="section-card section-card--compact">
+        <h4 class="section-title section-title--sm"><%= t("payroll.show.request_changes_title") %></h4>
+        <%= form_with url: request_changes_payroll_period_path(@period), method: :patch, local: true do |f| %>
+          <%= f.text_area :comment,
+                required: true,
+                rows: 3,
+                placeholder: t("payroll.show.request_changes_placeholder"),
+                class: "form-control" %>
+          <%= f.submit t("payroll.request_changes"),
+                class: "btn btn-warning btn-sm mt-2",
+                data: { turbo_confirm: t("payroll.confirm.request_changes") } %>
+        <% end %>
+      </div>
+    <% end %>
   <% end %>
 
   <%# ── Payroll overview (management only) ────────────────────────────────── %>
@@ -273,10 +324,31 @@
     <%= render "comparison" %>
   <% end %>
 
-  <%# ── Branch review progress (period overseers) ─────────────────────────── %>
+  <%# ── Branch review progress (period overseers — accounting/area/admin) ───── %>
   <% if (current_user.can?(:finalize_payroll) || current_user.can?(:pay_payroll)) && @all_branch_reviews&.any? %>
+    <%# Summary counts for at-a-glance status %>
+    <% rev_counts = @all_branch_reviews.group_by(&:status) %>
     <div class="section-card">
-      <h3 class="section-title"><%= t("payroll.show.branch_review_progress") %></h3>
+      <div class="section-card__header">
+        <h3 class="section-title"><%= t("payroll.show.branch_review_progress") %></h3>
+        <div class="review-progress-summary">
+          <% if rev_counts["completed"]&.any? %>
+            <span class="badge badge-success">
+              <%= t("payroll.show.review_summary_approved", count: rev_counts["completed"].size) %>
+            </span>
+          <% end %>
+          <% if rev_counts["changes_requested"]&.any? %>
+            <span class="badge badge-danger">
+              <%= t("payroll.show.review_summary_changes", count: rev_counts["changes_requested"].size) %>
+            </span>
+          <% end %>
+          <% if rev_counts["pending"]&.any? %>
+            <span class="badge badge-neutral">
+              <%= t("payroll.show.review_summary_pending", count: rev_counts["pending"].size) %>
+            </span>
+          <% end %>
+        </div>
+      </div>
       <div class="table-wrap table-wrap--cards">
         <table>
           <thead>
@@ -284,25 +356,36 @@
               <th><%= t("payroll.branch") %></th>
               <th><%= t("payroll.show.reviewer") %></th>
               <th><%= t("payroll.status") %></th>
-              <th><%= t("payroll.show.completed") %></th>
+              <th><%= t("payroll.show.reviewed_at") %></th>
               <th><%= t("payroll.show.notes") %></th>
             </tr>
           </thead>
           <tbody>
             <% @all_branch_reviews.each do |br| %>
-              <tr>
+              <% badge_class = case br.status
+                               when "completed"         then "badge-success"
+                               when "changes_requested" then "badge-danger"
+                               else                          "badge-neutral"
+                               end %>
+              <tr class="<%= 'review-row--changes' if br.changes_requested? %>">
                 <td data-label="<%= t('payroll.branch') %>"><%= br.branch.name %></td>
-                <td data-label="<%= t('payroll.show.reviewer') %>"><%= br.reviewer.full_name %></td>
+                <td data-label="<%= t('payroll.show.reviewer') %>">
+                  <%= br.reviewer&.full_name || "—" %>
+                </td>
                 <td data-label="<%= t('payroll.status') %>">
-                  <span class="badge <%= br.completed? ? 'badge-success' : 'badge-warning' %>">
+                  <span class="badge <%= badge_class %>">
                     <%= t("payroll.branch_review_statuses.#{br.status}") %>
                   </span>
                 </td>
-                <td class="td-secondary" data-label="<%= t('payroll.show.completed') %>">
-                  <%= local_datetime(br.completed_at) %>
+                <td class="td-secondary" data-label="<%= t('payroll.show.reviewed_at') %>">
+                  <%= br.completed_at ? local_datetime(br.completed_at) : "—" %>
                 </td>
                 <td class="td-secondary" data-label="<%= t('payroll.show.notes') %>">
-                  <%= br.notes.presence || "—" %>
+                  <% if br.changes_requested? && br.notes.present? %>
+                    <span class="text-danger"><%= br.notes %></span>
+                  <% else %>
+                    <%= br.notes.presence || "—" %>
+                  <% end %>
                 </td>
               </tr>
             <% end %>
@@ -584,7 +667,7 @@
   </div>
 
   <%# ── Activity timeline (all management users) ───────────────────────────── %>
-  <% if current_user.can?(:view_payroll) && @audit_logs&.any? %>
+  <% if current_user.can?(:view_payroll_audit_log) && @audit_logs&.any? %>
     <%= render "activity_timeline" %>
   <% end %>
 

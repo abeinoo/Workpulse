@@ -45,10 +45,17 @@ class PayrollPeriod < ApplicationRecord
     draft? || under_review?
   end
 
-  # All branch review slots have been marked completed.
+  # All branch review slots have been approved (completed). Pending or
+  # changes_requested slots both block advancement — only :completed counts.
   def all_branches_reviewed?
     payroll_period_branch_reviews.any? &&
-      payroll_period_branch_reviews.where(status: "pending").none?
+      payroll_period_branch_reviews.where(status: %w[pending changes_requested]).none?
+  end
+
+  # True when at least one branch has requested changes and none are still pending.
+  # Used to surface the "needs attention" state to accounting.
+  def changes_requested?
+    payroll_period_branch_reviews.where(status: "changes_requested").any?
   end
 
   # Locking: finalized and paid periods are immutable.

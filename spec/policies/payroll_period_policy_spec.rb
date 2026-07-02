@@ -165,15 +165,31 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
       expect(scope).not_to include(other_period)
     end
 
-    it "area_manager sees all periods for the business" do
+    it "area_manager sees draft periods (has view_draft_payroll)" do
       scope = described_class::Scope.new(area_mgr, PayrollPeriod).resolve
-      expect(scope).to     include(business_period)
+      expect(scope).to     include(business_period)   # business_period is draft
       expect(scope).not_to include(other_period)
     end
 
-    it "branch_manager sees all periods for the business" do
+    it "area_manager sees under_review and later periods for the business" do
+      under_review = create(:payroll_period, :under_review, business: business,
+                            period_year: 2025, period_month: 2)
+      scope = described_class::Scope.new(area_mgr, PayrollPeriod).resolve
+      expect(scope).to     include(under_review)
+      expect(scope).not_to include(other_period)
+    end
+
+    it "branch_manager does not see draft periods (workflow rule: draft is accounting-only)" do
       scope = described_class::Scope.new(manager, PayrollPeriod).resolve
-      expect(scope).to     include(business_period)
+      expect(scope).not_to include(business_period)   # business_period is draft
+      expect(scope).not_to include(other_period)
+    end
+
+    it "branch_manager sees under_review and later periods for the business" do
+      under_review = create(:payroll_period, :under_review, business: business,
+                            period_year: 2025, period_month: 2)
+      scope = described_class::Scope.new(manager, PayrollPeriod).resolve
+      expect(scope).to     include(under_review)
       expect(scope).not_to include(other_period)
     end
 

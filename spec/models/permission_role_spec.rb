@@ -96,9 +96,13 @@ RSpec.describe PermissionRole, type: :model do
           role = build(:permission_role, permissions: [ perm ])
           expect(role).not_to be_valid
           deps.each do |dep|
-            role_with_dep = build(:permission_role, permissions: [ perm, dep ])
-            # Only valid once ALL deps (not just this one) are present
-            if PermissionRole::PERMISSION_DEPENDENCIES[perm].all? { |d| [ perm, dep ].include?(d) }
+            # Collect transitive deps one level deep so the role_with_dep set is
+            # actually satisfiable (e.g. manage_adjustments also requires view_adjustments).
+            transitive = PermissionRole::PERMISSION_DEPENDENCIES.fetch(dep, [])
+            candidate_perms = ([ perm, dep ] + transitive).uniq
+            role_with_dep = build(:permission_role, permissions: candidate_perms)
+            # Only valid once ALL of perm's direct deps are present in the candidate set.
+            if PermissionRole::PERMISSION_DEPENDENCIES[perm].all? { |d| candidate_perms.include?(d) }
               expect(role_with_dep).to be_valid
             end
           end
@@ -109,12 +113,12 @@ RSpec.describe PermissionRole, type: :model do
 
   # ── Constants ───────────────────────────────────────────────────────────────
   describe "PERMISSION_GROUPS" do
-    it "covers exactly 15 groups" do
-      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(15)
+    it "covers exactly 18 groups" do
+      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(18)
     end
 
-    it "has 62 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(62)
+    it "has 88 total permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(88)
     end
 
     it "includes view_payroll_analytics as a separate permission from view_payroll" do

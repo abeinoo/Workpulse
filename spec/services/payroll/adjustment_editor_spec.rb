@@ -7,7 +7,7 @@ RSpec.describe Payroll::AdjustmentEditor do
   let(:manager)  { create(:user, :branch_manager, business: business) }
   let(:editor) do
     role = create(:permission_role, business: business,
-                  permissions: %w[view_payroll manage_adjustments edit_approved_adjustments])
+                  permissions: %w[view_adjustments manage_adjustments edit_approved_adjustments])
     create(:user, business: business, permission_role: role)
   end
 

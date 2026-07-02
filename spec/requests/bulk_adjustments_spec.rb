@@ -50,7 +50,7 @@ RSpec.describe "Bulk adjustments scope enforcement", type: :request do
 
   it "allows the same out-of-scope employee once the manager has business scope" do
     role = create(:permission_role, business: business,
-                  permissions: %w[view_payroll manage_adjustments],
+                  permissions: %w[view_adjustments manage_adjustments],
                   permission_scopes: { "manage_adjustments" => "business" })
     wide_mgr = create(:user, business: business, permission_role: role)
     sign_in wide_mgr

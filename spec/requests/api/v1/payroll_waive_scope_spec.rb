@@ -43,7 +43,7 @@ RSpec.describe "Payroll Line Item Waive Scope", type: :request do
 
   let(:manager_role) do
     create(:permission_role, business: business,
-           permissions: %w[view_payroll view_employees approve_adjustments],
+           permissions: %w[view_payroll view_employees view_adjustments approve_adjustments],
            permission_scopes: {})
   end
 

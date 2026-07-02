@@ -26,7 +26,7 @@ RSpec.describe "Payroll Scope Visibility", type: :request do
   let(:employee_a) { create(:user, business: business) }
   let(:employee_b) { create(:user, business: business) }
 
-  let(:period)    { create(:payroll_period, business: business) }
+  let(:period)    { create(:payroll_period, :under_review, business: business) }
   let(:shift)     { create(:shift, :fixed_time, business: business) }
   let!(:entry_a)  { create(:payroll_entry, payroll_period: period, user: employee_a, base_salary: 5_000.0, net_salary: 4_800.0) }
   let!(:entry_b)  { create(:payroll_entry, payroll_period: period, user: employee_b, base_salary: 3_000.0, net_salary: 2_900.0) }

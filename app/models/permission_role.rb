@@ -17,13 +17,13 @@ class PermissionRole < ApplicationRecord
   PERMISSION_GROUPS = {
     employees:             %w[view_employees manage_employees manage_salary_profiles],
     attendance:            %w[view_attendance manage_attendance manage_devices],
-    payroll:               %w[view_payroll view_payroll_analytics view_payroll_audit_log
+    payroll:               %w[view_payroll view_draft_payroll view_payroll_analytics view_payroll_audit_log
                                create_payroll regenerate_payroll submit_payroll_review
                                complete_branch_review approve_payroll_items
                                manage_payroll_overrides manage_payroll_deduction_waivers
                                finalize_payroll pay_payroll reopen_payroll delete_payroll
                                pay_advances],
-    adjustments:           %w[manage_adjustments approve_adjustments edit_approved_adjustments],
+    adjustments:           %w[view_adjustments manage_adjustments approve_adjustments edit_approved_adjustments],
     requests:              %w[view_requests approve_requests],
     shifts:                %w[view_shifts manage_shifts assign_shifts],
     reports:               %w[view_dashboard view_reports export_reports],
@@ -73,6 +73,7 @@ class PermissionRole < ApplicationRecord
       view_employee_balances create_balance_requests
       view_employees view_attendance view_shifts assign_shifts
       view_requests view_payroll complete_branch_review
+      view_adjustments
       view_performance_dashboard view_notes view_monthly_reviews
     ],
     "area_manager" => %w[
@@ -82,7 +83,8 @@ class PermissionRole < ApplicationRecord
       view_employees manage_employees view_attendance
       view_shifts assign_shifts
       view_requests approve_requests
-      view_payroll complete_branch_review
+      view_payroll view_draft_payroll complete_branch_review
+      view_adjustments approve_adjustments
       view_performance_dashboard view_notes view_monthly_reviews view_performance_reports
     ],
     "accountant" => %w[
@@ -92,7 +94,8 @@ class PermissionRole < ApplicationRecord
       manage_expense_categories manage_expense_types manage_expense_tags manage_recurring_expenses
       view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
       view_expense_reports manage_branch_revenue
-      view_payroll view_payroll_analytics view_payroll_audit_log
+      view_payroll view_draft_payroll view_payroll_analytics view_payroll_audit_log
+      view_adjustments approve_adjustments
       view_inventory view_inventory_reports view_stock_count_reports
     ],
     "employee" => %w[
@@ -153,7 +156,7 @@ class PermissionRole < ApplicationRecord
                      .values.flatten -
       %w[finalize_payroll pay_payroll delete_payroll reopen_payroll
          approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
-         view_payroll_audit_log
+         view_draft_payroll view_payroll_audit_log
          approve_adjustments edit_approved_adjustments manage_devices manage_shifts
          manage_evaluation_templates view_performance_reports] +
     BRANCH_SCOPABLE_PERMISSIONS +
@@ -190,6 +193,7 @@ class PermissionRole < ApplicationRecord
     "manage_attendance"      => %w[view_attendance],
     "manage_employees"       => %w[view_employees],
     "manage_salary_profiles" => %w[view_employees],
+    "view_draft_payroll"     => %w[view_payroll],
     "finalize_payroll"       => %w[view_payroll],
     "view_payroll_analytics" => %w[view_payroll],
     "view_payroll_audit_log" => %w[view_payroll],
@@ -204,8 +208,8 @@ class PermissionRole < ApplicationRecord
     "reopen_payroll"         => %w[view_payroll],
     "delete_payroll"         => %w[view_payroll],
     "pay_advances"           => %w[view_requests],
-    "manage_adjustments"          => %w[view_payroll],
-    "approve_adjustments"         => %w[view_payroll],
+    "manage_adjustments"          => %w[view_adjustments],
+    "approve_adjustments"         => %w[view_adjustments],
     "edit_approved_adjustments"   => %w[manage_adjustments],
     "approve_requests"       => %w[view_requests],
     "assign_shifts"          => %w[view_shifts],

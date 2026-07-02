@@ -26,7 +26,7 @@ RSpec.describe "Payroll review approval paths", type: :request do
     u
   end
 
-  let(:period) { create(:payroll_period, business: business, status: "draft", period_month: 7, period_year: 2026) }
+  let(:period) { create(:payroll_period, business: business, status: "under_review", period_month: 7, period_year: 2026) }
   let!(:entry) do
     create(:payroll_entry, payroll_period: period, user: employee,
            base_salary: 5_000.0, net_salary: 5_000.0, total_bonuses: 0.0, total_deductions: 0.0)
