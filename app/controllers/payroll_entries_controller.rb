@@ -79,7 +79,7 @@ class PayrollEntriesController < ApplicationController
       total_late_minutes:        @attendance_records.sum(&:late_minutes),
       total_early_leave_minutes: @attendance_records.sum(&:early_leave_minutes),
       overtime_minutes:          overtime_minutes,
-      days_present:              @attendance_records.count { |r| %w[present late early_leave].include?(r.status) },
+      days_present:              @attendance_records.count { |r| AttendanceRecord::ATTENDED_STATUSES.include?(r.status) },
       days_absent:               @attendance_records.count { |r| r.status == "absent" }
     }
   end

@@ -107,7 +107,7 @@ module Api
                                      },
           total_late_minutes:        records.sum(:late_minutes),
           total_early_leave_minutes: records.sum(:early_leave_minutes),
-          days_present:              records.count { |r| r.present? || r.late? || r.early_leave? },
+          days_present:              records.count { |r| AttendanceRecord::ATTENDED_STATUSES.include?(r.status) },
           days_absent:               records.count(&:absent?)
         }
       end

@@ -48,7 +48,9 @@ class DashboardController < ApplicationController
   end
 
   # Team / branch management (roster, pending requests/adjustments): anyone who
-  # can view others' attendance and reaches at least one employee or branch.
+  # manages at least one branch or can see other employees via the business-wide
+  # attendance scope. Employee-only users (no management role, self/branch-only
+  # scope) get neither condition and see nothing here.
   def show_branch_management_section?
     return @show_branch_management_section if defined?(@show_branch_management_section)
 
@@ -103,15 +105,15 @@ class DashboardController < ApplicationController
   end
 
   # Branches this user oversees: every active branch for business-wide users,
-  # otherwise the union of branches they manage / area-manage / are assigned to.
+  # otherwise the branches they are assigned as branch_manager_id or area_manager_id.
+  # Employee branch membership (ShiftAssignment) is intentionally excluded — being
+  # assigned to a branch as an employee does not confer management visibility.
   def accessible_branch_ids
     @accessible_branch_ids ||=
       if business_wide_attendance?
         Branch.for_business(current_user.business).active.pluck(:id)
       else
-        (current_user.managed_branch_ids +
-         current_user.area_managed_branch_ids +
-         BranchMembership.current_branch_ids(current_user)).uniq
+        (current_user.managed_branch_ids + current_user.area_managed_branch_ids).uniq
       end
   end
 

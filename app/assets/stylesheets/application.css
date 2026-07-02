@@ -10188,6 +10188,70 @@ dialog::backdrop {
   margin-bottom: var(--space-4);
 }
 
+.form-section__header {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+
+.form-section-desc {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+/* Reset-from-preset panel (edit form only) */
+.preset-reset-panel {
+  margin-bottom: var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.preset-reset-panel[open] {
+  border-style: solid;
+  border-color: var(--border-subtle, var(--border));
+}
+
+.preset-reset-panel__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.preset-reset-panel__trigger::-webkit-details-marker { display: none; }
+
+.preset-reset-panel__trigger:hover {
+  color: var(--text-1);
+}
+
+.preset-reset-panel__body {
+  padding: var(--space-3) var(--space-3) var(--space-3);
+  border-top: 1px solid var(--border-subtle, var(--border));
+}
+
+.preset-reset-panel__desc {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.preset-reset-panel__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.preset-reset-panel__controls .form-control {
+  max-width: 220px;
+}
+
 /* Template entries list (show + apply views) */
 .template-entries-list {
   display: flex;

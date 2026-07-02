@@ -6,6 +6,7 @@
              } do |f| %>
   <%= render "shared/error_messages", resource: permission_role %>
 
+  <%# ── §1 Role identity ─────────────────────────────────────────────── %>
   <div class="form-section">
     <div class="form-group">
       <%= f.label :name, t("admin.permission_roles.form.name"), class: "form-label" %>
@@ -22,22 +23,13 @@
             rows: 2,
             placeholder: t("admin.permission_roles.form.description_placeholder") %>
     </div>
+  </div>
 
-    <div class="form-group">
-      <%= f.label :role_type, t("admin.permission_roles.form.role_type_label"), class: "form-label" %>
-      <%= f.select :role_type,
-            options_for_select(
-              [[t("admin.permission_roles.form.role_type_blank"), ""]] +
-              PermissionRole::ROLE_TYPES.map { |rt| [t("admin.permission_roles.role_types.#{rt}"), rt] },
-              permission_role.role_type
-            ),
-            {},
-            class: "form-control",
-            data: {
-              "permission-role-form-target": "roleTypeSelect",
-              action: "change->permission-role-form#onRoleTypeChange"
-            } %>
-      <p class="form-hint"><%= t("admin.permission_roles.form.role_type_hint") %></p>
+  <%# ── §2 Application interface ────────────────────────────────────── %>
+  <div class="form-section">
+    <div class="form-section__header">
+      <h2 class="form-section-title"><%= t("admin.permission_roles.form.interface_section_title") %></h2>
+      <p class="form-section-desc"><%= t("admin.permission_roles.form.interface_section_hint") %></p>
     </div>
 
     <div class="form-group">
@@ -53,17 +45,48 @@
     </div>
   </div>
 
+  <% if permission_role.new_record? %>
+    <%# ── §3 Permission preset (new roles only) ────────────────────── %>
+    <div class="form-section">
+      <div class="form-section__header">
+        <h2 class="form-section-title"><%= t("admin.permission_roles.form.preset_section_title") %></h2>
+        <p class="form-section-desc"><%= t("admin.permission_roles.form.preset_section_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :role_type, t("admin.permission_roles.form.role_type_label"), class: "form-label" %>
+        <%= f.select :role_type,
+              options_for_select(
+                [[t("admin.permission_roles.form.role_type_blank"), ""]] +
+                PermissionRole::ROLE_TYPES.map { |rt| [t("admin.permission_roles.role_types.#{rt}"), rt] },
+                permission_role.role_type
+              ),
+              {},
+              class: "form-control",
+              data: {
+                "permission-role-form-target": "roleTypeSelect",
+                action: "change->permission-role-form#onRoleTypeChange"
+              } %>
+        <p class="form-hint"><%= t("admin.permission_roles.form.role_type_hint") %></p>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── §4 Permissions grid ─────────────────────────────────────────── %>
   <div class="form-section">
     <div class="permission-groups-header">
       <h2 class="form-section-title"><%= t("admin.permission_roles.form.permissions_title") %></h2>
       <div class="permission-groups-header__actions">
-        <button type="button" class="btn btn-ghost btn-sm"
-                data-action="permission-role-form#applyDefaults"
-                data-permission-role-form-target="applyDefaultsBtn"
-                data-confirm="<%= t("admin.permission_roles.form.apply_defaults_confirm") %>"
-                style="display:none">
-          <%= t("admin.permission_roles.form.apply_defaults_btn") %>
-        </button>
+        <% if permission_role.new_record? %>
+          <%# On new: "apply defaults" button appears when a preset is selected %>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-action="permission-role-form#applyDefaults"
+                  data-permission-role-form-target="applyDefaultsBtn"
+                  data-confirm="<%= t("admin.permission_roles.form.apply_defaults_confirm") %>"
+                  style="display:none">
+            <%= t("admin.permission_roles.form.apply_defaults_btn") %>
+          </button>
+        <% end %>
         <button type="button" class="btn btn-ghost btn-sm"
                 data-action="permission-role-form#selectAll">
           <%= t("admin.permission_roles.form.select_all") %>
@@ -74,6 +97,37 @@
         </button>
       </div>
     </div>
+
+    <% if permission_role.persisted? %>
+      <%# ── Reset from preset (edit only) ─────────────────────────── %>
+      <details class="preset-reset-panel">
+        <summary class="preset-reset-panel__trigger">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.31"/></svg>
+          <%= t("admin.permission_roles.form.reset_preset_trigger") %>
+        </summary>
+        <div class="preset-reset-panel__body">
+          <p class="preset-reset-panel__desc"><%= t("admin.permission_roles.form.reset_preset_desc") %></p>
+          <div class="preset-reset-panel__controls">
+            <select class="form-control form-control--sm"
+                    data-permission-role-form-target="roleTypeSelect"
+                    data-action="change->permission-role-form#onRoleTypeChange">
+              <option value=""><%= t("admin.permission_roles.form.role_type_blank") %></option>
+              <% PermissionRole::ROLE_TYPES.each do |rt| %>
+                <option value="<%= rt %>"><%= t("admin.permission_roles.role_types.#{rt}") %></option>
+              <% end %>
+            </select>
+            <button type="button"
+                    class="btn btn-ghost btn-sm"
+                    data-action="permission-role-form#applyDefaults"
+                    data-permission-role-form-target="applyDefaultsBtn"
+                    data-confirm="<%= t("admin.permission_roles.form.reset_preset_confirm") %>"
+                    style="display:none">
+              <%= t("admin.permission_roles.form.reset_preset_btn") %>
+            </button>
+          </div>
+        </div>
+      </details>
+    <% end %>
 
     <%# Search box %>
     <div class="permission-search">
