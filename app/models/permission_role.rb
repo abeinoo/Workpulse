@@ -48,7 +48,8 @@ class PermissionRole < ApplicationRecord
                                void_till_deposit
                                settle_remaining_deposit_balance
                                view_own_employee_reconciliation_summary
-                               view_all_employee_reconciliation_summary],
+                               view_all_employee_reconciliation_summary
+                               correct_opening_float],
     finance_overview:      %w[view_finance_dashboard],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
@@ -57,6 +58,11 @@ class PermissionRole < ApplicationRecord
     employee_balances:     %w[view_employee_balances manage_employee_balances
                                create_balance_requests approve_balance_requests],
     expense_reports:       %w[view_expense_reports manage_branch_revenue],
+    deposit_verification:  %w[view_deposit_verification
+                               import_bank_statement
+                               verify_deposits
+                               manual_match_deposits
+                               delete_import],
     settings:              %w[manage_settings manage_branches],
     obligations:           %w[manage_obligations],
     administration:        %w[manage_roles]
@@ -97,6 +103,7 @@ class PermissionRole < ApplicationRecord
       view_payroll view_draft_payroll view_payroll_analytics view_payroll_audit_log
       view_adjustments approve_adjustments
       view_inventory view_inventory_reports view_stock_count_reports
+      view_deposit_verification import_bank_statement
     ],
     "employee" => %w[
       view_employee_balances create_balance_requests
@@ -126,6 +133,7 @@ class PermissionRole < ApplicationRecord
   BRANCH_SCOPABLE_PERMISSIONS = %w[
     view_expenses create_expenses edit_expenses approve_expenses
     view_employee_balances manage_branch_revenue
+    view_deposit_verification import_bank_statement verify_deposits manual_match_deposits delete_import
   ].freeze
 
   # Management-level Daily Reconciliation permissions — the only DR permissions
@@ -221,6 +229,7 @@ class PermissionRole < ApplicationRecord
     "reverse_till_handover"  => %w[view_daily_reconciliation],
     "adjust_till_handover"   => %w[view_daily_reconciliation],
     "void_till_deposit"                => %w[view_daily_reconciliation],
+    "correct_opening_float"            => %w[view_daily_reconciliation],
     "settle_remaining_deposit_balance"            => %w[view_daily_reconciliation],
     "view_all_employee_reconciliation_summary"    => %w[view_daily_reconciliation],
     "manage_obligations"               => %w[view_employees],
@@ -246,7 +255,11 @@ class PermissionRole < ApplicationRecord
     "manage_employee_balances"    => %w[view_employee_balances],
     "create_balance_requests"     => %w[view_employee_balances],
     "approve_balance_requests"    => %w[view_employee_balances],
-    "manage_branch_revenue"       => %w[view_expense_reports]
+    "manage_branch_revenue"       => %w[view_expense_reports],
+    "import_bank_statement"       => %w[view_deposit_verification],
+    "verify_deposits"             => %w[view_deposit_verification],
+    "manual_match_deposits"       => %w[verify_deposits],
+    "delete_import"               => %w[import_bank_statement]
   }.freeze
 
   # Reverse index: given a permission, which permissions depend on it?

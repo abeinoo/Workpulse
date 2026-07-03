@@ -8,12 +8,19 @@
       <h1 class="page-title"><%= t("finance.daily_reconciliations.index.title") %></h1>
       <p class="page-subtitle"><%= t("finance.daily_reconciliations.index.subtitle") %></p>
     </div>
-    <% if policy(:daily_reconciliation).create? %>
-      <%= button_to t("finance.daily_reconciliations.index.create_button"),
-            finance_daily_reconciliations_path,
-            method: :post,
-            class: "btn btn-primary" %>
-    <% end %>
+    <div style="display: flex; gap: var(--space-2); align-items: center;">
+      <% if current_user.can?(:view_deposit_verification) %>
+        <%= link_to t("finance.daily_reconciliations.index.deposit_verification_link"),
+              finance_deposit_verifications_path,
+              class: "btn btn-ghost" %>
+      <% end %>
+      <% if policy(:daily_reconciliation).create? %>
+        <%= button_to t("finance.daily_reconciliations.index.create_button"),
+              finance_daily_reconciliations_path,
+              method: :post,
+              class: "btn btn-primary" %>
+      <% end %>
+    </div>
   </div>
 
   <%# ── Status filter tabs ──────────────────────────────────────────────── %>
@@ -34,6 +41,7 @@
     <%# Optional branch + date narrow-filters %>
     <%= form_with url: finance_daily_reconciliations_path, method: :get, style: "display: flex; align-items: center; gap: var(--space-2); margin-inline-start: auto; flex-wrap: wrap;" do |f| %>
       <%= hidden_field_tag :status, @filter_status %>
+      <%= hidden_field_tag :verification_status, @filter_verification %>
       <% if @accessible_branches.size > 1 %>
         <%= f.select :branch_id,
               [[ t("finance.daily_reconciliations.index.filter_all_branches"), "" ]] +
@@ -45,7 +53,7 @@
             class: "form-control form-control-sm", style: "width: auto; font-size: var(--text-sm);" %>
       <%= f.submit t("finance.daily_reconciliations.index.filter_apply"),
             class: "btn btn-ghost btn-sm" %>
-      <% if @filter_branch.present? || @filter_date.present? %>
+      <% if @filter_branch.present? || @filter_date.present? || @filter_verification.present? %>
         <%= link_to t("finance.daily_reconciliations.index.filter_clear"),
               finance_daily_reconciliations_path(status: @filter_status),
               class: "btn btn-ghost btn-sm" %>
@@ -90,14 +98,56 @@
       total_outstanding = @reconciliations.sum { |dr|
         dr.remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
       }
-      can_bulk_receive  = policy(:daily_reconciliation).bulk_receive_opening_float?
       can_bulk_settle   = policy(:daily_reconciliation).bulk_settle?
-      has_receivable    = @reconciliations.any? { |dr|
-        dr.waiting_for_opening? && dr.business_date <= @current_business_day
-      }
       has_outstanding   = total_outstanding > 0
       payment_methods   = business_payment_methods
     %>
+
+    <%# ── Verification KPI row — only for users with view_deposit_verification ── %>
+    <% if @show_verification && @verification_counts %>
+      <%
+        vstats = [
+          { key: :not_imported,        color_var: "--text-2",                 rgb_var: nil,                          icon_path: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',                                                            card_mod: "" },
+          { key: :pending,             color_var: "--warning,#ca8a04",        rgb_var: "var(--warning-rgb,202,138,4)", icon_path: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',                                                                                                 card_mod: @filter_verification == "pending" ? "stat-card--warning" : (@verification_counts[:pending].to_i > 0 ? "stat-card--warning" : "") },
+          { key: :needs_reverification, color_var: "--danger,#dc2626",        rgb_var: "var(--danger-rgb,220,38,38)", icon_path: '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>', card_mod: @verification_counts[:needs_reverification].to_i > 0 ? "stat-card--danger" : "" },
+          { key: :verified,            color_var: "--success,#16a34a",        rgb_var: "var(--success-rgb,22,163,74)", icon_path: '<polyline points="20 6 9 17 4 12"/>',                                                                                                                                   card_mod: "" },
+        ]
+      %>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); padding-bottom: var(--space-5); border-bottom: 1px solid var(--border);">
+        <% vstats.each do |vs| %>
+          <%
+            active    = @filter_verification == vs[:key].to_s
+            count     = @verification_counts[vs[:key]].to_i
+            link_url  = finance_daily_reconciliations_path(
+              status: @filter_status, branch_id: @filter_branch, business_date: @filter_date,
+              verification_status: active ? nil : vs[:key]
+            )
+          %>
+          <%= link_to link_url,
+                style: "text-decoration: none; display: block; border-radius: var(--radius-lg); overflow: hidden; #{active ? 'box-shadow: 0 0 0 2px var(--accent);' : ''}" do %>
+            <div class="stat-card <%= vs[:card_mod] %>"
+                 style="margin: 0; cursor: pointer; #{active ? 'border-color: var(--accent); background: rgba(var(--accent-rgb), 0.06);' : ''}">
+              <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
+                <p class="stat-card__label" style="font-size: var(--text-xs);">
+                  <%= t("finance.daily_reconciliations.index.verification_status.#{vs[:key]}") %>
+                </p>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                     style="flex-shrink:0; color: var(<%= vs[:color_var] %>); margin-top:1px;">
+                  <%= vs[:icon_path].html_safe %>
+                </svg>
+              </div>
+              <p class="stat-card__value" style="<%= count > 0 && vs[:key] == :needs_reverification ? 'color: var(--danger,#dc2626);' : '' %>">
+                <%= count %>
+              </p>
+              <p class="stat-card__sub" style="font-size: 10px;">
+                <%= t("finance.daily_reconciliations.index.verification_status_sub.#{vs[:key]}") %>
+              </p>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
 
     <%# ── Summary stats ─────────────────────────────────────────────────── %>
     <div class="stats-grid" style="margin-bottom: var(--space-5);">
@@ -142,43 +192,23 @@
 
     </div>
 
-    <%# ── Bulk action bars ──────────────────────────────────────────────── %>
-    <%# Bulk receive opening float %>
-    <% if can_bulk_receive && has_receivable %>
-      <div id="bulk-receive-bar" hidden
-           style="position: sticky; top: 0; z-index: 10; background: var(--surface); border: 1.5px solid rgba(var(--accent-rgb,99,102,241),0.35); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; box-shadow: var(--shadow-md);">
-        <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1);">
-          <span id="bulk-receive-count">0</span>
-          <%= t("finance.daily_reconciliations.index.bulk_selected_label") %>
-        </span>
-        <form id="bulk-receive-form"
-              action="<%= bulk_receive_opening_float_finance_daily_reconciliations_path %>"
-              method="post"
-              style="display: contents;">
-          <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
-          <button type="submit"
-                  class="btn btn-primary btn-sm"
-                  data-turbo-confirm="<%= t('finance.daily_reconciliations.index.bulk_receive_confirm') %>">
-            <%= t("finance.daily_reconciliations.index.bulk_receive_btn") %>
-          </button>
-        </form>
-        <button type="button" id="clear-receive-selection"
-                style="background: none; border: none; cursor: pointer; font-size: var(--text-sm); color: var(--text-3); text-decoration: underline; padding: 0;">
-          <%= t("finance.daily_reconciliations.index.bulk_clear") %>
-        </button>
-      </div>
-    <% end %>
-
-    <%# Bulk settle outstanding balances %>
+    <%# ── Bulk action bar — settle outstanding balances ───────────────── %>
     <% if can_bulk_settle && has_outstanding %>
       <div id="bulk-settle-bar" hidden
+           data-currency-code="<%= current_user.business.currency %>"
            style="position: sticky; top: 0; z-index: 10; background: var(--surface); border: 1.5px solid rgba(var(--warning-rgb,202,138,4),0.4); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-3); box-shadow: var(--shadow-md);">
         <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning,#ca8a04)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
-            <span id="bulk-settle-count">0</span>
-            <%= t("finance.daily_reconciliations.index.bulk_settle_selected_label") %>
-          </span>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+              <span id="bulk-settle-count">0</span>
+              <%= t("finance.daily_reconciliations.index.bulk_settle_selected_label") %>
+            </span>
+            <span style="font-size: var(--text-sm); color: var(--warning,#ca8a04); font-weight: 700; font-variant-numeric: tabular-nums;">
+              <%= t("finance.daily_reconciliations.index.bulk_settle_total_label") %>:
+              <span id="bulk-settle-total"></span>
+            </span>
+          </div>
           <button type="button" id="clear-settle-selection"
                   style="background: none; border: none; cursor: pointer; font-size: var(--text-sm); color: var(--text-3); text-decoration: underline; padding: 0; margin-inline-start: auto;">
             <%= t("finance.daily_reconciliations.index.bulk_clear") %>
@@ -236,7 +266,6 @@
           holder      = session&.current_holder
           depositor   = session&.depositor
           outstanding = dr.remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
-          receivable  = dr.waiting_for_opening? && dr.business_date <= @current_business_day
           has_balance = outstanding > 0
 
           status_color =
@@ -257,18 +286,13 @@
 
             <div style="flex: 1; padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; min-width: 0;">
 
-              <%# Checkbox column — receive checkbox or settle checkbox depending on row type %>
+              <%# Checkbox column — settle checkbox for rows with an outstanding balance %>
               <div style="flex-shrink: 0; width: 20px; display: flex; align-items: center; justify-content: center;">
-                <% if receivable && can_bulk_receive %>
-                  <input type="checkbox"
-                         class="dr-receive-checkbox"
-                         data-dr-id="<%= dr.id %>"
-                         style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent);"
-                         aria-label="<%= t('finance.daily_reconciliations.index.select_dr', date: dr.business_date ? l(dr.business_date, format: :short) : '—', branch: dr.branch.name) %>">
-                <% elsif has_balance && can_bulk_settle %>
+                <% if has_balance && can_bulk_settle %>
                   <input type="checkbox"
                          class="dr-settle-checkbox"
                          data-dr-id="<%= dr.id %>"
+                         data-amount="<%= outstanding %>"
                          style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--warning, #ca8a04);"
                          aria-label="<%= t('finance.daily_reconciliations.index.select_settle_dr', date: dr.business_date ? l(dr.business_date, format: :short) : '—', branch: dr.branch.name) %>">
                 <% end %>
@@ -287,33 +311,15 @@
               <%# Workflow Status (primary information column) %>
               <div style="flex: 1; min-width: 200px;">
                 <% if dr.waiting_for_opening? %>
-                  <% if receivable %>
-                    <%# Inline receive form — NOT nested inside the bulk form %>
-                    <%= form_with url: receive_opening_float_finance_daily_reconciliation_path(dr),
-                          method: :post,
-                          style: "display: inline-flex; align-items: center; gap: var(--space-3);" do |f| %>
-                      <%= f.submit t("finance.daily_reconciliations.index.receive_opening_float_btn"),
-                            class: "btn btn-primary btn-sm",
-                            data: { turbo_confirm: t("finance.daily_reconciliations.index.receive_opening_float_confirm",
-                                                     branch: dr.branch.name) },
-                            style: "display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer;" %>
-                    <% end %>
-                    <% if (src = dr.opening_float_source_handover) %>
-                      <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-1) 0 0;">
-                        <%= t("finance.daily_reconciliations.index.float_from", name: src.from_user&.full_name || "—") %>
-                      </p>
-                    <% end %>
-                  <% else %>
-                    <div style="display: flex; align-items: center; gap: var(--space-2);">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning,#ca8a04)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                      <span style="font-size: var(--text-sm); font-weight: 600; color: var(--warning,#ca8a04);">
-                        <%= t("finance.daily_reconciliations.index.status_awaiting_opening") %>
-                      </span>
-                    </div>
-                    <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-1) 0 0;">
-                      <%= t("finance.daily_reconciliations.index.awaiting_opening_hint") %>
-                    </p>
-                  <% end %>
+                  <div style="display: flex; align-items: center; gap: var(--space-2);">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning,#ca8a04)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span style="font-size: var(--text-sm); font-weight: 600; color: var(--warning,#ca8a04);">
+                      <%= t("finance.daily_reconciliations.index.status_awaiting_opening") %>
+                    </span>
+                  </div>
+                  <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-1) 0 0;">
+                    <%= t("finance.daily_reconciliations.index.awaiting_opening_hint") %>
+                  </p>
 
                 <% elsif dr.open? %>
                   <div style="display: flex; align-items: center; gap: var(--space-2);">
@@ -362,6 +368,38 @@
                 <% end %>
               </div>
 
+              <%# Bank verification status badge %>
+              <% if @show_verification %>
+                <%
+                  vstatus = deposit_verification_status_for(dr)
+                  vstatus_label = t("finance.daily_reconciliations.index.verification_status.#{vstatus}")
+                  vstatus_style, vstatus_icon =
+                    case vstatus
+                    when :verified
+                      ["color: var(--success,#16a34a); background: rgba(var(--success-rgb,22,163,74),0.08); border: 1px solid rgba(var(--success-rgb,22,163,74),0.25);",
+                       '<polyline points="20 6 9 17 4 12"/>']
+                    when :pending
+                      ["color: var(--warning,#ca8a04); background: rgba(var(--warning-rgb,202,138,4),0.08); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.25);",
+                       '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>']
+                    when :needs_reverification
+                      ["color: var(--danger,#dc2626); background: rgba(var(--danger-rgb,220,38,38),0.08); border: 1px solid rgba(var(--danger-rgb,220,38,38),0.25);",
+                       '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>']
+                    when :not_imported
+                      ["color: var(--text-2); background: var(--bg-2); border: 1px solid var(--border);",
+                       '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>']
+                    else
+                      ["color: var(--text-3); background: var(--bg-2); border: 1px solid var(--border);",
+                       '<circle cx="12" cy="12" r="10"/>']
+                    end
+                  vstatus_path = vstatus == :not_imported ? finance_bank_statements_path : finance_deposit_verifications_path
+                %>
+                <%= link_to vstatus_path,
+                      style: "display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: 600; padding: 3px 8px; border-radius: 999px; text-decoration: none; white-space: nowrap; #{vstatus_style}" do %>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><%= vstatus_icon.html_safe %></svg>
+                  <%= vstatus_label %>
+                <% end %>
+              <% end %>
+
               <%# View link %>
               <div style="flex: 0 0 auto; margin-inline-start: auto;">
                 <%= link_to finance_daily_reconciliation_path(dr),
@@ -382,56 +420,34 @@
 
 </div>
 
-<%# ── Bulk selection JS ──────────────────────────────────────────────────── %>
+<%# ── Bulk settle JS ─────────────────────────────────────────────────────── %>
 <script>
 (function () {
-  // ── Receive opening float bulk ─────────────────────────────────────────
-  var receiveBar   = document.getElementById('bulk-receive-bar');
-  var receiveForm  = document.getElementById('bulk-receive-form');
-  var receiveCount = document.getElementById('bulk-receive-count');
-  var clearReceive = document.getElementById('clear-receive-selection');
-
-  function syncReceiveForm() {
-    if (!receiveForm) return;
-    receiveForm.querySelectorAll('input[name="ids[]"]').forEach(function(el) { el.remove(); });
-    var checked = document.querySelectorAll('.dr-receive-checkbox:checked');
-    checked.forEach(function(cb) {
-      var h = document.createElement('input');
-      h.type = 'hidden'; h.name = 'ids[]'; h.value = cb.dataset.drId;
-      receiveForm.appendChild(h);
-    });
-    if (receiveCount) receiveCount.textContent = checked.length;
-    if (receiveBar)  receiveBar.hidden = checked.length === 0;
-  }
-
-  document.querySelectorAll('.dr-receive-checkbox').forEach(function(cb) {
-    cb.addEventListener('change', syncReceiveForm);
-  });
-
-  if (clearReceive) {
-    clearReceive.addEventListener('click', function() {
-      document.querySelectorAll('.dr-receive-checkbox').forEach(function(cb) { cb.checked = false; });
-      syncReceiveForm();
-    });
-  }
-
-  // ── Bulk settle ──────────────────────────────────────────────────────────
   var settleBar   = document.getElementById('bulk-settle-bar');
   var settleForm  = document.getElementById('bulk-settle-form');
   var settleCount = document.getElementById('bulk-settle-count');
+  var settleTotal = document.getElementById('bulk-settle-total');
   var clearSettle = document.getElementById('clear-settle-selection');
 
+  if (!settleForm) return;
+
+  var currencyCode = (settleBar && settleBar.dataset.currencyCode) || 'SAR';
+  var locale       = document.documentElement.lang === 'ar' ? 'ar-SA' : 'en-US';
+  var fmt          = new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode, minimumFractionDigits: 2 });
+
   function syncSettleForm() {
-    if (!settleForm) return;
     settleForm.querySelectorAll('input[name="ids[]"]').forEach(function(el) { el.remove(); });
     var checked = document.querySelectorAll('.dr-settle-checkbox:checked');
+    var total   = 0;
     checked.forEach(function(cb) {
       var h = document.createElement('input');
       h.type = 'hidden'; h.name = 'ids[]'; h.value = cb.dataset.drId;
       settleForm.appendChild(h);
+      total += parseFloat(cb.dataset.amount) || 0;
     });
     if (settleCount) settleCount.textContent = checked.length;
-    if (settleBar)  settleBar.hidden = checked.length === 0;
+    if (settleTotal) settleTotal.textContent = fmt.format(total);
+    if (settleBar)   settleBar.hidden = checked.length === 0;
   }
 
   document.querySelectorAll('.dr-settle-checkbox').forEach(function(cb) {

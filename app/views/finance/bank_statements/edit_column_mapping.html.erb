@@ -1,0 +1,86 @@
+<% content_for :title, t("finance.bank_statements.column_mapping.title") %>
+
+<div class="admin-page" style="max-width: 680px;">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.bank_statements.column_mapping.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.bank_statements.column_mapping.subtitle") %></p>
+    </div>
+  </div>
+
+  <%# Step indicator — always LTR; chevrons represent sequential workflow progression %>
+  <div dir="ltr" style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-6); font-size: var(--text-sm); color: var(--text-3);">
+    <span><%= t("finance.bank_statements.new.title") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.bank_statements.column_mapping.title") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span><%= t("finance.bank_statements.preview.title") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span><%= t("finance.bank_statements.preview.step_import") %></span>
+  </div>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4); background: var(--bg-2);">
+    <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0;">
+      <strong><%= t("finance.bank_statements.column_mapping.detected_hint") %>:</strong>
+      <%= @detected_headers.join(", ") %>
+    </p>
+  </div>
+
+  <%= form_with url: update_column_mapping_finance_bank_statement_path(@statement), method: :patch do |f| %>
+
+    <% if @statement.errors.any? %>
+      <div class="alert alert-danger" style="margin-bottom: var(--space-4);">
+        <ul style="margin: 0; padding-inline-start: var(--space-5);">
+          <% @statement.errors.each do |e| %>
+            <li><%= e.full_message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="card" style="padding: var(--space-6);">
+      <table class="table" style="margin-bottom: var(--space-6);">
+        <thead>
+          <tr>
+            <th style="width: 40%;"><%= t("finance.bank_statements.column_mapping.col_field") %></th>
+            <th><%= t("finance.bank_statements.column_mapping.col_csv_column") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% Finance::BankStatements::CsvParser::ALL_FIELDS.each do |field| %>
+            <% required = Finance::BankStatements::CsvParser::REQUIRED_FIELDS.include?(field) %>
+            <tr>
+              <td>
+                <span style="font-weight: 500;"><%= t("finance.bank_statements.fields.#{field}") %></span>
+                <% if required %>
+                  <span class="text-danger" style="font-size: var(--text-xs); margin-inline-start: 4px;">*</span>
+                <% else %>
+                  <span style="font-size: var(--text-xs); color: var(--text-3); margin-inline-start: 4px;">(<%= t("shared.optional") %>)</span>
+                <% end %>
+              </td>
+              <td>
+                <select name="column_mapping[<%= field %>]" class="form-control form-control-sm">
+                  <% unless required %>
+                    <option value=""><%= t("finance.bank_statements.column_mapping.skip") %></option>
+                  <% end %>
+                  <% @detected_headers.each do |header| %>
+                    <% selected = @statement.column_mapping[field] == header %>
+                    <option value="<%= header %>" <%= "selected" if selected %>><%= header %></option>
+                  <% end %>
+                </select>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <div style="display: flex; gap: var(--space-3); justify-content: flex-end;">
+        <%= link_to t("shared.cancel"), finance_bank_statements_path, class: "btn btn-ghost" %>
+        <%= f.submit t("finance.bank_statements.column_mapping.import_button"), class: "btn btn-primary" %>
+      </div>
+    </div>
+
+  <% end %>
+
+</div>

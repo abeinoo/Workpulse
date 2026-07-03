@@ -1,0 +1,79 @@
+<% if deposits.empty? %>
+  <div class="empty-state" style="padding: var(--space-12) var(--space-8);">
+    <div class="empty-state__icon">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+      </svg>
+    </div>
+    <p class="empty-state__title"><%= t(empty_key) %></p>
+    <p class="empty-state__text"><%= t("finance.deposit_verifications.empty.hint") %></p>
+  </div>
+<% else %>
+  <div class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th><%= t("finance.deposit_verifications.cols.verification_status") %></th>
+          <th><%= t("finance.deposit_verifications.cols.deposit_date") %></th>
+          <th><%= t("finance.deposit_verifications.cols.bank_date") %></th>
+          <th class="text-end"><%= t("finance.deposit_verifications.cols.recorded_amount") %></th>
+          <th class="text-end"><%= t("finance.deposit_verifications.cols.bank_amount") %></th>
+          <th class="text-end"><%= t("finance.deposit_verifications.cols.difference") %></th>
+          <th><%= t("finance.deposit_verifications.cols.reference") %></th>
+          <th><%= t("finance.deposit_verifications.cols.reconciliation") %></th>
+          <th><%= t("finance.deposit_verifications.cols.created_by") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% deposits.each do |dep| %>
+          <% txn = dep.bank_statement_transaction %>
+          <tr>
+            <td>
+              <% if txn %>
+                <%= render "finance/bank_statements/txn_status_badge", transaction: txn %>
+              <% else %>
+                <span class="badge badge-danger">
+                  <%= t("finance.deposit_verifications.statuses.missing") %>
+                </span>
+              <% end %>
+            </td>
+            <td><%= l(dep.deposited_at.to_date, format: :short) %></td>
+            <td><%= txn ? l(txn.transaction_date, format: :short) : "—" %></td>
+            <td class="text-end" style="font-variant-numeric: tabular-nums;"><%= format_currency(dep.amount) %></td>
+            <td class="text-end" style="font-variant-numeric: tabular-nums;"><%= txn ? format_currency(txn.amount) : "—" %></td>
+            <td class="text-end">
+              <% if txn && txn.amount_mismatch? %>
+                <span style="color: var(--warning); font-weight: 600; font-variant-numeric: tabular-nums;">
+                  <%= format_currency((dep.amount - txn.amount).abs) %>
+                </span>
+              <% else %>
+                <span style="color: var(--text-3);">—</span>
+              <% end %>
+            </td>
+            <td><code style="font-size: var(--text-xs);"><%= dep.reference.presence || "—" %></code></td>
+            <td>
+              <%= link_to finance_daily_reconciliation_path(dep.daily_reconciliation),
+                    class: "link", style: "font-size: var(--text-sm);" do %>
+                <%= dep.daily_reconciliation.branch&.name || "—" %>
+                <% if dep.daily_reconciliation.business_date %>
+                  <span style="color: var(--text-3); font-size: var(--text-xs);">
+                    &middot; <%= l(dep.daily_reconciliation.business_date, format: :short) %>
+                  </span>
+                <% end %>
+              <% end %>
+            </td>
+            <td><%= dep.deposited_by.full_name %></td>
+            <td>
+              <% if txn %>
+                <%= link_to t("shared.view"),
+                      finance_bank_statement_transaction_path(txn),
+                      class: "btn btn-ghost btn-sm" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

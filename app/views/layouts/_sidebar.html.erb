@@ -233,7 +233,8 @@
                             close_till_session accept_till_handover create_till_deposit
                             verify_daily_reconciliation edit_session_totals
                             void_till_handover void_till_deposit
-                            settle_remaining_deposit_balance] %>
+                            settle_remaining_deposit_balance
+                            view_deposit_verification import_bank_statement] %>
       <% if finance_perms.any? { |p| current_user.can?(p) } %>
         <span class="sidebar__section-label"><%= t("nav.section_finance") %></span>
 
@@ -298,6 +299,24 @@
                 data: { action: "click->sidebar#close" } do %>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 01-2 2H5a2 2 01-2-2V5a2 2 012-2h11"/></svg>
             <%= t("nav.finance_reconciliation") %>
+          <% end %>
+        <% end %>
+
+        <% if current_user.can?(:view_deposit_verification) %>
+          <%= link_to finance_deposit_verifications_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'deposit_verifications' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <%= t("nav.finance_deposit_verification") %>
+          <% end %>
+        <% end %>
+
+        <% if current_user.can?(:import_bank_statement) || current_user.can?(:view_deposit_verification) %>
+          <%= link_to finance_bank_statements_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{%w[bank_statements bank_statement_transactions].include?(controller_name) ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <%= t("nav.finance_bank_statements") %>
           <% end %>
         <% end %>
 

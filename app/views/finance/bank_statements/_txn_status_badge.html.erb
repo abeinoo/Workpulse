@@ -1,0 +1,10 @@
+<% css = case transaction.status
+         when "verified"              then "badge-success"
+         when "amount_mismatch"       then "badge-warning"
+         when "date_mismatch"         then "badge-warning"
+         when "unexpected"            then "badge-danger"
+         when "needs_reverification"  then "badge-danger"
+         when "ignored"               then "badge-neutral"
+         else                              "badge-neutral"
+         end %>
+<span class="badge <%= css %>"><%= t("finance.bank_statement_transactions.statuses.#{transaction.status}") %></span>

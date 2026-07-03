@@ -1,0 +1,186 @@
+<% content_for :title, t("finance.daily_reconciliations.correction.page_title") %>
+
+<div class="admin-page" style="max-width: 640px;">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.daily_reconciliations.correction.page_title") %></h1>
+      <p class="page-subtitle">
+        <%= @reconciliation.branch.name %>
+        <% if @reconciliation.business_date %>
+          &middot; <%= l(@reconciliation.business_date, format: :long) %>
+        <% end %>
+      </p>
+    </div>
+    <%= link_to t("shared.cancel"),
+                finance_daily_reconciliation_path(@reconciliation),
+                class: "btn btn-ghost" %>
+  </div>
+
+  <%# ── Warning banner ────────────────────────────────────────────────────── %>
+  <div style="display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-4) var(--space-5);
+              background: rgba(var(--warning-rgb,202,138,4),0.08); border: 1.5px solid rgba(var(--warning-rgb,202,138,4),0.35);
+              border-radius: var(--radius-lg); margin-bottom: var(--space-5);">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px;" aria-hidden="true">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    <div>
+      <p style="font-size: var(--text-sm); font-weight: 600; color: var(--warning); margin: 0 0 var(--space-1);">
+        <%= t("finance.daily_reconciliations.correction.warning_title") %>
+      </p>
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0;">
+        <%= t("finance.daily_reconciliations.correction.warning_body") %>
+      </p>
+    </div>
+  </div>
+
+  <%# ── Current opening balance (read-only) ────────────────────────────────── %>
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-2); text-transform: uppercase;
+               letter-spacing: 0.06em; margin: 0 0 var(--space-4);">
+      <%= t("finance.daily_reconciliations.correction.current_section") %>
+    </h3>
+
+    <div style="font-size: var(--text-xs); color: var(--text-3); margin-bottom: var(--space-3);">
+      <%= t("finance.daily_reconciliations.correction.received_from",
+            name: @opening_receipt.from_user&.full_name || "—",
+            time: l(@opening_receipt.accepted_at, format: :short)) %>
+    </div>
+
+    <table style="width: 100%; font-size: var(--text-sm); border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th style="text-align: start; font-weight: 600; color: var(--text-3); font-size: 11px;
+                     text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: var(--space-2);">
+            <%= t("finance.daily_reconciliations.show.opening_float_col_method") %>
+          </th>
+          <th style="text-align: end; font-weight: 600; color: var(--text-3); font-size: 11px;
+                     text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: var(--space-2);">
+            <%= t("finance.daily_reconciliations.show.opening_float_col_collected") %>
+          </th>
+          <th style="text-align: end; font-weight: 600; color: var(--text-3); font-size: 11px;
+                     text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: var(--space-2);">
+            <%= t("finance.daily_reconciliations.show.opening_float_col_net") %>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @current_amounts.each do |amt| %>
+          <tr>
+            <td style="padding: var(--space-1) 0; color: var(--text-2);"><%= amt.payment_method_name %></td>
+            <td style="padding: var(--space-1) 0; text-align: end; color: var(--text-2); font-variant-numeric: tabular-nums;">
+              <%= format_currency(amt.collected_amount) %>
+            </td>
+            <td style="padding: var(--space-1) 0; text-align: end; color: var(--text-2); font-variant-numeric: tabular-nums;">
+              <%= format_currency(amt.net_amount) %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <div style="font-size: var(--text-xs); color: var(--text-3); margin-top: var(--space-3); padding-top: var(--space-3);
+                border-top: 1px solid var(--border); display: flex; align-items: center; gap: var(--space-2);">
+      <span class="badge badge-neutral" style="font-size: var(--text-xs);">
+        <%= t("finance.daily_reconciliations.correction.will_be_superseded") %>
+      </span>
+    </div>
+  </div>
+
+  <%# ── Correction form ────────────────────────────────────────────────────── %>
+  <%= form_with url: update_opening_float_correction_finance_daily_reconciliation_path(@reconciliation),
+                method: :patch do |f| %>
+
+    <% if flash[:alert].present? %>
+      <div class="alert alert-danger" style="margin-bottom: var(--space-4);">
+        <%= flash[:alert] %>
+      </div>
+    <% end %>
+
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+      <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); text-transform: uppercase;
+                 letter-spacing: 0.06em; margin: 0 0 var(--space-4);">
+        <%= t("finance.daily_reconciliations.correction.corrected_section") %>
+      </h3>
+
+      <%# Reason field — mandatory %>
+      <div class="form-group" style="margin-bottom: var(--space-5);">
+        <%= f.label :correction_reason,
+                    t("finance.daily_reconciliations.correction.reason_label"),
+                    class: "form-label" %>
+        <span class="text-danger" style="font-size: var(--text-xs); margin-inline-start: 4px;">*</span>
+        <%= f.text_area :correction_reason,
+                        rows: 3,
+                        class: "form-control",
+                        required: true,
+                        maxlength: 500,
+                        placeholder: t("finance.daily_reconciliations.correction.reason_placeholder") %>
+        <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-1) 0 0;">
+          <%= t("finance.daily_reconciliations.correction.reason_hint") %>
+        </p>
+      </div>
+
+      <%# Editable amounts table %>
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 var(--space-3);">
+        <%= t("finance.daily_reconciliations.correction.amounts_hint") %>
+      </p>
+
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="text-align: start; font-weight: 600; color: var(--text-3); font-size: 11px;
+                       text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: var(--space-2);">
+              <%= t("finance.daily_reconciliations.show.opening_float_col_method") %>
+            </th>
+            <th style="text-align: end; font-weight: 600; color: var(--text-3); font-size: 11px;
+                       text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: var(--space-2);">
+              <%= t("finance.daily_reconciliations.show.opening_float_col_collected") %>
+            </th>
+            <th style="text-align: end; font-weight: 600; color: var(--text-3); font-size: 11px;
+                       text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: var(--space-2);">
+              <%= t("finance.daily_reconciliations.correction.col_refund") %>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @current_amounts.each do |amt| %>
+            <tr>
+              <td style="padding: var(--space-2) 0; font-size: var(--text-sm); font-weight: 500; color: var(--text-1); vertical-align: middle;">
+                <%= amt.payment_method_name %>
+              </td>
+              <td style="padding: var(--space-2) 0 var(--space-2) var(--space-3); text-align: end; vertical-align: middle;">
+                <input type="number"
+                       name="amounts[<%= amt.id %>][collected_amount]"
+                       value="<%= amt.collected_amount.to_f %>"
+                       step="0.01"
+                       min="0"
+                       required
+                       class="form-control form-control-sm"
+                       style="width: 120px; text-align: end; font-variant-numeric: tabular-nums; display: inline-block;" />
+              </td>
+              <td style="padding: var(--space-2) 0 var(--space-2) var(--space-3); text-align: end; vertical-align: middle;">
+                <input type="number"
+                       name="amounts[<%= amt.id %>][refund_amount]"
+                       value="<%= amt.refund_amount.to_f %>"
+                       step="0.01"
+                       min="0"
+                       class="form-control form-control-sm"
+                       style="width: 120px; text-align: end; font-variant-numeric: tabular-nums; display: inline-block;" />
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display: flex; gap: var(--space-3); justify-content: flex-end; align-items: center;">
+      <%= link_to t("shared.cancel"),
+                  finance_daily_reconciliation_path(@reconciliation),
+                  class: "btn btn-ghost" %>
+      <%= f.submit t("finance.daily_reconciliations.correction.submit_btn"),
+                   class: "btn btn-primary",
+                   data: { turbo_confirm: t("finance.daily_reconciliations.correction.confirm_dialog") } %>
+    </div>
+
+  <% end %>
+
+</div>

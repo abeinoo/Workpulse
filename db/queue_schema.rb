@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_02_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_231000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -176,6 +176,62 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_100000) do
     t.index ["branch_id", "active"], name: "index_bank_accounts_on_branch_id_and_active"
     t.index ["branch_id"], name: "index_bank_accounts_on_branch_id"
     t.index ["business_id"], name: "index_bank_accounts_on_business_id"
+  end
+
+  create_table "bank_statement_transactions", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.bigint "bank_statement_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "description"
+    t.string "external_transaction_id"
+    t.string "ignored_reason"
+    t.string "match_method"
+    t.text "match_notes"
+    t.datetime "matched_at"
+    t.bigint "matched_by_id"
+    t.bigint "matched_till_deposit_id"
+    t.jsonb "raw_data", default: {}, null: false
+    t.string "reference_number"
+    t.decimal "snapshot_deposit_amount", precision: 12, scale: 2
+    t.date "snapshot_deposit_date"
+    t.string "snapshot_deposit_reference"
+    t.string "status", default: "pending", null: false
+    t.date "transaction_date", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_statement_id"], name: "index_bank_statement_transactions_on_bank_statement_id"
+    t.index ["business_id", "status"], name: "index_bank_statement_transactions_on_business_id_and_status"
+    t.index ["business_id"], name: "index_bank_statement_transactions_on_business_id"
+    t.index ["matched_till_deposit_id"], name: "idx_bank_stmt_txns_on_matched_deposit_unique", unique: true, where: "(matched_till_deposit_id IS NOT NULL)"
+    t.index ["transaction_date"], name: "index_bank_statement_transactions_on_transaction_date"
+  end
+
+  create_table "bank_statements", force: :cascade do |t|
+    t.bigint "branch_id"
+    t.bigint "business_id", null: false
+    t.jsonb "column_mapping", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.bigint "deleted_by_id"
+    t.text "deletion_notes"
+    t.integer "failed_rows", default: 0, null: false
+    t.string "file_name", null: false
+    t.bigint "imported_by_id", null: false
+    t.integer "matched_rows", default: 0, null: false
+    t.text "notes"
+    t.date "statement_from", null: false
+    t.date "statement_to", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_rows", default: 0, null: false
+    t.integer "unmatched_rows", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id"], name: "index_bank_statements_on_branch_id"
+    t.index ["business_id", "branch_id"], name: "index_bank_statements_on_business_id_and_branch_id"
+    t.index ["business_id", "statement_from", "statement_to"], name: "idx_bank_statements_on_business_date_range"
+    t.index ["business_id", "status"], name: "index_bank_statements_on_business_id_and_status"
+    t.index ["business_id"], name: "index_bank_statements_on_business_id"
+    t.index ["deleted_at"], name: "index_bank_statements_on_deleted_at"
+    t.index ["imported_by_id"], name: "index_bank_statements_on_imported_by_id"
   end
 
   create_table "biometric_devices", force: :cascade do |t|
@@ -436,6 +492,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_100000) do
     t.datetime "deposited_at"
     t.text "notes"
     t.datetime "opened_at", null: false
+    t.jsonb "opening_float_override_amounts"
     t.bigint "opening_float_source_handover_id"
     t.string "state", default: "open", null: false
     t.datetime "updated_at", null: false
@@ -1799,6 +1856,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_100000) do
     t.text "accepted_notes"
     t.datetime "cancelled_at"
     t.bigint "cancelled_by_id"
+    t.text "correction_reason"
+    t.bigint "corrects_handover_id"
     t.datetime "created_at", null: false
     t.bigint "daily_reconciliation_id", null: false
     t.decimal "float_amount", precision: 12, scale: 2
@@ -1812,13 +1871,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_100000) do
     t.datetime "reversed_at"
     t.bigint "reversed_by_id"
     t.boolean "self_deposit", default: false, null: false
+    t.datetime "superseded_at"
+    t.bigint "superseded_by_id"
     t.bigint "to_user_id"
     t.datetime "updated_at", null: false
     t.index ["cancelled_by_id"], name: "index_till_handovers_on_cancelled_by_id"
+    t.index ["corrects_handover_id"], name: "index_till_handovers_on_corrects_handover_id"
     t.index ["daily_reconciliation_id"], name: "index_till_handovers_on_dr_id"
     t.index ["reversal_of_handover_id"], name: "idx_till_handovers_one_reversal_per_original", unique: true, where: "(reversal_of_handover_id IS NOT NULL)"
     t.index ["reversal_of_handover_id"], name: "index_till_handovers_on_reversal_of_handover_id"
     t.index ["reversed_by_id"], name: "index_till_handovers_on_reversed_by_id"
+    t.index ["superseded_by_id"], name: "index_till_handovers_on_superseded_by_id"
   end
 
   create_table "till_session_amounts", force: :cascade do |t|
@@ -1943,6 +2006,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_100000) do
   add_foreign_key "balance_requests", "users", column: "paid_by_id"
   add_foreign_key "bank_accounts", "branches"
   add_foreign_key "bank_accounts", "businesses"
+  add_foreign_key "bank_statement_transactions", "bank_statements"
+  add_foreign_key "bank_statement_transactions", "businesses"
+  add_foreign_key "bank_statement_transactions", "till_deposits", column: "matched_till_deposit_id"
+  add_foreign_key "bank_statement_transactions", "users", column: "matched_by_id"
+  add_foreign_key "bank_statements", "branches"
+  add_foreign_key "bank_statements", "businesses"
+  add_foreign_key "bank_statements", "users", column: "deleted_by_id"
+  add_foreign_key "bank_statements", "users", column: "imported_by_id"
   add_foreign_key "biometric_devices", "businesses"
   add_foreign_key "biometric_punch_logs", "attendance_records"
   add_foreign_key "biometric_punch_logs", "biometric_devices"
@@ -2182,10 +2253,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_02_100000) do
   add_foreign_key "till_handover_amounts", "payment_methods"
   add_foreign_key "till_handover_amounts", "till_handovers"
   add_foreign_key "till_handovers", "daily_reconciliations"
+  add_foreign_key "till_handovers", "till_handovers", column: "corrects_handover_id"
   add_foreign_key "till_handovers", "till_handovers", column: "reversal_of_handover_id"
   add_foreign_key "till_handovers", "users", column: "cancelled_by_id"
   add_foreign_key "till_handovers", "users", column: "from_user_id"
   add_foreign_key "till_handovers", "users", column: "reversed_by_id"
+  add_foreign_key "till_handovers", "users", column: "superseded_by_id"
   add_foreign_key "till_handovers", "users", column: "to_user_id"
   add_foreign_key "till_session_amounts", "daily_reconciliations"
   add_foreign_key "till_session_amounts", "payment_methods"

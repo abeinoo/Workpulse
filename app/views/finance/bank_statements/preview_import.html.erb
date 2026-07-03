@@ -1,0 +1,168 @@
+<% content_for :title, t("finance.bank_statements.preview.title") %>
+
+<div class="admin-page" style="max-width: 800px;">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.bank_statements.preview.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.bank_statements.preview.subtitle") %></p>
+    </div>
+    <%= link_to t("finance.bank_statements.column_mapping.back_mapping"),
+                edit_column_mapping_finance_bank_statement_path(@statement),
+                class: "btn btn-ghost" %>
+  </div>
+
+  <%# Step indicator — always LTR; chevrons represent sequential workflow progression %>
+  <div dir="ltr" style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-6); font-size: var(--text-sm); color: var(--text-3);">
+    <span><%= t("finance.bank_statements.new.title") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span><%= t("finance.bank_statements.column_mapping.title") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.bank_statements.preview.title") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span><%= t("finance.bank_statements.preview.step_import") %></span>
+  </div>
+
+  <%# Row count summary %>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-bottom: var(--space-5);">
+    <div class="card" style="padding: var(--space-5); text-align: center;">
+      <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--text-1);">
+        <%= @preview["total_rows"] %>
+      </div>
+      <div style="font-size: var(--text-sm); color: var(--text-3); margin-top: var(--space-1);">
+        <%= t("finance.bank_statements.preview.stat_total") %>
+      </div>
+    </div>
+    <div class="card" style="padding: var(--space-5); text-align: center;">
+      <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--success);">
+        <%= @preview["valid_count"] %>
+      </div>
+      <div style="font-size: var(--text-sm); color: var(--text-3); margin-top: var(--space-1);">
+        <%= t("finance.bank_statements.preview.stat_valid") %>
+      </div>
+    </div>
+    <div class="card" style="padding: var(--space-5); text-align: center;">
+      <div style="font-size: var(--text-2xl); font-weight: 700; color: <%= @preview["invalid_count"].to_i > 0 ? "var(--warning)" : "var(--text-3)" %>;">
+        <%= @preview["invalid_count"] %>
+      </div>
+      <div style="font-size: var(--text-sm); color: var(--text-3); margin-top: var(--space-1);">
+        <%= t("finance.bank_statements.preview.stat_invalid") %>
+      </div>
+    </div>
+  </div>
+
+  <% if @preview["valid_count"].to_i == 0 %>
+    <div class="card" style="padding: var(--space-6); text-align: center; margin-bottom: var(--space-5);">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto var(--space-3);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <p style="font-weight: 500; color: var(--text-1); margin: 0 0 var(--space-1);">
+        <%= t("finance.bank_statements.preview.no_valid_rows") %>
+      </p>
+      <p style="font-size: var(--text-sm); color: var(--text-3); margin: 0;">
+        <%= t("finance.bank_statements.preview.no_valid_rows_hint") %>
+      </p>
+    </div>
+  <% end %>
+
+  <%# Sample valid rows %>
+  <% if @preview["sample_rows"].present? %>
+    <div class="card" style="margin-bottom: var(--space-5);">
+      <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-1);">
+        <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+          <%= t("finance.bank_statements.preview.sample_title") %>
+        </h3>
+        <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-1) 0 0;">
+          <%= t("finance.bank_statements.preview.sample_hint", count: @preview["valid_count"]) %>
+        </p>
+      </div>
+      <div style="overflow-x: auto;">
+        <table class="table" style="margin: 0;">
+          <thead>
+            <tr>
+              <th><%= t("finance.bank_statements.fields.transaction_date") %></th>
+              <th style="text-align: end;"><%= t("finance.bank_statements.fields.amount") %></th>
+              <th><%= t("finance.bank_statements.fields.reference_number") %></th>
+              <th><%= t("finance.bank_statements.fields.description") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @preview["sample_rows"].each do |row| %>
+              <tr>
+                <td><%= row["transaction_date"] %></td>
+                <td style="text-align: end; font-variant-numeric: tabular-nums;">
+                  <%= format_currency(row["amount"].to_d) %>
+                </td>
+                <td style="color: var(--text-3); font-size: var(--text-sm);">
+                  <%= row["reference_number"].presence || "—" %>
+                </td>
+                <td style="color: var(--text-3); font-size: var(--text-sm); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  <%= row["description"].presence || "—" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Invalid rows %>
+  <% if @preview["error_rows"].present? %>
+    <div class="card" style="margin-bottom: var(--space-5); border: 1px solid rgba(var(--warning-rgb), 0.3);">
+      <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid rgba(var(--warning-rgb), 0.2); background: var(--warning-muted);">
+        <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--warning); margin: 0;">
+          <%= t("finance.bank_statements.preview.errors_title", count: @preview["invalid_count"]) %>
+        </h3>
+        <p style="font-size: var(--text-xs); color: var(--warning); opacity: 0.8; margin: var(--space-1) 0 0;">
+          <%= t("finance.bank_statements.preview.errors_hint") %>
+        </p>
+      </div>
+      <div style="overflow-x: auto;">
+        <table class="table" style="margin: 0;">
+          <thead>
+            <tr>
+              <th style="width: 60px;"><%= t("finance.bank_statements.preview.col_row") %></th>
+              <th><%= t("finance.bank_statements.fields.transaction_date") %></th>
+              <th><%= t("finance.bank_statements.fields.amount") %></th>
+              <th><%= t("finance.bank_statements.preview.col_errors") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @preview["error_rows"].each do |row| %>
+              <tr>
+                <td style="color: var(--text-3); font-size: var(--text-sm);">#<%= row["row"] %></td>
+                <td style="font-size: var(--text-sm);"><%= row["transaction_date"].presence || "—" %></td>
+                <td style="font-size: var(--text-sm);"><%= row["amount"].presence || "—" %></td>
+                <td>
+                  <% Array(row["errors"]).each do |err| %>
+                    <span class="badge badge-warning" style="margin-inline-end: var(--space-1); font-size: var(--text-xs);">
+                      <%= err %>
+                    </span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Confirm / Back actions %>
+  <div style="display: flex; gap: var(--space-3); justify-content: flex-end;">
+    <%= link_to t("finance.bank_statements.column_mapping.back_mapping"),
+                edit_column_mapping_finance_bank_statement_path(@statement),
+                class: "btn btn-ghost" %>
+
+    <% if @preview["valid_count"].to_i > 0 %>
+      <%= button_to t("finance.bank_statements.preview.confirm_button",
+                      count: @preview["valid_count"]),
+                    confirm_import_finance_bank_statement_path(@statement),
+                    method: :post,
+                    data: { turbo_confirm: t("finance.bank_statements.preview.confirm_dialog",
+                                             valid: @preview["valid_count"],
+                                             total: @preview["total_rows"]) },
+                    class: "btn btn-primary" %>
+    <% end %>
+  </div>
+
+</div>

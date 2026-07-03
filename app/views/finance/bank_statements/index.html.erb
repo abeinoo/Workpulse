@@ -1,0 +1,114 @@
+<% content_for :title, t("finance.bank_statements.index.title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.bank_statements.index.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.bank_statements.index.subtitle") %></p>
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <%= link_to t("finance.bank_statements.index.verification_dashboard"),
+            finance_deposit_verifications_path,
+            class: "btn btn-ghost" %>
+      <% if policy(BankStatement.new).create? %>
+        <%= link_to t("finance.bank_statements.index.import_button"),
+              new_finance_bank_statement_path,
+              class: "btn btn-primary" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Filters ─────────────────────────────────────────────────────────── %>
+  <%= form_with url: finance_bank_statements_path, method: :get,
+        style: "display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4);" do |f| %>
+    <% if @filter_branches.size > 1 %>
+      <%= f.select :branch_id,
+            [[t("finance.bank_statements.index.all_branches"), ""]] + @filter_branches.map { |b| [b.name, b.id] },
+            { selected: params[:branch_id] },
+            class: "form-control form-control-sm", style: "width: auto;" %>
+    <% end %>
+    <%= f.select :status,
+          [[t("finance.bank_statements.index.all_statuses"), ""]] +
+          BankStatement::STATUSES.map { |s| [t("finance.bank_statements.statuses.#{s}"), s] },
+          { selected: params[:status] },
+          class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.date_field :from, value: params[:from], class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.date_field :to,   value: params[:to],   class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.submit t("shared.filter"), class: "btn btn-ghost btn-sm" %>
+    <% if params.slice(:status, :branch_id, :from, :to).values.any?(&:present?) %>
+      <%= link_to t("shared.clear_filters"), finance_bank_statements_path, class: "btn btn-ghost btn-sm" %>
+    <% end %>
+  <% end %>
+
+  <% if @statements.empty? %>
+    <div class="empty-state" style="padding: var(--space-16) var(--space-8);">
+      <div class="empty-state__icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+      </div>
+      <p class="empty-state__title"><%= t("finance.bank_statements.index.empty") %></p>
+      <% if policy(BankStatement.new).create? %>
+        <div style="margin-top: var(--space-6);">
+          <%= link_to t("finance.bank_statements.index.import_button"),
+                new_finance_bank_statement_path, class: "btn btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><%= t("finance.bank_statements.index.col_file") %></th>
+            <th><%= t("finance.bank_statements.index.col_period") %></th>
+            <th><%= t("finance.bank_statements.index.col_branch") %></th>
+            <th class="text-center"><%= t("finance.bank_statements.index.col_total") %></th>
+            <th class="text-center"><%= t("finance.bank_statements.index.col_matched") %></th>
+            <th class="text-center"><%= t("finance.bank_statements.index.col_rate") %></th>
+            <th><%= t("finance.bank_statements.index.col_status") %></th>
+            <th><%= t("finance.bank_statements.index.col_imported_by") %></th>
+            <th><%= t("finance.bank_statements.index.col_imported_at") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @statements.each do |stmt| %>
+            <tr>
+              <td><%= link_to stmt.file_name, finance_bank_statement_path(stmt), class: "link" %></td>
+              <td><%= l(stmt.statement_from, format: :short) %> – <%= l(stmt.statement_to, format: :short) %></td>
+              <td><%= stmt.branch&.name || t("finance.bank_statements.all_branches") %></td>
+              <td class="text-center"><%= stmt.total_rows %></td>
+              <td class="text-center"><%= stmt.matched_rows %></td>
+              <td class="text-center"><%= stmt.verification_rate %>%</td>
+              <td><%= render "finance/bank_statements/status_badge", statement: stmt %></td>
+              <td><%= stmt.imported_by.full_name %></td>
+              <td><%= l(stmt.created_at, format: :short) %></td>
+              <td>
+                <%= link_to t("shared.view"), finance_bank_statement_path(stmt), class: "btn btn-ghost btn-sm" %>
+                <% if policy(stmt).destroy? %>
+                  <%= button_to t("shared.delete"), finance_bank_statement_path(stmt),
+                        method: :delete,
+                        data: { turbo_confirm: t("finance.bank_statements.delete_confirm") },
+                        class: "btn btn-ghost btn-sm text-danger" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%= render "shared/pagination",
+          page: @page, total_pages: @total_pages,
+          path_proc: ->(p) { finance_bank_statements_path(request.query_parameters.merge(page: p)) } %>
+
+  <% end %>
+
+</div>

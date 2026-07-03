@@ -1,0 +1,159 @@
+<% content_for :title, t("finance.bank_statements.new.title") %>
+
+<div class="admin-page" style="max-width: 680px;">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.bank_statements.new.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.bank_statements.new.subtitle") %></p>
+    </div>
+    <%= link_to t("shared.back"), finance_bank_statements_path, class: "btn btn-ghost" %>
+  </div>
+
+  <%# ── Required fields info box ──────────────────────────────────────────── %>
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4); border-inline-start: 3px solid var(--accent); background: var(--bg-2);">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
+      <div style="flex: 1;">
+        <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-3);">
+          <%= t("finance.bank_statements.new.fields_title") %>
+        </p>
+        <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+          <div style="display: flex; align-items: baseline; gap: var(--space-2); font-size: var(--text-sm);">
+            <span class="badge badge-danger" style="font-size: 10px; flex-shrink: 0;"><%= t("finance.bank_statements.new.required_badge") %></span>
+            <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.bank_statements.fields.transaction_date") %></span>
+            <span style="color: var(--text-3);">— <%= t("finance.bank_statements.new.field_date_hint") %></span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: var(--space-2); font-size: var(--text-sm);">
+            <span class="badge badge-danger" style="font-size: 10px; flex-shrink: 0;"><%= t("finance.bank_statements.new.required_badge") %></span>
+            <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.bank_statements.fields.amount") %></span>
+            <span style="color: var(--text-3);">— <%= t("finance.bank_statements.new.field_amount_hint") %></span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: var(--space-2); font-size: var(--text-sm);">
+            <span class="badge badge-neutral" style="font-size: 10px; flex-shrink: 0;"><%= t("finance.bank_statements.new.optional_badge") %></span>
+            <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.bank_statements.fields.reference_number") %></span>
+            <span style="color: var(--text-3);">— <%= t("finance.bank_statements.new.field_reference_hint") %></span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: var(--space-2); font-size: var(--text-sm);">
+            <span class="badge badge-neutral" style="font-size: 10px; flex-shrink: 0;"><%= t("finance.bank_statements.new.optional_badge") %></span>
+            <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.bank_statements.fields.description") %></span>
+            <span style="color: var(--text-3);">— <%= t("finance.bank_statements.new.field_description_hint") %></span>
+          </div>
+        </div>
+        <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-3) 0 0;">
+          <%= t("finance.bank_statements.new.column_order_note") %>
+        </p>
+        <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-1) 0 0;">
+          <%= t("finance.bank_statements.new.mapping_reassurance") %>
+        </p>
+      </div>
+      <div style="flex-shrink: 0;">
+        <%= link_to sample_csv_finance_bank_statements_path,
+              style: "display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--accent); text-decoration: none; white-space: nowrap;" do %>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <%= t("finance.bank_statements.new.sample_csv_button") %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%= form_with model: [:finance, @statement], multipart: true,
+        data: { controller: "file-upload", action: "submit->file-upload#submit" } do |f| %>
+    <% if @statement.errors.any? %>
+      <div class="alert alert-danger" style="margin-bottom: var(--space-4);">
+        <ul style="margin: 0; padding-inline-start: var(--space-5);">
+          <% @statement.errors.each do |e| %>
+            <li><%= e.full_message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="card" style="padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-5);">
+
+      <%# ── Drag-and-drop upload zone ───────────────────────────────────── %>
+      <div class="form-group">
+        <label class="form-label"><%= t("finance.bank_statements.new.file_label") %> <span class="text-danger">*</span></label>
+
+        <div class="file-upload-area"
+             data-file-upload-target="dropzone"
+             data-action="dragover->file-upload#dragover dragleave->file-upload#dragleave drop->file-upload#drop">
+
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+               style="color: var(--text-3); margin-bottom: var(--space-3);" aria-hidden="true">
+            <polyline points="16 16 12 12 8 16"/>
+            <line x1="12" y1="12" x2="12" y2="21"/>
+            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+          </svg>
+
+          <p class="file-upload-area__hint"><%= t("finance.bank_statements.new.drag_hint") %></p>
+          <p class="file-upload-area__filename" data-file-upload-target="label">
+            <%= t("finance.bank_statements.new.no_file_selected") %>
+          </p>
+
+          <label class="btn btn-ghost btn-sm" style="margin-top: var(--space-3); cursor: pointer;">
+            <%= t("finance.bank_statements.new.browse_button") %>
+            <input type="file" name="bank_statement[file]" accept=".csv,text/csv"
+                   class="visually-hidden"
+                   data-file-upload-target="input"
+                   data-action="change->file-upload#pick">
+          </label>
+        </div>
+
+        <p class="form-hint" style="margin-top: var(--space-2);">
+          <%= t("finance.bank_statements.new.file_hint") %>
+        </p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+        <div class="form-group">
+          <label class="form-label"><%= t("finance.bank_statements.new.from_label") %> <span class="text-danger">*</span></label>
+          <%= f.date_field :statement_from, required: true, class: "form-control" %>
+        </div>
+        <div class="form-group">
+          <label class="form-label"><%= t("finance.bank_statements.new.to_label") %> <span class="text-danger">*</span></label>
+          <%= f.date_field :statement_to, required: true, class: "form-control" %>
+        </div>
+      </div>
+
+      <% if @branches.size > 1 %>
+        <div class="form-group">
+          <label class="form-label"><%= t("finance.bank_statements.new.branch_label") %></label>
+          <%= f.select :branch_id,
+                [[t("finance.bank_statements.new.all_branches"), ""]] + @branches.map { |b| [b.name, b.id] },
+                { selected: nil },
+                class: "form-control" %>
+          <p class="form-hint"><%= t("finance.bank_statements.new.branch_hint") %></p>
+        </div>
+      <% end %>
+
+      <div class="form-group">
+        <label class="form-label"><%= t("finance.bank_statements.new.notes_label") %></label>
+        <%= f.text_area :notes, rows: 2, class: "form-control",
+              placeholder: t("finance.bank_statements.new.notes_placeholder") %>
+      </div>
+
+      <div style="display: flex; gap: var(--space-3); justify-content: flex-end; align-items: center;">
+        <%# Progress indicator — hidden until upload starts %>
+        <span hidden data-file-upload-target="progress"
+              style="font-size: var(--text-sm); color: var(--text-3); display: inline-flex; align-items: center; gap: var(--space-2);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" class="spin" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+          <%= t("finance.bank_statements.new.uploading") %>
+        </span>
+
+        <%= link_to t("shared.cancel"), finance_bank_statements_path, class: "btn btn-ghost" %>
+        <%= f.submit t("finance.bank_statements.new.next_button"),
+              class: "btn btn-primary",
+              data: {
+                file_upload_target: "submitBtn",
+                uploading_text: t("finance.bank_statements.new.uploading_button")
+              } %>
+      </div>
+
+    </div>
+  <% end %>
+
+</div>

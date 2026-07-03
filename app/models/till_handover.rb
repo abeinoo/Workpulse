@@ -20,6 +20,21 @@ class TillHandover < ApplicationRecord
           inverse_of:  :reversal_of_handover,
           dependent:   :restrict_with_error
 
+  # Self-referential correction link.
+  # corrects_handover: the original opening float handover this record corrects.
+  # correction_handover: the correcting handover created when this one was superseded.
+  belongs_to :corrects_handover,
+             class_name: "TillHandover",
+             optional:   true
+
+  has_one :correction_handover,
+          class_name:  "TillHandover",
+          foreign_key: :corrects_handover_id,
+          inverse_of:  :corrects_handover,
+          dependent:   :restrict_with_error
+
+  belongs_to :superseded_by, class_name: "User", optional: true
+
   has_many :amounts, class_name: "TillHandoverAmount", dependent: :destroy
 
   has_many :financial_adjustments, as: :adjustable, dependent: :restrict_with_error
@@ -51,11 +66,15 @@ class TillHandover < ApplicationRecord
 
   delegate :business, :branch, to: :daily_reconciliation
 
-  def pending?   = !self_deposit? && accepted_at.nil? && cancelled_at.nil?
-  def accepted?  = accepted_at.present?
-  def cancelled? = cancelled_at.present?
-  def reversed?  = reversed_at.present?
+  def pending?     = !self_deposit? && accepted_at.nil? && cancelled_at.nil?
+  def accepted?    = accepted_at.present?
+  def cancelled?   = cancelled_at.present?
+  def reversed?    = reversed_at.present?
+  def superseded?  = superseded_at.present?
 
   # True when this record IS the compensating reversal event (not the original).
-  def reversal?  = reversal_of_handover_id.present?
+  def reversal?    = reversal_of_handover_id.present?
+
+  # True when this record IS a correction of a superseded opening float handover.
+  def correction?  = corrects_handover_id.present?
 end

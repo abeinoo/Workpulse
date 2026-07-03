@@ -1,0 +1,11 @@
+<% mod = local_assigns[:modifier] %>
+<div class="stat-card <%= "stat-card--#{mod}" if mod %>">
+  <p class="stat-card__label"><%= label %></p>
+  <p class="stat-card__value" style="<%=
+    case mod
+    when "success" then "color: var(--success);"
+    when "warning" then "color: var(--warning);"
+    when "danger"  then "color: var(--danger);"
+    when "accent"  then "color: var(--accent);"
+    end %>"><%= value %></p>
+</div>

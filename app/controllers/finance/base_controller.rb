@@ -17,6 +17,7 @@ class Finance::BaseController < ApplicationController
     close_till_session accept_till_handover create_till_deposit
     verify_daily_reconciliation edit_session_totals void_till_handover void_till_deposit
     settle_remaining_deposit_balance
+    view_deposit_verification import_bank_statement verify_deposits manual_match_deposits delete_import
   ].freeze
 
   def require_finance_access!

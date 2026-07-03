@@ -1,0 +1,118 @@
+<% content_for :title, t("finance.deposit_verifications.index.title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.deposit_verifications.index.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.deposit_verifications.index.subtitle") %></p>
+    </div>
+    <div style="display: flex; gap: var(--space-2); align-items: center;">
+      <%= link_to t("finance.deposit_verifications.index.dr_link"),
+            finance_daily_reconciliations_path,
+            class: "btn btn-ghost" %>
+      <%= link_to t("finance.deposit_verifications.index.statements_link"),
+            finance_bank_statements_path,
+            class: "btn btn-ghost" %>
+      <% if policy(BankStatement.new).create? %>
+        <%= link_to t("finance.deposit_verifications.index.import_button"),
+              new_finance_bank_statement_path,
+              class: "btn btn-primary" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Dashboard stat cards ────────────────────────────────────────────── %>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-6);">
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.imported"),
+          value: @stats[:total_imported] %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.verified"),
+          value: @stats[:verified],
+          modifier: @stats[:verified] > 0 ? "success" : nil %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.missing"),
+          value: @stats[:missing],
+          modifier: @stats[:missing] > 0 ? "danger" : nil %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.unexpected"),
+          value: @stats[:unexpected],
+          modifier: @stats[:unexpected] > 0 ? "danger" : nil %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.amount_mismatch"),
+          value: @stats[:amount_mismatch],
+          modifier: @stats[:amount_mismatch] > 0 ? "warning" : nil %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.date_mismatch"),
+          value: @stats[:date_mismatch],
+          modifier: @stats[:date_mismatch] > 0 ? "warning" : nil %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.rate"),
+          value: "#{@stats[:rate]}%",
+          modifier: @stats[:rate] >= 95 ? "success" : (@stats[:rate] >= 80 ? "warning" : "danger") %>
+  </div>
+
+  <%# ── Filters ─────────────────────────────────────────────────────────── %>
+  <%= form_with url: finance_deposit_verifications_path, method: :get,
+        style: "display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4);" do |f| %>
+    <%= hidden_field_tag :tab, @active_tab %>
+    <% if @filter_branches.size > 1 %>
+      <%= f.select :branch_id,
+            [[t("finance.deposit_verifications.index.all_branches"), ""]] +
+            @filter_branches.map { |b| [b.name, b.id] },
+            { selected: params[:branch_id] },
+            class: "form-control form-control-sm", style: "width: auto;" %>
+    <% end %>
+    <label style="font-size: var(--text-sm); color: var(--text-2);">
+      <%= t("finance.deposit_verifications.index.filter_from") %>
+    </label>
+    <%= f.date_field :from, value: params[:from], class: "form-control form-control-sm", style: "width: auto;" %>
+    <label style="font-size: var(--text-sm); color: var(--text-2);">
+      <%= t("finance.deposit_verifications.index.filter_to") %>
+    </label>
+    <%= f.date_field :to, value: params[:to], class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.submit t("shared.filter"), class: "btn btn-ghost btn-sm" %>
+    <% if params.slice(:branch_id, :from, :to).values.any?(&:present?) %>
+      <%= link_to t("shared.clear_filters"),
+            finance_deposit_verifications_path(tab: @active_tab),
+            class: "btn btn-ghost btn-sm" %>
+    <% end %>
+  <% end %>
+
+  <%# ── Tabs ────────────────────────────────────────────────────────────── %>
+  <div style="display: flex; gap: var(--space-1); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); padding-bottom: var(--space-3);">
+    <% [
+         ["all",        t("finance.deposit_verifications.tabs.all")],
+         ["missing",    t("finance.deposit_verifications.tabs.missing")],
+         ["unexpected", t("finance.deposit_verifications.tabs.unexpected")],
+         ["mismatches", t("finance.deposit_verifications.tabs.mismatches")]
+       ].each do |tab_key, tab_label| %>
+      <%= link_to tab_label,
+            finance_deposit_verifications_path(request.query_parameters.merge(tab: tab_key, page: 1)),
+            style: "font-size: var(--text-sm); font-weight: 600; padding: var(--space-2) var(--space-3); border-radius: var(--radius); text-decoration: none; " +
+                   (@active_tab == tab_key ? "background: var(--accent); color: #fff;" : "color: var(--text-2);") %>
+    <% end %>
+  </div>
+
+  <%# ── Table ──────────────────────────────────────────────────────────── %>
+  <% case @active_tab
+     when "missing" %>
+    <%= render "finance/deposit_verifications/deposits_table",
+          deposits: @deposits,
+          empty_key: "finance.deposit_verifications.empty.missing" %>
+  <% when "unexpected", "mismatches" %>
+    <%= render "finance/deposit_verifications/transactions_table",
+          transactions: @transactions,
+          empty_key: "finance.deposit_verifications.empty.#{@active_tab}" %>
+  <% else %>
+    <%= render "finance/deposit_verifications/deposits_table",
+          deposits: @deposits,
+          empty_key: "finance.deposit_verifications.empty.all" %>
+  <% end %>
+
+  <%= render "shared/pagination",
+        page: @page, total_pages: @total_pages,
+        path_proc: ->(p) { finance_deposit_verifications_path(request.query_parameters.merge(page: p)) } %>
+
+</div>

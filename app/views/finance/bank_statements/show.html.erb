@@ -1,0 +1,159 @@
+<% content_for :title, @statement.file_name %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= @statement.file_name %></h1>
+      <p class="page-subtitle">
+        <%= l(@statement.statement_from, format: :long) %> – <%= l(@statement.statement_to, format: :long) %>
+        <% if @statement.branch %>
+          &middot; <%= @statement.branch.name %>
+        <% end %>
+      </p>
+    </div>
+    <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+      <%= render "finance/bank_statements/status_badge", statement: @statement %>
+      <%= link_to t("shared.back"), finance_bank_statements_path, class: "btn btn-ghost" %>
+      <%= link_to t("finance.bank_statements.show.verification_dashboard"),
+            finance_deposit_verifications_path,
+            class: "btn btn-ghost" %>
+      <% if policy(@statement).rematch? && @statement.completed? %>
+        <%= button_to t("finance.bank_statements.rematch"),
+              rematch_finance_bank_statement_path(@statement),
+              method: :post,
+              data: { turbo_confirm: t("finance.bank_statements.rematch_confirm") },
+              class: "btn btn-primary" %>
+      <% end %>
+      <% if policy(@statement).destroy? %>
+        <%= button_to t("shared.delete"), finance_bank_statement_path(@statement),
+              method: :delete,
+              data: { turbo_confirm: t("finance.bank_statements.delete_confirm") },
+              class: "btn btn-ghost text-danger" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Summary stat cards ──────────────────────────────────────────────── %>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-6);">
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.bank_statements.show.stat_imported"),
+          value: @stats[:total] %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.bank_statements.show.stat_verified"),
+          value: @stats[:verified],
+          modifier: @stats[:verified] > 0 ? "success" : nil %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.bank_statements.show.stat_unexpected"),
+          value: @stats[:unexpected],
+          modifier: @stats[:unexpected] > 0 ? "danger" : nil %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.bank_statements.show.stat_amount_mismatch"),
+          value: @stats[:amount_mismatch],
+          modifier: @stats[:amount_mismatch] > 0 ? "warning" : nil %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.bank_statements.show.stat_date_mismatch"),
+          value: @stats[:date_mismatch],
+          modifier: @stats[:date_mismatch] > 0 ? "warning" : nil %>
+    <% if @stats[:needs_reverification] > 0 %>
+      <%= render "finance/bank_statements/stat_card",
+            label: t("finance.bank_statements.show.stat_needs_reverification"),
+            value: @stats[:needs_reverification],
+            modifier: "danger" %>
+    <% end %>
+    <%= render "finance/bank_statements/stat_card",
+          label: t("finance.bank_statements.show.stat_rate"),
+          value: "#{@stats[:rate]}%",
+          modifier: @stats[:rate] >= 95 ? "success" : (@stats[:rate] >= 80 ? "warning" : "danger") %>
+  </div>
+
+  <%# ── Status filter tabs ────────────────────────────────────────────────── %>
+  <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); padding-bottom: var(--space-3);">
+    <% [
+         [nil,                    t("finance.bank_statements.show.filter_all")],
+         ["verified",             t("finance.bank_statement_transactions.statuses.verified")],
+         ["amount_mismatch",      t("finance.bank_statement_transactions.statuses.amount_mismatch")],
+         ["date_mismatch",        t("finance.bank_statement_transactions.statuses.date_mismatch")],
+         ["unexpected",           t("finance.bank_statement_transactions.statuses.unexpected")],
+         ["needs_reverification", t("finance.bank_statement_transactions.statuses.needs_reverification")],
+         ["ignored",              t("finance.bank_statement_transactions.statuses.ignored")],
+         ["pending",              t("finance.bank_statement_transactions.statuses.pending")]
+       ].each do |val, label| %>
+      <%= link_to label,
+            finance_bank_statement_path(@statement, txn_status: val),
+            style: "font-size: var(--text-sm); font-weight: 600; padding: var(--space-2) var(--space-3); border-radius: var(--radius); text-decoration: none; " +
+                   (params[:txn_status] == val ? "background: var(--accent); color: #fff;" : "color: var(--text-2); background: none;") %>
+    <% end %>
+  </div>
+
+  <% if @transactions.empty? %>
+    <div class="empty-state" style="padding: var(--space-12) var(--space-8);">
+      <div class="empty-state__icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+        </svg>
+      </div>
+      <p class="empty-state__title"><%= t("finance.bank_statements.show.empty") %></p>
+      <p class="empty-state__text"><%= t("finance.bank_statements.show.empty_hint") %></p>
+    </div>
+  <% else %>
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><%= t("finance.bank_statements.show.col_status") %></th>
+            <th><%= t("finance.bank_statements.show.col_date") %></th>
+            <th class="text-end"><%= t("finance.bank_statements.show.col_amount") %></th>
+            <th><%= t("finance.bank_statements.show.col_reference") %></th>
+            <th><%= t("finance.bank_statements.show.col_description") %></th>
+            <th><%= t("finance.bank_statements.show.col_matched_deposit") %></th>
+            <th class="text-end"><%= t("finance.bank_statements.show.col_difference") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @transactions.each do |txn| %>
+            <tr>
+              <td><%= render "finance/bank_statements/txn_status_badge", transaction: txn %></td>
+              <td><%= l(txn.transaction_date, format: :short) %></td>
+              <td class="text-end font-tabular"><%= format_currency(txn.amount) %></td>
+              <td><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></td>
+              <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <%= txn.description.presence || "—" %>
+              </td>
+              <td>
+                <% if txn.matched_till_deposit %>
+                  <span style="font-size: var(--text-sm);">
+                    <%= l(txn.matched_till_deposit.deposited_at.to_date, format: :short) %>
+                    &middot; <%= format_currency(txn.matched_till_deposit.amount) %>
+                  </span>
+                <% else %>
+                  <span style="color: var(--text-3);">—</span>
+                <% end %>
+              </td>
+              <td class="text-end">
+                <% if txn.matched_till_deposit && !txn.verified? %>
+                  <span style="color: var(--warning); font-weight: 600; font-variant-numeric: tabular-nums;">
+                    <%= format_currency((txn.amount - txn.matched_till_deposit.amount).abs) %>
+                  </span>
+                <% else %>
+                  <span style="color: var(--text-3);">—</span>
+                <% end %>
+              </td>
+              <td>
+                <%= link_to t("shared.view"),
+                      finance_bank_statement_transaction_path(txn),
+                      class: "btn btn-ghost btn-sm" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%= render "shared/pagination",
+          page: @page, total_pages: @total_pages,
+          path_proc: ->(p) { finance_bank_statement_path(@statement, request.query_parameters.merge(page: p)) } %>
+  <% end %>
+
+</div>

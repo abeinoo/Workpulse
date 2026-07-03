@@ -414,9 +414,13 @@ Rails.application.routes.draw do
       member do
         patch :verify
         patch :assign_depositor
+        get   :edit_opening_float
+        patch :update_opening_float_amounts
         post  :receive_opening_float
         get   :edit_session_totals
         patch :update_session_totals
+        get   :correct_opening_float
+        patch :update_opening_float_correction
       end
       collection do
         post :bulk_receive_opening_float
@@ -431,6 +435,30 @@ Rails.application.routes.draw do
         patch :reassign
       end
     end
+
+    # ── Deposit Verification ──────────────────────────────────────────────────
+    resources :bank_statements do
+      collection do
+        get :sample_csv
+      end
+      member do
+        get   :edit_column_mapping
+        patch :update_column_mapping
+        get   :preview_import
+        post  :confirm_import
+        post  :rematch
+      end
+    end
+
+    resources :bank_statement_transactions, only: %i[show] do
+      member do
+        patch :match
+        patch :unmatch
+        patch :ignore
+      end
+    end
+
+    resources :deposit_verifications, only: %i[index]
   end
 
   # ── Performance Evaluation ────────────────────────────────────────────────

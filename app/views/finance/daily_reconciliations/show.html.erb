@@ -56,16 +56,24 @@
         </div>
       </div>
 
-      <%# Float breakdown %>
-      <% if @opening_float_source_handover&.any? %>
+      <%# Float breakdown — shows overridden amounts when edited, else source %>
+      <% display_amounts = @opening_float_display_amounts || @opening_float_source_handover %>
+      <% if display_amounts&.any? %>
         <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid rgba(var(--accent-rgb,99,102,241),0.12);">
-          <% if src_handover %>
-            <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 var(--space-3);">
-              <%= t("finance.daily_reconciliations.show.opening_float_from",
-                    name: src_handover.from_user.full_name,
-                    date: src_handover.daily_reconciliation.business_date ? l(src_handover.daily_reconciliation.business_date, format: :short) : "—") %>
-            </p>
-          <% end %>
+          <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3);">
+            <% if src_handover %>
+              <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0; flex: 1;">
+                <%= t("finance.daily_reconciliations.show.opening_float_from",
+                      name: src_handover.from_user.full_name,
+                      date: src_handover.daily_reconciliation.business_date ? l(src_handover.daily_reconciliation.business_date, format: :short) : "—") %>
+              </p>
+            <% end %>
+            <% if @opening_float_amounts_overridden %>
+              <span class="badge badge-warning" style="font-size: var(--text-xs); white-space: nowrap;">
+                <%= t("finance.daily_reconciliations.show.edit_opening_float.badge_edited") %>
+              </span>
+            <% end %>
+          </div>
           <table style="width: 100%; font-size: var(--text-sm); border-collapse: collapse;">
             <thead>
               <tr>
@@ -82,7 +90,7 @@
             </thead>
             <tbody>
               <% total_net = 0 %>
-              <% @opening_float_source_handover.each do |amt| %>
+              <% display_amounts.each do |amt| %>
                 <% total_net += amt.net_amount %>
                 <tr>
                   <td style="padding: var(--space-1) 0; color: var(--text-1); font-weight: 500;"><%= amt.payment_method_name %></td>
@@ -105,8 +113,13 @@
         </div>
       <% end %>
 
-      <%# Actions %>
+      <%# Actions — Edit is available to anyone with the permission; Confirm requires receivable state %>
       <div style="padding: var(--space-4) var(--space-5); display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center;">
+        <% if @can_edit_opening_float %>
+          <%= link_to t("finance.daily_reconciliations.show.opening_float_edit_btn"),
+                edit_opening_float_finance_daily_reconciliation_path(@reconciliation),
+                class: "btn btn-ghost btn-sm" %>
+        <% end %>
         <% if @opening_float_receivable && policy(@reconciliation).receive_opening_float? %>
           <%= button_to t("finance.daily_reconciliations.show.opening_float_card_btn"),
                 receive_opening_float_finance_daily_reconciliation_path(@reconciliation),
@@ -541,7 +554,7 @@
         # Order matters: stages render top-to-bottom.
         # Add a new event type to exactly one stage; empty stages are hidden.
         stage_defs = [
-          { key: :opening_float, types: %i[opening_float_received] },
+          { key: :opening_float, types: %i[opening_float_received opening_float_superseded opening_float_corrected] },
           { key: :during_day,    types: %i[handover_created handover_accepted handover_cancelled
                                            handover_reversed handover_reversal_applied handover_adjusted] },
           { key: :end_of_day,    types: %i[day_closed opening_float_prepared opening_float_left deposit_assigned deposit_cancelled] },
@@ -638,6 +651,16 @@
             dot: "var(--success,#16a34a)", lbl: "label_opening_float_received",
             lc: "var(--success,#16a34a)", lb: "rgba(var(--success-rgb,22,163,74),0.10)",
             icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>',
+          },
+          opening_float_superseded: {
+            dot: "var(--warning,#ca8a04)", lbl: "label_opening_float_superseded",
+            lc: "var(--warning,#ca8a04)", lb: "rgba(var(--warning-rgb,202,138,4),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>',
+          },
+          opening_float_corrected: {
+            dot: "var(--accent)", lbl: "label_opening_float_corrected",
+            lc: "var(--accent)", lb: "rgba(var(--accent-rgb,99,102,241),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>',
           },
           handover_cancelled: {
             dot: "var(--danger,#dc2626)", lbl: "label_handover_cancelled",
@@ -1469,11 +1492,18 @@
 
                   <% when :opening_float_received %>
                     <% recv_handover = item[:data] %>
-                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
-                      <%= t("finance.daily_reconciliations.show.timeline.opening_float_received",
-                            actor: item[:actor]&.full_name || "—",
-                            from:  recv_handover.from_user&.full_name || "—") %>
-                    </p>
+                    <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                      <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                        <%= t("finance.daily_reconciliations.show.timeline.opening_float_received",
+                              actor: item[:actor]&.full_name || "—",
+                              from:  recv_handover.from_user&.full_name || "—") %>
+                      </p>
+                      <% if recv_handover.superseded? %>
+                        <span class="badge badge-warning" style="font-size: var(--text-xs);">
+                          <%= t("finance.daily_reconciliations.correction.badge_superseded") %>
+                        </span>
+                      <% end %>
+                    </div>
 
                     <div data-timeline-event-target="detail" hidden
                          style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
@@ -1489,6 +1519,60 @@
                         <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_accepted_at") %></span>
                         <span style="<%= dl_val %>"><%= l(item[:time], format: :long) %></span>
                       </div>
+                      <% if recv_handover.superseded? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.correction.superseded_by_label") %></span>
+                          <span style="<%= dl_val %>"><%= recv_handover.superseded_by&.full_name || "—" %></span>
+                        </div>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.correction.reason_label") %></span>
+                          <span style="<%= dl_val %>; color: var(--text-2); font-style: italic;"><%= recv_handover.correction_reason %></span>
+                        </div>
+                      <% end %>
+                    </div>
+
+                  <% when :opening_float_superseded %>
+                    <% orig = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
+                      <%= t("finance.daily_reconciliations.show.timeline.opening_float_superseded",
+                            actor: item[:actor]&.full_name || "—") %>
+                    </p>
+                    <% if orig.correction_reason.present? %>
+                      <p style="font-size: var(--text-sm); color: var(--text-2); margin: var(--space-1) 0 0; font-style: italic;">
+                        "<%= orig.correction_reason %>"
+                      </p>
+                    <% end %>
+
+                  <% when :opening_float_corrected %>
+                    <% corr_handover = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.daily_reconciliations.show.timeline.opening_float_corrected",
+                            actor: item[:actor]&.full_name || "—") %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_received_by") %></span>
+                        <span style="<%= dl_val %>"><%= item[:actor]&.full_name || "—" %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.correction.reason_label") %></span>
+                        <span style="<%= dl_val %>; font-style: italic; color: var(--text-2);"><%= corr_handover.from_notes.presence || "—" %></span>
+                      </div>
+                      <% if corr_handover.amounts.any? %>
+                        <div style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border);">
+                          <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); margin-bottom: var(--space-2);">
+                            <%= t("finance.daily_reconciliations.correction.corrected_amounts_label") %>
+                          </div>
+                          <% corr_handover.amounts.each do |amt| %>
+                            <div style="<%= dl_row %>">
+                              <span style="<%= dl_lbl %>"><%= amt.payment_method_name %></span>
+                              <span style="<%= dl_val %>; font-variant-numeric: tabular-nums;"><%= format_currency(amt.net_amount) %></span>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
                     </div>
 
                   <% when :handover_cancelled %>

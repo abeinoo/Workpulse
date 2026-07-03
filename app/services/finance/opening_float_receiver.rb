@@ -62,12 +62,20 @@ module Finance
           from_notes:           nil
         )
 
+        # If a manager saved override amounts before acceptance, apply them.
+        # Overrides are keyed by source_amount_id; any unmatched source amounts
+        # fall back to their original values so partial overrides are safe.
+        override_map = (@dr.opening_float_override_amounts || [])
+                         .index_by { |o| o["source_amount_id"].to_i }
+        amounts_overridden = override_map.any?
+
         next_day_amounts.each do |nda|
+          override = override_map[nda.id]
           handover.amounts.create!(
             payment_method:      nda.payment_method,
             payment_method_name: nda.payment_method_name,
-            collected_amount:    nda.collected_amount,
-            refund_amount:       nda.refund_amount,
+            collected_amount:    override ? override["collected_amount"].to_d : nda.collected_amount,
+            refund_amount:       override ? override["refund_amount"].to_d    : nda.refund_amount,
             kind:                "operational"
           )
         end
@@ -87,7 +95,8 @@ module Finance
           metadata:  {
             source_handover_id: source.id,
             new_handover_id:    handover.id,
-            from_user_id:       source.from_user_id
+            from_user_id:       source.from_user_id,
+            amounts_overridden: amounts_overridden
           }
         )
 

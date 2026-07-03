@@ -1,0 +1,7 @@
+<% css = case statement.status
+         when "completed"  then "badge-success"
+         when "processing" then "badge-accent"
+         when "failed"     then "badge-danger"
+         else                   "badge-neutral"
+         end %>
+<span class="badge <%= css %>"><%= t("finance.bank_statements.statuses.#{statement.status}") %></span>
