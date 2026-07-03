@@ -26,9 +26,15 @@ RSpec.describe Adjustments::SelectablePeriods, type: :model do
     expect(keys).not_to include("2026-6")
   end
 
-  it "excludes a month that is under review" do
+  it "includes a month that is under_review — still editable during review" do
     create(:payroll_period, business: business, status: "under_review", period_month: 8, period_year: 2026)
-    expect(keys).not_to include("2026-8")
+    expect(keys).to include("2026-8")
+  end
+
+  it "includes a month that is branch_review_completed — still editable during review" do
+    create(:payroll_period, business: business, status: "branch_review_completed",
+           period_month: 4, period_year: 2026)
+    expect(keys).to include("2026-4")
   end
 
   it "keeps a month that still has a draft period" do
@@ -36,9 +42,15 @@ RSpec.describe Adjustments::SelectablePeriods, type: :model do
     expect(keys).to include("2026-6")
   end
 
-  it "surfaces an older still-open draft period outside the forward window" do
+  it "surfaces an older period outside the forward window when it is still selectable" do
     create(:payroll_period, business: business, status: "draft", period_month: 2, period_year: 2026)
     expect(keys).to include("2026-2")
+  end
+
+  it "surfaces an older under_review period outside the forward window" do
+    create(:payroll_period, business: business, status: "under_review",
+           period_month: 3, period_year: 2026)
+    expect(keys).to include("2026-3")
   end
 
   describe "#default_key" do

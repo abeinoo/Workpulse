@@ -223,7 +223,7 @@ RSpec.describe Payroll::AdjustmentEditor do
       end
     end
 
-    context "when the target period is locked (finalized)" do
+    context "when the target period is finalized" do
       before { target_period.update_column(:status, "finalized") }
 
       it "returns ok: false with target_period_locked? true" do
@@ -237,6 +237,41 @@ RSpec.describe Payroll::AdjustmentEditor do
         adjustment.reload
         expect(adjustment.review_status).to eq("approved")
         expect(adjustment.period_month).to eq(period.period_month)
+      end
+    end
+
+    context "when the target period is paid" do
+      before { target_period.update_column(:status, "paid") }
+
+      it "returns ok: false with target_period_locked? true" do
+        result = call_with_period("2026-6")
+        expect(result.ok?).to be false
+        expect(result.target_period_locked?).to be true
+      end
+    end
+
+    context "when the target period is under_review" do
+      before { target_period.update_column(:status, "under_review") }
+
+      it "allows moving the adjustment to an under_review period" do
+        result = call_with_period("2026-6")
+        expect(result.ok?).to be true
+      end
+
+      it "updates the period on the adjustment" do
+        call_with_period("2026-6")
+        adjustment.reload
+        expect(adjustment.period_month).to eq(6)
+        expect(adjustment.period_year).to eq(2026)
+      end
+    end
+
+    context "when the target period is branch_review_completed" do
+      before { target_period.update_column(:status, "branch_review_completed") }
+
+      it "allows moving the adjustment to a branch_review_completed period" do
+        result = call_with_period("2026-6")
+        expect(result.ok?).to be true
       end
     end
 

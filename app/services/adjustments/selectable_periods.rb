@@ -1,23 +1,25 @@
 module Adjustments
   # Computes the set of payroll periods an adjustment may target.
   #
-  # A period is selectable when it is not yet locked for adjustments:
+  # A period is selectable when it is not yet permanently closed:
   # either no PayrollPeriod record exists for that month (payroll has not been
-  # generated yet — that is fine, adjustments precede generation), or the record
-  # is still in "draft" status.
+  # generated yet — adjustments may precede generation), or the record has not
+  # yet been finalized or paid.
   #
-  # Periods that are under_review, branch_review_completed, finalized, or paid
-  # are excluded — they are locked against new adjustments.
+  # Periods still in draft, under_review, or branch_review_completed are all
+  # selectable — the review workflow allows adjustments to be added or moved
+  # while the period is still being reviewed.  Only finalized and paid periods
+  # are permanently closed against changes.
   #
   # The window always covers the previous calendar month, the current month, and
   # the next few months so users can:
   #   • create adjustments for the just-closed month before generating payroll, and
   #   • pre-stage adjustments for upcoming periods.
   #
-  # Any still-open draft PayrollPeriod that sits outside this window (e.g. an old
-  # month whose payroll was never finalized) is surfaced as well.
+  # Any still-open PayrollPeriod that sits outside this window (e.g. an old
+  # month that was never finalized) is surfaced as well.
   class SelectablePeriods
-    LOCKED_STATUSES = %w[under_review branch_review_completed finalized paid].freeze
+    LOCKED_STATUSES = %w[finalized paid].freeze
     MONTHS_AHEAD    = 3
 
     def initialize(business, today: Date.current)
@@ -55,19 +57,21 @@ module Adjustments
     private
 
     # Previous month + current month + MONTHS_AHEAD forward months, plus any
-    # existing draft PayrollPeriod outside that window.
+    # non-locked PayrollPeriod outside that window (e.g. an old month still
+    # under review or in draft whose payroll was never finalized).
     def candidate_dates
       base         = @today.beginning_of_month
       prev_month   = base << 1
       forward      = (0..MONTHS_AHEAD).map { |offset| base >> offset }
-      ([prev_month] + forward + open_draft_dates).uniq
+      ([prev_month] + forward + open_period_dates).uniq
     end
 
-    # Existing draft periods may sit outside the window (e.g. a period from
-    # several months ago whose payroll was never finalized).
-    def open_draft_dates
+    # Selectable periods may sit outside the rolling window — surface them so
+    # they remain reachable (e.g. June when today is mid-July and June is still
+    # under review).
+    def open_period_dates
       PayrollPeriod.for_business(@business)
-                   .where(status: "draft")
+                   .where.not(status: LOCKED_STATUSES)
                    .pluck(:period_year, :period_month)
                    .map { |year, month| Date.new(year, month, 1) }
     end
