@@ -35,6 +35,8 @@ module Attendance
         emit_audit_log
       end
 
+      recalculate_payroll_entry
+
       Result.new(success: true, record: @record)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
@@ -153,6 +155,29 @@ module Attendance
 
     def business
       @business ||= @record.branch&.business || @record.user.business
+    end
+
+    def recalculate_payroll_entry
+      work_date = @record.work_date
+      return unless work_date
+
+      period = PayrollPeriod.find_by(
+        business:     business,
+        period_year:  work_date.year,
+        period_month: work_date.month
+      )
+      return unless period&.editable?
+
+      Payroll::EntryRecalculator.call(
+        user:         @record.user,
+        period:       period,
+        triggered_by: @adjusted_by
+      )
+    rescue => e
+      Rails.logger.error(
+        "[AdjustmentService] Payroll recalc failed attendance=#{@record.id} " \
+        "user=#{@record.user_id}: #{e.class}: #{e.message}"
+      )
     end
 
     def emit_audit_log

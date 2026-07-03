@@ -208,4 +208,129 @@ RSpec.describe Attendance::AdjustmentService do
       expect(record.reload.check_in_at).to be_within(1.second).of(original_in)
     end
   end
+
+  # ── Payroll recalculation trigger ─────────────────────────────────────────
+  # These tests verify that AdjustmentService calls Payroll::EntryRecalculator
+  # after a successful attendance edit when a non-locked PayrollPeriod exists
+  # for the record's work_date month.  EntryRecalculator is tested end-to-end
+  # in its own spec; here we verify only the trigger wiring.
+  describe "payroll recalculation trigger" do
+    around { |ex| travel_to(Time.zone.local(2026, 7, 15, 12, 0, 0)) { ex.run } }
+
+    let(:biz)    { create(:business, timezone: "UTC") }
+    let(:br)     { create(:branch, business: biz) }
+    let(:emp)    { create(:user, business: biz) }
+    let(:mgr)    { create(:user, :branch_manager, business: biz) }
+
+    # Attendance record fixed in July 2026 so period_month matches a PayrollPeriod
+    # we can control by status.
+    let!(:att) do
+      create(:attendance_record, :checked_out,
+             user:         emp,
+             branch:       br,
+             work_date:    Date.new(2026, 7, 10),
+             check_in_at:  Time.zone.local(2026, 7, 10, 9, 30),
+             check_out_at: Time.zone.local(2026, 7, 10, 17, 0))
+    end
+
+    def adjust(params)
+      described_class.call(record: att, adjusted_by: mgr, params: params)
+    end
+
+    def change_check_in
+      adjust(check_in_at: att.check_in_at - 30.minutes, reason: "Was on time")
+    end
+
+    context "when a draft period exists for the record's month" do
+      let!(:period) do
+        create(:payroll_period, business: biz, period_year: 2026, period_month: 7)
+      end
+
+      it "calls EntryRecalculator with the correct user, period, and actor" do
+        expect(Payroll::EntryRecalculator).to receive(:call).with(
+          user:         emp,
+          period:       period,
+          triggered_by: mgr
+        )
+        change_check_in
+      end
+
+      it "still returns success even if EntryRecalculator raises" do
+        allow(Payroll::EntryRecalculator).to receive(:call).and_raise("Unexpected DB error")
+        result = change_check_in
+        expect(result).to be_success
+      end
+
+      it "persists the attendance change regardless of payroll outcome" do
+        allow(Payroll::EntryRecalculator).to receive(:call).and_raise("Payroll error")
+        expected = att.check_in_at - 30.minutes
+        change_check_in
+        expect(att.reload.check_in_at).to be_within(30.seconds).of(expected)
+      end
+    end
+
+    context "when the period is under_review" do
+      let!(:period) do
+        create(:payroll_period, :under_review, business: biz, period_year: 2026, period_month: 7)
+      end
+
+      it "still triggers recalculation (review state is editable)" do
+        expect(Payroll::EntryRecalculator).to receive(:call).with(
+          user: emp, period: period, triggered_by: mgr
+        )
+        change_check_in
+      end
+    end
+
+    context "when the period is branch_review_completed" do
+      let!(:period) do
+        create(:payroll_period, :branch_review_completed, business: biz,
+               period_year: 2026, period_month: 7)
+      end
+
+      it "still triggers recalculation (review state is editable)" do
+        expect(Payroll::EntryRecalculator).to receive(:call).with(
+          user: emp, period: period, triggered_by: mgr
+        )
+        change_check_in
+      end
+    end
+
+    context "when the period is finalized (locked)" do
+      before do
+        create(:payroll_period, :finalized, business: biz, period_year: 2026, period_month: 7)
+      end
+
+      it "does not call EntryRecalculator" do
+        expect(Payroll::EntryRecalculator).not_to receive(:call)
+        change_check_in
+      end
+
+      it "still succeeds (attendance edit is independent of payroll lock)" do
+        expect(change_check_in).to be_success
+      end
+    end
+
+    context "when the period is paid (locked)" do
+      before do
+        create(:payroll_period, :paid, business: biz, period_year: 2026, period_month: 7)
+      end
+
+      it "does not call EntryRecalculator" do
+        expect(Payroll::EntryRecalculator).not_to receive(:call)
+        change_check_in
+      end
+    end
+
+    context "when no PayrollPeriod exists for the record's month" do
+      it "does not call EntryRecalculator" do
+        expect(Payroll::EntryRecalculator).not_to receive(:call)
+        change_check_in
+      end
+
+      it "still succeeds" do
+        expect(change_check_in).to be_success
+      end
+    end
+  end
 end

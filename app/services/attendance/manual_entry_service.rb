@@ -114,6 +114,8 @@ module Attendance
 
       ActiveRecord::Base.transaction { finalize!(record, notes: notes) }
 
+      recalculate_payroll_entry(record)
+
       Result.new(success: true, record: record)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
@@ -122,6 +124,26 @@ module Attendance
     end
 
     private
+
+    def recalculate_payroll_entry(record)
+      period = PayrollPeriod.find_by(
+        business:     record.user.business,
+        period_year:  record.work_date.year,
+        period_month: record.work_date.month
+      )
+      return unless period&.editable?
+
+      Payroll::EntryRecalculator.call(
+        user:         record.user,
+        period:       period,
+        triggered_by: @created_by
+      )
+    rescue => e
+      Rails.logger.error(
+        "[ManualEntryService] Payroll recalc failed record=#{record.id} " \
+        "user=#{record.user_id}: #{e.class}: #{e.message}"
+      )
+    end
 
     def parse_date(value)
       return value if value.is_a?(Date)
