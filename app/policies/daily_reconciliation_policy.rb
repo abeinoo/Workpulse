@@ -13,6 +13,7 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def edit_session_totals?                        = can?(:edit_session_totals) && !record.is_a?(Class)
   def view_own_employee_reconciliation_summary?   = can?(:view_own_employee_reconciliation_summary)
   def view_all_employee_reconciliation_summary?   = can?(:view_all_employee_reconciliation_summary)
+  def manage_pos_import?                          = can?(:manage_pos_import)
 
   def show?
     return true if can?(:view_daily_reconciliation)

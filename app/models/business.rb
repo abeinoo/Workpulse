@@ -64,6 +64,7 @@ class Business < ApplicationRecord
   has_many :custody_accounts,      dependent: :destroy
   has_many :custody_transactions,  dependent: :destroy
   has_many :branch_revenues,       dependent: :destroy
+  has_many :pos_imports,           dependent: :destroy
 
   serialize :settings, coder: JSON
 

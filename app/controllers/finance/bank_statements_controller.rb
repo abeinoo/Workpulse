@@ -106,7 +106,6 @@ class Finance::BankStatementsController < Finance::BaseController
 
     if @statement.save
       @statement.file.attach(params[:bank_statement][:file])
-      session[:csv_headers_for_statement] = @detected_headers
 
       overlapping = detect_overlapping_statements(@statement)
       if overlapping.any?
@@ -125,8 +124,8 @@ class Finance::BankStatementsController < Finance::BaseController
   def edit_column_mapping
     @statement        = find_statement
     authorize @statement, :edit_column_mapping?
-    @detected_headers = session.delete(:csv_headers_for_statement) ||
-                        Finance::BankStatements::CsvParser.detect_headers(@statement.file.download)
+    # Always re-detect from the stored file — no session dependency.
+    @detected_headers = Finance::BankStatements::CsvParser.detect_headers(@statement.file.download)
   end
 
   def update_column_mapping
@@ -152,18 +151,19 @@ class Finance::BankStatementsController < Finance::BaseController
       return render :edit_column_mapping, status: :unprocessable_entity
     end
 
-    session[:import_preview_for] = {
-      statement_id:  @statement.id,
-      total_rows:    parse_result.total_rows,
-      valid_count:   parse_result.valid_count,
-      invalid_count: parse_result.invalid_count,
-      sample_rows:   parse_result.valid_rows.first(5).map { |r|
+    # Persist preview data on the record — never in the cookie session.
+    preview = {
+      "total_rows"    => parse_result.total_rows,
+      "valid_count"   => parse_result.valid_count,
+      "invalid_count" => parse_result.invalid_count,
+      "sample_rows"   => parse_result.valid_rows.first(5).map { |r|
         r.slice("transaction_date", "amount", "reference_number", "description")
       },
-      error_rows: parse_result.invalid_rows.first(10).map { |r|
+      "error_rows" => parse_result.invalid_rows.first(10).map { |r|
         r.slice("row", "transaction_date", "amount", "reference_number", "errors")
       }
     }
+    @statement.update_column(:preview_data, preview)
 
     redirect_to preview_import_finance_bank_statement_path(@statement)
   end
@@ -171,35 +171,12 @@ class Finance::BankStatementsController < Finance::BaseController
   def preview_import
     @statement = find_statement
     authorize @statement, :update_column_mapping?
-
-    preview = session[:import_preview_for]
-
-    if preview.blank? || preview["statement_id"] != @statement.id
-      # Session expired or navigated directly — re-parse from saved mapping
-      csv_data     = @statement.file.download
-      parse_result = Finance::BankStatements::CsvParser.parse(csv_data, column_mapping: @statement.column_mapping)
-
-      @preview = {
-        "total_rows"    => parse_result.total_rows,
-        "valid_count"   => parse_result.valid_count,
-        "invalid_count" => parse_result.invalid_count,
-        "sample_rows"   => parse_result.valid_rows.first(5).map { |r|
-          r.slice("transaction_date", "amount", "reference_number", "description")
-        },
-        "error_rows" => parse_result.invalid_rows.first(10).map { |r|
-          r.slice("row", "transaction_date", "amount", "reference_number", "errors")
-        }
-      }
-    else
-      @preview = preview.transform_keys(&:to_s)
-    end
+    @preview = @statement.preview_data.presence || regenerate_preview(@statement)
   end
 
   def confirm_import
     @statement = find_statement
     authorize @statement, :update_column_mapping?
-
-    session.delete(:import_preview_for)
 
     result = Finance::BankStatements::Importer.call(@statement.id, actor: current_user)
 
@@ -242,6 +219,23 @@ class Finance::BankStatementsController < Finance::BaseController
   end
 
   private
+
+  # Re-builds preview from the stored file + column_mapping when preview_data is absent.
+  def regenerate_preview(statement)
+    csv_data     = statement.file.download
+    parse_result = Finance::BankStatements::CsvParser.parse(csv_data, column_mapping: statement.column_mapping)
+    {
+      "total_rows"    => parse_result.total_rows,
+      "valid_count"   => parse_result.valid_count,
+      "invalid_count" => parse_result.invalid_count,
+      "sample_rows"   => parse_result.valid_rows.first(5).map { |r|
+        r.slice("transaction_date", "amount", "reference_number", "description")
+      },
+      "error_rows" => parse_result.invalid_rows.first(10).map { |r|
+        r.slice("row", "transaction_date", "amount", "reference_number", "errors")
+      }
+    }
+  end
 
   def find_statement
     policy_scope(BankStatement).find(params[:id])

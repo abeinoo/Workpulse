@@ -1,0 +1,343 @@
+<%# POS Transactions Verification card — rendered on the DR show page.
+    Local variables:
+      reconciliation        — DailyReconciliation
+      session_amounts       — Array<TillSessionAmount>
+      pos_totals_by_method  — Hash{ payment_method_name => BigDecimal }  (may be empty)
+      pos_totals_by_cashier — Hash{ cashier_name => Hash{ method => BigDecimal } }
+      pos_transactions      — Array<PosTransaction>
+      latest_pos_import     — PosImport | nil %>
+
+<% has_pos_data = pos_totals_by_method.any? %>
+
+<div style="margin-bottom: var(--space-6);">
+
+  <%# ── Section header ──────────────────────────────────────────────────── %>
+  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+    <div>
+      <h2 class="dashboard-section__title">
+        <%= t("finance.pos_imports.verification.title") %>
+      </h2>
+      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+        <%= t("finance.pos_imports.verification.subtitle") %>
+      </p>
+    </div>
+    <div style="display: flex; align-items: center; gap: var(--space-3);">
+      <%# Overall verification status badge %>
+      <% if !has_pos_data %>
+        <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 10px; white-space: nowrap;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <%= t("finance.pos_imports.verification.status_not_imported") %>
+        </span>
+      <% else %>
+        <% all_match = session_amounts.all? { |sa|
+             pos_total = pos_totals_by_method[sa.payment_method_name].to_d
+             (pos_total - sa.net_amount).abs < 0.01
+           } %>
+        <% if all_match %>
+          <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--success); background: rgba(var(--success-rgb,34,197,94),0.10); border: 1px solid rgba(var(--success-rgb,34,197,94),0.30); border-radius: var(--radius-sm); padding: 3px 10px; white-space: nowrap;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            <%= t("finance.pos_imports.verification.status_verified") %>
+          </span>
+        <% else %>
+          <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--warning); background: rgba(var(--warning-rgb,202,138,4),0.10); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.30); border-radius: var(--radius-sm); padding: 3px 10px; white-space: nowrap;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <%= t("finance.pos_imports.verification.status_difference") %>
+          </span>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if !has_pos_data %>
+    <%# No data yet — empty state card with link to DR index for import %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-8); text-align: center; box-shadow: var(--shadow-sm);">
+      <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--space-3);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
+        <%= t("finance.pos_imports.verification.empty_title") %>
+      </p>
+      <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 var(--space-4);">
+        <%= t("finance.pos_imports.verification.empty_hint") %>
+      </p>
+      <%= link_to t("finance.pos_imports.verification.go_to_import"),
+            new_finance_pos_import_path,
+            class: "btn btn-sm btn-ghost" %>
+    </div>
+
+  <% else %>
+    <%# ── Import info bar ──────────────────────────────────────────────── %>
+    <% if latest_pos_import %>
+      <div style="background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3) var(--space-5); margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-4); font-size: var(--text-xs); color: var(--text-3); flex-wrap: wrap;">
+        <span>
+          <strong style="color: var(--text-2);"><%= t("finance.pos_imports.verification.file_label") %>:</strong>
+          <%= latest_pos_import.file_name %>
+        </span>
+        <span>
+          <strong style="color: var(--text-2);"><%= t("finance.pos_imports.verification.imported_by_label") %>:</strong>
+          <%= latest_pos_import.imported_by.full_name %>
+        </span>
+        <span>
+          <strong style="color: var(--text-2);"><%= t("finance.pos_imports.verification.imported_at_label") %>:</strong>
+          <%= l(latest_pos_import.updated_at, format: :time_only) %>
+        </span>
+        <span>
+          <%= link_to t("finance.pos_imports.verification.reimport"),
+                new_finance_pos_import_path,
+                style: "color: var(--accent); text-decoration: underline; text-decoration-style: dotted;" %>
+        </span>
+      </div>
+    <% end %>
+
+    <%# ── Branch totals comparison ────────────────────────────────────── %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--space-5);">
+      <div style="padding: var(--space-4) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+        <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0;">
+          <%= t("finance.pos_imports.verification.branch_totals_title") %>
+        </h3>
+      </div>
+
+      <%# Column headers %>
+      <div style="display: grid; grid-template-columns: 1fr repeat(4, minmax(100px, 150px)); padding: var(--space-2) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+          <%= t("finance.pos_imports.verification.col_cashier_entered") %>
+        </span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+          <%= t("finance.pos_imports.verification.col_pos_total") %>
+        </span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+          <%= t("finance.pos_imports.verification.col_difference") %>
+        </span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+          <%= t("finance.pos_imports.verification.col_status") %>
+        </span>
+      </div>
+
+      <% overall_cashier_total = 0 %>
+      <% overall_pos_total     = 0 %>
+      <% session_amounts.each do |sa| %>
+        <% cashier_amount = sa.net_amount %>
+        <% pos_amount     = pos_totals_by_method[sa.payment_method_name].to_d %>
+        <% difference     = cashier_amount - pos_amount %>
+        <% overall_cashier_total += cashier_amount %>
+        <% overall_pos_total     += pos_amount %>
+        <div style="display: grid; grid-template-columns: 1fr repeat(4, minmax(100px, 150px)); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: center;">
+          <span style="font-size: var(--text-sm); color: var(--text-2);">
+            <%= sa.payment_method_name %>
+          </span>
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+            <%= number_to_currency(cashier_amount, unit: "", separator: ".", delimiter: ",") %>
+          </span>
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+            <%= number_to_currency(pos_amount, unit: "", separator: ".", delimiter: ",") %>
+          </span>
+          <span style="font-size: var(--text-sm); font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; color: <%= difference.abs < 0.01 ? 'var(--text-3)' : (difference > 0 ? 'var(--warning)' : 'var(--danger)') %>;">
+            <% if difference.abs < 0.01 %>
+              —
+            <% elsif difference > 0 %>
+              +<%= number_to_currency(difference, unit: "", separator: ".", delimiter: ",") %>
+            <% else %>
+              <%= number_to_currency(difference, unit: "", separator: ".", delimiter: ",") %>
+            <% end %>
+          </span>
+          <div style="text-align: end;">
+            <% if difference.abs < 0.01 %>
+              <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--success);">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                <%= t("finance.pos_imports.verification.verified") %>
+              </span>
+            <% else %>
+              <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--warning);">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <%= t("finance.pos_imports.verification.difference") %>
+              </span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%# POS-only methods (in CSV but not in session amounts) %>
+      <% pos_only_methods = pos_totals_by_method.keys - session_amounts.map(&:payment_method_name) %>
+      <% pos_only_methods.each do |method_name| %>
+        <% pos_amount = pos_totals_by_method[method_name].to_d %>
+        <% overall_pos_total += pos_amount %>
+        <div style="display: grid; grid-template-columns: 1fr repeat(4, minmax(100px, 150px)); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: center;">
+          <span style="font-size: var(--text-sm); color: var(--text-2);">
+            <%= method_name %>
+            <span style="font-size: 11px; color: var(--text-3); margin-inline-start: 4px;">(<%= t("finance.pos_imports.verification.pos_only") %>)</span>
+          </span>
+          <span style="font-size: var(--text-sm); color: var(--text-3); text-align: end;">—</span>
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+            <%= number_to_currency(pos_amount, unit: "", separator: ".", delimiter: ",") %>
+          </span>
+          <span style="font-size: var(--text-sm); font-weight: 600; text-align: end; color: var(--danger);">
+            −<%= number_to_currency(pos_amount, unit: "", separator: ".", delimiter: ",") %>
+          </span>
+          <div style="text-align: end;">
+            <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--danger);">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <%= t("finance.pos_imports.verification.difference") %>
+            </span>
+          </div>
+        </div>
+      <% end %>
+
+      <%# Grand total row %>
+      <div style="display: grid; grid-template-columns: 1fr repeat(4, minmax(100px, 150px)); padding: var(--space-4) var(--space-5); background: var(--surface-2); align-items: center;">
+        <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+          <%= t("finance.pos_imports.verification.grand_total") %>
+        </span>
+        <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+          <%= number_to_currency(overall_cashier_total, unit: "", separator: ".", delimiter: ",") %>
+        </span>
+        <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+          <%= number_to_currency(overall_pos_total, unit: "", separator: ".", delimiter: ",") %>
+        </span>
+        <% grand_diff = overall_cashier_total - overall_pos_total %>
+        <span style="font-size: var(--text-base); font-weight: 700; text-align: end; font-variant-numeric: tabular-nums; color: <%= grand_diff.abs < 0.01 ? 'var(--text-3)' : (grand_diff > 0 ? 'var(--warning)' : 'var(--danger)') %>;">
+          <% if grand_diff.abs < 0.01 %>
+            —
+          <% elsif grand_diff > 0 %>
+            +<%= number_to_currency(grand_diff, unit: "", separator: ".", delimiter: ",") %>
+          <% else %>
+            <%= number_to_currency(grand_diff, unit: "", separator: ".", delimiter: ",") %>
+          <% end %>
+        </span>
+        <div></div>
+      </div>
+    </div>
+
+    <%# ── Per-cashier breakdown ────────────────────────────────────────── %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--space-5);">
+      <div style="padding: var(--space-4) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+        <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0;">
+          <%= t("finance.pos_imports.verification.per_cashier_title") %>
+        </h3>
+      </div>
+
+      <% employee_summaries = reconciliation.employee_reconciliation_summaries
+                                            .includes(:user, :amounts) %>
+
+      <%# Normalized lookup: cashier_name.downcase → EmployeeReconciliationSummary %>
+      <% summary_by_name = employee_summaries.each_with_object({}) do |s, h|
+           h[s.user.full_name.downcase.strip] = s
+         end %>
+
+      <% if pos_totals_by_cashier.empty? %>
+        <p style="padding: var(--space-5); color: var(--text-3); font-size: var(--text-sm); margin: 0;">
+          <%= t("finance.pos_imports.verification.no_transactions") %>
+        </p>
+      <% else %>
+        <% pos_totals_by_cashier.sort_by { |name, _| name }.each do |cashier_name, method_totals| %>
+          <% matched_summary = summary_by_name[cashier_name.downcase.strip] %>
+          <% cashier_transactions = pos_transactions.select { |txn| txn.cashier_name == cashier_name } %>
+
+          <div style="border-bottom: 1px solid var(--border);">
+            <%# Cashier header %>
+            <div style="padding: var(--space-4) var(--space-5); background: rgba(var(--accent-rgb),0.04); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);">
+              <div style="display: flex; align-items: center; gap: var(--space-3);">
+                <div style="width: 30px; height: 30px; border-radius: 50%; background: rgba(var(--accent-rgb),0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+                  <%= cashier_name %>
+                </span>
+                <% unless matched_summary %>
+                  <span style="font-size: 11px; color: var(--warning); background: rgba(var(--warning-rgb,202,138,4),0.10); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.30); border-radius: var(--radius-sm); padding: 1px 6px;">
+                    <%= t("finance.pos_imports.verification.no_system_match") %>
+                  </span>
+                <% end %>
+              </div>
+              <% pos_cashier_total = method_totals.values.sum %>
+              <div style="text-align: end;">
+                <p style="font-size: 11px; color: var(--text-3); margin: 0 0 1px; text-transform: uppercase; letter-spacing: 0.06em;">
+                  <%= t("finance.pos_imports.verification.pos_total") %>
+                </p>
+                <p style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin: 0;">
+                  <%= number_to_currency(pos_cashier_total, unit: "", separator: ".", delimiter: ",") %>
+                </p>
+              </div>
+            </div>
+
+            <%# Per-method rows for this cashier %>
+            <% all_methods = (method_totals.keys + (matched_summary&.amounts&.map(&:payment_method_name) || [])).uniq %>
+            <% all_methods.each do |method_name| %>
+              <% pos_amt    = method_totals[method_name].to_d %>
+              <% system_amt = matched_summary&.amounts&.find { |a| a.payment_method_name == method_name }&.net_amount.to_d %>
+              <% diff       = system_amt - pos_amt %>
+              <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 140px)) 120px; padding: var(--space-2) var(--space-5) var(--space-2) 60px; border-bottom: 1px solid var(--border); align-items: center;">
+                <span style="font-size: var(--text-sm); color: var(--text-2);">
+                  <%= method_name %>
+                </span>
+                <span style="font-size: var(--text-sm); color: var(--text-2); text-align: end; font-variant-numeric: tabular-nums;">
+                  <%= matched_summary ? number_to_currency(system_amt, unit: "", separator: ".", delimiter: ",") : "—" %>
+                </span>
+                <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+                  <%= number_to_currency(pos_amt, unit: "", separator: ".", delimiter: ",") %>
+                </span>
+                <span style="font-size: var(--text-sm); font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; color: <%= (matched_summary.nil? || diff.abs < 0.01) ? 'var(--text-3)' : (diff > 0 ? 'var(--warning)' : 'var(--danger)') %>;">
+                  <% if matched_summary.nil? || diff.abs < 0.01 %>
+                    —
+                  <% elsif diff > 0 %>
+                    +<%= number_to_currency(diff, unit: "", separator: ".", delimiter: ",") %>
+                  <% else %>
+                    <%= number_to_currency(diff, unit: "", separator: ".", delimiter: ",") %>
+                  <% end %>
+                </span>
+                <%# Drill-down toggle for individual transactions %>
+                <div style="text-align: end;">
+                  <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_name.parameterize}_#{method_name.parameterize}" %>
+                  <button type="button"
+                          onclick="togglePosTransactions('<%= txn_key %>')"
+                          style="font-size: 11px; color: var(--accent); background: none; border: none; cursor: pointer; padding: 0; font-weight: 500; text-decoration: underline; text-decoration-style: dotted;">
+                    <%= t("finance.pos_imports.verification.view_transactions") %>
+                  </button>
+                </div>
+              </div>
+
+              <%# Transaction list (collapsed by default) %>
+              <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_name.parameterize}_#{method_name.parameterize}" %>
+              <div id="<%= txn_key %>"
+                   style="display: none; padding: var(--space-2) var(--space-5) var(--space-2) 60px; background: var(--surface-2); border-bottom: 1px solid var(--border);">
+                <% method_transactions = cashier_transactions.select { |txn| txn.payment_method_name == method_name } %>
+                <% if method_transactions.any? %>
+                  <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+                    <% method_transactions.each do |txn| %>
+                      <span style="font-size: var(--text-xs); font-variant-numeric: tabular-nums; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 8px; color: var(--text-1);">
+                        <%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
+                        <% if txn.reference_number.present? %>
+                          <span style="color: var(--text-3); margin-inline-start: 4px;">#<%= txn.reference_number %></span>
+                        <% end %>
+                      </span>
+                    <% end %>
+                  </div>
+                  <p style="font-size: 11px; color: var(--text-3); margin: var(--space-2) 0 0;">
+                    <%= t("finance.pos_imports.verification.transaction_count",
+                           count: method_transactions.size,
+                           total: number_to_currency(method_transactions.sum(&:amount), unit: "", separator: ".", delimiter: ",")) %>
+                  </p>
+                <% else %>
+                  <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0;">
+                    <%= t("finance.pos_imports.verification.no_transactions_for_method") %>
+                  </p>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+
+  <% end %>
+
+</div>
+
+<script>
+  function togglePosTransactions(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+</script>

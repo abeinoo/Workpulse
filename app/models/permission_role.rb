@@ -49,7 +49,8 @@ class PermissionRole < ApplicationRecord
                                settle_remaining_deposit_balance
                                view_own_employee_reconciliation_summary
                                view_all_employee_reconciliation_summary
-                               correct_opening_float],
+                               correct_opening_float
+                               manage_pos_import],
     finance_overview:      %w[view_finance_dashboard],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
@@ -104,6 +105,7 @@ class PermissionRole < ApplicationRecord
       view_adjustments approve_adjustments
       view_inventory view_inventory_reports view_stock_count_reports
       view_deposit_verification import_bank_statement
+      manage_pos_import
     ],
     "employee" => %w[
       view_employee_balances create_balance_requests
@@ -152,6 +154,7 @@ class PermissionRole < ApplicationRecord
     void_till_deposit
     settle_remaining_deposit_balance
     view_all_employee_reconciliation_summary
+    manage_pos_import
   ].freeze
 
   # Permissions where the minimum scope is "branch" — "Personal Only" (self)

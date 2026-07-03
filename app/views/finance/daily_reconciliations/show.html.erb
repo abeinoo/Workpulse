@@ -1789,6 +1789,7 @@
 
       <%# Session amounts (official financial totals) — only visible with view_session_totals permission %>
       <% if @amounts_by_method.any? && @can_view_session_totals %>
+        <% show_pos_comparison = @pos_totals_by_method&.any? %>
         <div>
           <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
             <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.collected_title") %></h2>
@@ -1799,20 +1800,65 @@
             <% end %>
           </div>
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+            <% if show_pos_comparison %>
+              <%# Column headers when POS comparison is available %>
+              <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 130px)); padding: var(--space-2) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"></span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+                  <%= t("finance.daily_reconciliations.show.collected_entered") %>
+                </span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+                  <%= t("finance.daily_reconciliations.show.collected_pos_total") %>
+                </span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+                  <%= t("finance.daily_reconciliations.show.collected_difference") %>
+                </span>
+              </div>
+            <% end %>
             <% @amounts_by_method.each do |sa| %>
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
-                <span style="font-size: var(--text-sm); color: var(--text-2);"><%= sa.payment_method_name %></span>
-                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 1px;">
-                  <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1);">
+              <% if show_pos_comparison %>
+                <% pos_amount = @pos_totals_by_method[sa.payment_method_name].to_d %>
+                <% diff = sa.net_amount - pos_amount %>
+                <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 130px)); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: center;">
+                  <span style="font-size: var(--text-sm); color: var(--text-2);">
+                    <%= sa.payment_method_name %>
+                    <% if sa.refund_amount > 0 %>
+                      <span style="font-size: 11px; color: var(--danger); margin-inline-start: 4px;">
+                        − <%= number_to_currency(sa.refund_amount, unit: "", separator: ".", delimiter: ",") %>
+                      </span>
+                    <% end %>
+                  </span>
+                  <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
                     <%= number_to_currency(sa.net_amount, unit: "", separator: ".", delimiter: ",") %>
                   </span>
-                  <% if sa.refund_amount > 0 %>
-                    <span style="font-size: 11px; color: var(--danger);">
-                      − <%= number_to_currency(sa.refund_amount, unit: "", separator: ".", delimiter: ",") %>
-                    </span>
-                  <% end %>
+                  <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+                    <%= number_to_currency(pos_amount, unit: "", separator: ".", delimiter: ",") %>
+                  </span>
+                  <span style="font-size: var(--text-sm); font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; color: <%= diff.abs < 0.01 ? 'var(--text-3)' : (diff > 0 ? 'var(--warning)' : 'var(--danger)') %>;">
+                    <% if diff.abs < 0.01 %>
+                      —
+                    <% elsif diff > 0 %>
+                      +<%= number_to_currency(diff, unit: "", separator: ".", delimiter: ",") %>
+                    <% else %>
+                      <%= number_to_currency(diff, unit: "", separator: ".", delimiter: ",") %>
+                    <% end %>
+                  </span>
                 </div>
-              </div>
+              <% else %>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
+                  <span style="font-size: var(--text-sm); color: var(--text-2);"><%= sa.payment_method_name %></span>
+                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 1px;">
+                    <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1);">
+                      <%= number_to_currency(sa.net_amount, unit: "", separator: ".", delimiter: ",") %>
+                    </span>
+                    <% if sa.refund_amount > 0 %>
+                      <span style="font-size: 11px; color: var(--danger);">
+                        − <%= number_to_currency(sa.refund_amount, unit: "", separator: ".", delimiter: ",") %>
+                      </span>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
             <% end %>
             <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-5); background: var(--surface-2);">
               <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
@@ -1937,9 +1983,12 @@
 
             <%# ── Per-payment-method breakdown (table rows) ───────────────── %>
             <% visible_amounts = summary.amounts.reject { |a| a.collected_amount.zero? && a.refund_amount.zero? } %>
+            <% cashier_pos = @pos_totals_by_cashier&.each_with_object({}) { |(k, v), h| h[k.downcase.strip] = v }&.fetch(summary.user.full_name.downcase.strip, nil) %>
+            <% show_cashier_pos = @pos_totals_by_cashier&.any? %>
+            <% col_count = show_cashier_pos ? 5 : 3 %>
             <% if visible_amounts.any? %>
               <%# Column headers %>
-              <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 140px)); gap: 0; padding: var(--space-2) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+              <div style="display: grid; grid-template-columns: 1fr repeat(<%= col_count %>, minmax(80px, 130px)); gap: 0; padding: var(--space-2) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
                 <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"></span>
                 <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
                   <%= t("finance.daily_reconciliations.show.employee_summary_collected") %>
@@ -1950,11 +1999,21 @@
                 <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
                   <%= t("finance.daily_reconciliations.show.employee_summary_net") %>
                 </span>
+                <% if show_cashier_pos %>
+                  <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+                    <%= t("finance.daily_reconciliations.show.employee_summary_pos_total") %>
+                  </span>
+                  <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+                    <%= t("finance.daily_reconciliations.show.employee_summary_pos_difference") %>
+                  </span>
+                <% end %>
               </div>
 
               <%# One row per payment method %>
               <% visible_amounts.each do |amt| %>
-                <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 140px)); gap: 0; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: baseline;">
+                <% pos_method_amt = cashier_pos ? cashier_pos[amt.payment_method_name].to_d : nil %>
+                <% pos_diff = pos_method_amt ? (amt.net_amount - pos_method_amt) : nil %>
+                <div style="display: grid; grid-template-columns: 1fr repeat(<%= col_count %>, minmax(80px, 130px)); gap: 0; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: baseline;">
                   <span style="font-size: var(--text-sm); color: var(--text-2);">
                     <%= amt.payment_method_name %>
                   </span>
@@ -1967,6 +2026,20 @@
                   <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); text-align: end;">
                     <%= number_to_currency(amt.net_amount, unit: "", separator: ".", delimiter: ",") %>
                   </span>
+                  <% if show_cashier_pos %>
+                    <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+                      <%= pos_method_amt ? number_to_currency(pos_method_amt, unit: "", separator: ".", delimiter: ",") : "—" %>
+                    </span>
+                    <span style="font-size: var(--text-sm); font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; color: <%= pos_diff.nil? || pos_diff.abs < 0.01 ? 'var(--text-3)' : (pos_diff > 0 ? 'var(--warning)' : 'var(--danger)') %>;">
+                      <% if pos_diff.nil? || pos_diff.abs < 0.01 %>
+                        —
+                      <% elsif pos_diff > 0 %>
+                        +<%= number_to_currency(pos_diff, unit: "", separator: ".", delimiter: ",") %>
+                      <% else %>
+                        <%= number_to_currency(pos_diff, unit: "", separator: ".", delimiter: ",") %>
+                      <% end %>
+                    </span>
+                  <% end %>
                 </div>
               <% end %>
             <% end %>
@@ -1986,6 +2059,17 @@
       </div>
     <% end %>
   </div>
+  <% end %>
+
+  <%# ── POS Transactions Verification ─────────────────────────────────── %>
+  <% if @can_manage_pos_import || @pos_totals_by_method&.any? %>
+    <%= render "finance/pos_imports/verification_section",
+               reconciliation:        @reconciliation,
+               session_amounts:       @amounts_by_method,
+               pos_totals_by_method:  @pos_totals_by_method,
+               pos_totals_by_cashier: @pos_totals_by_cashier,
+               pos_transactions:      @pos_transactions,
+               latest_pos_import:     @latest_pos_import %>
   <% end %>
 
   <%# ── Verification notes ──────────────────────────────────────────────── %>

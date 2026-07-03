@@ -59,6 +59,9 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
 
     @accessible_branches = accessible_branches_for_dr
+
+    @latest_pos_import = current_user.business.pos_imports.imported.order(updated_at: :desc)
+                                     .includes(:imported_by).first if current_user.can?(:manage_pos_import)
   end
 
   # POST /finance/daily_reconciliations/bulk_settle
@@ -283,6 +286,25 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @adjustments_by_handover_id = @all_adjustments.group_by(&:adjustable_id)
 
     @timeline_events = build_timeline_events
+
+    @can_manage_pos_import = policy(@reconciliation).manage_pos_import?
+
+    # Load POS transactions linked to this DR for the comparison sections.
+    @pos_transactions = @reconciliation.pos_transactions
+                                       .order(:transaction_date, :cashier_name, :payment_method_name)
+                                       .to_a
+    @pos_totals_by_method  = @pos_transactions
+                               .group_by(&:payment_method_name)
+                               .transform_values { |txns| txns.sum(&:amount) }
+    @pos_totals_by_cashier = @pos_transactions
+                               .group_by(&:cashier_name)
+                               .transform_values { |txns|
+                                 txns.group_by(&:payment_method_name)
+                                     .transform_values { |t| t.sum(&:amount) }
+                               }
+    @latest_pos_import = current_user.business.pos_imports
+                                     .where(id: @pos_transactions.map(&:pos_import_id).uniq)
+                                     .order(updated_at: :desc).first
   end
 
   # POST /finance/daily_reconciliations

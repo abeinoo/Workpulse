@@ -44,6 +44,8 @@ class DailyReconciliation < ApplicationRecord
            through: :remaining_deposit_balances,
            source:  :balance_transactions
 
+  has_many :pos_transactions, dependent: :destroy
+
   # ── Validations ──────────────────────────────────────────────────────────────
   validates :state,     inclusion: { in: STATES }
   validates :opened_at, presence: true

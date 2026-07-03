@@ -428,6 +428,15 @@ Rails.application.routes.draw do
       end
     end
 
+    resources :pos_imports, only: %i[index new create destroy] do
+      member do
+        get   :edit_column_mapping
+        patch :update_column_mapping
+        get   :preview_import
+        post  :confirm_import
+      end
+    end
+
     resources :remaining_deposit_balances, only: %i[show] do
       member do
         patch :settle

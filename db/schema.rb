@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_231000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_03_240003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -219,6 +219,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_231000) do
     t.bigint "imported_by_id", null: false
     t.integer "matched_rows", default: 0, null: false
     t.text "notes"
+    t.jsonb "preview_data", default: {}, null: false
     t.date "statement_from", null: false
     t.date "statement_to", null: false
     t.string "status", default: "pending", null: false
@@ -1178,6 +1179,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_231000) do
     t.index ["workspace"], name: "index_permission_roles_on_workspace"
   end
 
+  create_table "pos_imports", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.jsonb "column_mapping", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.integer "dr_count", default: 0, null: false
+    t.integer "failed_rows", default: 0, null: false
+    t.string "file_name", null: false
+    t.bigint "imported_by_id", null: false
+    t.integer "matched_rows", default: 0, null: false
+    t.jsonb "preview_data", default: {}, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_rows", default: 0, null: false
+    t.integer "unmatched_rows", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_pos_imports_on_business_id"
+    t.index ["imported_by_id"], name: "index_pos_imports_on_imported_by_id"
+    t.index ["status"], name: "index_pos_imports_on_status"
+  end
+
   create_table "pos_terminals", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "branch_id", null: false
@@ -1192,6 +1212,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_231000) do
     t.index ["branch_id", "active"], name: "index_pos_terminals_on_branch_id_and_active"
     t.index ["branch_id"], name: "index_pos_terminals_on_branch_id"
     t.index ["business_id"], name: "index_pos_terminals_on_business_id"
+  end
+
+  create_table "pos_transactions", force: :cascade do |t|
+    t.decimal "amount", precision: 15, scale: 4, null: false
+    t.string "branch_name"
+    t.bigint "business_id", null: false
+    t.string "cashier_name", null: false
+    t.datetime "created_at", null: false
+    t.bigint "daily_reconciliation_id"
+    t.string "payment_method_name", null: false
+    t.bigint "pos_import_id", null: false
+    t.jsonb "raw_data", default: {}, null: false
+    t.string "reference_number"
+    t.date "transaction_date", null: false
+    t.string "transaction_id"
+    t.datetime "updated_at", null: false
+    t.index ["branch_name"], name: "index_pos_transactions_on_branch_name"
+    t.index ["business_id"], name: "index_pos_transactions_on_business_id"
+    t.index ["cashier_name"], name: "index_pos_transactions_on_cashier_name"
+    t.index ["daily_reconciliation_id"], name: "index_pos_transactions_on_daily_reconciliation_id"
+    t.index ["payment_method_name"], name: "index_pos_transactions_on_payment_method_name"
+    t.index ["pos_import_id"], name: "index_pos_transactions_on_pos_import_id"
+    t.index ["transaction_date"], name: "index_pos_transactions_on_transaction_date"
   end
 
   create_table "product_barcodes", force: :cascade do |t|
@@ -2153,8 +2196,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_231000) do
   add_foreign_key "performance_reviews", "users", column: "employee_id"
   add_foreign_key "performance_reviews", "users", column: "reviewer_id"
   add_foreign_key "permission_roles", "businesses"
+  add_foreign_key "pos_imports", "businesses"
+  add_foreign_key "pos_imports", "users", column: "imported_by_id"
   add_foreign_key "pos_terminals", "branches"
   add_foreign_key "pos_terminals", "businesses"
+  add_foreign_key "pos_transactions", "businesses"
+  add_foreign_key "pos_transactions", "daily_reconciliations"
+  add_foreign_key "pos_transactions", "pos_imports"
   add_foreign_key "product_barcodes", "businesses"
   add_foreign_key "product_barcodes", "product_variants", column: "variant_id"
   add_foreign_key "product_barcodes", "products"

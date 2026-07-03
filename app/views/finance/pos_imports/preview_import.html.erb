@@ -1,0 +1,202 @@
+<% content_for :title, t("finance.pos_imports.preview.title") %>
+
+<div class="admin-page" style="max-width: 860px;">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.pos_imports.preview.title") %></h1>
+      <p class="page-subtitle"><%= @pos_import.file_name %></p>
+    </div>
+  </div>
+
+  <%# Step indicator %>
+  <div dir="ltr" style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-6); font-size: var(--text-sm); color: var(--text-3);">
+    <span><%= t("finance.pos_imports.steps.upload") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span><%= t("finance.pos_imports.steps.map_columns") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.pos_imports.steps.preview") %></span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span><%= t("finance.pos_imports.steps.import") %></span>
+  </div>
+
+  <%# Summary counts %>
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); margin-bottom: var(--space-5);">
+    <% [
+         [t("finance.pos_imports.preview.total_rows"),    @preview["total_rows"],    "var(--text-1)"],
+         [t("finance.pos_imports.preview.valid_rows"),    @preview["valid_count"],   "var(--text-1)"],
+         [t("finance.pos_imports.preview.invalid_rows"),  @preview["invalid_count"].to_i, @preview["invalid_count"].to_i > 0 ? "var(--danger)" : "var(--text-3)"],
+         [t("finance.pos_imports.preview.matched_rows"),  @preview["matched_count"].to_i, "var(--success)"],
+         [t("finance.pos_imports.preview.unmatched_rows"), @preview["unmatched_count"].to_i, @preview["unmatched_count"].to_i > 0 ? "var(--warning)" : "var(--text-3)"]
+       ].each do |label, value, color| %>
+      <div class="card" style="padding: var(--space-4); text-align: center;">
+        <p style="font-size: var(--text-xs); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 var(--space-1);">
+          <%= label %>
+        </p>
+        <p style="font-size: var(--text-2xl); font-weight: 700; color: <%= color %>; margin: 0;">
+          <%= value %>
+        </p>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Matching summary ───────────────────────────────────────────────────── %>
+  <% if @preview["matched_count"].to_i > 0 %>
+    <div style="background: rgba(var(--success-rgb,34,197,94),0.06); border: 1px solid rgba(var(--success-rgb,34,197,94),0.25); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+      <p style="font-size: var(--text-sm); color: var(--text-1); margin: 0;">
+        <%= t("finance.pos_imports.preview.match_summary",
+               count:    @preview["matched_count"],
+               dr_count: @preview["dr_count"]) %>
+      </p>
+    </div>
+  <% end %>
+
+  <%# ── Unmatched warning ──────────────────────────────────────────────────── %>
+  <% unmatched_groups = @preview["unmatched_groups"] || [] %>
+  <% if unmatched_groups.any? %>
+    <div style="background: rgba(var(--warning-rgb,202,138,4),0.06); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.30); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-5);">
+      <div style="display: flex; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-4);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; margin-top: 2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div>
+          <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-1);">
+            <%= t("finance.pos_imports.preview.unmatched_title", count: @preview["unmatched_count"]) %>
+          </p>
+          <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+            <%= t("finance.pos_imports.preview.unmatched_hint") %>
+          </p>
+        </div>
+      </div>
+
+      <div style="background: var(--surface); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.20); border-radius: var(--radius); overflow: hidden;">
+        <% unmatched_groups.each do |group| %>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: var(--space-3);">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span style="font-size: var(--text-sm); color: var(--text-1); font-weight: 500;">
+                <%= group["branch_name"] %>
+              </span>
+              <span style="font-size: var(--text-xs); color: var(--text-3);">
+                <%= group["date"] %>
+              </span>
+            </div>
+            <span style="font-size: var(--text-xs); font-weight: 600; color: var(--warning);">
+              <%= t("finance.pos_imports.preview.unmatched_count_badge", count: group["count"]) %>
+            </span>
+          </div>
+        <% end %>
+      </div>
+
+      <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-3) 0 0;">
+        <%= t("finance.pos_imports.preview.unmatched_resolution_hint") %>
+      </p>
+    </div>
+  <% end %>
+
+  <%# Sample valid rows %>
+  <% if @preview["sample_rows"]&.any? %>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+      <h2 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-4);">
+        <%= t("finance.pos_imports.preview.sample_title") %>
+      </h2>
+      <div style="overflow-x: auto;">
+        <table class="table" style="font-size: var(--text-sm);">
+          <thead>
+            <tr>
+              <th><%= t("finance.pos_imports.fields.transaction_date") %></th>
+              <th><%= t("finance.pos_imports.fields.branch_name") %></th>
+              <th><%= t("finance.pos_imports.fields.cashier_name") %></th>
+              <th><%= t("finance.pos_imports.fields.payment_method_name") %></th>
+              <th style="text-align: end;"><%= t("finance.pos_imports.fields.amount") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @preview["sample_rows"].each do |row| %>
+              <tr>
+                <td><%= row["transaction_date"] %></td>
+                <td><%= row["branch_name"] %></td>
+                <td><%= row["cashier_name"] %></td>
+                <td><%= row["payment_method_name"] %></td>
+                <td style="text-align: end; font-variant-numeric: tabular-nums;">
+                  <%= number_to_currency(row["amount"].to_d, unit: "", separator: ".", delimiter: ",") %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Invalid rows %>
+  <% if @preview["error_rows"]&.any? %>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5); border-color: var(--danger);">
+      <h2 style="font-size: var(--text-sm); font-weight: 700; color: var(--danger); margin: 0 0 var(--space-4);">
+        <%= t("finance.pos_imports.preview.errors_title") %>
+      </h2>
+      <table class="table" style="font-size: var(--text-sm);">
+        <thead>
+          <tr>
+            <th><%= t("finance.pos_imports.preview.col_row") %></th>
+            <th><%= t("finance.pos_imports.fields.branch_name") %></th>
+            <th><%= t("finance.pos_imports.fields.cashier_name") %></th>
+            <th><%= t("finance.pos_imports.preview.col_errors") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @preview["error_rows"].each do |row| %>
+            <tr>
+              <td style="color: var(--text-3);">#<%= row["row"] %></td>
+              <td><%= row["branch_name"].presence || "—" %></td>
+              <td><%= row["cashier_name"].presence || "—" %></td>
+              <td style="color: var(--danger);">
+                <%= Array(row["errors"]).join("; ") %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-3) 0 0;">
+        <%= t("finance.pos_imports.preview.errors_skipped_hint") %>
+      </p>
+    </div>
+  <% end %>
+
+  <%# No valid rows at all %>
+  <% if @preview["valid_count"].to_i == 0 %>
+    <div class="alert alert-danger" style="margin-bottom: var(--space-5);">
+      <%= t("finance.pos_imports.preview.no_valid_rows") %>
+    </div>
+  <% end %>
+
+  <%# Actions %>
+  <% has_matched    = @preview["matched_count"].to_i > 0 %>
+  <% has_unmatched  = @preview["unmatched_count"].to_i > 0 %>
+
+  <div style="display: flex; gap: var(--space-3); justify-content: flex-end; flex-wrap: wrap; align-items: center;">
+    <%= link_to t("finance.pos_imports.preview.back_to_mapping"),
+          edit_column_mapping_finance_pos_import_path(@pos_import),
+          class: "btn btn-ghost" %>
+
+    <% if has_unmatched && has_matched %>
+      <%# Both matched and unmatched exist — offer "skip and import" %>
+      <%= button_to confirm_import_finance_pos_import_path(@pos_import),
+            method: :post,
+            params: { skip_unmatched: "1" },
+            class: "btn btn-warning" do %>
+        <%= t("finance.pos_imports.preview.confirm_skip_unmatched",
+               matched: @preview["matched_count"],
+               skipped: @preview["unmatched_count"]) %>
+      <% end %>
+    <% elsif has_matched && !has_unmatched %>
+      <%# All matched — clean import %>
+      <%= button_to t("finance.pos_imports.preview.confirm_import",
+                       count:    @preview["matched_count"],
+                       dr_count: @preview["dr_count"]),
+            confirm_import_finance_pos_import_path(@pos_import),
+            method: :post,
+            class: "btn btn-primary" %>
+    <% end %>
+  </div>
+
+</div>
