@@ -184,23 +184,28 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                                        &.order("payment_methods.position")
                                        &.to_a || []
 
-      @opening_float_source_handover     = source_amounts
-      @opening_float_amounts_overridden  = @reconciliation.opening_float_override_amounts.present?
+      @opening_float_source_handover    = source_amounts
+      @opening_float_amounts_overridden = @reconciliation.opening_float_override_amounts.present?
 
       if @opening_float_amounts_overridden
-        override_map = @reconciliation.opening_float_override_amounts
-                                      .index_by { |o| o["source_amount_id"].to_i }
+        override_list = @reconciliation.opening_float_override_amounts
 
-        # Build display-only value objects aligned to source so payment methods
-        # always appear in the canonical order, even when overridden.
-        @opening_float_display_amounts = source_amounts.map do |nda|
-          ov = override_map[nda.id]
-          ov ? OpeningFloatDisplayAmount.new(
-            nda.payment_method_name,
-            ov["collected_amount"].to_d,
-            ov["refund_amount"].to_d
-          ) : nda
-        end
+        # Load payment methods for canonical position ordering.
+        pm_ids   = override_list.map { |o| o["payment_method_id"].to_i }.uniq
+        pm_by_id = PaymentMethod.where(id: pm_ids).index_by(&:id)
+
+        # Show only entries that will actually be transferred (non-zero amounts),
+        # ordered by the payment method's configured position.
+        @opening_float_display_amounts = override_list
+          .select { |o| o["collected_amount"].to_d.positive? || o["refund_amount"].to_d.positive? }
+          .sort_by { |o| pm_by_id[o["payment_method_id"].to_i]&.position || 9999 }
+          .map do |o|
+            OpeningFloatDisplayAmount.new(
+              o["payment_method_name"],
+              o["collected_amount"].to_d,
+              o["refund_amount"].to_d
+            )
+          end
       else
         @opening_float_display_amounts = source_amounts
       end
