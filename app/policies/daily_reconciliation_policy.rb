@@ -7,8 +7,8 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def receive_opening_float?       = cashier_permission?
   def bulk_receive_opening_float?  = can?(:create_till_session) || can?(:verify_daily_reconciliation)
   def bulk_settle?                 = can?(:settle_remaining_deposit_balance)
-  def correct_opening_float?         = can?(:correct_opening_float)
-  def update_opening_float_amounts?  = can?(:correct_opening_float) || cashier_permission?
+  def correct_opening_float?        = can?(:correct_opening_float)
+  def update_opening_float_amounts? = can?(:correct_opening_float)
   def view_session_totals?                        = can?(:view_session_totals)
   def edit_session_totals?                        = can?(:edit_session_totals) && !record.is_a?(Class)
   def view_own_employee_reconciliation_summary?   = can?(:view_own_employee_reconciliation_summary)

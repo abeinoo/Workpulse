@@ -68,28 +68,30 @@
           </tr>
         </thead>
         <tbody>
-          <% @source_amounts.each do |amt| %>
-            <% override = @override_map[amt.id] %>
-            <% collected_val = override ? override["collected_amount"].to_d.to_f : amt.collected_amount.to_f %>
-            <% refund_val    = override ? override["refund_amount"].to_d.to_f    : amt.refund_amount.to_f %>
+          <% @edit_rows.each do |row| %>
+            <% pm = row[:payment_method] %>
             <tr>
               <td style="padding: var(--space-2) 0; font-weight: 500; color: var(--text-1); vertical-align: middle;">
-                <%= amt.payment_method_name %>
+                <%= pm.display_name %>
+                <% if row[:source_amount_id].nil? %>
+                  <span style="font-size: 10px; font-weight: 400; color: var(--text-3); margin-inline-start: var(--space-1);">
+                    (<%= t("finance.daily_reconciliations.show.edit_opening_float.not_submitted") %>)
+                  </span>
+                <% end %>
               </td>
               <td style="padding: var(--space-2) 0 var(--space-2) var(--space-3); text-align: end; vertical-align: middle;">
                 <input type="number"
-                       name="amounts[<%= amt.id %>][collected_amount]"
-                       value="<%= collected_val %>"
+                       name="amounts[<%= pm.id %>][collected_amount]"
+                       value="<%= row[:collected].to_f %>"
                        step="0.01"
                        min="0"
-                       required
                        class="form-control form-control-sm"
                        style="width: 130px; text-align: end; font-variant-numeric: tabular-nums; display: inline-block;" />
               </td>
               <td style="padding: var(--space-2) 0 var(--space-2) var(--space-3); text-align: end; vertical-align: middle;">
                 <input type="number"
-                       name="amounts[<%= amt.id %>][refund_amount]"
-                       value="<%= refund_val %>"
+                       name="amounts[<%= pm.id %>][refund_amount]"
+                       value="<%= row[:refund].to_f %>"
                        step="0.01"
                        min="0"
                        class="form-control form-control-sm"

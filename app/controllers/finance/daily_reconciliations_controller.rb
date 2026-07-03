@@ -608,11 +608,27 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
   def load_edit_opening_float_data
     @source_handover = @reconciliation.opening_float_source_handover
-    @source_amounts  = @source_handover&.amounts&.next_day
-                                        &.includes(:payment_method)
-                                        &.order("payment_methods.position")&.to_a || []
-    @override_map    = (@reconciliation.opening_float_override_amounts || [])
-                         .index_by { |o| o["source_amount_id"].to_i }
+    source_amounts   = @source_handover&.amounts&.next_day&.includes(:payment_method)&.to_a || []
+    source_by_pm_id  = source_amounts.index_by(&:payment_method_id)
+
+    all_pms = PaymentMethod.active.ordered
+                           .where(business_id: @reconciliation.business_id)
+                           .to_a
+
+    override_by_pm_id = (@reconciliation.opening_float_override_amounts || [])
+                          .index_by { |o| o["payment_method_id"].to_i }
+
+    # One row per active PM: pre-filled from override > source > 0
+    @edit_rows = all_pms.map do |pm|
+      src = source_by_pm_id[pm.id]
+      ov  = override_by_pm_id[pm.id]
+      {
+        payment_method:   pm,
+        source_amount_id: src&.id,
+        collected:        ov ? ov["collected_amount"].to_d : (src&.collected_amount || 0),
+        refund:           ov ? ov["refund_amount"].to_d    : (src&.refund_amount || 0)
+      }
+    end
   end
 
   def set_reconciliation

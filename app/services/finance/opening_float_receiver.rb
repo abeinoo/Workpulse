@@ -62,22 +62,43 @@ module Finance
           from_notes:           nil
         )
 
-        # If a manager saved override amounts before acceptance, apply them.
-        # Overrides are keyed by source_amount_id; any unmatched source amounts
-        # fall back to their original values so partial overrides are safe.
-        override_map = (@dr.opening_float_override_amounts || [])
-                         .index_by { |o| o["source_amount_id"].to_i }
-        amounts_overridden = override_map.any?
+        # If a manager saved override amounts before acceptance, use them as the
+        # complete desired state — including any payment methods that were absent
+        # from the original next_day declaration.  Zero-amount entries are skipped.
+        # Without overrides, copy the source next_day amounts verbatim.
+        override_list      = (@dr.opening_float_override_amounts || [])
+        amounts_overridden = override_list.any?
 
-        next_day_amounts.each do |nda|
-          override = override_map[nda.id]
-          handover.amounts.create!(
-            payment_method:      nda.payment_method,
-            payment_method_name: nda.payment_method_name,
-            collected_amount:    override ? override["collected_amount"].to_d : nda.collected_amount,
-            refund_amount:       override ? override["refund_amount"].to_d    : nda.refund_amount,
-            kind:                "operational"
-          )
+        if amounts_overridden
+          pm_ids          = override_list.map { |o| o["payment_method_id"].to_i }.uniq
+          payment_methods = PaymentMethod.where(id: pm_ids).index_by(&:id)
+
+          override_list.each do |override|
+            collected = override["collected_amount"].to_d
+            refund    = override["refund_amount"].to_d
+            next if collected.zero? && refund.zero?
+
+            pm = payment_methods[override["payment_method_id"].to_i]
+            next unless pm
+
+            handover.amounts.create!(
+              payment_method:      pm,
+              payment_method_name: override["payment_method_name"],
+              collected_amount:    collected,
+              refund_amount:       refund,
+              kind:                "operational"
+            )
+          end
+        else
+          next_day_amounts.each do |nda|
+            handover.amounts.create!(
+              payment_method:      nda.payment_method,
+              payment_method_name: nda.payment_method_name,
+              collected_amount:    nda.collected_amount,
+              refund_amount:       nda.refund_amount,
+              kind:                "operational"
+            )
+          end
         end
 
         # Keep opening_float_source_handover set — it is used by the audit
