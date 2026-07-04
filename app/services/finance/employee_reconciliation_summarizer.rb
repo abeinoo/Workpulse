@@ -19,7 +19,7 @@ module Finance
       def grand_total = amounts.sum(&:net_amount)
     end
 
-    AmountRow = Struct.new(:payment_method_name, :collected_amount, :refund_amount,
+    AmountRow = Struct.new(:payment_method_id, :payment_method_name, :collected_amount, :refund_amount,
                            keyword_init: true) do
       def net_amount = collected_amount - refund_amount
     end
@@ -164,7 +164,8 @@ module Finance
       records.map do |rec|
         pm_rows = rec.amounts.sort_by { |a| a.payment_method&.position || 0 }
                              .map { |a|
-                                AmountRow.new(payment_method_name: a.payment_method_name,
+                                AmountRow.new(payment_method_id:   a.payment_method_id,
+                                              payment_method_name: a.payment_method_name,
                                               collected_amount:    a.collected_amount,
                                               refund_amount:       a.refund_amount)
                               }
@@ -175,7 +176,8 @@ module Finance
     def sorted_amount_rows(pm_hashes)
       pm_hashes.sort_by { |a| a[:position] }
                .map { |a|
-                  AmountRow.new(payment_method_name: a[:name],
+                  AmountRow.new(payment_method_id:   a[:payment_method_id],
+                                payment_method_name: a[:name],
                                 collected_amount:    a[:collected],
                                 refund_amount:       a[:refund])
                 }
