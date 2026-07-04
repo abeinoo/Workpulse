@@ -1817,7 +1817,7 @@
             <% end %>
             <% @amounts_by_method.each do |sa| %>
               <% if show_pos_comparison %>
-                <% pos_amount = @pos_totals_by_method[sa.payment_method_name].to_d %>
+                <% pos_amount = @pos_totals_by_method[sa.payment_method_id].to_d %>
                 <% diff = sa.net_amount - pos_amount %>
                 <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 130px)); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: center;">
                   <span style="font-size: var(--text-sm); color: var(--text-2);">
@@ -2011,7 +2011,7 @@
 
               <%# One row per payment method %>
               <% visible_amounts.each do |amt| %>
-                <% pos_method_amt = cashier_pos ? cashier_pos[amt.payment_method_name].to_d : nil %>
+                <% pos_method_amt = cashier_pos ? cashier_pos[amt.payment_method_id].to_d : nil %>
                 <% pos_diff = pos_method_amt ? (amt.net_amount - pos_method_amt) : nil %>
                 <div style="display: grid; grid-template-columns: 1fr repeat(<%= col_count %>, minmax(80px, 130px)); gap: 0; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: baseline;">
                   <span style="font-size: var(--text-sm); color: var(--text-2);">
@@ -2064,12 +2064,13 @@
   <%# ── POS Transactions Verification ─────────────────────────────────── %>
   <% if @can_manage_pos_import || @pos_totals_by_method&.any? %>
     <%= render "finance/pos_imports/verification_section",
-               reconciliation:        @reconciliation,
-               session_amounts:       @amounts_by_method,
-               pos_totals_by_method:  @pos_totals_by_method,
-               pos_totals_by_cashier: @pos_totals_by_cashier,
-               pos_transactions:      @pos_transactions,
-               latest_pos_import:     @latest_pos_import %>
+               reconciliation:            @reconciliation,
+               session_amounts:           @amounts_by_method,
+               pos_totals_by_method:      @pos_totals_by_method,
+               pos_totals_by_cashier:     @pos_totals_by_cashier,
+               pos_transactions:          @pos_transactions,
+               pos_payment_methods_by_id: @pos_payment_methods_by_id,
+               latest_pos_import:         @latest_pos_import %>
   <% end %>
 
   <%# ── Verification notes ──────────────────────────────────────────────── %>

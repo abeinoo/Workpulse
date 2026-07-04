@@ -1,11 +1,12 @@
 <%# POS Transactions Verification card — rendered on the DR show page.
     Local variables:
-      reconciliation        — DailyReconciliation
-      session_amounts       — Array<TillSessionAmount>
-      pos_totals_by_method  — Hash{ payment_method_name => BigDecimal }  (may be empty)
-      pos_totals_by_cashier — Hash{ cashier_name => Hash{ method => BigDecimal } }
-      pos_transactions      — Array<PosTransaction>
-      latest_pos_import     — PosImport | nil %>
+      reconciliation            — DailyReconciliation
+      session_amounts           — Array<TillSessionAmount>
+      pos_totals_by_method      — Hash{ payment_method_id => BigDecimal }  (may be empty)
+      pos_totals_by_cashier     — Hash{ cashier_name => Hash{ payment_method_id => BigDecimal } }
+      pos_transactions          — Array<PosTransaction>
+      pos_payment_methods_by_id — Hash{ payment_method_id => PaymentMethod }
+      latest_pos_import         — PosImport | nil %>
 
 <% has_pos_data = pos_totals_by_method.any? %>
 
@@ -30,7 +31,7 @@
         </span>
       <% else %>
         <% all_match = session_amounts.all? { |sa|
-             pos_total = pos_totals_by_method[sa.payment_method_name].to_d
+             pos_total = pos_totals_by_method[sa.payment_method_id].to_d
              (pos_total - sa.net_amount).abs < 0.01
            } %>
         <% if all_match %>
@@ -118,7 +119,7 @@
       <% overall_pos_total     = 0 %>
       <% session_amounts.each do |sa| %>
         <% cashier_amount = sa.net_amount %>
-        <% pos_amount     = pos_totals_by_method[sa.payment_method_name].to_d %>
+        <% pos_amount     = pos_totals_by_method[sa.payment_method_id].to_d %>
         <% difference     = cashier_amount - pos_amount %>
         <% overall_cashier_total += cashier_amount %>
         <% overall_pos_total     += pos_amount %>
@@ -158,13 +159,14 @@
       <% end %>
 
       <%# POS-only methods (in CSV but not in session amounts) %>
-      <% pos_only_methods = pos_totals_by_method.keys - session_amounts.map(&:payment_method_name) %>
-      <% pos_only_methods.each do |method_name| %>
-        <% pos_amount = pos_totals_by_method[method_name].to_d %>
+      <% pos_only_methods = pos_totals_by_method.keys - session_amounts.map(&:payment_method_id) %>
+      <% pos_only_methods.each do |method_key| %>
+        <% pos_amount = pos_totals_by_method[method_key].to_d %>
+        <% method_display = pos_payment_methods_by_id[method_key]&.display_name || method_key.to_s %>
         <% overall_pos_total += pos_amount %>
         <div style="display: grid; grid-template-columns: 1fr repeat(4, minmax(100px, 150px)); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: center;">
           <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <%= method_name %>
+            <%= method_display %>
             <span style="font-size: 11px; color: var(--text-3); margin-inline-start: 4px;">(<%= t("finance.pos_imports.verification.pos_only") %>)</span>
           </span>
           <span style="font-size: var(--text-sm); color: var(--text-3); text-align: end;">—</span>
@@ -260,15 +262,19 @@
               </div>
             </div>
 
-            <%# Per-method rows for this cashier %>
-            <% all_methods = (method_totals.keys + (matched_summary&.amounts&.map(&:payment_method_name) || [])).uniq %>
-            <% all_methods.each do |method_name| %>
-              <% pos_amt    = method_totals[method_name].to_d %>
-              <% system_amt = matched_summary&.amounts&.find { |a| a.payment_method_name == method_name }&.net_amount.to_d %>
+            <%# Per-method rows for this cashier.
+                method_key is payment_method_id (Integer) for known methods, raw English name
+                (String) as a fallback for CSV methods with no matching PaymentMethod record. %>
+            <% all_methods = (method_totals.keys + (matched_summary&.amounts&.map(&:payment_method_id) || [])).uniq %>
+            <% all_methods.each do |method_key| %>
+              <% method_pm  = pos_payment_methods_by_id[method_key] %>
+              <% method_display = method_pm&.display_name || method_key.to_s %>
+              <% pos_amt    = method_totals[method_key].to_d %>
+              <% system_amt = matched_summary&.amounts&.find { |a| a.payment_method_id == method_key }&.net_amount.to_d %>
               <% diff       = system_amt - pos_amt %>
               <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 140px)) 120px; padding: var(--space-2) var(--space-5) var(--space-2) 60px; border-bottom: 1px solid var(--border); align-items: center;">
                 <span style="font-size: var(--text-sm); color: var(--text-2);">
-                  <%= method_name %>
+                  <%= method_display %>
                 </span>
                 <span style="font-size: var(--text-sm); color: var(--text-2); text-align: end; font-variant-numeric: tabular-nums;">
                   <%= matched_summary ? number_to_currency(system_amt, unit: "", separator: ".", delimiter: ",") : "—" %>
@@ -287,7 +293,7 @@
                 </span>
                 <%# Drill-down toggle for individual transactions %>
                 <div style="text-align: end;">
-                  <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_name.parameterize}_#{method_name.parameterize}" %>
+                  <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_name.parameterize}_#{method_key}" %>
                   <button type="button"
                           onclick="togglePosTransactions('<%= txn_key %>')"
                           style="font-size: 11px; color: var(--accent); background: none; border: none; cursor: pointer; padding: 0; font-weight: 500; text-decoration: underline; text-decoration-style: dotted;">
@@ -297,10 +303,18 @@
               </div>
 
               <%# Transaction list (collapsed by default) %>
-              <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_name.parameterize}_#{method_name.parameterize}" %>
+              <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_name.parameterize}_#{method_key}" %>
               <div id="<%= txn_key %>"
                    style="display: none; padding: var(--space-2) var(--space-5) var(--space-2) 60px; background: var(--surface-2); border-bottom: 1px solid var(--border);">
-                <% method_transactions = cashier_transactions.select { |txn| txn.payment_method_name == method_name } %>
+                <%# Filter by cashier (already done) and by payment method via the English name
+                    stored in PosTransaction — compare against the PaymentMethod's canonical name. %>
+                <% method_transactions = cashier_transactions.select { |txn|
+                     if method_pm
+                       txn.payment_method_name.downcase.strip == method_pm.name.downcase.strip
+                     else
+                       txn.payment_method_name == method_key
+                     end
+                   } %>
                 <% if method_transactions.any? %>
                   <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
                     <% method_transactions.each do |txn| %>
