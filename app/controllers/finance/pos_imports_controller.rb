@@ -2,6 +2,16 @@ class Finance::PosImportsController < Finance::BaseController
   before_action :set_pos_import, only: %i[edit_column_mapping update_column_mapping
                                            preview_import confirm_import destroy]
 
+  COLUMN_DETECTION_RULES = [
+    ["transaction_date",    %w[payment\ date transaction\ date date]],
+    ["branch_name",         %w[location branch store outlet]],
+    ["cashier_name",        %w[team\ member cashier employee staff operator member]],
+    ["payment_method_name", %w[payment\ method method]],
+    ["amount",              %w[payment\ amount amount total]],
+    ["reference_number",    %w[reference receipt ref voucher]],
+    ["transaction_id",      %w[transaction\ id trans\ id]]
+  ].freeze
+
   # GET /finance/pos_imports
   def index
     authorize PosImport
@@ -34,12 +44,7 @@ class Finance::PosImportsController < Finance::BaseController
       return render :new, status: :unprocessable_entity
     end
 
-    begin
-      csv_data = raw_bytes.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
-    rescue Encoding::UndefinedConversionError, Encoding::InvalidByteSequenceError
-      @pos_import.errors.add(:file, t("finance.pos_imports.errors.unsupported_encoding"))
-      return render :new, status: :unprocessable_entity
-    end
+    csv_data = Finance::PosImports::CsvParser.to_utf8(raw_bytes)
 
     begin
       @detected_headers = Finance::PosImports::CsvParser.detect_headers(csv_data)
@@ -76,6 +81,10 @@ class Finance::PosImportsController < Finance::BaseController
     authorize @pos_import
     # Always re-detect from the stored file — no session dependency.
     @detected_headers = Finance::PosImports::CsvParser.detect_headers(@pos_import.file.download)
+    # Pre-fill an auto-detected mapping on first visit (when no mapping has been saved yet).
+    if @pos_import.column_mapping.blank?
+      @pos_import.column_mapping = auto_detect_column_mapping(@detected_headers)
+    end
   end
 
   # PATCH /finance/pos_imports/:id/update_column_mapping
@@ -115,7 +124,14 @@ class Finance::PosImportsController < Finance::BaseController
       "unmatched_count"  => match_result.unmatched_count,
       "dr_count"         => match_result.affected_dr_ids.size,
       "unmatched_groups" => match_result.unmatched_groups.map { |g|
-        { "branch_name" => g[:branch_name], "date" => g[:date], "count" => g[:count] }
+        {
+          "branch_name"         => g[:branch_name],
+          "cashier_name"        => g[:cashier_name],
+          "payment_method_name" => g[:payment_method_name],
+          "date"                => g[:date],
+          "count"               => g[:count],
+          "reason"              => g[:reason].to_s
+        }
       },
       "sample_rows" => parse_result.valid_rows.first(5).map { |r|
         r.slice("transaction_date", "branch_name", "cashier_name", "payment_method_name", "amount")
@@ -175,6 +191,21 @@ class Finance::PosImportsController < Finance::BaseController
     @pos_import = current_user.business.pos_imports.find(params[:id])
   end
 
+  def auto_detect_column_mapping(headers)
+    norm = ->(s) { s.to_s.downcase.gsub(/[\s\-_]+/, " ").strip }
+    used = Set.new
+
+    COLUMN_DETECTION_RULES.each_with_object({}) do |(field, keywords), mapping|
+      matched = keywords.lazy.filter_map { |kw|
+        headers.find { |h| !used.include?(h) && norm.call(h).include?(kw) }
+      }.first
+      next unless matched
+
+      mapping[field] = matched
+      used << matched
+    end
+  end
+
   def build_column_mapping(mapping_params)
     return {} unless mapping_params.respond_to?(:permit)
     permitted = mapping_params.permit(Finance::PosImports::CsvParser::ALL_FIELDS)
@@ -184,7 +215,7 @@ class Finance::PosImportsController < Finance::BaseController
   def csv_row_count(csv_data)
     require "csv"
     table = CSV.parse(
-      csv_data.encode("UTF-8", invalid: :replace, undef: :replace, replace: ""),
+      Finance::PosImports::CsvParser.to_utf8(csv_data),
       headers: true, skip_blanks: true
     )
     table.count
@@ -209,7 +240,14 @@ class Finance::PosImportsController < Finance::BaseController
       "unmatched_count"  => match_result.unmatched_count,
       "dr_count"         => match_result.affected_dr_ids.size,
       "unmatched_groups" => match_result.unmatched_groups.map { |g|
-        { "branch_name" => g[:branch_name], "date" => g[:date], "count" => g[:count] }
+        {
+          "branch_name"         => g[:branch_name],
+          "cashier_name"        => g[:cashier_name],
+          "payment_method_name" => g[:payment_method_name],
+          "date"                => g[:date],
+          "count"               => g[:count],
+          "reason"              => g[:reason].to_s
+        }
       },
       "sample_rows" => parse_result.valid_rows.first(5).map { |r|
         r.slice("transaction_date", "branch_name", "cashier_name", "payment_method_name", "amount")

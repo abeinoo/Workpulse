@@ -61,7 +61,9 @@
               </td>
               <td>
                 <select name="column_mapping[<%= field %>]" class="form-control form-control-sm">
-                  <% unless required %>
+                  <% if required %>
+                    <option value=""><%= t("finance.pos_imports.column_mapping.select_column") %></option>
+                  <% else %>
                     <option value=""><%= t("finance.pos_imports.column_mapping.skip") %></option>
                   <% end %>
                   <% @detected_headers.each do |header| %>

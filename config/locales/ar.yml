@@ -4833,6 +4833,7 @@ ar:
         col_field: "حقل WorkPulse"
         col_csv_column: "عمود CSV"
         skip: "— تخطي —"
+        select_column: "— اختر عمود —"
         import_button: "التالي: معاينة"
         back_mapping: "العودة إلى تعيين الأعمدة"
       preview:
@@ -4999,6 +5000,7 @@ ar:
         col_field: "حقل النظام"
         col_csv_column: "عمود CSV"
         skip: "— تخطّي —"
+        select_column: "— اختر عمود —"
         import_button: "التالي: معاينة"
       preview:
         title: "معاينة الاستيراد"
@@ -5016,9 +5018,14 @@ ar:
         back_to_mapping: "العودة إلى ربط الأعمدة"
         match_summary: "تمت مطابقة %{count} صف بـ %{dr_count} تسوية يومية وهي جاهزة للاستيراد."
         unmatched_title: "تعذّر مطابقة %{count} صف بأي تسوية يومية"
-        unmatched_hint: "تشير هذه الصفوف إلى فرع وتاريخ لا توجد لهما تسوية يومية ولا يمكن استيرادها."
+        unmatched_hint: "يوضح كل صف أدناه سبب تعذّر استيراده. عالج المشكلة المحددة ثم أعد الرفع."
         unmatched_count_badge: "%{count} صف"
-        unmatched_resolution_hint: "أنشئ التسويات اليومية المفقودة أولاً ثم أعد الرفع — أو استورد الصفوف المطابقة الآن بتخطّي غير المطابَقة."
+        unmatched_resolution_hint: "عالج المشكلات الموضحة أدناه وأعد الرفع، أو استورد الصفوف المطابقة الآن بتخطّي غير المطابَقة."
+        failure_reasons:
+          branch_not_found: "الفرع \"%{name}\" غير موجود في النظام"
+          no_dr: "لا توجد تسوية يومية مفتوحة لهذا الفرع في هذا التاريخ"
+          employee_not_found: "الموظف \"%{name}\" غير موجود في النظام"
+          unknown_payment_method: "طريقة الدفع \"%{name}\" غير مُضافة لهذا النشاط التجاري"
         confirm_import: "تأكيد واستيراد %{count} صف في %{dr_count} تسوية"
         confirm_skip_unmatched: "استيراد %{matched} صف مطابق (تخطّي %{skipped} غير مطابق)"
       verification:

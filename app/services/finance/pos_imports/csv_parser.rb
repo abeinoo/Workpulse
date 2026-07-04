@@ -30,9 +30,22 @@ module Finance
         def invalid_count  = invalid_rows.size
       end
 
+      # Convert raw bytes (typically ASCII-8BIT from Active Storage) to a clean UTF-8 string
+      # without transcoding. `encode("UTF-8", undef: :replace)` on an ASCII-8BIT string
+      # treats every byte > 0x7F as "undefined" and drops it, silently erasing Arabic and
+      # other multi-byte content. `force_encoding` reinterprets the bytes in-place.
+      def self.to_utf8(raw_bytes)
+        str = raw_bytes.dup.force_encoding("UTF-8")
+        return str if str.valid_encoding?
+        # Bytes are not valid UTF-8 — try Windows-1256 (common Arabic Windows export)
+        raw_bytes.encode("UTF-8", "Windows-1256", invalid: :replace, undef: :replace, replace: "")
+      rescue Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
+        raw_bytes.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+      end
+
       def self.detect_headers(csv_data)
         table = CSV.parse(
-          csv_data.encode("UTF-8", invalid: :replace, undef: :replace, replace: ""),
+          to_utf8(csv_data),
           headers: true, skip_blanks: true
         )
         table.headers.map { |h| h.to_s.strip }
@@ -59,7 +72,7 @@ module Finance
 
         begin
           table = CSV.parse(
-            csv_data.encode("UTF-8", invalid: :replace, undef: :replace, replace: ""),
+            self.class.to_utf8(csv_data),
             headers: true, skip_blanks: true, liberal_parsing: true
           )
         rescue CSV::MalformedCSVError => e
@@ -146,8 +159,11 @@ module Finance
       end
 
       def try_parse_date(str)
+        # Strip trailing time component before matching date formats.
+        # Handles "03 Jul 2026, 1:09pm" → "03 Jul 2026".
+        normalized = str.strip.gsub(/,\s*\d{1,2}:\d{2}\s*(am|pm)\s*$/i, "").strip
         DATE_FORMATS.each do |fmt|
-          return Date.strptime(str, fmt)
+          return Date.strptime(normalized, fmt)
         rescue Date::Error, ArgumentError
           next
         end

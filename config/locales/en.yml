@@ -4808,6 +4808,7 @@ en:
         col_field: "WorkPulse Field"
         col_csv_column: "CSV Column"
         skip: "— Skip —"
+        select_column: "— Select column —"
         import_button: "Next: Preview"
         back_mapping: "Back to Column Mapping"
       preview:
@@ -4974,6 +4975,7 @@ en:
         col_field: "WorkPulse Field"
         col_csv_column: "CSV Column"
         skip: "— Skip —"
+        select_column: "— Select column —"
         import_button: "Next: Preview"
       preview:
         title: "Import Preview"
@@ -4991,9 +4993,14 @@ en:
         back_to_mapping: "Back to Column Mapping"
         match_summary: "%{count} rows matched to %{dr_count} daily reconciliation(s) and ready to import."
         unmatched_title: "%{count} row(s) could not be matched to any Daily Reconciliation"
-        unmatched_hint: "These rows reference a branch + date combination with no existing Daily Reconciliation and cannot be imported."
+        unmatched_hint: "Each row below shows exactly why it could not be imported. Fix the identified issue, then re-upload."
         unmatched_count_badge: "%{count} rows"
-        unmatched_resolution_hint: "Create the missing Daily Reconciliations first, then re-upload — or import the matched rows now by skipping the unmatched ones."
+        unmatched_resolution_hint: "Fix the issues shown below and re-upload, or import the matched rows now by skipping the unmatched ones."
+        failure_reasons:
+          branch_not_found: "Branch \"%{name}\" not found in WorkPulse"
+          no_dr: "No Daily Reconciliation open for this branch on this date"
+          employee_not_found: "Employee \"%{name}\" not found in WorkPulse"
+          unknown_payment_method: "Payment method \"%{name}\" is not configured for this business"
         confirm_import: "Confirm & Import %{count} rows into %{dr_count} reconciliation(s)"
         confirm_skip_unmatched: "Import %{matched} matched rows (skip %{skipped} unmatched)"
       verification:

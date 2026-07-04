@@ -21,10 +21,13 @@ RSpec.describe Finance::PosImports::CsvParser do
   end
 
   # Builds a minimal valid CSV string from the supplied rows hash.
+  # Uses Ruby's CSV library so values with commas or quotes are properly escaped.
   def make_csv(rows, headers: %w[Date Branch Cashier Method Amount])
-    lines = [headers.join(",")]
-    rows.each { |r| lines << headers.map { |h| r[h] }.join(",") }
-    lines.join("\n")
+    require "csv"
+    CSV.generate do |csv|
+      csv << headers
+      rows.each { |r| csv << headers.map { |h| r[h] } }
+    end
   end
 
   VALID_ROW = {
@@ -206,16 +209,25 @@ RSpec.describe Finance::PosImports::CsvParser do
 
   describe "date parsing" do
     {
-      "YYYY-MM-DD" => "2024-03-15",
-      "DD/MM/YYYY" => "15/03/2024",
-      "MM/DD/YYYY" => "03/15/2024",
-      "DD-MM-YYYY" => "15-03-2024"
+      "YYYY-MM-DD"         => "2024-03-15",
+      "DD/MM/YYYY"         => "15/03/2024",
+      "MM/DD/YYYY"         => "03/15/2024",
+      "DD-MM-YYYY"         => "15-03-2024",
+      "DD Mon YYYY HH:MMpm" => "03 Jul 2026, 1:09pm",
+      "DD Mon YYYY HH:MMam" => "03 Jul 2026, 9:05am",
+      "DD Mon YYYY 12:00pm" => "03 Jul 2026, 12:00pm"
     }.each do |format_name, date_str|
       it "parses #{format_name} format" do
         csv = make_csv([VALID_ROW.merge("Date" => date_str)])
         row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
         expect(row["transaction_date"]).not_to be_nil
       end
+    end
+
+    it "strips the time component and returns only the date" do
+      csv = make_csv([VALID_ROW.merge("Date" => "03 Jul 2026, 1:09pm")])
+      row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+      expect(row["transaction_date"]).to eq("2026-07-03")
     end
   end
 

@@ -70,17 +70,38 @@
 
       <div style="background: var(--surface); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.20); border-radius: var(--radius); overflow: hidden;">
         <% unmatched_groups.each do |group| %>
+          <%
+            reason = group["reason"].presence || "no_dr"
+            case reason
+            when "employee_not_found"
+              icon_path     = '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'
+              display_label = group["cashier_name"].presence || "—"
+            when "unknown_payment_method"
+              icon_path     = '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>'
+              display_label = group["payment_method_name"].presence || "—"
+            else
+              icon_path     = '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'
+              display_label = group["branch_name"].presence || "—"
+            end
+            name_for_reason = display_label
+            reason_label    = t("finance.pos_imports.preview.failure_reasons.#{reason}",
+                                 name: name_for_reason,
+                                 default: reason.to_s.humanize)
+          %>
           <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border);">
-            <div style="display: flex; align-items: center; gap: var(--space-3);">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><%= icon_path.html_safe %></svg>
               <span style="font-size: var(--text-sm); color: var(--text-1); font-weight: 500;">
-                <%= group["branch_name"] %>
+                <%= display_label %>
               </span>
               <span style="font-size: var(--text-xs); color: var(--text-3);">
                 <%= group["date"] %>
               </span>
+              <span style="font-size: var(--text-xs); color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 6px;">
+                <%= reason_label %>
+              </span>
             </div>
-            <span style="font-size: var(--text-xs); font-weight: 600; color: var(--warning);">
+            <span style="font-size: var(--text-xs); font-weight: 600; color: var(--warning); white-space: nowrap; margin-inline-start: var(--space-3);">
               <%= t("finance.pos_imports.preview.unmatched_count_badge", count: group["count"]) %>
             </span>
           </div>
