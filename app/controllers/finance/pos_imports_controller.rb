@@ -115,11 +115,26 @@ class Finance::PosImportsController < Finance::BaseController
     matcher      = Finance::PosImports::DrMatcher.new(current_user.business)
     match_result = matcher.match(parse_result.valid_rows)
 
+    incoming_refs  = parse_result.valid_rows.filter_map { |r| r["reference_number"].presence }.uniq
+    existing_refs  = incoming_refs.any? ?
+      PosTransaction
+        .where(business_id: current_user.business_id,
+               reference_number: incoming_refs)
+        .where.not(pos_import_id: @pos_import.id)
+        .pluck(:reference_number)
+        .to_set :
+      Set.new
+    duplicate_count = parse_result.valid_rows.count { |row|
+      ref = row["reference_number"]
+      ref.present? && existing_refs.include?(ref)
+    }
+
     # Persist preview data on the record — never in the cookie session.
     preview = {
       "total_rows"       => parse_result.total_rows,
       "valid_count"      => parse_result.valid_count,
       "invalid_count"    => parse_result.invalid_count,
+      "duplicate_count"  => duplicate_count,
       "matched_count"    => match_result.matched_count,
       "unmatched_count"  => match_result.unmatched_count,
       "dr_count"         => match_result.affected_dr_ids.size,
@@ -167,9 +182,11 @@ class Finance::PosImportsController < Finance::BaseController
     if result.ok?
       pi = result.pos_import
       redirect_to finance_daily_reconciliations_path,
-                  notice: t("finance.pos_imports.imported",
-                             count:    pi.matched_rows,
-                             dr_count: pi.dr_count)
+                  notice: t("finance.pos_imports.imported_summary",
+                             total:      pi.total_rows,
+                             imported:   pi.matched_rows,
+                             duplicates: pi.duplicate_rows,
+                             invalid:    pi.failed_rows)
     else
       redirect_to preview_import_finance_pos_import_path(@pos_import),
                   alert: result.error
@@ -232,10 +249,25 @@ class Finance::PosImportsController < Finance::BaseController
     matcher      = Finance::PosImports::DrMatcher.new(current_user.business)
     match_result = matcher.match(parse_result.valid_rows)
 
+    incoming_refs  = parse_result.valid_rows.filter_map { |r| r["reference_number"].presence }.uniq
+    existing_refs  = incoming_refs.any? ?
+      PosTransaction
+        .where(business_id: current_user.business_id,
+               reference_number: incoming_refs)
+        .where.not(pos_import_id: pos_import.id)
+        .pluck(:reference_number)
+        .to_set :
+      Set.new
+    duplicate_count = parse_result.valid_rows.count { |row|
+      ref = row["reference_number"]
+      ref.present? && existing_refs.include?(ref)
+    }
+
     {
       "total_rows"       => parse_result.total_rows,
       "valid_count"      => parse_result.valid_count,
       "invalid_count"    => parse_result.invalid_count,
+      "duplicate_count"  => duplicate_count,
       "matched_count"    => match_result.matched_count,
       "unmatched_count"  => match_result.unmatched_count,
       "dr_count"         => match_result.affected_dr_ids.size,

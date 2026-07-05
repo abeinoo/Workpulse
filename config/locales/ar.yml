@@ -4955,6 +4955,7 @@ ar:
 
     pos_imports:
       imported: "تم استيراد %{count} معاملة من نقاط البيع بنجاح."
+      imported_summary: "تم استيراد %{imported} من أصل %{total} معاملة. تم تخطي %{duplicates} مكرر، و%{invalid} غير صالح."
       deleted: "تم حذف ملف نقاط البيع."
       steps:
         upload: "رفع الملف"
@@ -5005,6 +5006,9 @@ ar:
         unmatched_warning:
           one: "صف واحد غير مطابق"
           other: "%{count} صفوف غير مطابقة"
+        duplicate_warning:
+          one: "تم تخطي مكرر واحد"
+          other: "تم تخطي %{count} مكررات"
         dr_count_suffix:
           one: "يوم"
           other: "أيام"
@@ -5029,6 +5033,7 @@ ar:
         col_row: "الصف"
         col_errors: "المشكلات"
         matched_rows: "مطابَق"
+        duplicate_rows: "مكررات"
         unmatched_rows: "غير مطابَق"
         no_valid_rows: "لم يُعثر على صفوف صالحة. الرجاء العودة ومراجعة ربط الأعمدة."
         back_to_mapping: "العودة إلى ربط الأعمدة"

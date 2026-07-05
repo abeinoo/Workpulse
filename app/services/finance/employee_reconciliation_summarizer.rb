@@ -96,6 +96,17 @@ module Finance
                      .includes(:from_user, :to_user, amounts: :payment_method)
                      .order(:created_at)
 
+      Rails.logger.debug do
+        "[ERS DR=#{@dr.id}] aggregate_by_employee: #{handovers.size} eligible handovers\n" +
+          handovers.map { |h|
+            amt_str = h.amounts.map { |a| "  #{a.kind}/#{a.payment_method_name} collected=#{a.collected_amount} refund=#{a.refund_amount}" }.join("\n")
+            "  handover id=#{h.id} from=#{h.from_user&.full_name}(#{h.from_user_id}) " \
+              "to=#{h.to_user&.full_name}(#{h.to_user_id}) " \
+              "self_deposit=#{h.self_deposit} accepted_at=#{h.accepted_at} created_at=#{h.created_at}\n" \
+              "  amounts(#{h.amounts.size}):\n#{amt_str.presence || "    (none)"}"
+          }.join("\n")
+      end
+
       # Identify the opening-float receiving handover for this DR, if any.
       # OpeningFloatReceiver creates it as the very first accepted handover
       # in the DR, with from_user = the previous day's final holder (the seeder).
@@ -107,6 +118,10 @@ module Finance
       if of_seeder_id
         recv_h = handovers.find { |h| h.from_user_id == of_seeder_id && h.to_user_id.present? && h.accepted_at.present? }
         of_recv_id = recv_h&.id
+      end
+
+      Rails.logger.debug do
+        "[ERS DR=#{@dr.id}] opening_float: source_handover=#{of_source&.id} seeder_id=#{of_seeder_id} recv_handover_id=#{of_recv_id}"
       end
 
       # Separate into outgoing (from_user) and incoming (to_user) per employee.
@@ -121,6 +136,12 @@ module Finance
         end
       end
 
+      Rails.logger.debug do
+        out_str = outgoing_by_user.map { |uid, hs| "  uid=#{uid}(#{hs.first&.from_user&.full_name}): #{hs.map(&:id).join(", ")}" }.join("\n")
+        in_str  = incoming_by_user.map { |uid, hs| "  uid=#{uid}(#{hs.first&.to_user&.full_name}): #{hs.map(&:id).join(", ")}" }.join("\n")
+        "[ERS DR=#{@dr.id}] outgoing_by_user:\n#{out_str}\nincoming_by_user:\n#{in_str}"
+      end
+
       # Hash preserves insertion order → employees appear in chronological order
       # of their first outgoing handover.
       by_employee = {}
@@ -129,6 +150,14 @@ module Finance
         last_outgoing = outgoing_list.last
         entry = by_employee[uid] ||= { user: last_outgoing.from_user, amounts: {} }
 
+        Rails.logger.debug do
+          op_amts = last_outgoing.amounts.select { |a| a.kind == "operational" }
+          "[ERS DR=#{@dr.id}] employee=#{last_outgoing.from_user&.full_name}(#{uid}) " \
+            "last_outgoing=handover##{last_outgoing.id}(self_deposit=#{last_outgoing.self_deposit}) " \
+            "total_amounts=#{last_outgoing.amounts.size} operational_amounts=#{op_amts.size}\n" +
+            op_amts.map { |a| "  #{a.payment_method_name}(pm_id=#{a.payment_method_id}): collected=#{a.collected_amount} refund=#{a.refund_amount}" }.join("\n")
+        end
+
         # Sum all operational amounts received by this cashier (all incoming handovers).
         # Exception: if the opening-float receiving handover was seeded by this same
         # cashier (i.e. they carried their own float forward from the previous business
@@ -136,7 +165,12 @@ module Finance
         # reduce their collected amount.
         incoming_by_pm = Hash.new { |h, k| h[k] = { collected: 0.to_d, refund: 0.to_d } }
         incoming_by_user[uid].each do |h_in|
-          next if h_in.id == of_recv_id && of_seeder_id == uid
+          own_float_skip = h_in.id == of_recv_id && of_seeder_id == uid
+          Rails.logger.debug do
+            "[ERS DR=#{@dr.id}]   incoming handover##{h_in.id} from=#{h_in.from_user&.full_name} " \
+              "own_float_skip=#{own_float_skip} amounts(#{h_in.amounts.size})"
+          end
+          next if own_float_skip
 
           h_in.amounts.each do |amt|
             next unless amt.kind == "operational"
@@ -161,8 +195,16 @@ module Finance
           pm[:collected] = amt.collected_amount - incoming_pm[:collected]
           pm[:refund]    = amt.refund_amount    - incoming_pm[:refund]
           Rails.logger.debug do
-            "[ERS] #{last_outgoing.from_user&.full_name} | #{amt.payment_method_name}: " \
-              "last_out=#{amt.collected_amount} incoming_sum=#{incoming_pm[:collected]} net=#{pm[:collected]}"
+            "[ERS DR=#{@dr.id}]   RESULT #{last_outgoing.from_user&.full_name} | #{amt.payment_method_name}(pm_id=#{amt.payment_method_id}): " \
+              "last_outgoing=#{amt.collected_amount} incoming_sum=#{incoming_pm[:collected]} net=#{pm[:collected]}"
+          end
+        end
+
+        Rails.logger.debug do
+          if entry[:amounts].empty?
+            "[ERS DR=#{@dr.id}]   WARNING: entry[:amounts] is EMPTY for #{last_outgoing.from_user&.full_name} — " \
+              "last_outgoing has #{last_outgoing.amounts.size} total amounts, " \
+              "#{last_outgoing.amounts.count { |a| a.kind == "operational" }} operational"
           end
         end
       end

@@ -270,6 +270,35 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       summarizer.summaries(for_user: current_user)
     end
 
+    # ── TRACE: three-section divergence audit ──────────────────────────────────
+    Rails.logger.debug do
+      lines = ["[TRACE DR=#{@reconciliation.id}] Section data sources:"]
+
+      # Section 1: Cashier Custody Summary (live algorithm)
+      lines << "  [1] Cashier Custody Summary (live via ERS#summaries):"
+      (@employee_summaries || []).each do |s|
+        amt_str = s.amounts.map { |a| "#{a.payment_method_name}: collected=#{a.collected_amount} refund=#{a.refund_amount} net=#{a.net_amount}" }.join(", ")
+        lines << "    #{s.user&.full_name}: #{amt_str.presence || "(no amounts)"} | grand_total=#{s.grand_total}"
+      end
+
+      # Section 2: POS Per Cashier Breakdown (direct DB, stale persisted rows)
+      db_summaries = @reconciliation.employee_reconciliation_summaries.includes(:user, amounts: :payment_method)
+      lines << "  [2] POS Per Cashier (DB employee_reconciliation_summaries, #{db_summaries.size} rows):"
+      db_summaries.each do |s|
+        amt_str = s.amounts.map { |a| "#{a.payment_method_name}: net=#{a.net_amount}" }.join(", ")
+        lines << "    #{s.user&.full_name}: #{amt_str.presence || "(no amounts)"} | computed_at=#{s.computed_at}"
+      end
+
+      # Section 3: Branch Totals (TillSessionAmount)
+      lines << "  [3] Branch Totals (session_amounts / TillSessionAmount):"
+      @reconciliation.session_amounts.includes(:payment_method).each do |sa|
+        lines << "    #{sa.payment_method&.name}: collected=#{sa.collected_amount} refund=#{sa.refund_amount} net=#{sa.net_amount}"
+      end
+
+      lines.join("\n")
+    end
+    # ──────────────────────────────────────────────────────────────────────────
+
     @session_amount_edits = AuditLog
                               .where(auditable: @reconciliation, action: "edit_session_totals")
                               .includes(:actor)

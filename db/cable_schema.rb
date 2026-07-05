@@ -1188,6 +1188,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
     t.jsonb "column_mapping", default: {}, null: false
     t.datetime "created_at", null: false
     t.integer "dr_count", default: 0, null: false
+    t.integer "duplicate_rows", default: 0, null: false
     t.integer "failed_rows", default: 0, null: false
     t.string "file_name", null: false
     t.bigint "imported_by_id", null: false
@@ -1233,6 +1234,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
     t.string "transaction_id"
     t.datetime "updated_at", null: false
     t.index ["branch_name"], name: "index_pos_transactions_on_branch_name"
+    t.index ["business_id", "reference_number"], name: "idx_pos_txn_business_reference_unique", unique: true, where: "(reference_number IS NOT NULL)"
     t.index ["business_id"], name: "index_pos_transactions_on_business_id"
     t.index ["cashier_name"], name: "index_pos_transactions_on_cashier_name"
     t.index ["daily_reconciliation_id"], name: "index_pos_transactions_on_daily_reconciliation_id"

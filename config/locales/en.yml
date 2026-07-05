@@ -4930,6 +4930,7 @@ en:
 
     pos_imports:
       imported: "Successfully imported %{count} POS transactions."
+      imported_summary: "Imported %{imported} of %{total} transactions. %{duplicates} duplicate(s) skipped, %{invalid} invalid."
       deleted: "POS import deleted."
       steps:
         upload: "Upload"
@@ -4980,6 +4981,9 @@ en:
         unmatched_warning:
           one: "1 unmatched row"
           other: "%{count} unmatched rows"
+        duplicate_warning:
+          one: "1 duplicate skipped"
+          other: "%{count} duplicates skipped"
         dr_count_suffix:
           one: "day"
           other: "days"
@@ -5004,6 +5008,7 @@ en:
         col_row: "Row"
         col_errors: "Issues"
         matched_rows: "Matched"
+        duplicate_rows: "Duplicates"
         unmatched_rows: "Unmatched"
         no_valid_rows: "No valid rows found. Please go back and check your column mapping."
         back_to_mapping: "Back to Column Mapping"

@@ -64,6 +64,11 @@
                 <%= t("finance.pos_imports.index.unmatched_warning", count: import.unmatched_rows) %>
               </p>
             <% end %>
+            <% if import.imported? && import.duplicate_rows > 0 %>
+              <p style="font-size: 11px; color: var(--text-3); margin: 1px 0 0;">
+                <%= t("finance.pos_imports.index.duplicate_warning", count: import.duplicate_rows) %>
+              </p>
+            <% end %>
           </div>
           <span style="font-size: var(--text-sm); color: var(--text-2);">
             <%= import.total_rows %>

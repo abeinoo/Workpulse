@@ -8,6 +8,7 @@ class PosTransaction < ApplicationRecord
   validates :branch_name,         presence: true
   validates :payment_method_name, presence: true
   validates :amount,              numericality: { greater_than: 0 }
+  validates :reference_number,    uniqueness: { scope: :business_id }, allow_nil: true
 
   scope :ordered,     -> { order(:transaction_date, :cashier_name, :payment_method_name) }
   scope :matched,     -> { where.not(daily_reconciliation_id: nil) }

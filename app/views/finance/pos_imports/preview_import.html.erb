@@ -21,13 +21,14 @@
   </div>
 
   <%# Summary counts %>
-  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); margin-bottom: var(--space-5);">
+  <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--space-3); margin-bottom: var(--space-5);">
     <% [
-         [t("finance.pos_imports.preview.total_rows"),    @preview["total_rows"],    "var(--text-1)"],
-         [t("finance.pos_imports.preview.valid_rows"),    @preview["valid_count"],   "var(--text-1)"],
-         [t("finance.pos_imports.preview.invalid_rows"),  @preview["invalid_count"].to_i, @preview["invalid_count"].to_i > 0 ? "var(--danger)" : "var(--text-3)"],
-         [t("finance.pos_imports.preview.matched_rows"),  @preview["matched_count"].to_i, "var(--success)"],
-         [t("finance.pos_imports.preview.unmatched_rows"), @preview["unmatched_count"].to_i, @preview["unmatched_count"].to_i > 0 ? "var(--warning)" : "var(--text-3)"]
+         [t("finance.pos_imports.preview.total_rows"),     @preview["total_rows"],               "var(--text-1)"],
+         [t("finance.pos_imports.preview.valid_rows"),     @preview["valid_count"],              "var(--text-1)"],
+         [t("finance.pos_imports.preview.invalid_rows"),   @preview["invalid_count"].to_i,       @preview["invalid_count"].to_i  > 0 ? "var(--danger)"  : "var(--text-3)"],
+         [t("finance.pos_imports.preview.duplicate_rows"), @preview["duplicate_count"].to_i,     @preview["duplicate_count"].to_i > 0 ? "var(--warning)" : "var(--text-3)"],
+         [t("finance.pos_imports.preview.matched_rows"),   @preview["matched_count"].to_i,       "var(--success)"],
+         [t("finance.pos_imports.preview.unmatched_rows"), @preview["unmatched_count"].to_i,     @preview["unmatched_count"].to_i > 0 ? "var(--warning)" : "var(--text-3)"]
        ].each do |label, value, color| %>
       <div class="card" style="padding: var(--space-4); text-align: center;">
         <p style="font-size: var(--text-xs); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 var(--space-1);">
