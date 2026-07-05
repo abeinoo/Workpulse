@@ -231,7 +231,7 @@
           <%= t("finance.pos_imports.verification.no_transactions") %>
         </p>
       <% else %>
-        <% pos_totals_by_cashier.sort_by { |name, _| name }.each do |cashier_name, method_totals| %>
+        <% pos_totals_by_cashier.sort_by { |name, _| name }.each_with_index do |(cashier_name, method_totals), cashier_idx| %>
           <% matched_summary = summary_by_name[cashier_name.downcase.strip] %>
           <% cashier_transactions = pos_transactions.select { |txn| txn.cashier_name == cashier_name } %>
 
@@ -293,7 +293,7 @@
                 </span>
                 <%# Drill-down toggle for individual transactions %>
                 <div style="text-align: end;">
-                  <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_name.parameterize}_#{method_key}" %>
+                  <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_idx}_#{method_key}" %>
                   <button type="button"
                           onclick="togglePosTransactions('<%= txn_key %>')"
                           style="font-size: 11px; color: var(--accent); background: none; border: none; cursor: pointer; padding: 0; font-weight: 500; text-decoration: underline; text-decoration-style: dotted;">
@@ -303,7 +303,7 @@
               </div>
 
               <%# Transaction list (collapsed by default) %>
-              <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_name.parameterize}_#{method_key}" %>
+              <% txn_key = "pos_vs_#{reconciliation.id}_#{cashier_idx}_#{method_key}" %>
               <div id="<%= txn_key %>"
                    style="display: none; padding: var(--space-2) var(--space-5) var(--space-2) 60px; background: var(--surface-2); border-bottom: 1px solid var(--border);">
                 <%# Filter by cashier (already done) and by payment method via the English name

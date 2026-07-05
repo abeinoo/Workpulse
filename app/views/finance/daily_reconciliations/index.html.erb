@@ -395,13 +395,39 @@
               <%# Outstanding balance — always visible when present %>
               <div style="flex: 0 0 auto;">
                 <% if outstanding > 0 %>
-                  <div style="display: inline-flex; flex-direction: column; align-items: flex-end; padding: var(--space-1) var(--space-2); background: rgba(var(--warning-rgb,234,179,8),0.08); border: 1px solid rgba(var(--warning-rgb,234,179,8),0.3); border-radius: var(--radius);">
-                    <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--warning,#ca8a04);">
-                      <%= t("finance.daily_reconciliations.index.outstanding_label") %>
-                    </span>
-                    <span style="font-size: var(--text-sm); font-weight: 700; color: var(--warning,#ca8a04); font-variant-numeric: tabular-nums;">
-                      <%= format_currency(outstanding) %>
-                    </span>
+                  <%
+                    open_rdbs       = dr.remaining_deposit_balances.select(&:open?)
+                    cashier_shorts  = open_rdbs
+                                        .group_by { |rdb| rdb.responsible_user }
+                                        .map       { |user, rdbs| [user, rdbs.sum(&:remaining_amount)] }
+                                        .sort_by   { |_, amt| -amt }
+                    visible_shorts  = cashier_shorts.first(3)
+                    hidden_count    = cashier_shorts.size - visible_shorts.size
+                  %>
+                  <div style="display: inline-flex; flex-direction: column; align-items: flex-end; padding: var(--space-1) var(--space-2); background: rgba(var(--warning-rgb,234,179,8),0.08); border: 1px solid rgba(var(--warning-rgb,234,179,8),0.3); border-radius: var(--radius); gap: 2px;">
+                    <div style="display: flex; align-items: baseline; gap: var(--space-2); white-space: nowrap;">
+                      <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--warning,#ca8a04);">
+                        <%= t("finance.daily_reconciliations.index.outstanding_label") %>
+                      </span>
+                      <span style="font-size: var(--text-sm); font-weight: 700; color: var(--warning,#ca8a04); font-variant-numeric: tabular-nums;">
+                        <%= format_currency(outstanding) %>
+                      </span>
+                    </div>
+                    <% visible_shorts.each do |user, amt| %>
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); width: 100%;">
+                        <span style="font-size: 10px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;" title="<%= user&.full_name %>">
+                          <%= user&.full_name %>
+                        </span>
+                        <span style="font-size: 10px; font-weight: 600; color: var(--danger,#dc2626); font-variant-numeric: tabular-nums; white-space: nowrap;">
+                          −<%= format_currency(amt) %>
+                        </span>
+                      </div>
+                    <% end %>
+                    <% if hidden_count > 0 %>
+                      <span style="font-size: 10px; color: var(--text-3); align-self: flex-end;">
+                        +<%= hidden_count %> <%= t("finance.daily_reconciliations.index.outstanding_more", count: hidden_count) %>
+                      </span>
+                    <% end %>
                   </div>
                 <% end %>
               </div>

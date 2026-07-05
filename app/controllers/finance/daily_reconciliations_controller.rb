@@ -20,7 +20,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     query = DailyReconciliation
               .where(business_id: current_user.business_id)
-              .includes(:branch, :remaining_deposit_balances,
+              .includes(:branch,
+                        remaining_deposit_balances: :responsible_user,
                         opening_float_source_handover: :from_user,
                         till_session: %i[current_holder depositor])
               .order(opened_at: :desc)

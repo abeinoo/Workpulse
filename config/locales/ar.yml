@@ -4070,6 +4070,9 @@ ar:
         held_by: "بحوزة %{name}"
         depositor_label: "المودع: %{name}"
         outstanding_label: "مستحق"
+        outstanding_more:
+          one: "وآخر"
+          other: "وآخرين"
         float_from: "رصيد من %{name}"
         select_dr: "تحديد %{date} — %{branch}"
         receive_opening_float_btn: "استلام الرصيد الافتتاحي"

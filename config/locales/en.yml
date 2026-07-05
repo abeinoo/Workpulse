@@ -4046,6 +4046,9 @@ en:
         held_by: "Held by %{name}"
         depositor_label: "Depositor: %{name}"
         outstanding_label: "Outstanding"
+        outstanding_more:
+          one: "more"
+          other: "more"
         float_from: "Float from %{name}"
         select_dr: "Select %{date} — %{branch}"
         receive_opening_float_btn: "Receive Opening Balance"
