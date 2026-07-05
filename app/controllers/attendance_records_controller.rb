@@ -1,6 +1,6 @@
 class AttendanceRecordsController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_record, only: [ :show, :edit, :update ]
+  before_action :set_record, only: [ :show, :edit, :update, :destroy ]
 
   PER_PAGE = 50
 
@@ -47,6 +47,7 @@ class AttendanceRecordsController < ApplicationController
     @adjustments = @record.attendance_adjustments
                            .includes(:adjusted_by)
                            .order(created_at: :desc)
+    @payroll_period = record_payroll_period
   end
 
   def new
@@ -220,7 +221,31 @@ class AttendanceRecordsController < ApplicationController
     end
   end
 
+  def destroy
+    authorize @record
+    result = Attendance::RecordDeleter.call(
+      record:     @record,
+      deleted_by: current_user,
+      reason:     params[:deletion_notes]
+    )
+
+    if result.success?
+      redirect_to attendance_records_path, notice: t("attendance.records.delete.deleted")
+    else
+      redirect_to attendance_record_path(@record), alert: result.error
+    end
+  end
+
   private
+
+  def record_payroll_period
+    business = @record.branch&.business || @record.user.business
+    PayrollPeriod.find_by(
+      business:     business,
+      period_year:  @record.work_date.year,
+      period_month: @record.work_date.month
+    )
+  end
 
   def set_record
     @record = policy_scope(AttendanceRecord).find(params[:id])

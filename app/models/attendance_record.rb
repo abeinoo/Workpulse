@@ -4,6 +4,7 @@ class AttendanceRecord < ApplicationRecord
   belongs_to :shift_assignment, optional: true
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
+  belongs_to :deleted_by, class_name: "User", optional: true
   has_many   :attendance_adjustments, dependent: :destroy
   has_many   :biometric_punch_logs, dependent: :destroy
 
@@ -38,6 +39,12 @@ class AttendanceRecord < ApplicationRecord
   scope :for_business, ->(business) {
     joins(:user).where(users: { business_id: business.id })
   }
+  scope :active,  -> { where(deleted_at: nil) }
+  scope :deleted, -> { where.not(deleted_at: nil) }
+
+  def deleted?
+    deleted_at.present?
+  end
 
   def shift
     shift_assignment&.shift

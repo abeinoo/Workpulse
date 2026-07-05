@@ -77,7 +77,7 @@ module Reports
     end
 
     def base_scope
-      scope = AttendanceRecord.for_period(@start_date, @end_date)
+      scope = AttendanceRecord.active.for_period(@start_date, @end_date)
       @branch ? scope.where(branch: @branch) : scope.for_business(@business)
     end
   end

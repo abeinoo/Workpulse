@@ -11,6 +11,7 @@ class OperationsDashboardController < ApplicationController
     # ── Today attendance ─────────────────────────────────────────────────────
     employee_ids = scoped_employee_ids(business)
     today_records = AttendanceRecord
+      .active
       .where(user_id: employee_ids, date: @today)
       .includes(user: { profile_photo_attachment: :blob })
       .to_a
@@ -27,6 +28,7 @@ class OperationsDashboardController < ApplicationController
 
     # ── Missing checkouts (yesterday) ────────────────────────────────────────
     @missing_checkouts = AttendanceRecord
+      .active
       .where(user_id: employee_ids, date: @today - 1, status: "incomplete")
       .includes(user: { profile_photo_attachment: :blob })
       .order(check_in_at: :asc)
@@ -55,6 +57,7 @@ class OperationsDashboardController < ApplicationController
 
     # ── Shared monthly records — loaded once for anomaly + performance ───────
     monthly_records_by_user = AttendanceRecord
+      .active
       .where(user_id: employee_ids, work_date: @from..@today)
       .order(:work_date)
       .to_a
@@ -88,11 +91,13 @@ class OperationsDashboardController < ApplicationController
     # Batch-load all monthly records for all employees at once. Attendance carries
     # its own branch_id (where the work happened), so group on it directly.
     month_counts = AttendanceRecord
+      .active
       .where(user_id: employee_ids, work_date: from..today, branch_id: branch_ids)
       .group(:branch_id, :status)
       .count  # { [branch_id, status] => count }
 
     today_checked_in = AttendanceRecord
+      .active
       .where(user_id: employee_ids, date: today, branch_id: branch_ids)
       .where.not(check_in_at: nil)
       .group(:branch_id)

@@ -51,6 +51,54 @@ RSpec.describe "AttendanceRecords", type: :request do
     end
   end
 
+  describe "DELETE /attendance_records/:id" do
+    let!(:employee) { create(:user, business: business) }
+    let!(:record) do
+      create(:attendance_record, :checked_out, user: employee, branch: branch, business: business,
+             work_date: Date.new(2026, 7, 10),
+             check_in_at: Time.zone.local(2026, 7, 10, 9, 0),
+             check_out_at: Time.zone.local(2026, 7, 10, 17, 0))
+    end
+
+    context "as owner (implicitly permitted)" do
+      it "soft-deletes the record and redirects with a notice" do
+        delete attendance_record_path(record), params: { deletion_notes: "Duplicate entry" }
+        expect(response).to redirect_to(attendance_records_path)
+        expect(record.reload).to be_deleted
+        expect(record.deletion_notes).to eq("Duplicate entry")
+      end
+    end
+
+    context "as a user without delete_attendance" do
+      before do
+        role = create(:permission_role, business: business,
+                       permissions: %w[view_attendance manage_attendance],
+                       permission_scopes: { "view_attendance" => "business", "manage_attendance" => "business" })
+        manager = create(:user, business: business, permission_role: role)
+        sign_in manager
+      end
+
+      it "denies the deletion" do
+        delete attendance_record_path(record)
+        expect(response).to redirect_to(root_path)
+        expect(record.reload).not_to be_deleted
+      end
+    end
+
+    context "when the affected payroll period is finalized" do
+      before do
+        create(:payroll_period, :finalized, business: business, period_year: 2026, period_month: 7)
+      end
+
+      it "does not delete the record and redirects back with an alert" do
+        delete attendance_record_path(record), params: { deletion_notes: "Trying anyway" }
+        expect(response).to redirect_to(attendance_record_path(record))
+        expect(record.reload).not_to be_deleted
+        expect(flash[:alert]).to be_present
+      end
+    end
+  end
+
   describe "manual attendance entry" do
     let!(:employee) { create(:user, business: business) }
 

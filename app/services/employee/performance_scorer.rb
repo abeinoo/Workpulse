@@ -36,6 +36,7 @@ module Employee
 
     def call
       records = @records || AttendanceRecord
+        .active
         .where(user: @user, work_date: @from..@to)
         .to_a
 

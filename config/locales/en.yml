@@ -431,6 +431,17 @@ en:
       import_btn: "Import"
       created_by: "Created by"
       updated_by: "Last updated by"
+      delete:
+        action: "Delete Record"
+        reason_label: "Reason for deletion (optional)"
+        reason_placeholder: "e.g. Duplicate biometric punch, wrong employee"
+        reason_hint: "Recorded in the audit trail along with your name and the time of deletion."
+        confirm: "Delete Record"
+        confirm_dialog: "Are you sure you want to delete this attendance record? This cannot be undone from this screen."
+        deleted: "Attendance record deleted."
+        already_deleted: "This attendance record has already been deleted."
+        blocked_finalized: "This attendance record cannot be deleted because its payroll period has already been finalized."
+        blocked_paid: "This attendance record cannot be deleted because its payroll period has already been paid."
       kpi:
         checked_in: "Checked In"
         working_now: "Working Now"

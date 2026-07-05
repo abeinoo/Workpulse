@@ -2,12 +2,15 @@ module Payroll
   # Re-calculates one employee's PayrollEntry for a non-locked (editable) period
   # after an attendance change (edit or manual entry).
   #
-  # The rebuild follows the same pattern as Regenerator:
+  # The rebuild follows the same pattern as Regenerator, except the entry row
+  # itself is updated in place rather than destroyed and recreated — its id,
+  # created_at, and any external references stay stable across recalculations:
   #   1. Capture management decisions that survive regeneration
   #      (overtime override, manual-deduction waivers).
-  #   2. Destroy the stale entry and the user's obligation-deduction snapshots
-  #      for this period so balances are correctly restored before re-deducting.
-  #   3. Run EntryCalculator to produce a fresh entry from current attendance.
+  #   2. Destroy the user's obligation-deduction snapshots for this period so
+  #      balances are correctly restored before re-deducting.
+  #   3. Run EntryCalculator to recompute the entry (and rebuild its line items)
+  #      in place from current attendance.
   #   4. Re-apply the preserved decisions.
   #
   # Returns ok: true even when the user has no salary profile (entry will be nil).
@@ -37,9 +40,8 @@ module Payroll
       saved_waivers  = capture_deduction_waivers(existing)
 
       entry = ActiveRecord::Base.transaction do
-        existing&.destroy!
         destroy_obligation_snapshots
-        Payroll::EntryCalculator.call(period: @period, user: @user, business: @business)
+        Payroll::EntryCalculator.call(period: @period, user: @user, business: @business, entry: existing)
       end
 
       if entry

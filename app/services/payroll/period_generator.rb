@@ -64,6 +64,7 @@ module Payroll
       # activity in the period: attendance records, payroll adjustments, or
       # active advances with a remaining balance that must be deducted.
       with_attendance = AttendanceRecord
+        .active
         .where(user_id: @business.users.select(:id), work_date: period_start..period_end)
         .select(:user_id)
 

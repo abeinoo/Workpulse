@@ -100,6 +100,7 @@ module Payroll
         next if emp_ids.empty?
 
         late_count = AttendanceRecord
+          .active
           .where(user_id: emp_ids, work_date: from..today)
           .where(status: "late")
           .select(:user_id).distinct.count
@@ -172,6 +173,7 @@ module Payroll
     def missing_checkout_pattern
       yesterday = BusinessDay.current(context: @business) - 1
       missing = AttendanceRecord
+        .active
         .joins(:user)
         .where(users: { business_id: @business.id, active: true })
         .where(date: yesterday, status: "incomplete")

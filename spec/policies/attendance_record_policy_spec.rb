@@ -102,6 +102,23 @@ RSpec.describe AttendanceRecordPolicy, type: :model do
     end
   end
 
+  describe "destroy?" do
+    it "denies a branch_manager with only manage_attendance (not delete_attendance)" do
+      expect(subject).not_to permit(manager, record)
+    end
+
+    it "denies an employee" do
+      expect(subject).not_to permit(employee, record)
+    end
+
+    it "permits a user granted delete_attendance" do
+      role = create(:permission_role, business: business,
+                     permissions: %w[view_attendance manage_attendance delete_attendance])
+      deleter = create(:user, business: business, permission_role: role)
+      expect(subject).to permit(deleter, record)
+    end
+  end
+
   describe "create?" do
     it "permits users with manage_attendance (manual entry)" do
       [ super_admin, area_manager, manager ].each do |user|

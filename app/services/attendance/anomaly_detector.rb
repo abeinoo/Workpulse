@@ -41,6 +41,7 @@ module Attendance
     # Batch-loads all records in one query to avoid N+1.
     def self.scan_users(users:, from:, to:)
       all_records = AttendanceRecord
+        .active
         .where(user: users, work_date: from..to)
         .order(:work_date)
         .to_a
@@ -55,6 +56,7 @@ module Attendance
 
     def records
       @records ||= AttendanceRecord
+        .active
         .where(user: @user)
         .where(work_date: @from..@to)
         .order(:work_date)

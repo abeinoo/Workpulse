@@ -56,6 +56,7 @@ class PayrollEntriesController < ApplicationController
 
   def load_attendance_stats
     @attendance_records = AttendanceRecord
+                            .active
                             .where(user: @entry.user)
                             .for_period(@period.period_start, @period.period_end)
                             .includes(shift_assignment: :shift)

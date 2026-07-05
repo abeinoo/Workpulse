@@ -41,6 +41,7 @@ class Payroll::InsightsPresenter
   # Set of user_ids who have at least one incomplete checkout in this period.
   def incomplete_checkout_user_ids
     @incomplete_checkout_user_ids ||= AttendanceRecord
+      .active
       .for_business(@period.business)
       .for_period(@period.period_start, @period.period_end)
       .incomplete
@@ -136,6 +137,7 @@ class Payroll::InsightsPresenter
     return [] if user_ids.empty?
 
     records = AttendanceRecord
+      .active
       .for_business(@period.business)
       .for_period(@period.period_start, @period.period_end)
       .where(user_id: user_ids)

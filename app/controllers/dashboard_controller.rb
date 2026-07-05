@@ -123,7 +123,7 @@ class DashboardController < ApplicationController
   def load_personal_data
     today = BusinessDay.current(context: current_user.business)
 
-    @today_record    = AttendanceRecord.find_by(user: current_user, date: today)
+    @today_record    = AttendanceRecord.active.find_by(user: current_user, date: today)
     @current_shift   = ShiftAssignment.current
                                       .includes(:shift, :branch, :source_template)
                                       .find_by(user: current_user)
@@ -144,7 +144,7 @@ class DashboardController < ApplicationController
       end
 
     # Warn if the user left an open check-in from yesterday.
-    @missing_checkout = AttendanceRecord.find_by(
+    @missing_checkout = AttendanceRecord.active.find_by(
       user: current_user, date: today - 1, status: "incomplete"
     )
 
@@ -157,7 +157,7 @@ class DashboardController < ApplicationController
       .limit(3)
 
     # Month-to-date attendance counts (anchored on the current business day).
-    month_records = AttendanceRecord.where(
+    month_records = AttendanceRecord.active.where(
       user: current_user,
       date: today.beginning_of_month..today
     )
@@ -215,6 +215,7 @@ class DashboardController < ApplicationController
 
     # Keyed hash for O(1) lookup in the view: user_id → today's record
     @managed_today_records = AttendanceRecord
+      .active
       .where(user_id: managed_ids, date: today)
       .index_by(&:user_id)
 
@@ -223,6 +224,7 @@ class DashboardController < ApplicationController
 
     # Employees with an open check-in from yesterday (forgot to check out)
     @missing_checkouts = AttendanceRecord
+      .active
       .where(user_id: managed_ids, date: yesterday, status: "incomplete")
       .includes(:user)
 

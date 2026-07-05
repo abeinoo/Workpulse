@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_03_240003) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -98,6 +98,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_240003) do
     t.datetime "created_at", null: false
     t.integer "created_by_id"
     t.date "date", null: false
+    t.datetime "deleted_at"
+    t.bigint "deleted_by_id"
+    t.text "deletion_notes"
     t.integer "early_leave_minutes", default: 0, null: false
     t.integer "late_minutes", default: 0, null: false
     t.integer "overtime_minutes", default: 0, null: false
@@ -112,6 +115,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_240003) do
     t.index ["branch_id"], name: "index_attendance_records_on_branch_id"
     t.index ["check_in_source"], name: "index_attendance_records_on_check_in_source"
     t.index ["created_by_id"], name: "index_attendance_records_on_created_by_id"
+    t.index ["deleted_at"], name: "index_attendance_records_on_deleted_at"
     t.index ["shift_assignment_id"], name: "index_attendance_records_on_shift_assignment_id"
     t.index ["updated_by_id"], name: "index_attendance_records_on_updated_by_id"
     t.index ["user_id", "status"], name: "idx_att_records_user_status"
@@ -2039,6 +2043,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_03_240003) do
   add_foreign_key "attendance_records", "branches"
   add_foreign_key "attendance_records", "shift_assignments"
   add_foreign_key "attendance_records", "users"
+  add_foreign_key "attendance_records", "users", column: "deleted_by_id"
   add_foreign_key "audit_logs", "businesses"
   add_foreign_key "audit_logs", "users", column: "actor_id"
   add_foreign_key "balance_requests", "branches"

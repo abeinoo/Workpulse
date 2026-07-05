@@ -2,14 +2,18 @@ module Payroll
   # Builds one PayrollEntry (+ its line items) for a single user in a payroll period.
   # Called once per user by PeriodGenerator. Returns nil if the user has no salary profile.
   class EntryCalculator
-    def self.call(period:, user:, business:)
-      new(period: period, user: user, business: business).call
+    # entry: an existing PayrollEntry to update in place (keeps its id stable)
+    # instead of creating a new one. Used by EntryRecalculator so a single
+    # attendance-triggered recalculation doesn't churn the entry's identity.
+    def self.call(period:, user:, business:, entry: nil)
+      new(period: period, user: user, business: business, entry: entry).call
     end
 
-    def initialize(period:, user:, business:)
-      @period   = period
-      @user     = user
-      @business = business
+    def initialize(period:, user:, business:, entry: nil)
+      @period         = period
+      @user           = user
+      @business       = business
+      @existing_entry = entry
       @calculated_overtime_minutes = 0
     end
 
@@ -66,7 +70,7 @@ module Payroll
                              - already_paid_total - advances_deducted - obligations_deducted
 
       ActiveRecord::Base.transaction do
-        entry = @period.payroll_entries.create!(
+        attrs = {
           user:                 @user,
           salary_type:          profile.salary_type,
           base_salary:          base_salary.round(2),
@@ -75,15 +79,33 @@ module Payroll
           total_deductions:     total_deductions.round(2),
           total_overtime:       total_overtime.round(2),
           # Pristine system overtime snapshot. At generation payable == calculated;
-          # an override (if any) is re-applied afterwards by Payroll::Regenerator.
+          # an override (if any) is re-applied afterwards by Payroll::Regenerator
+          # or Payroll::EntryRecalculator, so any prior override is cleared here.
           calculated_overtime_minutes: @calculated_overtime_minutes,
           calculated_overtime_pay:     total_overtime.round(2),
+          overtime_override_mode:     nil,
+          approved_overtime_minutes:  nil,
+          approved_overtime_pay:      nil,
+          overtime_override_reason:   nil,
+          overtime_overridden_by_id:  nil,
+          overtime_overridden_at:     nil,
+          overtime_override_stale:    false,
           total_bonuses:        total_bonuses.round(2),
           already_paid_total:   already_paid_total.round(2),
           advances_deducted:    advances_deducted.round(2),
           obligations_deducted: obligations_deducted.round(2),
-          net_salary:           net_salary.round(2)
-        )
+          net_salary:           net_salary.round(2),
+          status:               "draft",
+          notes:                nil
+        }
+
+        entry = if @existing_entry
+          @existing_entry.payroll_line_items.destroy_all
+          @existing_entry.update!(attrs)
+          @existing_entry
+        else
+          @period.payroll_entries.create!(attrs)
+        end
 
         # Obligation deductions: save snapshot first (triggers balance decrement),
         # then create the line item with the snapshot's id as source.
@@ -106,6 +128,7 @@ module Payroll
 
     def load_records
       AttendanceRecord
+        .active
         .includes(shift_assignment: { shift: :penalty_rules })
         .where(user: @user)
         .for_period(@period.period_start, @period.period_end)

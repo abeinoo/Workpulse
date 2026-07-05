@@ -106,6 +106,32 @@
     </div>
   <% end %>
 
+  <%# ── Delete ───────────────────────────────────────────────────────── %>
+  <% if policy(@record).destroy? %>
+    <% if @payroll_period&.locked? %>
+      <div class="card" style="padding: var(--space-4); margin-top: var(--space-5); border-inline-start: 3px solid var(--color-danger, #dc2626);">
+        <p class="text-danger"><%= t("attendance.records.delete.blocked_#{@payroll_period.lock_reason}") %></p>
+      </div>
+    <% else %>
+      <details class="card" style="padding: var(--space-4); margin-top: var(--space-5);">
+        <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer;">
+          <%= t("attendance.records.delete.action") %>
+        </summary>
+        <%= form_with url: attendance_record_path(@record), method: :delete, class: "mt-4" do |f| %>
+          <div class="form-group">
+            <label class="form-label" for="deletion_notes"><%= t("attendance.records.delete.reason_label") %></label>
+            <textarea id="deletion_notes" name="deletion_notes" rows="2" class="form-control"
+                      placeholder="<%= t('attendance.records.delete.reason_placeholder') %>"></textarea>
+            <p class="form-hint"><%= t("attendance.records.delete.reason_hint") %></p>
+          </div>
+          <%= f.submit t("attendance.records.delete.confirm"),
+                class: "btn btn-danger btn-sm",
+                data: { turbo_confirm: t("attendance.records.delete.confirm_dialog") } %>
+        <% end %>
+      </details>
+    <% end %>
+  <% end %>
+
   <%# ── Location map ────────────────────────────────────────────────── %>
   <% if @record.check_in_latitude.present? %>
     <% branch = @record.branch %>

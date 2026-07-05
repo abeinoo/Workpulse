@@ -190,5 +190,31 @@ RSpec.describe AttendanceRecord, type: :model do
         expect(result).not_to include(other_record)
       end
     end
+
+    describe ".active / .deleted" do
+      before { today_record.update!(deleted_at: Time.current, deleted_by: user2) }
+
+      it ".active excludes soft-deleted records" do
+        expect(AttendanceRecord.active).not_to include(today_record)
+        expect(AttendanceRecord.active).to include(yesterday_record)
+      end
+
+      it ".deleted returns only soft-deleted records" do
+        expect(AttendanceRecord.deleted).to include(today_record)
+        expect(AttendanceRecord.deleted).not_to include(yesterday_record)
+      end
+    end
+  end
+
+  describe "#deleted?" do
+    it "returns true when deleted_at is present" do
+      record = build(:attendance_record, deleted_at: Time.current)
+      expect(record.deleted?).to be true
+    end
+
+    it "returns false when deleted_at is nil" do
+      record = build(:attendance_record, deleted_at: nil)
+      expect(record.deleted?).to be false
+    end
   end
 end

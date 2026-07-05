@@ -47,6 +47,7 @@ module Dashboard
 
     def today_records
       @today_records ||= AttendanceRecord
+        .active
         .for_business(business)
         .where(date: today)
         .includes(:branch, user: { profile_photo_attachment: :blob })
@@ -54,6 +55,7 @@ module Dashboard
 
     def yesterday_records
       @yesterday_records ||= AttendanceRecord
+        .active
         .for_business(business)
         .where(date: yesterday)
     end
@@ -136,6 +138,7 @@ module Dashboard
     def branch_snapshots
       @branch_snapshots ||= begin
         attendance_by_branch = AttendanceRecord
+          .active
           .for_business(business)
           .where(date: today)
           .group(:branch_id)
@@ -187,6 +190,7 @@ module Dashboard
 
     def missing_checkouts
       @missing_checkouts ||= AttendanceRecord
+        .active
         .for_business(business)
         .where(date: yesterday, status: "incomplete")
         .includes(:user)

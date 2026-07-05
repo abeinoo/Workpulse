@@ -185,7 +185,7 @@ Rails.application.routes.draw do
   post "attendance/check_in",  to: "attendance#check_in",  as: :attendance_check_in
   post "attendance/check_out", to: "attendance#check_out", as: :attendance_check_out
 
-  resources :attendance_records, only: [ :index, :show, :new, :create, :edit, :update ] do
+  resources :attendance_records, only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
     collection do
       get  :bulk
       post :bulk_create,     path: "bulk"

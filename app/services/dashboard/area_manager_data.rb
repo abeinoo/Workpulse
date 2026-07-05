@@ -98,6 +98,7 @@ module Dashboard
 
     def today_records
       @today_records ||= AttendanceRecord
+        .active
         .where(user_id: all_employee_ids, date: today)
         .includes(:user)
         .to_a
@@ -106,6 +107,7 @@ module Dashboard
     # Only incomplete records from yesterday (for missing-checkout alerts).
     def missing_checkouts_yesterday
       @missing_checkouts_yesterday ||= AttendanceRecord
+        .active
         .where(user_id: all_employee_ids, date: yesterday, status: "incomplete")
         .includes(:user)
         .to_a
@@ -123,6 +125,7 @@ module Dashboard
     # For trend: [user_id] pairs per date over the past 7 days (2 queries total).
     def week_checkins
       @week_checkins ||= AttendanceRecord
+        .active
         .where(user_id: all_employee_ids, date: (today - 6.days)..today)
         .pluck(:date, :user_id)
         .group_by(&:first)

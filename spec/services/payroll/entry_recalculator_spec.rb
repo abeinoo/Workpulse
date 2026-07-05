@@ -122,14 +122,14 @@ RSpec.describe Payroll::EntryRecalculator do
         expect(run.ok?).to be true
       end
 
-      it "replaces the stale entry with a fresh calculation" do
+      it "recalculates the entry in place, keeping its id stable" do
         initial = build_initial_entry
         expect(initial.days_worked).to eq(1)
 
         create_record(Date.new(2026, 6, 3), worked: 480)
         run
 
-        expect(current_entry.id).not_to eq(initial.id)
+        expect(current_entry.id).to eq(initial.id)
         expect(current_entry.days_worked).to eq(2)
       end
 
@@ -143,12 +143,12 @@ RSpec.describe Payroll::EntryRecalculator do
     context "branch_review_completed" do
       before { period.update_column(:status, "branch_review_completed") }
 
-      it "succeeds and updates the entry" do
+      it "succeeds and updates the entry in place, keeping its id stable" do
         initial = build_initial_entry
         create_record(Date.new(2026, 6, 3), worked: 480)
         run
 
-        expect(current_entry.id).not_to eq(initial.id)
+        expect(current_entry.id).to eq(initial.id)
         expect(run.ok?).to be true
       end
 

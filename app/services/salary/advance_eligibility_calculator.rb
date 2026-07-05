@@ -86,6 +86,7 @@ module Salary
     # bounded above by today so eligibility never anticipates future work.
     def complete_days_in_current_cycle
       AttendanceRecord
+        .active
         .where(user: @user)
         .for_period(Date.current.beginning_of_month, Date.current)
         .to_a

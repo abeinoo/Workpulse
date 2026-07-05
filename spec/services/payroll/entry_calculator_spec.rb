@@ -98,6 +98,14 @@ RSpec.describe Payroll::EntryCalculator do
       entry = run
       expect(entry.net_salary).to eq(8_800.0)
     end
+
+    it "excludes soft-deleted attendance records from days_worked" do
+      deleted_date = (period_start..period_end).reject { |d| d.saturday? || d.sunday? }.first
+      AttendanceRecord.find_by(user: user, work_date: deleted_date)
+                      .update!(deleted_at: Time.current, deleted_by: user)
+      entry = run
+      expect(entry.days_worked).to eq(21)
+    end
   end
 
   describe "with late arrival (40 minutes late on one day)" do

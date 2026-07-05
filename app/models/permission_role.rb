@@ -16,7 +16,7 @@ class PermissionRole < ApplicationRecord
 
   PERMISSION_GROUPS = {
     employees:             %w[view_employees manage_employees manage_salary_profiles],
-    attendance:            %w[view_attendance manage_attendance manage_devices],
+    attendance:            %w[view_attendance manage_attendance delete_attendance manage_devices],
     payroll:               %w[view_payroll view_draft_payroll view_payroll_analytics view_payroll_audit_log
                                create_payroll regenerate_payroll submit_payroll_review
                                complete_branch_review approve_payroll_items
@@ -202,6 +202,7 @@ class PermissionRole < ApplicationRecord
   # the required "view" prerequisites.
   PERMISSION_DEPENDENCIES = {
     "manage_attendance"      => %w[view_attendance],
+    "delete_attendance"      => %w[manage_attendance],
     "manage_employees"       => %w[view_employees],
     "manage_salary_profiles" => %w[view_employees],
     "view_draft_payroll"     => %w[view_payroll],

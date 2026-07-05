@@ -1,6 +1,7 @@
 class Admin::AttendanceRecordsController < Admin::BaseController
   def index
-    scope = AttendanceRecord.joins(user: :business)
+    scope = AttendanceRecord.active
+                            .joins(user: :business)
                             .where(users: { business_id: current_user.business_id })
                             .includes(:user, :branch)
                             .order(date: :desc, created_at: :desc)
@@ -35,7 +36,8 @@ class Admin::AttendanceRecordsController < Admin::BaseController
   private
 
   def find_record
-    AttendanceRecord.joins(user: :business)
+    AttendanceRecord.active
+                    .joins(user: :business)
                     .where(users: { business_id: current_user.business_id })
                     .find(params[:id])
   end

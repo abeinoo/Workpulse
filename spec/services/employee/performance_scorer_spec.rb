@@ -8,6 +8,7 @@ RSpec.describe Employee::PerformanceScorer do
 
   def scorer_with_records(records)
     instance = described_class.new(user: user, from: from, to: to)
+    allow(AttendanceRecord).to receive(:active).and_return(AttendanceRecord)
     allow(AttendanceRecord).to receive(:where).with(user: user, work_date: from..to).and_return(records)
     instance
   end
@@ -16,6 +17,7 @@ RSpec.describe Employee::PerformanceScorer do
 
   context "with no attendance records" do
     before do
+      allow(AttendanceRecord).to receive(:active).and_return(AttendanceRecord)
       allow(AttendanceRecord).to receive(:where).with(user: user, work_date: from..to)
                                                 .and_return(AttendanceRecord.none)
     end
@@ -44,6 +46,7 @@ RSpec.describe Employee::PerformanceScorer do
     end
 
     before do
+      allow(AttendanceRecord).to receive(:active).and_return(AttendanceRecord)
       allow(AttendanceRecord).to receive(:where).with(user: user, work_date: from..to)
                                                 .and_return(records)
     end
@@ -73,6 +76,7 @@ RSpec.describe Employee::PerformanceScorer do
     end
 
     before do
+      allow(AttendanceRecord).to receive(:active).and_return(AttendanceRecord)
       allow(AttendanceRecord).to receive(:where).with(user: user, work_date: from..to)
                                                 .and_return(records)
     end
@@ -101,6 +105,7 @@ RSpec.describe Employee::PerformanceScorer do
 
   describe "breakdown keys" do
     before do
+      allow(AttendanceRecord).to receive(:active).and_return(AttendanceRecord)
       allow(AttendanceRecord).to receive(:where).with(user: user, work_date: from..to)
                                                 .and_return(AttendanceRecord.none)
     end
