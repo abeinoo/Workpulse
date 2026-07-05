@@ -574,7 +574,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         # A standalone "Leave Opening Float" action recorded after day close.
         if h.seeded_daily_reconciliation.present?
           events << { type: :opening_float_left, time: h.created_at, actor: h.from_user,
-                      data: h.seeded_daily_reconciliation }
+                      data: h, next_dr: h.seeded_daily_reconciliation }
         end
       elsif h.self_deposit?
         events << { type: :day_closed, time: h.created_at, actor: h.from_user, data: h }

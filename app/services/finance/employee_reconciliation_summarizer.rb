@@ -54,16 +54,18 @@ module Finance
     end
 
     # Returns summaries ready for display.
-    # Loads from DB if already persisted; computes live otherwise.
+    # Always computed live from the handover graph so the display always reflects
+    # the current algorithm. The persist!/db_to_rows path is preserved for future
+    # use (e.g. POS snapshot swap) but is not used for rendering.
     # Pass for_user: to restrict results to a single user (own-only permission).
     def summaries(for_user: nil)
-      stored = @dr.employee_reconciliation_summaries
-                  .includes(:user, amounts: :payment_method)
-                  .order(:created_at)
-      stored = stored.where(user: for_user) if for_user
-      return db_to_rows(stored) if stored.any?
-
       rows = live_rows
+      Rails.logger.debug do
+        rows.map { |r|
+          amounts_str = r.amounts.map { |a| "#{a.payment_method_name}: #{a.collected_amount}" }.join(", ")
+          "[ERS] #{r.user&.full_name} → #{amounts_str} | net=#{r.grand_total}"
+        }.join("\n")
+      end
       return rows.select { |r| r.user&.id == for_user.id } if for_user
 
       rows
@@ -73,20 +75,20 @@ module Finance
 
     # ── Data source (swap this method when POS transactions are available) ─────
     #
-    # Correct formula per custody period:
+    # Formula (per cashier, per payment method):
     #
-    #   Contribution = Closing handover amounts − Opening balance received
+    #   Net Custody Increase = Last Outgoing Operational − Sum(All Incoming Operational)
     #
-    # The "closing" amounts are what the employee reported in their outgoing
-    # handover. The "opening" amounts are what was handed to them when they
-    # received the till (the most recently accepted handover TO them, accepted
-    # before they created their outgoing handover).
+    # "Last outgoing" is the chronologically final handover FROM this cashier —
+    # either a mid-day handoff to the next cashier, or the day-close handover.
+    # "All incoming" is every accepted handover TO this cashier, including the
+    # opening-float handover (which OpeningFloatReceiver stores as operational
+    # amounts, so it is naturally part of the incoming sum and excluded from
+    # the net result).
     #
-    # The first employee (who opens the till for the day) has no incoming
-    # handover, so their opening balance is zero.
-    #
-    # If an employee holds the till more than once in a day, each custody period
-    # is calculated independently, then contributions are summed.
+    # This measures the net change in the cashier's custody balance for the day:
+    # how much the till grew (or shrank) across all time this cashier held it,
+    # regardless of how many custody periods they had.
 
     def aggregate_by_employee
       handovers = @dr.till_handovers
@@ -94,54 +96,74 @@ module Finance
                      .includes(:from_user, :to_user, amounts: :payment_method)
                      .order(:created_at)
 
-      # Build a lookup: for each user, which handovers were accepted TO them?
-      # Sorted by accepted_at so we can find the most recent one before any
-      # given outgoing handover.
-      received_by_user = Hash.new { |h, k| h[k] = [] }
-      handovers.each do |h|
-        next unless h.to_user_id.present? && h.accepted_at.present?
-        received_by_user[h.to_user_id] << h
+      # Identify the opening-float receiving handover for this DR, if any.
+      # OpeningFloatReceiver creates it as the very first accepted handover
+      # in the DR, with from_user = the previous day's final holder (the seeder).
+      # We need its ID and the seeder's user_id to apply the exclusion rule below.
+      of_source    = @dr.opening_float_source_handover
+      of_seeder_id = of_source&.from_user_id
+      of_recv_id   = nil   # id of the receiving handover in today's DR
+
+      if of_seeder_id
+        recv_h = handovers.find { |h| h.from_user_id == of_seeder_id && h.to_user_id.present? && h.accepted_at.present? }
+        of_recv_id = recv_h&.id
       end
-      received_by_user.each_value { |arr| arr.sort_by!(&:accepted_at) }
+
+      # Separate into outgoing (from_user) and incoming (to_user) per employee.
+      # outgoing_by_user preserves created_at order so .last gives the final one.
+      outgoing_by_user = Hash.new { |h, k| h[k] = [] }
+      incoming_by_user = Hash.new { |h, k| h[k] = [] }
+
+      handovers.each do |h|
+        outgoing_by_user[h.from_user_id] << h if h.from_user_id.present?
+        if h.to_user_id.present? && h.accepted_at.present?
+          incoming_by_user[h.to_user_id] << h
+        end
+      end
 
       # Hash preserves insertion order → employees appear in chronological order
-      # of their first custody period.
+      # of their first outgoing handover.
       by_employee = {}
 
-      handovers.each do |h_out|
-        uid   = h_out.from_user_id
-        entry = by_employee[uid] ||= { user: h_out.from_user, amounts: {} }
+      outgoing_by_user.each do |uid, outgoing_list|
+        last_outgoing = outgoing_list.last
+        entry = by_employee[uid] ||= { user: last_outgoing.from_user, amounts: {} }
 
-        # Find the opening balance: the most recently accepted handover TO this
-        # employee that was accepted before this outgoing handover was created.
-        # (The outgoing is always created after the employee accepted the incoming.)
-        last_received = received_by_user[uid]
-                          .select { |h| h.accepted_at <= h_out.created_at }
-                          .last
+        # Sum all operational amounts received by this cashier (all incoming handovers).
+        # Exception: if the opening-float receiving handover was seeded by this same
+        # cashier (i.e. they carried their own float forward from the previous business
+        # day), exclude it — the float already belongs to their custody and must not
+        # reduce their collected amount.
+        incoming_by_pm = Hash.new { |h, k| h[k] = { collected: 0.to_d, refund: 0.to_d } }
+        incoming_by_user[uid].each do |h_in|
+          next if h_in.id == of_recv_id && of_seeder_id == uid
 
-        opening_by_pm = {}
-        last_received&.amounts&.each do |amt|
-          next unless amt.kind == "operational"
-          opening_by_pm[amt.payment_method_id] = {
-            collected: amt.collected_amount,
-            refund:    amt.refund_amount
-          }
+          h_in.amounts.each do |amt|
+            next unless amt.kind == "operational"
+            incoming_by_pm[amt.payment_method_id][:collected] += amt.collected_amount
+            incoming_by_pm[amt.payment_method_id][:refund]    += amt.refund_amount
+          end
         end
 
-        h_out.amounts.each do |amt|
+        # Net = last outgoing operational − total incoming operational.
+        last_outgoing.amounts.each do |amt|
           next unless amt.kind == "operational"
+          incoming_pm = incoming_by_pm[amt.payment_method_id]
 
-          pm      = entry[:amounts][amt.payment_method_id] ||= {
+          pm = entry[:amounts][amt.payment_method_id] ||= {
             payment_method_id: amt.payment_method_id,
             name:              amt.payment_method_name,
             position:          amt.payment_method&.position || 0,
             collected:         0.to_d,
             refund:            0.to_d
           }
-          opening = opening_by_pm[amt.payment_method_id] || { collected: 0.to_d, refund: 0.to_d }
 
-          pm[:collected] += amt.collected_amount - opening[:collected]
-          pm[:refund]    += amt.refund_amount    - opening[:refund]
+          pm[:collected] = amt.collected_amount - incoming_pm[:collected]
+          pm[:refund]    = amt.refund_amount    - incoming_pm[:refund]
+          Rails.logger.debug do
+            "[ERS] #{last_outgoing.from_user&.full_name} | #{amt.payment_method_name}: " \
+              "last_out=#{amt.collected_amount} incoming_sum=#{incoming_pm[:collected]} net=#{pm[:collected]}"
+          end
         end
       end
 

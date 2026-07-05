@@ -21,6 +21,12 @@
       </span>
     </div>
 
+    <% if @obligation.payroll_locked? %>
+      <div class="alert alert-warning" style="margin: 0 var(--space-5) var(--space-5);">
+        <%= t("admin.employee_obligations.locked_for_edit") %>
+      </div>
+    <% end %>
+
     <dl class="data-list">
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.employee_obligations.total") %></dt>
@@ -124,7 +130,7 @@
     <% end %>
 
     <div class="form-actions">
-      <% if @obligation.active? || @obligation.paused? %>
+      <% if (@obligation.active? || @obligation.paused?) && !@obligation.payroll_locked? %>
         <%= link_to t("forms.edit"), edit_admin_employee_obligation_path(@obligation), class: "btn btn-secondary" %>
       <% end %>
       <% if @obligation.active? %>

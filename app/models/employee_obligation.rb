@@ -2,6 +2,9 @@ class EmployeeObligation < ApplicationRecord
   OBLIGATION_TYPES = %w[cash_loan equipment penalty_installment custom].freeze
   STATUSES         = %w[active paused completed cancelled].freeze
 
+  # Payroll periods past this point are immutable (matches PayrollPeriod#locked?).
+  LOCKING_PERIOD_STATUSES = %w[finalized paid].freeze
+
   belongs_to :user
   belongs_to :business
   belongs_to :created_by, class_name: "User"
@@ -116,6 +119,16 @@ class EmployeeObligation < ApplicationRecord
       end
       entry
     end
+  end
+
+  # Once any of this obligation's deductions belongs to a finalized or paid period,
+  # its schedule (start/end period, amounts) can no longer be edited — that payroll
+  # is immutable. Draft, under_review and branch_review_completed periods remain
+  # editable and get recalculated. See EmployeeObligation::LOCKING_PERIOD_STATUSES.
+  def payroll_locked?
+    obligation_deductions.joins(:payroll_period)
+                          .where(payroll_periods: { status: LOCKING_PERIOD_STATUSES })
+                          .exists?
   end
 
   def start_label

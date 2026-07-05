@@ -39,21 +39,34 @@ class Admin::EmployeeObligationsController < Admin::BaseController
 
   def edit
     authorize @obligation
+    if @obligation.payroll_locked?
+      redirect_to admin_employee_obligation_path(@obligation),
+                  alert: t("admin.employee_obligations.locked_for_edit")
+      return
+    end
     load_employees
   end
 
   def update
     authorize @obligation
-    attrs = obligation_params
-    new_obligation = @obligation.dup.tap { |o| o.assign_attributes(attrs) }
-    attrs_with_count = attrs.merge(
-      installments_count: derive_installments_count(new_obligation)
+    if @obligation.payroll_locked?
+      redirect_to admin_employee_obligation_path(@obligation),
+                  alert: t("admin.employee_obligations.locked_for_edit")
+      return
+    end
+
+    result = Payroll::ObligationEditor.call(
+      obligation_id: @obligation.id,
+      business:      current_user.business,
+      actor:         current_user,
+      attrs:         obligation_params
     )
 
-    if @obligation.update(attrs_with_count)
+    if result.ok?
       redirect_to admin_employee_obligation_path(@obligation),
                   notice: t("admin.employee_obligations.updated")
     else
+      @obligation = result.obligation
       load_employees
       render :edit, status: :unprocessable_entity
     end

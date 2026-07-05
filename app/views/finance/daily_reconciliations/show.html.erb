@@ -1449,22 +1449,49 @@
                     </div>
 
                   <% when :opening_float_left %>
-                    <% seeded_dr = item[:data] %>
-                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                    <% float_handover = item[:data] %>
+                    <% seeded_dr = item[:next_dr] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
                       <%= t("finance.daily_reconciliations.show.timeline.opening_float_left",
                             actor: item[:actor]&.full_name || "—") %>
                     </p>
+                    <% float_amounts = float_handover.amounts.select { |a| a.kind == "next_day" } %>
+                    <% if float_amounts.any? %>
+                      <div style="display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1);">
+                        <% float_amounts.each do |amt| %>
+                          <span style="font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 7px; color: var(--text-2);">
+                            <%= amt.payment_method_name %>: <strong style="color: var(--text-1);"><%= number_to_currency(amt.collected_amount, **cur_fmt) %></strong>
+                          </span>
+                        <% end %>
+                      </div>
+                    <% end %>
 
                     <div data-timeline-event-target="detail" hidden
                          style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_handover", id: float_handover.id) %>
+                      </div>
                       <div style="<%= dl_row %>">
                         <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_prepared_by") %></span>
                         <span style="<%= dl_val %>"><%= item[:actor]&.full_name || "—" %></span>
                       </div>
-                      <% if seeded_dr.respond_to?(:business_date) && seeded_dr.business_date %>
+                      <% if seeded_dr&.business_date %>
                         <div style="<%= dl_row %>">
                           <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_prepared_for") %></span>
                           <span style="<%= dl_val %>"><%= l(seeded_dr.business_date, format: :long) %></span>
+                        </div>
+                      <% end %>
+                      <% if float_amounts.any? %>
+                        <div style="margin-top: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-2);">
+                          <div style="font-size: 10px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2);">
+                            <%= t("finance.daily_reconciliations.show.timeline.detail.label_amounts") %>
+                          </div>
+                          <% float_amounts.each do |amt| %>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 2px 0; border-bottom: 1px dashed var(--border);">
+                              <span style="color: var(--text-2);"><%= amt.payment_method_name %></span>
+                              <span style="font-weight: 600; color: var(--text-1);"><%= number_to_currency(amt.collected_amount, **cur_fmt) %></span>
+                            </div>
+                          <% end %>
                         </div>
                       <% end %>
                     </div>
@@ -1936,8 +1963,12 @@
   <div style="margin-bottom: var(--space-6);">
     <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
       <div>
-        <h2 class="dashboard-section__title">
+        <h2 class="dashboard-section__title" style="display: flex; align-items: center; gap: var(--space-2);">
           <%= t("finance.daily_reconciliations.show.employee_summary_title") %>
+          <span title="<%= t('finance.daily_reconciliations.show.employee_summary_tooltip') %>"
+                style="cursor: help; font-size: 11px; color: var(--text-3); font-style: normal; font-weight: 400; border: 1px solid var(--border); border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1;">
+            i
+          </span>
         </h2>
         <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
           <%= @can_view_all_summary ?
