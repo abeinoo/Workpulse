@@ -2,6 +2,9 @@
     Local variables:
       reconciliation            — DailyReconciliation
       session_amounts           — Array<TillSessionAmount>
+      employee_summaries        — Array<Finance::EmployeeReconciliationSummarizer::SummaryRow> | nil
+                                  Live custody summaries from EmployeeReconciliationSummarizer#summaries.
+                                  Nil when the current user lacks the view_*_summary permission.
       pos_totals_by_method      — Hash{ payment_method_id => BigDecimal }  (may be empty)
       pos_totals_by_cashier     — Hash{ cashier_name => Hash{ payment_method_id => BigDecimal } }
       pos_transactions          — Array<PosTransaction>
@@ -218,11 +221,10 @@
         </h3>
       </div>
 
-      <% employee_summaries = reconciliation.employee_reconciliation_summaries
-                                            .includes(:user, :amounts) %>
-
-      <%# Normalized lookup: cashier_name.downcase → EmployeeReconciliationSummary %>
-      <% summary_by_name = employee_summaries.each_with_object({}) do |s, h|
+      <%# Normalized lookup: cashier_name.downcase → SummaryRow (live custody algorithm).
+          Uses the same @employee_summaries computed by EmployeeReconciliationSummarizer#summaries
+          that drives the Cashier Custody Summary section — one source of truth for both. %>
+      <% summary_by_name = (employee_summaries || []).each_with_object({}) do |s, h|
            h[s.user.full_name.downcase.strip] = s
          end %>
 

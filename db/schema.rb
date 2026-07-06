@@ -503,7 +503,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
     t.datetime "updated_at", null: false
     t.datetime "verified_at"
     t.bigint "verified_by_id"
-    t.index ["branch_id", "business_date"], name: "idx_dr_unique_closed_per_branch_per_date", unique: true, where: "((business_date IS NOT NULL) AND ((state)::text <> ALL ((ARRAY['open'::character varying, 'waiting_for_opening'::character varying])::text[])))"
+    t.index ["branch_id", "business_date"], name: "idx_dr_unique_closed_per_branch_per_date", unique: true, where: "((business_date IS NOT NULL) AND ((state)::text <> ALL (ARRAY[('open'::character varying)::text, ('waiting_for_opening'::character varying)::text])))"
     t.index ["branch_id"], name: "idx_dr_one_open_per_branch", unique: true, where: "((state)::text = 'open'::text)"
     t.index ["branch_id"], name: "idx_dr_one_waiting_per_branch", unique: true, where: "((state)::text = 'waiting_for_opening'::text)"
     t.index ["branch_id"], name: "index_dr_on_branch_id"

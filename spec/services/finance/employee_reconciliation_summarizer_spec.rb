@@ -134,6 +134,38 @@ RSpec.describe Finance::EmployeeReconciliationSummarizer, type: :model do
         expect(cash_amount(islam_row).collected_amount).to eq(530)
       end
     end
+
+    context "multiple cashiers hand off to the same closing cashier" do
+      it "deducts all incoming handovers from different senders from the closing amount" do
+        cashier_a = create(:user, business: business)
+        cashier_b = create(:user, business: business)
+        cashier_c = create(:user, business: business)
+        dr        = make_dr
+
+        t1 = 3.hours.ago
+        t2 = 2.hours.ago
+        t3 = 1.hour.ago
+
+        # Cashier A → C (10)
+        h_a = make_handover(dr: dr, from_user: cashier_a, to_user: cashier_c, accepted_at: t1, created_at: t1)
+        add_amount(handover: h_a, collected: 10)
+
+        # Cashier B → C (20)
+        h_b = make_handover(dr: dr, from_user: cashier_b, to_user: cashier_c, accepted_at: t2, created_at: t2)
+        add_amount(handover: h_b, collected: 20)
+
+        # C closes (50)
+        close = make_handover(dr: dr, from_user: cashier_c, self_deposit: true, accepted_at: t3, created_at: t3)
+        add_amount(handover: close, collected: 50)
+
+        result        = summarize(dr)
+        cashier_c_row = row_for(result, cashier_c)
+
+        # incoming = 10 + 20 = 30; last outgoing = 50
+        # C collected = 50 − 30 = 20
+        expect(cash_amount(cashier_c_row).collected_amount).to eq(20)
+      end
+    end
   end
 
   # ── Opening float: from another cashier ─────────────────────────────────────
@@ -307,6 +339,158 @@ RSpec.describe Finance::EmployeeReconciliationSummarizer, type: :model do
       # Own float (500) excluded; Eyad (8,035) and Menna (3,025) both included.
       # Collected = 11,590 − 8,035 − 3,025 = 530
       expect(cash_amount(islam_row).collected_amount).to eq(530)
+    end
+
+    it "excludes own carry-forward float while still deducting handovers from multiple senders" do
+      cashier_a = create(:user, business: business)
+      cashier_b = create(:user, business: business)
+      cashier_c = create(:user, business: business)
+
+      # C seeded yesterday's float — own carry-forward.
+      source_handover = TillHandover.create!(
+        daily_reconciliation: make_dr,
+        from_user:            cashier_c,
+        to_user:              cashier_c,
+        self_deposit:         false,
+        accepted_at:          1.day.ago,
+        fresha_date:          Date.yesterday,
+        created_at:           1.day.ago,
+        updated_at:           1.day.ago
+      )
+
+      dr = make_dr(opening_float_source_handover: source_handover)
+
+      t1 = 4.hours.ago
+      t2 = 3.hours.ago
+      t3 = 2.hours.ago
+      t4 = 1.hour.ago
+
+      # C's own carry-forward opening float (5) — excluded from incoming.
+      of_recv = make_handover(dr: dr, from_user: cashier_c, to_user: cashier_c, accepted_at: t1, created_at: t1)
+      add_amount(handover: of_recv, collected: 5)
+
+      # A → C (10) — included
+      h_a = make_handover(dr: dr, from_user: cashier_a, to_user: cashier_c, accepted_at: t2, created_at: t2)
+      add_amount(handover: h_a, collected: 10)
+
+      # B → C (20) — included
+      h_b = make_handover(dr: dr, from_user: cashier_b, to_user: cashier_c, accepted_at: t3, created_at: t3)
+      add_amount(handover: h_b, collected: 20)
+
+      # C closes (50)
+      close = make_handover(dr: dr, from_user: cashier_c, self_deposit: true, accepted_at: t4, created_at: t4)
+      add_amount(handover: close, collected: 50)
+
+      result        = summarize(dr)
+      cashier_c_row = row_for(result, cashier_c)
+
+      # Own float (5) excluded; A (10) and B (20) both deducted.
+      # Collected = 50 − 10 − 20 = 20
+      expect(cash_amount(cashier_c_row).collected_amount).to eq(20)
+    end
+  end
+
+  # ── Regression: single source of truth ──────────────────────────────────────
+  #
+  # All three surfaces that display cashier custody figures must derive from the
+  # same algorithm and agree after persist! is called:
+  #
+  #   Surface 1 — Cashier Custody Summary        → summaries (live)
+  #   Surface 2 — POS Transactions Verification  → :employee_summaries local
+  #                                                 (same live summaries, passed from controller)
+  #   Surface 3 — DB snapshot / exports          → employee_reconciliation_summaries rows
+  #                                                 written by persist!
+  #
+  # Asserting that summaries == persist! output proves all three agree, because both
+  # UI sections now read exclusively from live summaries, and persist! feeds the
+  # same aggregate_by_employee formula into the snapshot.
+  #
+  # If someone changes a view to re-introduce a private DB query, or changes
+  # aggregate_by_employee without updating persist!, this spec will catch it.
+
+  describe "single source of truth: persist! snapshot and live summaries always agree" do
+    it "produces identical per-cashier, per-payment-method figures for every user" do
+      eyad  = create(:user, business: business)
+      menna = create(:user, business: business)
+      islam = create(:user, business: business)
+      dr    = make_dr
+
+      t1 = 4.hours.ago
+      t2 = 3.hours.ago
+      t3 = 2.hours.ago
+      t4 = 1.hour.ago
+
+      # Eyad → Islam  (8,035 collected, 200 refunds)
+      h1 = make_handover(dr: dr, from_user: eyad, to_user: islam, accepted_at: t1, created_at: t1)
+      add_amount(handover: h1, collected: 8_035, refund: 200)
+
+      # Islam → Menna mid-day  (10,220 collected, 350 refunds)
+      h2 = make_handover(dr: dr, from_user: islam, to_user: menna, accepted_at: t2, created_at: t2)
+      add_amount(handover: h2, collected: 10_220, refund: 350)
+
+      # Menna → Islam  (3,025 collected, 100 refunds)
+      h3 = make_handover(dr: dr, from_user: menna, to_user: islam, accepted_at: t3, created_at: t3)
+      add_amount(handover: h3, collected: 3_025, refund: 100)
+
+      # Islam closes  (11,590 collected, 420 refunds)
+      close = make_handover(dr: dr, from_user: islam, self_deposit: true, accepted_at: t4, created_at: t4)
+      add_amount(handover: close, collected: 11_590, refund: 420)
+
+      # Write the DB snapshot through the same service.
+      described_class.new(dr).persist!
+
+      live_rows = described_class.new(dr).summaries
+      db_rows   = dr.employee_reconciliation_summaries
+                    .includes(:user, amounts: :payment_method)
+      db_by_uid = db_rows.index_by(&:user_id)
+
+      # ── Assert correct values for Islam (the multi-period cashier) ────────
+      #
+      # Formula: last_outgoing.operational − sum(all_incoming.operational)
+      #   collected: 11,590 − (8,035 + 3,025) = 530
+      #   refund:       420 − (  200 +   100) = 120
+      #
+      # Both surfaces must produce these numbers, not the old per-period result.
+      islam_live = row_for(live_rows, islam)
+      expect(cash_amount(islam_live).collected_amount).to eq(530),
+        "Islam collected: expected 530, got #{cash_amount(islam_live).collected_amount}"
+      expect(cash_amount(islam_live).refund_amount).to eq(120),
+        "Islam refund: expected 120, got #{cash_amount(islam_live).refund_amount}"
+
+      # ── Assert live summaries == DB snapshot for every cashier/PM pair ───
+      expect(live_rows.size).to eq(db_rows.size),
+        "live has #{live_rows.size} cashier row(s), snapshot has #{db_rows.size}"
+
+      live_rows.each do |live|
+        db = db_by_uid[live.user.id]
+
+        expect(db).not_to be_nil,
+          "#{live.user.full_name}: present in live summaries but absent from DB snapshot"
+
+        live.amounts.each do |la|
+          da = db.amounts.find { |a| a.payment_method_id == la.payment_method_id }
+
+          expect(da).not_to be_nil,
+            "#{live.user.full_name} #{la.payment_method_name}: " \
+            "present in live summaries but absent from DB snapshot"
+
+          expect(da.collected_amount.to_d).to eq(la.collected_amount),
+            "#{live.user.full_name} #{la.payment_method_name} collected: " \
+            "live=#{la.collected_amount} snapshot=#{da.collected_amount}"
+
+          expect(da.refund_amount.to_d).to eq(la.refund_amount),
+            "#{live.user.full_name} #{la.payment_method_name} refund: " \
+            "live=#{la.refund_amount} snapshot=#{da.refund_amount}"
+        end
+
+        # No extra rows in the snapshot that are absent from live.
+        db.amounts.each do |da|
+          pm_ids = live.amounts.map(&:payment_method_id)
+          expect(pm_ids).to include(da.payment_method_id),
+            "#{live.user.full_name}: pm_id #{da.payment_method_id} in DB snapshot " \
+            "but absent from live summaries"
+        end
+      end
     end
   end
 end
