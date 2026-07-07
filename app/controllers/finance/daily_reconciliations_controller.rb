@@ -8,6 +8,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   before_action :set_reconciliation, only: %i[show verify assign_depositor
                                                edit_opening_float update_opening_float_amounts receive_opening_float
                                                edit_session_totals update_session_totals
+                                               edit_day_close_amounts update_day_close_amounts
                                                correct_opening_float update_opening_float_correction]
 
   # GET /finance/daily_reconciliations
@@ -260,6 +261,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     @can_view_session_totals     = policy(@reconciliation).view_session_totals?
     @can_edit_session_totals     = policy(@reconciliation).edit_session_totals?
+    @can_edit_day_close_amounts  = policy(@reconciliation).edit_day_close_amounts?
     @can_view_all_summary        = policy(@reconciliation).view_all_employee_reconciliation_summary?
     @can_view_own_summary        = policy(@reconciliation).view_own_employee_reconciliation_summary?
 
@@ -304,6 +306,17 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                               .includes(:actor)
                               .order(:created_at)
                               .to_a
+
+    day_close_handover = @reconciliation.day_close_handover
+    @day_close_edits = if day_close_handover
+      AuditLog
+        .where(auditable: day_close_handover, action: "edit_day_close_amounts")
+        .includes(:actor)
+        .order(:created_at)
+        .to_a
+    else
+      []
+    end
 
     handover_ids = @handovers.map(&:id)
     @all_adjustments = handover_ids.any? ?
@@ -561,6 +574,49 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
   end
 
+  # GET /finance/daily_reconciliations/:id/edit_day_close_amounts
+  def edit_day_close_amounts
+    authorize @reconciliation, :edit_day_close_amounts?
+    @handover = @reconciliation.day_close_handover
+    @amounts_by_method = @handover.amounts.operational
+                                  .includes(:payment_method)
+                                  .order("payment_methods.position")
+    @edit_history = AuditLog
+                      .where(auditable: @handover, action: "edit_day_close_amounts")
+                      .includes(:actor)
+                      .order(:created_at)
+  end
+
+  # PATCH /finance/daily_reconciliations/:id/update_day_close_amounts
+  def update_day_close_amounts
+    authorize @reconciliation, :edit_day_close_amounts?
+
+    result = Finance::DayCloseEditor.new(
+      @reconciliation,
+      actor:   current_user,
+      amounts: (params[:amounts]&.to_unsafe_h || {}).transform_values { |v|
+                 { collected_amount: v[:collected_amount], refund_amount: v[:refund_amount] }
+               },
+      reason:  params[:reason]
+    ).call
+
+    if result.ok?
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  notice: t("finance.daily_reconciliations.day_close_amounts_updated")
+    else
+      @handover = @reconciliation.day_close_handover
+      @amounts_by_method = @handover.amounts.operational
+                                    .includes(:payment_method)
+                                    .order("payment_methods.position")
+      @edit_history = AuditLog
+                        .where(auditable: @handover, action: "edit_day_close_amounts")
+                        .includes(:actor)
+                        .order(:created_at)
+      flash.now[:alert] = result.error
+      render :edit_day_close_amounts, status: :unprocessable_entity
+    end
+  end
+
   # PATCH /finance/daily_reconciliations/:id/assign_depositor
   def assign_depositor
     authorize @reconciliation, :assign_depositor?
@@ -664,6 +720,10 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     (@session_amount_edits || []).each do |log|
       events << { type: :session_totals_edited, time: log.created_at, actor: log.actor, data: log }
+    end
+
+    (@day_close_edits || []).each do |log|
+      events << { type: :day_close_edited, time: log.created_at, actor: log.actor, data: log }
     end
 
     if @reconciliation.verified?

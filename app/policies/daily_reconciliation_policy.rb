@@ -11,6 +11,7 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def update_opening_float_amounts? = can?(:correct_opening_float)
   def view_session_totals?                        = can?(:view_session_totals)
   def edit_session_totals?                        = can?(:edit_session_totals) && !record.is_a?(Class)
+  def edit_day_close_amounts?                     = can?(:edit_day_close_amounts) && !record.is_a?(Class)
   def view_own_employee_reconciliation_summary?   = can?(:view_own_employee_reconciliation_summary)
   def view_all_employee_reconciliation_summary?   = can?(:view_all_employee_reconciliation_summary)
   def manage_pos_import?                          = can?(:manage_pos_import)

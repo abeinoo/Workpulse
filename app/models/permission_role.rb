@@ -42,6 +42,7 @@ class PermissionRole < ApplicationRecord
                                create_till_deposit
                                verify_daily_reconciliation
                                edit_session_totals
+                               edit_day_close_amounts
                                void_till_handover
                                reverse_till_handover
                                adjust_till_handover
@@ -148,6 +149,7 @@ class PermissionRole < ApplicationRecord
     view_daily_reconciliation
     verify_daily_reconciliation
     edit_session_totals
+    edit_day_close_amounts
     void_till_handover
     reverse_till_handover
     adjust_till_handover
@@ -229,6 +231,7 @@ class PermissionRole < ApplicationRecord
     "view_session_totals"    => %w[view_daily_reconciliation],
     "verify_daily_reconciliation" => %w[view_daily_reconciliation],
     "edit_session_totals"    => %w[view_daily_reconciliation],
+    "edit_day_close_amounts" => %w[view_daily_reconciliation],
     "void_till_handover"     => %w[view_daily_reconciliation],
     "reverse_till_handover"  => %w[view_daily_reconciliation],
     "adjust_till_handover"   => %w[view_daily_reconciliation],

@@ -419,6 +419,8 @@ Rails.application.routes.draw do
         post  :receive_opening_float
         get   :edit_session_totals
         patch :update_session_totals
+        get   :edit_day_close_amounts
+        patch :update_day_close_amounts
         get   :correct_opening_float
         patch :update_opening_float_correction
       end

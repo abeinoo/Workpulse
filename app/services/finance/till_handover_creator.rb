@@ -72,6 +72,18 @@ module Finance
       Result.new(ok: false, error: e.message)
     end
 
+    # Upserts DailyReconciliation#session_amounts ("Branch Totals") from a
+    # handover's operational amounts. Shared by close_day! and
+    # Finance::DayCloseEditor so there is a single place that computes
+    # Branch Totals from a closing handover.
+    def self.sync_session_amounts!(daily_reconciliation, handover)
+      handover.amounts.operational.each do |ha|
+        daily_reconciliation.session_amounts.upsert_by_payment_method(ha.payment_method,
+          collected_amount: ha.collected_amount,
+          refund_amount:    ha.refund_amount)
+      end
+    end
+
     private
 
     def self_deposit?
@@ -187,11 +199,7 @@ module Finance
     def close_day!(session, handover)
       now = Time.current
 
-      handover.amounts.operational.each do |ha|
-        @daily_reconciliation.session_amounts.upsert_by_payment_method(ha.payment_method,
-          collected_amount: ha.collected_amount,
-          refund_amount:    ha.refund_amount)
-      end
+      self.class.sync_session_amounts!(@daily_reconciliation, handover)
 
       @daily_reconciliation.update!(
         state:     "closed",

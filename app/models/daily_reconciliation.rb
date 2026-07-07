@@ -61,6 +61,13 @@ class DailyReconciliation < ApplicationRecord
   def verified?   = verified_at.present?
   def unverified? = !verified?
 
+  # The self-deposit handover that closed the accounting day (as opposed to a
+  # standalone "leave opening float" self-deposit, which also sets
+  # self_deposit: true but is not the closing event).
+  def day_close_handover
+    till_handovers.find_by(self_deposit: true, opening_float_declaration: false)
+  end
+
   def active_deposits = till_deposits.active
   def total_deposited = till_deposits.active.sum(:amount)
 

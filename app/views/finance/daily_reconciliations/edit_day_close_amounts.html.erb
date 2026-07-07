@@ -1,0 +1,161 @@
+<% content_for :title, t("finance.daily_reconciliations.edit_day_close_amounts.title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.daily_reconciliations.edit_day_close_amounts.heading") %></h1>
+      <p class="page-subtitle">
+        <%= @reconciliation.branch.name %>
+        <% if @reconciliation.business_date %>
+          · <%= l(@reconciliation.business_date, format: :long) %>
+        <% end %>
+      </p>
+    </div>
+    <div class="page-header__actions">
+      <%= link_to t("common.back"),
+            finance_daily_reconciliation_path(@reconciliation),
+            class: "btn btn-ghost btn-sm" %>
+    </div>
+  </div>
+
+  <%# Warning banner %>
+  <div style="background: rgba(220,38,38,0.06); border: 1.5px solid rgba(220,38,38,0.25); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); display: flex; align-items: flex-start; gap: var(--space-3);">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--danger,#dc2626)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px;"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div>
+      <p style="font-size: var(--text-sm); font-weight: 700; color: var(--danger,#dc2626); margin: 0 0 2px;">
+        <%= t("finance.daily_reconciliations.edit_day_close_amounts.warning_title") %>
+      </p>
+      <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+        <%= t("finance.daily_reconciliations.edit_day_close_amounts.warning_body") %>
+      </p>
+    </div>
+  </div>
+
+  <%= form_with url: update_day_close_amounts_finance_daily_reconciliation_path(@reconciliation),
+        method: :patch do |f| %>
+
+    <%# Amounts table %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
+
+      <%# Column headers %>
+      <div style="display: grid; grid-template-columns: 1fr repeat(2, 200px); gap: 0; padding: var(--space-3) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);">
+          <%= t("finance.daily_reconciliations.edit_day_close_amounts.col_payment_method") %>
+        </span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+          <%= t("finance.daily_reconciliations.edit_day_close_amounts.col_collected") %>
+        </span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;">
+          <%= t("finance.daily_reconciliations.edit_day_close_amounts.col_refunds") %>
+        </span>
+      </div>
+
+      <% @amounts_by_method.each do |ha| %>
+        <div style="display: grid; grid-template-columns: 1fr repeat(2, 200px); gap: var(--space-3); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: center;">
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1);">
+            <%= ha.payment_method_name %>
+          </span>
+          <div style="text-align: end;">
+            <%= number_field_tag "amounts[#{ha.payment_method_id}][collected_amount]",
+                  ha.collected_amount,
+                  step: "0.001",
+                  min:  "0",
+                  class: "form-control form-control-sm",
+                  style: "text-align: end; width: 100%;",
+                  placeholder: "0.000" %>
+          </div>
+          <div style="text-align: end;">
+            <%= number_field_tag "amounts[#{ha.payment_method_id}][refund_amount]",
+                  ha.refund_amount,
+                  step: "0.001",
+                  min:  "0",
+                  class: "form-control form-control-sm",
+                  style: "text-align: end; width: 100%;",
+                  placeholder: "0.000" %>
+          </div>
+        </div>
+      <% end %>
+
+      <%# Net total footer (read-only, shown for context) %>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-5); background: var(--surface-2);">
+        <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+          <%= t("finance.daily_reconciliations.show.total_collected") %>
+        </span>
+        <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-3); font-style: italic;">
+          <%= t("finance.daily_reconciliations.edit_day_close_amounts.recalculated_on_save") %>
+        </span>
+      </div>
+    </div>
+
+    <%# Reason (required) %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm); margin-bottom: var(--space-6);">
+      <div class="form-group" style="margin-bottom: 0;">
+        <%= label_tag :reason,
+              t("finance.daily_reconciliations.edit_day_close_amounts.reason_label"),
+              class: "form-label" %>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 var(--space-2);">
+          <%= t("finance.daily_reconciliations.edit_day_close_amounts.reason_hint") %>
+        </p>
+        <%= text_area_tag :reason, nil,
+              class: "form-control",
+              rows:  3,
+              required: true,
+              placeholder: t("finance.daily_reconciliations.edit_day_close_amounts.reason_placeholder") %>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: var(--space-3);">
+      <%= link_to t("common.cancel"),
+            finance_daily_reconciliation_path(@reconciliation),
+            class: "btn btn-ghost" %>
+      <%= f.submit t("finance.daily_reconciliations.edit_day_close_amounts.submit"),
+            class: "btn btn-primary" %>
+    </div>
+
+  <% end %>
+
+  <%# Edit history %>
+  <% if @edit_history.any? %>
+    <div style="margin-top: var(--space-8);">
+      <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: var(--space-4);">
+        <%= t("finance.daily_reconciliations.edit_day_close_amounts.history_title") %>
+      </h2>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+        <% @edit_history.each do |log| %>
+          <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); margin-bottom: var(--space-2);">
+              <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1);">
+                <%= log.actor&.full_name || "—" %>
+              </span>
+              <span style="font-size: 11px; color: var(--text-3); white-space: nowrap;">
+                <%= l(log.created_at, format: :long) %>
+              </span>
+            </div>
+            <% if log.metadata&.[]("reason").present? %>
+              <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0 0 var(--space-2); font-style: italic;">
+                <%= log.metadata["reason"] %>
+              </p>
+            <% end %>
+            <% if log.changes_json.present? %>
+              <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+                <% log.changes_json.each do |pm_name, diff| %>
+                  <div style="font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);">
+                    <span style="font-weight: 600; color: var(--text-2); margin-inline-end: var(--space-1);"><%= pm_name %></span>
+                    <% collected_change = diff["collected"] || diff[:collected] %>
+                    <% if collected_change && collected_change[0] != collected_change[1] %>
+                      <span style="color: var(--text-3); text-decoration: line-through;"><%= number_to_currency(collected_change[0], unit: "", separator: ".", delimiter: ",") %></span>
+                      <span style="color: var(--text-3); margin: 0 2px;">→</span>
+                      <span style="font-weight: 700; color: var(--text-1);"><%= number_to_currency(collected_change[1], unit: "", separator: ".", delimiter: ",") %></span>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+</div>

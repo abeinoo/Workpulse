@@ -561,7 +561,7 @@
           { key: :deposit,       types: %i[deposit_accepted deposit_recorded deposit_voided
                                             remaining_created remaining_settled remaining_reassigned
                                             remaining_written_off remaining_adjusted] },
-          { key: :session_edit,  types: %i[session_totals_edited] },
+          { key: :session_edit,  types: %i[session_totals_edited day_close_edited] },
           { key: :verification,  types: %i[day_verified] },
         ]
 
@@ -684,6 +684,11 @@
           },
           session_totals_edited: {
             dot: "var(--accent)", lbl: "label_session_totals_edited",
+            lc: "var(--accent)", lb: "rgba(var(--accent-rgb,99,102,241),0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>',
+          },
+          day_close_edited: {
+            dot: "var(--accent)", lbl: "label_day_close_edited",
             lc: "var(--accent)", lb: "rgba(var(--accent-rgb,99,102,241),0.10)",
             icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>',
           },
@@ -1020,6 +1025,11 @@
                           </span>
                         <% end %>
                       </div>
+                    <% end %>
+                    <% if @can_edit_day_close_amounts %>
+                      <%= link_to t("finance.daily_reconciliations.show.timeline.edit_day_close_link"),
+                            edit_day_close_amounts_finance_daily_reconciliation_path(@reconciliation),
+                            style: "display: inline-block; margin-top: var(--space-2); font-size: 11px; font-weight: 600; color: var(--accent);" %>
                     <% end %>
 
                     <div data-timeline-event-target="detail" hidden
@@ -1777,6 +1787,53 @@
                         <div style="<%= dl_row %>">
                           <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
                           <span style="<%= dl_val %>; font-style: italic;"><%= log.metadata["notes"] %></span>
+                        </div>
+                      <% end %>
+                      <% if log.changes_json.present? %>
+                        <div style="margin-top: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-2);">
+                          <div style="font-size: 10px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2);">
+                            <%= t("finance.daily_reconciliations.show.timeline.detail.label_changes") %>
+                          </div>
+                          <% log.changes_json.each do |pm_name, diff| %>
+                            <div style="font-size: 11px; padding: var(--space-1) 0; border-bottom: 1px dashed var(--border);">
+                              <span style="color: var(--text-2); font-weight: 600;"><%= pm_name %></span>
+                              <% collected_change = diff["collected"] || diff[:collected] %>
+                              <% refund_change    = diff["refund"]    || diff[:refund] %>
+                              <% if collected_change && collected_change[0] != collected_change[1] %>
+                                <div style="display: flex; gap: var(--space-2); margin-top: 2px; align-items: center;">
+                                  <span style="color: var(--text-3); font-size: 10px; min-width: 70px;"><%= t("finance.daily_reconciliations.show.timeline.detail.label_collected") %></span>
+                                  <span style="color: var(--text-3); text-decoration: line-through;"><%= number_to_currency(collected_change[0], **cur_fmt) %></span>
+                                  <span style="color: var(--text-3);">→</span>
+                                  <span style="font-weight: 600; color: var(--text-1);"><%= number_to_currency(collected_change[1], **cur_fmt) %></span>
+                                </div>
+                              <% end %>
+                              <% if refund_change && refund_change[0] != refund_change[1] %>
+                                <div style="display: flex; gap: var(--space-2); margin-top: 2px; align-items: center;">
+                                  <span style="color: var(--text-3); font-size: 10px; min-width: 70px;"><%= t("finance.daily_reconciliations.show.timeline.detail.label_refunds") %></span>
+                                  <span style="color: var(--text-3); text-decoration: line-through;"><%= number_to_currency(refund_change[0], **cur_fmt) %></span>
+                                  <span style="color: var(--text-3);">→</span>
+                                  <span style="font-weight: 600; color: var(--text-1);"><%= number_to_currency(refund_change[1], **cur_fmt) %></span>
+                                </div>
+                              <% end %>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+
+                  <% when :day_close_edited %>
+                    <% log = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
+                      <%= t("finance.daily_reconciliations.show.timeline.day_close_edited",
+                            actor: item[:actor]&.full_name || "—") %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <% if log.metadata&.[]("reason").present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_reason") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= log.metadata["reason"] %></span>
                         </div>
                       <% end %>
                       <% if log.changes_json.present? %>
