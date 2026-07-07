@@ -126,11 +126,20 @@ module Finance
 
       # Separate into outgoing (from_user) and incoming (to_user) per employee.
       # outgoing_by_user preserves created_at order so .last gives the final one.
+      #
+      # "Opening Float Left" handovers (opening_float_declaration: true) are
+      # self-deposit records whose amounts are all next_day-kind — they record the
+      # float declared for the *next* business day, not the cashier's operational
+      # custody for the current day.  Excluding them from outgoing_by_user ensures
+      # that the last_outgoing selected below is always the Day Closed handover
+      # (operational amounts), never the Opening Float Left declaration.
       outgoing_by_user = Hash.new { |h, k| h[k] = [] }
       incoming_by_user = Hash.new { |h, k| h[k] = [] }
 
       handovers.each do |h|
-        outgoing_by_user[h.from_user_id] << h if h.from_user_id.present?
+        if h.from_user_id.present? && !h.opening_float_declaration?
+          outgoing_by_user[h.from_user_id] << h
+        end
         if h.to_user_id.present? && h.accepted_at.present?
           incoming_by_user[h.to_user_id] << h
         end

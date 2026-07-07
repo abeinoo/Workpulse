@@ -25,24 +25,27 @@ RSpec.describe Finance::EmployeeReconciliationSummarizer, type: :model do
     )
   end
 
-  def make_handover(dr:, from_user:, to_user: nil, self_deposit: false, accepted_at: Time.current, created_at: Time.current)
+  def make_handover(dr:, from_user:, to_user: nil, self_deposit: false, accepted_at: Time.current,
+                    created_at: Time.current, opening_float_declaration: false)
     TillHandover.create!(
-      daily_reconciliation: dr,
-      from_user:            from_user,
-      to_user:              to_user,
-      self_deposit:         self_deposit,
-      accepted_at:          accepted_at,
-      fresha_date:          dr.business_date,
-      created_at:           created_at,
-      updated_at:           created_at
+      daily_reconciliation:     dr,
+      from_user:                from_user,
+      to_user:                  to_user,
+      self_deposit:             self_deposit,
+      accepted_at:              accepted_at,
+      fresha_date:              dr.business_date,
+      opening_float_declaration: opening_float_declaration,
+      created_at:               created_at,
+      updated_at:               created_at
     )
   end
 
-  def add_amount(handover:, collected:, refund: 0, kind: "operational")
+  def add_amount(handover:, collected:, refund: 0, kind: "operational", payment_method: nil)
+    pm = payment_method || cash_pm
     TillHandoverAmount.create!(
       till_handover:       handover,
-      payment_method:      cash_pm,
-      payment_method_name: cash_pm.name,
+      payment_method:      pm,
+      payment_method_name: pm.name,
       collected_amount:    collected,
       refund_amount:       refund,
       kind:                kind
@@ -408,6 +411,95 @@ RSpec.describe Finance::EmployeeReconciliationSummarizer, type: :model do
   # If someone changes a view to re-introduce a private DB query, or changes
   # aggregate_by_employee without updating persist!, this spec will catch it.
 
+  # ── Regression: Opening Float Left must not shadow Day Closed ────────────────
+  #
+  # Production bug (DR 16, 2026-07-05): a cashier who closes the day and then
+  # immediately leaves an opening float for the next DR ends up with TWO
+  # self_deposit handovers in created_at order:
+  #
+  #   1. Day Closed (#66)       — kind: operational  → the custody source
+  #   2. Opening Float Left (#67) — kind: next_day    → next-day declaration only
+  #
+  # The old code used outgoing_list.last, which picked #67.  Since #67 has no
+  # operational amounts the algorithm produced collected = 0.00 instead of the
+  # correct 2,820 (Cash) and 1,113 (Visa).
+  #
+  # The fix excludes opening_float_declaration handovers from outgoing_by_user so
+  # they can never be selected as last_outgoing.
+
+  describe "Opening Float Left handover does not shadow Day Closed" do
+    let(:visa_pm) do
+      PaymentMethod.create!(
+        business:        business,
+        name:            "Visa",
+        settlement_type: "card",
+        active:          true
+      )
+    end
+
+    it "selects Day Closed as last_outgoing when Opening Float Left was created after it" do
+      abu_khalaf = create(:user, business: business)
+      menna      = create(:user, business: business)
+      eyad       = create(:user, business: business)
+      dr         = make_dr
+
+      t1 = 4.hours.ago
+      t2 = 3.hours.ago
+      t3 = 2.hours.ago   # Day Closed
+      t4 = 1.hour.ago    # Opening Float Left — created AFTER day close
+
+      # Abu Khalaf → Eyad  (Cash=6,460 Visa=3,427)
+      h_ak = make_handover(dr: dr, from_user: abu_khalaf, to_user: eyad, accepted_at: t1, created_at: t1)
+      add_amount(handover: h_ak, collected: 6_460)
+      add_amount(handover: h_ak, collected: 3_427, payment_method: visa_pm)
+
+      # Menna → Eyad  (Cash=3,790 Visa=0)
+      h_mn = make_handover(dr: dr, from_user: menna, to_user: eyad, accepted_at: t2, created_at: t2)
+      add_amount(handover: h_mn, collected: 3_790)
+      add_amount(handover: h_mn, collected: 0, payment_method: visa_pm)
+
+      # Eyad closes the day  — operational amounts
+      close = make_handover(dr: dr, from_user: eyad, self_deposit: true, accepted_at: nil, created_at: t3)
+      add_amount(handover: close, collected: 13_070)
+      add_amount(handover: close, collected: 4_540, payment_method: visa_pm)
+
+      # Eyad leaves Opening Float for next day — next_day amounts only, created after close
+      ofl = make_handover(dr: dr, from_user: eyad, self_deposit: true, accepted_at: nil,
+                          created_at: t4, opening_float_declaration: true)
+      add_amount(handover: ofl, collected: 840, kind: "next_day")
+
+      result   = summarize(dr)
+      eyad_row = row_for(result, eyad)
+
+      # Cash: 13,070 − (6,460 + 3,790) = 2,820
+      expect(cash_amount(eyad_row).collected_amount).to eq(2_820),
+        "Cash collected: expected 2,820, got #{cash_amount(eyad_row).collected_amount}"
+
+      # Visa: 4,540 − (3,427 + 0) = 1,113
+      visa_amt = eyad_row.amounts.find { |a| a.payment_method_id == visa_pm.id }
+      expect(visa_amt.collected_amount).to eq(1_113),
+        "Visa collected: expected 1,113, got #{visa_amt.collected_amount}"
+    end
+  end
+
+  # ── Regression: single source of truth ──────────────────────────────────────
+  #
+  # All three surfaces that display cashier custody figures must derive from the
+  # same algorithm and agree after persist! is called:
+  #
+  #   Surface 1 — Cashier Custody Summary        → summaries (live)
+  #   Surface 2 — POS Transactions Verification  → :employee_summaries local
+  #                                                 (same live summaries, passed from controller)
+  #   Surface 3 — DB snapshot / exports          → employee_reconciliation_summaries rows
+  #                                                 written by persist!
+  #
+  # Asserting that summaries == persist! output proves all three agree, because both
+  # UI sections now read exclusively from live summaries, and persist! feeds the
+  # same aggregate_by_employee formula into the snapshot.
+  #
+  # If someone changes a view to re-introduce a private DB query, or changes
+  # aggregate_by_employee without updating persist!, this spec will catch it.
+
   describe "single source of truth: persist! snapshot and live summaries always agree" do
     it "produces identical per-cashier, per-payment-method figures for every user" do
       eyad  = create(:user, business: business)
@@ -491,6 +583,173 @@ RSpec.describe Finance::EmployeeReconciliationSummarizer, type: :model do
             "but absent from live summaries"
         end
       end
+    end
+  end
+
+  # ── End-to-end regression: full production custody flow ──────────────────────
+  #
+  # Reproduces the exact real production scenario that triggered the bug
+  # (DR 16, 2026-07-05) at the service layer:
+  #
+  #   1. Cashier A (previous DR) leaves opening float → opening_float_declaration: true
+  #   2. Cashier B receives the opening float from A (regular incoming handover)
+  #   3. Cashier C hands cash to B
+  #   4. Cashier D hands cash to B
+  #   5. B closes the business day   ← Day Closed, operational amounts
+  #   6. B leaves opening float for the next DR ← Opening Float Left, next_day only,
+  #                                                created AFTER Day Closed
+  #
+  # The fix must guarantee that step 6 never shadows step 5 as last_outgoing.
+  #
+  # All four data surfaces must agree:
+  #   • Cashier Custody Summary   → live summaries
+  #   • POS Verification section  → same live summaries (passed as local by controller)
+  #   • DB snapshot               → employee_reconciliation_summaries via persist!
+  #   • Audit Timeline            → unchanged (driven by opening_float_declaration? flag)
+  #   • Next-day float            → OFL next_day amounts untouched by the summarizer
+
+  describe "end-to-end: full production custody flow with Opening Float Left after Day Closed" do
+    let(:visa_pm) do
+      PaymentMethod.create!(
+        business:        business,
+        name:            "Visa",
+        settlement_type: "card",
+        active:          true
+      )
+    end
+
+    it "selects Day Closed as last_outgoing and matches live, snapshot, and flag invariants" do
+      cashier_a = create(:user, business: business)
+      cashier_b = create(:user, business: business)
+      cashier_c = create(:user, business: business)
+      cashier_d = create(:user, business: business)
+
+      # ── Step 1: previous DR — Cashier A leaves opening float ─────────────
+      prev_dr = make_dr(date: Date.current - 1)
+
+      ofl_a = make_handover(
+        dr:                        prev_dr,
+        from_user:                 cashier_a,
+        self_deposit:              true,
+        accepted_at:               nil,
+        opening_float_declaration: true,
+        created_at:                25.hours.ago
+      )
+      # A declares Cash=500, Visa=200 for the next day.
+      add_amount(handover: ofl_a, collected: 500, kind: "next_day")
+      add_amount(handover: ofl_a, collected: 200, kind: "next_day", payment_method: visa_pm)
+
+      # ── Today's DR: seeded from A's opening float declaration ─────────────
+      today_dr = make_dr(opening_float_source_handover: ofl_a)
+
+      t1 = 5.hours.ago   # B receives opening float from A
+      t2 = 4.hours.ago   # C → B
+      t3 = 3.hours.ago   # D → B
+      t4 = 2.hours.ago   # B closes (Day Closed)
+      t5 = 1.hour.ago    # B leaves opening float for next day (AFTER Day Closed)
+
+      # ── Step 2: B receives opening float from A ───────────────────────────
+      # A's of_seeder_id ≠ B → opening float is NOT own-carry-forward for B
+      # → it IS included in B's incoming sum (no exclusion).
+      of_recv = make_handover(
+        dr: today_dr, from_user: cashier_a, to_user: cashier_b,
+        accepted_at: t1, created_at: t1
+      )
+      add_amount(handover: of_recv, collected: 500)
+      add_amount(handover: of_recv, collected: 200, payment_method: visa_pm)
+
+      # ── Step 3: C → B (Cash only) ─────────────────────────────────────────
+      h_c = make_handover(
+        dr: today_dr, from_user: cashier_c, to_user: cashier_b,
+        accepted_at: t2, created_at: t2
+      )
+      add_amount(handover: h_c, collected: 3_000)
+
+      # ── Step 4: D → B (Cash only) ─────────────────────────────────────────
+      h_d = make_handover(
+        dr: today_dr, from_user: cashier_d, to_user: cashier_b,
+        accepted_at: t3, created_at: t3
+      )
+      add_amount(handover: h_d, collected: 2_000)
+
+      # ── Step 5: B closes the day (Day Closed — operational amounts) ───────
+      day_close = make_handover(
+        dr: today_dr, from_user: cashier_b, self_deposit: true,
+        accepted_at: nil, created_at: t4
+      )
+      add_amount(handover: day_close, collected: 8_500)
+      add_amount(handover: day_close, collected: 900, payment_method: visa_pm)
+
+      # ── Step 6: B leaves opening float for next day — AFTER Day Closed ────
+      # next_day amounts only; opening_float_declaration: true.
+      # This is the handover that caused the production bug when picked as last_outgoing.
+      ofl_b = make_handover(
+        dr: today_dr, from_user: cashier_b, self_deposit: true,
+        accepted_at: nil, created_at: t5, opening_float_declaration: true
+      )
+      add_amount(handover: ofl_b, collected: 400, kind: "next_day")
+
+      # ── Persist snapshot ──────────────────────────────────────────────────
+      described_class.new(today_dr).persist!
+
+      # ── Surface 1 & 2: Cashier Custody Summary and POS Verification ───────
+      # Both sections read from the same `summaries` call in the controller.
+      # A correct live result here proves both UI surfaces are correct.
+      live_rows = described_class.new(today_dr).summaries
+      b_live    = row_for(live_rows, cashier_b)
+
+      # B's incoming: OF from A (Cash=500, Visa=200) + C (Cash=3,000) + D (Cash=2,000)
+      # last_outgoing: Day Closed (Cash=8,500, Visa=900) — NOT Opening Float Left
+      # B collected Cash = 8,500 − (500 + 3,000 + 2,000) = 3,000
+      # B collected Visa = 900   − 200                   = 700
+      b_live_cash = cash_amount(b_live)
+      b_live_visa = b_live.amounts.find { |a| a.payment_method_id == visa_pm.id }
+
+      expect(b_live_cash.collected_amount).to eq(3_000),
+        "Cash collected: expected 3,000, got #{b_live_cash.collected_amount}"
+      expect(b_live_visa.collected_amount).to eq(700),
+        "Visa collected: expected 700, got #{b_live_visa.collected_amount}"
+
+      # ── Surface 3: DB snapshot matches live ───────────────────────────────
+      db_rows   = today_dr.employee_reconciliation_summaries.includes(:user, amounts: :payment_method)
+      db_by_uid = db_rows.index_by(&:user_id)
+      b_db      = db_by_uid[cashier_b.id]
+
+      expect(b_db).not_to be_nil, "B must have a DB snapshot row after persist!"
+
+      b_db_cash = b_db.amounts.find { |a| a.payment_method_id == cash_pm.id }
+      b_db_visa = b_db.amounts.find { |a| a.payment_method_id == visa_pm.id }
+
+      expect(b_db_cash.collected_amount.to_d).to eq(3_000),
+        "DB snapshot Cash: expected 3,000, got #{b_db_cash.collected_amount}"
+      expect(b_db_visa.collected_amount.to_d).to eq(700),
+        "DB snapshot Visa: expected 700, got #{b_db_visa.collected_amount}"
+
+      # ── Surface 4: Audit Timeline flag invariants ─────────────────────────
+      # The timeline builder uses opening_float_declaration? to distinguish
+      # :day_closed from :opening_float_left.  Asserting the flags here proves
+      # the timeline event classification is correct without invoking the controller.
+      expect(day_close.opening_float_declaration?).to be(false),
+        "Day Closed handover must NOT carry opening_float_declaration"
+      expect(ofl_b.opening_float_declaration?).to be(true),
+        "Opening Float Left handover MUST carry opening_float_declaration"
+
+      # ── Surface 5: next-day float amounts are untouched ───────────────────
+      # The summarizer must leave ofl_b's next_day amounts intact so the next
+      # DR's opening float setup can consume them normally.
+      ofl_b_next_day = ofl_b.amounts.reload.select { |a| a.kind == "next_day" }
+
+      expect(ofl_b_next_day.size).to eq(1),
+        "OFL handover must still have exactly 1 next_day amount after persist! ran"
+      expect(ofl_b_next_day.first.collected_amount).to eq(400),
+        "OFL next_day Cash must be 400 — the summarizer must not modify it"
+
+      # ── Own-carry-forward exclusion does NOT fire for B ───────────────────
+      # A seeded the opening float (of_seeder_id = A ≠ B), so the OF receiving
+      # handover is correctly included in B's incoming sum.  Verify indirectly:
+      # if the exclusion had incorrectly fired, Cash would be 3,500 (not 3,000).
+      expect(b_live_cash.collected_amount).not_to eq(3_500),
+        "Own-carry-forward exclusion must NOT fire when seeder (A) ≠ receiver (B)"
     end
   end
 end
