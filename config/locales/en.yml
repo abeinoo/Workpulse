@@ -902,7 +902,7 @@ en:
       base_salary: "Base Salary"
       additions_bonuses: "Additions & Bonuses"
       manual_deductions: "Manual Deductions"
-      no_manual_deductions: "No manual deductions for this period."
+      no_deductions_yet: "No deductions for this period."
       no_deductions: "No deductions or additions for this period."
       attendance_records: "Attendance Records"
       check_in: "Check-in"

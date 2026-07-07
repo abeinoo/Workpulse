@@ -106,7 +106,11 @@ RSpec.describe "Payroll deduction waivers", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.body).not_to include("Waived during review")
-      expect(response.body).not_to include(I18n.t("payroll.deduction_waiver.status_label"))
+      # The deduction itself (manager-only waiver detail column and note) must
+      # stay hidden, even though the deduction row now appears in the merged
+      # deductions table so the employee can see it affected their net salary.
+      expect(response.body).not_to include(">#{I18n.t('payroll.deduction_waiver.status_label')}<")
+      expect(response.body).not_to include(I18n.t("payroll.deduction_waiver.waived_by", name: ""))
     end
   end
 end

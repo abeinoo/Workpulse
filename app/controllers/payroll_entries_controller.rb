@@ -6,12 +6,14 @@ class PayrollEntriesController < ApplicationController
     authorize @entry
 
     all_items          = @entry.payroll_line_items.to_a
-    @deductions        = all_items.select { |li| li.deduction? && !li.manual_deduction? }
-    @manual_deductions = all_items.select(&:manual_deduction?)
     @additions         = all_items.select(&:addition?)
     @attendance        = load_attendance_stats
     @salary_profile    = SalaryProfile.current_for(@entry.user)
     @permission_lookup = load_permission_lookup
+
+    deductions         = all_items.select(&:deduction?)
+    @effective_dates   = load_effective_dates(deductions)
+    @deductions        = deductions.sort_by { |li| [ @effective_dates[li.id], li.item_type, li.id ] }
 
     paid_adj_ids = @additions.select { |li| li.already_paid? && li.source_type == "PayrollAdjustment" }
                              .map(&:source_id).compact
@@ -83,5 +85,30 @@ class PayrollEntriesController < ApplicationController
       days_present:              @attendance_records.count { |r| AttendanceRecord::ATTENDED_STATUSES.include?(r.status) },
       days_absent:               @attendance_records.count { |r| r.status == "absent" }
     }
+  end
+
+  # Resolves a display-sort "effective date" per deduction line item, keyed by
+  # item id. Attendance-sourced items use the attendance day; advance
+  # repayments use when the advance was issued; manager-submitted adjustments
+  # (manual deductions, penalties) use when the adjustment was created. Types
+  # with no meaningful calendar date of their own (obligation installments,
+  # the whole-period absence deduction, and any future type without a source
+  # date) fall back to the period start, so they group together at the start
+  # of the table rather than being scattered by an arbitrary timestamp.
+  def load_effective_dates(items)
+    advance_ids    = items.select { |li| li.source_type == "Advance" }.map(&:source_id).compact
+    adjustment_ids = items.select { |li| li.source_type == "PayrollAdjustment" }.map(&:source_id).compact
+
+    advances    = advance_ids.any? ? Advance.where(id: advance_ids).index_by(&:id) : {}
+    adjustments = adjustment_ids.any? ? PayrollAdjustment.where(id: adjustment_ids).index_by(&:id) : {}
+
+    items.each_with_object({}) do |li, memo|
+      memo[li.id] =
+        case li.source_type
+        when "AttendanceRecord"  then @source_records[li.source_id]&.date
+        when "Advance"           then advances[li.source_id]&.issued_at&.to_date
+        when "PayrollAdjustment" then adjustments[li.source_id]&.created_at&.to_date
+        end || @period.period_start
+    end
   end
 end

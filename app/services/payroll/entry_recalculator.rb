@@ -6,7 +6,8 @@ module Payroll
   # itself is updated in place rather than destroyed and recreated — its id,
   # created_at, and any external references stay stable across recalculations:
   #   1. Capture management decisions that survive regeneration
-  #      (overtime override, manual-deduction waivers).
+  #      (overtime override, manual-deduction waivers, attendance-penalty
+  #      waivers).
   #   2. Destroy the user's obligation-deduction snapshots for this period so
   #      balances are correctly restored before re-deducting.
   #   3. Run EntryCalculator to recompute the entry (and rebuild its line items)
@@ -20,6 +21,12 @@ module Payroll
     Result = Struct.new(:ok, :entry, :error, keyword_init: true) do
       def ok? = ok
     end
+
+    # System-generated attendance-penalty items are destroyed and recreated on
+    # every recalculation. Their review decisions (waive) must survive
+    # regeneration the same way manual-deduction waivers do — see
+    # capture_penalty_reviews.
+    ATTENDANCE_PENALTY_TYPES = %w[late_penalty early_leave_penalty].freeze
 
     def self.call(user:, period:, triggered_by:)
       new(user: user, period: period, triggered_by: triggered_by).call
@@ -35,9 +42,10 @@ module Payroll
     def call
       return Result.new(ok: true, entry: nil) if @period.locked?
 
-      existing       = load_existing_entry
-      saved_override = capture_overtime_override(existing)
-      saved_waivers  = capture_deduction_waivers(existing)
+      existing        = load_existing_entry
+      saved_override  = capture_overtime_override(existing)
+      saved_waivers   = capture_deduction_waivers(existing)
+      saved_penalties = capture_penalty_reviews(existing)
 
       entry = ActiveRecord::Base.transaction do
         destroy_obligation_snapshots
@@ -47,6 +55,7 @@ module Payroll
       if entry
         reapply_overtime_override(entry, saved_override) if saved_override
         reapply_deduction_waivers(entry, saved_waivers)  if saved_waivers.any?
+        reapply_penalty_reviews(entry, saved_penalties)  if saved_penalties.any?
       end
 
       Rails.logger.info(
@@ -142,6 +151,41 @@ module Payroll
           deduction_waiver_reason: prev[:reason],
           deduction_waived_by_id:  prev[:waived_by_id],
           deduction_waived_at:     prev[:waived_at]
+        )
+        touched = true
+      end
+      entry.recalculate_totals! if touched
+    end
+
+    # Attendance-penalty items (late/early-leave) are destroyed and recreated
+    # from current attendance on every recalculation, so a prior waive decision
+    # (review_status, reviewer, notes) would otherwise silently disappear —
+    # including permanently, once the period is later finalized. Capture it
+    # here, keyed by source_id (the AttendanceRecord), and reapply below.
+    def capture_penalty_reviews(entry)
+      return {} unless entry
+      entry.payroll_line_items
+           .select { |li| ATTENDANCE_PENALTY_TYPES.include?(li.item_type) && li.waived? && li.source_id.present? }
+           .each_with_object({}) do |li, memo|
+             memo[li.source_id] = {
+               reviewed_by_id: li.reviewed_by_id,
+               reviewed_at:    li.reviewed_at,
+               review_notes:   li.review_notes
+             }
+           end
+    end
+
+    def reapply_penalty_reviews(entry, saved_reviews)
+      touched = false
+      entry.payroll_line_items.each do |li|
+        next unless ATTENDANCE_PENALTY_TYPES.include?(li.item_type) && li.source_id.present?
+        prev = saved_reviews[li.source_id]
+        next unless prev
+        li.update!(
+          review_status:  "waived",
+          reviewed_by_id: prev[:reviewed_by_id],
+          reviewed_at:    prev[:reviewed_at],
+          review_notes:   prev[:review_notes]
         )
         touched = true
       end

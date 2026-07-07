@@ -651,6 +651,55 @@ RSpec.describe Payroll::EntryRecalculator do
     end
   end
 
+  # ── Attendance penalty waiver preservation ─────────────────────────────────
+
+  describe "attendance penalty waiver preservation" do
+    let!(:late_rule) do
+      create(:penalty_rule, shift: shift, rule_type: "late_arrival",
+             deduction_type: "percentage_of_daily", threshold_minutes: 15, deduction_value: 25)
+    end
+    let(:all_days) { (period_start..period_end).reject { |d| d.saturday? || d.sunday? }.first(22) }
+    let(:test_day) { Date.new(2026, 6, 1) }
+
+    before do
+      all_days.each do |d|
+        d == test_day ? create_record(d, worked: 480, late: 60, status: "late")
+                      : create_record(d, worked: 480)
+      end
+      initial = build_initial_entry
+      li = initial.payroll_line_items.find_by(item_type: "late_penalty")
+      Payroll::LineItemReviewer.call(line_item: li, action: "waive",
+                                     reviewed_by: actor, notes: "Traffic accident, excused")
+    end
+
+    it "preserves the waived review_status on the recalculated entry" do
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "late_penalty")
+      expect(li).to be_present
+      expect(li.waived?).to be true
+    end
+
+    it "preserves the review notes and reviewer" do
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "late_penalty")
+      expect(li.review_notes).to eq("Traffic accident, excused")
+      expect(li.reviewed_by).to eq(actor)
+    end
+
+    it "does not deduct the waived penalty from net_salary" do
+      run
+      expect(current_entry.net_salary).to eq(8_800.0)
+    end
+
+    it "re-applies the waiver even when an unrelated attendance record is updated" do
+      AttendanceRecord.find_by(user: employee, work_date: Date.new(2026, 6, 2))
+                      .update_columns(check_in_at: Time.zone.local(2026, 6, 2, 9, 15))
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "late_penalty")
+      expect(li.waived?).to be true
+    end
+  end
+
   # ── Obligation deduction balance accounting ────────────────────────────────
 
   describe "obligation deduction balance accounting" do

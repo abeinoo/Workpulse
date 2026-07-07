@@ -901,7 +901,7 @@ ar:
       base_salary: "الراتب الأساسي"
       additions_bonuses: "الإضافات والمكافآت"
       manual_deductions: "الخصومات اليدوية"
-      no_manual_deductions: "لا توجد خصومات يدوية لهذه الفترة."
+      no_deductions_yet: "لا توجد خصومات لهذه الفترة."
       no_deductions: "لا توجد خصومات أو إضافات لهذه الفترة."
       attendance_records: "سجلات الحضور"
       check_in: "الدخول"
