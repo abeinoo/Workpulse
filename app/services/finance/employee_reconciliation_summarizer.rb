@@ -188,6 +188,37 @@ module Finance
           end
         end
 
+        # Opening-float seeder credit (non-self-loop case):
+        # When the seeder passed the carry-forward float to another cashier (of_recv
+        # goes from seeder → user X, not back to seeder), the float's operational
+        # amounts travel through the chain and return to the seeder embedded inside
+        # a later incoming handover from another cashier. That causes the float to
+        # reduce the seeder's net — but the float is the seeder's own money, not
+        # another cashier's contribution.
+        #
+        # Fix: subtract the of_recv amounts from incoming_by_pm so the float is
+        # restored to the seeder's collected total. Clamped to 0 to avoid negative
+        # incoming in edge cases where less than the full float returned.
+        #
+        # Guards:
+        #   • of_seeder_id == uid         → only for the float seeder
+        #   • of_recv_h.to_user_id != uid → skip self-loops (own_float_skip handles those)
+        #   • last_outgoing.id != of_recv_id → skip when the seeder's last_outgoing IS
+        #     the of_recv handover (float is already in last_outgoing; no chain to credit)
+        if of_seeder_id == uid && of_recv_id.present?
+          of_recv_h_for_credit = handovers.find { |h| h.id == of_recv_id }
+          if of_recv_h_for_credit &&
+             of_recv_h_for_credit.to_user_id != uid &&
+             last_outgoing.id != of_recv_id
+            of_recv_h_for_credit.amounts.each do |amt|
+              next unless amt.kind == "operational"
+              pm_data = incoming_by_pm[amt.payment_method_id]
+              pm_data[:collected] = [pm_data[:collected] - amt.collected_amount, 0].max
+              pm_data[:refund]    = [pm_data[:refund]    - amt.refund_amount, 0].max
+            end
+          end
+        end
+
         # Net = last outgoing operational − total incoming operational.
         last_outgoing.amounts.each do |amt|
           next unless amt.kind == "operational"

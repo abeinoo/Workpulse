@@ -393,6 +393,105 @@ RSpec.describe Finance::EmployeeReconciliationSummarizer, type: :model do
     end
   end
 
+  describe "opening float seeder credit: seeder passes float to another cashier (non-self-loop)" do
+    # When the carry-forward float goes from the seeder to a DIFFERENT cashier,
+    # the float's operational amounts travel through the custody chain and return to
+    # the seeder embedded inside a later incoming handover from that other cashier.
+    # Without the seeder credit, the full incoming amount (float + other cashier's
+    # collections) is deducted, incorrectly reducing the seeder's net.
+    # With the fix the of_recv amounts are subtracted from incoming_by_pm so the
+    # float is restored to the seeder's collected total.
+
+    it "credits the seeder's own float back when the seeder closes after receiving from the chain" do
+      # Flow: A passes float(1,000) to B.  B collects 2,000.  B hands 3,000 to A.
+      # A collects 3,500 more and closes with 6,500.
+      # Expected A net = 1,000 (float) + 3,500 (personal) = 4,500.
+      # Wrong (without fix): 6,500 − 3,000 = 3,500.
+      cashier_a = create(:user, business: business)
+      cashier_b = create(:user, business: business)
+
+      source_handover = TillHandover.create!(
+        daily_reconciliation: make_dr,
+        from_user:            cashier_a,
+        to_user:              cashier_a,
+        self_deposit:         false,
+        accepted_at:          1.day.ago,
+        fresha_date:          Date.yesterday,
+        created_at:           1.day.ago,
+        updated_at:           1.day.ago
+      )
+      dr = make_dr(opening_float_source_handover: source_handover)
+
+      t1 = 4.hours.ago
+      t2 = 2.hours.ago
+      t3 = 1.hour.ago
+
+      # A passes float to B (non-self-loop: to_user=B, not A).
+      of_recv = make_handover(dr: dr, from_user: cashier_a, to_user: cashier_b, accepted_at: t1, created_at: t1)
+      add_amount(handover: of_recv, collected: 1_000)
+
+      # B collects 2,000 from customers, hands combined 3,000 back to A.
+      h_b_to_a = make_handover(dr: dr, from_user: cashier_b, to_user: cashier_a, accepted_at: t2, created_at: t2)
+      add_amount(handover: h_b_to_a, collected: 3_000)
+
+      # A closes: 3,000 received + 3,500 personal = 6,500.
+      close_a = make_handover(dr: dr, from_user: cashier_a, self_deposit: true, accepted_at: t3, created_at: t3)
+      add_amount(handover: close_a, collected: 6_500)
+
+      result        = summarize(dr)
+      cashier_a_row = row_for(result, cashier_a)
+      cashier_b_row = row_for(result, cashier_b)
+
+      # A: float(1,000) credited back → net = 6,500 − (3,000 − 1,000) = 4,500
+      expect(cash_amount(cashier_a_row).collected_amount).to eq(4_500),
+        "seeder's own float (1,000) must be restored; expected 4,500, not 3,500"
+      # B: last_outgoing=3,000 − incoming(float 1,000) = 2,000
+      expect(cash_amount(cashier_b_row).collected_amount).to eq(2_000)
+    end
+
+    it "does NOT apply the seeder credit when the seeder's last_outgoing is the of_recv itself" do
+      # Flow: A passes float(1,000) to B and has no further activity in this DR.
+      # A's last_outgoing IS the of_recv handover → guard fires, no credit adjustment.
+      # A's net = 1,000 (the float amount already captured in last_outgoing directly).
+      cashier_a = create(:user, business: business)
+      cashier_b = create(:user, business: business)
+
+      source_handover = TillHandover.create!(
+        daily_reconciliation: make_dr,
+        from_user:            cashier_a,
+        to_user:              cashier_a,
+        self_deposit:         false,
+        accepted_at:          1.day.ago,
+        fresha_date:          Date.yesterday,
+        created_at:           1.day.ago,
+        updated_at:           1.day.ago
+      )
+      dr = make_dr(opening_float_source_handover: source_handover)
+
+      t1 = 2.hours.ago
+      t2 = 1.hour.ago
+
+      # A → B: A's only outgoing, so last_outgoing == of_recv.
+      of_recv = make_handover(dr: dr, from_user: cashier_a, to_user: cashier_b, accepted_at: t1, created_at: t1)
+      add_amount(handover: of_recv, collected: 1_000)
+
+      # B closes (3,000 = float + 2,000 personal).
+      close_b = make_handover(dr: dr, from_user: cashier_b, self_deposit: true, accepted_at: t2, created_at: t2)
+      add_amount(handover: close_b, collected: 3_000)
+
+      result        = summarize(dr)
+      cashier_a_row = row_for(result, cashier_a)
+      cashier_b_row = row_for(result, cashier_b)
+
+      # A: last_outgoing IS of_recv → no credit adjustment; net = 1,000.
+      # If the adjustment fired incorrectly, A would show 1,000 − (−1,000) = 2,000.
+      expect(cash_amount(cashier_a_row).collected_amount).to eq(1_000),
+        "no seeder credit when last_outgoing is the of_recv handover itself"
+      # B: 3,000 − 1,000 (received from A) = 2,000.
+      expect(cash_amount(cashier_b_row).collected_amount).to eq(2_000)
+    end
+  end
+
   # ── Regression: single source of truth ──────────────────────────────────────
   #
   # All three surfaces that display cashier custody figures must derive from the
