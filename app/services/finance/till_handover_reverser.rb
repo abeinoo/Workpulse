@@ -12,7 +12,7 @@ module Finance
   #   - handover must not already be reversed
   #   - handover must not itself be a reversal record
   #   - DR must not be verified
-  #   - receiver must not have started working (sent or deposited anything on this DR)
+  #   - custody must not have moved on from the receiver (no accepted successor, day not closed)
   class TillHandoverReverser
     include AuditLoggable
 
@@ -56,7 +56,7 @@ module Finance
       raise ArgumentError, I18n.t("till_handovers.errors.already_reversed")   if @handover.reversed?
       raise ArgumentError, I18n.t("till_handovers.errors.cannot_reverse_reversal") if @handover.reversal?
       raise ArgumentError, I18n.t("till_handovers.errors.dr_verified")        if @handover.daily_reconciliation.verified?
-      raise ArgumentError, I18n.t("till_handovers.errors.receiver_started_working") if receiver_started_working?
+      raise ArgumentError, I18n.t("till_handovers.errors.receiver_started_working") if custody_moved_on?
       raise ArgumentError, I18n.t("till_handovers.errors.invalid_reason_code") unless REVERSAL_REASON_CODES.include?(@reason_code)
       raise ArgumentError, I18n.t("till_handovers.errors.reason_notes_required") if @reason_code == "other" && @reason_notes.blank?
     end
@@ -112,12 +112,13 @@ module Finance
       Result.new(ok: true, record: reversal)
     end
 
-    def receiver_started_working?
+    # Locked once custody has actually moved on from the receiver — i.e. someone
+    # accepted a subsequent handover from them, or they closed the day. A still-
+    # pending outgoing handover they initiated does not lock this, since custody
+    # hasn't moved yet.
+    def custody_moved_on?
       dr = @handover.daily_reconciliation
-      dr.till_handovers
-        .where(from_user_id: @handover.to_user_id)
-        .where.not(id: @handover.id)
-        .exists?
+      dr.till_session.current_holder_id != @handover.to_user_id
     end
 
     def formatted_reason
