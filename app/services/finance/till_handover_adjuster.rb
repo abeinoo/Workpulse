@@ -71,6 +71,8 @@ module Finance
           after_data:   @after_data
         )
 
+        @handover.daily_reconciliation.clear_review!(actor: @actor)
+
         log_audit(
           actor:     @actor,
           auditable: @handover,

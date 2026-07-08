@@ -29,6 +29,7 @@ module Finance
       ActiveRecord::Base.transaction do
         @transfer.update!(accepted_at: Time.current)
         @transfer.daily_reconciliation.till_session.update!(depositor: @actor)
+        @transfer.daily_reconciliation.clear_review!(actor: @actor)
 
         log_audit(actor: @actor, auditable: @transfer, action: "accept",
                   metadata: { daily_reconciliation_id: @transfer.daily_reconciliation_id })

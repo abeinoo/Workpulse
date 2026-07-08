@@ -14,6 +14,7 @@ class DailyReconciliation < ApplicationRecord
   belongs_to :branch
   belongs_to :business
   belongs_to :verified_by, class_name: "User", optional: true
+  belongs_to :reviewed_by, class_name: "User", optional: true
 
   # Set when a previous-day self-deposit handover carried next_day_amounts.
   # Cleared (set to nil) once the opening float has been received.
@@ -60,6 +61,20 @@ class DailyReconciliation < ApplicationRecord
 
   def verified?   = verified_at.present?
   def unverified? = !verified?
+
+  def reviewed? = reviewed_at.present?
+
+  # Called by any service that mutates financial data or custody after a
+  # review was already completed. No-ops (and logs nothing) if not currently
+  # reviewed, matching the "only log if something actually changed"
+  # convention used by DayCloseEditor/SessionAmountsEditor.
+  def clear_review!(actor:)
+    return unless reviewed?
+
+    update!(reviewed_at: nil, reviewed_by_id: nil)
+    log_audit(actor: actor, auditable: self, action: "review_auto_cancelled",
+              metadata: { reason: "Financial data changed after review." })
+  end
 
   # The self-deposit handover that closed the accounting day (as opposed to a
   # standalone "leave opening float" self-deposit, which also sets

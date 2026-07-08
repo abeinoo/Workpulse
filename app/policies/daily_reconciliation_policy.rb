@@ -16,6 +16,16 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def view_all_employee_reconciliation_summary?   = can?(:view_all_employee_reconciliation_summary)
   def manage_pos_import?                          = can?(:manage_pos_import)
 
+  def mark_reviewed?
+    can?(:review_daily_reconciliation) && !record.is_a?(Class) &&
+      record.closed? && !record.reviewed?
+  end
+
+  def cancel_review?
+    can?(:review_daily_reconciliation) && !record.is_a?(Class) &&
+      record.closed? && record.reviewed? && !record.total_deposited.positive?
+  end
+
   def show?
     return true if can?(:view_daily_reconciliation)
 

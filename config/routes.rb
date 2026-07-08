@@ -425,6 +425,8 @@ Rails.application.routes.draw do
     resources :daily_reconciliations, only: %i[index show new create] do
       member do
         patch :verify
+        patch :mark_reviewed
+        patch :cancel_review
         patch :assign_depositor
         get   :edit_opening_float
         patch :update_opening_float_amounts

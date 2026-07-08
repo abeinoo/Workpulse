@@ -38,6 +38,17 @@ module Finance
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.not_depositor"))
       end
 
+      review_overridden = false
+      unless @daily_reconciliation.reviewed?
+        unless @actor.can?(:override_review_requirement)
+          return Result.new(ok: false, error: I18n.t("till_deposits.errors.review_required"))
+        end
+        if @params[:override_review_reason].blank?
+          return Result.new(ok: false, error: I18n.t("till_deposits.errors.override_reason_required"))
+        end
+        review_overridden = true
+      end
+
       unless PaymentMethod.for_business(@daily_reconciliation.business).active.exists?(@params[:payment_method_id])
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.invalid_payment_method"))
       end
@@ -71,6 +82,11 @@ module Finance
         log_audit(actor: @actor, auditable: deposit, action: "create",
                   metadata: { amount: deposit.amount.to_s,
                                daily_reconciliation_id: @daily_reconciliation.id })
+
+        if review_overridden
+          log_audit(actor: @actor, auditable: deposit, action: "deposit_review_overridden",
+                    metadata: { reason: @params[:override_review_reason] })
+        end
 
         # Advance DR to "deposited" state on first deposit so downstream logic
         # (verifier guard, index stat card, view conditions) can distinguish

@@ -40,6 +40,25 @@
   <%= form_with url: till_deposits_path, data: { turbo_frame: "_top" } do |f| %>
     <%= hidden_field_tag "till_deposit[daily_reconciliation_id]", @reconciliation.id %>
 
+    <%# ── Branch Review override (only reachable at all when the actor holds
+         override_review_requirement — TillDepositPolicy#create? blocks anyone
+         else from opening this form while unreviewed) ──────────────────── %>
+    <% unless @reconciliation.reviewed? %>
+      <div style="background: rgba(var(--danger-rgb,220,38,38), 0.07); border: 1.5px solid rgba(var(--danger-rgb,220,38,38), 0.30); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-4);">
+        <p style="font-size: var(--text-sm); font-weight: 700; color: var(--danger,#dc2626); margin: 0 0 var(--space-1);">
+          <%= t("till_deposits.new.review_required_title") %>
+        </p>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0 0 var(--space-3);">
+          <%= t("till_deposits.errors.review_required") %>
+        </p>
+        <label style="display: block; font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: var(--space-2);">
+          <%= t("till_deposits.new.override_reason_label") %>
+        </label>
+        <%= text_area_tag "till_deposit[override_review_reason]", nil, class: "form-control", rows: 2, required: true,
+              placeholder: t("till_deposits.new.override_reason_placeholder") %>
+      </div>
+    <% end %>
+
     <%# ── Payment method ─────────────────────────────────────────────── %>
     <% if @payment_methods.one? %>
       <%= hidden_field_tag "till_deposit[payment_method_id]", @payment_methods.first.id %>

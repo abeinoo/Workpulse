@@ -75,6 +75,7 @@ module Finance
         if changes.any?
           Finance::TillHandoverCreator.sync_session_amounts!(@dr, handover)
           Finance::EmployeeReconciliationSummarizer.new(@dr).persist!
+          @dr.clear_review!(actor: @actor)
 
           log_audit(
             actor:     @actor,

@@ -51,7 +51,9 @@ class PermissionRole < ApplicationRecord
                                view_own_employee_reconciliation_summary
                                view_all_employee_reconciliation_summary
                                correct_opening_float
-                               manage_pos_import],
+                               manage_pos_import
+                               review_daily_reconciliation
+                               override_review_requirement],
     finance_overview:      %w[view_finance_dashboard],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
@@ -83,6 +85,7 @@ class PermissionRole < ApplicationRecord
       view_requests view_payroll complete_branch_review
       view_adjustments
       view_performance_dashboard view_notes view_monthly_reviews
+      view_daily_reconciliation review_daily_reconciliation
     ],
     "area_manager" => %w[
       view_dashboard view_reports export_reports
@@ -157,6 +160,7 @@ class PermissionRole < ApplicationRecord
     settle_remaining_deposit_balance
     view_all_employee_reconciliation_summary
     manage_pos_import
+    review_daily_reconciliation
   ].freeze
 
   # Permissions where the minimum scope is "branch" — "Personal Only" (self)
@@ -239,6 +243,8 @@ class PermissionRole < ApplicationRecord
     "correct_opening_float"            => %w[view_daily_reconciliation],
     "settle_remaining_deposit_balance"            => %w[view_daily_reconciliation],
     "view_all_employee_reconciliation_summary"    => %w[view_daily_reconciliation],
+    "review_daily_reconciliation"       => %w[view_daily_reconciliation],
+    "override_review_requirement"       => %w[view_daily_reconciliation],
     "manage_obligations"               => %w[view_employees],
     "manage_inventory"       => %w[view_inventory],
     "manage_suppliers"       => %w[view_inventory],

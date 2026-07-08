@@ -1,0 +1,43 @@
+require "rails_helper"
+
+RSpec.describe TillDepositPolicy do
+  let(:business) { create(:business) }
+  let(:branch)   { create(:branch, business: business) }
+
+  def user_with(*perms)
+    role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}", permissions: perms)
+    create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
+  end
+
+  let(:depositor) { user_with("view_daily_reconciliation", "close_till_session", "create_till_deposit") }
+  let(:override_depositor) do
+    user_with("view_daily_reconciliation", "close_till_session", "create_till_deposit", "override_review_requirement")
+  end
+
+  def make_deposit(reviewed:, depositor_user:)
+    dr = DailyReconciliation.create!(
+      branch: branch, business: business, state: "closed",
+      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current,
+      reviewed_by: (depositor_user if reviewed), reviewed_at: (1.minute.ago if reviewed)
+    )
+    TillSession.create!(daily_reconciliation: dr, depositor_id: depositor_user.id)
+    TillDeposit.new(daily_reconciliation: dr)
+  end
+
+  describe "#create?" do
+    it "allows the depositor when the DR has been reviewed" do
+      deposit = make_deposit(reviewed: true, depositor_user: depositor)
+      expect(described_class.new(depositor, deposit).create?).to be true
+    end
+
+    it "blocks the depositor when the DR has not been reviewed" do
+      deposit = make_deposit(reviewed: false, depositor_user: depositor)
+      expect(described_class.new(depositor, deposit).create?).to be false
+    end
+
+    it "allows an unreviewed deposit for a user with override_review_requirement" do
+      deposit = make_deposit(reviewed: false, depositor_user: override_depositor)
+      expect(described_class.new(override_depositor, deposit).create?).to be true
+    end
+  end
+end

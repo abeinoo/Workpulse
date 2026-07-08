@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_08_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_08_110001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -499,6 +499,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_010000) do
     t.datetime "opened_at", null: false
     t.jsonb "opening_float_override_amounts"
     t.bigint "opening_float_source_handover_id"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
     t.string "state", default: "open", null: false
     t.datetime "updated_at", null: false
     t.datetime "verified_at"
@@ -509,6 +511,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_010000) do
     t.index ["branch_id"], name: "index_dr_on_branch_id"
     t.index ["business_id"], name: "index_dr_on_business_id"
     t.index ["opening_float_source_handover_id"], name: "index_dr_on_opening_float_source_handover_id"
+    t.index ["reviewed_by_id"], name: "index_dr_on_reviewed_by_id"
     t.index ["verified_by_id"], name: "index_daily_reconciliations_on_verified_by_id"
   end
 
@@ -2144,6 +2147,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_010000) do
   add_foreign_key "daily_reconciliations", "branches"
   add_foreign_key "daily_reconciliations", "businesses"
   add_foreign_key "daily_reconciliations", "till_handovers", column: "opening_float_source_handover_id"
+  add_foreign_key "daily_reconciliations", "users", column: "reviewed_by_id"
   add_foreign_key "daily_reconciliations", "users", column: "verified_by_id"
   add_foreign_key "departments", "businesses"
   add_foreign_key "deposit_responsibility_transfers", "daily_reconciliations"

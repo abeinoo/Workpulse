@@ -9,7 +9,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                                                edit_opening_float update_opening_float_amounts receive_opening_float
                                                edit_session_totals update_session_totals
                                                edit_day_close_amounts update_day_close_amounts
-                                               correct_opening_float update_opening_float_correction]
+                                               correct_opening_float update_opening_float_correction
+                                               mark_reviewed cancel_review]
 
   # GET /finance/daily_reconciliations
   def index
@@ -328,6 +329,27 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     # Grouped for O(1) lookup per handover in the view (avoids N+1 on .select).
     @adjustments_by_handover_id = @all_adjustments.group_by(&:adjustable_id)
 
+    @review_events = AuditLog
+                        .where(auditable: @reconciliation,
+                               action: %w[review_completed review_cancelled review_auto_cancelled])
+                        .includes(:actor)
+                        .order(:created_at)
+                        .to_a
+
+    # True only when the DR was reviewed at some point and that review was
+    # automatically cancelled by a later financial-data change (not simply
+    # "never reviewed") — drives the distinct "Review Invalidated" card state.
+    @review_invalidated = @review_events.last&.action == "review_auto_cancelled"
+
+    deposit_ids = @all_deposits.map(&:id)
+    @deposit_override_events = deposit_ids.any? ?
+      AuditLog
+        .where(auditable_type: "TillDeposit", auditable_id: deposit_ids, action: "deposit_review_overridden")
+        .includes(:actor)
+        .order(:created_at)
+        .to_a :
+      []
+
     @timeline_events = build_timeline_events
 
     @can_manage_pos_import = policy(@reconciliation).manage_pos_import?
@@ -417,6 +439,36 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     if result.ok?
       redirect_to finance_daily_reconciliation_path(@reconciliation),
                   notice: t("finance.daily_reconciliations.verified")
+    else
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  alert: result.error
+    end
+  end
+
+  # PATCH /finance/daily_reconciliations/:id/mark_reviewed
+  def mark_reviewed
+    authorize @reconciliation, :mark_reviewed?
+
+    result = Finance::DailyReconciliationReviewer.new(@reconciliation.id, actor: current_user).call
+
+    if result.ok?
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  notice: t("finance.daily_reconciliations.mark_reviewed_success")
+    else
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  alert: result.error
+    end
+  end
+
+  # PATCH /finance/daily_reconciliations/:id/cancel_review
+  def cancel_review
+    authorize @reconciliation, :cancel_review?
+
+    result = Finance::DailyReconciliationReviewCanceller.new(@reconciliation.id, actor: current_user).call
+
+    if result.ok?
+      redirect_to finance_daily_reconciliation_path(@reconciliation),
+                  notice: t("finance.daily_reconciliations.cancel_review_success")
     else
       redirect_to finance_daily_reconciliation_path(@reconciliation),
                   alert: result.error
@@ -724,6 +776,22 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     (@day_close_edits || []).each do |log|
       events << { type: :day_close_edited, time: log.created_at, actor: log.actor, data: log }
+    end
+
+    review_type_map = {
+      "review_completed"      => :review_completed,
+      "review_cancelled"      => :review_cancelled,
+      "review_auto_cancelled" => :review_auto_cancelled
+    }
+
+    (@review_events || []).each do |log|
+      type = review_type_map[log.action]
+      next unless type
+      events << { type: type, time: log.created_at, actor: log.actor, data: log }
+    end
+
+    (@deposit_override_events || []).each do |log|
+      events << { type: :deposit_review_overridden, time: log.created_at, actor: log.actor, data: log }
     end
 
     if @reconciliation.verified?
