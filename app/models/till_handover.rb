@@ -77,4 +77,50 @@ class TillHandover < ApplicationRecord
 
   # True when this record IS a correction of a superseded opening float handover.
   def correction?  = corrects_handover_id.present?
+
+  # Operational amounts for this handover, read through any FinancialAdjustment
+  # recorded against it. The original TillHandoverAmount rows are never mutated
+  # by an adjustment (Finance::TillHandoverAdjuster is explicitly documentary) —
+  # this is the single place every downstream consumer (EmployeeReconciliationSummarizer,
+  # minimum-amount validation/hints, sync_session_amounts!) should read from, so a
+  # saved adjustment takes effect everywhere immediately without touching history.
+  #
+  # Later adjustments win per payment method; a payment method not covered by any
+  # adjustment falls back to its original recorded amount.
+  #
+  # Returns an array of { payment_method_id:, payment_method_name:, payment_method:,
+  # collected_amount:, refund_amount: }.
+  def effective_operational_amounts
+    base = amounts.operational.includes(:payment_method).map do |ha|
+      {
+        payment_method_id:   ha.payment_method_id,
+        payment_method_name: ha.payment_method_name,
+        payment_method:      ha.payment_method,
+        collected_amount:    ha.collected_amount,
+        refund_amount:       ha.refund_amount
+      }
+    end
+
+    overrides = {}
+    financial_adjustments.order(:created_at).each do |adjustment|
+      Array(adjustment.after_data).each do |entry|
+        pm_id = (entry["payment_method_id"] || entry[:payment_method_id]).to_i
+        overrides[pm_id] = entry
+      end
+    end
+    return base if overrides.empty?
+
+    base.map do |row|
+      override = overrides[row[:payment_method_id]]
+      next row unless override
+
+      collected = (override["collected_amount"] || override[:collected_amount]).to_s
+      refund    = (override["refund_amount"]    || override[:refund_amount]).to_s
+
+      row.merge(
+        collected_amount: collected.presence&.to_d || row[:collected_amount],
+        refund_amount:    refund.presence&.to_d    || row[:refund_amount]
+      )
+    end
+  end
 end

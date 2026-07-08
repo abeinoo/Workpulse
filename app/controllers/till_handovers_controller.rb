@@ -209,13 +209,13 @@ class TillHandoversController < ApplicationController
                                         &.accepted
                                         &.where(to_user_id: current_user.id)
                                         &.order(accepted_at: :desc)
-                                        &.includes(amounts: :payment_method)
+                                        &.includes(:financial_adjustments, amounts: :payment_method)
                                         &.first
     @minimum_amounts = {}
-    last_received&.amounts&.operational&.each do |amount|
-      @minimum_amounts[amount.payment_method_id.to_s] = {
-        collected: amount.collected_amount.to_f,
-        refund:    amount.refund_amount.to_f
+    last_received&.effective_operational_amounts&.each do |amount|
+      @minimum_amounts[amount[:payment_method_id].to_s] = {
+        collected: amount[:collected_amount].to_f,
+        refund:    amount[:refund_amount].to_f
       }
     end
 

@@ -77,10 +77,10 @@ module Finance
     # Finance::DayCloseEditor so there is a single place that computes
     # Branch Totals from a closing handover.
     def self.sync_session_amounts!(daily_reconciliation, handover)
-      handover.amounts.operational.each do |ha|
-        daily_reconciliation.session_amounts.upsert_by_payment_method(ha.payment_method,
-          collected_amount: ha.collected_amount,
-          refund_amount:    ha.refund_amount)
+      handover.effective_operational_amounts.each do |ha|
+        daily_reconciliation.session_amounts.upsert_by_payment_method(ha[:payment_method],
+          collected_amount: ha[:collected_amount],
+          refund_amount:    ha[:refund_amount])
       end
     end
 
@@ -108,11 +108,11 @@ module Finance
                                            .accepted
                                            .where(to_user: @actor)
                                            .order(accepted_at: :desc)
-                                           .includes(amounts: :payment_method)
+                                           .includes(:financial_adjustments, amounts: :payment_method)
                                            .first
       return unless last_received
 
-      received_by_pm = last_received.amounts.operational.index_by { |a| a.payment_method_id.to_s }
+      received_by_pm = last_received.effective_operational_amounts.index_by { |a| a[:payment_method_id].to_s }
       errors = []
 
       (@params[:amounts] || {}).each do |pm_id, attrs|
@@ -122,16 +122,16 @@ module Finance
         submitted_collected = attrs[:collected_amount].to_d
         submitted_refund    = attrs[:refund_amount].to_d
 
-        if submitted_collected < received.collected_amount
+        if submitted_collected < received[:collected_amount]
           errors << I18n.t("till_handovers.errors.below_minimum_collected",
-                           pm: received.payment_method_name,
-                           min: received.collected_amount)
+                           pm: received[:payment_method_name],
+                           min: received[:collected_amount])
         end
 
-        if submitted_refund < received.refund_amount
+        if submitted_refund < received[:refund_amount]
           errors << I18n.t("till_handovers.errors.below_minimum_refund",
-                           pm: received.payment_method_name,
-                           min: received.refund_amount)
+                           pm: received[:payment_method_name],
+                           min: received[:refund_amount])
         end
       end
 

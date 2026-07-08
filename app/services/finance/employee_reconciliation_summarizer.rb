@@ -93,7 +93,7 @@ module Finance
     def aggregate_by_employee
       handovers = @dr.till_handovers
                      .where("accepted_at IS NOT NULL OR self_deposit = TRUE")
-                     .includes(:from_user, :to_user, amounts: :payment_method)
+                     .includes(:from_user, :to_user, :financial_adjustments, amounts: :payment_method)
                      .order(:created_at)
 
       Rails.logger.debug do
@@ -181,10 +181,9 @@ module Finance
           end
           next if own_float_skip
 
-          h_in.amounts.each do |amt|
-            next unless amt.kind == "operational"
-            incoming_by_pm[amt.payment_method_id][:collected] += amt.collected_amount
-            incoming_by_pm[amt.payment_method_id][:refund]    += amt.refund_amount
+          h_in.effective_operational_amounts.each do |amt|
+            incoming_by_pm[amt[:payment_method_id]][:collected] += amt[:collected_amount]
+            incoming_by_pm[amt[:payment_method_id]][:refund]    += amt[:refund_amount]
           end
         end
 
@@ -210,33 +209,34 @@ module Finance
           if of_recv_h_for_credit &&
              of_recv_h_for_credit.to_user_id != uid &&
              last_outgoing.id != of_recv_id
-            of_recv_h_for_credit.amounts.each do |amt|
-              next unless amt.kind == "operational"
-              pm_data = incoming_by_pm[amt.payment_method_id]
-              pm_data[:collected] = [pm_data[:collected] - amt.collected_amount, 0].max
-              pm_data[:refund]    = [pm_data[:refund]    - amt.refund_amount, 0].max
+            of_recv_h_for_credit.effective_operational_amounts.each do |amt|
+              pm_data = incoming_by_pm[amt[:payment_method_id]]
+              pm_data[:collected] = [ pm_data[:collected] - amt[:collected_amount], 0 ].max
+              pm_data[:refund]    = [ pm_data[:refund]    - amt[:refund_amount], 0 ].max
             end
           end
         end
 
         # Net = last outgoing operational − total incoming operational.
-        last_outgoing.amounts.each do |amt|
-          next unless amt.kind == "operational"
-          incoming_pm = incoming_by_pm[amt.payment_method_id]
+        # Reads effective_operational_amounts so a saved FinancialAdjustment on
+        # last_outgoing (or on any incoming handover, above) takes effect here
+        # immediately without mutating the original TillHandoverAmount rows.
+        last_outgoing.effective_operational_amounts.each do |amt|
+          incoming_pm = incoming_by_pm[amt[:payment_method_id]]
 
-          pm = entry[:amounts][amt.payment_method_id] ||= {
-            payment_method_id: amt.payment_method_id,
-            name:              amt.payment_method_name,
-            position:          amt.payment_method&.position || 0,
+          pm = entry[:amounts][amt[:payment_method_id]] ||= {
+            payment_method_id: amt[:payment_method_id],
+            name:              amt[:payment_method_name],
+            position:          amt[:payment_method]&.position || 0,
             collected:         0.to_d,
             refund:            0.to_d
           }
 
-          pm[:collected] = amt.collected_amount - incoming_pm[:collected]
-          pm[:refund]    = amt.refund_amount    - incoming_pm[:refund]
+          pm[:collected] = amt[:collected_amount] - incoming_pm[:collected]
+          pm[:refund]    = amt[:refund_amount]    - incoming_pm[:refund]
           Rails.logger.debug do
-            "[ERS DR=#{@dr.id}]   RESULT #{last_outgoing.from_user&.full_name} | #{amt.payment_method_name}(pm_id=#{amt.payment_method_id}): " \
-              "last_outgoing=#{amt.collected_amount} incoming_sum=#{incoming_pm[:collected]} net=#{pm[:collected]}"
+            "[ERS DR=#{@dr.id}]   RESULT #{last_outgoing.from_user&.full_name} | #{amt[:payment_method_name]}(pm_id=#{amt[:payment_method_id]}): " \
+              "last_outgoing=#{amt[:collected_amount]} incoming_sum=#{incoming_pm[:collected]} net=#{pm[:collected]}"
           end
         end
 

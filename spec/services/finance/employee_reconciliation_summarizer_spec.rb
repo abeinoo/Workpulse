@@ -64,6 +64,21 @@ RSpec.describe Finance::EmployeeReconciliationSummarizer, type: :model do
     summary_row.amounts.find { |a| a.payment_method_id == cash_pm.id }
   end
 
+  def add_adjustment(handover:, actor:, after_data:, reason_code: "wrong_amounts", created_at: Time.current)
+    FinancialAdjustment.create!(
+      adjustable:  handover,
+      business:    business,
+      actor:       actor,
+      reason_code: reason_code,
+      notes:       "Recount found a discrepancy at handover time",
+      before_data: handover.amounts.map { |a|
+        { payment_method_id: a.payment_method_id, collected_amount: a.collected_amount.to_s, refund_amount: a.refund_amount.to_s }
+      },
+      after_data:  after_data,
+      created_at:  created_at
+    )
+  end
+
   # ── Basic formula ────────────────────────────────────────────────────────────
 
   describe "net custody increase: last outgoing − sum(all incoming)" do
@@ -849,6 +864,78 @@ RSpec.describe Finance::EmployeeReconciliationSummarizer, type: :model do
       # if the exclusion had incorrectly fired, Cash would be 3,500 (not 3,000).
       expect(b_live_cash.collected_amount).not_to eq(3_500),
         "Own-carry-forward exclusion must NOT fire when seeder (A) ≠ receiver (B)"
+    end
+  end
+
+  # ── FinancialAdjustment makes the corrected amount effective immediately ─────
+  #
+  # Reproduces the reported gap: A hands over to Hossam (peer handover, DR still
+  # open, no day close yet). A's Custody Summary row is computed from that
+  # handover as last_outgoing. A manager then records a documentary
+  # Finance::TillHandoverAdjuster correction on that same handover. Both the
+  # Cashier Custody Summary and POS Verification (same @employee_summaries) must
+  # reflect the corrected amount immediately — without the original
+  # TillHandoverAmount ever being mutated.
+
+  describe "FinancialAdjustment on an accepted, not-yet-closed handover" do
+    it "is reflected immediately in the sender's live custody row, leaving the original amount untouched" do
+      a      = create(:user, business: business)
+      hossam = create(:user, business: business)
+      dr     = make_dr
+
+      h1 = make_handover(dr: dr, from_user: a, to_user: hossam, accepted_at: 1.hour.ago, created_at: 1.hour.ago)
+      original_amount = add_amount(handover: h1, collected: 370)
+
+      add_adjustment(
+        handover:   h1,
+        actor:      a,
+        after_data: [ { payment_method_id: cash_pm.id, collected_amount: "470", refund_amount: "0" } ]
+      )
+
+      a_row = row_for(summarize(dr), a)
+      expect(cash_amount(a_row).collected_amount).to eq(470)
+
+      # The original historical record is never mutated by an adjustment.
+      expect(original_amount.reload.collected_amount).to eq(370)
+    end
+
+    it "deducts the adjusted (not original) amount from the receiver's incoming sum" do
+      a      = create(:user, business: business)
+      hossam = create(:user, business: business)
+      dr     = make_dr
+
+      h1 = make_handover(dr: dr, from_user: a, to_user: hossam, accepted_at: 2.hours.ago, created_at: 2.hours.ago)
+      add_amount(handover: h1, collected: 370)
+      add_adjustment(
+        handover:   h1,
+        actor:      a,
+        after_data: [ { payment_method_id: cash_pm.id, collected_amount: "470", refund_amount: "0" } ]
+      )
+
+      close = make_handover(dr: dr, from_user: hossam, self_deposit: true, accepted_at: 1.hour.ago, created_at: 1.hour.ago)
+      add_amount(handover: close, collected: 470)
+
+      hossam_row = row_for(summarize(dr), hossam)
+      # last_outgoing (470) − incoming (adjusted: 470, not the original 370) = 0
+      expect(cash_amount(hossam_row).collected_amount).to eq(0)
+    end
+
+    it "lets a later adjustment supersede an earlier one for the same handover" do
+      a      = create(:user, business: business)
+      hossam = create(:user, business: business)
+      dr     = make_dr
+
+      h1 = make_handover(dr: dr, from_user: a, to_user: hossam, accepted_at: 2.hours.ago, created_at: 2.hours.ago)
+      add_amount(handover: h1, collected: 370)
+      add_adjustment(handover: h1, actor: a,
+                     after_data: [ { payment_method_id: cash_pm.id, collected_amount: "470", refund_amount: "0" } ],
+                     created_at: 1.hour.ago)
+      add_adjustment(handover: h1, actor: a,
+                     after_data: [ { payment_method_id: cash_pm.id, collected_amount: "490", refund_amount: "0" } ],
+                     created_at: 30.minutes.ago)
+
+      a_row = row_for(summarize(dr), a)
+      expect(cash_amount(a_row).collected_amount).to eq(490)
     end
   end
 end
