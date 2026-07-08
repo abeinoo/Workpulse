@@ -130,6 +130,7 @@
     %>
     <%
       waiting_count     = @reconciliations.count(&:waiting_for_opening?)
+      waiting_review_count = @reconciliations.count { |dr| dr.closed? && !dr.reviewed? }
       open_count        = @reconciliations.count(&:open?)
       deposited_count   = @reconciliations.count(&:deposited?)
       verified_count    = @reconciliations.count(&:verified?)
@@ -197,6 +198,15 @@
         </div>
         <p class="stat-card__value" style="<%= waiting_count > 0 ? 'color: var(--warning);' : '' %>"><%= waiting_count %></p>
         <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_sub") %></p>
+      </div>
+
+      <div class="stat-card <%= waiting_review_count > 0 ? 'stat-card--warning' : '' %>">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_waiting_review") %></p>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: <%= waiting_review_count > 0 ? 'var(--warning)' : 'var(--text-3)' %>; margin-top:1px;"><path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+        </div>
+        <p class="stat-card__value" style="<%= waiting_review_count > 0 ? 'color: var(--warning);' : '' %>"><%= waiting_review_count %></p>
+        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_review_sub") %></p>
       </div>
 
       <div class="stat-card">
@@ -370,7 +380,9 @@
                   <% end %>
 
                 <% elsif dr.closed? %>
-                  <% if outstanding > 0 %>
+                  <% if !dr.reviewed? %>
+                    <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_waiting_branch_review") %></span>
+                  <% elsif outstanding > 0 %>
                     <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_deposit_incomplete") %></span>
                   <% else %>
                     <span class="badge badge-neutral"><%= t("finance.daily_reconciliations.index.status_awaiting_deposit") %></span>
