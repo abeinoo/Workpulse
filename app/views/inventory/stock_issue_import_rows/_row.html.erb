@@ -1,0 +1,36 @@
+<%= turbo_frame_tag dom_id(row) do %>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title" style="font-size: var(--text-sm);">
+        <%= t("inventory.imports.row") %> <%= row.row_number %>
+      </span>
+      <% case row.status %>
+      <% when "pending" %>
+        <span class="badge badge-warning"><%= t("inventory.imports.reasons.#{row.failure_reason}") %></span>
+      <% when "resolved" %>
+        <span class="badge badge-success"><%= t("inventory.imports.row_resolved") %></span>
+      <% when "skipped" %>
+        <span class="badge badge-neutral"><%= t("inventory.imports.row_skipped") %></span>
+      <% when "imported" %>
+        <span class="badge badge-success"><%= t("inventory.imports.row_imported") %></span>
+      <% end %>
+    </div>
+
+    <% if row.pending? %>
+      <% case row.failure_reason %>
+      <% when "unknown_sku" %>
+        <%= render "inventory/stock_issue_import_rows/unknown_sku_fields", row: row %>
+      <% when "invalid_row" %>
+        <%= render "inventory/stock_issue_import_rows/invalid_row_fields", row: row %>
+      <% when "insufficient_stock" %>
+        <%= render "inventory/stock_issue_import_rows/insufficient_stock_fields", row: row %>
+      <% end %>
+    <% elsif row.resolved? %>
+      <p class="td-secondary"><%= row.product&.name %> (<%= row.product&.sku %>) &times; <%= row.quantity %></p>
+    <% elsif row.skipped? %>
+      <p class="td-secondary"><%= t("inventory.imports.row_skipped_hint") %></p>
+    <% elsif row.imported? %>
+      <p class="td-secondary"><%= row.product&.name %> (<%= row.product&.sku %>) &times; <%= row.quantity %></p>
+    <% end %>
+  </div>
+<% end %>

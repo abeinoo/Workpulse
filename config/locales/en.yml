@@ -3072,12 +3072,36 @@ en:
       summary_title: "Import Summary"
       created: "Created"
       created_issue: "Issue Created"
+      draft_issue: "Draft Issue"
       issued_lines: "Lines Issued"
       skipped: "Skipped"
       opening_adjustment: "Opening Adjustment"
       skipped_rows: "Skipped Rows"
       row: "Row"
       reason: "Reason"
+      draft_batch_title: "Resolve Import Errors"
+      rows_to_resolve: "Rows to Resolve"
+      pending_rows: "Pending"
+      resolved_rows: "Resolved"
+      import_completed: "Import completed."
+      complete_import: "Complete Import"
+      complete_failed: "Some rows could not be imported — check the details below and try again."
+      row_resolved: "Ready to import"
+      row_skipped: "Skipped"
+      row_skipped_hint: "This row will not be imported."
+      row_imported: "Imported"
+      skip_row: "Skip this row"
+      imported_sku: "Imported SKU"
+      search_product: "Search Product"
+      resolve: "Save"
+      create_new_product: "Create new product"
+      quantity: "Quantity"
+      issue_quantity: "Quantity to Issue"
+      barcode: "Barcode"
+      available_stock: "Available Stock"
+      requested_quantity: "Requested Quantity"
+      shortage: "Shortage"
+      inventory_breakdown: "Inventory Breakdown (all warehouses)"
       products:
         title: "Import Products"
         columns: "Upload a CSV of products. Required and optional columns are listed below."
@@ -3091,6 +3115,7 @@ en:
         invalid: "Could not be saved (invalid data)"
         invalid_row: "Invalid row (missing SKU or quantity)"
         unknown_sku: "No product matches this SKU"
+        insufficient_stock: "Not enough stock available"
     barcode_labels:
       title: "Barcode Labels"
       print: "Print Labels"
@@ -3209,6 +3234,7 @@ en:
       select_warehouse: "Select warehouse"
       default_threshold: "default"
       new_title: "New Product"
+      created: "Product created."
       edit_title: "Edit Product"
       section_family: "Product Family"
       family_hint: "Assign this product to a parent to group related products (e.g. sizes or colours). The parent product acts as a container only and cannot carry stock itself."
@@ -3317,6 +3343,29 @@ en:
       post: "Post Issue"
       created: "Stock issue posted — stock updated."
       voided: "Stock issue voided — stock restored."
+      created_by: "Created By"
+      items_count: "Items"
+      status_posted: "Posted"
+      search_label: "Search"
+      search_placeholder: "Issue #, branch, warehouse, SKU, or product name"
+      all_warehouses: "All warehouses"
+      all_branches: "All branches"
+      all_statuses: "All statuses"
+      all_creators: "All creators"
+      date_from: "From"
+      date_to: "To"
+      filters: "Filters"
+      total_documents: "Total Documents"
+      total_value: "Total Value"
+      filtered_results: "Filtered Results"
+      actions:
+        label: "Actions"
+        view: "View"
+        print: "Print"
+        void: "Void"
+        duplicate: "Duplicate"
+        export_pdf: "Export PDF"
+        soon: "Soon"
     stock_transfers:
       title: "Stock Transfers"
       new_action: "New Transfer"
@@ -3653,6 +3702,53 @@ en:
             base:
               has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
               archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
+            parent_product_id:
+              too_deep: "cannot be a variant of another variant — parent products can only be one level deep"
+              circular: "cannot be set to the product itself"
+        goods_receipt_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
+        stock_issue_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
+        stock_transfer_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
+        stock_adjustment_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
+        stock_count_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
+        shift_template_entry:
+          attributes:
+            ends_on:
+              must_be_on_or_after_starts_on: "must be on or after the start date"
+            effective_to_offset:
+              must_be_after_from_offset: "must be after the effective from offset"
+        warehouse_assignment:
+          attributes:
+            warehouse_id:
+              different_business: "must belong to the same business as the user"
+        custody_transaction:
+          attributes:
+            amount:
+              must_be_positive: "must be positive for a top-up"
+              must_be_negative: "must be negative for an expense deduction"
+              must_not_be_zero: "cannot be zero"
+        bank_statement:
+          attributes:
+            statement_to:
+              before_start: "must be on or after the start date"
+        till_deposit:
+          attributes:
+            payment_method:
+              not_cash_like: "must be a cash-type method"
   date:
     formats:
       default: "%b %-d, %Y"
@@ -5588,15 +5684,3 @@ en:
       write_off_notes_placeholder: "e.g. ATM rejected coins — management approved write-off"
       write_off_submit: "Write Off"
       write_off_confirm: "This will write off the full outstanding balance. This action cannot be undone. Continue?"
-
-  activerecord:
-    errors:
-      models:
-        bank_statement:
-          attributes:
-            statement_to:
-              before_start: "must be on or after the start date"
-        till_deposit:
-          attributes:
-            payment_method:
-              not_cash_like: "must be a cash-type method"

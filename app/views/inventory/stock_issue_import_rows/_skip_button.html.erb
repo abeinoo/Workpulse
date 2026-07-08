@@ -1,0 +1,3 @@
+<%= button_to t("inventory.imports.skip_row"),
+      skip_inventory_stock_issue_import_batch_row_path(row.batch_id, row), method: :patch,
+      class: "btn btn-ghost btn-sm text-danger", form: { data: { turbo_frame: dom_id(row) } } %>

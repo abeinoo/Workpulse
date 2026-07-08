@@ -1,7 +1,35 @@
 class Inventory::StockIssuesController < Inventory::BaseController
   def index
     authorize StockIssue
-    @stock_issues = policy_scope(StockIssue).recent.includes(:warehouse)
+    # Drafts belong to an in-progress import (see Inventory::Imports) — they
+    # aren't real documents yet, so they're reachable only from their batch
+    # page, never from this list.
+    base = policy_scope(StockIssue).posted
+    @stock_issues = base
+                    .for_warehouse(params[:warehouse_id])
+                    .for_branch(params[:branch_id])
+                    .on_or_after(params[:from])
+                    .on_or_before(params[:to])
+                    .search(params[:q])
+                    .recent
+                    .includes(:warehouse, :branch, :created_by, items: :product)
+    @stock_issues = @stock_issues.where(created_by_id: params[:created_by_id]) if params[:created_by_id].present?
+    @stock_issues = @stock_issues.active if params[:status] == "active"
+    @stock_issues = @stock_issues.voided if params[:status] == "voided"
+
+    @filter_warehouses   = accessible_warehouses
+    @filter_branches     = current_user.business.branches.active.order(:name)
+    @filter_creators     = User.where(
+                              id: StockIssue.for_business(current_user.business).select(:created_by_id)
+                            ).order(:first_name, :last_name)
+    @active_filter_count = params.values_at(:q, :warehouse_id, :branch_id, :status, :created_by_id, :from, :to)
+                                 .count(&:present?)
+
+    # Summary bar figures — always scoped to the whole (unfiltered) accessible
+    # set, so "Filtered Results" below reads as "N of the M total documents".
+    @total_documents_count = base.count
+    @total_value           = StockIssueItem.joins(:stock_issue).merge(base).sum(:total_cost)
+    @filtered_count        = @stock_issues.count
   end
 
   def show
@@ -66,14 +94,18 @@ class Inventory::StockIssuesController < Inventory::BaseController
       redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.file_warehouse_and_branch_required") and return
     end
 
-    @result = Inventory::Imports::StockIssueImporter.new(
+    result = Inventory::Imports::StockIssueImporter.new(
       current_user.business, file.read, warehouse: warehouse, branch: branch, user: current_user
     ).call
 
-    if @result.ok?
-      render :import_result
+    unless result.ok?
+      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.invalid_headers") and return
+    end
+
+    if result.batch
+      redirect_to inventory_stock_issue_import_batch_path(result.batch)
     else
-      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.invalid_headers")
+      redirect_to inventory_stock_issue_path(result.issue), notice: t("inventory.imports.import_completed")
     end
   end
 

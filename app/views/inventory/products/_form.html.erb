@@ -1,5 +1,8 @@
 <%= form_with model: [:inventory, product], class: "form-card" do |f| %>
   <%= render "shared/error_messages", object: product %>
+  <% if local_assigns[:return_to_import_row_id].present? %>
+    <%= hidden_field_tag :return_to_import_row_id, return_to_import_row_id %>
+  <% end %>
 
   <%# ── Image ─────────────────────────────────────────────── %>
   <div class="form-group">

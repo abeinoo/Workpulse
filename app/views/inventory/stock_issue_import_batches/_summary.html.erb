@@ -1,0 +1,33 @@
+<%= turbo_frame_tag "import_batch_summary" do %>
+  <div class="stats-grid" style="margin-bottom: var(--space-5);">
+    <%= link_to inventory_stock_issue_path(batch.stock_issue),
+          class: "stat-card #{'stat-card--success' if batch.stock_issue.posted?}" do %>
+      <span class="stat-card__label">
+        <%= batch.stock_issue.posted? ? t("inventory.imports.created_issue") : t("inventory.imports.draft_issue") %>
+      </span>
+      <span class="stat-card__value"><%= batch.stock_issue.issue_number %></span>
+    <% end %>
+    <div class="stat-card <%= 'stat-card--warning' if batch.rows.pending.any? %>">
+      <span class="stat-card__label"><%= t("inventory.imports.pending_rows") %></span>
+      <span class="stat-card__value"><%= batch.rows.pending.count %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.imports.resolved_rows") %></span>
+      <span class="stat-card__value"><%= batch.rows.resolved.count %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.imports.skipped") %></span>
+      <span class="stat-card__value"><%= batch.rows.skipped.count %></span>
+    </div>
+  </div>
+
+  <% if batch.completed? %>
+    <div class="form-hint form-hint--info" style="margin-bottom: var(--space-5);">
+      <%= t("inventory.imports.import_completed") %>
+    </div>
+  <% else %>
+    <%= button_to t("inventory.imports.complete_import"),
+          complete_inventory_stock_issue_import_batch_path(batch), method: :patch,
+          class: "btn btn-primary", disabled: batch.rows.pending.any? %>
+  <% end %>
+<% end %>

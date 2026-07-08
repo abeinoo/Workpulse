@@ -48,6 +48,7 @@ class Business < ApplicationRecord
   has_many :stock_adjustments,    dependent: :destroy
   has_many :stock_counts,         dependent: :destroy
   has_many :inventory_movements,  dependent: :destroy
+  has_many :stock_issue_import_batches, dependent: :destroy
 
   has_many :departments,              dependent: :destroy
   has_many :evaluation_templates,     dependent: :destroy

@@ -296,6 +296,19 @@ module ApplicationHelper
     I18n.locale.to_s == "ar" ? "#{num} #{info[:symbol]}" : "#{info[:symbol_en]} #{num}"
   end
 
+  # Same figures as format_currency, split so a caller can stack them (small
+  # currency code above/below a large bold amount) instead of one inline string.
+  # Returns [currency_symbol, formatted_amount].
+  def format_currency_parts(amount, precision: 2)
+    return [ nil, "—" ] if amount.nil?
+    business = current_user&.business
+    code     = business&.currency.presence || "SAR"
+    info     = Business::CURRENCIES[code] || Business::CURRENCIES["SAR"]
+    num      = number_with_precision(amount.to_f, precision: precision, delimiter: ",", separator: ".")
+    symbol   = I18n.locale.to_s == "ar" ? info[:symbol] : info[:symbol_en]
+    [ symbol, num ]
+  end
+
   # Formats a minutes integer as "Xh Ym" (e.g. 90 → "1h 30m").
   # Returns "—" for nil/zero.
   def format_minutes(minutes)

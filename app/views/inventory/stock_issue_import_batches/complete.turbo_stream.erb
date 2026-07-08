@@ -1,0 +1,13 @@
+<%= turbo_stream.replace "import_batch_summary" do %>
+  <%= render "summary", batch: @batch %>
+<% end %>
+
+<%= turbo_stream.replace "import_batch_rows" do %>
+  <%= turbo_frame_tag "import_batch_rows" do %>
+    <div class="card-grid" style="grid-template-columns: 1fr;">
+      <% @rows.each do |row| %>
+        <%= render "inventory/stock_issue_import_rows/row", row: row %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

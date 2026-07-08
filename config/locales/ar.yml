@@ -3110,12 +3110,36 @@ ar:
       summary_title: "ملخص الاستيراد"
       created: "تم الإنشاء"
       created_issue: "تم إنشاء الإذن"
+      draft_issue: "إذن مسودة"
       issued_lines: "الأصناف المصروفة"
       skipped: "تم التخطي"
       opening_adjustment: "تسوية افتتاحية"
       skipped_rows: "الصفوف المتخطاة"
       row: "الصف"
       reason: "السبب"
+      draft_batch_title: "معالجة أخطاء الاستيراد"
+      rows_to_resolve: "صفوف بحاجة إلى معالجة"
+      pending_rows: "قيد الانتظار"
+      resolved_rows: "تم الحل"
+      import_completed: "اكتمل الاستيراد."
+      complete_import: "إكمال الاستيراد"
+      complete_failed: "تعذّر استيراد بعض الصفوف — راجع التفاصيل أدناه وحاول مرة أخرى."
+      row_resolved: "جاهز للاستيراد"
+      row_skipped: "تم التخطي"
+      row_skipped_hint: "لن يتم استيراد هذا الصف."
+      row_imported: "تم الاستيراد"
+      skip_row: "تخطي هذا الصف"
+      imported_sku: "رمز SKU المستورد"
+      search_product: "ابحث عن منتج"
+      resolve: "حفظ"
+      create_new_product: "إنشاء منتج جديد"
+      quantity: "الكمية"
+      issue_quantity: "الكمية المراد صرفها"
+      barcode: "الباركود"
+      available_stock: "المخزون المتاح"
+      requested_quantity: "الكمية المطلوبة"
+      shortage: "النقص"
+      inventory_breakdown: "توزيع المخزون (كل المستودعات)"
       products:
         title: "استيراد المنتجات"
         columns: "ارفع ملف CSV للمنتجات. الأعمدة المطلوبة والاختيارية موضحة أدناه."
@@ -3129,6 +3153,7 @@ ar:
         invalid: "تعذّر الحفظ (بيانات غير صحيحة)"
         invalid_row: "صف غير صالح (SKU أو الكمية مفقودة)"
         unknown_sku: "لا يوجد منتج مطابق لرمز SKU هذا"
+        insufficient_stock: "لا توجد كمية كافية في المخزون"
     barcode_labels:
       title: "ملصقات الباركود"
       print: "طباعة الملصقات"
@@ -3247,6 +3272,7 @@ ar:
       select_warehouse: "اختر المستودع"
       default_threshold: "افتراضي"
       new_title: "منتج جديد"
+      created: "تم إنشاء المنتج."
       edit_title: "تعديل المنتج"
       section_family: "عائلة المنتج"
       family_hint: "قم بتعيين هذا المنتج لمنتج أصل لتجميع المنتجات المرتبطة (مثل المقاسات أو الألوان). المنتج الأصل حاوية فقط ولا يحمل مخزوناً."
@@ -3355,6 +3381,29 @@ ar:
       post: "تسجيل الإذن"
       created: "تم تسجيل إذن الصرف — تم تحديث المخزون."
       voided: "تم إلغاء إذن الصرف — تمت استعادة المخزون."
+      created_by: "أنشئ بواسطة"
+      items_count: "الأصناف"
+      status_posted: "مسجَّل"
+      search_label: "بحث"
+      search_placeholder: "رقم الإذن، الفرع، المستودع، SKU، أو اسم المنتج"
+      all_warehouses: "كل المستودعات"
+      all_branches: "كل الفروع"
+      all_statuses: "كل الحالات"
+      all_creators: "كل المنشئين"
+      date_from: "من"
+      date_to: "إلى"
+      filters: "الفلاتر"
+      total_documents: "إجمالي الإذونات"
+      total_value: "إجمالي القيمة"
+      filtered_results: "النتائج المفلترة"
+      actions:
+        label: "إجراءات"
+        view: "عرض"
+        print: "طباعة"
+        void: "إلغاء"
+        duplicate: "تكرار"
+        export_pdf: "تصدير PDF"
+        soon: "قريباً"
     stock_transfers:
       title: "تحويلات المخزون"
       new_action: "تحويل جديد"
@@ -3691,6 +3740,53 @@ ar:
             base:
               has_history_cannot_delete: "هذا المنتج له سجلات مخزون تاريخية ولا يمكن حذفه. قم بأرشفته بدلاً من ذلك."
               archive_has_active_children: "لا يمكن أرشفة منتج أصل يحتوي على منتجات فرعية نشطة. أرشف المنتجات الفرعية أولاً أو استخدم أرشفة العائلة."
+            parent_product_id:
+              too_deep: "لا يمكن أن يكون هذا المنتج نسخة من نسخة أخرى — المنتجات الأصل يمكن أن تكون بمستوى واحد فقط"
+              circular: "لا يمكن ضبطه ليكون المنتج نفسه"
+        goods_receipt_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "هذا منتج أصل ولا يمكن استخدامه مباشرة — اختر نسخة محددة بدلاً منه"
+        stock_issue_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "هذا منتج أصل ولا يمكن استخدامه مباشرة — اختر نسخة محددة بدلاً منه"
+        stock_transfer_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "هذا منتج أصل ولا يمكن استخدامه مباشرة — اختر نسخة محددة بدلاً منه"
+        stock_adjustment_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "هذا منتج أصل ولا يمكن استخدامه مباشرة — اختر نسخة محددة بدلاً منه"
+        stock_count_item:
+          attributes:
+            product_id:
+              parent_not_allowed: "هذا منتج أصل ولا يمكن استخدامه مباشرة — اختر نسخة محددة بدلاً منه"
+        shift_template_entry:
+          attributes:
+            ends_on:
+              must_be_on_or_after_starts_on: "يجب أن يكون في نفس تاريخ البداية أو بعده"
+            effective_to_offset:
+              must_be_after_from_offset: "يجب أن يكون بعد إزاحة البداية الفعلية"
+        warehouse_assignment:
+          attributes:
+            warehouse_id:
+              different_business: "يجب أن ينتمي إلى نفس منشأة المستخدم"
+        custody_transaction:
+          attributes:
+            amount:
+              must_be_positive: "يجب أن يكون موجباً لعملية إيداع"
+              must_be_negative: "يجب أن يكون سالباً لخصم مصروف"
+              must_not_be_zero: "لا يمكن أن يكون صفراً"
+        bank_statement:
+          attributes:
+            statement_to:
+              before_start: "يجب أن يكون في نفس تاريخ البداية أو بعده"
+        till_deposit:
+          attributes:
+            payment_method:
+              not_cash_like: "يجب أن تكون وسيلة دفع نقدية"
 
   ops_dashboard:
     page_title: "لوحة العمليات"
@@ -5614,15 +5710,3 @@ ar:
       write_off_notes_placeholder: "مثال: الـ ATM رفض المسكوكات — موافقة الإدارة"
       write_off_submit: "شطب الرصيد"
       write_off_confirm: "سيتم شطب كامل الرصيد المتبقي. لا يمكن التراجع عن هذا الإجراء. هل تريد المتابعة؟"
-
-  activerecord:
-    errors:
-      models:
-        bank_statement:
-          attributes:
-            statement_to:
-              before_start: "يجب أن يكون في نفس تاريخ البداية أو بعده"
-        till_deposit:
-          attributes:
-            payment_method:
-              not_cash_like: "يجب أن تكون وسيلة دفع نقدية"

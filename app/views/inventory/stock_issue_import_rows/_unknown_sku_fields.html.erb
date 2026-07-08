@@ -1,0 +1,26 @@
+<div style="margin-bottom: var(--space-4);">
+  <span class="td-secondary" style="display: block;"><%= t("inventory.imports.imported_sku") %></span>
+  <p style="font-size: var(--text-lg); font-weight: 700; color: var(--text-1); margin: 0;">
+    <%= row.sku.presence || "—" %>
+  </p>
+</div>
+
+<%= form_with url: resolve_inventory_stock_issue_import_batch_row_path(row.batch_id, row), method: :patch,
+              data: { turbo_frame: dom_id(row) } do |f| %>
+  <div class="form-group" data-controller="searchable-select">
+    <%= f.label :product_id, t("inventory.imports.search_product"), class: "form-label" %>
+    <%= f.select :product_id, inventory_product_options(transactable_products, row.product_id),
+          { include_blank: "— #{t('inventory.imports.search_product')}" },
+          class: "form-control", data: { searchable_select_target: "select" } %>
+  </div>
+  <%= f.submit t("inventory.imports.resolve"), class: "btn btn-primary btn-sm" %>
+<% end %>
+
+<div class="form-actions" style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+  <% if current_user.can?(:manage_products) || current_user.can?(:manage_inventory) %>
+    <%= link_to t("inventory.imports.create_new_product"),
+          new_inventory_product_path(sku: row.sku, return_to_import_row_id: row.id),
+          class: "btn btn-ghost btn-sm", data: { turbo_frame: "modal" } %>
+  <% end %>
+  <%= render "inventory/stock_issue_import_rows/skip_button", row: row %>
+</div>

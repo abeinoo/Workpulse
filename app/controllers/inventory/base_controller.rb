@@ -27,6 +27,13 @@ class Inventory::BaseController < ApplicationController
   end
   helper_method :accessible_warehouse_ids
 
+  # Products eligible to appear in an inventory transaction line — used to
+  # populate every product picker (new stock issue, import row resolution).
+  def transactable_products
+    current_user.business.products.transactable.ordered
+  end
+  helper_method :transactable_products
+
   # Refuses a write whose warehouse the scoped user isn't assigned to. Pass every
   # warehouse id the document touches (e.g. both ends of a transfer).
   def ensure_warehouses_accessible!(*warehouse_ids)

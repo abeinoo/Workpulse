@@ -1,0 +1,14 @@
+<%= render "inventory/stock_issue_import_rows/product_info_panel", row: row %>
+
+<%= form_with url: resolve_inventory_stock_issue_import_batch_row_path(row.batch_id, row), method: :patch,
+              data: { turbo_frame: dom_id(row) } do |f| %>
+  <div class="form-group">
+    <%= f.label :quantity, t("inventory.imports.issue_quantity"), class: "form-label" %>
+    <%= f.number_field :quantity, value: row.available_hint, step: "0.001", min: 0, class: "form-control" %>
+  </div>
+  <%= f.submit t("inventory.imports.resolve"), class: "btn btn-primary btn-sm" %>
+<% end %>
+
+<div class="form-actions" style="display: flex; gap: var(--space-2); align-items: center;">
+  <%= render "inventory/stock_issue_import_rows/skip_button", row: row %>
+</div>

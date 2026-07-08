@@ -1,0 +1,21 @@
+<% content_for :title, t("inventory.imports.draft_batch_title") %>
+
+<div class="admin-page">
+  <%= link_to inventory_stock_issues_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("inventory.stock_issues.title") %>
+  <% end %>
+
+  <div class="page-header"><h1 class="page-title"><%= t("inventory.imports.draft_batch_title") %></h1></div>
+
+  <%= render "summary", batch: @batch %>
+
+  <h2 class="section-title"><%= t("inventory.imports.rows_to_resolve") %></h2>
+  <%= turbo_frame_tag "import_batch_rows" do %>
+    <div class="card-grid" style="grid-template-columns: 1fr;">
+      <% @rows.each do |row| %>
+        <%= render "inventory/stock_issue_import_rows/row", row: row %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

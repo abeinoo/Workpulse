@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_08_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1786,6 +1786,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
     t.index ["warehouse_id"], name: "index_stock_counts_on_warehouse_id"
   end
 
+  create_table "stock_issue_import_batches", force: :cascade do |t|
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.string "status", default: "draft", null: false
+    t.bigint "stock_issue_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "warehouse_id", null: false
+    t.index ["branch_id"], name: "index_stock_issue_import_batches_on_branch_id"
+    t.index ["business_id"], name: "index_stock_issue_import_batches_on_business_id"
+    t.index ["created_by_id"], name: "index_stock_issue_import_batches_on_created_by_id"
+    t.index ["status"], name: "index_stock_issue_import_batches_on_status"
+    t.index ["stock_issue_id"], name: "index_stock_issue_import_batches_on_stock_issue_id"
+    t.index ["warehouse_id"], name: "index_stock_issue_import_batches_on_warehouse_id"
+  end
+
+  create_table "stock_issue_import_rows", force: :cascade do |t|
+    t.decimal "available_hint", precision: 12, scale: 3
+    t.bigint "batch_id", null: false
+    t.datetime "created_at", null: false
+    t.string "failure_reason"
+    t.bigint "product_id"
+    t.decimal "quantity", precision: 12, scale: 3
+    t.integer "row_number", null: false
+    t.string "sku"
+    t.string "status", default: "pending", null: false
+    t.bigint "stock_issue_item_id"
+    t.datetime "updated_at", null: false
+    t.index ["batch_id", "status"], name: "index_stock_issue_import_rows_on_batch_id_and_status"
+    t.index ["batch_id"], name: "index_stock_issue_import_rows_on_batch_id"
+    t.index ["product_id"], name: "index_stock_issue_import_rows_on_product_id"
+    t.index ["stock_issue_item_id"], name: "index_stock_issue_import_rows_on_stock_issue_item_id"
+  end
+
   create_table "stock_issue_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "product_id", null: false
@@ -1806,6 +1841,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
     t.string "issue_number", null: false
     t.date "issued_on", null: false
     t.text "notes"
+    t.string "status", default: "posted", null: false
     t.datetime "updated_at", null: false
     t.text "void_reason"
     t.datetime "voided_at"
@@ -1815,6 +1851,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
     t.index ["business_id", "issue_number"], name: "index_stock_issues_on_business_id_and_issue_number", unique: true
     t.index ["business_id"], name: "index_stock_issues_on_business_id"
     t.index ["created_by_id"], name: "index_stock_issues_on_created_by_id"
+    t.index ["status"], name: "index_stock_issues_on_status"
     t.index ["voided_by_id"], name: "index_stock_issues_on_voided_by_id"
     t.index ["warehouse_id"], name: "index_stock_issues_on_warehouse_id"
   end
@@ -2286,6 +2323,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_05_065031) do
   add_foreign_key "stock_counts", "users", column: "completed_by_id"
   add_foreign_key "stock_counts", "users", column: "created_by_id"
   add_foreign_key "stock_counts", "warehouses"
+  add_foreign_key "stock_issue_import_batches", "branches"
+  add_foreign_key "stock_issue_import_batches", "businesses"
+  add_foreign_key "stock_issue_import_batches", "stock_issues"
+  add_foreign_key "stock_issue_import_batches", "users", column: "created_by_id"
+  add_foreign_key "stock_issue_import_batches", "warehouses"
+  add_foreign_key "stock_issue_import_rows", "products"
+  add_foreign_key "stock_issue_import_rows", "stock_issue_import_batches", column: "batch_id"
+  add_foreign_key "stock_issue_import_rows", "stock_issue_items"
   add_foreign_key "stock_issue_items", "products"
   add_foreign_key "stock_issue_items", "stock_issues"
   add_foreign_key "stock_issues", "branches"

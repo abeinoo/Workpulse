@@ -1,0 +1,18 @@
+<%= form_with url: resolve_inventory_stock_issue_import_batch_row_path(row.batch_id, row), method: :patch,
+              data: { turbo_frame: dom_id(row) } do |f| %>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :sku, t("inventory.products.sku"), class: "form-label" %>
+      <%= f.text_field :sku, value: row.sku, class: "form-control" %>
+    </div>
+    <div class="form-group">
+      <%= f.label :quantity, t("inventory.imports.quantity"), class: "form-label" %>
+      <%= f.number_field :quantity, value: row.quantity, step: "0.001", min: 0, class: "form-control" %>
+    </div>
+  </div>
+  <%= f.submit t("inventory.imports.resolve"), class: "btn btn-primary btn-sm" %>
+<% end %>
+
+<div class="form-actions" style="display: flex; gap: var(--space-2); align-items: center;">
+  <%= render "inventory/stock_issue_import_rows/skip_button", row: row %>
+</div>

@@ -11,6 +11,116 @@
     <% end %>
   </div>
 
+  <%# ── Summary bar ─────────────────────────────────────────────────────────── %>
+  <div class="stats-grid" style="margin-bottom: var(--space-4);">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.stock_issues.total_documents") %></span>
+      <span class="stat-card__value"><%= number_with_delimiter(@total_documents_count) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.stock_issues.total_value") %></span>
+      <span class="stat-card__value"><%= format_currency(@total_value) %></span>
+    </div>
+    <div class="stat-card stat-card--accent">
+      <span class="stat-card__label"><%= t("inventory.stock_issues.filtered_results") %></span>
+      <span class="stat-card__value"><%= number_with_delimiter(@filtered_count) %></span>
+    </div>
+  </div>
+
+  <%# ── Collapsible filter bar — open by default only if a filter is active ──── %>
+  <div class="adj-filter-section" style="margin-bottom: var(--space-5);"
+       data-controller="collapsible"
+       data-collapsible-open-value="<%= @active_filter_count > 0 ? 'true' : 'false' %>">
+    <div class="adj-filter-header" data-action="click->collapsible#toggle" data-collapsible-target="trigger">
+      <span class="adj-filter-header__title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+        <%= t("inventory.stock_issues.filters") %>
+        <% if @active_filter_count > 0 %>
+          <span class="attn-filter-count"><%= @active_filter_count %></span>
+        <% end %>
+      </span>
+      <button type="button" class="adj-filter-toggle btn btn-ghost btn-sm"
+              aria-expanded="<%= @active_filter_count > 0 ? 'true' : 'false' %>"
+              aria-label="<%= t("forms.toggle_filters") %>">
+        <svg class="adj-filter-toggle__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="adj-filter-body" data-collapsible-target="content">
+      <%= form_with url: inventory_stock_issues_path, method: :get, local: true, class: "filter-bar" do |f| %>
+        <div class="filter-bar__fields">
+          <div class="filter-bar__field">
+            <%= f.label :q, t("inventory.stock_issues.search_label"), class: "filter-bar__label" %>
+            <%= f.text_field :q, value: params[:q],
+                  placeholder: t("inventory.stock_issues.search_placeholder"), class: "filter-bar__input" %>
+          </div>
+
+          <div class="filter-bar__field">
+            <%= f.label :warehouse_id, t("inventory.stock_issues.warehouse"), class: "filter-bar__label" %>
+            <%= f.select :warehouse_id,
+                  options_for_select(
+                    [[ t("inventory.stock_issues.all_warehouses"), "" ]] + @filter_warehouses.map { |w| [ w.name, w.id ] },
+                    params[:warehouse_id]),
+                  {}, class: "filter-bar__select" %>
+          </div>
+
+          <div class="filter-bar__field">
+            <%= f.label :branch_id, t("inventory.stock_issues.branch"), class: "filter-bar__label" %>
+            <%= f.select :branch_id,
+                  options_for_select(
+                    [[ t("inventory.stock_issues.all_branches"), "" ]] + @filter_branches.map { |b| [ b.name, b.id ] },
+                    params[:branch_id]),
+                  {}, class: "filter-bar__select" %>
+          </div>
+
+          <div class="filter-bar__field">
+            <%= f.label :status, t("inventory.void.status"), class: "filter-bar__label" %>
+            <%= f.select :status,
+                  options_for_select(
+                    [[ t("inventory.stock_issues.all_statuses"), "" ],
+                     [ t("inventory.stock_issues.status_posted"), "active" ],
+                     [ t("inventory.void.status_voided"), "voided" ]],
+                    params[:status]),
+                  {}, class: "filter-bar__select" %>
+          </div>
+
+          <% if @filter_creators.any? %>
+            <div class="filter-bar__field">
+              <%= f.label :created_by_id, t("inventory.stock_issues.created_by"), class: "filter-bar__label" %>
+              <%= f.select :created_by_id,
+                    options_for_select(
+                      [[ t("inventory.stock_issues.all_creators"), "" ]] + @filter_creators.map { |u| [ u.full_name, u.id ] },
+                      params[:created_by_id]),
+                    {}, class: "filter-bar__select" %>
+            </div>
+          <% end %>
+
+          <div class="filter-bar__field">
+            <%= f.label :from, t("inventory.stock_issues.date_from"), class: "filter-bar__label" %>
+            <%= f.date_field :from, value: params[:from], class: "filter-bar__input" %>
+          </div>
+
+          <div class="filter-bar__field">
+            <%= f.label :to, t("inventory.stock_issues.date_to"), class: "filter-bar__label" %>
+            <%= f.date_field :to, value: params[:to], class: "filter-bar__input" %>
+          </div>
+        </div>
+        <div class="filter-bar__actions">
+          <%= f.submit t("shared.filter"), class: "btn btn-primary btn-sm" %>
+          <% if @active_filter_count > 0 %>
+            <%= link_to t("shared.clear_filters"), inventory_stock_issues_path, class: "btn btn-ghost btn-sm" %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
   <% if @stock_issues.empty? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("inventory.stock_issues.empty") %></p></div>
   <% else %>
@@ -19,22 +129,123 @@
         <thead><tr>
           <th><%= t("inventory.stock_issues.number") %></th>
           <th><%= t("inventory.stock_issues.date") %></th>
-          <th><%= t("inventory.stock_issues.warehouse") %></th>
+          <th><%= t("inventory.stock_issues.branch") %></th>
+          <th><%= t("inventory.stock_issues.created_by") %></th>
+          <th><%= t("inventory.stock_issues.items_count") %></th>
           <th><%= t("inventory.void.status") %></th>
           <th style="text-align: end;"><%= t("inventory.stock_issues.total") %></th>
+          <th class="td-actions"><span class="visually-hidden"><%= t("inventory.stock_issues.actions.label") %></span></th>
         </tr></thead>
         <tbody>
           <% @stock_issues.each do |issue| %>
-            <tr>
-              <td><%= link_to issue.issue_number, inventory_stock_issue_path(issue), class: "link" %></td>
-              <td class="td-secondary"><%= local_date(issue.issued_on) %></td>
-              <td class="td-secondary"><%= issue.warehouse.name %></td>
+            <tr data-controller="clickable-row" data-action="click->clickable-row#navigate"
+                data-clickable-row-url-value="<%= inventory_stock_issue_path(issue) %>" style="cursor: pointer;">
               <td>
-                <span class="badge <%= issue.voided? ? 'badge-danger' : 'badge-success' %>">
-                  <%= issue.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+                <%= link_to issue.issue_number, inventory_stock_issue_path(issue),
+                      class: "link", style: "font-weight: 700; font-size: var(--text-base);" %>
+              </td>
+              <td class="td-secondary">
+                <%= local_date(issue.issued_on) %>
+                <div style="font-size: var(--text-xs); color: var(--text-2);"><%= local_time(issue.created_at) %></div>
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 5px; font-weight: 600; color: var(--text-1);">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <%= issue.branch&.name || "—" %>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px; font-size: var(--text-xs); color: var(--text-2); margin-top: 3px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;">
+                    <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>
+                  </svg>
+                  <%= issue.warehouse.name %>
+                </div>
+              </td>
+              <td class="td-secondary"><%= issue.created_by&.full_name || "—" %></td>
+              <td>
+                <%= link_to inventory_stock_issue_path(issue, anchor: "items"), class: "link",
+                      style: "display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;" do %>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                  </svg>
+                  <%= issue.items.size %> <%= t("inventory.stock_issues.items_count") %>
+                <% end %>
+              </td>
+              <td>
+                <span class="badge <%= issue.voided? ? 'badge-danger' : 'badge-success' %>"
+                      style="display: inline-flex; align-items: center; gap: 5px;">
+                  <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0;"></span>
+                  <%= issue.voided? ? t("inventory.void.status_voided") : t("inventory.stock_issues.status_posted") %>
                 </span>
               </td>
-              <td style="text-align: end;"><%= format_currency(issue.total_value) %></td>
+              <% symbol, amount = format_currency_parts(issue.items.sum(&:total_cost)) %>
+              <td style="text-align: end;">
+                <div style="font-size: var(--text-xs); color: var(--text-2); text-transform: uppercase; letter-spacing: 0.03em;"><%= symbol %></div>
+                <div style="font-weight: 700; font-size: var(--text-base);"><%= amount %></div>
+              </td>
+              <td class="td-actions">
+                <div class="row-actions" data-controller="dropdown">
+                  <button type="button" class="row-actions__btn" data-action="click->dropdown#toggle"
+                          aria-label="<%= t('inventory.stock_issues.actions.label') %>">&#8942;</button>
+                  <div class="row-actions__menu" data-dropdown-target="menu" hidden>
+                    <%= link_to inventory_stock_issue_path(issue), class: "row-actions__item" do %>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                      </svg>
+                      <%= t("inventory.stock_issues.actions.view") %>
+                    <% end %>
+
+                    <%= link_to inventory_stock_issue_path(issue, print: 1), class: "row-actions__item",
+                          target: "_blank", rel: "noopener" do %>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="6 9 6 2 18 2 18 9"/>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                        <rect x="6" y="14" width="12" height="8"/>
+                      </svg>
+                      <%= t("inventory.stock_issues.actions.print") %>
+                    <% end %>
+
+                    <% if !issue.voided? && policy(issue).void? %>
+                      <%= link_to inventory_stock_issue_path(issue, anchor: "void-panel"),
+                            class: "row-actions__item row-actions__item--danger" do %>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                        <%= t("inventory.stock_issues.actions.void") %>
+                      <% end %>
+                    <% end %>
+
+                    <span class="row-actions__item row-actions__item--disabled">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                      <%= t("inventory.stock_issues.actions.duplicate") %>
+                      <span class="row-actions__soon"><%= t("inventory.stock_issues.actions.soon") %></span>
+                    </span>
+
+                    <span class="row-actions__item row-actions__item--disabled">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                      </svg>
+                      <%= t("inventory.stock_issues.actions.export_pdf") %>
+                      <span class="row-actions__soon"><%= t("inventory.stock_issues.actions.soon") %></span>
+                    </span>
+                  </div>
+                </div>
+              </td>
             </tr>
           <% end %>
         </tbody>

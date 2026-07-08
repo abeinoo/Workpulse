@@ -1,0 +1,68 @@
+<%
+  product   = row.product
+  available = row.available_hint
+  requested = row.quantity
+  shortage  = available.present? && requested.present? && requested > available
+  breakdown = Inventory::StockLevels.new(product).by_warehouse.select { |_, qty| qty.to_d.positive? }
+  breakdown_warehouses = breakdown.any? ? accessible_warehouses.where(id: breakdown.keys).index_by(&:id) : {}
+%>
+<div style="display: flex; gap: var(--space-4); margin-bottom: var(--space-4); flex-wrap: wrap;">
+  <% if product.image.attached? %>
+    <%= image_tag url_for(product.image.variant(resize_to_limit: [ 96, 96 ])),
+          alt: product.name,
+          style: "width: 72px; height: 72px; object-fit: cover; border-radius: var(--radius-lg); border: 1px solid var(--border); flex-shrink: 0;" %>
+  <% else %>
+    <div style="width: 72px; height: 72px; border-radius: var(--radius-lg); background: var(--accent-muted); color: var(--accent); border: 1px solid var(--accent-ring); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: var(--text-lg); flex-shrink: 0;">
+      <%= product.name.first(2).upcase %>
+    </div>
+  <% end %>
+
+  <div style="flex: 1; min-width: 200px;">
+    <p style="margin: 0 0 var(--space-1);">
+      <%= link_to product.name, inventory_product_path(product), target: "_blank", rel: "noopener noreferrer",
+            style: "font-size: var(--text-lg); font-weight: 700; color: var(--text-1); text-decoration: none;" %>
+    </p>
+    <p class="td-secondary" style="margin: 0;">
+      <%= t("inventory.products.sku") %>: <%= product.sku %>
+      <% if product.barcode.present? %>
+        &middot; <%= t("inventory.imports.barcode") %>: <%= product.barcode %>
+      <% end %>
+    </p>
+    <p class="td-secondary" style="margin: 0;">
+      <%= t("inventory.imports.warehouse") %>: <%= row.batch.warehouse.name %>
+    </p>
+  </div>
+</div>
+
+<div style="display: flex; gap: var(--space-6); margin-bottom: var(--space-4); flex-wrap: wrap;">
+  <div>
+    <span class="td-secondary" style="display: block;"><%= t("inventory.imports.available_stock") %></span>
+    <span style="font-size: var(--text-lg); font-weight: 700; color: var(--success);"><%= available %></span>
+  </div>
+  <div>
+    <span class="td-secondary" style="display: block;"><%= t("inventory.imports.requested_quantity") %></span>
+    <span style="font-size: var(--text-lg); font-weight: 700; color: var(--accent);"><%= requested %></span>
+  </div>
+  <% if shortage %>
+    <div>
+      <span class="td-secondary" style="display: block;"><%= t("inventory.imports.shortage") %></span>
+      <span style="font-size: var(--text-lg); font-weight: 700; color: var(--danger);"><%= requested - available %></span>
+    </div>
+  <% end %>
+</div>
+
+<% if breakdown_warehouses.any? %>
+  <div style="margin-bottom: var(--space-4);">
+    <span class="td-secondary" style="display: block; margin-bottom: var(--space-1);">
+      <%= t("inventory.imports.inventory_breakdown") %>
+    </span>
+    <table style="width: 100%; border-collapse: collapse;">
+      <% breakdown_warehouses.each do |warehouse_id, warehouse| %>
+        <tr>
+          <td class="td-secondary" style="padding: 2px 0;"><%= warehouse.name %></td>
+          <td style="padding: 2px 0; text-align: end; font-weight: 600; color: var(--text-1);"><%= breakdown[warehouse_id] %></td>
+        </tr>
+      <% end %>
+    </table>
+  </div>
+<% end %>

@@ -323,6 +323,18 @@ Rails.application.routes.draw do
         get  :import_template
       end
     end
+    # Draft import batches from a stock-issue CSV import — not nested under a
+    # single stock_issue, since a batch's whole purpose is holding rows that
+    # never made it into one.
+    resources :stock_issue_import_batches, only: [ :show ] do
+      patch :complete, on: :member
+      resources :rows, only: [], controller: "stock_issue_import_rows" do
+        member do
+          patch :resolve
+          patch :skip
+        end
+      end
+    end
     resources :stock_transfers, only: [ :index, :show, :new, :create ] do
       member { patch :void }
     end

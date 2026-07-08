@@ -2,7 +2,9 @@ module Inventory
   # Posts a stock issue: validates that every product has enough on-hand in the
   # issue's warehouse (blocking over-issue), values each line at the product's
   # current average cost, then records an OUT movement per line. All-or-nothing
-  # in one transaction.
+  # in one transaction. Idempotent by construction — an already-posted issue is
+  # refused outright, so calling this twice (e.g. a double form submission on
+  # the stock-issue import's "Complete Import" step) can never double-post.
   class StockIssuePoster
     Result = Struct.new(:ok, :issue, keyword_init: true) do
       def ok? = ok
@@ -13,13 +15,15 @@ module Inventory
     end
 
     def call
+      return Result.new(ok: false, issue: @issue) if @issue.persisted? && @issue.posted?
+
       value_items
       unless availability_ok?
         return Result.new(ok: false, issue: @issue)
       end
 
       ActiveRecord::Base.transaction do
-        @issue.issue_number = NumberSequencer.new(@issue.business, :stock_issue).next_number if @issue.issue_number.blank?
+        @issue.status = :posted
 
         raise ActiveRecord::Rollback unless @issue.save
 

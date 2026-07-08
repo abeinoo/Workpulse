@@ -1,0 +1,7 @@
+<%= turbo_stream.replace dom_id(row) do %>
+  <%= render "inventory/stock_issue_import_rows/row", row: row %>
+<% end %>
+
+<%= turbo_stream.replace "import_batch_summary" do %>
+  <%= render "inventory/stock_issue_import_batches/summary", batch: @batch %>
+<% end %>

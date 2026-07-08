@@ -11758,3 +11758,71 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
 .barcode-tag:hover .barcode-tag__print { opacity: 1; }
 
 [dir="rtl"] .barcode-list__row { flex-direction: row-reverse; }
+
+/* ── Row action menu ("⋮" kebab dropdown) ──────────────────────────────────
+   Used on document index tables (e.g. Stock Issues) to keep a table clean
+   while surfacing per-row actions (View/Print/Void/…). */
+.row-actions {
+  position: relative;
+  display: inline-block;
+}
+.row-actions__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+.row-actions__btn:hover {
+  background: var(--navy-500);
+  color: var(--text-1);
+}
+.row-actions__menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: var(--space-2);
+}
+.row-actions__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: start;
+}
+.row-actions__item:hover { background: var(--navy-500); }
+.row-actions__item--danger { color: var(--danger); }
+.row-actions__item--disabled {
+  color: var(--text-2);
+  opacity: 0.55;
+  cursor: default;
+}
+.row-actions__item--disabled:hover { background: transparent; }
+.row-actions__soon {
+  margin-inline-start: auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}

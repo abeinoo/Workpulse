@@ -130,21 +130,28 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def new
     @product = current_user.business.products.build
+    @product.sku = params[:sku].presence if params[:sku].present?
     @product.barcode = params[:barcode].presence if params[:barcode].present?
     @product.product_barcodes.build if @product.product_barcodes.empty?
     authorize @product
     load_options
+    render :new_modal if params[:return_to_import_row_id].present?
   end
 
   def create
     @product = current_user.business.products.build(product_params)
     @product.average_cost_price = @product.initial_cost_price if @product.average_cost_price.to_d.zero?
     authorize @product
+
     if @product.save
-      redirect_to inventory_product_path(@product), notice: t("inventory.products.created")
+      if params[:return_to_import_row_id].present?
+        resolve_import_row_and_respond
+      else
+        redirect_to inventory_product_path(@product), notice: t("inventory.products.created")
+      end
     else
       load_options
-      render :new, status: :unprocessable_entity
+      render params[:return_to_import_row_id].present? ? :new_modal : :new, status: :unprocessable_entity
     end
   end
 
@@ -366,6 +373,18 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def find_product
     policy_scope(Product).find(params[:id])
+  end
+
+  # Quick-create-from-import-row flow: the newly created product resolves the
+  # stock-issue import row that triggered the modal, and the response updates
+  # that row (and the batch summary) in place instead of navigating away.
+  def resolve_import_row_and_respond
+    result = Inventory::Imports::StockIssueImportRowResolver.new(
+      current_user.business, params[:return_to_import_row_id], product_id: @product.id
+    ).call
+    @row = result.row
+    @batch = @row.batch
+    render :resolve_from_modal
   end
 
   def load_options
