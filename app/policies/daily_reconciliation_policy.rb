@@ -15,6 +15,7 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def view_own_employee_reconciliation_summary?   = can?(:view_own_employee_reconciliation_summary)
   def view_all_employee_reconciliation_summary?   = can?(:view_all_employee_reconciliation_summary)
   def manage_pos_import?                          = can?(:manage_pos_import)
+  def view_pos_transactions_verification?         = can?(:view_pos_transactions_verification)
 
   def mark_reviewed?
     can?(:review_daily_reconciliation) && !record.is_a?(Class) &&

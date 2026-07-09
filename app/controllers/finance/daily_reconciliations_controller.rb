@@ -355,34 +355,40 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @timeline_events = build_timeline_events
 
     @can_manage_pos_import = policy(@reconciliation).manage_pos_import?
+    @can_view_pos_transactions_verification = policy(@reconciliation).view_pos_transactions_verification?
 
     # Load POS transactions linked to this DR for the comparison sections.
-    @pos_transactions = @reconciliation.pos_transactions
-                                       .order(:transaction_date, :cashier_name, :payment_method_name)
-                                       .to_a
+    # Gated on view_pos_transactions_verification — without it, none of this
+    # data is loaded, so every POS-derived UI section (comparison columns,
+    # per-cashier breakdown, the dedicated verification section) stays hidden.
+    if @can_view_pos_transactions_verification
+      @pos_transactions = @reconciliation.pos_transactions
+                                         .order(:transaction_date, :cashier_name, :payment_method_name)
+                                         .to_a
 
-    # POS CSV stores English payment method names; TillSessionAmount stores locale-specific
-    # display names (e.g. "Cash" vs "نقداً"). Normalise on payment_method_id so comparisons
-    # work regardless of the UI language. Fall back to the raw English name for any CSV method
-    # that has no matching PaymentMethod record (shows as an unrecognised entry).
-    biz_payment_methods      = PaymentMethod.for_business(@reconciliation.business).to_a
-    @pos_payment_methods_by_id = biz_payment_methods.index_by(&:id)
-    pm_id_by_english_name    = biz_payment_methods
-                                 .each_with_object({}) { |pm, h| h[pm.name.downcase.strip] = pm.id }
-    pos_method_key = ->(txn) { pm_id_by_english_name[txn.payment_method_name.downcase.strip] || txn.payment_method_name }
+      # POS CSV stores English payment method names; TillSessionAmount stores locale-specific
+      # display names (e.g. "Cash" vs "نقداً"). Normalise on payment_method_id so comparisons
+      # work regardless of the UI language. Fall back to the raw English name for any CSV method
+      # that has no matching PaymentMethod record (shows as an unrecognised entry).
+      biz_payment_methods      = PaymentMethod.for_business(@reconciliation.business).to_a
+      @pos_payment_methods_by_id = biz_payment_methods.index_by(&:id)
+      pm_id_by_english_name    = biz_payment_methods
+                                   .each_with_object({}) { |pm, h| h[pm.name.downcase.strip] = pm.id }
+      pos_method_key = ->(txn) { pm_id_by_english_name[txn.payment_method_name.downcase.strip] || txn.payment_method_name }
 
-    @pos_totals_by_method  = @pos_transactions
-                               .group_by(&pos_method_key)
-                               .transform_values { |txns| txns.sum(&:amount) }
-    @pos_totals_by_cashier = @pos_transactions
-                               .group_by(&:cashier_name)
-                               .transform_values { |txns|
-                                 txns.group_by(&pos_method_key)
-                                     .transform_values { |t| t.sum(&:amount) }
-                               }
-    @latest_pos_import = current_user.business.pos_imports
-                                     .where(id: @pos_transactions.map(&:pos_import_id).uniq)
-                                     .order(updated_at: :desc).first
+      @pos_totals_by_method  = @pos_transactions
+                                 .group_by(&pos_method_key)
+                                 .transform_values { |txns| txns.sum(&:amount) }
+      @pos_totals_by_cashier = @pos_transactions
+                                 .group_by(&:cashier_name)
+                                 .transform_values { |txns|
+                                   txns.group_by(&pos_method_key)
+                                       .transform_values { |t| t.sum(&:amount) }
+                                 }
+      @latest_pos_import = current_user.business.pos_imports
+                                       .where(id: @pos_transactions.map(&:pos_import_id).uniq)
+                                       .order(updated_at: :desc).first
+    end
   end
 
   # POST /finance/daily_reconciliations

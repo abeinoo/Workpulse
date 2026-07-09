@@ -9,7 +9,10 @@
       pos_totals_by_cashier     — Hash{ cashier_name => Hash{ payment_method_id => BigDecimal } }
       pos_transactions          — Array<PosTransaction>
       pos_payment_methods_by_id — Hash{ payment_method_id => PaymentMethod }
-      latest_pos_import         — PosImport | nil %>
+      latest_pos_import         — PosImport | nil
+      can_manage_pos_import     — Boolean, gates the import/reimport links.
+                                  A user can view this section (view_pos_transactions_verification)
+                                  without being able to trigger an import (manage_pos_import). %>
 
 <% has_pos_data = pos_totals_by_method.any? %>
 
@@ -64,9 +67,11 @@
       <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 var(--space-4);">
         <%= t("finance.pos_imports.verification.empty_hint") %>
       </p>
-      <%= link_to t("finance.pos_imports.verification.go_to_import"),
-            new_finance_pos_import_path,
-            class: "btn btn-sm btn-ghost" %>
+      <% if can_manage_pos_import %>
+        <%= link_to t("finance.pos_imports.verification.go_to_import"),
+              new_finance_pos_import_path,
+              class: "btn btn-sm btn-ghost" %>
+      <% end %>
     </div>
 
   <% else %>
@@ -85,11 +90,13 @@
           <strong style="color: var(--text-2);"><%= t("finance.pos_imports.verification.imported_at_label") %>:</strong>
           <%= l(latest_pos_import.updated_at, format: :time_only) %>
         </span>
-        <span>
-          <%= link_to t("finance.pos_imports.verification.reimport"),
-                new_finance_pos_import_path,
-                style: "color: var(--accent); text-decoration: underline; text-decoration-style: dotted;" %>
-        </span>
+        <% if can_manage_pos_import %>
+          <span>
+            <%= link_to t("finance.pos_imports.verification.reimport"),
+                  new_finance_pos_import_path,
+                  style: "color: var(--accent); text-decoration: underline; text-decoration-style: dotted;" %>
+          </span>
+        <% end %>
       </div>
     <% end %>
 

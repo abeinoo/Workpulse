@@ -62,4 +62,29 @@ RSpec.describe DailyReconciliationPolicy do
       expect(described_class.new(manager, dr).cancel_review?).to be false
     end
   end
+
+  describe "#view_pos_transactions_verification?" do
+    it "allows a user with the dedicated permission" do
+      viewer = user_with("view_daily_reconciliation", "view_pos_transactions_verification")
+      dr = make_dr
+      expect(described_class.new(viewer, dr).view_pos_transactions_verification?).to be true
+    end
+
+    it "blocks a user without the permission, even with view_daily_reconciliation" do
+      dr = make_dr
+      expect(described_class.new(no_perm, dr).view_pos_transactions_verification?).to be false
+    end
+
+    it "blocks a user who only has review_daily_reconciliation" do
+      dr = make_dr
+      expect(described_class.new(manager, dr).view_pos_transactions_verification?).to be false
+    end
+
+    it "is independent of manage_pos_import — granted separately, not implied by it" do
+      importer = user_with("view_daily_reconciliation", "view_pos_transactions_verification", "manage_pos_import")
+      dr = make_dr
+      expect(described_class.new(importer, dr).view_pos_transactions_verification?).to be true
+      expect(described_class.new(importer, dr).manage_pos_import?).to be true
+    end
+  end
 end

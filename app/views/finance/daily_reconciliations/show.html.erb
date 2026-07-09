@@ -2352,7 +2352,7 @@
   <% end %>
 
   <%# ── POS Transactions Verification ─────────────────────────────────── %>
-  <% if @can_manage_pos_import || @pos_totals_by_method&.any? %>
+  <% if @can_view_pos_transactions_verification %>
     <%= render "finance/pos_imports/verification_section",
                reconciliation:            @reconciliation,
                session_amounts:           @amounts_by_method,
@@ -2361,7 +2361,8 @@
                pos_totals_by_cashier:     @pos_totals_by_cashier,
                pos_transactions:          @pos_transactions,
                pos_payment_methods_by_id: @pos_payment_methods_by_id,
-               latest_pos_import:         @latest_pos_import %>
+               latest_pos_import:         @latest_pos_import,
+               can_manage_pos_import:     @can_manage_pos_import %>
   <% end %>
 
   <%# ── Verification notes ──────────────────────────────────────────────── %>
