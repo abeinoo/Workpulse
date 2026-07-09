@@ -44,6 +44,7 @@ module Finance
         validate_actor_is_holder!(session) if self_deposit?
         validate_minimum_amounts!
         validate_payment_methods!
+        validate_amounts_present! unless self_deposit?
         validate_recipient! unless self_deposit?
         validate_depositor! if self_deposit?
 
@@ -165,6 +166,17 @@ module Finance
       user = @business.users.active.find_by(id: id)
       raise ArgumentError, I18n.t("till_handovers.errors.depositor_required") unless user
       raise ArgumentError, I18n.t("till_handovers.errors.invalid_depositor_permission") unless user.can?(:create_till_deposit)
+    end
+
+    # Hand-to-colleague only: a cashier cannot transfer the till with nothing
+    # to show for it. Self-deposit (Day Close) is exempt — a zero-cash day is
+    # a legitimate close, and this must never block that flow.
+    def validate_amounts_present!
+      amounts = @params[:amounts] || {}
+      has_any_amount = amounts.values.any? do |attrs|
+        attrs[:collected_amount].to_s.to_d.positive? || attrs[:refund_amount].to_s.to_d.positive?
+      end
+      raise ArgumentError, I18n.t("till_handovers.errors.no_amounts_entered") unless has_any_amount
     end
 
     def validate_payment_methods!

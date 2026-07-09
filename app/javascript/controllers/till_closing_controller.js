@@ -26,10 +26,22 @@ export default class extends Controller {
   validateSubmit(event) {
     this.#clearErrors()
     const errors = this.#checkMinimums()
+    this.#checkAmountsPresent(errors)
     this.#checkDepositor(errors)
     if (errors.length > 0) {
       event.preventDefault()
       this.#showErrorBanner(errors)
+    }
+  }
+
+  #checkAmountsPresent(errors) {
+    const typeChecked = this.element.querySelector('input[name="till_handover[self_deposit]"]:checked')
+    if (typeChecked?.value === "1") return // Day Close is exempt
+
+    const fields = this.element.querySelectorAll('input[name^="till_handover[amounts]"]')
+    const hasAny = Array.from(fields).some(field => (parseFloat(field.value) || 0) > 0)
+    if (!hasAny) {
+      errors.push(this.element.dataset.tillClosingNoAmounts || "Cannot hand over the cashier with no amounts. Enter at least one amount.")
     }
   }
 

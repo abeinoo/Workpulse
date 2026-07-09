@@ -63,6 +63,72 @@ RSpec.describe Finance::TillHandoverCreator, type: :model do
     end
   end
 
+  describe "#call amounts-present validation (hand-to-colleague)" do
+    let(:bank_pm) { PaymentMethod.create!(business: business, name: "Card", settlement_type: "card", active: true) }
+
+    before do
+      role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}",
+                                                permissions: %w[view_daily_reconciliation accept_till_handover])
+      receiver.update_column(:permission_role_id, role.id)
+    end
+
+    def hand_over(amounts)
+      described_class.new(
+        actor: sender, daily_reconciliation_id: dr.id,
+        params: { to_user_id: receiver.id, amounts: amounts }
+      ).call
+    end
+
+    it "rejects when all collected and refund amounts are zero" do
+      result = hand_over(cash_pm.id.to_s => { collected_amount: "0", refund_amount: "0" })
+
+      expect(result.ok?).to be false
+      expect(result.error).to eq(I18n.t("till_handovers.errors.no_amounts_entered"))
+      expect(TillHandover.count).to eq(0)
+    end
+
+    it "allows when one collected amount is greater than zero" do
+      result = hand_over(cash_pm.id.to_s => { collected_amount: "50", refund_amount: "0" })
+
+      expect(result.ok?).to be true
+    end
+
+    it "allows when one refund amount is greater than zero" do
+      result = hand_over(cash_pm.id.to_s => { collected_amount: "0", refund_amount: "20" })
+
+      expect(result.ok?).to be true
+    end
+
+    it "rejects when multiple payment methods are all zero" do
+      result = hand_over(
+        cash_pm.id.to_s => { collected_amount: "0", refund_amount: "0" },
+        bank_pm.id.to_s => { collected_amount: "0", refund_amount: "0" }
+      )
+
+      expect(result.ok?).to be false
+      expect(result.error).to eq(I18n.t("till_handovers.errors.no_amounts_entered"))
+      expect(TillHandover.count).to eq(0)
+    end
+
+    it "cannot be bypassed by calling the service directly with blank amounts" do
+      result = hand_over({})
+
+      expect(result.ok?).to be false
+      expect(result.error).to eq(I18n.t("till_handovers.errors.no_amounts_entered"))
+    end
+
+    it "does not affect self-deposit (Day Close) — a zero-cash day is allowed to close" do
+      result = described_class.new(
+        actor: sender, daily_reconciliation_id: dr.id,
+        params: { self_deposit: "1", depositor_type: "self",
+                  amounts: { cash_pm.id.to_s => { collected_amount: "0", refund_amount: "0" } } }
+      ).call
+
+      expect(result.ok?).to be true
+      expect(dr.reload.state).to eq("closed")
+    end
+  end
+
   describe "Branch Review invalidation" do
     before do
       role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}",

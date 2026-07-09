@@ -31,7 +31,8 @@
         data: { controller: "till-closing", turbo_frame: "_top",
                 action: "submit->till-closing#validateSubmit",
                 "till-closing-error-title": t("till_handovers.errors.amounts_below_minimum_title"),
-                "till-closing-depositor-required": t("till_handovers.errors.depositor_required") } do |f| %>
+                "till-closing-depositor-required": t("till_handovers.errors.depositor_required"),
+                "till-closing-no-amounts": t("till_handovers.errors.no_amounts_entered") } do |f| %>
 
     <%# ── Action selector: What would you like to do? ───────────────── %>
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;">

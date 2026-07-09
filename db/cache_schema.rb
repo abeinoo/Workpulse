@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_09_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_09_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1664,6 +1664,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_090000) do
     t.bigint "daily_reconciliation_id", null: false
     t.datetime "deposited_at", null: false
     t.bigint "deposited_by_id", null: false
+    t.string "idempotency_key"
     t.text "notes"
     t.bigint "payment_method_id", null: false
     t.string "reference"
@@ -1673,6 +1674,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_090000) do
     t.bigint "voided_by_id"
     t.index ["daily_reconciliation_id"], name: "index_till_deposits_on_dr_id"
     t.index ["deposited_by_id"], name: "index_till_deposits_on_deposited_by_id"
+    t.index ["idempotency_key"], name: "index_till_deposits_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["payment_method_id"], name: "index_till_deposits_on_payment_method_id"
     t.index ["voided_by_id"], name: "index_till_deposits_on_voided_by_id"
   end

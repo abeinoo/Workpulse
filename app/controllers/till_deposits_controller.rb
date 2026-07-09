@@ -8,6 +8,7 @@ class TillDepositsController < ApplicationController
     @deposit         = TillDeposit.new(daily_reconciliation: @reconciliation)
     @payment_methods = business_payment_methods.select(&:cash_like?)
     @expected_amounts_by_pm = expected_amounts_by_pm(@reconciliation, @payment_methods)
+    @idempotency_key = SecureRandom.uuid
     authorize @deposit
   end
 
@@ -35,6 +36,9 @@ class TillDepositsController < ApplicationController
     else
       @payment_methods = business_payment_methods.select(&:cash_like?)
       @expected_amounts_by_pm = expected_amounts_by_pm(@reconciliation, @payment_methods)
+      # Preserve the same key on re-render so a retry of this exact failed
+      # submission stays idempotent rather than minting a fresh one.
+      @idempotency_key = deposit_params[:idempotency_key].presence || SecureRandom.uuid
       flash.now[:alert] = result.error
       render :new, status: :unprocessable_entity
     end
@@ -91,7 +95,7 @@ class TillDepositsController < ApplicationController
   def deposit_params
     params.require(:till_deposit).permit(
       :daily_reconciliation_id, :payment_method_id, :amount, :deposited_at, :reference, :notes,
-      :override_review_reason
+      :override_review_reason, :idempotency_key
     )
   end
 end

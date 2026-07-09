@@ -39,6 +39,7 @@
 
   <%= form_with url: till_deposits_path, data: { turbo_frame: "_top" } do |f| %>
     <%= hidden_field_tag "till_deposit[daily_reconciliation_id]", @reconciliation.id %>
+    <%= hidden_field_tag "till_deposit[idempotency_key]", @idempotency_key %>
 
     <%# ── Branch Review override (only reachable at all when the actor holds
          override_review_requirement — TillDepositPolicy#create? blocks anyone
@@ -195,6 +196,7 @@
     <div class="emp-dashboard__cta">
       <%= f.submit t("till_deposits.new.submit"),
             class: "btn btn-checkin",
+            data: { turbo_submits_with: t("till_deposits.new.submitting") },
             style: "width: 100%; justify-content: center; font-size: var(--text-base); padding: var(--space-4);" %>
       <button type="button"
               data-action="click->modal#close"

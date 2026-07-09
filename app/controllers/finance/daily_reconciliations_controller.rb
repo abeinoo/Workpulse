@@ -25,11 +25,13 @@ class Finance::DailyReconciliationsController < Finance::BaseController
               .includes(:branch,
                         remaining_deposit_balances: :responsible_user,
                         opening_float_source_handover: :from_user,
-                        till_session: %i[current_holder depositor])
+                        till_session: %i[current_holder depositor],
+                        session_amounts:               :payment_method)
               .order(opened_at: :desc)
               .limit(200)
 
     query = query.includes(till_deposits: :bank_statement_transaction) if @show_verification
+    query = query.includes(:till_deposits) unless @show_verification
 
     unless current_user.owner?
       scope_name = current_user.scope_for(:view_daily_reconciliation)

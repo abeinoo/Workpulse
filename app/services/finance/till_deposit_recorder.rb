@@ -1,5 +1,9 @@
 module Finance
-  # Records a cash deposit against a closed DailyReconciliation.
+  # Records a cash deposit against a closed DailyReconciliation. A DR may
+  # accumulate any number of deposits — each call creates a new, independent
+  # TillDeposit row; nothing is ever merged or replaced. Total Deposited and
+  # Remaining Deposit Due are always derived as SUM(active deposits) — see
+  # DailyReconciliation#total_deposited / #pending_deposit_amount.
   #
   # If the deposited amount is less than the expected cash total for this
   # payment method, a RemainingDepositBalance is created in the same
@@ -11,6 +15,14 @@ module Finance
   #
   # Result#remaining_amount is non-nil when an outstanding shortfall still
   # exists for this PM after the deposit.
+  #
+  # Race-safe: the remaining-amount computation and the deposit creation both
+  # happen inside a row lock on the DailyReconciliation, so two concurrent
+  # submissions serialize — the second recomputes against the first's
+  # committed total rather than a stale read. An optional idempotency_key
+  # param (a client-generated token, one per form render) makes a retried
+  # submission of the exact same request a no-op instead of a duplicate
+  # financial record.
   class TillDepositRecorder
     include AuditLoggable
 
@@ -53,30 +65,48 @@ module Finance
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.invalid_payment_method"))
       end
 
-      actual = @params[:amount].to_d
-      pm     = PaymentMethod.find(@params[:payment_method_id])
+      actual           = @params[:amount].to_d
+      pm               = PaymentMethod.find(@params[:payment_method_id])
+      idempotency_key  = @params[:idempotency_key].presence
 
-      # Remaining balance only applies to cash-like methods.
-      remaining_amount = nil
-      if pm.cash_like?
-        pm_session_total  = @daily_reconciliation.session_amounts
-                                                  .where(payment_method_id: pm.id)
-                                                  .sum("collected_amount - refund_amount")
-        already_deposited = @daily_reconciliation.till_deposits.active
-                                                  .where(payment_method_id: pm.id)
-                                                  .sum(:amount)
-        shortfall        = (pm_session_total - already_deposited) - actual
-        remaining_amount = shortfall if shortfall > 0
-      end
+      result = nil
+      @daily_reconciliation.with_lock do
+        if idempotency_key && (existing = @daily_reconciliation.till_deposits.find_by(idempotency_key: idempotency_key))
+          result = Result.new(ok: true, deposit: existing, remaining_amount: nil)
+          next
+        end
 
-      ActiveRecord::Base.transaction do
+        # Remaining balance only applies to cash-like methods. Recomputed here,
+        # inside the lock, so a concurrent deposit already committed by another
+        # request is reflected before this one is accepted or rejected.
+        remaining_amount = nil
+        if pm.cash_like?
+          pm_session_total  = @daily_reconciliation.session_amounts
+                                                    .where(payment_method_id: pm.id)
+                                                    .sum("collected_amount - refund_amount")
+          already_deposited = @daily_reconciliation.till_deposits.active
+                                                    .where(payment_method_id: pm.id)
+                                                    .sum(:amount)
+          remaining_before  = pm_session_total - already_deposited
+
+          if actual > remaining_before
+            result = Result.new(ok: false,
+                                error: I18n.t("till_deposits.errors.exceeds_remaining", remaining: remaining_before.to_s))
+            next
+          end
+
+          shortfall        = remaining_before - actual
+          remaining_amount = shortfall if shortfall > 0
+        end
+
         deposit = @daily_reconciliation.till_deposits.create!(
           payment_method_id: pm.id,
           deposited_by:      @actor,
           amount:            actual,
           deposited_at:      @params[:deposited_at].presence || Time.current,
           reference:         @params[:reference],
-          notes:             @params[:notes]
+          notes:             @params[:notes],
+          idempotency_key:   idempotency_key
         )
 
         log_audit(actor: @actor, auditable: deposit, action: "create",
@@ -91,12 +121,15 @@ module Finance
         # Advance DR to "deposited" state on first deposit so downstream logic
         # (verifier guard, index stat card, view conditions) can distinguish
         # "closed but not yet deposited" from "deposited but not yet verified".
+        # Note: "deposited" means "at least one deposit exists," not "fully
+        # covered" — callers must check pending_deposit_amount separately.
         @daily_reconciliation.update!(state: "deposited") if @daily_reconciliation.closed?
 
         reconcile_remaining_balance!(pm, deposit, remaining_amount) if pm.cash_like?
 
-        Result.new(ok: true, deposit: deposit, remaining_amount: remaining_amount)
+        result = Result.new(ok: true, deposit: deposit, remaining_amount: remaining_amount)
       end
+      result
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
     end

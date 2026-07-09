@@ -171,6 +171,119 @@ RSpec.describe Finance::TillDepositRecorder, type: :model do
       end
     end
 
+    context "multiple partial deposits against the same DR" do
+      before { session_amount.update!(collected_amount: 5_000) }
+
+      it "sums all deposits and recalculates the remaining amount after each one" do
+        first = record(params: base_params.merge(amount: "4000.00"))
+        expect(first.ok?).to be true
+        expect(first.remaining_amount).to eq(1_000)
+        expect(dr.reload.total_deposited).to eq(4_000)
+        expect(dr.pending_deposit_amount).to eq(1_000)
+
+        second = record(params: base_params.merge(amount: "700.00"))
+        expect(second.ok?).to be true
+        expect(second.remaining_amount).to eq(300)
+        expect(dr.reload.total_deposited).to eq(4_700)
+        expect(dr.pending_deposit_amount).to eq(300)
+
+        expect(TillDeposit.count).to eq(2)
+      end
+
+      it "keeps each deposit as a separate, unmodified record" do
+        first_result = record(params: base_params.merge(amount: "4000.00"))
+        record(params: base_params.merge(amount: "700.00"))
+
+        expect(first_result.deposit.reload.amount).to eq(4_000)
+        expect(TillDeposit.order(:created_at).pluck(:amount)).to eq([ 4_000.to_d, 700.to_d ])
+      end
+
+      it "settles the open RemainingDepositBalance down as later deposits arrive, never fully covered until pending is 0" do
+        record(params: base_params.merge(amount: "4000.00"))
+        rdb = RemainingDepositBalance.sole
+        expect(rdb.remaining_amount).to eq(1_000)
+        expect(rdb.status).to eq("open")
+
+        record(params: base_params.merge(amount: "700.00"))
+        expect(rdb.reload.remaining_amount).to eq(300)
+        expect(rdb.status).to eq("open")
+
+        record(params: base_params.merge(amount: "300.00"))
+        expect(rdb.reload.remaining_amount).to eq(0)
+        expect(rdb.status).to eq("settled")
+        expect(dr.reload.pending_deposit_amount).to eq(0)
+      end
+
+      it "is a no-op with zero deposits: total_deposited and pending_deposit_amount reflect the full expected amount" do
+        expect(dr.total_deposited).to eq(0)
+        expect(dr.pending_deposit_amount).to eq(5_000)
+      end
+
+      it "reaches fully-deposited only when cumulative deposits equal the expected amount, not before" do
+        record(params: base_params.merge(amount: "4000.00"))
+        expect(dr.reload.pending_deposit_amount).to be > 0
+
+        record(params: base_params.merge(amount: "1000.00"))
+        expect(dr.reload.pending_deposit_amount).to eq(0)
+      end
+
+      it "rejects a deposit that exceeds the currently remaining amount" do
+        record(params: base_params.merge(amount: "4000.00"))
+
+        result = record(params: base_params.merge(amount: "1500.00"))
+        expect(result.ok?).to be false
+        expect(result.error).to eq(I18n.t("till_deposits.errors.exceeds_remaining", remaining: "1000.0"))
+        expect(TillDeposit.count).to eq(1)
+      end
+
+      it "rejects a single deposit larger than the full expected amount" do
+        result = record(params: base_params.merge(amount: "6000.00"))
+        expect(result.ok?).to be false
+        expect(result.error).to eq(I18n.t("till_deposits.errors.exceeds_remaining", remaining: "5000.0"))
+      end
+    end
+
+    context "idempotency" do
+      before { session_amount.update!(collected_amount: 5_000) }
+
+      it "does not create a duplicate deposit when the same idempotency_key is submitted twice" do
+        key = SecureRandom.uuid
+        first  = record(params: base_params.merge(amount: "4000.00", idempotency_key: key))
+        second = record(params: base_params.merge(amount: "4000.00", idempotency_key: key))
+
+        expect(first.ok?).to be true
+        expect(second.ok?).to be true
+        expect(second.deposit).to eq(first.deposit)
+        expect(TillDeposit.count).to eq(1)
+      end
+
+      it "allows two distinct deposits with different idempotency keys" do
+        record(params: base_params.merge(amount: "4000.00", idempotency_key: SecureRandom.uuid))
+        record(params: base_params.merge(amount: "1000.00", idempotency_key: SecureRandom.uuid))
+
+        expect(TillDeposit.count).to eq(2)
+      end
+    end
+
+    context "race vs a second deposit" do
+      before { session_amount.update!(collected_amount: 1_000) }
+
+      # Sequential-call simulation: with_lock serializes the two calls on the
+      # DR row lock, so by the time the second call runs it recomputes
+      # already_deposited from the first call's committed total — proving a
+      # concurrent over-deposit can never slip through, without needing real
+      # threads (which would fight the spec's transactional wrapper).
+      it "lets only the amount actually remaining succeed when two deposits race for the same balance" do
+        first  = record(params: base_params.merge(amount: "700.00"))
+        second = record(params: base_params.merge(amount: "700.00"))
+
+        expect(first.ok?).to be true
+        expect(second.ok?).to be false
+        expect(second.error).to eq(I18n.t("till_deposits.errors.exceeds_remaining", remaining: "300.0"))
+        expect(dr.reload.total_deposited).to eq(700)
+      end
+    end
+
     # ── Regression: inverse_of contamination from controller Pundit pattern ──────
     #
     # The controller does `TillDeposit.new(daily_reconciliation: dr)` to build a

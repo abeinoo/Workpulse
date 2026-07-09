@@ -4097,6 +4097,7 @@ en:
         verify_pending_handovers: "Cannot verify — there is a pending till handover that has not been accepted or cancelled."
         verify_outstanding_balances: "Cannot verify — there are outstanding deposit balances that have not been settled or written off."
         verify_no_deposit_recorded: "Cannot verify — cash was expected but no deposit has been recorded."
+        verify_deposit_incomplete: "Cannot verify — the deposited amount does not yet cover the full expected amount."
         edit_notes_required: "A reason is required when editing session totals."
         day_close_not_closed: "Day Close amounts can only be edited while the reconciliation is closed."
         cannot_edit_after_deposit: "Cannot edit Day Close after deposit. Please reverse the deposit first."
@@ -5382,6 +5383,7 @@ en:
       cannot_close_session: "You cannot close today's session while another employee still holds the till. Ask them to hand the till back to you first."
       no_open_session: "There is no open till session for this branch. Please start today's session from the Daily Reconciliation page first."
       pending_exists: "You already have a pending handover waiting to be accepted. Please wait for it to be accepted before creating another."
+      no_amounts_entered: "Cannot hand over the cashier with no amounts. Enter at least one amount."
       amounts_below_minimum_title: "Cannot submit — amounts are below what you received"
       below_minimum_collected: "%{pm} — Collected must be at least %{min}. You cannot hand over less than what you received."
       below_minimum_refund: "%{pm} — Refunds must be at least %{min}. You cannot hand over less than what you received."
@@ -5570,6 +5572,7 @@ en:
       invalid_payment_method: "The selected payment method is not valid for this business."
       review_required: "This Daily Reconciliation must be reviewed by a Branch Manager before deposits can be recorded."
       override_reason_required: "A reason is required to record a deposit without Branch Review."
+      exceeds_remaining: "This amount exceeds the remaining deposit due of %{remaining}."
     new:
       step_label: "Record Deposit"
       title: "Record a Bank Deposit"
@@ -5594,6 +5597,7 @@ en:
       notes_label: "Notes (optional)"
       notes_placeholder: "Any additional comments…"
       submit: "Save Deposit"
+      submitting: "Saving…"
 
   remaining_deposit_balances:
     settled: "Balance fully settled."
