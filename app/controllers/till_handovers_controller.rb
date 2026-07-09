@@ -1,6 +1,6 @@
 class TillHandoversController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_handover, only: %i[show accept cancel reverse_form reverse new_adjustment create_adjustment]
+  before_action :set_handover, only: %i[show accept cancel reject reverse_form reverse new_adjustment create_adjustment]
 
   # GET /my_shift
   # Redirects cashiers to the active reconciliation page.
@@ -92,6 +92,21 @@ class TillHandoversController < ApplicationController
 
     if result.ok?
       redirect_to dest, notice: t("till_handovers.cancelled")
+    else
+      redirect_to dest, alert: result.error
+    end
+  end
+
+  # PATCH /till_handovers/:id/reject
+  def reject
+    authorize @handover
+
+    result = Finance::TillHandoverRejecter.new(@handover.id, actor: current_user, reason: params[:reason]).call
+
+    dest = finance_daily_reconciliation_path(@handover.daily_reconciliation)
+
+    if result.ok?
+      redirect_to dest, notice: t("till_handovers.rejected")
     else
       redirect_to dest, alert: result.error
     end

@@ -733,6 +733,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         events << { type: :handover_created,   time: h.created_at,   actor: h.from_user,    data: h }
         events << { type: :handover_accepted,  time: h.accepted_at,  actor: h.to_user,      data: h } if h.accepted? && !h.reversed?
         events << { type: :handover_cancelled, time: h.cancelled_at, actor: h.cancelled_by, data: h } if h.cancelled?
+        events << { type: :handover_rejected,  time: h.rejected_at,  actor: h.rejected_by,  data: h } if h.rejected?
         events << { type: :handover_reversed,  time: h.reversed_at,  actor: h.reversed_by,  data: h } if h.reversed?
       end
     end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_08_110001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_09_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1694,6 +1694,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_110001) do
   create_table "till_handovers", force: :cascade do |t|
     t.datetime "accepted_at"
     t.text "accepted_notes"
+    t.text "cancellation_reason"
     t.datetime "cancelled_at"
     t.bigint "cancelled_by_id"
     t.text "correction_reason"
@@ -1706,6 +1707,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_110001) do
     t.bigint "from_user_id", null: false
     t.text "notes"
     t.boolean "opening_float_declaration", default: false, null: false
+    t.datetime "rejected_at"
+    t.bigint "rejected_by_id"
+    t.text "rejection_reason"
     t.bigint "reversal_of_handover_id"
     t.text "reversal_reason"
     t.datetime "reversed_at"
@@ -1718,6 +1722,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_110001) do
     t.index ["cancelled_by_id"], name: "index_till_handovers_on_cancelled_by_id"
     t.index ["corrects_handover_id"], name: "index_till_handovers_on_corrects_handover_id"
     t.index ["daily_reconciliation_id"], name: "index_till_handovers_on_dr_id"
+    t.index ["rejected_by_id"], name: "index_till_handovers_on_rejected_by_id"
     t.index ["reversal_of_handover_id"], name: "idx_till_handovers_one_reversal_per_original", unique: true, where: "(reversal_of_handover_id IS NOT NULL)"
     t.index ["reversal_of_handover_id"], name: "index_till_handovers_on_reversal_of_handover_id"
     t.index ["reversed_by_id"], name: "index_till_handovers_on_reversed_by_id"
@@ -2074,6 +2079,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_110001) do
   add_foreign_key "till_handovers", "till_handovers", column: "reversal_of_handover_id"
   add_foreign_key "till_handovers", "users", column: "cancelled_by_id"
   add_foreign_key "till_handovers", "users", column: "from_user_id"
+  add_foreign_key "till_handovers", "users", column: "rejected_by_id"
   add_foreign_key "till_handovers", "users", column: "reversed_by_id"
   add_foreign_key "till_handovers", "users", column: "superseded_by_id"
   add_foreign_key "till_handovers", "users", column: "to_user_id"

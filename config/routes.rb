@@ -270,6 +270,7 @@ Rails.application.routes.draw do
     member do
       patch :accept
       patch :cancel
+      patch :reject
       get   :reverse_form
       patch :reverse
       get   :new_adjustment

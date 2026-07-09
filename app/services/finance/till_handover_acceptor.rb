@@ -23,10 +23,19 @@ module Finance
                     .includes(daily_reconciliation: :till_session)
                     .find(@handover_id)
 
-      return Result.new(ok: false, error: I18n.t("till_handovers.errors.not_acceptable")) unless @handover.pending?
       return Result.new(ok: false, error: I18n.t("till_handovers.errors.wrong_recipient")) unless @handover.to_user_id == @actor.id
 
-      ActiveRecord::Base.transaction do
+      # The pending? re-check and the mutation both happen inside the row lock
+      # so a concurrent cancel/reject/accept on the same handover can never
+      # both succeed — whichever request acquires the lock first wins; the
+      # other reloads fresh state and cleanly fails the pending? check.
+      result = nil
+      @handover.with_lock do
+        unless @handover.pending?
+          result = Result.new(ok: false, error: I18n.t("till_handovers.errors.not_acceptable"))
+          next
+        end
+
         @handover.update!(
           accepted_at:    Time.current,
           accepted_notes: @accepted_notes
@@ -36,9 +45,10 @@ module Finance
 
         log_audit(actor: @actor, auditable: @handover, action: "accept",
                   metadata: { daily_reconciliation_id: @handover.daily_reconciliation_id })
-      end
 
-      Result.new(ok: true, handover: @handover)
+        result = Result.new(ok: true, handover: @handover)
+      end
+      result
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
     end

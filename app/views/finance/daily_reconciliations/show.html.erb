@@ -635,7 +635,7 @@
         # Add a new event type to exactly one stage; empty stages are hidden.
         stage_defs = [
           { key: :opening_float, types: %i[opening_float_received opening_float_superseded opening_float_corrected] },
-          { key: :during_day,    types: %i[handover_created handover_accepted handover_cancelled
+          { key: :during_day,    types: %i[handover_created handover_accepted handover_cancelled handover_rejected
                                            handover_reversed handover_reversal_applied handover_adjusted] },
           { key: :end_of_day,    types: %i[day_closed opening_float_prepared opening_float_left deposit_assigned deposit_cancelled
                                            review_completed review_cancelled review_auto_cancelled] },
@@ -745,6 +745,11 @@
           },
           handover_cancelled: {
             dot: "var(--danger,#dc2626)", lbl: "label_handover_cancelled",
+            lc: "var(--danger,#dc2626)", lb: "rgba(220,38,38,0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>',
+          },
+          handover_rejected: {
+            dot: "var(--danger,#dc2626)", lbl: "label_handover_rejected",
             lc: "var(--danger,#dc2626)", lb: "rgba(220,38,38,0.10)",
             icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>',
           },
@@ -1745,6 +1750,41 @@
                         <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_intended_for") %></span>
                         <span style="<%= dl_val %>"><%= h.to_user&.full_name || "—" %></span>
                       </div>
+                      <% if h.cancellation_reason.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_reason") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= h.cancellation_reason %></span>
+                        </div>
+                      <% end %>
+                    </div>
+
+                  <% when :handover_rejected %>
+                    <% h = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
+                      <%= t("finance.daily_reconciliations.show.timeline.handover_rejected",
+                            actor: item[:actor]&.full_name || "—",
+                            from:  h.from_user.full_name) %>
+                    </p>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_handover", id: h.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_originally_by") %></span>
+                        <span style="<%= dl_val %>"><%= h.from_user.full_name %></span>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_intended_for") %></span>
+                        <span style="<%= dl_val %>"><%= h.to_user&.full_name || "—" %></span>
+                      </div>
+                      <% if h.rejection_reason.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_reason") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= h.rejection_reason %></span>
+                        </div>
+                      <% end %>
                     </div>
 
                   <% when :handover_reversed %>

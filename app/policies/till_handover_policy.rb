@@ -21,11 +21,26 @@ class TillHandoverPolicy < ApplicationPolicy
       record.to_user_id == user.id
   end
 
+  # The sender may cancel their own still-pending handover — no special
+  # permission beyond the baseline needed to create one in the first place
+  # (mirrors accept?'s permission + identity shape). A manager holding
+  # void_till_handover may additionally cancel on someone else's behalf.
   def cancel?
-    can?(:void_till_handover) &&
+    record.pending? &&
+      !record.daily_reconciliation.verified? &&
+      record.daily_reconciliation.business_id == user.business_id &&
+      ((can?(:close_till_session) && record.from_user_id == user.id) || can?(:void_till_handover))
+  end
+
+  # Only the intended recipient may reject — the negative counterpart of
+  # accept?, same permission and identity shape. No admin override: rejecting
+  # is the receiver's explicit refusal, not a manager's correction.
+  def reject?
+    can?(:accept_till_handover) &&
       record.pending? &&
       !record.daily_reconciliation.verified? &&
-      record.daily_reconciliation.business_id == user.business_id
+      record.daily_reconciliation.business_id == user.business_id &&
+      record.to_user_id == user.id
   end
 
   # Case 2: accepted, custody has NOT yet moved on from the receiver.

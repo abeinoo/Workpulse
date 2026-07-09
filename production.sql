@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict yaABCVsuvXeqUeqdst5EQbS3PRnzbL25j7Bh2LLtMRB8BqeaOLvFVYXRbO7YQH3
+\restrict MAFS3pIIZZ5nCRb9Vvi5TIT9YdXqPwWDzrpQ3WfjY63eYnOSPCCnbr7thC0Ewn4
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13
@@ -905,7 +905,9 @@ CREATE TABLE public.daily_reconciliations (
     closed_at timestamp(6) without time zone,
     deposited_at timestamp(6) without time zone,
     opening_float_source_handover_id bigint,
-    opening_float_override_amounts jsonb
+    opening_float_override_amounts jsonb,
+    reviewed_at timestamp(6) without time zone,
+    reviewed_by_id bigint
 );
 
 
@@ -3780,6 +3782,89 @@ ALTER SEQUENCE public.stock_counts_id_seq OWNED BY public.stock_counts.id;
 
 
 --
+-- Name: stock_issue_import_batches; Type: TABLE; Schema: public; Owner: work_pulse
+--
+
+CREATE TABLE public.stock_issue_import_batches (
+    id bigint NOT NULL,
+    business_id bigint NOT NULL,
+    warehouse_id bigint NOT NULL,
+    branch_id bigint NOT NULL,
+    created_by_id bigint,
+    stock_issue_id bigint NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+ALTER TABLE public.stock_issue_import_batches OWNER TO work_pulse;
+
+--
+-- Name: stock_issue_import_batches_id_seq; Type: SEQUENCE; Schema: public; Owner: work_pulse
+--
+
+CREATE SEQUENCE public.stock_issue_import_batches_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.stock_issue_import_batches_id_seq OWNER TO work_pulse;
+
+--
+-- Name: stock_issue_import_batches_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: work_pulse
+--
+
+ALTER SEQUENCE public.stock_issue_import_batches_id_seq OWNED BY public.stock_issue_import_batches.id;
+
+
+--
+-- Name: stock_issue_import_rows; Type: TABLE; Schema: public; Owner: work_pulse
+--
+
+CREATE TABLE public.stock_issue_import_rows (
+    id bigint NOT NULL,
+    batch_id bigint NOT NULL,
+    product_id bigint,
+    row_number integer NOT NULL,
+    sku character varying,
+    quantity numeric(12,3),
+    available_hint numeric(12,3),
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    failure_reason character varying,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    stock_issue_item_id bigint
+);
+
+
+ALTER TABLE public.stock_issue_import_rows OWNER TO work_pulse;
+
+--
+-- Name: stock_issue_import_rows_id_seq; Type: SEQUENCE; Schema: public; Owner: work_pulse
+--
+
+CREATE SEQUENCE public.stock_issue_import_rows_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.stock_issue_import_rows_id_seq OWNER TO work_pulse;
+
+--
+-- Name: stock_issue_import_rows_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: work_pulse
+--
+
+ALTER SEQUENCE public.stock_issue_import_rows_id_seq OWNED BY public.stock_issue_import_rows.id;
+
+
+--
 -- Name: stock_issue_items; Type: TABLE; Schema: public; Owner: work_pulse
 --
 
@@ -3835,7 +3920,8 @@ CREATE TABLE public.stock_issues (
     voided_at timestamp(6) without time zone,
     voided_by_id bigint,
     void_reason text,
-    branch_id bigint
+    branch_id bigint,
+    status character varying DEFAULT 'posted'::character varying NOT NULL
 );
 
 
@@ -4993,6 +5079,20 @@ ALTER TABLE ONLY public.stock_counts ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: stock_issue_import_batches id; Type: DEFAULT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_batches ALTER COLUMN id SET DEFAULT nextval('public.stock_issue_import_batches_id_seq'::regclass);
+
+
+--
+-- Name: stock_issue_import_rows id; Type: DEFAULT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_rows ALTER COLUMN id SET DEFAULT nextval('public.stock_issue_import_rows_id_seq'::regclass);
+
+
+--
 -- Name: stock_issue_items id; Type: DEFAULT; Schema: public; Owner: work_pulse
 --
 
@@ -5516,6 +5616,16 @@ COPY public.active_storage_attachments (id, name, record_type, record_id, blob_i
 443	file	PosImport	12	443	2026-07-05 16:54:54.389446
 444	file	PosImport	13	444	2026-07-05 17:12:46.629691
 445	file	PosImport	14	445	2026-07-05 17:30:19.957737
+446	documents	Expense	55	446	2026-07-06 10:48:06.016183
+447	documents	Expense	56	447	2026-07-06 13:28:58.794119
+448	file	PosImport	15	448	2026-07-07 02:18:53.378322
+449	image	ActiveStorage::VariantRecord	241	449	2026-07-07 04:52:12.404832
+450	image	ActiveStorage::VariantRecord	242	450	2026-07-07 04:52:12.407774
+451	invoices	GoodsReceipt	30	451	2026-07-07 15:52:02.487626
+452	invoices	GoodsReceipt	31	452	2026-07-07 16:01:50.714089
+453	documents	Expense	61	453	2026-07-07 16:29:05.71308
+455	documents	Expense	62	455	2026-07-08 07:41:32.212108
+456	documents	Expense	63	456	2026-07-08 07:42:38.159721
 \.
 
 
@@ -5946,6 +6056,16 @@ COPY public.active_storage_blobs (id, key, filename, content_type, metadata, ser
 441	h7zbd3eh0c30maa2sej150s55z16	IMG-20260704-WA0024.jpg	image/jpeg	{"identified":true,"width":754,"height":1600,"analyzed":true}	cloudflare	52328	raj/HVA9Yst1ltNo+avp2g==	2026-07-04 16:02:20.216303
 442	nfognljc1rfrprj0539zvy44d650	17831810468238590463178032952885.jpg	image/jpeg	{"identified":true,"width":3000,"height":4000,"analyzed":true}	cloudflare	1959144	0xU2mr/8xJi3cDtYUR7FJw==	2026-07-04 16:04:38.620874
 443	8j41j89cclwx3xoc85hrrgsd56gb	test4.csv	text/csv	{"identified":true,"analyzed":true}	cloudflare	132746	JhUwEu+dLVcYpyIcPzjl9w==	2026-07-05 16:54:54.379858
+446	z3rk50az0vlwpa8wmhpixk4u0ley	17833348382085273325083096243145.jpg	image/jpeg	{"identified":true,"width":3072,"height":4096,"analyzed":true}	cloudflare	3194637	L1C1YRBoZVnjniBhzBqYZg==	2026-07-06 10:48:06.002689
+447	7b3e9q15w1ajz83sado91x8kb42v	17833444658072220038284656210721.jpg	image/jpeg	{"identified":true,"width":3072,"height":4096,"analyzed":true}	cloudflare	2744771	x852wlFKSJNAz2ydCuPH0w==	2026-07-06 13:28:58.789256
+448	jp3rl8faqendng413ywzoq017na4	report_payment-transactions_2026-07-07 2.csv	text/csv	{"identified":true,"analyzed":true}	cloudflare	17613	Q0UTQGRqA8IRRsxQAo5K7g==	2026-07-07 02:18:53.373599
+449	nuj16fhc4h7zqhp50d4v6nn4je0z	8fbec69c-349c-418f-8f5f-2e377da61895.webp	image/webp	{"identified":true,"width":533,"height":400,"analyzed":true}	cloudflare	47142	AE5AY0UfCk1I0Q5Dt+e7bQ==	2026-07-07 04:52:12.389746
+450	07xg8spxjqd1vmbuis6x7qkbvgc2	c6f27b27-1e7f-48c8-870d-bdf770cab45a.webp	image/webp	{"identified":true,"width":533,"height":400,"analyzed":true}	cloudflare	31734	TFZEbbVdSCMcD+oVtRO/kA==	2026-07-07 04:52:12.393767
+451	s3syd8wbstuaarxfcfs4x6zixxjc	17834394691711991718853335693346.jpg	image/jpeg	{"identified":true,"width":3000,"height":4000,"analyzed":true}	cloudflare	1686044	WU3H/no89duNrjjOdLIyHQ==	2026-07-07 15:52:02.476707
+452	00h5rhp4nwu7swp3s35tm19jnhfn	17834400423606152428551502861853.jpg	image/jpeg	{"identified":true,"width":3000,"height":4000,"analyzed":true}	cloudflare	2712588	JeOdCKYhcDLcWkZ5UdWYTA==	2026-07-07 16:01:50.706362
+453	c3fpdr52w9ozeb5jb3kjjhx323un	٢٠٢٦٠٧٠٧_١٩٢٦٥٥.jpg	image/jpeg	{"identified":true,"width":3000,"height":4000,"analyzed":true}	cloudflare	2285717	gKQSb3p4W9/uvxaJUvrQQg==	2026-07-07 16:29:05.711066
+455	hg57w2clopokzsggkmihcc6l8lye	17834964728701370177534160399840.jpg	image/jpeg	{"identified":true,"width":3000,"height":4000,"analyzed":true}	cloudflare	3952416	I0uXp0XxDO40hWiwtwr7mg==	2026-07-08 07:41:32.210179
+456	c4exssm2nm6elisp5v3waxd1za0n	17834965384875328249393919632445.jpg	image/jpeg	{"identified":true,"width":3000,"height":4000,"analyzed":true}	cloudflare	2769371	Q7+4CFDBktYHVY5YRvJzrw==	2026-07-08 07:42:38.155253
 \.
 
 
@@ -6183,6 +6303,8 @@ COPY public.active_storage_variant_records (id, blob_id, variation_digest) FROM 
 238	427	KD9Nc/7Y7WAnoXc3yEXc+JUx0kw=
 239	428	KD9Nc/7Y7WAnoXc3yEXc+JUx0kw=
 240	433	8fC0NT4D4SwwYQKiODaINBDbQTI=
+241	264	KD9Nc/7Y7WAnoXc3yEXc+JUx0kw=
+242	263	KD9Nc/7Y7WAnoXc3yEXc+JUx0kw=
 \.
 
 
@@ -8818,25 +8940,16 @@ COPY public.attendance_records (id, branch_id, check_in_at, check_in_latitude, c
 4112	4	2026-07-04 12:14:37.245886	30.07391350	31.24791570	2026-07-05 00:05:27.447738	30.07387750	31.24790670	2026-07-04 12:14:37.250995	2026-07-04	10	0	34	present	2026-07-05 00:05:27.45227	59	2026-07-04	710	mobile	mobile	\N	\N	0	\N	\N	\N
 4119	3	2026-07-04 14:47:02.833171	30.09537719	31.24515432	2026-07-05 00:14:21.754793	30.09538896	31.24515549	2026-07-04 14:47:02.840881	2026-07-04	0	0	23	overtime	2026-07-05 00:14:21.760242	29	2026-07-04	567	mobile	mobile	\N	\N	57	\N	\N	\N
 4116	4	2026-07-04 12:16:13	\N	\N	2026-07-05 00:01:52	\N	\N	2026-07-04 13:17:25.96616	2026-07-04	15	0	59	present	2026-07-05 06:21:22.399284	39	2026-07-04	705	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
-4124	5	2026-07-05 06:37:28.940113	30.06762990	31.33920110	\N	\N	\N	2026-07-05 06:37:28.950339	2026-07-05	0	0	75	incomplete	2026-07-05 06:37:28.950339	55	2026-07-05	\N	mobile	\N	\N	\N	0	\N	\N	\N
 4114	3	2026-07-04 12:10:06	\N	\N	2026-07-05 00:24:51	\N	\N	2026-07-04 12:18:37.091365	2026-07-04	0	0	30	present	2026-07-05 07:13:00.552048	28	2026-07-04	734	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
 4118	3	2026-07-04 12:21:42	\N	\N	2026-07-05 00:25:02	\N	\N	2026-07-04 13:19:13.189593	2026-07-04	0	0	83	present	2026-07-05 07:13:01.19184	74	2026-07-04	723	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
 4115	3	2026-07-04 12:10:11	\N	\N	2026-07-05 00:25:18	\N	\N	2026-07-04 12:18:37.728375	2026-07-04	0	0	84	present	2026-07-05 07:13:02.474191	61	2026-07-04	735	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
 4113	3	2026-07-04 12:09:59	\N	\N	2026-07-05 00:25:39	\N	\N	2026-07-04 12:18:35.812491	2026-07-04	0	0	60	present	2026-07-05 07:13:03.05724	65	2026-07-04	735	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
 4121	4	2026-07-05 05:26:50.009717	30.07398755	31.24795435	2026-07-05 17:55:40	\N	\N	2026-07-05 05:26:50.079416	2026-07-05	0	0	41	present	2026-07-05 18:50:07.440253	37	2026-07-05	748	mobile	biometric_device	\N	\N	0	\N	\N	\N
 4123	4	2026-07-05 06:18:16	\N	\N	2026-07-05 18:23:09	\N	\N	2026-07-05 06:21:25.553687	2026-07-05	0	0	35	present	2026-07-05 18:50:08.806626	54	2026-07-05	724	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4124	5	2026-07-05 06:37:28.940113	30.06762990	31.33920110	2026-07-05 12:44:19	\N	\N	2026-07-05 06:37:28.950339	2026-07-05	354	0	75	early_leave	2026-07-06 07:16:17.081941	55	2026-07-05	366	mobile	biometric_device	\N	\N	0	\N	\N	\N
 4102	5	2026-07-04 09:56:40	\N	\N	2026-07-04 22:01:13	\N	\N	2026-07-04 10:14:33.445565	2026-07-04	0	0	48	present	2026-07-05 06:53:32.647667	45	2026-07-04	724	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
 4088	5	2026-07-04 05:54:12	\N	\N	2026-07-04 22:01:22	\N	\N	2026-07-04 05:54:56.308106	2026-07-04	0	0	62	overtime	2026-07-05 06:53:33.107263	63	2026-07-04	967	biometric_device	biometric_device	\N	\N	457	\N	\N	\N
-4125	5	2026-07-05 06:46:51	\N	\N	\N	\N	\N	2026-07-05 06:53:33.480234	2026-07-05	0	0	49	incomplete	2026-07-05 06:53:33.480234	49	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
-4126	5	2026-07-05 06:53:47	\N	\N	\N	\N	\N	2026-07-05 06:53:33.90075	2026-07-05	0	0	51	incomplete	2026-07-05 06:53:33.90075	58	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
-4143	4	2026-07-05 11:30:43	\N	\N	\N	\N	\N	2026-07-05 11:49:54.192517	2026-07-05	0	0	34	incomplete	2026-07-05 11:49:54.192517	59	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
-4144	3	2026-07-05 12:05:56	\N	\N	\N	\N	\N	2026-07-05 12:16:04.907523	2026-07-05	0	0	30	incomplete	2026-07-05 12:16:04.907523	28	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
-4145	3	2026-07-05 12:06:01	\N	\N	\N	\N	\N	2026-07-05 12:16:05.544778	2026-07-05	0	0	60	incomplete	2026-07-05 12:16:05.544778	65	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
-4146	3	2026-07-05 12:06:09	\N	\N	\N	\N	\N	2026-07-05 12:16:06.801196	2026-07-05	0	0	84	incomplete	2026-07-05 12:16:06.801196	61	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
-4147	4	2026-07-05 12:22:24	\N	\N	\N	\N	\N	2026-07-05 12:49:56.224688	2026-07-05	0	0	59	incomplete	2026-07-05 12:49:56.224688	39	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
-4149	3	2026-07-05 12:41:52	\N	\N	\N	\N	\N	2026-07-05 13:16:44.333706	2026-07-05	0	0	83	incomplete	2026-07-05 13:16:44.333706	74	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
 4127	3	2026-07-05 06:09:23	\N	\N	2026-07-05 14:09:07	\N	\N	2026-07-05 07:13:04.240659	2026-07-05	1	0	18	present	2026-07-05 14:17:19.70801	22	2026-07-05	479	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
-4151	4	2026-07-05 15:13:07	\N	\N	\N	\N	\N	2026-07-05 15:50:00.923856	2026-07-05	0	0	78	incomplete	2026-07-05 15:50:00.923856	73	2026-07-05	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
 4122	4	2026-07-05 06:18:14	30.07390500	31.24791450	2026-07-05 15:28:51	\N	\N	2026-07-05 06:18:15.355689	2026-07-05	0	0	14	overtime	2026-07-05 15:50:01.670562	19	2026-07-05	550	biometric_device	biometric_device	\N	\N	40	\N	\N	\N
 4133	4	2026-07-05 08:24:50	\N	\N	2026-07-05 15:54:58	\N	\N	2026-07-05 09:49:46.538605	2026-07-05	270	0	39	early_leave	2026-07-05 16:50:03.847413	48	2026-07-05	450	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
 4131	4	2026-07-05 06:26:54	\N	\N	2026-07-05 18:01:40	\N	\N	2026-07-05 07:21:27.499349	2026-07-05	26	0	40	present	2026-07-05 18:50:08.132882	53	2026-07-05	694	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
@@ -8856,6 +8969,115 @@ COPY public.attendance_records (id, branch_id, check_in_at, check_in_latitude, c
 4142	4	2026-07-05 11:25:17	\N	\N	2026-07-05 22:19:31	\N	\N	2026-07-05 11:49:52.848039	2026-07-05	66	0	85	early_leave	2026-07-05 23:18:41.754808	78	2026-07-05	654	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
 4141	4	2026-07-05 11:26:53	30.07395820	31.24793740	2026-07-06 00:03:01.122647	30.07390790	31.24795800	2026-07-05 11:31:07.363369	2026-07-05	0	0	33	overtime	2026-07-06 00:03:01.131489	60	2026-07-05	756	biometric_device	mobile	\N	\N	6	\N	\N	\N
 4152	3	2026-07-05 15:53:23.710085	30.09538902	31.24520301	2026-07-06 00:09:17.92971	30.09538913	31.24515316	2026-07-05 15:53:23.717792	2026-07-05	0	0	23	present	2026-07-06 00:09:17.937711	29	2026-07-05	495	mobile	mobile	\N	\N	0	\N	\N	\N
+4143	4	2026-07-05 11:30:43	\N	\N	2026-07-06 00:02:12	\N	\N	2026-07-05 11:49:54.192517	2026-07-05	0	0	34	overtime	2026-07-06 06:27:56.580204	59	2026-07-05	751	biometric_device	biometric_device	\N	\N	1	\N	\N	\N
+4147	4	2026-07-05 12:22:24	\N	\N	2026-07-06 00:02:19	\N	\N	2026-07-05 12:49:56.224688	2026-07-05	21	0	59	present	2026-07-06 06:27:57.287046	39	2026-07-05	699	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4151	4	2026-07-05 15:13:07	\N	\N	2026-07-06 00:02:44	\N	\N	2026-07-05 15:50:00.923856	2026-07-05	0	0	78	overtime	2026-07-06 06:27:58.28294	73	2026-07-05	529	biometric_device	biometric_device	\N	\N	19	\N	\N	\N
+4126	5	2026-07-05 06:53:47	\N	\N	2026-07-05 19:04:11	\N	\N	2026-07-05 06:53:33.90075	2026-07-05	0	0	51	present	2026-07-06 07:16:17.592469	58	2026-07-05	730	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4161	5	2026-07-05 10:36:30	\N	\N	2026-07-05 22:09:10	\N	\N	2026-07-06 07:16:16.672484	2026-07-05	28	0	46	present	2026-07-06 07:16:18.094311	40	2026-07-05	692	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4160	5	2026-07-05 10:08:22	\N	\N	2026-07-05 22:42:05	\N	\N	2026-07-06 07:16:16.241517	2026-07-05	0	0	48	overtime	2026-07-06 07:16:18.522514	45	2026-07-05	753	biometric_device	biometric_device	\N	\N	3	\N	\N	\N
+4125	5	2026-07-05 06:46:51	\N	\N	2026-07-05 23:00:15	\N	\N	2026-07-05 06:53:33.480234	2026-07-05	0	0	49	overtime	2026-07-06 07:16:19.36621	49	2026-07-05	973	biometric_device	biometric_device	\N	\N	463	\N	\N	\N
+4149	3	2026-07-05 12:41:52	\N	\N	2026-07-06 00:00:13	\N	\N	2026-07-05 13:16:44.333706	2026-07-05	42	0	83	early_leave	2026-07-06 07:29:47.36072	74	2026-07-05	678	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4144	3	2026-07-05 12:05:56	\N	\N	2026-07-06 00:42:31	\N	\N	2026-07-05 12:16:04.907523	2026-07-05	0	0	30	overtime	2026-07-06 07:29:49.101039	28	2026-07-05	756	biometric_device	biometric_device	\N	\N	6	\N	\N	\N
+4146	3	2026-07-05 12:06:09	\N	\N	2026-07-06 00:42:39	\N	\N	2026-07-05 12:16:06.801196	2026-07-05	0	0	84	overtime	2026-07-06 07:29:49.889215	61	2026-07-05	756	biometric_device	biometric_device	\N	\N	6	\N	\N	\N
+4145	3	2026-07-05 12:06:01	\N	\N	2026-07-06 00:42:44	\N	\N	2026-07-05 12:16:05.544778	2026-07-05	0	0	60	overtime	2026-07-06 07:29:50.710292	65	2026-07-05	756	biometric_device	biometric_device	\N	\N	6	\N	\N	\N
+4162	5	2026-07-06 05:46:54	\N	\N	2026-07-06 14:19:14	\N	\N	2026-07-06 07:16:19.824019	2026-07-06	0	0	49	overtime	2026-07-06 14:54:49.373376	49	2026-07-06	512	biometric_device	biometric_device	\N	\N	2	\N	\N	\N
+4164	3	2026-07-06 06:17:31	\N	\N	2026-07-06 13:08:35	\N	\N	2026-07-06 07:29:52.305252	2026-07-06	69	0	18	early_leave	2026-07-06 16:27:57.888231	22	2026-07-06	411	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4154	4	2026-07-06 06:10:23.155727	30.07392459	31.24788501	2026-07-06 18:04:29.511546	30.07392916	31.24792996	2026-07-06 06:10:23.160849	2026-07-06	6	0	82	present	2026-07-06 18:04:29.518999	43	2026-07-06	714	mobile	mobile	\N	\N	0	\N	\N	\N
+4166	3	2026-07-06 06:18:01	\N	\N	2026-07-06 18:01:26	\N	\N	2026-07-06 07:29:53.925933	2026-07-06	17	0	28	present	2026-07-06 18:29:05.258857	35	2026-07-06	703	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4165	3	2026-07-06 06:17:37	\N	\N	2026-07-06 18:01:28	\N	\N	2026-07-06 07:29:53.123453	2026-07-06	17	0	72	present	2026-07-06 18:29:05.871777	70	2026-07-06	703	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4169	3	2026-07-06 07:31:26	\N	\N	2026-07-06 18:16:51	\N	\N	2026-07-06 08:31:27.572194	2026-07-06	75	0	25	early_leave	2026-07-06 18:29:07.831406	30	2026-07-06	645	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4159	4	2026-07-06 06:24:29	\N	\N	2026-07-06 18:15:49	\N	\N	2026-07-06 06:28:01.825521	2026-07-06	9	0	68	present	2026-07-06 18:43:59.382677	67	2026-07-06	711	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4158	4	2026-07-06 06:24:08	\N	\N	2026-07-06 18:17:24	\N	\N	2026-07-06 06:28:00.991125	2026-07-06	7	0	35	present	2026-07-06 18:44:00.199321	54	2026-07-06	713	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4157	4	2026-07-06 06:24:05	\N	\N	2026-07-06 18:39:59	\N	\N	2026-07-06 06:28:00.087815	2026-07-06	0	0	45	present	2026-07-06 18:44:00.851568	52	2026-07-06	735	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4155	3	2026-07-06 06:15:47.041584	30.09550890	31.24531160	2026-07-06 19:28:58	\N	\N	2026-07-06 06:15:47.087682	2026-07-06	0	0	19	overtime	2026-07-06 19:29:41.329118	26	2026-07-06	793	mobile	biometric_device	\N	\N	43	\N	\N	\N
+4168	5	2026-07-06 07:22:05	\N	\N	2026-07-06 19:39:34	\N	\N	2026-07-06 07:30:27.193133	2026-07-06	0	0	51	present	2026-07-06 19:54:56.265545	58	2026-07-06	737	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4153	4	2026-07-06 06:05:26.854671	30.07388545	31.24775887	2026-07-06 19:52:51	\N	\N	2026-07-06 06:05:26.887261	2026-07-06	0	0	41	overtime	2026-07-06 20:47:15.69366	37	2026-07-06	827	mobile	biometric_device	\N	\N	77	\N	\N	\N
+4163	5	2026-07-06 06:16:20	\N	\N	2026-07-06 10:45:08	\N	\N	2026-07-06 07:16:20.226031	2026-07-06	452	0	75	early_leave	2026-07-06 10:50:43.56377	55	2026-07-06	268	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4175	4	2026-07-06 11:12:55	\N	\N	\N	\N	\N	2026-07-06 11:43:41.108863	2026-07-06	0	0	77	incomplete	2026-07-06 11:43:41.108863	72	2026-07-06	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4156	4	2026-07-06 06:23:59	30.07397040	31.24775890	2026-07-06 14:26:57.844395	30.07391680	31.24796740	2026-07-06 06:24:11.581618	2026-07-06	0	0	14	present	2026-07-06 14:26:57.850531	19	2026-07-06	482	biometric_device	mobile	\N	\N	0	\N	\N	\N
+4167	3	2026-07-06 06:23:48	\N	\N	2026-07-06 18:11:35	\N	\N	2026-07-06 07:29:54.722763	2026-07-06	13	0	29	present	2026-07-06 18:29:06.527323	27	2026-07-06	707	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4170	3	2026-07-06 08:01:42	\N	\N	2026-07-06 19:28:18	\N	\N	2026-07-06 08:31:28.216215	2026-07-06	0	0	71	present	2026-07-06 19:29:40.729835	69	2026-07-06	686	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4171	4	2026-07-06 08:56:35	\N	\N	2026-07-06 20:38:09	\N	\N	2026-07-06 09:43:36.361491	2026-07-06	0	0	13	present	2026-07-06 20:47:16.736653	14	2026-07-06	701	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4185	6	2026-07-06 14:18:00.600143	30.06469720	31.26696510	2026-07-06 20:49:16.680233	30.06472100	31.26710550	2026-07-06 14:18:00.602655	2026-07-06	0	0	66	overtime	2026-07-06 20:49:16.687746	46	2026-07-06	391	mobile	mobile	\N	\N	1	\N	\N	\N
+4188	3	2026-07-06 12:35:55	\N	\N	2026-07-06 21:03:25	\N	\N	2026-07-06 16:27:57.26146	2026-07-06	0	0	55	present	2026-07-06 21:30:52.086324	13	2026-07-06	507	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4177	5	2026-07-06 10:53:51	\N	\N	2026-07-06 22:02:08.6915	30.06771666	31.33907737	2026-07-06 11:50:45.101419	2026-07-06	52	0	46	early_leave	2026-07-06 22:02:08.696232	40	2026-07-06	668	biometric_device	mobile	\N	\N	0	\N	\N	\N
+4172	4	2026-07-06 10:24:10	\N	\N	2026-07-06 22:27:00	\N	\N	2026-07-06 10:43:38.569328	2026-07-06	0	0	85	present	2026-07-06 22:47:32.604088	78	2026-07-06	722	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4182	3	2026-07-06 12:31:59	\N	\N	2026-07-06 23:19:16	\N	\N	2026-07-06 12:33:59.31017	2026-07-06	73	0	30	early_leave	2026-07-06 23:32:00.398536	28	2026-07-06	647	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4178	3	2026-07-06 11:59:02	\N	\N	2026-07-06 23:19:30	\N	\N	2026-07-06 12:33:56.258754	2026-07-06	40	0	21	early_leave	2026-07-06 23:32:01.040827	31	2026-07-06	680	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4174	4	2026-07-06 11:23:13	30.07393840	31.24795000	2026-07-07 00:04:08.395102	30.07393690	31.24794210	2026-07-06 11:24:17.400385	2026-07-06	0	0	33	overtime	2026-07-07 00:04:08.403813	60	2026-07-06	760	biometric_device	mobile	\N	\N	10	\N	\N	\N
+4189	4	2026-07-06 16:16:28	\N	\N	2026-07-07 00:05:48.788557	30.07383780	31.24790120	2026-07-06 16:43:53.265473	2026-07-06	11	0	15	present	2026-07-07 00:05:48.799442	18	2026-07-06	469	biometric_device	mobile	\N	\N	0	\N	\N	\N
+4187	3	2026-07-06 15:38:27.366379	30.09538896	31.24523582	2026-07-07 00:15:52.899883	30.09539438	31.24527033	2026-07-06 15:38:27.37202	2026-07-06	0	0	23	overtime	2026-07-07 00:15:52.906681	29	2026-07-06	517	mobile	mobile	\N	\N	7	\N	\N	\N
+4181	3	2026-07-06 12:31:54	\N	\N	2026-07-07 00:03:13	\N	\N	2026-07-06 12:33:58.703021	2026-07-06	29	0	83	present	2026-07-07 05:32:23.285688	74	2026-07-06	691	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4179	3	2026-07-06 12:20:16	\N	\N	2026-07-07 00:16:20	\N	\N	2026-07-06 12:33:56.925523	2026-07-06	4	0	60	present	2026-07-07 05:32:25.334204	65	2026-07-06	716	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4180	3	2026-07-06 12:20:25	\N	\N	2026-07-07 00:16:41	\N	\N	2026-07-06 12:33:58.115382	2026-07-06	4	0	84	present	2026-07-07 05:32:27.40433	61	2026-07-06	716	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4176	4	2026-07-06 11:25:29	\N	\N	2026-07-07 00:03:09	\N	\N	2026-07-06 11:43:42.446262	2026-07-06	0	0	34	overtime	2026-07-07 06:25:50.211081	59	2026-07-06	757	biometric_device	biometric_device	\N	\N	7	\N	\N	\N
+4186	4	2026-07-06 14:08:02	\N	\N	2026-07-07 00:03:24	\N	\N	2026-07-06 14:43:48.418303	2026-07-06	0	0	78	overtime	2026-07-07 06:25:51.15094	73	2026-07-06	595	biometric_device	biometric_device	\N	\N	85	\N	\N	\N
+4183	4	2026-07-06 12:22:47	\N	\N	2026-07-07 00:03:29	\N	\N	2026-07-06 12:43:44.773761	2026-07-06	20	0	59	present	2026-07-07 06:25:51.833001	39	2026-07-06	700	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4173	5	2026-07-06 10:19:30	\N	\N	2026-07-06 22:02:10	\N	\N	2026-07-06 10:50:43.176084	2026-07-06	18	0	48	present	2026-07-07 06:41:24.761125	45	2026-07-06	702	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4184	5	2026-07-06 14:12:37	30.06743560	31.33919510	2026-07-06 22:02:15	30.06745770	31.33915440	2026-07-06 14:16:31.00545	2026-07-06	11	0	62	present	2026-07-07 06:41:25.133438	63	2026-07-06	469	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4190	4	2026-07-07 06:19:48	30.07392230	31.24796460	2026-07-07 13:24:38	30.07394070	31.24795400	2026-07-07 06:20:44.64077	2026-07-07	56	0	14	early_leave	2026-07-07 13:33:45.221523	19	2026-07-07	424	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4196	5	2026-07-07 06:36:39	\N	\N	2026-07-07 15:22:38	\N	\N	2026-07-07 06:41:25.683212	2026-07-07	0	0	49	overtime	2026-07-07 15:41:49.558112	49	2026-07-07	525	biometric_device	biometric_device	\N	\N	15	\N	\N	\N
+4212	4	2026-07-07 12:20:27	\N	\N	2026-07-07 18:26:19.884764	30.07393540	31.24796110	2026-07-07 12:33:42.170276	2026-07-07	115	0	15	early_leave	2026-07-07 18:26:19.892553	18	2026-07-07	365	biometric_device	mobile	\N	\N	0	\N	\N	\N
+4194	3	2026-07-07 06:31:03	\N	\N	2026-07-07 18:06:12	\N	\N	2026-07-07 06:33:03.908131	2026-07-07	25	0	19	present	2026-07-07 18:40:03.904087	26	2026-07-07	695	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4198	3	2026-07-07 06:34:15	\N	\N	2026-07-07 18:23:08	\N	\N	2026-07-07 07:33:39.077944	2026-07-07	12	0	28	present	2026-07-07 18:40:05.131246	35	2026-07-07	708	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4191	4	2026-07-07 06:19:55	\N	\N	2026-07-07 18:19:12	\N	\N	2026-07-07 06:25:53.159328	2026-07-07	1	0	35	present	2026-07-07 18:41:11.142465	54	2026-07-07	719	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4192	4	2026-07-07 06:20:00	\N	\N	2026-07-07 18:19:40	\N	\N	2026-07-07 06:25:53.80071	2026-07-07	1	0	68	present	2026-07-07 18:41:11.807278	67	2026-07-07	719	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4193	4	2026-07-07 06:20:06	\N	\N	2026-07-07 19:06:10	\N	\N	2026-07-07 06:25:54.440324	2026-07-07	0	0	45	overtime	2026-07-07 19:41:14.70989	52	2026-07-07	766	biometric_device	biometric_device	\N	\N	16	\N	\N	\N
+4199	3	2026-07-07 07:55:57	\N	\N	2026-07-07 20:22:30	\N	\N	2026-07-07 08:34:15.27646	2026-07-07	0	0	25	present	2026-07-07 20:41:14.795284	30	2026-07-07	746	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4202	4	2026-07-07 10:04:04	\N	\N	2026-07-07 22:03:19.569141	30.07393743	31.24793287	2026-07-07 10:26:02.881243	2026-07-07	1	0	82	present	2026-07-07 22:03:19.577646	43	2026-07-07	719	biometric_device	mobile	\N	\N	0	\N	\N	\N
+4204	4	2026-07-07 10:24:27	\N	\N	2026-07-07 22:10:38	\N	\N	2026-07-07 10:26:04.885468	2026-07-07	14	0	57	present	2026-07-07 22:41:19.841488	38	2026-07-07	706	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4203	4	2026-07-07 10:06:58	\N	\N	2026-07-07 22:25:36	\N	\N	2026-07-07 10:26:04.22703	2026-07-07	0	0	69	present	2026-07-07 22:41:21.197826	68	2026-07-07	738	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4205	3	2026-07-07 10:11:52	\N	\N	2026-07-07 22:15:16	\N	\N	2026-07-07 10:35:23.656834	2026-07-07	0	0	56	present	2026-07-07 22:42:22.603005	42	2026-07-07	723	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4207	4	2026-07-07 10:50:51	\N	\N	2026-07-07 22:40:40	\N	\N	2026-07-07 11:33:36.369186	2026-07-07	11	0	85	present	2026-07-07 23:41:23.036283	78	2026-07-07	709	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4209	4	2026-07-07 11:39:11	\N	\N	2026-07-08 00:04:44.825137	30.07392540	31.24796600	2026-07-07 12:33:40.194511	2026-07-07	0	0	33	present	2026-07-08 00:04:44.830907	60	2026-07-07	745	biometric_device	mobile	\N	\N	0	\N	\N	\N
+4197	5	2026-07-07 06:36:43	\N	\N	2026-07-07 17:42:19	\N	\N	2026-07-07 06:41:26.049098	2026-07-07	55	0	51	early_leave	2026-07-08 06:15:07.07489	58	2026-07-07	665	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4206	5	2026-07-07 09:43:39	\N	\N	2026-07-07 22:01:13	\N	\N	2026-07-07 10:41:43.620503	2026-07-07	0	0	48	present	2026-07-08 06:15:08.259822	45	2026-07-07	737	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4216	5	2026-07-07 13:28:06	\N	\N	2026-07-07 22:01:20	\N	\N	2026-07-07 13:41:46.336907	2026-07-07	0	0	62	overtime	2026-07-08 06:15:08.953295	63	2026-07-07	513	biometric_device	biometric_device	\N	\N	3	\N	\N	\N
+4211	4	2026-07-07 12:11:47	\N	\N	2026-07-08 00:01:54	\N	\N	2026-07-07 12:33:41.524777	2026-07-07	10	0	77	present	2026-07-08 06:43:32.491569	72	2026-07-07	710	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4210	4	2026-07-07 11:39:18	\N	\N	2026-07-08 00:03:54	\N	\N	2026-07-07 12:33:40.866806	2026-07-07	0	0	34	present	2026-07-08 06:43:33.811433	59	2026-07-07	744	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4215	3	2026-07-07 12:57:09	\N	\N	2026-07-08 00:01:23	\N	\N	2026-07-07 13:37:10.058305	2026-07-07	56	0	60	early_leave	2026-07-08 07:19:45.318066	65	2026-07-07	664	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4214	3	2026-07-07 12:04:29	\N	\N	2026-07-08 00:01:33	\N	\N	2026-07-07 12:36:35.616347	2026-07-07	3	0	84	present	2026-07-08 07:19:46.677489	61	2026-07-07	717	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4195	3	2026-07-07 05:30:00	30.09538730	31.24539430	2026-07-07 15:05:14	\N	\N	2026-07-07 06:38:22.325293	2026-07-07	0	0	55	overtime	2026-07-07 15:38:20.322217	13	2026-07-07	575	admin_manual	biometric_device	\N	\N	65	\N	\N	\N
+4217	6	2026-07-07 14:37:11.30756	30.06473300	31.26710010	2026-07-07 19:12:02.454763	30.06469420	31.26714540	2026-07-07 14:37:11.317551	2026-07-07	86	0	66	early_leave	2026-07-07 19:12:02.463275	46	2026-07-07	274	mobile	mobile	\N	\N	0	\N	\N	\N
+4201	4	2026-07-07 09:13:04	\N	\N	2026-07-07 19:06:05	\N	\N	2026-07-07 09:25:59.760077	2026-07-07	7	0	13	present	2026-07-07 19:41:14.05968	14	2026-07-07	593	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4208	4	2026-07-07 11:14:37	\N	\N	2026-07-07 22:18:53	\N	\N	2026-07-07 11:33:37.796703	2026-07-07	56	0	41	early_leave	2026-07-07 22:41:20.535183	37	2026-07-07	664	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4218	3	2026-07-07 14:38:19.2109	30.09536160	31.24520524	2026-07-08 00:00:08.057612	30.09538005	31.24515776	2026-07-07 14:38:19.214157	2026-07-07	0	0	23	overtime	2026-07-08 00:00:08.065857	29	2026-07-07	561	mobile	mobile	\N	\N	51	\N	\N	\N
+4200	5	2026-07-07 08:33:51	\N	\N	2026-07-07 21:40:51	\N	\N	2026-07-07 08:41:41.339414	2026-07-07	0	0	46	overtime	2026-07-08 06:15:07.516746	40	2026-07-07	787	biometric_device	biometric_device	\N	\N	37	\N	\N	\N
+4219	4	2026-07-07 15:21:07	\N	\N	2026-07-08 00:28:35	\N	\N	2026-07-07 15:33:49.293265	2026-07-07	0	0	78	overtime	2026-07-08 06:43:34.458417	73	2026-07-07	547	biometric_device	biometric_device	\N	\N	37	\N	\N	\N
+4213	3	2026-07-07 11:44:23	\N	\N	2026-07-07 23:49:29	\N	\N	2026-07-07 12:36:34.985257	2026-07-07	0	0	21	present	2026-07-08 07:19:44.474409	31	2026-07-07	725	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4227	5	2026-07-08 07:21:47	\N	\N	\N	\N	\N	2026-07-08 08:15:12.357531	2026-07-08	0	0	48	incomplete	2026-07-08 08:15:12.357531	45	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4228	5	2026-07-08 08:07:03	\N	\N	\N	\N	\N	2026-07-08 08:15:12.783408	2026-07-08	0	0	51	incomplete	2026-07-08 08:15:12.783408	58	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4238	5	2026-07-08 10:33:35	\N	\N	\N	\N	\N	2026-07-08 11:15:16.150777	2026-07-08	0	0	75	incomplete	2026-07-08 11:15:16.150777	55	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4242	3	2026-07-08 11:37:39	\N	\N	\N	\N	\N	2026-07-08 12:22:46.335061	2026-07-08	0	0	74	incomplete	2026-07-08 12:22:46.335061	41	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4243	3	2026-07-08 11:53:29	\N	\N	\N	\N	\N	2026-07-08 12:22:47.20628	2026-07-08	0	0	84	incomplete	2026-07-08 12:22:47.20628	61	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4244	4	2026-07-08 11:48:29	\N	\N	\N	\N	\N	2026-07-08 12:33:36.153757	2026-07-08	0	0	34	incomplete	2026-07-08 12:33:36.153757	59	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4245	4	2026-07-08 12:11:57	\N	\N	\N	\N	\N	2026-07-08 12:33:36.784231	2026-07-08	0	0	77	incomplete	2026-07-08 12:33:36.784231	72	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4246	4	2026-07-08 12:22:56	\N	\N	\N	\N	\N	2026-07-08 12:33:37.427372	2026-07-08	0	0	59	incomplete	2026-07-08 12:33:37.427372	39	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4247	3	2026-07-08 12:55:09	\N	\N	\N	\N	\N	2026-07-08 13:23:23.753725	2026-07-08	0	0	83	incomplete	2026-07-08 13:23:23.753725	74	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4248	5	2026-07-08 13:30:25.527213	30.06736390	31.33920270	\N	\N	\N	2026-07-08 13:30:25.570403	2026-07-08	0	0	62	incomplete	2026-07-08 13:30:25.570403	63	2026-07-08	\N	mobile	\N	\N	\N	0	\N	\N	\N
+4220	5	2026-07-08 06:14:32	\N	\N	2026-07-08 13:35:10	\N	\N	2026-07-08 06:15:09.527189	2026-07-08	40	0	49	early_leave	2026-07-08 14:15:30.738827	49	2026-07-08	440	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4251	3	2026-07-08 14:28:22	\N	\N	\N	\N	\N	2026-07-08 15:24:35.012517	2026-07-08	0	0	55	incomplete	2026-07-08 15:24:35.012517	13	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4225	3	2026-07-08 06:12:11	\N	\N	2026-07-08 15:00:31	\N	\N	2026-07-08 07:19:47.335357	2026-07-08	0	0	18	overtime	2026-07-08 15:24:35.790252	22	2026-07-08	528	biometric_device	biometric_device	\N	\N	18	\N	\N	\N
+4252	4	2026-07-08 15:29:14	\N	\N	\N	\N	\N	2026-07-08 15:33:43.99706	2026-07-08	0	0	78	incomplete	2026-07-08 15:33:43.99706	73	2026-07-08	\N	biometric_device	\N	\N	\N	0	\N	\N	\N
+4221	4	2026-07-08 06:11:10	\N	\N	2026-07-08 15:47:37.896591	30.07395290	31.24794830	2026-07-08 06:43:35.095236	2026-07-08	0	0	15	overtime	2026-07-08 15:47:37.901428	18	2026-07-08	576	biometric_device	mobile	\N	\N	66	\N	\N	\N
+4226	3	2026-07-08 06:23:04	\N	\N	2026-07-08 18:17:05	\N	\N	2026-07-08 07:19:48.021719	2026-07-08	6	0	29	present	2026-07-08 18:26:20.495643	27	2026-07-08	714	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4223	4	2026-07-08 06:14:05	\N	\N	2026-07-08 18:00:15	\N	\N	2026-07-08 06:43:36.391383	2026-07-08	14	0	35	present	2026-07-08 18:33:48.490605	54	2026-07-08	706	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4224	4	2026-07-08 06:41:02	\N	\N	2026-07-08 18:53:10	\N	\N	2026-07-08 06:43:37.031472	2026-07-08	0	0	40	present	2026-07-08 19:33:50.812411	53	2026-07-08	732	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4233	4	2026-07-08 09:35:31	\N	\N	2026-07-08 19:24:13	\N	\N	2026-07-08 10:33:28.358418	2026-07-08	12	0	13	present	2026-07-08 19:33:51.47909	14	2026-07-08	588	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4222	4	2026-07-08 06:11:28	\N	\N	2026-07-08 19:27:05	\N	\N	2026-07-08 06:43:35.762308	2026-07-08	0	0	45	overtime	2026-07-08 19:33:52.152612	52	2026-07-08	795	biometric_device	biometric_device	\N	\N	45	\N	\N	\N
+4250	6	2026-07-08 14:38:45.416988	30.06471510	31.26709610	2026-07-08 20:15:05.997678	30.06468490	31.26696060	2026-07-08 14:38:45.425293	2026-07-08	24	0	66	present	2026-07-08 20:15:06.007234	46	2026-07-08	336	mobile	mobile	\N	\N	0	\N	\N	\N
+4231	3	2026-07-08 09:32:41	\N	\N	2026-07-08 19:37:17	\N	\N	2026-07-08 10:21:33.798859	2026-07-08	0	0	71	present	2026-07-08 20:27:32.418337	69	2026-07-08	604	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4229	3	2026-07-08 07:45:16	\N	\N	2026-07-08 20:15:03	\N	\N	2026-07-08 08:20:24.106569	2026-07-08	0	0	25	present	2026-07-08 20:27:33.020578	30	2026-07-08	749	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4240	4	2026-07-08 11:48:23	30.07392960	31.24787310	2026-07-08 22:02:49.05752	30.07392000	31.24795720	2026-07-08 11:50:17.22125	2026-07-08	106	0	33	early_leave	2026-07-08 22:02:49.061321	60	2026-07-08	614	biometric_device	mobile	\N	\N	0	\N	\N	\N
+4230	4	2026-07-08 09:56:03	30.07391300	31.24795670	2026-07-08 22:04:08.117001	30.07394440	31.24793890	2026-07-08 09:56:50.505621	2026-07-08	0	0	53	present	2026-07-08 22:04:08.122665	20	2026-07-08	728	biometric_device	mobile	\N	\N	0	\N	\N	\N
+4241	3	2026-07-08 11:23:34	\N	\N	2026-07-08 21:28:50	\N	\N	2026-07-08 12:22:45.388075	2026-07-08	115	0	21	early_leave	2026-07-08 22:28:46.210401	31	2026-07-08	605	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4232	3	2026-07-08 10:04:27	\N	\N	2026-07-08 21:54:40	\N	\N	2026-07-08 10:21:34.456299	2026-07-08	10	0	73	present	2026-07-08 22:28:46.89102	44	2026-07-08	710	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4234	4	2026-07-08 09:48:48	\N	\N	2026-07-08 22:01:51	\N	\N	2026-07-08 10:33:29.036211	2026-07-08	0	0	57	present	2026-07-08 22:33:57.518572	38	2026-07-08	733	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4249	4	2026-07-08 13:49:16.233101	30.07393194	31.24791418	2026-07-08 22:02:17	30.07395492	31.24795152	2026-07-08 13:49:16.273388	2026-07-08	227	0	82	early_leave	2026-07-08 22:33:58.191175	43	2026-07-08	493	mobile	biometric_device	\N	\N	0	\N	\N	\N
+4236	4	2026-07-08 10:14:54	\N	\N	2026-07-08 22:03:13	\N	\N	2026-07-08 10:33:31.109122	2026-07-08	12	0	69	present	2026-07-08 22:33:58.847399	68	2026-07-08	708	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4235	4	2026-07-08 10:05:54	\N	\N	2026-07-08 22:05:05	\N	\N	2026-07-08 10:33:30.424328	2026-07-08	1	0	68	present	2026-07-08 22:34:00.147914	67	2026-07-08	719	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4237	4	2026-07-08 10:15:01	\N	\N	2026-07-08 22:17:24	\N	\N	2026-07-08 10:33:31.76551	2026-07-08	0	0	85	present	2026-07-08 22:34:00.802068	78	2026-07-08	722	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
+4239	3	2026-07-08 10:23:48	\N	\N	2026-07-08 22:33:11	\N	\N	2026-07-08 11:22:09.673115	2026-07-08	0	0	56	present	2026-07-08 23:29:23.74214	42	2026-07-08	729	biometric_device	biometric_device	\N	\N	0	\N	\N	\N
 \.
 
 
@@ -8954,6 +9176,7 @@ COPY public.audit_logs (id, actor_id, business_id, auditable_type, auditable_id,
 87	12	2	AttendanceRecord	2881	create_manual_attendance	{"check_in_at": [null, "2026-06-01T11:01:00+03:00"], "check_out_at": [null, "2026-06-01T23:01:00+03:00"]}	{"notes": null, "status": "present", "work_date": "2026-06-01"}	2026-06-03 23:12:06.652841
 88	12	2	EmployeeRequest	47	approve	{"status": ["pending", "approved"]}	{"request_type": "salary_advance", "response_note": null}	2026-06-04 06:10:50.301079
 89	12	2	EmployeeRequest	47	pay	{"status": ["approved", "paid"]}	{"amount": "1500.0"}	2026-06-04 06:10:56.65906
+1002	29	2	TillHandover	84	accept	{}	{"daily_reconciliation_id": 23}	2026-07-07 14:59:54.286796
 91	12	2	EmployeeRequest	49	approve	{"status": ["pending", "approved"]}	{"request_type": "salary_advance", "response_note": null}	2026-06-04 06:12:33.503849
 92	12	2	EmployeeRequest	50	approve	{"status": ["pending", "approved"]}	{"request_type": "salary_advance", "response_note": null}	2026-06-04 06:12:58.364028
 93	12	2	EmployeeRequest	51	approve	{"status": ["pending", "approved"]}	{"request_type": "salary_advance", "response_note": null}	2026-06-04 06:13:25.275619
@@ -9628,6 +9851,7 @@ COPY public.audit_logs (id, actor_id, business_id, auditable_type, auditable_id,
 762	12	2	AttendanceRecord	3923	edit_attendance	{"check_in_at": ["2026-06-30T08:45:10Z", "2026-06-30T08:45:00Z"], "check_out_at": ["", "2026-06-30T20:45:00Z"]}	{"reason": "s", "status": "present"}	2026-07-02 09:08:34.654634
 763	12	2	AttendanceRecord	2928	edit_attendance	{"check_in_at": ["2026-06-04T10:46:10Z", "2026-06-04T10:46:00Z"], "check_out_at": ["2026-06-04T11:00:00Z", "2026-06-05T11:00:00Z"]}	{"reason": "s", "status": "overtime"}	2026-07-02 09:14:12.412824
 764	12	2	AttendanceRecord	2928	edit_attendance	{"check_in_at": ["2026-06-04T10:46:10Z", "2026-06-04T10:46:00Z"], "check_out_at": ["2026-06-05T11:00:00Z", "2026-06-04T23:00:00Z"]}	{"reason": "s", "status": "present"}	2026-07-02 09:16:04.506816
+957	12	2	DailyReconciliation	19	opening_float_amounts_edited	{}	{"override_count": 2, "source_handover_id": 65}	2026-07-06 04:27:16.449119
 765	12	2	AttendanceRecord	3872	edit_attendance	{"check_in_at": ["2026-06-29T05:55:56Z", "2026-06-29T05:55:00Z"], "check_out_at": ["2026-06-29T06:00:00Z", "2026-06-29T18:00:00Z"]}	{"reason": "s", "status": "present"}	2026-07-02 09:18:03.954725
 766	12	2	AttendanceRecord	3273	edit_attendance	{"check_in_at": ["2026-06-11T22:18:22Z", "2026-06-11T22:18:00Z"], "check_out_at": ["2026-06-11T22:20:00Z", "2026-06-12T22:20:00Z"]}	{"reason": "s", "status": "overtime"}	2026-07-02 09:19:21.759744
 767	12	2	AttendanceRecord	3273	edit_attendance	{"check_in_at": ["2026-06-11T22:18:00Z", "2026-06-12T10:18:00Z"], "check_out_at": ["2026-06-11T22:20:00Z", "2026-06-12T22:20:00Z"]}	{"reason": "s", "status": "present"}	2026-07-02 09:20:03.35132
@@ -9820,6 +10044,89 @@ COPY public.audit_logs (id, actor_id, business_id, auditable_type, auditable_id,
 954	73	2	TillHandover	66	create	{}	{"self_deposit": true, "daily_reconciliation_id": 16}	2026-07-06 00:00:06.688051
 955	73	2	DailyReconciliation	16	opening_float_prepared	{}	{"branch_id": 4, "next_dr_id": 20, "source_handover_id": 67}	2026-07-06 00:00:41.363847
 956	29	2	DailyReconciliation	17	opening_float_prepared	{}	{"branch_id": 3, "next_dr_id": 21, "source_handover_id": 68}	2026-07-06 00:36:40.464319
+958	49	2	DailyReconciliation	19	opening_float_received	{}	{"from_user_id": 49, "new_handover_id": 69, "amounts_overridden": true, "source_handover_id": 65}	2026-07-06 06:18:04.614987
+959	22	2	DailyReconciliation	21	opening_float_received	{}	{"from_user_id": 29, "new_handover_id": 70, "amounts_overridden": false, "source_handover_id": 68}	2026-07-06 06:40:46.051779
+960	19	2	DailyReconciliation	20	opening_float_received	{}	{"from_user_id": 73, "new_handover_id": 71, "amounts_overridden": false, "source_handover_id": 67}	2026-07-06 07:01:14.791529
+961	69	2	Expense	55	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-06 10:48:09.627625
+962	22	2	TillHandover	72	create	{}	{"self_deposit": false, "daily_reconciliation_id": 21}	2026-07-06 12:47:49.26932
+963	13	2	TillHandover	72	accept	{}	{"daily_reconciliation_id": 21}	2026-07-06 12:48:22.489256
+964	69	2	EmployeeRequest	347	approve	{"status": ["pending", "approved"]}	{"request_type": "early_leave", "response_note": null}	2026-07-06 12:57:11.643521
+965	69	2	Expense	56	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-06 13:29:02.42277
+966	19	2	TillHandover	73	create	{}	{"self_deposit": false, "daily_reconciliation_id": 20}	2026-07-06 14:11:56.974399
+967	73	2	TillHandover	73	accept	{}	{"daily_reconciliation_id": 20}	2026-07-06 14:12:27.883511
+968	49	2	TillHandover	74	create	{}	{"self_deposit": false, "daily_reconciliation_id": 19}	2026-07-06 14:16:03.547931
+969	63	2	TillHandover	74	accept	{}	{"daily_reconciliation_id": 19}	2026-07-06 14:30:33.746753
+970	73	2	TillDeposit	17	create	{}	{"amount": "11700.0", "daily_reconciliation_id": 16}	2026-07-06 16:51:28.063845
+971	73	2	RemainingDepositBalance	17	create	{}	{"amount": "1370.0", "till_deposit_id": 17, "daily_reconciliation_id": 16}	2026-07-06 16:51:28.100508
+972	73	2	TillHandover	75	create	{}	{"self_deposit": false, "daily_reconciliation_id": 20}	2026-07-06 16:54:31.636246
+973	18	2	TillHandover	75	accept	{}	{"daily_reconciliation_id": 20}	2026-07-06 16:54:50.639352
+974	13	2	TillHandover	76	create	{}	{"self_deposit": false, "daily_reconciliation_id": 21}	2026-07-06 17:53:12.652764
+975	29	2	TillHandover	76	accept	{}	{"daily_reconciliation_id": 21}	2026-07-06 17:53:21.690596
+976	29	2	DepositResponsibilityTransfer	5	assign	{}	{"to_user_id": 13, "daily_reconciliation_id": 21}	2026-07-06 20:53:43.095693
+977	29	2	TillHandover	77	create	{}	{"self_deposit": true, "daily_reconciliation_id": 21}	2026-07-06 20:53:43.160724
+978	18	2	TillHandover	78	create	{}	{"self_deposit": true, "daily_reconciliation_id": 20}	2026-07-06 21:10:54.817932
+979	18	2	TillDeposit	18	create	{}	{"amount": "4400.0", "daily_reconciliation_id": 20}	2026-07-06 21:28:34.56717
+980	18	2	RemainingDepositBalance	18	create	{}	{"amount": "240.0", "till_deposit_id": 18, "daily_reconciliation_id": 20}	2026-07-06 21:28:34.613273
+981	63	2	TillHandover	79	create	{}	{"self_deposit": true, "daily_reconciliation_id": 19}	2026-07-06 21:50:30.290326
+982	63	2	TillDeposit	19	create	{}	{"amount": "2600.0", "daily_reconciliation_id": 19}	2026-07-06 22:13:33.038629
+983	63	2	RemainingDepositBalance	19	create	{}	{"amount": "235.0", "till_deposit_id": 19, "daily_reconciliation_id": 19}	2026-07-06 22:13:33.072553
+984	13	2	DepositResponsibilityTransfer	5	accept	{}	{"daily_reconciliation_id": 21}	2026-07-06 22:54:52.443132
+985	13	2	TillDeposit	20	create	{}	{"amount": "7050.0", "daily_reconciliation_id": 21}	2026-07-06 22:56:49.33211
+986	13	2	RemainingDepositBalance	20	create	{}	{"amount": "175.0", "till_deposit_id": 20, "daily_reconciliation_id": 21}	2026-07-06 22:56:49.351869
+987	18	2	DailyReconciliation	20	opening_float_prepared	{}	{"branch_id": 4, "next_dr_id": 22, "source_handover_id": 80}	2026-07-06 23:56:24.393681
+988	12	2	PosImport	15	pos_import_imported	{}	{"dr_count": 3, "file_name": "report_payment-transactions_2026-07-07 2.csv", "total_rows": 95, "invalid_rows": 0, "imported_rows": 95, "duplicate_rows": 0, "unmatched_rows": 0}	2026-07-07 02:19:03.040152
+989	19	2	DailyReconciliation	22	opening_float_received	{}	{"from_user_id": 18, "new_handover_id": 81, "amounts_overridden": false, "source_handover_id": 80}	2026-07-07 06:49:45.945336
+990	69	2	EmployeeRequest	350	approve	{"status": ["pending", "approved"]}	{"request_type": "punch_correction", "approved_time": "08:30", "proposed_time": "08:30", "response_note": "موافقة", "correction_type": "wrong_check_in_time"}	2026-07-07 10:59:06.419929
+991	69	2	EmployeeRequest	349	approve	{"status": ["pending", "approved"]}	{"request_type": "early_leave", "response_note": null}	2026-07-07 10:59:16.885922
+992	69	2	EmployeeRequest	348	approve	{"status": ["pending", "approved"]}	{"request_type": "early_leave", "response_note": null}	2026-07-07 10:59:24.540015
+993	19	2	TillHandover	82	create	{}	{"self_deposit": false, "daily_reconciliation_id": 22}	2026-07-07 13:15:58.981214
+994	18	2	TillHandover	82	accept	{}	{"daily_reconciliation_id": 22}	2026-07-07 13:16:47.905841
+995	17	2	Expense	57	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-07 13:49:31.9214
+996	17	2	Expense	58	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-07 13:51:24.715891
+997	49	2	TillDeposit	21	create	{}	{"amount": "3550.0", "daily_reconciliation_id": 18}	2026-07-07 14:34:05.913244
+998	49	2	RemainingDepositBalance	21	create	{}	{"amount": "200.0", "till_deposit_id": 21, "daily_reconciliation_id": 18}	2026-07-07 14:34:05.960154
+999	49	2	TillHandover	83	create	{}	{"self_deposit": false, "daily_reconciliation_id": 24}	2026-07-07 14:37:27.277862
+1000	13	2	TillHandover	84	create	{}	{"self_deposit": false, "daily_reconciliation_id": 23}	2026-07-07 14:57:51.656139
+1001	17	2	Expense	59	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-07 14:58:37.433171
+1003	17	2	Expense	60	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-07 15:09:13.551522
+1004	18	2	TillHandover	85	create	{}	{"self_deposit": false, "daily_reconciliation_id": 22}	2026-07-07 15:57:51.022589
+1005	73	2	TillHandover	85	accept	{}	{"daily_reconciliation_id": 22}	2026-07-07 15:59:16.803855
+1006	17	2	Expense	61	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-07 16:29:08.785568
+1007	63	2	TillHandover	83	accept	{}	{"daily_reconciliation_id": 24}	2026-07-07 18:55:16.064502
+1008	12	2	TillHandover	83	adjusted	{}	{"reason_code": "wrong_amounts", "adjustment_id": 1}	2026-07-07 18:56:09.814665
+1009	29	2	DepositResponsibilityTransfer	6	assign	{}	{"to_user_id": 13, "daily_reconciliation_id": 23}	2026-07-07 21:01:04.788522
+1010	29	2	TillHandover	86	create	{}	{"self_deposit": true, "daily_reconciliation_id": 23}	2026-07-07 21:01:04.855938
+1011	73	2	TillHandover	87	create	{}	{"self_deposit": true, "daily_reconciliation_id": 22}	2026-07-07 21:23:10.996259
+1012	29	2	DailyReconciliation	23	opening_float_prepared	{}	{"branch_id": 3, "next_dr_id": 25, "source_handover_id": 88}	2026-07-07 23:36:47.609299
+1013	73	2	TillDeposit	22	create	{}	{"amount": "4900.0", "daily_reconciliation_id": 22}	2026-07-08 00:27:53.178395
+1014	73	2	RemainingDepositBalance	22	create	{}	{"amount": "320.0", "till_deposit_id": 22, "daily_reconciliation_id": 22}	2026-07-08 00:27:53.21041
+1015	73	2	DailyReconciliation	22	opening_float_prepared	{}	{"branch_id": 4, "next_dr_id": 26, "source_handover_id": 89}	2026-07-08 00:28:46.241581
+1016	18	2	DailyReconciliation	26	opening_float_received	{}	{"from_user_id": 73, "new_handover_id": 90, "amounts_overridden": false, "source_handover_id": 89}	2026-07-08 06:15:41.81383
+1017	22	2	DailyReconciliation	25	opening_float_received	{}	{"from_user_id": 29, "new_handover_id": 91, "amounts_overridden": false, "source_handover_id": 88}	2026-07-08 06:29:40.225508
+1018	17	2	Expense	62	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-08 07:41:35.657669
+1019	17	2	Expense	63	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-08 07:42:44.045557
+1020	63	2	TillHandover	92	create	{}	{"self_deposit": true, "daily_reconciliation_id": 24}	2026-07-08 07:58:22.875794
+1021	69	2	EmployeeRequest	357	approve	{"status": ["pending", "approved"]}	{"request_type": "early_leave", "response_note": null}	2026-07-08 08:36:40.762168
+1022	49	2	TillHandover	93	create	{}	{"self_deposit": false, "daily_reconciliation_id": 27}	2026-07-08 13:28:54.082192
+1023	63	2	TillHandover	93	accept	{}	{"daily_reconciliation_id": 27}	2026-07-08 13:29:42.323813
+1024	22	2	TillHandover	94	create	{}	{"self_deposit": false, "daily_reconciliation_id": 25}	2026-07-08 14:48:17.088615
+1025	18	2	TillHandover	95	create	{}	{"self_deposit": false, "daily_reconciliation_id": 26}	2026-07-08 15:34:43.53468
+1026	17	2	Expense	64	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-08 15:36:10.647095
+1027	17	2	Expense	65	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-08 15:39:11.717207
+1028	14	2	EmployeeRequest	353	approve	{"status": ["pending", "approved"]}	{"request_type": "early_leave", "response_note": null}	2026-07-08 16:37:14.500146
+1029	20	2	TillHandover	96	create	{}	{"self_deposit": false, "daily_reconciliation_id": 26}	2026-07-08 21:04:43.501348
+1030	73	2	TillHandover	95	accept	{}	{"daily_reconciliation_id": 26}	2026-07-08 21:05:12.374477
+1031	73	2	TillHandover	96	accept	{}	{"daily_reconciliation_id": 26}	2026-07-08 21:05:24.186932
+1032	73	2	TillHandover	97	create	{}	{"self_deposit": true, "daily_reconciliation_id": 26}	2026-07-08 21:08:51.430454
+1033	14	2	DailyReconciliation	26	review_completed	{}	{}	2026-07-08 21:16:07.910437
+1034	17	2	BalanceRequest	3	submit	{"status": ["draft", "pending_approval"]}	{}	2026-07-08 21:18:23.770649
+1035	63	2	TillHandover	98	create	{}	{"self_deposit": true, "daily_reconciliation_id": 27}	2026-07-08 21:35:39.613164
+1036	73	2	TillDeposit	23	create	{}	{"amount": "6650.0", "daily_reconciliation_id": 26}	2026-07-08 21:45:58.721204
+1037	73	2	RemainingDepositBalance	23	create	{}	{"amount": "1015.0", "till_deposit_id": 23, "daily_reconciliation_id": 26}	2026-07-08 21:45:58.752467
+1038	63	2	DailyReconciliation	27	opening_float_prepared	{}	{"branch_id": 5, "next_dr_id": 28, "source_handover_id": 99}	2026-07-08 21:59:08.766678
+1039	69	2	EmployeeRequest	361	reject	{"status": ["pending", "rejected"]}	{"request_type": "early_leave", "response_note": "رفض الاذن بسبب وجود عملاء في المكان وتم إبلاغه بذلك و لمنعه من دخول حمام العملاء فرفض اكمال العمل "}	2026-07-08 22:29:33.26091
+1040	73	2	DailyReconciliation	26	opening_float_prepared	{}	{"branch_id": 4, "next_dr_id": 29, "source_handover_id": 100}	2026-07-09 00:00:13.35534
+1041	13	2	DepositResponsibilityTransfer	6	accept	{}	{"daily_reconciliation_id": 23}	2026-07-09 00:54:44.61072
 \.
 
 
@@ -9830,6 +10137,7 @@ COPY public.audit_logs (id, actor_id, business_id, auditable_type, auditable_id,
 COPY public.balance_requests (id, business_id, created_by_id, branch_id, approved_by_id, paid_by_id, amount, request_date, notes, status, reference_number, rejection_reason, approved_at, paid_at, created_at, updated_at, cancelled_by_id, cancelled_at, cancellation_reason) FROM stdin;
 1	2	17	\N	\N	\N	20000.00	2026-07-04	للتشطيب	cancelled	BRQ-000001	\N	\N	\N	2026-07-03 21:50:25.795437	2026-07-04 20:59:09.671395	17	2026-07-04 20:59:09.669817	تعديل برقم جديد
 2	2	17	\N	12	12	23500.00	2026-07-04	عهدة للتشطيب مستلمة من عهدة الترعة البواقي من اسلام	paid	BRQ-000002	\N	2026-07-05 16:59:13.608381	2026-07-05 16:59:19.524932	2026-07-04 20:59:36.436056	2026-07-05 16:59:19.525435	\N	\N	\N
+3	2	17	\N	\N	\N	6750.00	2026-07-09	مستلم من عم اسامة فاروق من تركيب انترلوك 	pending_approval	BRQ-000003	\N	\N	\N	2026-07-08 21:18:18.039378	2026-07-08 21:18:23.758103	\N	\N	\N
 \.
 
 
@@ -9854,9 +10162,9 @@ COPY public.bank_statements (id, business_id, branch_id, imported_by_id, file_na
 --
 
 COPY public.biometric_devices (id, business_id, name, token, location_note, active, last_seen_at, created_at, updated_at) FROM stdin;
-2	2	صالون جدو - مدينة نصر	HOOdthaNgcEHVhpwOVOOx9nFgy9yOjMc12kF6lRJv10		t	2026-07-05 06:53:33.887373	2026-05-23 07:11:34.837033	2026-07-05 06:53:33.887373
-1	2	صالون جدو - شارع شبرا	w74XhAG8X7knNWz1lTLG-IDI6YsGGMWKzUXP6TLpGjw		t	2026-07-05 22:22:05.460584	2026-05-19 08:09:10.339223	2026-07-05 22:22:05.460584
-3	2	صالون جدو - الترعة البولاقية	CM54QJihW3-mwq4AMN7jedhL0VkY2J_UksVqhBd6rAU		t	2026-07-05 23:18:41.710374	2026-05-25 20:21:25.305745	2026-07-05 23:18:41.710374
+2	2	صالون جدو - مدينة نصر	HOOdthaNgcEHVhpwOVOOx9nFgy9yOjMc12kF6lRJv10		t	2026-07-08 14:15:30.643038	2026-05-23 07:11:34.837033	2026-07-08 14:15:30.643038
+3	2	صالون جدو - الترعة البولاقية	CM54QJihW3-mwq4AMN7jedhL0VkY2J_UksVqhBd6rAU		t	2026-07-08 22:34:01.452756	2026-05-25 20:21:25.305745	2026-07-08 22:34:01.452756
+1	2	صالون جدو - شارع شبرا	w74XhAG8X7knNWz1lTLG-IDI6YsGGMWKzUXP6TLpGjw		t	2026-07-08 23:29:24.417459	2026-05-19 08:09:10.339223	2026-07-08 23:29:24.417459
 \.
 
 
@@ -11905,6 +12213,7 @@ COPY public.biometric_punch_logs (id, business_id, biometric_device_id, employee
 4847	2	1	35	\N	2026-06-06	2026-06-06 09:08:15	2026-06-06 11:21:43.638673	rejected_spam	197.49.122.228	{"employee_id":465,"timestamp":"2026-06-06 12:08:15"}	\N	2026-06-06 11:21:43.641167	2026-06-06 11:21:43.641167	biometric
 4848	2	1	25	3096	2026-06-06	2026-06-06 10:28:17	2026-06-06 11:21:44.270945	check_in	197.49.122.228	{"employee_id":320,"timestamp":"2026-06-06 13:28:17"}	\N	2026-06-06 11:21:44.27212	2026-06-06 11:21:44.27212	biometric
 4849	2	1	24	3097	2026-06-06	2026-06-06 10:28:22	2026-06-06 11:21:44.878695	check_in	197.49.122.228	{"employee_id":18,"timestamp":"2026-06-06 13:28:22"}	\N	2026-06-06 11:21:44.878982	2026-06-06 11:21:44.878982	biometric
+7431	2	1	28	4182	2026-07-06	2026-07-06 23:19:16	2026-07-06 23:32:00.400871	check_out	197.49.56.231	{"employee_id":360,"timestamp":"2026-07-07 02:19:16"}	\N	2026-07-06 23:32:00.401232	2026-07-06 23:32:00.401232	biometric
 4851	2	1	38	\N	2026-06-06	2026-06-06 10:51:27	2026-06-06 11:21:46.056872	rejected_spam	197.49.122.228	{"employee_id":230,"timestamp":"2026-06-06 13:51:27"}	\N	2026-06-06 11:21:46.057506	2026-06-06 11:21:46.057506	biometric
 4852	2	1	28	3099	2026-06-06	2026-06-06 11:02:25	2026-06-06 11:21:46.665884	check_in	197.49.122.228	{"employee_id":360,"timestamp":"2026-06-06 14:02:25"}	\N	2026-06-06 11:21:46.666537	2026-06-06 11:21:46.666537	biometric
 4853	2	1	65	3100	2026-06-06	2026-06-06 11:02:31	2026-06-06 11:21:47.24207	check_in	197.49.122.228	{"employee_id":476,"timestamp":"2026-06-06 14:02:31"}	\N	2026-06-06 11:21:47.24248	2026-06-06 11:21:47.24248	biometric
@@ -12128,6 +12437,7 @@ COPY public.biometric_punch_logs (id, business_id, biometric_device_id, employee
 5071	2	3	47	3171	2026-06-09	2026-06-09 21:24:28	2026-06-09 21:27:32.510679	check_out	41.40.60.198	{"employee_id":373,"timestamp":"2026-06-10 00:24:28"}	\N	2026-06-09 21:27:32.511085	2026-06-09 21:27:32.511085	biometric
 5072	2	1	48	3175	2026-06-09	2026-06-09 21:04:32	2026-06-09 21:57:29.177597	check_out	102.45.137.168	{"employee_id":385,"timestamp":"2026-06-10 00:04:32"}	\N	2026-06-09 21:57:29.178802	2026-06-09 21:57:29.178802	biometric
 5073	2	1	24	3178	2026-06-09	2026-06-09 21:44:43	2026-06-09 21:57:29.767605	check_out	102.45.137.168	{"employee_id":18,"timestamp":"2026-06-10 00:44:43"}	\N	2026-06-09 21:57:29.770363	2026-06-09 21:57:29.770363	biometric
+7432	2	1	31	4178	2026-07-06	2026-07-06 23:19:30	2026-07-06 23:32:01.042898	check_out	197.49.56.231	{"employee_id":442,"timestamp":"2026-07-07 02:19:30"}	\N	2026-07-06 23:32:01.043267	2026-07-06 23:32:01.043267	biometric
 5075	2	1	38	\N	2026-06-09	2026-06-09 22:00:28	2026-06-10 05:44:32.424274	rejected_spam	102.45.137.168	{"employee_id":230,"timestamp":"2026-06-10 01:00:28"}	\N	2026-06-10 05:44:32.425554	2026-06-10 05:44:32.425554	biometric
 5076	2	1	29	3179	2026-06-09	2026-06-09 22:37:06	2026-06-10 05:44:33.218068	check_out	102.45.137.168	{"employee_id":439,"timestamp":"2026-06-10 01:37:06"}	\N	2026-06-10 05:44:33.218841	2026-06-10 05:44:33.218841	biometric
 5077	2	1	65	3177	2026-06-09	2026-06-09 22:37:43	2026-06-10 05:44:33.89229	check_out	102.45.137.168	{"employee_id":476,"timestamp":"2026-06-10 01:37:43"}	\N	2026-06-10 05:44:33.893432	2026-06-10 05:44:33.893432	biometric
@@ -12172,6 +12482,7 @@ COPY public.biometric_punch_logs (id, business_id, biometric_device_id, employee
 5116	2	3	44	3221	2026-06-10	2026-06-10 11:55:42	2026-06-10 12:46:39.746066	check_in	41.40.60.198	{"employee_id":362,"timestamp":"2026-06-10 14:55:42"}	\N	2026-06-10 12:46:39.746643	2026-06-10 12:46:39.746643	biometric
 5117	2	3	14	3214	2026-06-10	2026-06-10 12:15:02	2026-06-10 12:46:41.059152	check_out	41.40.60.198	{"employee_id":430,"timestamp":"2026-06-10 15:15:02"}	\N	2026-06-10 12:46:41.059731	2026-06-10 12:46:41.059731	biometric
 5118	2	3	14	\N	2026-06-10	2026-06-10 12:15:09	2026-06-10 12:46:41.699905	rejected_spam	41.40.60.198	{"employee_id":430,"timestamp":"2026-06-10 15:15:09"}	\N	2026-06-10 12:46:41.700541	2026-06-10 12:46:41.700541	biometric
+7433	2	1	74	4181	2026-07-06	2026-07-07 00:03:13	2026-07-07 05:32:23.317365	check_out	197.49.56.231	{"employee_id":485,"timestamp":"2026-07-07 03:03:13"}	\N	2026-07-07 05:32:23.335097	2026-07-07 05:32:23.335097	biometric
 5120	2	3	50	3223	2026-06-10	2026-06-10 12:19:56	2026-06-10 12:46:43.033429	check_in	41.40.60.198	{"employee_id":397,"timestamp":"2026-06-10 15:19:56"}	\N	2026-06-10 12:46:43.033848	2026-06-10 12:46:43.033848	biometric
 5121	2	3	39	3224	2026-06-10	2026-06-10 12:22:28	2026-06-10 12:46:43.72893	check_in	41.40.60.198	{"employee_id":308,"timestamp":"2026-06-10 15:22:28"}	\N	2026-06-10 12:46:43.729542	2026-06-10 12:46:43.729542	biometric
 5122	2	3	39	\N	2026-06-10	2026-06-10 12:22:30	2026-06-10 12:46:44.432414	rejected_spam	41.40.60.198	{"employee_id":308,"timestamp":"2026-06-10 15:22:30"}	\N	2026-06-10 12:46:44.433046	2026-06-10 12:46:44.433046	biometric
@@ -12190,6 +12501,7 @@ COPY public.biometric_punch_logs (id, business_id, biometric_device_id, employee
 5135	2	1	35	\N	2026-06-10	2026-06-10 21:45:47	2026-06-10 21:53:22.380355	rejected_spam	102.45.137.168	{"employee_id":465,"timestamp":"2026-06-11 00:45:47"}	\N	2026-06-10 21:53:22.381788	2026-06-10 21:53:22.381788	biometric
 5136	2	3	20	\N	2026-06-10	2026-06-10 22:01:24	2026-06-10 22:48:17.846995	rejected_spam	41.40.60.198	{"employee_id":369,"timestamp":"2026-06-11 01:01:24"}	\N	2026-06-10 22:48:17.848115	2026-06-10 22:48:17.848115	biometric
 5137	2	3	67	3209	2026-06-10	2026-06-10 22:01:33	2026-06-10 22:48:18.594662	check_out	41.40.60.198	{"employee_id":478,"timestamp":"2026-06-11 01:01:33"}	\N	2026-06-10 22:48:18.596917	2026-06-10 22:48:18.596917	biometric
+7434	2	1	74	\N	2026-07-06	2026-07-07 00:03:14	2026-07-07 05:32:24.020452	rejected_spam	197.49.56.231	{"employee_id":485,"timestamp":"2026-07-07 03:03:14"}	\N	2026-07-07 05:32:24.021329	2026-07-07 05:32:24.021329	biometric
 5139	2	3	37	3212	2026-06-10	2026-06-10 22:14:40	2026-06-10 22:48:19.893553	check_out	41.40.60.198	{"employee_id":100,"timestamp":"2026-06-11 01:14:40"}	\N	2026-06-10 22:48:19.894189	2026-06-10 22:48:19.894189	biometric
 5140	2	3	68	3211	2026-06-10	2026-06-10 22:14:56	2026-06-10 22:48:20.547195	check_out	41.40.60.198	{"employee_id":479,"timestamp":"2026-06-11 01:14:56"}	\N	2026-06-10 22:48:20.547754	2026-06-10 22:48:20.547754	biometric
 5141	2	3	47	3215	2026-06-10	2026-06-10 22:34:00	2026-06-10 22:48:21.226534	check_out	41.40.60.198	{"employee_id":373,"timestamp":"2026-06-11 01:34:00"}	\N	2026-06-10 22:48:21.227232	2026-06-10 22:48:21.227232	biometric
@@ -14362,6 +14674,246 @@ COPY public.biometric_punch_logs (id, business_id, biometric_device_id, employee
 7320	2	1	25	4140	2026-07-05	2026-07-05 22:00:19	2026-07-05 22:22:04.861344	check_out	197.49.122.244	{"employee_id":320,"timestamp":"2026-07-06 01:00:19"}	\N	2026-07-05 22:22:04.863563	2026-07-05 22:22:04.863563	biometric
 7321	2	1	24	4135	2026-07-05	2026-07-05 22:20:57	2026-07-05 22:22:05.481783	check_out	197.49.122.244	{"employee_id":18,"timestamp":"2026-07-06 01:20:57"}	\N	2026-07-05 22:22:05.482834	2026-07-05 22:22:05.482834	biometric
 7322	2	3	78	4142	2026-07-05	2026-07-05 22:19:31	2026-07-05 23:18:41.757557	check_out	156.196.226.4	{"employee_id":488,"timestamp":"2026-07-06 01:19:31"}	\N	2026-07-05 23:18:41.758155	2026-07-05 23:18:41.758155	biometric
+7323	2	3	60	\N	2026-07-05	2026-07-06 00:02:00	2026-07-06 06:27:55.845382	rejected_spam	156.196.226.4	{"employee_id":470,"timestamp":"2026-07-06 03:02:00"}	\N	2026-07-06 06:27:55.85218	2026-07-06 06:27:55.85218	biometric
+7324	2	3	59	4143	2026-07-05	2026-07-06 00:02:12	2026-07-06 06:27:56.59649	check_out	156.196.226.4	{"employee_id":469,"timestamp":"2026-07-06 03:02:12"}	\N	2026-07-06 06:27:56.598042	2026-07-06 06:27:56.598042	biometric
+7325	2	3	39	4147	2026-07-05	2026-07-06 00:02:19	2026-07-06 06:27:57.290263	check_out	156.196.226.4	{"employee_id":308,"timestamp":"2026-07-06 03:02:19"}	\N	2026-07-06 06:27:57.291054	2026-07-06 06:27:57.291054	biometric
+7326	2	3	73	4151	2026-07-05	2026-07-06 00:02:44	2026-07-06 06:27:58.285059	check_out	156.196.226.4	{"employee_id":484,"timestamp":"2026-07-06 03:02:44"}	\N	2026-07-06 06:27:58.285379	2026-07-06 06:27:58.285379	biometric
+7327	2	3	19	4156	2026-07-06	2026-07-06 06:23:59	2026-07-06 06:27:59.138418	check_in_updated	156.196.226.4	{"employee_id":259,"timestamp":"2026-07-06 09:23:59"}	\N	2026-07-06 06:27:59.15121	2026-07-06 06:27:59.15121	biometric
+7328	2	3	52	4157	2026-07-06	2026-07-06 06:24:05	2026-07-06 06:28:00.09417	check_in	156.196.226.4	{"employee_id":433,"timestamp":"2026-07-06 09:24:05"}	\N	2026-07-06 06:28:00.096567	2026-07-06 06:28:00.096567	biometric
+7329	2	3	54	4158	2026-07-06	2026-07-06 06:24:08	2026-07-06 06:28:00.994993	check_in	156.196.226.4	{"employee_id":445,"timestamp":"2026-07-06 09:24:08"}	\N	2026-07-06 06:28:00.996723	2026-07-06 06:28:00.996723	biometric
+7330	2	3	67	4159	2026-07-06	2026-07-06 06:24:29	2026-07-06 06:28:01.829341	check_in	156.196.226.4	{"employee_id":478,"timestamp":"2026-07-06 09:24:29"}	\N	2026-07-06 06:28:01.83041	2026-07-06 06:28:01.83041	biometric
+7331	2	2	45	4160	2026-07-05	2026-07-05 10:08:22	2026-07-06 07:16:16.246364	check_in	156.204.101.133	{"employee_id":366,"timestamp":"2026-07-05 13:08:22"}	\N	2026-07-06 07:16:16.251279	2026-07-06 07:16:16.251279	biometric
+7332	2	2	40	4161	2026-07-05	2026-07-05 10:36:30	2026-07-06 07:16:16.675884	check_in	156.204.101.133	{"employee_id":326,"timestamp":"2026-07-05 13:36:30"}	\N	2026-07-06 07:16:16.67653	2026-07-06 07:16:16.67653	biometric
+7333	2	2	55	4124	2026-07-05	2026-07-05 12:44:19	2026-07-06 07:16:17.084485	check_out	156.204.101.133	{"employee_id":446,"timestamp":"2026-07-05 15:44:19"}	\N	2026-07-06 07:16:17.085164	2026-07-06 07:16:17.085164	biometric
+7334	2	2	58	4126	2026-07-05	2026-07-05 19:04:11	2026-07-06 07:16:17.59622	check_out	156.204.101.133	{"employee_id":464,"timestamp":"2026-07-05 22:04:11"}	\N	2026-07-06 07:16:17.596629	2026-07-06 07:16:17.596629	biometric
+7335	2	2	40	4161	2026-07-05	2026-07-05 22:09:10	2026-07-06 07:16:18.096671	check_out	156.204.101.133	{"employee_id":326,"timestamp":"2026-07-06 01:09:10"}	\N	2026-07-06 07:16:18.097248	2026-07-06 07:16:18.097248	biometric
+7336	2	2	45	4160	2026-07-05	2026-07-05 22:42:05	2026-07-06 07:16:18.524884	check_out	156.204.101.133	{"employee_id":366,"timestamp":"2026-07-06 01:42:05"}	\N	2026-07-06 07:16:18.525559	2026-07-06 07:16:18.525559	biometric
+7337	2	2	49	4125	2026-07-05	2026-07-05 22:42:52	2026-07-06 07:16:18.961284	check_out	156.204.101.133	{"employee_id":386,"timestamp":"2026-07-06 01:42:52"}	\N	2026-07-06 07:16:18.961848	2026-07-06 07:16:18.961848	biometric
+7338	2	2	49	4125	2026-07-05	2026-07-05 23:00:15	2026-07-06 07:16:19.36856	check_out	156.204.101.133	{"employee_id":386,"timestamp":"2026-07-06 02:00:15"}	\N	2026-07-06 07:16:19.369181	2026-07-06 07:16:19.369181	biometric
+7339	2	2	49	4162	2026-07-06	2026-07-06 05:46:54	2026-07-06 07:16:19.826668	check_in	156.204.101.133	{"employee_id":386,"timestamp":"2026-07-06 08:46:54"}	\N	2026-07-06 07:16:19.827237	2026-07-06 07:16:19.827237	biometric
+7340	2	2	55	4163	2026-07-06	2026-07-06 06:16:20	2026-07-06 07:16:20.228811	check_in	156.204.101.133	{"employee_id":446,"timestamp":"2026-07-06 09:16:20"}	\N	2026-07-06 07:16:20.231647	2026-07-06 07:16:20.231647	biometric
+7341	2	2	45	\N	2026-07-05	2026-07-05 10:08:22	2026-07-06 07:20:29.713406	rejected_spam	156.204.101.133	{"employee_id":366,"timestamp":"2026-07-05 13:08:22"}	\N	2026-07-06 07:20:29.714767	2026-07-06 07:20:29.714767	biometric
+7342	2	2	40	\N	2026-07-05	2026-07-05 10:36:30	2026-07-06 07:20:30.118672	rejected_spam	156.204.101.133	{"employee_id":326,"timestamp":"2026-07-05 13:36:30"}	\N	2026-07-06 07:20:30.119698	2026-07-06 07:20:30.119698	biometric
+7343	2	2	55	\N	2026-07-05	2026-07-05 12:44:19	2026-07-06 07:20:30.508624	rejected_spam	156.204.101.133	{"employee_id":446,"timestamp":"2026-07-05 15:44:19"}	\N	2026-07-06 07:20:30.510768	2026-07-06 07:20:30.510768	biometric
+7344	2	2	58	\N	2026-07-05	2026-07-05 19:04:11	2026-07-06 07:20:30.905007	rejected_spam	156.204.101.133	{"employee_id":464,"timestamp":"2026-07-05 22:04:11"}	\N	2026-07-06 07:20:30.905598	2026-07-06 07:20:30.905598	biometric
+7345	2	2	40	\N	2026-07-05	2026-07-05 22:09:10	2026-07-06 07:20:31.302756	rejected_spam	156.204.101.133	{"employee_id":326,"timestamp":"2026-07-06 01:09:10"}	\N	2026-07-06 07:20:31.303455	2026-07-06 07:20:31.303455	biometric
+7346	2	2	45	\N	2026-07-05	2026-07-05 22:42:05	2026-07-06 07:20:31.704368	rejected_spam	156.204.101.133	{"employee_id":366,"timestamp":"2026-07-06 01:42:05"}	\N	2026-07-06 07:20:31.707718	2026-07-06 07:20:31.707718	biometric
+7347	2	2	49	\N	2026-07-05	2026-07-05 22:42:52	2026-07-06 07:20:32.101401	rejected_spam	156.204.101.133	{"employee_id":386,"timestamp":"2026-07-06 01:42:52"}	\N	2026-07-06 07:20:32.102036	2026-07-06 07:20:32.102036	biometric
+7348	2	2	49	\N	2026-07-05	2026-07-05 23:00:15	2026-07-06 07:20:32.476731	rejected_spam	156.204.101.133	{"employee_id":386,"timestamp":"2026-07-06 02:00:15"}	\N	2026-07-06 07:20:32.477337	2026-07-06 07:20:32.477337	biometric
+7349	2	2	49	\N	2026-07-06	2026-07-06 05:46:54	2026-07-06 07:20:32.842096	rejected_spam	156.204.101.133	{"employee_id":386,"timestamp":"2026-07-06 08:46:54"}	\N	2026-07-06 07:20:32.843365	2026-07-06 07:20:32.843365	biometric
+7350	2	2	55	\N	2026-07-06	2026-07-06 06:16:20	2026-07-06 07:20:33.233759	rejected_spam	156.204.101.133	{"employee_id":446,"timestamp":"2026-07-06 09:16:20"}	\N	2026-07-06 07:20:33.234499	2026-07-06 07:20:33.234499	biometric
+7351	2	1	69	\N	2026-07-05	2026-07-05 08:19:56	2026-07-06 07:29:26.570942	rejected_spam	197.49.122.244	{"employee_id":480,"timestamp":"2026-07-05 11:19:56"}	\N	2026-07-06 07:29:26.578544	2026-07-06 07:29:26.578544	biometric
+7352	2	1	24	\N	2026-07-05	2026-07-05 10:02:41	2026-07-06 07:29:27.445373	rejected_spam	197.49.122.244	{"employee_id":18,"timestamp":"2026-07-05 13:02:41"}	\N	2026-07-06 07:29:27.446567	2026-07-06 07:29:27.446567	biometric
+7353	2	1	44	\N	2026-07-05	2026-07-05 10:11:17	2026-07-06 07:29:28.291624	rejected_spam	197.49.122.244	{"employee_id":362,"timestamp":"2026-07-05 13:11:17"}	\N	2026-07-06 07:29:28.292897	2026-07-06 07:29:28.292897	biometric
+7354	2	1	25	\N	2026-07-05	2026-07-05 10:18:36	2026-07-06 07:29:29.094318	rejected_spam	197.49.122.244	{"employee_id":320,"timestamp":"2026-07-05 13:18:36"}	\N	2026-07-06 07:29:29.095824	2026-07-06 07:29:29.095824	biometric
+7355	2	1	28	\N	2026-07-05	2026-07-05 12:05:56	2026-07-06 07:29:30.011033	rejected_spam	197.49.122.244	{"employee_id":360,"timestamp":"2026-07-05 15:05:56"}	\N	2026-07-06 07:29:30.014015	2026-07-06 07:29:30.014015	biometric
+7356	2	1	65	\N	2026-07-05	2026-07-05 12:06:01	2026-07-06 07:29:30.964769	rejected_spam	197.49.122.244	{"employee_id":476,"timestamp":"2026-07-05 15:06:01"}	\N	2026-07-06 07:29:30.966478	2026-07-06 07:29:30.966478	biometric
+7357	2	1	65	\N	2026-07-05	2026-07-05 12:06:04	2026-07-06 07:29:31.761417	rejected_spam	197.49.122.244	{"employee_id":476,"timestamp":"2026-07-05 15:06:04"}	\N	2026-07-06 07:29:31.762024	2026-07-06 07:29:31.762024	biometric
+7358	2	1	61	\N	2026-07-05	2026-07-05 12:06:09	2026-07-06 07:29:32.601551	rejected_spam	197.49.122.244	{"employee_id":472,"timestamp":"2026-07-05 15:06:09"}	\N	2026-07-06 07:29:32.601983	2026-07-06 07:29:32.601983	biometric
+7359	2	1	13	\N	2026-07-05	2026-07-05 12:40:30	2026-07-06 07:29:33.379302	rejected_spam	197.49.122.244	{"employee_id":355,"timestamp":"2026-07-05 15:40:30"}	\N	2026-07-06 07:29:33.379848	2026-07-06 07:29:33.379848	biometric
+7360	2	1	74	\N	2026-07-05	2026-07-05 12:41:52	2026-07-06 07:29:34.209254	rejected_spam	197.49.122.244	{"employee_id":485,"timestamp":"2026-07-05 15:41:52"}	\N	2026-07-06 07:29:34.209636	2026-07-06 07:29:34.209636	biometric
+7361	2	1	74	\N	2026-07-05	2026-07-05 12:41:53	2026-07-06 07:29:35.153344	rejected_spam	197.49.122.244	{"employee_id":485,"timestamp":"2026-07-05 15:41:53"}	\N	2026-07-06 07:29:35.154138	2026-07-06 07:29:35.154138	biometric
+7362	2	1	22	\N	2026-07-05	2026-07-05 14:09:07	2026-07-06 07:29:35.999026	rejected_spam	197.49.122.244	{"employee_id":378,"timestamp":"2026-07-05 17:09:07"}	\N	2026-07-06 07:29:35.999613	2026-07-06 07:29:35.999613	biometric
+7363	2	1	27	\N	2026-07-05	2026-07-05 18:29:31	2026-07-06 07:29:36.823976	rejected_spam	197.49.122.244	{"employee_id":342,"timestamp":"2026-07-05 21:29:31"}	\N	2026-07-06 07:29:36.82449	2026-07-06 07:29:36.82449	biometric
+7364	2	1	27	\N	2026-07-05	2026-07-05 18:29:34	2026-07-06 07:29:37.618778	rejected_spam	197.49.122.244	{"employee_id":342,"timestamp":"2026-07-05 21:29:34"}	\N	2026-07-06 07:29:37.619501	2026-07-06 07:29:37.619501	biometric
+7365	2	1	26	\N	2026-07-05	2026-07-05 18:29:38	2026-07-06 07:29:38.419455	rejected_spam	197.49.122.244	{"employee_id":339,"timestamp":"2026-07-05 21:29:38"}	\N	2026-07-06 07:29:38.420339	2026-07-06 07:29:38.420339	biometric
+7366	2	1	26	\N	2026-07-05	2026-07-05 18:29:39	2026-07-06 07:29:39.247156	rejected_spam	197.49.122.244	{"employee_id":339,"timestamp":"2026-07-05 21:29:39"}	\N	2026-07-06 07:29:39.249064	2026-07-06 07:29:39.249064	biometric
+7367	2	1	70	\N	2026-07-05	2026-07-05 18:35:13	2026-07-06 07:29:40.024941	rejected_spam	197.49.122.244	{"employee_id":481,"timestamp":"2026-07-05 21:35:13"}	\N	2026-07-06 07:29:40.02551	2026-07-06 07:29:40.02551	biometric
+7368	2	1	70	\N	2026-07-05	2026-07-05 18:35:17	2026-07-06 07:29:40.801515	rejected_spam	197.49.122.244	{"employee_id":481,"timestamp":"2026-07-05 21:35:17"}	\N	2026-07-06 07:29:40.802077	2026-07-06 07:29:40.802077	biometric
+7369	2	1	70	\N	2026-07-05	2026-07-05 18:35:19	2026-07-06 07:29:41.598634	rejected_spam	197.49.122.244	{"employee_id":481,"timestamp":"2026-07-05 21:35:19"}	\N	2026-07-06 07:29:41.599279	2026-07-06 07:29:41.599279	biometric
+7370	2	1	70	\N	2026-07-05	2026-07-05 18:35:21	2026-07-06 07:29:42.434682	rejected_spam	197.49.122.244	{"employee_id":481,"timestamp":"2026-07-05 21:35:21"}	\N	2026-07-06 07:29:42.435243	2026-07-06 07:29:42.435243	biometric
+7371	2	1	69	\N	2026-07-05	2026-07-05 18:42:11	2026-07-06 07:29:43.234893	rejected_spam	197.49.122.244	{"employee_id":480,"timestamp":"2026-07-05 21:42:11"}	\N	2026-07-06 07:29:43.235555	2026-07-06 07:29:43.235555	biometric
+7372	2	1	44	\N	2026-07-05	2026-07-05 21:02:25	2026-07-06 07:29:44.008888	rejected_spam	197.49.122.244	{"employee_id":362,"timestamp":"2026-07-06 00:02:25"}	\N	2026-07-06 07:29:44.009197	2026-07-06 07:29:44.009197	biometric
+7373	2	1	13	\N	2026-07-05	2026-07-05 21:03:50	2026-07-06 07:29:44.81945	rejected_spam	197.49.122.244	{"employee_id":355,"timestamp":"2026-07-06 00:03:50"}	\N	2026-07-06 07:29:44.820167	2026-07-06 07:29:44.820167	biometric
+7374	2	1	25	\N	2026-07-05	2026-07-05 22:00:19	2026-07-06 07:29:45.657076	rejected_spam	197.49.122.244	{"employee_id":320,"timestamp":"2026-07-06 01:00:19"}	\N	2026-07-06 07:29:45.657631	2026-07-06 07:29:45.657631	biometric
+7375	2	1	24	\N	2026-07-05	2026-07-05 22:20:57	2026-07-06 07:29:46.504061	rejected_spam	197.49.122.244	{"employee_id":18,"timestamp":"2026-07-06 01:20:57"}	\N	2026-07-06 07:29:46.504623	2026-07-06 07:29:46.504623	biometric
+7376	2	1	74	4149	2026-07-05	2026-07-06 00:00:13	2026-07-06 07:29:47.369512	check_out	197.49.122.244	{"employee_id":485,"timestamp":"2026-07-06 03:00:13"}	\N	2026-07-06 07:29:47.370634	2026-07-06 07:29:47.370634	biometric
+7377	2	1	74	\N	2026-07-05	2026-07-06 00:00:14	2026-07-06 07:29:48.238468	rejected_spam	197.49.122.244	{"employee_id":485,"timestamp":"2026-07-06 03:00:14"}	\N	2026-07-06 07:29:48.239117	2026-07-06 07:29:48.239117	biometric
+7378	2	1	28	4144	2026-07-05	2026-07-06 00:42:31	2026-07-06 07:29:49.103239	check_out	197.49.122.244	{"employee_id":360,"timestamp":"2026-07-06 03:42:31"}	\N	2026-07-06 07:29:49.103568	2026-07-06 07:29:49.103568	biometric
+7379	2	1	61	4146	2026-07-05	2026-07-06 00:42:39	2026-07-06 07:29:49.891528	check_out	197.49.122.244	{"employee_id":472,"timestamp":"2026-07-06 03:42:39"}	\N	2026-07-06 07:29:49.893308	2026-07-06 07:29:49.893308	biometric
+7380	2	1	65	4145	2026-07-05	2026-07-06 00:42:44	2026-07-06 07:29:50.712502	check_out	197.49.122.244	{"employee_id":476,"timestamp":"2026-07-06 03:42:44"}	\N	2026-07-06 07:29:50.713036	2026-07-06 07:29:50.713036	biometric
+7381	2	1	65	\N	2026-07-05	2026-07-06 00:42:47	2026-07-06 07:29:51.503817	rejected_spam	197.49.122.244	{"employee_id":476,"timestamp":"2026-07-06 03:42:47"}	\N	2026-07-06 07:29:51.504253	2026-07-06 07:29:51.504253	biometric
+7382	2	1	22	4164	2026-07-06	2026-07-06 06:17:31	2026-07-06 07:29:52.309219	check_in	197.49.122.244	{"employee_id":378,"timestamp":"2026-07-06 09:17:31"}	\N	2026-07-06 07:29:52.309754	2026-07-06 07:29:52.309754	biometric
+7383	2	1	70	4165	2026-07-06	2026-07-06 06:17:37	2026-07-06 07:29:53.126166	check_in	197.49.122.244	{"employee_id":481,"timestamp":"2026-07-06 09:17:37"}	\N	2026-07-06 07:29:53.127104	2026-07-06 07:29:53.127104	biometric
+7384	2	1	35	4166	2026-07-06	2026-07-06 06:18:01	2026-07-06 07:29:53.928685	check_in	197.49.122.244	{"employee_id":465,"timestamp":"2026-07-06 09:18:01"}	\N	2026-07-06 07:29:53.929242	2026-07-06 07:29:53.929242	biometric
+7386	2	1	27	\N	2026-07-06	2026-07-06 06:23:51	2026-07-06 07:29:55.538304	rejected_spam	197.49.122.244	{"employee_id":342,"timestamp":"2026-07-06 09:23:51"}	\N	2026-07-06 07:29:55.538874	2026-07-06 07:29:55.538874	biometric
+7387	2	2	58	4168	2026-07-06	2026-07-06 07:22:05	2026-07-06 07:30:27.196017	check_in	156.204.101.133	{"employee_id":464,"timestamp":"2026-07-06 10:22:05"}	\N	2026-07-06 07:30:27.196539	2026-07-06 07:30:27.196539	biometric
+7435	2	1	74	\N	2026-07-06	2026-07-07 00:03:18	2026-07-07 05:32:24.69028	rejected_spam	197.49.56.231	{"employee_id":485,"timestamp":"2026-07-07 03:03:18"}	\N	2026-07-07 05:32:24.692712	2026-07-07 05:32:24.692712	biometric
+7436	2	1	65	4179	2026-07-06	2026-07-07 00:16:20	2026-07-07 05:32:25.339173	check_out	197.49.56.231	{"employee_id":476,"timestamp":"2026-07-07 03:16:20"}	\N	2026-07-07 05:32:25.340284	2026-07-07 05:32:25.340284	biometric
+7437	2	1	65	\N	2026-07-06	2026-07-07 00:16:36	2026-07-07 05:32:26.481514	rejected_spam	197.49.56.231	{"employee_id":476,"timestamp":"2026-07-07 03:16:36"}	\N	2026-07-07 05:32:26.482251	2026-07-07 05:32:26.482251	biometric
+7438	2	1	61	4180	2026-07-06	2026-07-07 00:16:41	2026-07-07 05:32:27.40753	check_out	197.49.56.231	{"employee_id":472,"timestamp":"2026-07-07 03:16:41"}	\N	2026-07-07 05:32:27.409639	2026-07-07 05:32:27.409639	biometric
+7447	2	1	26	4194	2026-07-07	2026-07-07 06:31:03	2026-07-07 06:33:03.913468	check_in	197.49.56.231	{"employee_id":339,"timestamp":"2026-07-07 09:31:03"}	\N	2026-07-07 06:33:03.916644	2026-07-07 06:33:03.916644	biometric
+7448	2	1	26	\N	2026-07-07	2026-07-07 06:31:05	2026-07-07 06:33:04.520873	rejected_spam	197.49.56.231	{"employee_id":339,"timestamp":"2026-07-07 09:31:05"}	\N	2026-07-07 06:33:04.522019	2026-07-07 06:33:04.522019	biometric
+7454	2	1	35	4198	2026-07-07	2026-07-07 06:34:15	2026-07-07 07:33:39.092833	check_in	197.49.56.231	{"employee_id":465,"timestamp":"2026-07-07 09:34:15"}	\N	2026-07-07 07:33:39.095592	2026-07-07 07:33:39.095592	biometric
+7455	2	1	35	\N	2026-07-07	2026-07-07 06:34:21	2026-07-07 07:33:39.666274	rejected_spam	197.49.56.231	{"employee_id":465,"timestamp":"2026-07-07 09:34:21"}	\N	2026-07-07 07:33:39.667122	2026-07-07 07:33:39.667122	biometric
+7457	2	2	40	4200	2026-07-07	2026-07-07 08:33:51	2026-07-07 08:41:41.361212	check_in	41.232.22.137	{"employee_id":326,"timestamp":"2026-07-07 11:33:51"}	\N	2026-07-07 08:41:41.368613	2026-07-07 08:41:41.368613	biometric
+7459	2	3	43	4202	2026-07-07	2026-07-07 10:04:04	2026-07-07 10:26:02.894336	check_in	156.196.166.6	{"employee_id":361,"timestamp":"2026-07-07 13:04:04"}	\N	2026-07-07 10:26:02.896503	2026-07-07 10:26:02.896503	biometric
+7460	2	3	43	\N	2026-07-07	2026-07-07 10:04:06	2026-07-07 10:26:03.570516	rejected_spam	156.196.166.6	{"employee_id":361,"timestamp":"2026-07-07 13:04:06"}	\N	2026-07-07 10:26:03.571206	2026-07-07 10:26:03.571206	biometric
+7461	2	3	68	4203	2026-07-07	2026-07-07 10:06:58	2026-07-07 10:26:04.234301	check_in	156.196.166.6	{"employee_id":479,"timestamp":"2026-07-07 13:06:58"}	\N	2026-07-07 10:26:04.236585	2026-07-07 10:26:04.236585	biometric
+7462	2	3	38	4204	2026-07-07	2026-07-07 10:24:27	2026-07-07 10:26:04.889179	check_in	156.196.166.6	{"employee_id":230,"timestamp":"2026-07-07 13:24:27"}	\N	2026-07-07 10:26:04.892109	2026-07-07 10:26:04.892109	biometric
+7465	2	2	45	4206	2026-07-07	2026-07-07 09:43:39	2026-07-07 10:41:43.627404	check_in	41.232.22.137	{"employee_id":366,"timestamp":"2026-07-07 12:43:39"}	\N	2026-07-07 10:41:43.628087	2026-07-07 10:41:43.628087	biometric
+7469	2	3	60	4209	2026-07-07	2026-07-07 11:39:11	2026-07-07 12:33:40.198571	check_in	156.196.95.249	{"employee_id":470,"timestamp":"2026-07-07 14:39:11"}	\N	2026-07-07 12:33:40.213972	2026-07-07 12:33:40.213972	biometric
+7470	2	3	59	4210	2026-07-07	2026-07-07 11:39:18	2026-07-07 12:33:40.871069	check_in	156.196.95.249	{"employee_id":469,"timestamp":"2026-07-07 14:39:18"}	\N	2026-07-07 12:33:40.872133	2026-07-07 12:33:40.872133	biometric
+7471	2	3	72	4211	2026-07-07	2026-07-07 12:11:47	2026-07-07 12:33:41.527869	check_in	156.196.95.249	{"employee_id":483,"timestamp":"2026-07-07 15:11:47"}	\N	2026-07-07 12:33:41.528513	2026-07-07 12:33:41.528513	biometric
+7472	2	3	18	4212	2026-07-07	2026-07-07 12:20:27	2026-07-07 12:33:42.173558	check_in	156.196.95.249	{"employee_id":213,"timestamp":"2026-07-07 15:20:27"}	\N	2026-07-07 12:33:42.185043	2026-07-07 12:33:42.185043	biometric
+7475	2	3	35	4198	2026-07-07	2026-07-07 13:07:41	2026-07-07 13:33:44.555236	check_out	156.196.95.249	{"employee_id":35,"timestamp":"2026-07-07 16:07:41"}	\N	2026-07-07 13:33:44.555707	2026-07-07 13:33:44.555707	biometric
+7476	2	3	19	4190	2026-07-07	2026-07-07 13:24:38	2026-07-07 13:33:45.223416	check_out	156.196.95.249	{"employee_id":259,"timestamp":"2026-07-07 16:24:38"}	\N	2026-07-07 13:33:45.224048	2026-07-07 13:33:45.224048	biometric
+7477	2	1	65	4215	2026-07-07	2026-07-07 12:57:09	2026-07-07 13:37:10.061142	check_in	197.49.56.231	{"employee_id":476,"timestamp":"2026-07-07 15:57:09"}	\N	2026-07-07 13:37:10.061721	2026-07-07 13:37:10.061721	biometric
+7478	2	1	65	\N	2026-07-07	2026-07-07 12:57:13	2026-07-07 13:37:10.677337	rejected_spam	197.49.56.231	{"employee_id":476,"timestamp":"2026-07-07 15:57:13"}	\N	2026-07-07 13:37:10.678031	2026-07-07 13:37:10.678031	biometric
+7479	2	2	63	4216	2026-07-07	2026-07-07 13:28:06	2026-07-07 13:41:46.338682	check_in	41.232.22.137	{"employee_id":475,"timestamp":"2026-07-07 16:28:06"}	\N	2026-07-07 13:41:46.339226	2026-07-07 13:41:46.339226	biometric
+7482	2	2	49	4196	2026-07-07	2026-07-07 15:22:38	2026-07-07 15:41:49.562094	check_out	41.232.22.137	{"employee_id":386,"timestamp":"2026-07-07 18:22:38"}	\N	2026-07-07 15:41:49.563602	2026-07-07 15:41:49.563602	biometric
+7488	2	3	14	4201	2026-07-07	2026-07-07 19:06:05	2026-07-07 19:41:14.068174	check_out	156.196.95.249	{"employee_id":430,"timestamp":"2026-07-07 22:06:05"}	\N	2026-07-07 19:41:14.070689	2026-07-07 19:41:14.070689	biometric
+7489	2	3	52	4193	2026-07-07	2026-07-07 19:06:10	2026-07-07 19:41:14.714679	check_out	156.196.95.249	{"employee_id":433,"timestamp":"2026-07-07 22:06:10"}	\N	2026-07-07 19:41:14.716011	2026-07-07 19:41:14.716011	biometric
+7491	2	3	38	4204	2026-07-07	2026-07-07 22:10:38	2026-07-07 22:41:19.844141	check_out	156.196.95.249	{"employee_id":230,"timestamp":"2026-07-08 01:10:38"}	\N	2026-07-07 22:41:19.844484	2026-07-07 22:41:19.844484	biometric
+7492	2	3	37	4208	2026-07-07	2026-07-07 22:18:53	2026-07-07 22:41:20.537537	check_out	156.196.95.249	{"employee_id":100,"timestamp":"2026-07-08 01:18:53"}	\N	2026-07-07 22:41:20.539131	2026-07-07 22:41:20.539131	biometric
+7493	2	3	68	4203	2026-07-07	2026-07-07 22:25:36	2026-07-07 22:41:21.202714	check_out	156.196.95.249	{"employee_id":479,"timestamp":"2026-07-08 01:25:36"}	\N	2026-07-07 22:41:21.203277	2026-07-07 22:41:21.203277	biometric
+7494	2	1	42	4205	2026-07-07	2026-07-07 22:15:16	2026-07-07 22:42:22.606146	check_out	197.49.56.231	{"employee_id":351,"timestamp":"2026-07-08 01:15:16"}	\N	2026-07-07 22:42:22.612991	2026-07-07 22:42:22.612991	biometric
+7495	2	1	42	\N	2026-07-07	2026-07-07 22:15:17	2026-07-07 22:42:23.217564	rejected_spam	197.49.56.231	{"employee_id":351,"timestamp":"2026-07-08 01:15:17"}	\N	2026-07-07 22:42:23.218597	2026-07-07 22:42:23.218597	biometric
+7498	2	2	40	4200	2026-07-07	2026-07-07 21:40:51	2026-07-08 06:15:07.522577	check_out	41.41.234.122	{"employee_id":326,"timestamp":"2026-07-08 00:40:51"}	\N	2026-07-08 06:15:07.52452	2026-07-08 06:15:07.52452	biometric
+7499	2	2	45	4206	2026-07-07	2026-07-07 22:01:13	2026-07-08 06:15:08.26857	check_out	41.41.234.122	{"employee_id":366,"timestamp":"2026-07-08 01:01:13"}	\N	2026-07-08 06:15:08.27046	2026-07-08 06:15:08.27046	biometric
+7500	2	2	63	4216	2026-07-07	2026-07-07 22:01:20	2026-07-08 06:15:08.961151	check_out	41.41.234.122	{"employee_id":475,"timestamp":"2026-07-08 01:01:20"}	\N	2026-07-08 06:15:08.963437	2026-07-08 06:15:08.963437	biometric
+7501	2	2	49	4220	2026-07-08	2026-07-08 06:14:32	2026-07-08 06:15:09.548225	check_in	41.41.234.122	{"employee_id":386,"timestamp":"2026-07-08 09:14:32"}	\N	2026-07-08 06:15:09.553231	2026-07-08 06:15:09.553231	biometric
+7385	2	1	27	4167	2026-07-06	2026-07-06 06:23:48	2026-07-06 07:29:54.729026	check_in	197.49.122.244	{"employee_id":342,"timestamp":"2026-07-06 09:23:48"}	\N	2026-07-06 07:29:54.730016	2026-07-06 07:29:54.730016	biometric
+7388	2	1	30	4169	2026-07-06	2026-07-06 07:31:26	2026-07-06 08:31:27.577913	check_in	197.49.122.244	{"employee_id":441,"timestamp":"2026-07-06 10:31:26"}	\N	2026-07-06 08:31:27.579457	2026-07-06 08:31:27.579457	biometric
+7389	2	1	69	4170	2026-07-06	2026-07-06 08:01:42	2026-07-06 08:31:28.219049	check_in	197.49.122.244	{"employee_id":480,"timestamp":"2026-07-06 11:01:42"}	\N	2026-07-06 08:31:28.220117	2026-07-06 08:31:28.220117	biometric
+7390	2	3	14	4171	2026-07-06	2026-07-06 08:56:35	2026-07-06 09:43:36.371277	check_in	156.196.166.6	{"employee_id":430,"timestamp":"2026-07-06 11:56:35"}	\N	2026-07-06 09:43:36.373213	2026-07-06 09:43:36.373213	biometric
+7391	2	3	78	4172	2026-07-06	2026-07-06 10:24:10	2026-07-06 10:43:38.574298	check_in	156.196.166.6	{"employee_id":488,"timestamp":"2026-07-06 13:24:10"}	\N	2026-07-06 10:43:38.586027	2026-07-06 10:43:38.586027	biometric
+7392	2	2	45	4173	2026-07-06	2026-07-06 10:19:30	2026-07-06 10:50:43.180345	check_in	156.204.101.133	{"employee_id":366,"timestamp":"2026-07-06 13:19:30"}	\N	2026-07-06 10:50:43.181585	2026-07-06 10:50:43.181585	biometric
+7393	2	2	55	4163	2026-07-06	2026-07-06 10:45:08	2026-07-06 10:50:43.566138	check_out	156.204.101.133	{"employee_id":446,"timestamp":"2026-07-06 13:45:08"}	\N	2026-07-06 10:50:43.566479	2026-07-06 10:50:43.566479	biometric
+7394	2	3	72	4175	2026-07-06	2026-07-06 11:12:55	2026-07-06 11:43:41.112719	check_in	156.196.166.6	{"employee_id":483,"timestamp":"2026-07-06 14:12:55"}	\N	2026-07-06 11:43:41.11505	2026-07-06 11:43:41.11505	biometric
+7395	2	3	60	4174	2026-07-06	2026-07-06 11:23:13	2026-07-06 11:43:41.799093	check_in_updated	156.196.166.6	{"employee_id":470,"timestamp":"2026-07-06 14:23:13"}	\N	2026-07-06 11:43:41.799806	2026-07-06 11:43:41.799806	biometric
+7396	2	3	59	4176	2026-07-06	2026-07-06 11:25:29	2026-07-06 11:43:42.450286	check_in	156.196.166.6	{"employee_id":469,"timestamp":"2026-07-06 14:25:29"}	\N	2026-07-06 11:43:42.450896	2026-07-06 11:43:42.450896	biometric
+7397	2	2	40	4177	2026-07-06	2026-07-06 10:53:51	2026-07-06 11:50:45.105467	check_in	156.204.101.133	{"employee_id":326,"timestamp":"2026-07-06 13:53:51"}	\N	2026-07-06 11:50:45.105927	2026-07-06 11:50:45.105927	biometric
+7398	2	1	31	4178	2026-07-06	2026-07-06 11:59:02	2026-07-06 12:33:56.263414	check_in	197.49.122.244	{"employee_id":442,"timestamp":"2026-07-06 14:59:02"}	\N	2026-07-06 12:33:56.26453	2026-07-06 12:33:56.26453	biometric
+7399	2	1	65	4179	2026-07-06	2026-07-06 12:20:16	2026-07-06 12:33:56.927586	check_in	197.49.122.244	{"employee_id":476,"timestamp":"2026-07-06 15:20:16"}	\N	2026-07-06 12:33:56.927831	2026-07-06 12:33:56.927831	biometric
+7400	2	1	65	\N	2026-07-06	2026-07-06 12:20:20	2026-07-06 12:33:57.517534	rejected_spam	197.49.122.244	{"employee_id":476,"timestamp":"2026-07-06 15:20:20"}	\N	2026-07-06 12:33:57.518113	2026-07-06 12:33:57.518113	biometric
+7401	2	1	61	4180	2026-07-06	2026-07-06 12:20:25	2026-07-06 12:33:58.118681	check_in	197.49.122.244	{"employee_id":472,"timestamp":"2026-07-06 15:20:25"}	\N	2026-07-06 12:33:58.119297	2026-07-06 12:33:58.119297	biometric
+7402	2	1	74	4181	2026-07-06	2026-07-06 12:31:54	2026-07-06 12:33:58.706067	check_in	197.49.122.244	{"employee_id":485,"timestamp":"2026-07-06 15:31:54"}	\N	2026-07-06 12:33:58.70659	2026-07-06 12:33:58.70659	biometric
+7403	2	1	28	4182	2026-07-06	2026-07-06 12:31:59	2026-07-06 12:33:59.313413	check_in	197.49.122.244	{"employee_id":360,"timestamp":"2026-07-06 15:31:59"}	\N	2026-07-06 12:33:59.318406	2026-07-06 12:33:59.318406	biometric
+7404	2	3	39	4183	2026-07-06	2026-07-06 12:22:47	2026-07-06 12:43:44.778606	check_in	156.196.166.6	{"employee_id":308,"timestamp":"2026-07-06 15:22:47"}	\N	2026-07-06 12:43:44.779688	2026-07-06 12:43:44.779688	biometric
+7405	2	3	73	4186	2026-07-06	2026-07-06 14:08:02	2026-07-06 14:43:48.422946	check_in	156.196.166.6	{"employee_id":484,"timestamp":"2026-07-06 17:08:02"}	\N	2026-07-06 14:43:48.425652	2026-07-06 14:43:48.425652	biometric
+7406	2	3	19	\N	2026-07-06	2026-07-06 14:26:06	2026-07-06 14:43:49.087223	rejected_spam	156.196.166.6	{"employee_id":259,"timestamp":"2026-07-06 17:26:06"}	\N	2026-07-06 14:43:49.088767	2026-07-06 14:43:49.088767	biometric
+7407	2	2	63	4184	2026-07-06	2026-07-06 14:12:37	2026-07-06 14:54:48.975208	check_in_updated	41.232.22.137	{"employee_id":475,"timestamp":"2026-07-06 17:12:37"}	\N	2026-07-06 14:54:48.976629	2026-07-06 14:54:48.976629	biometric
+7408	2	2	49	4162	2026-07-06	2026-07-06 14:19:14	2026-07-06 14:54:49.375919	check_out	41.232.22.137	{"employee_id":386,"timestamp":"2026-07-06 17:19:14"}	\N	2026-07-06 14:54:49.376457	2026-07-06 14:54:49.376457	biometric
+7409	2	1	13	4188	2026-07-06	2026-07-06 12:35:55	2026-07-06 16:27:57.266078	check_in	197.49.56.231	{"employee_id":355,"timestamp":"2026-07-06 15:35:55"}	\N	2026-07-06 16:27:57.266585	2026-07-06 16:27:57.266585	biometric
+7410	2	1	22	4164	2026-07-06	2026-07-06 13:08:35	2026-07-06 16:27:57.890871	check_out	197.49.56.231	{"employee_id":378,"timestamp":"2026-07-06 16:08:35"}	\N	2026-07-06 16:27:57.891399	2026-07-06 16:27:57.891399	biometric
+7411	2	3	18	4189	2026-07-06	2026-07-06 16:16:28	2026-07-06 16:43:53.270156	check_in	156.196.166.6	{"employee_id":213,"timestamp":"2026-07-06 19:16:28"}	\N	2026-07-06 16:43:53.270627	2026-07-06 16:43:53.270627	biometric
+7412	2	1	35	4166	2026-07-06	2026-07-06 18:01:26	2026-07-06 18:29:05.262221	check_out	197.49.56.231	{"employee_id":465,"timestamp":"2026-07-06 21:01:26"}	\N	2026-07-06 18:29:05.263555	2026-07-06 18:29:05.263555	biometric
+7413	2	1	70	4165	2026-07-06	2026-07-06 18:01:28	2026-07-06 18:29:05.874897	check_out	197.49.56.231	{"employee_id":481,"timestamp":"2026-07-06 21:01:28"}	\N	2026-07-06 18:29:05.875533	2026-07-06 18:29:05.875533	biometric
+7414	2	1	27	4167	2026-07-06	2026-07-06 18:11:35	2026-07-06 18:29:06.52978	check_out	197.49.56.231	{"employee_id":342,"timestamp":"2026-07-06 21:11:35"}	\N	2026-07-06 18:29:06.54321	2026-07-06 18:29:06.54321	biometric
+7415	2	1	27	\N	2026-07-06	2026-07-06 18:11:38	2026-07-06 18:29:07.221946	rejected_spam	197.49.56.231	{"employee_id":342,"timestamp":"2026-07-06 21:11:38"}	\N	2026-07-06 18:29:07.222775	2026-07-06 18:29:07.222775	biometric
+7416	2	1	30	4169	2026-07-06	2026-07-06 18:16:51	2026-07-06 18:29:07.834116	check_out	197.49.56.231	{"employee_id":441,"timestamp":"2026-07-06 21:16:51"}	\N	2026-07-06 18:29:07.834618	2026-07-06 18:29:07.834618	biometric
+7417	2	3	43	\N	2026-07-06	2026-07-06 18:01:47	2026-07-06 18:43:57.31856	rejected_spam	156.196.166.6	{"employee_id":361,"timestamp":"2026-07-06 21:01:47"}	\N	2026-07-06 18:43:57.319149	2026-07-06 18:43:57.319149	biometric
+7418	2	3	43	\N	2026-07-06	2026-07-06 18:01:50	2026-07-06 18:43:58.251767	rejected_spam	156.196.166.6	{"employee_id":361,"timestamp":"2026-07-06 21:01:50"}	\N	2026-07-06 18:43:58.252431	2026-07-06 18:43:58.252431	biometric
+7419	2	3	67	4159	2026-07-06	2026-07-06 18:15:49	2026-07-06 18:43:59.384618	check_out	156.196.166.6	{"employee_id":478,"timestamp":"2026-07-06 21:15:49"}	\N	2026-07-06 18:43:59.385178	2026-07-06 18:43:59.385178	biometric
+7420	2	3	54	4158	2026-07-06	2026-07-06 18:17:24	2026-07-06 18:44:00.202011	check_out	156.196.166.6	{"employee_id":445,"timestamp":"2026-07-06 21:17:24"}	\N	2026-07-06 18:44:00.202577	2026-07-06 18:44:00.202577	biometric
+7421	2	3	52	4157	2026-07-06	2026-07-06 18:39:59	2026-07-06 18:44:00.853795	check_out	156.196.166.6	{"employee_id":433,"timestamp":"2026-07-06 21:39:59"}	\N	2026-07-06 18:44:00.854482	2026-07-06 18:44:00.854482	biometric
+7422	2	1	69	4170	2026-07-06	2026-07-06 19:28:18	2026-07-06 19:29:40.732385	check_out	197.49.56.231	{"employee_id":480,"timestamp":"2026-07-06 22:28:18"}	\N	2026-07-06 19:29:40.732649	2026-07-06 19:29:40.732649	biometric
+7423	2	1	26	4155	2026-07-06	2026-07-06 19:28:58	2026-07-06 19:29:41.331745	check_out	197.49.56.231	{"employee_id":339,"timestamp":"2026-07-06 22:28:58"}	\N	2026-07-06 19:29:41.332228	2026-07-06 19:29:41.332228	biometric
+7424	2	1	26	\N	2026-07-06	2026-07-06 19:28:59	2026-07-06 19:29:41.950431	rejected_spam	197.49.56.231	{"employee_id":339,"timestamp":"2026-07-06 22:28:59"}	\N	2026-07-06 19:29:41.951052	2026-07-06 19:29:41.951052	biometric
+7425	2	2	58	4168	2026-07-06	2026-07-06 19:39:34	2026-07-06 19:54:56.267429	check_out	41.232.22.137	{"employee_id":464,"timestamp":"2026-07-06 22:39:34"}	\N	2026-07-06 19:54:56.267727	2026-07-06 19:54:56.267727	biometric
+7426	2	3	37	4153	2026-07-06	2026-07-06 19:52:51	2026-07-06 20:47:15.696478	check_out	156.196.166.6	{"employee_id":100,"timestamp":"2026-07-06 22:52:51"}	\N	2026-07-06 20:47:15.697039	2026-07-06 20:47:15.697039	biometric
+7427	2	3	14	4171	2026-07-06	2026-07-06 20:38:09	2026-07-06 20:47:16.739162	check_out	156.196.166.6	{"employee_id":430,"timestamp":"2026-07-06 23:38:09"}	\N	2026-07-06 20:47:16.739637	2026-07-06 20:47:16.739637	biometric
+7428	2	1	13	4188	2026-07-06	2026-07-06 21:03:25	2026-07-06 21:30:52.089693	check_out	197.49.56.231	{"employee_id":355,"timestamp":"2026-07-07 00:03:25"}	\N	2026-07-06 21:30:52.091686	2026-07-06 21:30:52.091686	biometric
+7429	2	1	13	\N	2026-07-06	2026-07-06 21:03:30	2026-07-06 21:30:52.905762	rejected_spam	197.49.56.231	{"employee_id":355,"timestamp":"2026-07-07 00:03:30"}	\N	2026-07-06 21:30:52.907087	2026-07-06 21:30:52.907087	biometric
+7430	2	3	78	4172	2026-07-06	2026-07-06 22:27:00	2026-07-06 22:47:32.607318	check_out	156.196.166.6	{"employee_id":488,"timestamp":"2026-07-07 01:27:00"}	\N	2026-07-06 22:47:32.60788	2026-07-06 22:47:32.60788	biometric
+7439	2	3	60	\N	2026-07-06	2026-07-07 00:03:01	2026-07-07 06:25:49.403913	rejected_spam	156.196.166.6	{"employee_id":470,"timestamp":"2026-07-07 03:03:01"}	\N	2026-07-07 06:25:49.409427	2026-07-07 06:25:49.409427	biometric
+7440	2	3	59	4176	2026-07-06	2026-07-07 00:03:09	2026-07-07 06:25:50.214647	check_out	156.196.166.6	{"employee_id":469,"timestamp":"2026-07-07 03:03:09"}	\N	2026-07-07 06:25:50.215089	2026-07-07 06:25:50.215089	biometric
+7441	2	3	73	4186	2026-07-06	2026-07-07 00:03:24	2026-07-07 06:25:51.153762	check_out	156.196.166.6	{"employee_id":484,"timestamp":"2026-07-07 03:03:24"}	\N	2026-07-07 06:25:51.154641	2026-07-07 06:25:51.154641	biometric
+7442	2	3	39	4183	2026-07-06	2026-07-07 00:03:29	2026-07-07 06:25:51.836557	check_out	156.196.166.6	{"employee_id":308,"timestamp":"2026-07-07 03:03:29"}	\N	2026-07-07 06:25:51.838653	2026-07-07 06:25:51.838653	biometric
+7443	2	3	19	4190	2026-07-07	2026-07-07 06:19:48	2026-07-07 06:25:52.497425	check_in_updated	156.196.166.6	{"employee_id":259,"timestamp":"2026-07-07 09:19:48"}	\N	2026-07-07 06:25:52.510338	2026-07-07 06:25:52.510338	biometric
+7444	2	3	54	4191	2026-07-07	2026-07-07 06:19:55	2026-07-07 06:25:53.170432	check_in	156.196.166.6	{"employee_id":445,"timestamp":"2026-07-07 09:19:55"}	\N	2026-07-07 06:25:53.171143	2026-07-07 06:25:53.171143	biometric
+7445	2	3	67	4192	2026-07-07	2026-07-07 06:20:00	2026-07-07 06:25:53.803442	check_in	156.196.166.6	{"employee_id":478,"timestamp":"2026-07-07 09:20:00"}	\N	2026-07-07 06:25:53.80409	2026-07-07 06:25:53.80409	biometric
+7446	2	3	52	4193	2026-07-07	2026-07-07 06:20:06	2026-07-07 06:25:54.443594	check_in	156.196.166.6	{"employee_id":433,"timestamp":"2026-07-07 09:20:06"}	\N	2026-07-07 06:25:54.463222	2026-07-07 06:25:54.463222	biometric
+7449	2	2	40	\N	2026-07-06	2026-07-06 22:02:04	2026-07-07 06:41:24.374663	rejected_spam	41.232.22.137	{"employee_id":326,"timestamp":"2026-07-07 01:02:04"}	\N	2026-07-07 06:41:24.375813	2026-07-07 06:41:24.375813	biometric
+7450	2	2	45	4173	2026-07-06	2026-07-06 22:02:10	2026-07-07 06:41:24.764857	check_out	41.232.22.137	{"employee_id":366,"timestamp":"2026-07-07 01:02:10"}	\N	2026-07-07 06:41:24.76555	2026-07-07 06:41:24.76555	biometric
+7451	2	2	63	4184	2026-07-06	2026-07-06 22:02:15	2026-07-07 06:41:25.135578	check_out	41.232.22.137	{"employee_id":475,"timestamp":"2026-07-07 01:02:15"}	\N	2026-07-07 06:41:25.136781	2026-07-07 06:41:25.136781	biometric
+7452	2	2	49	4196	2026-07-07	2026-07-07 06:36:39	2026-07-07 06:41:25.687586	check_in	41.232.22.137	{"employee_id":386,"timestamp":"2026-07-07 09:36:39"}	\N	2026-07-07 06:41:25.68835	2026-07-07 06:41:25.68835	biometric
+7453	2	2	58	4197	2026-07-07	2026-07-07 06:36:43	2026-07-07 06:41:26.052052	check_in	41.232.22.137	{"employee_id":464,"timestamp":"2026-07-07 09:36:43"}	\N	2026-07-07 06:41:26.055076	2026-07-07 06:41:26.055076	biometric
+7456	2	1	30	4199	2026-07-07	2026-07-07 07:55:57	2026-07-07 08:34:15.293926	check_in	197.49.56.231	{"employee_id":441,"timestamp":"2026-07-07 10:55:57"}	\N	2026-07-07 08:34:15.300545	2026-07-07 08:34:15.300545	biometric
+7458	2	3	14	4201	2026-07-07	2026-07-07 09:13:04	2026-07-07 09:25:59.775471	check_in	156.196.166.6	{"employee_id":430,"timestamp":"2026-07-07 12:13:04"}	\N	2026-07-07 09:25:59.779131	2026-07-07 09:25:59.779131	biometric
+7463	2	1	42	4205	2026-07-07	2026-07-07 10:11:52	2026-07-07 10:35:23.661819	check_in	197.49.56.231	{"employee_id":351,"timestamp":"2026-07-07 13:11:52"}	\N	2026-07-07 10:35:23.662609	2026-07-07 10:35:23.662609	biometric
+7464	2	1	42	\N	2026-07-07	2026-07-07 10:11:53	2026-07-07 10:35:24.286441	rejected_spam	197.49.56.231	{"employee_id":351,"timestamp":"2026-07-07 13:11:53"}	\N	2026-07-07 10:35:24.28847	2026-07-07 10:35:24.28847	biometric
+7466	2	3	78	4207	2026-07-07	2026-07-07 10:50:51	2026-07-07 11:33:36.377609	check_in	156.196.95.249	{"employee_id":488,"timestamp":"2026-07-07 13:50:51"}	\N	2026-07-07 11:33:36.390027	2026-07-07 11:33:36.390027	biometric
+7467	2	3	78	\N	2026-07-07	2026-07-07 10:50:52	2026-07-07 11:33:37.070643	rejected_spam	156.196.95.249	{"employee_id":488,"timestamp":"2026-07-07 13:50:52"}	\N	2026-07-07 11:33:37.072812	2026-07-07 11:33:37.072812	biometric
+7468	2	3	37	4208	2026-07-07	2026-07-07 11:14:37	2026-07-07 11:33:37.800033	check_in	156.196.95.249	{"employee_id":100,"timestamp":"2026-07-07 14:14:37"}	\N	2026-07-07 11:33:37.800811	2026-07-07 11:33:37.800811	biometric
+7473	2	1	31	4213	2026-07-07	2026-07-07 11:44:23	2026-07-07 12:36:34.990569	check_in	197.49.56.231	{"employee_id":442,"timestamp":"2026-07-07 14:44:23"}	\N	2026-07-07 12:36:34.991352	2026-07-07 12:36:34.991352	biometric
+7474	2	1	61	4214	2026-07-07	2026-07-07 12:04:29	2026-07-07 12:36:35.619205	check_in	197.49.56.231	{"employee_id":472,"timestamp":"2026-07-07 15:04:29"}	\N	2026-07-07 12:36:35.619759	2026-07-07 12:36:35.619759	biometric
+7480	2	3	73	4219	2026-07-07	2026-07-07 15:21:07	2026-07-07 15:33:49.297133	check_in	156.196.95.249	{"employee_id":484,"timestamp":"2026-07-07 18:21:07"}	\N	2026-07-07 15:33:49.300255	2026-07-07 15:33:49.300255	biometric
+7481	2	1	13	4195	2026-07-07	2026-07-07 15:05:14	2026-07-07 15:38:20.327836	check_out	197.49.56.231	{"employee_id":355,"timestamp":"2026-07-07 18:05:14"}	\N	2026-07-07 15:38:20.329168	2026-07-07 15:38:20.329168	biometric
+7483	2	1	26	4194	2026-07-07	2026-07-07 18:06:12	2026-07-07 18:40:03.911819	check_out	197.49.56.231	{"employee_id":339,"timestamp":"2026-07-07 21:06:12"}	\N	2026-07-07 18:40:03.912633	2026-07-07 18:40:03.912633	biometric
+7484	2	1	26	\N	2026-07-07	2026-07-07 18:06:14	2026-07-07 18:40:04.551623	rejected_spam	197.49.56.231	{"employee_id":339,"timestamp":"2026-07-07 21:06:14"}	\N	2026-07-07 18:40:04.554645	2026-07-07 18:40:04.554645	biometric
+7485	2	1	35	4198	2026-07-07	2026-07-07 18:23:08	2026-07-07 18:40:05.133443	check_out	197.49.56.231	{"employee_id":465,"timestamp":"2026-07-07 21:23:08"}	\N	2026-07-07 18:40:05.13412	2026-07-07 18:40:05.13412	biometric
+7486	2	3	54	4191	2026-07-07	2026-07-07 18:19:12	2026-07-07 18:41:11.145605	check_out	156.196.95.249	{"employee_id":445,"timestamp":"2026-07-07 21:19:12"}	\N	2026-07-07 18:41:11.14628	2026-07-07 18:41:11.14628	biometric
+7487	2	3	67	4192	2026-07-07	2026-07-07 18:19:40	2026-07-07 18:41:11.810397	check_out	156.196.95.249	{"employee_id":478,"timestamp":"2026-07-07 21:19:40"}	\N	2026-07-07 18:41:11.811526	2026-07-07 18:41:11.811526	biometric
+7490	2	1	30	4199	2026-07-07	2026-07-07 20:22:30	2026-07-07 20:41:14.798221	check_out	197.49.56.231	{"employee_id":441,"timestamp":"2026-07-07 23:22:30"}	\N	2026-07-07 20:41:14.799243	2026-07-07 20:41:14.799243	biometric
+7496	2	3	78	4207	2026-07-07	2026-07-07 22:40:40	2026-07-07 23:41:23.04263	check_out	156.196.95.249	{"employee_id":488,"timestamp":"2026-07-08 01:40:40"}	\N	2026-07-07 23:41:23.043694	2026-07-07 23:41:23.043694	biometric
+7497	2	2	58	4197	2026-07-07	2026-07-07 17:42:19	2026-07-08 06:15:07.090484	check_out	41.41.234.122	{"employee_id":464,"timestamp":"2026-07-07 20:42:19"}	\N	2026-07-08 06:15:07.097707	2026-07-08 06:15:07.097707	biometric
+7502	2	3	72	4211	2026-07-07	2026-07-08 00:01:54	2026-07-08 06:43:32.499222	check_out	156.196.95.249	{"employee_id":483,"timestamp":"2026-07-08 03:01:54"}	\N	2026-07-08 06:43:32.504655	2026-07-08 06:43:32.504655	biometric
+7503	2	3	60	\N	2026-07-07	2026-07-08 00:03:49	2026-07-08 06:43:33.155043	rejected_spam	156.196.95.249	{"employee_id":470,"timestamp":"2026-07-08 03:03:49"}	\N	2026-07-08 06:43:33.15828	2026-07-08 06:43:33.15828	biometric
+7504	2	3	59	4210	2026-07-07	2026-07-08 00:03:54	2026-07-08 06:43:33.813626	check_out	156.196.95.249	{"employee_id":469,"timestamp":"2026-07-08 03:03:54"}	\N	2026-07-08 06:43:33.82716	2026-07-08 06:43:33.82716	biometric
+7505	2	3	73	4219	2026-07-07	2026-07-08 00:28:35	2026-07-08 06:43:34.460009	check_out	156.196.95.249	{"employee_id":484,"timestamp":"2026-07-08 03:28:35"}	\N	2026-07-08 06:43:34.461371	2026-07-08 06:43:34.461371	biometric
+7506	2	3	18	4221	2026-07-08	2026-07-08 06:11:10	2026-07-08 06:43:35.10144	check_in	156.196.95.249	{"employee_id":213,"timestamp":"2026-07-08 09:11:10"}	\N	2026-07-08 06:43:35.106914	2026-07-08 06:43:35.106914	biometric
+7507	2	3	52	4222	2026-07-08	2026-07-08 06:11:28	2026-07-08 06:43:35.766124	check_in	156.196.95.249	{"employee_id":433,"timestamp":"2026-07-08 09:11:28"}	\N	2026-07-08 06:43:35.769142	2026-07-08 06:43:35.769142	biometric
+7508	2	3	54	4223	2026-07-08	2026-07-08 06:14:05	2026-07-08 06:43:36.393905	check_in	156.196.95.249	{"employee_id":445,"timestamp":"2026-07-08 09:14:05"}	\N	2026-07-08 06:43:36.394498	2026-07-08 06:43:36.394498	biometric
+7509	2	3	53	4224	2026-07-08	2026-07-08 06:41:02	2026-07-08 06:43:37.035654	check_in	156.196.95.249	{"employee_id":444,"timestamp":"2026-07-08 09:41:02"}	\N	2026-07-08 06:43:37.036459	2026-07-08 06:43:37.036459	biometric
+7510	2	1	31	4213	2026-07-07	2026-07-07 23:49:29	2026-07-08 07:19:44.490655	check_out	197.49.56.231	{"employee_id":442,"timestamp":"2026-07-08 02:49:29"}	\N	2026-07-08 07:19:44.498417	2026-07-08 07:19:44.498417	biometric
+7511	2	1	65	4215	2026-07-07	2026-07-08 00:01:23	2026-07-08 07:19:45.333905	check_out	197.49.56.231	{"employee_id":476,"timestamp":"2026-07-08 03:01:23"}	\N	2026-07-08 07:19:45.33731	2026-07-08 07:19:45.33731	biometric
+7512	2	1	65	\N	2026-07-07	2026-07-08 00:01:28	2026-07-08 07:19:45.996291	rejected_spam	197.49.56.231	{"employee_id":476,"timestamp":"2026-07-08 03:01:28"}	\N	2026-07-08 07:19:45.998106	2026-07-08 07:19:45.998106	biometric
+7513	2	1	61	4214	2026-07-07	2026-07-08 00:01:33	2026-07-08 07:19:46.688548	check_out	197.49.56.231	{"employee_id":472,"timestamp":"2026-07-08 03:01:33"}	\N	2026-07-08 07:19:46.690449	2026-07-08 07:19:46.690449	biometric
+7514	2	1	22	4225	2026-07-08	2026-07-08 06:12:11	2026-07-08 07:19:47.344714	check_in	197.49.56.231	{"employee_id":378,"timestamp":"2026-07-08 09:12:11"}	\N	2026-07-08 07:19:47.345499	2026-07-08 07:19:47.345499	biometric
+7515	2	1	27	4226	2026-07-08	2026-07-08 06:23:04	2026-07-08 07:19:48.031503	check_in	197.49.56.231	{"employee_id":342,"timestamp":"2026-07-08 09:23:04"}	\N	2026-07-08 07:19:48.033535	2026-07-08 07:19:48.033535	biometric
+7516	2	1	27	\N	2026-07-08	2026-07-08 06:23:06	2026-07-08 07:19:48.67617	rejected_spam	197.49.56.231	{"employee_id":342,"timestamp":"2026-07-08 09:23:06"}	\N	2026-07-08 07:19:48.680503	2026-07-08 07:19:48.680503	biometric
+7517	2	2	45	4227	2026-07-08	2026-07-08 07:21:47	2026-07-08 08:15:12.373599	check_in	41.41.234.122	{"employee_id":366,"timestamp":"2026-07-08 10:21:47"}	\N	2026-07-08 08:15:12.379244	2026-07-08 08:15:12.379244	biometric
+7518	2	2	58	4228	2026-07-08	2026-07-08 08:07:03	2026-07-08 08:15:12.78817	check_in	41.41.234.122	{"employee_id":464,"timestamp":"2026-07-08 11:07:03"}	\N	2026-07-08 08:15:12.789549	2026-07-08 08:15:12.789549	biometric
+7519	2	1	30	4229	2026-07-08	2026-07-08 07:45:16	2026-07-08 08:20:24.114313	check_in	197.49.56.231	{"employee_id":441,"timestamp":"2026-07-08 10:45:16"}	\N	2026-07-08 08:20:24.115012	2026-07-08 08:20:24.115012	biometric
+7520	2	1	69	4231	2026-07-08	2026-07-08 09:32:41	2026-07-08 10:21:33.805451	check_in	197.49.56.231	{"employee_id":480,"timestamp":"2026-07-08 12:32:41"}	\N	2026-07-08 10:21:33.823271	2026-07-08 10:21:33.823271	biometric
+7521	2	1	44	4232	2026-07-08	2026-07-08 10:04:27	2026-07-08 10:21:34.45979	check_in	197.49.56.231	{"employee_id":362,"timestamp":"2026-07-08 13:04:27"}	\N	2026-07-08 10:21:34.461348	2026-07-08 10:21:34.461348	biometric
+7522	2	1	44	\N	2026-07-08	2026-07-08 10:04:31	2026-07-08 10:21:35.110986	rejected_spam	197.49.56.231	{"employee_id":362,"timestamp":"2026-07-08 13:04:31"}	\N	2026-07-08 10:21:35.12028	2026-07-08 10:21:35.12028	biometric
+7523	2	3	14	4233	2026-07-08	2026-07-08 09:35:31	2026-07-08 10:33:28.367166	check_in	41.40.53.186	{"employee_id":430,"timestamp":"2026-07-08 12:35:31"}	\N	2026-07-08 10:33:28.372446	2026-07-08 10:33:28.372446	biometric
+7524	2	3	38	4234	2026-07-08	2026-07-08 09:48:48	2026-07-08 10:33:29.038998	check_in	41.40.53.186	{"employee_id":230,"timestamp":"2026-07-08 12:48:48"}	\N	2026-07-08 10:33:29.04025	2026-07-08 10:33:29.04025	biometric
+7525	2	3	20	4230	2026-07-08	2026-07-08 09:56:03	2026-07-08 10:33:29.747907	check_in_updated	41.40.53.186	{"employee_id":369,"timestamp":"2026-07-08 12:56:03"}	\N	2026-07-08 10:33:29.7504	2026-07-08 10:33:29.7504	biometric
+7526	2	3	67	4235	2026-07-08	2026-07-08 10:05:54	2026-07-08 10:33:30.429452	check_in	41.40.53.186	{"employee_id":478,"timestamp":"2026-07-08 13:05:54"}	\N	2026-07-08 10:33:30.442794	2026-07-08 10:33:30.442794	biometric
+7527	2	3	68	4236	2026-07-08	2026-07-08 10:14:54	2026-07-08 10:33:31.113866	check_in	41.40.53.186	{"employee_id":479,"timestamp":"2026-07-08 13:14:54"}	\N	2026-07-08 10:33:31.115091	2026-07-08 10:33:31.115091	biometric
+7528	2	3	78	4237	2026-07-08	2026-07-08 10:15:01	2026-07-08 10:33:31.768362	check_in	41.40.53.186	{"employee_id":488,"timestamp":"2026-07-08 13:15:01"}	\N	2026-07-08 10:33:31.769841	2026-07-08 10:33:31.769841	biometric
+7529	2	2	55	4238	2026-07-08	2026-07-08 10:33:35	2026-07-08 11:15:16.157081	check_in	41.41.234.122	{"employee_id":446,"timestamp":"2026-07-08 13:33:35"}	\N	2026-07-08 11:15:16.159635	2026-07-08 11:15:16.159635	biometric
+7530	2	1	42	4239	2026-07-08	2026-07-08 10:23:48	2026-07-08 11:22:09.676554	check_in	197.49.56.231	{"employee_id":351,"timestamp":"2026-07-08 13:23:48"}	\N	2026-07-08 11:22:09.677683	2026-07-08 11:22:09.677683	biometric
+7531	2	1	42	\N	2026-07-08	2026-07-08 10:23:50	2026-07-08 11:22:10.268557	rejected_spam	197.49.56.231	{"employee_id":351,"timestamp":"2026-07-08 13:23:50"}	\N	2026-07-08 11:22:10.274113	2026-07-08 11:22:10.274113	biometric
+7532	2	1	31	4241	2026-07-08	2026-07-08 11:23:34	2026-07-08 12:22:45.393367	check_in	197.49.56.231	{"employee_id":442,"timestamp":"2026-07-08 14:23:34"}	\N	2026-07-08 12:22:45.394048	2026-07-08 12:22:45.394048	biometric
+7533	2	1	41	4242	2026-07-08	2026-07-08 11:37:39	2026-07-08 12:22:46.338368	check_in	197.49.56.231	{"employee_id":327,"timestamp":"2026-07-08 14:37:39"}	\N	2026-07-08 12:22:46.352772	2026-07-08 12:22:46.352772	biometric
+7534	2	1	61	4243	2026-07-08	2026-07-08 11:53:29	2026-07-08 12:22:47.209298	check_in	197.49.56.231	{"employee_id":472,"timestamp":"2026-07-08 14:53:29"}	\N	2026-07-08 12:22:47.211683	2026-07-08 12:22:47.211683	biometric
+7535	2	3	60	4240	2026-07-08	2026-07-08 11:48:23	2026-07-08 12:33:35.498858	check_in_updated	41.40.53.186	{"employee_id":470,"timestamp":"2026-07-08 14:48:23"}	\N	2026-07-08 12:33:35.502851	2026-07-08 12:33:35.502851	biometric
+7536	2	3	59	4244	2026-07-08	2026-07-08 11:48:29	2026-07-08 12:33:36.157263	check_in	41.40.53.186	{"employee_id":469,"timestamp":"2026-07-08 14:48:29"}	\N	2026-07-08 12:33:36.157767	2026-07-08 12:33:36.157767	biometric
+7537	2	3	72	4245	2026-07-08	2026-07-08 12:11:57	2026-07-08 12:33:36.787643	check_in	41.40.53.186	{"employee_id":483,"timestamp":"2026-07-08 15:11:57"}	\N	2026-07-08 12:33:36.788414	2026-07-08 12:33:36.788414	biometric
+7538	2	3	39	4246	2026-07-08	2026-07-08 12:22:56	2026-07-08 12:33:37.43048	check_in	41.40.53.186	{"employee_id":308,"timestamp":"2026-07-08 15:22:56"}	\N	2026-07-08 12:33:37.431849	2026-07-08 12:33:37.431849	biometric
+7539	2	1	74	4247	2026-07-08	2026-07-08 12:55:09	2026-07-08 13:23:23.784197	check_in	197.49.56.231	{"employee_id":485,"timestamp":"2026-07-08 15:55:09"}	\N	2026-07-08 13:23:23.795686	2026-07-08 13:23:23.795686	biometric
+7540	2	1	74	\N	2026-07-08	2026-07-08 12:55:11	2026-07-08 13:23:24.455359	rejected_spam	197.49.56.231	{"employee_id":485,"timestamp":"2026-07-08 15:55:11"}	\N	2026-07-08 13:23:24.456871	2026-07-08 13:23:24.456871	biometric
+7541	2	2	49	4220	2026-07-08	2026-07-08 13:35:10	2026-07-08 14:15:30.754414	check_out	41.41.234.122	{"employee_id":386,"timestamp":"2026-07-08 16:35:10"}	\N	2026-07-08 14:15:30.76665	2026-07-08 14:15:30.76665	biometric
+7542	2	1	13	4251	2026-07-08	2026-07-08 14:28:22	2026-07-08 15:24:35.020686	check_in	197.49.56.231	{"employee_id":355,"timestamp":"2026-07-08 17:28:22"}	\N	2026-07-08 15:24:35.023576	2026-07-08 15:24:35.023576	biometric
+7543	2	1	22	4225	2026-07-08	2026-07-08 15:00:31	2026-07-08 15:24:35.792964	check_out	197.49.56.231	{"employee_id":378,"timestamp":"2026-07-08 18:00:31"}	\N	2026-07-08 15:24:35.797415	2026-07-08 15:24:35.797415	biometric
+7544	2	3	73	4252	2026-07-08	2026-07-08 15:29:14	2026-07-08 15:33:44.004128	check_in	41.40.53.186	{"employee_id":484,"timestamp":"2026-07-08 18:29:14"}	\N	2026-07-08 15:33:44.013047	2026-07-08 15:33:44.013047	biometric
+7545	2	1	27	4226	2026-07-08	2026-07-08 18:17:05	2026-07-08 18:26:20.503414	check_out	197.49.56.231	{"employee_id":342,"timestamp":"2026-07-08 21:17:05"}	\N	2026-07-08 18:26:20.506425	2026-07-08 18:26:20.506425	biometric
+7546	2	1	27	\N	2026-07-08	2026-07-08 18:17:08	2026-07-08 18:26:21.131166	rejected_spam	197.49.56.231	{"employee_id":342,"timestamp":"2026-07-08 21:17:08"}	\N	2026-07-08 18:26:21.13291	2026-07-08 18:26:21.13291	biometric
+7547	2	1	27	\N	2026-07-08	2026-07-08 18:17:09	2026-07-08 18:26:21.732412	rejected_spam	197.49.56.231	{"employee_id":342,"timestamp":"2026-07-08 21:17:09"}	\N	2026-07-08 18:26:21.744632	2026-07-08 18:26:21.744632	biometric
+7548	2	3	54	4223	2026-07-08	2026-07-08 18:00:15	2026-07-08 18:33:48.493901	check_out	41.40.53.186	{"employee_id":445,"timestamp":"2026-07-08 21:00:15"}	\N	2026-07-08 18:33:48.502939	2026-07-08 18:33:48.502939	biometric
+7549	2	3	53	4224	2026-07-08	2026-07-08 18:53:10	2026-07-08 19:33:50.814073	check_out	41.40.53.186	{"employee_id":444,"timestamp":"2026-07-08 21:53:10"}	\N	2026-07-08 19:33:50.814519	2026-07-08 19:33:50.814519	biometric
+7550	2	3	14	4233	2026-07-08	2026-07-08 19:24:13	2026-07-08 19:33:51.481524	check_out	41.40.53.186	{"employee_id":430,"timestamp":"2026-07-08 22:24:13"}	\N	2026-07-08 19:33:51.488747	2026-07-08 19:33:51.488747	biometric
+7551	2	3	52	4222	2026-07-08	2026-07-08 19:27:05	2026-07-08 19:33:52.154921	check_out	41.40.53.186	{"employee_id":433,"timestamp":"2026-07-08 22:27:05"}	\N	2026-07-08 19:33:52.155534	2026-07-08 19:33:52.155534	biometric
+7552	2	1	69	4231	2026-07-08	2026-07-08 19:37:17	2026-07-08 20:27:32.422248	check_out	197.49.56.231	{"employee_id":480,"timestamp":"2026-07-08 22:37:17"}	\N	2026-07-08 20:27:32.425885	2026-07-08 20:27:32.425885	biometric
+7553	2	1	30	4229	2026-07-08	2026-07-08 20:15:03	2026-07-08 20:27:33.023485	check_out	197.49.56.231	{"employee_id":441,"timestamp":"2026-07-08 23:15:03"}	\N	2026-07-08 20:27:33.024236	2026-07-08 20:27:33.024236	biometric
+7554	2	1	31	4241	2026-07-08	2026-07-08 21:28:50	2026-07-08 22:28:46.21383	check_out	197.49.56.231	{"employee_id":442,"timestamp":"2026-07-09 00:28:50"}	\N	2026-07-08 22:28:46.215987	2026-07-08 22:28:46.215987	biometric
+7555	2	1	44	4232	2026-07-08	2026-07-08 21:54:40	2026-07-08 22:28:46.894062	check_out	197.49.56.231	{"employee_id":362,"timestamp":"2026-07-09 00:54:40"}	\N	2026-07-08 22:28:46.894599	2026-07-08 22:28:46.894599	biometric
+7556	2	1	44	\N	2026-07-08	2026-07-08 21:54:45	2026-07-08 22:28:48.203996	rejected_spam	197.49.56.231	{"employee_id":362,"timestamp":"2026-07-09 00:54:45"}	\N	2026-07-08 22:28:48.204837	2026-07-08 22:28:48.204837	biometric
+7557	2	3	60	\N	2026-07-08	2026-07-08 22:00:53	2026-07-08 22:33:56.860596	rejected_spam	41.40.53.186	{"employee_id":470,"timestamp":"2026-07-09 01:00:53"}	\N	2026-07-08 22:33:56.860992	2026-07-08 22:33:56.860992	biometric
+7558	2	3	38	4234	2026-07-08	2026-07-08 22:01:51	2026-07-08 22:33:57.522082	check_out	41.40.53.186	{"employee_id":230,"timestamp":"2026-07-09 01:01:51"}	\N	2026-07-08 22:33:57.522564	2026-07-08 22:33:57.522564	biometric
+7559	2	3	43	4249	2026-07-08	2026-07-08 22:02:17	2026-07-08 22:33:58.193125	check_out	41.40.53.186	{"employee_id":361,"timestamp":"2026-07-09 01:02:17"}	\N	2026-07-08 22:33:58.193668	2026-07-08 22:33:58.193668	biometric
+7560	2	3	68	4236	2026-07-08	2026-07-08 22:03:13	2026-07-08 22:33:58.849605	check_out	41.40.53.186	{"employee_id":479,"timestamp":"2026-07-09 01:03:13"}	\N	2026-07-08 22:33:58.850635	2026-07-08 22:33:58.850635	biometric
+7561	2	3	20	\N	2026-07-08	2026-07-08 22:03:29	2026-07-08 22:33:59.491256	rejected_spam	41.40.53.186	{"employee_id":369,"timestamp":"2026-07-09 01:03:29"}	\N	2026-07-08 22:33:59.491775	2026-07-08 22:33:59.491775	biometric
+7562	2	3	67	4235	2026-07-08	2026-07-08 22:05:05	2026-07-08 22:34:00.15083	check_out	41.40.53.186	{"employee_id":478,"timestamp":"2026-07-09 01:05:05"}	\N	2026-07-08 22:34:00.151223	2026-07-08 22:34:00.151223	biometric
+7563	2	3	78	4237	2026-07-08	2026-07-08 22:17:24	2026-07-08 22:34:00.804613	check_out	41.40.53.186	{"employee_id":488,"timestamp":"2026-07-09 01:17:24"}	\N	2026-07-08 22:34:00.805198	2026-07-08 22:34:00.805198	biometric
+7564	2	3	78	\N	2026-07-08	2026-07-08 22:17:25	2026-07-08 22:34:01.462236	rejected_spam	41.40.53.186	{"employee_id":488,"timestamp":"2026-07-09 01:17:25"}	\N	2026-07-08 22:34:01.462934	2026-07-08 22:34:01.462934	biometric
+7565	2	1	42	4239	2026-07-08	2026-07-08 22:33:11	2026-07-08 23:29:23.745175	check_out	197.49.56.231	{"employee_id":351,"timestamp":"2026-07-09 01:33:11"}	\N	2026-07-08 23:29:23.746135	2026-07-08 23:29:23.746135	biometric
+7566	2	1	42	\N	2026-07-08	2026-07-08 22:33:13	2026-07-08 23:29:24.427073	rejected_spam	197.49.56.231	{"employee_id":351,"timestamp":"2026-07-09 01:33:13"}	\N	2026-07-08 23:29:24.42759	2026-07-08 23:29:24.42759	biometric
 \.
 
 
@@ -14437,7 +14989,7 @@ COPY public.brands (id, business_id, name, created_at, updated_at) FROM stdin;
 
 COPY public.businesses (id, active, business_day_start_hour, created_at, default_locale, name, settings, timezone, updated_at, working_days_per_month, max_late_permission_minutes, max_early_leave_permission_minutes, owner_id, currency, max_salary_advance_percentage, overtime_grace_minutes, payroll_auto_generate_day, payroll_cutoff_day, employee_code_start, variant_system_enabled, barcode_prefix, barcode_next_number) FROM stdin;
 1	t	6	2026-05-14 10:53:33.120943	en	Al-Noor Group	\N	Asia/Riyadh	2026-05-14 10:53:33.120943	22	\N	\N	1	SAR	\N	0	\N	0	1	t	\N	1
-2	t	6	2026-05-14 14:53:16.544546	en	Gedo Salon	\N	Africa/Cairo	2026-06-16 14:33:27.825932	26	\N	\N	12	EGP	50.00	30	\N	0	476	t	\N	1
+2	t	6	2026-05-14 14:53:16.544546	en	Gedo Salon	\N	Africa/Cairo	2026-06-16 14:33:27.825932	26	\N	\N	12	EGP	50.00	30	\N	0	476	t	\N	2
 \.
 
 
@@ -14487,28 +15039,36 @@ COPY public.custody_transactions (id, business_id, custody_account_id, expense_i
 -- Data for Name: daily_reconciliations; Type: TABLE DATA; Schema: public; Owner: work_pulse
 --
 
-COPY public.daily_reconciliations (id, verified_by_id, verified_at, notes, created_at, updated_at, branch_id, business_id, business_date, state, opened_at, closed_at, deposited_at, opening_float_source_handover_id, opening_float_override_amounts) FROM stdin;
-1	\N	\N	\N	2026-06-30 12:20:43.950052	2026-06-30 21:37:38.913177	4	2	2026-06-30	deposited	2026-06-30 12:20:43.927484	2026-06-30 21:17:00.9427	\N	\N	\N
-6	\N	\N	\N	2026-07-01 14:25:02.105194	2026-07-01 21:54:05.962938	4	2	2026-07-01	deposited	2026-07-01 14:25:02.100792	2026-07-01 21:18:18.469908	\N	\N	\N
-4	\N	\N	\N	2026-07-01 03:26:36.669772	2026-07-01 22:34:45.521757	5	2	2026-07-01	deposited	2026-07-01 03:26:36.642624	2026-07-01 22:05:36.261897	\N	\N	\N
-2	\N	\N	\N	2026-06-30 12:40:17.273727	2026-07-02 20:08:16.935462	5	2	2026-06-30	deposited	2026-06-30 12:40:17.265339	2026-06-30 21:56:03.816264	\N	\N	\N
-9	\N	\N	\N	2026-07-01 23:51:48.82309	2026-07-02 21:33:06.779795	4	2	2026-07-02	deposited	2026-07-01 23:51:48.819665	2026-07-02 21:31:27.17927	\N	20	\N
-7	\N	\N	\N	2026-07-01 22:05:55.051735	2026-07-02 22:29:44.223211	5	2	2026-07-02	deposited	2026-07-01 22:05:55.049223	2026-07-02 22:05:34.751674	\N	17	\N
-8	\N	\N	\N	2026-07-01 23:44:15.349631	2026-07-03 13:01:10.188723	3	2	2026-07-02	deposited	2026-07-01 23:44:15.348473	2026-07-02 21:41:11.035389	\N	19	\N
-5	\N	\N	\N	2026-07-01 07:52:19.904546	2026-07-03 16:45:37.704382	3	2	2026-07-01	deposited	2026-07-01 07:52:19.895194	2026-07-01 22:38:14.194217	\N	\N	\N
-3	\N	\N	\N	2026-06-30 13:13:21.958089	2026-07-03 16:46:18.795565	3	2	2026-06-30	deposited	2026-06-30 13:13:21.95652	2026-06-30 21:21:30.829946	\N	\N	\N
-12	\N	\N	\N	2026-07-03 00:25:02.718415	2026-07-03 21:31:01.869255	4	2	2026-07-03	deposited	2026-07-03 00:25:02.715077	2026-07-03 21:10:29.711767	\N	33	\N
-11	\N	\N	\N	2026-07-02 22:06:17.260392	2026-07-03 22:24:00.40648	5	2	2026-07-03	deposited	2026-07-02 22:06:17.257306	2026-07-03 21:58:58.353438	\N	32	\N
-10	\N	\N	\N	2026-07-02 21:41:59.330331	2026-07-04 18:36:35.340668	3	2	2026-07-03	deposited	2026-07-02 21:41:59.324876	2026-07-03 21:08:43.197399	\N	30	[{"refund_amount": "0.0", "collected_amount": "1020.0", "source_amount_id": null, "payment_method_id": 1, "payment_method_name": "Cash"}, {"refund_amount": "0.0", "collected_amount": "2857.0", "source_amount_id": 80, "payment_method_id": 2, "payment_method_name": "Visa"}]
-13	\N	\N	\N	2026-07-03 23:21:05.384557	2026-07-04 22:01:40.444286	4	2	2026-07-04	deposited	2026-07-03 23:21:05.382505	2026-07-04 21:13:41.8601	\N	45	\N
-15	\N	\N	\N	2026-07-04 06:02:48.526142	2026-07-04 22:08:28.629591	5	2	2026-07-04	deposited	2026-07-04 06:02:48.523215	2026-07-04 21:56:20.530739	\N	\N	\N
-14	\N	\N	\N	2026-07-04 00:10:02.169415	2026-07-05 19:10:03.305554	3	2	2026-07-04	deposited	2026-07-04 00:10:02.159722	2026-07-04 22:15:27.576702	\N	46	\N
-18	\N	\N	\N	2026-07-05 16:56:24.247383	2026-07-05 21:15:29.88155	5	2	2026-07-05	closed	2026-07-05 16:56:24.231876	2026-07-05 21:15:29.851509	\N	\N	\N
-17	\N	\N	\N	2026-07-05 00:06:22.627782	2026-07-05 21:54:36.680472	3	2	2026-07-05	deposited	2026-07-05 00:06:22.626353	2026-07-05 20:55:12.168819	\N	56	\N
-19	\N	\N	\N	2026-07-05 21:56:37.453377	2026-07-05 21:56:37.453377	5	2	2026-07-06	waiting_for_opening	2026-07-05 21:56:37.446808	\N	\N	65	\N
-16	\N	\N	\N	2026-07-04 23:32:33.048758	2026-07-06 00:00:06.613926	4	2	2026-07-05	closed	2026-07-04 23:32:33.047936	2026-07-06 00:00:06.592821	\N	55	\N
-20	\N	\N	\N	2026-07-06 00:00:41.350211	2026-07-06 00:00:41.350211	4	2	2026-07-06	waiting_for_opening	2026-07-06 00:00:41.34386	\N	\N	67	\N
-21	\N	\N	\N	2026-07-06 00:36:40.45756	2026-07-06 00:36:40.45756	3	2	2026-07-06	waiting_for_opening	2026-07-06 00:36:40.455337	\N	\N	68	\N
+COPY public.daily_reconciliations (id, verified_by_id, verified_at, notes, created_at, updated_at, branch_id, business_id, business_date, state, opened_at, closed_at, deposited_at, opening_float_source_handover_id, opening_float_override_amounts, reviewed_at, reviewed_by_id) FROM stdin;
+21	\N	\N	\N	2026-07-06 00:36:40.45756	2026-07-06 22:56:49.33527	3	2	2026-07-06	deposited	2026-07-06 00:36:40.455337	2026-07-06 20:53:43.04689	\N	68	\N	\N	\N
+18	\N	\N	\N	2026-07-05 16:56:24.247383	2026-07-07 14:34:05.917159	5	2	2026-07-05	deposited	2026-07-05 16:56:24.231876	2026-07-05 21:15:29.851509	\N	\N	\N	\N	\N
+1	\N	\N	\N	2026-06-30 12:20:43.950052	2026-06-30 21:37:38.913177	4	2	2026-06-30	deposited	2026-06-30 12:20:43.927484	2026-06-30 21:17:00.9427	\N	\N	\N	\N	\N
+23	\N	\N	\N	2026-07-07 05:59:57.640943	2026-07-07 21:01:04.770504	3	2	2026-07-07	closed	2026-07-07 05:59:57.63146	2026-07-07 21:01:04.740671	\N	\N	\N	\N	\N
+22	\N	\N	\N	2026-07-06 23:56:24.375103	2026-07-08 00:27:53.181255	4	2	2026-07-07	deposited	2026-07-06 23:56:24.373141	2026-07-07 21:23:10.888214	\N	80	\N	\N	\N
+6	\N	\N	\N	2026-07-01 14:25:02.105194	2026-07-01 21:54:05.962938	4	2	2026-07-01	deposited	2026-07-01 14:25:02.100792	2026-07-01 21:18:18.469908	\N	\N	\N	\N	\N
+4	\N	\N	\N	2026-07-01 03:26:36.669772	2026-07-01 22:34:45.521757	5	2	2026-07-01	deposited	2026-07-01 03:26:36.642624	2026-07-01 22:05:36.261897	\N	\N	\N	\N	\N
+25	\N	\N	\N	2026-07-07 23:36:47.584079	2026-07-08 06:29:40.217478	3	2	2026-07-08	open	2026-07-07 23:36:47.579432	\N	\N	88	\N	\N	\N
+24	\N	\N	\N	2026-07-07 14:36:29.13738	2026-07-08 07:58:22.678629	5	2	2026-07-07	closed	2026-07-07 14:36:29.129828	2026-07-08 07:58:22.58961	\N	\N	\N	\N	\N
+27	\N	\N	\N	2026-07-08 13:25:55.687861	2026-07-08 21:35:39.559616	5	2	2026-07-08	closed	2026-07-08 13:25:55.655868	2026-07-08 21:35:39.54192	\N	\N	\N	\N	\N
+2	\N	\N	\N	2026-06-30 12:40:17.273727	2026-07-02 20:08:16.935462	5	2	2026-06-30	deposited	2026-06-30 12:40:17.265339	2026-06-30 21:56:03.816264	\N	\N	\N	\N	\N
+26	\N	\N	\N	2026-07-08 00:28:46.238211	2026-07-08 21:45:58.723277	4	2	2026-07-08	deposited	2026-07-08 00:28:46.237864	2026-07-08 21:08:51.252192	\N	89	\N	2026-07-08 21:16:07.906678	14
+9	\N	\N	\N	2026-07-01 23:51:48.82309	2026-07-02 21:33:06.779795	4	2	2026-07-02	deposited	2026-07-01 23:51:48.819665	2026-07-02 21:31:27.17927	\N	20	\N	\N	\N
+28	\N	\N	\N	2026-07-08 21:59:08.756727	2026-07-08 21:59:08.756727	5	2	2026-07-09	waiting_for_opening	2026-07-08 21:59:08.753533	\N	\N	99	\N	\N	\N
+29	\N	\N	\N	2026-07-09 00:00:13.336847	2026-07-09 00:00:13.336847	4	2	2026-07-09	waiting_for_opening	2026-07-09 00:00:13.333217	\N	\N	100	\N	\N	\N
+7	\N	\N	\N	2026-07-01 22:05:55.051735	2026-07-02 22:29:44.223211	5	2	2026-07-02	deposited	2026-07-01 22:05:55.049223	2026-07-02 22:05:34.751674	\N	17	\N	\N	\N
+8	\N	\N	\N	2026-07-01 23:44:15.349631	2026-07-03 13:01:10.188723	3	2	2026-07-02	deposited	2026-07-01 23:44:15.348473	2026-07-02 21:41:11.035389	\N	19	\N	\N	\N
+5	\N	\N	\N	2026-07-01 07:52:19.904546	2026-07-03 16:45:37.704382	3	2	2026-07-01	deposited	2026-07-01 07:52:19.895194	2026-07-01 22:38:14.194217	\N	\N	\N	\N	\N
+3	\N	\N	\N	2026-06-30 13:13:21.958089	2026-07-03 16:46:18.795565	3	2	2026-06-30	deposited	2026-06-30 13:13:21.95652	2026-06-30 21:21:30.829946	\N	\N	\N	\N	\N
+12	\N	\N	\N	2026-07-03 00:25:02.718415	2026-07-03 21:31:01.869255	4	2	2026-07-03	deposited	2026-07-03 00:25:02.715077	2026-07-03 21:10:29.711767	\N	33	\N	\N	\N
+11	\N	\N	\N	2026-07-02 22:06:17.260392	2026-07-03 22:24:00.40648	5	2	2026-07-03	deposited	2026-07-02 22:06:17.257306	2026-07-03 21:58:58.353438	\N	32	\N	\N	\N
+10	\N	\N	\N	2026-07-02 21:41:59.330331	2026-07-04 18:36:35.340668	3	2	2026-07-03	deposited	2026-07-02 21:41:59.324876	2026-07-03 21:08:43.197399	\N	30	[{"refund_amount": "0.0", "collected_amount": "1020.0", "source_amount_id": null, "payment_method_id": 1, "payment_method_name": "Cash"}, {"refund_amount": "0.0", "collected_amount": "2857.0", "source_amount_id": 80, "payment_method_id": 2, "payment_method_name": "Visa"}]	\N	\N
+13	\N	\N	\N	2026-07-03 23:21:05.384557	2026-07-04 22:01:40.444286	4	2	2026-07-04	deposited	2026-07-03 23:21:05.382505	2026-07-04 21:13:41.8601	\N	45	\N	\N	\N
+15	\N	\N	\N	2026-07-04 06:02:48.526142	2026-07-04 22:08:28.629591	5	2	2026-07-04	deposited	2026-07-04 06:02:48.523215	2026-07-04 21:56:20.530739	\N	\N	\N	\N	\N
+14	\N	\N	\N	2026-07-04 00:10:02.169415	2026-07-05 19:10:03.305554	3	2	2026-07-04	deposited	2026-07-04 00:10:02.159722	2026-07-04 22:15:27.576702	\N	46	\N	\N	\N
+17	\N	\N	\N	2026-07-05 00:06:22.627782	2026-07-05 21:54:36.680472	3	2	2026-07-05	deposited	2026-07-05 00:06:22.626353	2026-07-05 20:55:12.168819	\N	56	\N	\N	\N
+16	\N	\N	\N	2026-07-04 23:32:33.048758	2026-07-06 16:51:28.068365	4	2	2026-07-05	deposited	2026-07-04 23:32:33.047936	2026-07-06 00:00:06.592821	\N	55	\N	\N	\N
+20	\N	\N	\N	2026-07-06 00:00:41.350211	2026-07-06 21:28:34.572824	4	2	2026-07-06	deposited	2026-07-06 00:00:41.34386	2026-07-06 21:10:54.661152	\N	67	\N	\N	\N
+19	\N	\N	\N	2026-07-05 21:56:37.453377	2026-07-06 22:13:33.042728	5	2	2026-07-06	deposited	2026-07-05 21:56:37.446808	2026-07-06 21:50:30.257062	\N	65	[{"refund_amount": "0.0", "collected_amount": "700.0", "source_amount_id": 166, "payment_method_id": 1, "payment_method_name": "Cash"}, {"refund_amount": "0.0", "collected_amount": "196.0", "source_amount_id": 167, "payment_method_id": 2, "payment_method_name": "Visa"}]	\N	\N
 \.
 
 
@@ -14531,6 +15091,8 @@ COPY public.deposit_responsibility_transfers (id, daily_reconciliation_id, from_
 2	5	29	22	\N	2026-07-01 22:38:14.229719	2026-07-03 16:41:36.541068	2026-07-03 16:41:36.533816	29
 3	14	29	13	2026-07-05 19:07:42.086749	2026-07-04 22:15:27.604733	2026-07-05 19:07:42.089605	\N	\N
 4	17	29	13	2026-07-05 21:52:49.957724	2026-07-05 20:55:12.200721	2026-07-05 21:52:49.959249	\N	\N
+5	21	29	13	2026-07-06 22:54:52.430276	2026-07-06 20:53:43.087462	2026-07-06 22:54:52.431914	\N	\N
+6	23	29	13	2026-07-09 00:54:44.58541	2026-07-07 21:01:04.783162	2026-07-09 00:54:44.589422	\N	\N
 \.
 
 
@@ -14654,6 +15216,26 @@ COPY public.employee_reconciliation_summaries (id, daily_reconciliation_id, user
 45	16	19	2026-07-06 00:00:06.632111	2026-07-06 00:00:06.669338	2026-07-06 00:00:06.669338
 46	16	20	2026-07-06 00:00:06.632111	2026-07-06 00:00:06.67498	2026-07-06 00:00:06.67498
 47	16	73	2026-07-06 00:00:06.632111	2026-07-06 00:00:06.67999	2026-07-06 00:00:06.67999
+48	21	29	2026-07-06 20:53:43.105509	2026-07-06 20:53:43.1269	2026-07-06 20:53:43.1269
+49	21	22	2026-07-06 20:53:43.105509	2026-07-06 20:53:43.151215	2026-07-06 20:53:43.151215
+50	21	13	2026-07-06 20:53:43.105509	2026-07-06 20:53:43.156194	2026-07-06 20:53:43.156194
+51	20	73	2026-07-06 21:10:54.725863	2026-07-06 21:10:54.75308	2026-07-06 21:10:54.75308
+52	20	19	2026-07-06 21:10:54.725863	2026-07-06 21:10:54.800927	2026-07-06 21:10:54.800927
+53	20	18	2026-07-06 21:10:54.725863	2026-07-06 21:10:54.807912	2026-07-06 21:10:54.807912
+54	19	49	2026-07-06 21:50:30.270362	2026-07-06 21:50:30.272362	2026-07-06 21:50:30.272362
+55	19	63	2026-07-06 21:50:30.270362	2026-07-06 21:50:30.281408	2026-07-06 21:50:30.281408
+56	23	13	2026-07-07 21:01:04.795449	2026-07-07 21:01:04.818226	2026-07-07 21:01:04.818226
+57	23	29	2026-07-07 21:01:04.795449	2026-07-07 21:01:04.848695	2026-07-07 21:01:04.848695
+58	22	18	2026-07-07 21:23:10.928733	2026-07-07 21:23:10.951894	2026-07-07 21:23:10.951894
+59	22	19	2026-07-07 21:23:10.928733	2026-07-07 21:23:10.980922	2026-07-07 21:23:10.980922
+60	22	73	2026-07-07 21:23:10.928733	2026-07-07 21:23:10.987812	2026-07-07 21:23:10.987812
+61	24	49	2026-07-08 07:58:22.752284	2026-07-08 07:58:22.779211	2026-07-08 07:58:22.779211
+62	24	63	2026-07-08 07:58:22.752284	2026-07-08 07:58:22.833018	2026-07-08 07:58:22.833018
+63	26	73	2026-07-08 21:08:51.340138	2026-07-08 21:08:51.366208	2026-07-08 21:08:51.366208
+64	26	18	2026-07-08 21:08:51.340138	2026-07-08 21:08:51.406629	2026-07-08 21:08:51.406629
+65	26	20	2026-07-08 21:08:51.340138	2026-07-08 21:08:51.418352	2026-07-08 21:08:51.418352
+66	27	49	2026-07-08 21:35:39.581741	2026-07-08 21:35:39.588276	2026-07-08 21:35:39.588276
+67	27	63	2026-07-08 21:35:39.581741	2026-07-08 21:35:39.602227	2026-07-08 21:35:39.602227
 \.
 
 
@@ -14800,6 +15382,66 @@ COPY public.employee_reconciliation_summary_amounts (id, employee_reconciliation
 136	47	1	نقدا	2820.00	0.00	2026-07-06 00:00:06.681357	2026-07-06 00:00:06.681357
 137	47	2	فيزا	1113.00	0.00	2026-07-06 00:00:06.682511	2026-07-06 00:00:06.682511
 138	47	3	انستا باي	0.00	0.00	2026-07-06 00:00:06.684269	2026-07-06 00:00:06.684269
+139	48	1	نقدا	240.00	0.00	2026-07-06 20:53:43.14277	2026-07-06 20:53:43.14277
+140	48	2	فيزا	1861.00	0.00	2026-07-06 20:53:43.148576	2026-07-06 20:53:43.148576
+141	48	3	انستا باي	0.00	0.00	2026-07-06 20:53:43.15002	2026-07-06 20:53:43.15002
+142	49	1	نقدا	750.00	0.00	2026-07-06 20:53:43.152691	2026-07-06 20:53:43.152691
+143	49	2	فيزا	784.00	0.00	2026-07-06 20:53:43.153981	2026-07-06 20:53:43.153981
+144	49	3	انستا باي	0.00	0.00	2026-07-06 20:53:43.155274	2026-07-06 20:53:43.155274
+145	50	1	نقدا	4535.00	0.00	2026-07-06 20:53:43.157404	2026-07-06 20:53:43.157404
+146	50	2	فيزا	1996.00	0.00	2026-07-06 20:53:43.158537	2026-07-06 20:53:43.158537
+147	50	3	انستا باي	0.00	0.00	2026-07-06 20:53:43.159901	2026-07-06 20:53:43.159901
+148	51	1	نقدا	1350.00	0.00	2026-07-06 21:10:54.786394	2026-07-06 21:10:54.786394
+149	51	2	فيزا	280.00	0.00	2026-07-06 21:10:54.796497	2026-07-06 21:10:54.796497
+150	51	3	انستا باي	0.00	0.00	2026-07-06 21:10:54.798609	2026-07-06 21:10:54.798609
+151	52	1	نقدا	1620.00	0.00	2026-07-06 21:10:54.803176	2026-07-06 21:10:54.803176
+152	52	2	فيزا	1604.00	0.00	2026-07-06 21:10:54.804899	2026-07-06 21:10:54.804899
+153	52	3	انستا باي	0.00	0.00	2026-07-06 21:10:54.806665	2026-07-06 21:10:54.806665
+154	53	1	نقدا	830.00	0.00	2026-07-06 21:10:54.809804	2026-07-06 21:10:54.809804
+155	53	2	فيزا	715.00	0.00	2026-07-06 21:10:54.812813	2026-07-06 21:10:54.812813
+156	53	3	انستا باي	0.00	0.00	2026-07-06 21:10:54.816195	2026-07-06 21:10:54.816195
+157	54	1	نقدا	1120.00	0.00	2026-07-06 21:50:30.274594	2026-07-06 21:50:30.274594
+158	54	2	فيزا	857.50	0.00	2026-07-06 21:50:30.277489	2026-07-06 21:50:30.277489
+159	54	3	انستا باي	0.00	0.00	2026-07-06 21:50:30.279839	2026-07-06 21:50:30.279839
+160	55	1	نقدا	1715.00	0.00	2026-07-06 21:50:30.284097	2026-07-06 21:50:30.284097
+161	55	2	فيزا	2701.50	0.00	2026-07-06 21:50:30.286365	2026-07-06 21:50:30.286365
+162	55	3	انستا باي	0.00	0.00	2026-07-06 21:50:30.288814	2026-07-06 21:50:30.288814
+163	56	1	نقدا	5460.00	0.00	2026-07-07 21:01:04.836467	2026-07-07 21:01:04.836467
+164	56	2	فيزا	2293.25	0.00	2026-07-07 21:01:04.842456	2026-07-07 21:01:04.842456
+165	56	3	انستا باي	0.00	0.00	2026-07-07 21:01:04.845858	2026-07-07 21:01:04.845858
+166	57	1	نقدا	1310.00	0.00	2026-07-07 21:01:04.850892	2026-07-07 21:01:04.850892
+167	57	2	فيزا	1868.00	0.00	2026-07-07 21:01:04.852756	2026-07-07 21:01:04.852756
+168	57	3	انستا باي	0.00	0.00	2026-07-07 21:01:04.85463	2026-07-07 21:01:04.85463
+169	58	1	نقدا	2181.00	0.00	2026-07-07 21:23:10.971634	2026-07-07 21:23:10.971634
+170	58	2	فيزا	715.00	0.00	2026-07-07 21:23:10.976836	2026-07-07 21:23:10.976836
+171	58	3	انستا باي	0.00	0.00	2026-07-07 21:23:10.979596	2026-07-07 21:23:10.979596
+172	59	1	نقدا	1654.00	0.00	2026-07-07 21:23:10.982846	2026-07-07 21:23:10.982846
+173	59	2	فيزا	1421.00	0.00	2026-07-07 21:23:10.984674	2026-07-07 21:23:10.984674
+174	59	3	انستا باي	0.00	0.00	2026-07-07 21:23:10.986467	2026-07-07 21:23:10.986467
+175	60	1	نقدا	1385.00	0.00	2026-07-07 21:23:10.990046	2026-07-07 21:23:10.990046
+176	60	2	فيزا	720.00	0.00	2026-07-07 21:23:10.992464	2026-07-07 21:23:10.992464
+177	60	3	انستا باي	0.00	0.00	2026-07-07 21:23:10.994249	2026-07-07 21:23:10.994249
+178	61	1	نقدا	370.00	0.00	2026-07-08 07:58:22.811089	2026-07-08 07:58:22.811089
+179	61	2	فيزا	595.00	0.00	2026-07-08 07:58:22.82115	2026-07-08 07:58:22.82115
+180	61	3	انستا باي	0.00	0.00	2026-07-08 07:58:22.827678	2026-07-08 07:58:22.827678
+181	62	1	نقدا	550.00	0.00	2026-07-08 07:58:22.837827	2026-07-08 07:58:22.837827
+182	62	2	فيزا	821.50	0.00	2026-07-08 07:58:22.841276	2026-07-08 07:58:22.841276
+183	62	3	انستا باي	0.00	0.00	2026-07-08 07:58:22.845115	2026-07-08 07:58:22.845115
+184	63	1	نقدا	3545.00	0.00	2026-07-08 21:08:51.395245	2026-07-08 21:08:51.395245
+185	63	2	فيزا	760.00	0.00	2026-07-08 21:08:51.402904	2026-07-08 21:08:51.402904
+186	63	3	انستا باي	0.00	0.00	2026-07-08 21:08:51.405061	2026-07-08 21:08:51.405061
+187	64	1	نقدا	3030.00	0.00	2026-07-08 21:08:51.410289	2026-07-08 21:08:51.410289
+188	64	2	فيزا	818.00	0.00	2026-07-08 21:08:51.41229	2026-07-08 21:08:51.41229
+189	64	3	انستا باي	0.00	0.00	2026-07-08 21:08:51.415138	2026-07-08 21:08:51.415138
+190	65	1	نقدا	1090.00	0.00	2026-07-08 21:08:51.425004	2026-07-08 21:08:51.425004
+191	65	2	فيزا	1660.00	0.00	2026-07-08 21:08:51.427009	2026-07-08 21:08:51.427009
+192	65	3	انستا باي	0.00	0.00	2026-07-08 21:08:51.429101	2026-07-08 21:08:51.429101
+193	66	1	نقدا	950.00	0.00	2026-07-08 21:35:39.593175	2026-07-08 21:35:39.593175
+194	66	2	فيزا	320.00	0.00	2026-07-08 21:35:39.597727	2026-07-08 21:35:39.597727
+195	66	3	انستا باي	0.00	0.00	2026-07-08 21:35:39.600517	2026-07-08 21:35:39.600517
+196	67	1	نقدا	275.00	0.00	2026-07-08 21:35:39.605667	2026-07-08 21:35:39.605667
+197	67	2	فيزا	996.00	0.00	2026-07-08 21:35:39.608332	2026-07-08 21:35:39.608332
+198	67	3	انستا باي	0.00	0.00	2026-07-08 21:35:39.611334	2026-07-08 21:35:39.611334
 \.
 
 
@@ -15077,6 +15719,10 @@ COPY public.employee_requests (id, affects_payroll, amount, created_at, reason, 
 342	t	\N	2026-07-05 11:36:49.929154	عندي مشكله ف البيت	early_leave	2026-07-04	\N	2026-07-05 13:32:09.524825	69	approved	2026-07-05 13:32:09.531791	42	150	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
 345	t	\N	2026-07-05 19:02:29.807879	عندي مشوار 	early_leave	2026-07-05	\N	2026-07-05 19:59:38.417392	14	approved	2026-07-05 19:59:38.422363	43	120	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
 344	t	\N	2026-07-05 18:57:33.823054	خاص	early_leave	2026-07-05	\N	2026-07-05 20:00:02.816234	14	approved	2026-07-05 20:00:02.820891	20	180	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+347	t	\N	2026-07-06 12:52:49.087573	تعبانه😓	early_leave	2026-07-06	\N	2026-07-06 12:57:11.623	69	approved	2026-07-06 12:57:11.626005	22	70	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+349	t	\N	2026-07-06 23:26:25.877872	انصراف	early_leave	2026-07-07	\N	2026-07-07 10:59:16.870082	69	approved	2026-07-07 10:59:16.877705	31	35	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+352	t	\N	2026-07-07 17:40:10.571118	المحل كان مقفول لحد 9:40	early_leave	2026-07-07	\N	\N	\N	pending	2026-07-07 17:40:10.571118	58	30	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+354	t	\N	2026-07-07 19:11:23.199841	اذن الصراف مبكر في تمام الساعه 10:11	early_leave	2026-07-07	\N	\N	\N	pending	2026-07-07 19:11:23.199841	46	50	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
 269	f	600.00	2026-06-25 12:05:03.734713	سلفة	salary_advance	2026-06-25	\N	2026-06-28 04:33:08.06921	12	paid	2026-06-28 04:33:08.076645	65	\N	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
 270	f	2538.00	2026-06-25 12:51:03.98745	لظروف خاصة	salary_advance	2026-06-25	\N	2026-06-28 04:33:08.117319	12	paid	2026-06-28 04:33:08.117791	47	\N	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
 245	t	\N	2026-06-24 07:52:33.896377	انصراف مبكر	early_leave	2026-06-21	\N	2026-06-24 08:21:35.251364	69	approved	2026-06-24 08:21:35.263705	25	60	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
@@ -15154,6 +15800,19 @@ COPY public.employee_requests (id, affects_payroll, amount, created_at, reason, 
 343	f	\N	2026-07-05 14:38:44.644794	انا جيت ساعه 5:35 استاذن حضرتك تعدل الحضور  5 مساء	punch_correction	2026-07-05	\N	\N	\N	pending	2026-07-05 14:38:44.644794	46	\N	wrong_check_in_time	17:00	\N	\N	\N	2026-07-05	\N	\N	\N	\N	\N
 339	t	\N	2026-07-04 16:11:42.446351	انصراف مبكر	early_leave	2026-07-04	\N	2026-07-05 17:57:06.24845	14	approved	2026-07-05 17:57:06.2602	54	120	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
 346	t	\N	2026-07-05 21:02:04.128455	انصراف مبكر بعلم مستر محمد 	early_leave	2026-07-06	\N	2026-07-05 22:05:45.674697	69	approved	2026-07-05 22:05:45.679184	44	60	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+350	f	\N	2026-07-07 06:41:25.927594	البصمه مسمعتش	punch_correction	2026-07-07	موافقة	2026-07-07 10:59:06.304689	69	approved	2026-07-07 10:59:06.315755	13	\N	wrong_check_in_time	08:30	08:30	2026-07-07 06:38:22.319159	\N	2026-07-07	\N	\N	\N	mobile	\N
+348	t	\N	2026-07-06 18:17:33.672418	بعلم مستر محمد 	early_leave	2026-07-06	\N	2026-07-07 10:59:24.528089	69	approved	2026-07-07 10:59:24.528604	30	60	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+351	f	\N	2026-07-07 17:05:20.777066	استاذن حضرتك في التاخير نص ساعه لاني تم حضوري في تمام الساعه 5:35 رقم الكود 371 	punch_correction	2026-07-07	\N	\N	\N	pending	2026-07-07 17:05:20.777066	46	\N	wrong_check_in_time	17:00	\N	\N	\N	2026-07-07	\N	\N	\N	\N	\N
+355	f	\N	2026-07-07 23:14:40.266918	البصمه مسمعتش 	punch_correction	2026-07-03	\N	\N	\N	pending	2026-07-07 23:14:40.266918	45	\N	missing_check_out	01:00	\N	\N	\N	2026-07-03	\N	\N	\N	\N	\N
+356	f	\N	2026-07-07 23:19:02.322728	اتاخرت في المواصلات 	punch_correction	2026-07-06	\N	\N	\N	pending	2026-07-07 23:19:02.322728	45	\N	wrong_check_in_time	13:19	\N	\N	\N	2026-07-06	\N	\N	\N	\N	\N
+357	t	\N	2026-07-07 23:58:45.13961	مواصلات	early_leave	2026-07-07	\N	2026-07-08 08:36:40.697636	69	approved	2026-07-08 08:36:40.707292	65	60	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+358	f	\N	2026-07-08 13:50:53.876625	كنت مع مستر احمد في السكن	punch_correction	2026-07-08	\N	\N	\N	pending	2026-07-08 13:50:53.876625	43	\N	wrong_check_in_time	13:00	\N	\N	\N	2026-07-08	\N	\N	\N	\N	\N
+359	t	\N	2026-07-08 14:07:43.134737	عندي معاد عند الدكتور الساعه 5	early_leave	2026-07-08	\N	\N	\N	pending	2026-07-08 14:07:43.134737	49	45	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+353	t	\N	2026-07-07 18:07:47.405557	. 	early_leave	2026-07-07	\N	2026-07-08 16:37:14.454856	14	approved	2026-07-08 16:37:14.463309	18	120	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+360	f	\N	2026-07-08 14:43:18.703272	استاذن حضرتك في نص ساعه ده يا استاذ احمد  تم حضوري النهارده الساعه 5:35 رقم الوظيفي 371 	punch_correction	2026-07-08	\N	\N	\N	pending	2026-07-08 14:43:18.703272	46	\N	wrong_check_in_time	17:00	\N	\N	\N	2026-07-08	\N	\N	\N	\N	\N
+362	t	\N	2026-07-08 21:53:43.227845	سفر	early_leave	2026-07-08	\N	\N	\N	pending	2026-07-08 21:53:43.227845	60	120	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+363	t	\N	2026-07-08 22:10:47.574152	عندى معاد عند الدكتور	early_leave	2026-07-07	\N	\N	\N	pending	2026-07-08 22:10:47.574152	19	60	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
+361	t	\N	2026-07-08 21:31:34.037547	انصراف 	early_leave	2026-07-09	رفض الاذن بسبب وجود عملاء في المكان وتم إبلاغه بذلك و لمنعه من دخول حمام العملاء فرفض اكمال العمل 	2026-07-08 22:29:33.251466	69	rejected	2026-07-08 22:29:33.256355	31	80	\N		\N	\N	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
@@ -15373,9 +16032,20 @@ COPY public.expenses (id, business_id, branch_id, expense_category_id, expense_t
 47	2	4	19	12	60.00	2026-07-04	\N	EXP-000047	pending_approval	مستلزمات نجارة	f	14	\N	\N	\N	\N	2026-07-04 15:38:45.287604	2026-07-04 15:38:47.189845	\N	t
 48	2	4	19	12	700.00	2026-06-30	\N	EXP-000048	pending_approval	سلفة محمد عادل / ١٠٠ يوم ٢٥\r\nسلفة ايمن فرغلي / ٦٠٠ يوم ٢٥	f	17	\N	\N	\N	\N	2026-07-04 15:56:13.464485	2026-07-04 15:56:16.847823	\N	t
 49	2	\N	18	58	5800.00	2026-07-04	\N	EXP-000049	pending_approval	مستلزمات موان رمل واسمنت وجبس ونقل رتش وتنزيل 	f	17	\N	\N	\N	\N	2026-07-04 15:57:54.643237	2026-07-04 15:58:05.299388	\N	t
+55	2	3	1	2	765.00	2026-07-06	\N	EXP-000055	pending_approval	فاتورة استهلاك المياه	f	69	\N	\N	\N	\N	2026-07-06 10:48:05.967755	2026-07-06 10:48:09.614671	\N	t
 50	2	\N	18	58	700.00	2026-07-04	\N	EXP-000050	pending_approval	مصنعيةمحمد النجار لاخراج باب الخشب بره للاغلاق المحل 	f	17	\N	\N	\N	\N	2026-07-04 16:00:44.971059	2026-07-04 16:00:47.363862	\N	t
 51	2	\N	18	58	6500.00	2026-07-04	\N	EXP-000051	pending_approval	المحارة / \r\nاديبونت٦٥ / ١٠٠٠\r\nنقل رمل واسمنت / ٥٠٠ \r\nودفعه من مصنعية / ٥٠٠٠\r\nمن ١٢ باقي / ٧الف	f	17	\N	\N	\N	\N	2026-07-04 16:02:20.210682	2026-07-04 16:02:24.357914	\N	t
+62	2	\N	19	12	1000.00	2026-07-08	\N	EXP-000062	pending_approval	بضاعة مخزن 	f	17	\N	\N	\N	\N	2026-07-08 07:41:06.36166	2026-07-08 07:41:35.644774	\N	t
+56	2	3	1	1	2000.00	2026-07-06	\N	EXP-000056	pending_approval	شحن كارت الكهرباء 	f	69	\N	\N	\N	\N	2026-07-06 13:28:58.765151	2026-07-06 13:29:02.418509	\N	t
 52	2	4	1	\N	3000.00	2026-07-04	\N	EXP-000052	pending_approval	شحن كهربا فرع الترعة الكبير	f	17	\N	\N	\N	\N	2026-07-04 16:04:38.613786	2026-07-04 16:04:41.274885	\N	t
+57	2	3	6	29	130.00	2026-07-06	\N	EXP-000057	pending_approval	مواصلات ابانوب / ٣٠\r\nمواصلات مساج الاطفال الخضرا من مدينة نصر 	f	17	\N	\N	\N	\N	2026-07-07 13:49:28.865163	2026-07-07 13:49:31.907778	\N	t
+58	2	3	19	11	45.00	2026-07-06	\N	EXP-000058	pending_approval	٦ قزايز مياة معدنية للبلوجر ضيافة	f	17	\N	\N	\N	\N	2026-07-07 13:51:23.13762	2026-07-07 13:51:24.711355	\N	t
+59	2	\N	18	58	2000.00	2026-07-07	\N	EXP-000059	pending_approval	تنزيل ٣م رمل \r\n٥ سمنت \r\n٢ جبس 	f	17	\N	\N	\N	\N	2026-07-07 14:58:31.344435	2026-07-07 14:58:37.425153	\N	t
+60	2	\N	18	58	500.00	2026-07-07	\N	EXP-000060	pending_approval	دفعه من حساب احمد الحداد مستلمة لاشرف 	f	17	\N	\N	\N	\N	2026-07-07 15:09:11.418292	2026-07-07 15:09:13.5501	\N	t
+61	2	\N	5	21	500.00	2026-07-07	\N	EXP-000061	pending_approval		f	17	\N	\N	\N	\N	2026-07-07 16:29:05.703704	2026-07-07 16:29:08.783648	\N	t
+63	2	\N	19	12	2190.00	2026-07-08	\N	EXP-000063	pending_approval	بضاعة مخزن 	f	17	\N	\N	\N	\N	2026-07-08 07:42:38.151391	2026-07-08 07:42:44.04143	\N	t
+64	2	\N	18	58	5000.00	2026-07-08	\N	EXP-000064	pending_approval	دفعه تانية للمحارة محمود / ٥٠٠٠\r\nمن ١٢ الف الباقي / ٢٠٠٠	f	17	\N	\N	\N	\N	2026-07-08 15:36:08.607345	2026-07-08 15:36:10.632034	\N	t
+65	2	6	19	11	150.00	2026-07-08	\N	EXP-000065	pending_approval	فطار ومشاريب رش للبق + تنظيم المخزن	f	17	\N	\N	\N	\N	2026-07-08 15:39:10.114158	2026-07-08 15:39:11.712672	\N	t
 \.
 
 
@@ -15384,6 +16054,7 @@ COPY public.expenses (id, business_id, branch_id, expense_category_id, expense_t
 --
 
 COPY public.financial_adjustments (id, adjustable_type, adjustable_id, business_id, actor_id, approved_by_id, approved_at, reason_code, notes, before_data, after_data, created_at, updated_at) FROM stdin;
+1	TillHandover	83	2	12	\N	\N	wrong_amounts	بيانات خطي	[{"refund_amount": "0.0", "collected_amount": "370.0", "payment_method_id": 1, "payment_method_name": "Cash"}, {"refund_amount": "0.0", "collected_amount": "5956.0", "payment_method_id": 2, "payment_method_name": "Visa"}, {"refund_amount": "0.0", "collected_amount": "0.0", "payment_method_id": 3, "payment_method_name": "InstaPay"}]	[{"refund_amount": "", "collected_amount": "370", "payment_method_id": 1}, {"refund_amount": "", "collected_amount": "595", "payment_method_id": 2}]	2026-07-07 18:56:09.808111	2026-07-07 18:56:09.808111
 \.
 
 
@@ -15442,6 +16113,55 @@ COPY public.goods_receipt_items (id, goods_receipt_id, product_id, quantity, uni
 48	28	449	1.000	540.0000	540.0000	2026-07-01 16:40:18.942139	2026-07-01 16:40:18.942139
 49	28	450	6.000	240.0000	1440.0000	2026-07-01 16:40:18.94351	2026-07-01 16:40:18.94351
 50	28	353	1.000	175.0000	175.0000	2026-07-01 16:40:18.944761	2026-07-01 16:40:18.944761
+51	29	318	5.000	280.0000	1400.0000	2026-07-07 09:49:25.806769	2026-07-07 09:49:25.806769
+52	29	317	7.000	100.0000	700.0000	2026-07-07 09:49:25.811221	2026-07-07 09:49:25.811221
+53	29	403	2.000	50.0000	100.0000	2026-07-07 09:49:25.811762	2026-07-07 09:49:25.811762
+54	29	404	1.000	50.0000	50.0000	2026-07-07 09:49:25.814923	2026-07-07 09:49:25.814923
+55	29	316	4.000	39.0000	156.0000	2026-07-07 09:49:25.820943	2026-07-07 09:49:25.820943
+56	29	364	2.000	35.0000	70.0000	2026-07-07 09:49:25.821918	2026-07-07 09:49:25.821918
+57	29	358	20.000	10.0000	200.0000	2026-07-07 09:49:25.823596	2026-07-07 09:49:25.823596
+58	29	325	2.000	200.0000	400.0000	2026-07-07 09:49:25.824841	2026-07-07 09:49:25.824841
+59	29	326	1.000	200.0000	200.0000	2026-07-07 09:49:25.825814	2026-07-07 09:49:25.825814
+60	29	355	8.000	30.0000	240.0000	2026-07-07 09:49:25.82722	2026-07-07 09:49:25.82722
+61	29	366	11.000	50.0000	550.0000	2026-07-07 09:49:25.828749	2026-07-07 09:49:25.828749
+62	29	332	24.000	20.0000	480.0000	2026-07-07 09:49:25.829763	2026-07-07 09:49:25.829763
+63	29	321	1.000	70.0000	70.0000	2026-07-07 09:49:25.830423	2026-07-07 09:49:25.830423
+64	29	334	2.000	50.0000	100.0000	2026-07-07 09:49:25.830867	2026-07-07 09:49:25.830867
+65	29	353	4.000	180.0000	720.0000	2026-07-07 09:49:25.832828	2026-07-07 09:49:25.832828
+66	29	432	5.000	220.0000	1100.0000	2026-07-07 09:49:25.834172	2026-07-07 09:49:25.834172
+67	29	386	5.000	25.0000	125.0000	2026-07-07 09:49:25.837692	2026-07-07 09:49:25.837692
+68	29	376	18.000	18.0000	324.0000	2026-07-07 09:49:25.838292	2026-07-07 09:49:25.838292
+69	29	368	10.000	190.0000	1900.0000	2026-07-07 09:49:25.838793	2026-07-07 09:49:25.838793
+70	29	340	0.004	50.0000	0.2000	2026-07-07 09:49:25.840594	2026-07-07 09:49:25.840594
+71	29	330	3.000	70.0000	210.0000	2026-07-07 09:49:25.843117	2026-07-07 09:49:25.843117
+72	29	360	7.000	90.0000	630.0000	2026-07-07 09:49:25.843975	2026-07-07 09:49:25.843975
+73	29	401	2.000	150.0000	300.0000	2026-07-07 09:49:25.844722	2026-07-07 09:49:25.844722
+74	29	399	1.000	150.0000	150.0000	2026-07-07 09:49:25.845179	2026-07-07 09:49:25.845179
+75	29	389	2.000	100.0000	200.0000	2026-07-07 09:49:25.845578	2026-07-07 09:49:25.845578
+76	29	390	1.000	100.0000	100.0000	2026-07-07 09:49:25.846042	2026-07-07 09:49:25.846042
+77	29	391	2.000	100.0000	200.0000	2026-07-07 09:49:25.846604	2026-07-07 09:49:25.846604
+78	29	328	2.000	60.0000	120.0000	2026-07-07 09:49:25.84703	2026-07-07 09:49:25.84703
+79	29	407	2.000	15.0000	30.0000	2026-07-07 09:49:25.848496	2026-07-07 09:49:25.848496
+80	29	359	1.000	50.0000	50.0000	2026-07-07 09:49:25.849716	2026-07-07 09:49:25.849716
+81	29	372	2.000	190.0000	380.0000	2026-07-07 09:49:25.850174	2026-07-07 09:49:25.850174
+82	29	354	163.000	12.0000	1956.0000	2026-07-07 09:49:25.850577	2026-07-07 09:49:25.850577
+83	29	322	2.000	50.0000	100.0000	2026-07-07 09:49:25.850987	2026-07-07 09:49:25.850987
+84	29	357	33.000	18.0000	594.0000	2026-07-07 09:49:25.851382	2026-07-07 09:49:25.851382
+85	29	356	46.000	12.0000	552.0000	2026-07-07 09:49:25.851772	2026-07-07 09:49:25.851772
+86	29	379	3.000	10.0000	30.0000	2026-07-07 09:49:25.852192	2026-07-07 09:49:25.852192
+87	29	369	4.000	190.0000	760.0000	2026-07-07 09:49:25.852989	2026-07-07 09:49:25.852989
+88	29	433	6.000	180.0000	1080.0000	2026-07-07 09:49:25.853582	2026-07-07 09:49:25.853582
+89	29	408	3.000	20.0000	60.0000	2026-07-07 09:49:25.854033	2026-07-07 09:49:25.854033
+90	29	349	1.000	50.0000	50.0000	2026-07-07 09:49:25.85443	2026-07-07 09:49:25.85443
+91	29	412	19.000	5.0000	95.0000	2026-07-07 09:49:25.85482	2026-07-07 09:49:25.85482
+92	29	413	6.000	35.0000	210.0000	2026-07-07 09:49:25.855232	2026-07-07 09:49:25.855232
+93	29	370	10.000	50.0000	500.0000	2026-07-07 09:49:25.855877	2026-07-07 09:49:25.855877
+94	29	371	1.000	15.0000	15.0000	2026-07-07 09:49:25.856378	2026-07-07 09:49:25.856378
+95	30	434	6.000	365.0000	2190.0000	2026-07-07 15:52:02.464268	2026-07-07 15:52:02.464268
+96	31	443	20.000	26.0000	520.0000	2026-07-07 16:01:50.69246	2026-07-07 16:01:50.69246
+97	31	336	6.000	65.0000	390.0000	2026-07-07 16:01:50.695008	2026-07-07 16:01:50.695008
+98	31	472	5.000	17.0000	85.0000	2026-07-07 16:01:50.69614	2026-07-07 16:01:50.69614
+99	32	340	4.000	50.0000	200.0000	2026-07-08 22:05:33.740172	2026-07-08 22:05:33.740172
 \.
 
 
@@ -15462,9 +16182,12 @@ COPY public.goods_receipts (id, business_id, warehouse_id, supplier_id, created_
 9	2	1	8	17	GRN-000009	2026-06-24		2026-06-24 20:10:05.687296	2026-06-25 11:50:08.955671	2026-06-25 11:50:08.953594	12	غلط
 10	2	1	\N	17	GRN-000010	2026-06-24		2026-06-24 20:13:53.692746	2026-06-25 11:50:15.011035	2026-06-25 11:50:15.008396	12	غلط
 11	2	1	8	17	GRN-000011	2026-06-24		2026-06-24 20:21:13.691242	2026-06-25 11:50:27.494576	2026-06-25 11:50:27.491733	12	غلط
+30	2	1	17	17	GRN-000030	2026-07-07		2026-07-07 15:52:02.458698	2026-07-07 15:52:04.006908	\N	\N	\N
 13	2	1	8	17	GRN-000013	2026-06-25		2026-06-25 11:59:29.66036	2026-06-25 11:59:31.223409	\N	\N	\N
 14	2	1	3	17	GRN-000014	2026-06-25		2026-06-25 12:05:57.53272	2026-06-25 12:05:58.899323	\N	\N	\N
+31	2	1	\N	17	GRN-000031	2026-07-07		2026-07-07 16:01:50.688561	2026-07-07 16:01:52.323758	\N	\N	\N
 15	2	1	9	17	GRN-000015	2026-06-25		2026-06-25 12:16:30.126397	2026-06-25 12:17:18.028694	2026-06-25 12:17:18.016649	17	فاتورة ناقصة
+32	2	1	\N	17	GRN-000032	2026-07-09	GRN-000029 نسيت ادخل عدد من السيرم 	2026-07-08 22:05:33.734565	2026-07-08 22:05:33.734565	\N	\N	\N
 16	2	1	9	17	GRN-000016	2026-06-25		2026-06-25 12:20:52.785611	2026-06-25 12:20:53.720223	\N	\N	\N
 17	2	1	12	17	GRN-000017	2026-06-25		2026-06-26 09:44:04.056228	2026-06-26 09:44:05.625366	\N	\N	\N
 18	2	1	14	17	GRN-000018	2026-06-25		2026-06-26 09:47:02.79687	2026-06-26 09:47:03.850716	\N	\N	\N
@@ -15478,6 +16201,7 @@ COPY public.goods_receipts (id, business_id, warehouse_id, supplier_id, created_
 26	2	1	4	17	GRN-000026	2026-06-30		2026-06-29 21:56:31.189181	2026-06-29 21:56:32.460617	\N	\N	\N
 27	2	1	3	17	GRN-000027	2026-06-30		2026-06-29 22:00:31.401334	2026-06-29 22:00:32.596668	\N	\N	\N
 28	2	1	13	17	GRN-000028	2026-06-30		2026-07-01 16:40:18.928324	2026-07-01 16:40:20.152345	\N	\N	\N
+29	2	1	\N	17	GRN-000029	2026-07-07	بضاعة تصفية	2026-07-07 09:49:25.772919	2026-07-07 09:49:25.772919	\N	\N	\N
 \.
 
 
@@ -15853,6 +16577,146 @@ COPY public.inventory_movements (id, business_id, product_id, warehouse_id, dire
 366	2	330	1	out	stock_issue	3.000	66.6250	StockIssue	11	2026-07-03	2026-07-03 09:15:29.618682	2026-07-03 09:15:29.618682	4
 367	2	328	1	out	stock_issue	2.000	50.0000	StockIssue	11	2026-07-03	2026-07-03 09:15:29.61948	2026-07-03 09:15:29.61948	4
 368	2	439	1	out	stock_issue	4.000	115.0000	StockIssue	12	2026-07-06	2026-07-05 22:22:17.229678	2026-07-05 22:22:17.229678	4
+369	2	318	1	in	goods_receipt	5.000	280.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:25.926639	2026-07-07 09:49:25.926639	\N
+370	2	317	1	in	goods_receipt	7.000	100.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:25.992976	2026-07-07 09:49:25.992976	\N
+371	2	403	1	in	goods_receipt	2.000	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.001428	2026-07-07 09:49:26.001428	\N
+372	2	404	1	in	goods_receipt	1.000	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.012615	2026-07-07 09:49:26.012615	\N
+373	2	316	1	in	goods_receipt	4.000	39.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.02141	2026-07-07 09:49:26.02141	\N
+374	2	364	1	in	goods_receipt	2.000	35.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.033869	2026-07-07 09:49:26.033869	\N
+375	2	358	1	in	goods_receipt	20.000	10.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.039693	2026-07-07 09:49:26.039693	\N
+376	2	325	1	in	goods_receipt	2.000	200.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.046939	2026-07-07 09:49:26.046939	\N
+377	2	326	1	in	goods_receipt	1.000	200.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.056372	2026-07-07 09:49:26.056372	\N
+378	2	355	1	in	goods_receipt	8.000	30.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.067044	2026-07-07 09:49:26.067044	\N
+379	2	366	1	in	goods_receipt	11.000	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.074947	2026-07-07 09:49:26.074947	\N
+380	2	332	1	in	goods_receipt	24.000	20.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.092294	2026-07-07 09:49:26.092294	\N
+381	2	321	1	in	goods_receipt	1.000	70.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.103921	2026-07-07 09:49:26.103921	\N
+382	2	334	1	in	goods_receipt	2.000	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.108598	2026-07-07 09:49:26.108598	\N
+383	2	353	1	in	goods_receipt	4.000	180.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.118665	2026-07-07 09:49:26.118665	\N
+384	2	432	1	in	goods_receipt	5.000	220.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.123893	2026-07-07 09:49:26.123893	\N
+385	2	386	1	in	goods_receipt	5.000	25.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.127478	2026-07-07 09:49:26.127478	\N
+386	2	376	1	in	goods_receipt	18.000	18.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.13534	2026-07-07 09:49:26.13534	\N
+387	2	368	1	in	goods_receipt	10.000	190.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.140307	2026-07-07 09:49:26.140307	\N
+388	2	340	1	in	goods_receipt	0.004	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.144041	2026-07-07 09:49:26.144041	\N
+389	2	330	1	in	goods_receipt	3.000	70.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.147662	2026-07-07 09:49:26.147662	\N
+390	2	360	1	in	goods_receipt	7.000	90.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.150789	2026-07-07 09:49:26.150789	\N
+391	2	401	1	in	goods_receipt	2.000	150.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.153771	2026-07-07 09:49:26.153771	\N
+392	2	399	1	in	goods_receipt	1.000	150.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.15666	2026-07-07 09:49:26.15666	\N
+393	2	389	1	in	goods_receipt	2.000	100.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.159635	2026-07-07 09:49:26.159635	\N
+394	2	390	1	in	goods_receipt	1.000	100.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.162945	2026-07-07 09:49:26.162945	\N
+395	2	391	1	in	goods_receipt	2.000	100.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.16652	2026-07-07 09:49:26.16652	\N
+396	2	328	1	in	goods_receipt	2.000	60.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.169815	2026-07-07 09:49:26.169815	\N
+397	2	407	1	in	goods_receipt	2.000	15.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.17535	2026-07-07 09:49:26.17535	\N
+398	2	359	1	in	goods_receipt	1.000	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.178513	2026-07-07 09:49:26.178513	\N
+399	2	372	1	in	goods_receipt	2.000	190.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.182249	2026-07-07 09:49:26.182249	\N
+400	2	354	1	in	goods_receipt	163.000	12.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.186705	2026-07-07 09:49:26.186705	\N
+401	2	322	1	in	goods_receipt	2.000	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.19066	2026-07-07 09:49:26.19066	\N
+402	2	357	1	in	goods_receipt	33.000	18.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.193543	2026-07-07 09:49:26.193543	\N
+403	2	356	1	in	goods_receipt	46.000	12.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.197445	2026-07-07 09:49:26.197445	\N
+404	2	379	1	in	goods_receipt	3.000	10.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.202984	2026-07-07 09:49:26.202984	\N
+405	2	369	1	in	goods_receipt	4.000	190.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.210514	2026-07-07 09:49:26.210514	\N
+406	2	433	1	in	goods_receipt	6.000	180.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.220178	2026-07-07 09:49:26.220178	\N
+407	2	408	1	in	goods_receipt	3.000	20.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.229422	2026-07-07 09:49:26.229422	\N
+408	2	349	1	in	goods_receipt	1.000	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.234465	2026-07-07 09:49:26.234465	\N
+409	2	412	1	in	goods_receipt	19.000	5.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.237876	2026-07-07 09:49:26.237876	\N
+410	2	413	1	in	goods_receipt	6.000	35.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.241759	2026-07-07 09:49:26.241759	\N
+411	2	370	1	in	goods_receipt	10.000	50.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.244179	2026-07-07 09:49:26.244179	\N
+412	2	371	1	in	goods_receipt	1.000	15.0000	GoodsReceipt	29	2026-07-07	2026-07-07 09:49:26.249778	2026-07-07 09:49:26.249778	\N
+413	2	448	1	out	stock_issue	1.000	900.0000	StockIssue	13	2026-07-07	2026-07-07 10:00:03.325292	2026-07-07 10:00:03.325292	6
+414	2	434	1	in	goods_receipt	6.000	365.0000	GoodsReceipt	30	2026-07-07	2026-07-07 15:52:02.499359	2026-07-07 15:52:02.499359	\N
+415	2	443	1	in	goods_receipt	20.000	26.0000	GoodsReceipt	31	2026-07-07	2026-07-07 16:01:50.727317	2026-07-07 16:01:50.727317	\N
+416	2	336	1	in	goods_receipt	6.000	65.0000	GoodsReceipt	31	2026-07-07	2026-07-07 16:01:50.743543	2026-07-07 16:01:50.743543	\N
+417	2	472	1	in	goods_receipt	5.000	17.0000	GoodsReceipt	31	2026-07-07	2026-07-07 16:01:50.74959	2026-07-07 16:01:50.74959	\N
+418	2	341	1	out	stock_issue	4.000	30.0000	StockIssue	14	2026-07-09	2026-07-08 21:47:32.870714	2026-07-08 21:47:32.870714	3
+419	2	360	1	out	stock_issue	2.000	94.1667	StockIssue	15	2026-07-09	2026-07-08 21:55:47.856604	2026-07-08 21:55:47.856604	5
+420	2	347	1	out	stock_issue	1.000	645.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.862292	2026-07-08 21:55:47.862292	5
+421	2	333	1	out	stock_issue	12.000	45.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.864103	2026-07-08 21:55:47.864103	5
+422	2	328	1	out	stock_issue	2.000	50.8333	StockIssue	15	2026-07-09	2026-07-08 21:55:47.865073	2026-07-08 21:55:47.865073	5
+423	2	327	1	out	stock_issue	1.000	150.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.865866	2026-07-08 21:55:47.865866	5
+424	2	434	1	out	stock_issue	1.000	365.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.868024	2026-07-08 21:55:47.868024	5
+425	2	334	1	out	stock_issue	1.000	62.6923	StockIssue	15	2026-07-09	2026-07-08 21:55:47.868927	2026-07-08 21:55:47.868927	5
+426	2	353	1	out	stock_issue	2.000	184.1602	StockIssue	15	2026-07-09	2026-07-08 21:55:47.870392	2026-07-08 21:55:47.870392	5
+427	2	357	1	out	stock_issue	20.000	18.8602	StockIssue	15	2026-07-09	2026-07-08 21:55:47.871455	2026-07-08 21:55:47.871455	5
+428	2	354	1	out	stock_issue	10.000	12.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.872336	2026-07-08 21:55:47.872336	5
+429	2	412	1	out	stock_issue	3.000	6.3968	StockIssue	15	2026-07-09	2026-07-08 21:55:47.873179	2026-07-08 21:55:47.873179	5
+430	2	439	1	out	stock_issue	1.000	115.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.874135	2026-07-08 21:55:47.874135	5
+431	2	356	1	out	stock_issue	10.000	27.1327	StockIssue	15	2026-07-09	2026-07-08 21:55:47.87499	2026-07-08 21:55:47.87499	5
+432	2	369	1	out	stock_issue	1.000	211.8571	StockIssue	15	2026-07-09	2026-07-08 21:55:47.875782	2026-07-08 21:55:47.875782	5
+433	2	370	1	out	stock_issue	1.000	113.5952	StockIssue	15	2026-07-09	2026-07-08 21:55:47.876616	2026-07-08 21:55:47.876616	5
+434	2	421	1	out	stock_issue	1.000	38.5700	StockIssue	15	2026-07-09	2026-07-08 21:55:47.877932	2026-07-08 21:55:47.877932	5
+435	2	394	1	out	stock_issue	1.000	266.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.878765	2026-07-08 21:55:47.878765	5
+436	2	350	1	out	stock_issue	1.000	73.3333	StockIssue	15	2026-07-09	2026-07-08 21:55:47.879689	2026-07-08 21:55:47.879689	5
+437	2	376	1	out	stock_issue	2.000	18.4348	StockIssue	15	2026-07-09	2026-07-08 21:55:47.880534	2026-07-08 21:55:47.880534	5
+438	2	386	1	out	stock_issue	3.000	29.3692	StockIssue	15	2026-07-09	2026-07-08 21:55:47.881384	2026-07-08 21:55:47.881384	5
+439	2	388	1	out	stock_issue	3.000	43.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.892571	2026-07-08 21:55:47.892571	5
+440	2	430	1	out	stock_issue	1.000	50.0000	StockIssue	15	2026-07-09	2026-07-08 21:55:47.893472	2026-07-08 21:55:47.893472	5
+441	2	340	1	in	goods_receipt	4.000	50.0000	GoodsReceipt	32	2026-07-09	2026-07-08 22:05:33.752551	2026-07-08 22:05:33.752551	\N
+442	2	366	1	out	stock_issue	4.000	106.3478	StockIssue	18	2026-07-09	2026-07-08 22:12:16.866874	2026-07-08 22:12:16.866874	3
+443	2	318	1	out	stock_issue	2.000	277.8788	StockIssue	18	2026-07-09	2026-07-08 22:12:16.876087	2026-07-08 22:12:16.876087	3
+444	2	360	1	out	stock_issue	2.000	94.1667	StockIssue	18	2026-07-09	2026-07-08 22:12:16.87769	2026-07-08 22:12:16.87769	3
+445	2	347	1	out	stock_issue	1.000	645.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.879146	2026-07-08 22:12:16.879146	3
+446	2	333	1	out	stock_issue	12.000	45.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.880602	2026-07-08 22:12:16.880602	3
+447	2	327	1	out	stock_issue	1.000	150.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.882115	2026-07-08 22:12:16.882115	3
+448	2	434	1	out	stock_issue	1.000	365.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.883613	2026-07-08 22:12:16.883613	3
+449	2	321	1	out	stock_issue	1.000	142.8571	StockIssue	18	2026-07-09	2026-07-08 22:12:16.885349	2026-07-08 22:12:16.885349	3
+450	2	353	1	out	stock_issue	2.000	184.1602	StockIssue	18	2026-07-09	2026-07-08 22:12:16.887089	2026-07-08 22:12:16.887089	3
+451	2	329	1	out	stock_issue	3.000	90.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.889266	2026-07-08 22:12:16.889266	3
+452	2	372	1	out	stock_issue	2.000	226.4286	StockIssue	18	2026-07-09	2026-07-08 22:12:16.890584	2026-07-08 22:12:16.890584	3
+453	2	412	1	out	stock_issue	5.000	6.3968	StockIssue	18	2026-07-09	2026-07-08 22:12:16.891828	2026-07-08 22:12:16.891828	3
+454	2	443	1	out	stock_issue	2.000	26.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.893212	2026-07-08 22:12:16.893212	3
+455	2	438	1	out	stock_issue	1.000	20.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.894506	2026-07-08 22:12:16.894506	3
+456	2	432	1	out	stock_issue	2.000	250.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.895766	2026-07-08 22:12:16.895766	3
+457	2	421	1	out	stock_issue	1.000	38.5700	StockIssue	18	2026-07-09	2026-07-08 22:12:16.897065	2026-07-08 22:12:16.897065	3
+458	2	394	1	out	stock_issue	1.000	266.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.898347	2026-07-08 22:12:16.898347	3
+459	2	351	1	out	stock_issue	2.000	50.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.901769	2026-07-08 22:12:16.901769	3
+460	2	350	1	out	stock_issue	2.000	73.3333	StockIssue	18	2026-07-09	2026-07-08 22:12:16.903164	2026-07-08 22:12:16.903164	3
+461	2	373	1	out	stock_issue	2.000	66.9697	StockIssue	18	2026-07-09	2026-07-08 22:12:16.904495	2026-07-08 22:12:16.904495	3
+462	2	376	1	out	stock_issue	4.000	18.4348	StockIssue	18	2026-07-09	2026-07-08 22:12:16.905749	2026-07-08 22:12:16.905749	3
+463	2	340	1	out	stock_issue	2.000	59.9920	StockIssue	18	2026-07-09	2026-07-08 22:12:16.908212	2026-07-08 22:12:16.908212	3
+464	2	430	1	out	stock_issue	1.000	50.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.909699	2026-07-08 22:12:16.909699	3
+465	2	363	1	out	stock_issue	1.000	37.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.91138	2026-07-08 22:12:16.91138	3
+466	2	420	1	out	stock_issue	1.000	85.5000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.928423	2026-07-08 22:12:16.928423	3
+467	2	427	1	out	stock_issue	1.000	116.3636	StockIssue	18	2026-07-09	2026-07-08 22:12:16.929486	2026-07-08 22:12:16.929486	3
+468	2	472	1	out	stock_issue	1.000	17.0000	StockIssue	18	2026-07-09	2026-07-08 22:12:16.9305	2026-07-08 22:12:16.9305	3
+469	2	366	1	out	stock_issue	3.000	106.3478	StockIssue	20	2026-07-09	2026-07-08 22:17:58.140276	2026-07-08 22:17:58.140276	4
+470	2	318	1	out	stock_issue	2.000	277.8788	StockIssue	20	2026-07-09	2026-07-08 22:17:58.143427	2026-07-08 22:17:58.143427	4
+471	2	360	1	out	stock_issue	2.000	94.1667	StockIssue	20	2026-07-09	2026-07-08 22:17:58.144797	2026-07-08 22:17:58.144797	4
+472	2	333	1	out	stock_issue	12.000	45.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.146111	2026-07-08 22:17:58.146111	4
+473	2	403	1	out	stock_issue	1.000	55.1021	StockIssue	20	2026-07-09	2026-07-08 22:17:58.147385	2026-07-08 22:17:58.147385	4
+474	2	327	1	out	stock_issue	1.000	150.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.148551	2026-07-08 22:17:58.148551	4
+475	2	321	1	out	stock_issue	3.000	142.8571	StockIssue	20	2026-07-09	2026-07-08 22:17:58.149727	2026-07-08 22:17:58.149727	4
+476	2	320	1	out	stock_issue	2.000	240.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.150676	2026-07-08 22:17:58.150676	4
+477	2	389	1	out	stock_issue	1.000	133.3333	StockIssue	20	2026-07-09	2026-07-08 22:17:58.151608	2026-07-08 22:17:58.151608	4
+478	2	408	1	out	stock_issue	1.000	20.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.152528	2026-07-08 22:17:58.152528	4
+479	2	317	1	out	stock_issue	1.000	101.5000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.153439	2026-07-08 22:17:58.153439	4
+480	2	329	1	out	stock_issue	3.000	90.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.154361	2026-07-08 22:17:58.154361	4
+481	2	354	1	out	stock_issue	20.000	12.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.155239	2026-07-08 22:17:58.155239	4
+482	2	445	1	out	stock_issue	1.000	75.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.156123	2026-07-08 22:17:58.156123	4
+483	2	355	1	out	stock_issue	1.000	32.8947	StockIssue	20	2026-07-09	2026-07-08 22:17:58.157023	2026-07-08 22:17:58.157023	4
+484	2	394	1	out	stock_issue	1.000	266.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.157897	2026-07-08 22:17:58.157897	4
+485	2	349	1	out	stock_issue	1.000	50.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.158788	2026-07-08 22:17:58.158788	4
+486	2	350	1	out	stock_issue	2.000	73.3333	StockIssue	20	2026-07-09	2026-07-08 22:17:58.159733	2026-07-08 22:17:58.159733	4
+487	2	384	1	out	stock_issue	20.000	41.5000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.160676	2026-07-08 22:17:58.160676	4
+488	2	413	1	out	stock_issue	2.000	35.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.161603	2026-07-08 22:17:58.161603	4
+489	2	402	1	out	stock_issue	1.000	500.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.162534	2026-07-08 22:17:58.162534	4
+490	2	377	1	out	stock_issue	2.000	23.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.163444	2026-07-08 22:17:58.163444	4
+491	2	347	1	out	stock_issue	1.000	645.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.164347	2026-07-08 22:17:58.164347	4
+492	2	421	1	out	stock_issue	1.000	38.5700	StockIssue	20	2026-07-09	2026-07-08 22:17:58.165254	2026-07-08 22:17:58.165254	4
+493	2	399	1	out	stock_issue	1.000	170.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.166148	2026-07-08 22:17:58.166148	4
+494	2	400	1	out	stock_issue	1.000	175.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.167045	2026-07-08 22:17:58.167045	4
+495	2	401	1	out	stock_issue	1.000	168.7500	StockIssue	20	2026-07-09	2026-07-08 22:17:58.167909	2026-07-08 22:17:58.167909	4
+496	2	324	1	out	stock_issue	2.000	77.6667	StockIssue	20	2026-07-09	2026-07-08 22:17:58.16881	2026-07-08 22:17:58.16881	4
+497	2	430	1	out	stock_issue	1.000	50.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.169535	2026-07-08 22:17:58.169535	4
+498	2	332	1	out	stock_issue	1.000	20.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.170514	2026-07-08 22:17:58.170514	4
+499	2	432	1	out	stock_issue	2.000	250.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.171417	2026-07-08 22:17:58.171417	4
+500	2	342	1	out	stock_issue	1.000	30.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.172541	2026-07-08 22:17:58.172541	4
+501	2	438	1	out	stock_issue	1.000	20.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.173636	2026-07-08 22:17:58.173636	4
+502	2	356	1	out	stock_issue	20.000	27.1327	StockIssue	20	2026-07-09	2026-07-08 22:17:58.174683	2026-07-08 22:17:58.174683	4
+503	2	365	1	out	stock_issue	1.000	50.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.175739	2026-07-08 22:17:58.175739	4
+504	2	353	1	out	stock_issue	2.000	184.1602	StockIssue	20	2026-07-09	2026-07-08 22:17:58.177113	2026-07-08 22:17:58.177113	4
+505	2	334	1	out	stock_issue	2.000	62.6923	StockIssue	20	2026-07-09	2026-07-08 22:17:58.178103	2026-07-08 22:17:58.178103	4
+506	2	330	1	out	stock_issue	2.000	67.0652	StockIssue	20	2026-07-09	2026-07-08 22:17:58.179108	2026-07-08 22:17:58.179108	4
+507	2	319	1	out	stock_issue	1.000	105.0000	StockIssue	20	2026-07-09	2026-07-08 22:17:58.180097	2026-07-08 22:17:58.180097	4
+508	2	357	1	out	stock_issue	10.000	18.8602	StockIssue	20	2026-07-09	2026-07-08 22:17:58.181106	2026-07-08 22:17:58.181106	4
 \.
 
 
@@ -16954,7 +17818,6 @@ COPY public.payroll_adjustments (id, adjustment_type, amount, approved_at, appro
 165	commission	2352.50	2026-07-02 05:47:00.254129	12	2	2026-07-01 21:08:55.597326	17	\N	6	2026	تارجت الشهر	\N	\N	\N	approved	2026-07-02 05:47:00.254141	12	2026-07-02 05:47:00.259138	26	f	\N	\N	1e40bc24-c85c-4fe5-ac81-623f09c89730	manual
 147	manual_deduction	250.00	2026-07-02 07:58:20.296208	12	2	2026-06-15 15:58:09.955552	14	\N	6	2026	غياب بدون اذن وهو عارف ان مروان اجازة\nوكل يوم اتنين علي كدا لازم يطلع سبب علشان يغيب 	\N	\N	\N	approved	2026-07-02 07:58:20.296226	12	2026-07-02 07:58:20.297313	39	f	cash	2026-06-15 15:56:00	\N	manual
 146	cash_incentive	500.00	\N	\N	2	2026-06-14 10:03:06.450176	14	\N	7	2026	الاجتهاد في العمل وتحمل شيفتات في الفرع الكبير بدل موظفين اخرين بيغيبوا كثير 	2026-07-02 07:58:28.684899	12	\N	rejected	2026-07-02 07:58:28.684917	12	2026-07-02 07:58:28.686423	20	f	cash	2026-06-14 09:59:00	\N	manual
-213	manual_deduction	150.00	\N	\N	2	2026-07-04 07:18:03.540667	69	\N	7	2026	غياب بدون اذن بتاريخ 3/7/2025	\N	\N	\N	pending_review	\N	\N	2026-07-04 07:18:03.540667	74	f	cash	2026-07-04 07:16:00	\N	manual
 214	manual_deduction	115.00	\N	\N	2	2026-07-04 21:46:02.946228	17	\N	7	2026	مشي بدون تبليغ او اذن من احمد منير 7/4	\N	\N	\N	pending_review	\N	\N	2026-07-04 21:46:02.946228	66	f	cash	2026-07-04 21:44:00	\N	manual
 163	commission	53.00	2026-07-02 05:47:00.185157	12	2	2026-07-01 21:08:55.563238	17	\N	6	2026	تارجت الشهر	\N	\N	\N	approved	2026-07-02 05:47:00.185179	12	2026-07-02 05:47:00.191469	19	f	\N	\N	1e40bc24-c85c-4fe5-ac81-623f09c89730	manual
 166	commission	4326.32	2026-07-02 05:47:00.269801	12	2	2026-07-01 21:08:55.602048	17	\N	6	2026	تارجت الشهر	\N	\N	\N	approved	2026-07-02 05:47:00.269808	12	2026-07-02 05:47:00.271593	24	f	\N	\N	1e40bc24-c85c-4fe5-ac81-623f09c89730	manual
@@ -17000,7 +17863,27 @@ COPY public.payroll_adjustments (id, adjustment_type, amount, approved_at, appro
 207	manual_deduction	3000.00	2026-07-03 14:33:42.184456	12	2	2026-07-03 14:32:35.037661	17	23	6	2026	سلفة من شهر يونيو	\N	\N	\N	approved	2026-07-03 14:33:42.18448	12	2026-07-03 14:33:42.187863	28	f	cash	2026-07-03 14:32:00	\N	manual
 215	manual_deduction	384.62	2026-07-05 10:34:05.13815	12	2	2026-07-04 21:51:50.156634	17	23	6	2026	تم تصفية حسابه	\N	\N	\N	approved	2026-07-05 10:34:05.138157	12	2026-07-05 10:34:05.139918	71	f	cash	2026-07-04 21:51:00	\N	manual
 217	manual_deduction	100.00	2026-07-05 10:38:44.846823	12	2	2026-07-05 10:27:56.523287	17	23	6	2026	سلفة مستلمة من احمد منير	\N	\N	\N	approved	2026-07-05 10:38:44.846835	12	2026-07-05 10:38:44.849623	68	f	cash	2026-07-05 10:27:00	\N	manual
-219	manual_deduction	250.00	\N	\N	2	2026-07-05 13:29:48.197714	69	\N	7	2026	غياب بدون اذن بعد ما تم إبلاغه الحضور و سيتم تعليق الخصم أن تكرر الامر	\N	\N	\N	pending_review	\N	\N	2026-07-05 13:29:48.197714	31	f	cash	2026-07-05 13:28:00	\N	manual
+213	manual_deduction	150.00	2026-07-08 18:05:34.919546	17	2	2026-07-04 07:18:03.540667	69	\N	7	2026	غياب بدون اذن بتاريخ 3/7/2025	\N	\N	\N	approved	2026-07-08 18:05:34.919567	17	2026-07-08 18:05:34.9372	74	f	cash	2026-07-04 07:16:00	\N	manual
+224	manual_deduction	200.00	2026-07-08 18:06:05.936379	17	2	2026-07-08 10:25:32.688438	69	\N	7	2026	غياب بدون اذن 	\N	\N	\N	approved	2026-07-08 18:06:05.936397	17	2026-07-08 18:06:05.948251	35	f	cash	2026-07-08 10:25:00	\N	manual
+223	manual_deduction	500.00	2026-07-08 18:08:51.840387	17	2	2026-07-07 13:09:11.910811	14	\N	7	2026	غياب بدون اذن ودي مش اول مرة وواخد يوم السبت اجازة مكان الثلاثاء ومع ذلك غاب برضه	\N	\N	\N	approved	2026-07-08 18:08:51.840405	17	2026-07-08 18:08:51.841663	39	f	cash	2026-07-07 13:08:00	\N	manual
+222	penalty	200.00	2026-07-08 18:09:17.317159	17	2	2026-07-06 16:14:01.51422	69	\N	7	2026	قام بعمل خدمة للعميل بدون أن يبلغه بسعرها \nفاتورة رقم فاتوره SHS23197 	\N	\N	\N	approved	2026-07-08 18:09:17.317177	17	2026-07-08 18:09:17.318575	61	f	cash	2026-07-06 16:12:00	\N	manual
+221	manual_deduction	380.00	2026-07-08 18:09:42.775859	17	2	2026-07-06 11:19:51.067719	14	\N	7	2026	غياب بدون اذن	\N	\N	\N	approved	2026-07-08 18:09:42.775877	17	2026-07-08 18:09:42.777988	68	f	cash	2026-07-06 11:19:00	\N	manual
+219	manual_deduction	250.00	2026-07-08 18:10:31.573852	17	2	2026-07-05 13:29:48.197714	69	\N	7	2026	غياب بدون اذن بعد ما تم إبلاغه الحضور و سيتم تعليق الخصم أن تكرر الامر	\N	\N	\N	approved	2026-07-08 18:10:31.573864	17	2026-07-08 18:10:31.575246	31	f	cash	2026-07-05 13:28:00	\N	manual
+220	cash_incentive	120.00	2026-07-08 18:11:48.212879	17	2	2026-07-06 11:19:25.857087	69	\N	7	2026	اشتغل عدد ٢ عملاء فقط بعد رجوعه من إجازة مرضي لم يتم عمل يوم كامل و لم يتم البصمة \nتاريخ ٥/٧/٢٠٢٦	\N	\N	\N	approved	2026-07-08 18:11:48.212896	17	2026-07-08 18:11:48.214114	41	f	cash	2026-07-06 11:16:00	\N	manual
+225	manual_deduction	385.00	\N	\N	2	2026-07-08 18:15:47.639944	17	\N	7	2026	غياب بدون اذن يوم ٧/٧	\N	\N	\N	pending_review	\N	\N	2026-07-08 18:15:47.639944	55	f	cash	2026-07-08 18:14:00	\N	manual
+226	penalty	280.00	\N	\N	2	2026-07-08 18:18:24.19007	17	\N	7	2026	خدمة سيئ في حلاقة الشعر والدقن وعدم تتبع خطوات الخدمة في التحديد بالموس وتم جرح البشرة  والعميل رفع شكوى وتم تقديم خدمة فري لارضائة \n	\N	\N	\N	pending_review	\N	\N	2026-07-08 18:18:24.19007	40	f	cash	2026-07-08 18:16:00	\N	manual
+227	penalty	125.00	\N	\N	2	2026-07-08 19:19:14.149298	17	\N	7	2026	عدم تسقيط منتجات من المخزن	\N	\N	\N	pending_review	\N	\N	2026-07-08 19:19:14.149298	73	f	\N	\N	ee514e3b-7895-4d56-950b-3e1146a10239	manual
+228	penalty	125.00	\N	\N	2	2026-07-08 19:19:14.161486	17	\N	7	2026	عدم تسقيط منتجات من المخزن	\N	\N	\N	pending_review	\N	\N	2026-07-08 19:19:14.161486	18	f	\N	\N	ee514e3b-7895-4d56-950b-3e1146a10239	manual
+229	penalty	125.00	\N	\N	2	2026-07-08 19:19:14.164612	17	\N	7	2026	عدم تسقيط منتجات من المخزن	\N	\N	\N	pending_review	\N	\N	2026-07-08 19:19:14.164612	20	f	\N	\N	ee514e3b-7895-4d56-950b-3e1146a10239	manual
+230	penalty	125.00	\N	\N	2	2026-07-08 19:19:14.167391	17	\N	7	2026	عدم تسقيط منتجات من المخزن	\N	\N	\N	pending_review	\N	\N	2026-07-08 19:19:14.167391	19	f	\N	\N	ee514e3b-7895-4d56-950b-3e1146a10239	manual
+231	penalty	90.00	\N	\N	2	2026-07-08 19:20:36.698044	17	\N	7	2026	فرشة استشوار وضعها في الدرج والمكان بتعها في حامل الاستشوار	\N	\N	\N	pending_review	\N	\N	2026-07-08 19:20:36.698044	14	f	cash	2026-07-08 19:19:00	\N	manual
+232	penalty	37.50	\N	\N	2	2026-07-08 19:22:27.428076	17	\N	7	2026	كوبيات قهوة غير متوفره عدد ٣	\N	\N	\N	pending_review	\N	\N	2026-07-08 19:22:27.428076	39	f	\N	\N	a1ea07e7-7066-4225-899f-3bf2dffbdfa1	manual
+233	penalty	37.50	\N	\N	2	2026-07-08 19:22:27.432654	17	\N	7	2026	كوبيات قهوة غير متوفره عدد ٣	\N	\N	\N	pending_review	\N	\N	2026-07-08 19:22:27.432654	52	f	\N	\N	a1ea07e7-7066-4225-899f-3bf2dffbdfa1	manual
+234	penalty	1254.50	\N	\N	2	2026-07-08 23:11:36.642201	17	\N	7	2026	منتجات عدم تسقيطها من فرشا بعد الجرد	\N	\N	\N	pending_review	\N	\N	2026-07-08 23:11:36.642201	49	f	\N	\N	fc88a732-6a9e-42a0-9a0c-567bf179023e	manual
+235	penalty	1254.50	\N	\N	2	2026-07-08 23:11:36.651773	17	\N	7	2026	منتجات عدم تسقيطها من فرشا بعد الجرد	\N	\N	\N	pending_review	\N	\N	2026-07-08 23:11:36.651773	63	f	\N	\N	fc88a732-6a9e-42a0-9a0c-567bf179023e	manual
+236	penalty	340.00	\N	\N	2	2026-07-08 23:14:42.581605	17	\N	7	2026	استخراج منتجات من المخزن بدون التسقيط من فرشا	\N	\N	\N	pending_review	\N	\N	2026-07-08 23:14:42.581605	22	f	\N	\N	3cb2c4f8-d7cb-4ce7-b394-4376d9f63e2e	manual
+237	penalty	340.00	\N	\N	2	2026-07-08 23:14:42.585834	17	\N	7	2026	استخراج منتجات من المخزن بدون التسقيط من فرشا	\N	\N	\N	pending_review	\N	\N	2026-07-08 23:14:42.585834	13	f	\N	\N	3cb2c4f8-d7cb-4ce7-b394-4376d9f63e2e	manual
+238	penalty	340.00	\N	\N	2	2026-07-08 23:14:42.586928	17	\N	7	2026	استخراج منتجات من المخزن بدون التسقيط من فرشا	\N	\N	\N	pending_review	\N	\N	2026-07-08 23:14:42.586928	29	f	\N	\N	3cb2c4f8-d7cb-4ce7-b394-4376d9f63e2e	manual
 \.
 
 
@@ -18654,6 +19537,8 @@ COPY public.performance_observations (id, business_id, employee_id, evaluation_c
 33	2	49	6	17	2026-06-26	neutral	 تشغيل ميوزك من اليوتيوب وتم توفير ملف ميوزك من على سطح المكتب للتشغيل منه \nولم يلتزم بالتعليمات	2026-07-04 23:11:36.949835	2026-07-04 23:11:36.949835
 34	2	22	7	69	2026-07-04	neutral	تم دفع فاتورة كاش بدل ڤيزا ( اول مرة تحت الملاحظه فقط )(SHS23068)	2026-07-05 09:31:51.333452	2026-07-05 09:31:51.333452
 35	2	31	4	69	2026-07-05	negative	غياب بدون اذن بعد إبلاغه بالحضور للعمل 	2026-07-05 13:30:59.278655	2026-07-05 13:30:59.278655
+36	2	26	2	69	2026-07-06	negative	العميل انتظر ربع ساعة و هو منزلش	2026-07-06 08:45:36.035155	2026-07-06 08:45:36.035155
+37	2	22	6	69	2026-07-06	negative	بلغتها أنها تعرض الباكدچ على عميل بتقول لا انا مش عايزة تارجت الساعة ١٢:٨ م  العميل اسمه ديفيد 	2026-07-06 09:11:16.260371	2026-07-06 09:11:16.260371
 \.
 
 
@@ -18918,7 +19803,7 @@ COPY public.permission_roles (id, name, description, business_id, permissions, c
 5	Area Manager		2	["view_employees", "manage_employees", "manage_salary_profiles", "view_attendance", "manage_attendance", "view_payroll", "view_payroll_analytics", "submit_payroll_review", "complete_branch_review", "approve_payroll_items", "manage_payroll_overrides", "finalize_payroll", "view_adjustments", "manage_adjustments", "approve_adjustments", "view_requests", "approve_requests", "view_shifts", "manage_shifts", "assign_shifts", "view_reports", "view_inventory", "manage_inventory", "view_inventory_reports", "manage_suppliers", "manage_products", "manage_stock_receipts", "manage_stock_issues", "manage_stock_transfers", "manage_stock_counts", "view_performance_dashboard", "view_notes", "view_monthly_reviews", "view_performance_reports", "manage_evaluation_templates", "create_observations", "manage_reviews", "finalize_reviews", "create_till_session", "view_daily_reconciliation", "view_session_totals", "close_till_session", "accept_till_handover", "create_till_deposit", "verify_daily_reconciliation", "edit_session_totals", "void_till_handover", "void_till_deposit", "settle_remaining_deposit_balance", "view_finance_dashboard", "view_expenses", "create_expenses", "manage_payment_methods", "view_employee_balances", "create_balance_requests", "manage_obligations"]	2026-05-22 02:27:43.314546	2026-07-03 15:15:34.516482	{"view_notes": "business", "view_shifts": "business", "view_payroll": "business", "assign_shifts": "business", "view_expenses": "area", "view_requests": "business", "manage_reviews": "business", "view_employees": "business", "create_expenses": "area", "view_attendance": "business", "approve_requests": "business", "finalize_reviews": "business", "manage_employees": "business", "view_adjustments": "business", "manage_attendance": "business", "void_till_deposit": "branch", "manage_adjustments": "business", "void_till_handover": "branch", "create_observations": "business", "edit_session_totals": "branch", "view_monthly_reviews": "business", "complete_branch_review": "business", "manage_salary_profiles": "business", "view_employee_balances": "self", "view_payroll_analytics": "business", "manage_payroll_overrides": "business", "view_daily_reconciliation": "branch", "view_performance_dashboard": "business", "verify_daily_reconciliation": "branch", "settle_remaining_deposit_balance": "branch"}	area_manager	management
 6	kashier		1	["view_employees", "view_attendance", "view_payroll", "view_requests", "create_till_session", "view_daily_reconciliation", "close_till_session", "accept_till_handover", "create_till_deposit"]	2026-06-30 12:15:26.630587	2026-06-30 12:15:26.630587	{"view_payroll": "self", "view_requests": "self", "view_employees": "self", "view_attendance": "self", "view_daily_reconciliation": "branch"}	employee	management
 7	استقبال		2	["view_attendance", "view_payroll", "view_requests", "create_till_session", "view_daily_reconciliation", "close_till_session", "accept_till_handover", "create_till_deposit"]	2026-06-30 12:20:03.493089	2026-06-30 13:40:43.034658	{"view_payroll": "self", "view_requests": "self", "view_attendance": "self", "view_daily_reconciliation": "branch"}	employee	management
-4	Branch Manager		2	["view_employees", "view_attendance", "view_payroll", "complete_branch_review", "approve_payroll_items", "manage_payroll_deduction_waivers", "manage_adjustments", "view_requests", "approve_requests", "view_shifts", "assign_shifts", "create_observations", "manage_reviews", "accept_till_handover", "view_finance_dashboard", "view_expenses", "create_expenses", "view_employee_balances", "create_balance_requests", "view_performance_dashboard", "view_notes", "view_monthly_reviews", "view_performance_reports", "view_adjustments"]	2026-05-22 02:27:43.270269	2026-06-27 13:32:35.103545	{"view_notes": "branch", "view_shifts": "branch", "view_payroll": "branch", "assign_shifts": "branch", "view_expenses": "self", "view_requests": "branch", "manage_reviews": "branch", "view_employees": "branch", "create_expenses": "branch", "view_attendance": "branch", "approve_requests": "branch", "manage_adjustments": "branch", "create_observations": "branch", "view_monthly_reviews": "branch", "complete_branch_review": "branch", "view_employee_balances": "self", "view_performance_reports": "branch", "view_performance_dashboard": "branch", "manage_payroll_deduction_waivers": "branch"}	branch_manager	management
+4	Branch Manager		2	["view_employees", "view_attendance", "view_payroll", "complete_branch_review", "approve_payroll_items", "manage_payroll_deduction_waivers", "view_adjustments", "manage_adjustments", "view_requests", "approve_requests", "view_shifts", "assign_shifts", "view_performance_dashboard", "view_notes", "view_monthly_reviews", "view_performance_reports", "create_observations", "manage_reviews", "view_daily_reconciliation", "view_session_totals", "review_daily_reconciliation", "view_finance_dashboard", "view_expenses", "create_expenses", "view_employee_balances", "create_balance_requests"]	2026-05-22 02:27:43.270269	2026-07-08 12:49:13.184567	{"view_notes": "branch", "view_shifts": "branch", "view_payroll": "branch", "assign_shifts": "branch", "view_expenses": "self", "view_requests": "branch", "manage_reviews": "branch", "view_employees": "branch", "create_expenses": "branch", "view_attendance": "branch", "approve_requests": "branch", "view_adjustments": "self", "manage_adjustments": "branch", "create_observations": "branch", "view_monthly_reviews": "branch", "complete_branch_review": "branch", "view_employee_balances": "self", "view_daily_reconciliation": "branch", "view_performance_dashboard": "branch", "review_daily_reconciliation": "branch", "manage_payroll_deduction_waivers": "branch"}	branch_manager	management
 \.
 
 
@@ -18941,6 +19826,7 @@ COPY public.pos_imports (id, business_id, imported_by_id, file_name, status, col
 11	2	12	final test.csv	imported	{"amount": "Payment amount", "branch_name": "Location", "cashier_name": "Team member", "reference_number": "Appt. ref.", "transaction_date": "Payment date", "payment_method_name": "Payment method"}	466	0	2026-07-04 07:44:15.179472	2026-07-04 07:44:28.411303	466	0	11	{"dr_count": 11, "error_rows": [], "total_rows": 466, "sample_rows": [{"amount": "891.5", "branch_name": "صالون جدو - شارع شبرا", "cashier_name": "انطون خالد رمسيس فهمي", "transaction_date": "2026-07-04", "payment_method_name": "Visa"}, {"amount": "790.0", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "اسلام احمد امام", "transaction_date": "2026-07-04", "payment_method_name": "Cash"}, {"amount": "795.0", "branch_name": "صالون جدو - شارع شبرا", "cashier_name": "انطون خالد رمسيس فهمي", "transaction_date": "2026-07-04", "payment_method_name": "Cash"}, {"amount": "139.5", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "اسلام احمد امام", "transaction_date": "2026-07-04", "payment_method_name": "Cash"}, {"amount": "566.0", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "اسلام احمد امام", "transaction_date": "2026-07-04", "payment_method_name": "Cash"}], "valid_count": 466, "invalid_count": 0, "matched_count": 466, "unmatched_count": 0, "unmatched_groups": []}	0
 12	2	12	test4.csv	column_mapped	{"amount": "Payment amount", "branch_name": "Location", "cashier_name": "Team member", "reference_number": "Appt. ref.", "transaction_date": "Payment date", "payment_method_name": "Payment method"}	0	0	2026-07-05 16:54:54.32854	2026-07-05 16:55:01.675368	0	0	0	{"dr_count": 11, "error_rows": [], "total_rows": 698, "sample_rows": [{"amount": "152.0", "branch_name": "صالون جدو - مدينة نصر", "cashier_name": "حسام عبدالحميد احمد", "transaction_date": "2026-07-05", "payment_method_name": "Cash"}, {"amount": "345.0", "branch_name": "صالون جدو - شارع شبرا", "cashier_name": "عبير علي محمد علي", "transaction_date": "2026-07-05", "payment_method_name": "Visa"}, {"amount": "385.0", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "منه الله سامح سعيد توفيق ابراهيم", "transaction_date": "2026-07-05", "payment_method_name": "Cash"}, {"amount": "160.0", "branch_name": "صالون جدو - شارع شبرا", "cashier_name": "عبير علي محمد علي", "transaction_date": "2026-07-05", "payment_method_name": "Visa"}, {"amount": "280.0", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "إياد وائل سلامه احمد", "transaction_date": "2026-07-05", "payment_method_name": "Cash"}], "valid_count": 698, "invalid_count": 0, "matched_count": 466, "duplicate_count": 465, "unmatched_count": 232, "unmatched_groups": [{"date": "2026-07-01", "count": 11, "reason": "employee_not_found", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "ابراهيم خالد", "payment_method_name": null}, {"date": "2026-07-02", "count": 3, "reason": "employee_not_found", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "ابراهيم خالد", "payment_method_name": null}, {"date": "2026-07-03", "count": 2, "reason": "employee_not_found", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "ابراهيم خالد", "payment_method_name": null}, {"date": "2026-07-04", "count": 6, "reason": "employee_not_found", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "ابراهيم خالد", "payment_method_name": null}, {"date": "2026-07-05", "count": 4, "reason": "employee_not_found", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "ابراهيم خالد", "payment_method_name": null}, {"date": "2026-07-01", "count": 59, "reason": "branch_not_found", "branch_name": "صالون جدو - شبرا - الساحل", "cashier_name": null, "payment_method_name": null}, {"date": "2026-07-02", "count": 66, "reason": "branch_not_found", "branch_name": "صالون جدو - شبرا - الساحل", "cashier_name": null, "payment_method_name": null}, {"date": "2026-07-03", "count": 71, "reason": "branch_not_found", "branch_name": "صالون جدو - شبرا - الساحل", "cashier_name": null, "payment_method_name": null}, {"date": "2026-07-04", "count": 4, "reason": "branch_not_found", "branch_name": "صالون جدو - شبرا - الساحل", "cashier_name": null, "payment_method_name": null}, {"date": "2026-07-05", "count": 6, "reason": "no_dr", "branch_name": "صالون جدو - مدينة نصر", "cashier_name": null, "payment_method_name": null}]}	0
 14	2	12	test4.csv	imported	{"amount": "Payment amount", "branch_name": "Location", "cashier_name": "Team member", "reference_number": "Appt. ref.", "transaction_date": "Payment date", "payment_method_name": "Payment method"}	698	0	2026-07-05 17:30:19.930602	2026-07-05 17:30:25.564061	233	0	7	{"dr_count": 15, "error_rows": [], "total_rows": 698, "sample_rows": [{"amount": "152.0", "branch_name": "صالون جدو - مدينة نصر", "cashier_name": "حسام عبدالحميد احمد", "transaction_date": "2026-07-05", "payment_method_name": "Cash"}, {"amount": "345.0", "branch_name": "صالون جدو - شارع شبرا", "cashier_name": "عبير علي محمد علي", "transaction_date": "2026-07-05", "payment_method_name": "Visa"}, {"amount": "385.0", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "منه الله سامح سعيد توفيق ابراهيم", "transaction_date": "2026-07-05", "payment_method_name": "Cash"}, {"amount": "160.0", "branch_name": "صالون جدو - شارع شبرا", "cashier_name": "عبير علي محمد علي", "transaction_date": "2026-07-05", "payment_method_name": "Visa"}, {"amount": "280.0", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "إياد وائل سلامه احمد", "transaction_date": "2026-07-05", "payment_method_name": "Cash"}], "valid_count": 698, "invalid_count": 0, "matched_count": 698, "duplicate_count": 465, "unmatched_count": 0, "unmatched_groups": []}	465
+15	2	12	report_payment-transactions_2026-07-07 2.csv	imported	{"amount": "Payment amount", "branch_name": "Location", "cashier_name": "Team member", "reference_number": "Appt. ref.", "transaction_date": "Payment date", "payment_method_name": "Payment method"}	95	0	2026-07-07 02:18:53.23207	2026-07-07 02:19:03.01873	95	0	3	{"dr_count": 3, "error_rows": [], "total_rows": 95, "sample_rows": [{"amount": "280.0", "branch_name": "صالون جدو - شارع شبرا", "cashier_name": "انطون خالد رمسيس فهمي", "transaction_date": "2026-07-06", "payment_method_name": "Visa"}, {"amount": "530.0", "branch_name": "صالون جدو - الترعة البولاقية", "cashier_name": "اسلام احمد امام", "transaction_date": "2026-07-06", "payment_method_name": "Cash"}, {"amount": "735.0", "branch_name": "صالون جدو - مدينة نصر", "cashier_name": "يوسف محمود عبدالفتاح محمد", "transaction_date": "2026-07-06", "payment_method_name": "Visa"}, {"amount": "80.0", "branch_name": "صالون جدو - شارع شبرا", "cashier_name": "انطون خالد رمسيس فهمي", "transaction_date": "2026-07-06", "payment_method_name": "Cash"}, {"amount": "78.0", "branch_name": "صالون جدو - مدينة نصر", "cashier_name": "يوسف محمود عبدالفتاح محمد", "transaction_date": "2026-07-06", "payment_method_name": "Visa"}], "valid_count": 95, "invalid_count": 0, "matched_count": 95, "duplicate_count": 0, "unmatched_count": 0, "unmatched_groups": []}	0
 \.
 
 
@@ -19640,6 +20526,101 @@ COPY public.pos_transactions (id, pos_import_id, business_id, transaction_date, 
 697	14	2	2026-07-04	اية خلف حامد فرغلى	Cash	280.0000	6ED56A56	\N	"{\\"Payment date\\":\\"04 Jul 2026, 11:15am\\",\\"Payment no.\\":\\"557819508\\",\\"Sale date\\":\\"04 Jul 2026, 11:15am\\",\\"Sale no.\\":\\"SHT37695\\",\\"Appt. ref.\\":\\"6ED56A56\\",\\"Client\\":\\"إيهاب مرشد\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-05 17:30:25.434424	2026-07-05 17:30:25.434424	صالون جدو - الترعة البولاقية	13
 698	14	2	2026-07-04	مريم حسام احمد السيد الكومي	Cash	160.0000	D3FF7450	\N	"{\\"Payment date\\":\\"04 Jul 2026, 10:52am\\",\\"Payment no.\\":\\"557813286\\",\\"Sale date\\":\\"04 Jul 2026, 10:52am\\",\\"Sale no.\\":\\"SHS23057\\",\\"Appt. ref.\\":\\"D3FF7450\\",\\"Client\\":\\"belal hamada\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-05 17:30:25.434424	2026-07-05 17:30:25.434424	صالون جدو - شارع شبرا	14
 699	14	2	2026-07-03	عبير علي محمد علي	Cash	65.0000	\N	\N	"{\\"Payment date\\":\\"03 Jul 2026, 9:10pm\\",\\"Payment no.\\":\\"557611524\\",\\"Sale date\\":\\"03 Jul 2026, 9:10pm\\",\\"Sale no.\\":\\"SHS23049\\",\\"Appt. ref.\\":\\"\\",\\"Client\\":\\"Walk-In\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"65\\"}"	2026-07-05 17:30:25.434424	2026-07-05 17:30:25.434424	صالون جدو - شارع شبرا	10
+700	15	2	2026-07-06	انطون خالد رمسيس فهمي	Visa	280.0000	A72AA572	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:51pm\\",\\"Payment no.\\":\\"558610478\\",\\"Sale date\\":\\"06 Jul 2026, 11:51pm\\",\\"Sale no.\\":\\"SHS23214\\",\\"Appt. ref.\\":\\"A72AA572\\",\\"Client\\":\\"Tony Ayad\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+701	15	2	2026-07-06	اسلام احمد امام	Cash	530.0000	18652001	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:48pm\\",\\"Payment no.\\":\\"558609824\\",\\"Sale date\\":\\"06 Jul 2026, 11:48pm\\",\\"Sale no.\\":\\"SHT37852\\",\\"Appt. ref.\\":\\"18652001\\",\\"Client\\":\\"Awad Chemicals\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اسلام احمد امام\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"530\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+702	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Visa	735.0000	EDF57D35	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:29pm\\",\\"Payment no.\\":\\"558606634\\",\\"Sale date\\":\\"06 Jul 2026, 11:29pm\\",\\"Sale no.\\":\\"NC26293\\",\\"Appt. ref.\\":\\"EDF57D35\\",\\"Client\\":\\"Ahmed Moustafa\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"735\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+703	15	2	2026-07-06	انطون خالد رمسيس فهمي	Cash	80.0000	D113404B	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:08pm\\",\\"Payment no.\\":\\"558602956\\",\\"Sale date\\":\\"06 Jul 2026, 11:08pm\\",\\"Sale no.\\":\\"SHS23213\\",\\"Appt. ref.\\":\\"D113404B\\",\\"Client\\":\\"محمود حسن\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"80\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+704	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Visa	78.0000	9143E3A6	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:04pm\\",\\"Payment no.\\":\\"558602140\\",\\"Sale date\\":\\"06 Jul 2026, 11:04pm\\",\\"Sale no.\\":\\"NC26292\\",\\"Appt. ref.\\":\\"9143E3A6\\",\\"Client\\":\\"صلاح\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"78\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+705	15	2	2026-07-06	انطون خالد رمسيس فهمي	Visa	280.0000	5D67B87C	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:01pm\\",\\"Payment no.\\":\\"558601599\\",\\"Sale date\\":\\"06 Jul 2026, 11:01pm\\",\\"Sale no.\\":\\"SHS23212\\",\\"Appt. ref.\\":\\"5D67B87C\\",\\"Client\\":\\"George Fouad\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+706	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Cash	160.0000	68791336	\N	"{\\"Payment date\\":\\"06 Jul 2026, 10:59pm\\",\\"Payment no.\\":\\"558601101\\",\\"Sale date\\":\\"06 Jul 2026, 10:59pm\\",\\"Sale no.\\":\\"NC26291\\",\\"Appt. ref.\\":\\"68791336\\",\\"Client\\":\\"احمد\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+707	15	2	2026-07-06	انطون خالد رمسيس فهمي	Cash	160.0000	3228C333	\N	"{\\"Payment date\\":\\"06 Jul 2026, 10:47pm\\",\\"Payment no.\\":\\"558598785\\",\\"Sale date\\":\\"06 Jul 2026, 10:47pm\\",\\"Sale no.\\":\\"SHS23211\\",\\"Appt. ref.\\":\\"3228C333\\",\\"Client\\":\\"مجدى\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+708	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Visa	280.0000	5A0E7ADF	\N	"{\\"Payment date\\":\\"06 Jul 2026, 10:26pm\\",\\"Payment no.\\":\\"558594860\\",\\"Sale date\\":\\"06 Jul 2026, 10:26pm\\",\\"Sale no.\\":\\"NC26290\\",\\"Appt. ref.\\":\\"5A0E7ADF\\",\\"Client\\":\\"احمد محمد\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+709	15	2	2026-07-06	اسلام احمد امام	Cash	160.0000	93264985	\N	"{\\"Payment date\\":\\"06 Jul 2026, 9:51pm\\",\\"Payment no.\\":\\"558587270\\",\\"Sale date\\":\\"06 Jul 2026, 9:51pm\\",\\"Sale no.\\":\\"SHT37851\\",\\"Appt. ref.\\":\\"93264985\\",\\"Client\\":\\"امين محمد\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اسلام احمد امام\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+710	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Cash	80.0000	FC122DA1	\N	"{\\"Payment date\\":\\"06 Jul 2026, 9:48pm\\",\\"Payment no.\\":\\"558586544\\",\\"Sale date\\":\\"06 Jul 2026, 9:48pm\\",\\"Sale no.\\":\\"NC26289\\",\\"Appt. ref.\\":\\"FC122DA1\\",\\"Client\\":\\"Ziead Khaled\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"80\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+711	15	2	2026-07-06	انطون خالد رمسيس فهمي	Visa	195.0000	99211A03	\N	"{\\"Payment date\\":\\"06 Jul 2026, 9:26pm\\",\\"Payment no.\\":\\"558581181\\",\\"Sale date\\":\\"06 Jul 2026, 9:26pm\\",\\"Sale no.\\":\\"SHS23210\\",\\"Appt. ref.\\":\\"99211A03\\",\\"Client\\":\\"هانى بولس ابو السعد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"195\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+712	15	2	2026-07-06	انطون خالد رمسيس فهمي	Visa	266.0000	978A0D4B	\N	"{\\"Payment date\\":\\"06 Jul 2026, 9:25pm\\",\\"Payment no.\\":\\"558580721\\",\\"Sale date\\":\\"06 Jul 2026, 9:25pm\\",\\"Sale no.\\":\\"SHS23209\\",\\"Appt. ref.\\":\\"978A0D4B\\",\\"Client\\":\\"Michael Onsi\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"266\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+713	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Cash	160.0000	72933EE9	\N	"{\\"Payment date\\":\\"06 Jul 2026, 9:19pm\\",\\"Payment no.\\":\\"558579302\\",\\"Sale date\\":\\"06 Jul 2026, 9:19pm\\",\\"Sale no.\\":\\"NC26288\\",\\"Appt. ref.\\":\\"72933EE9\\",\\"Client\\":\\"عثمان\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+714	15	2	2026-07-06	انطون خالد رمسيس فهمي	Visa	120.0000	C182D935	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:57pm\\",\\"Payment no.\\":\\"558573164\\",\\"Sale date\\":\\"06 Jul 2026, 8:57pm\\",\\"Sale no.\\":\\"SHS23208\\",\\"Appt. ref.\\":\\"C182D935\\",\\"Client\\":\\"كيرلس ابانوب\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"120\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+715	15	2	2026-07-06	اسلام احمد امام	Visa	315.0000	35B73CC9	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:51pm\\",\\"Payment no.\\":\\"558571285\\",\\"Sale date\\":\\"06 Jul 2026, 8:51pm\\",\\"Sale no.\\":\\"SHT37850\\",\\"Appt. ref.\\":\\"35B73CC9\\",\\"Client\\":\\"ابانوب سعيد\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اسلام احمد امام\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"315\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+716	15	2	2026-07-06	عبير علي محمد علي	Cash	160.0000	38AB041F	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:48pm\\",\\"Payment no.\\":\\"558570381\\",\\"Sale date\\":\\"06 Jul 2026, 8:48pm\\",\\"Sale no.\\":\\"SHS23207\\",\\"Appt. ref.\\":\\"38AB041F\\",\\"Client\\":\\"جورج\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+717	15	2	2026-07-06	اسلام احمد امام	Cash	140.0000	0761EFA7	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:46pm\\",\\"Payment no.\\":\\"558569883\\",\\"Sale date\\":\\"06 Jul 2026, 8:46pm\\",\\"Sale no.\\":\\"SHT37849\\",\\"Appt. ref.\\":\\"0761EFA7\\",\\"Client\\":\\"مارك\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اسلام احمد امام\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"140\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+718	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Cash	170.0000	C5F24B26	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:45pm\\",\\"Payment no.\\":\\"558569485\\",\\"Sale date\\":\\"06 Jul 2026, 8:45pm\\",\\"Sale no.\\":\\"NC26287\\",\\"Appt. ref.\\":\\"C5F24B26\\",\\"Client\\":\\"ابو رياض\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"170\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+719	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Cash	160.0000	B22998B1	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:41pm\\",\\"Payment no.\\":\\"558568404\\",\\"Sale date\\":\\"06 Jul 2026, 8:41pm\\",\\"Sale no.\\":\\"NC26286\\",\\"Appt. ref.\\":\\"B22998B1\\",\\"Client\\":\\"أحمد مجدي\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+720	15	2	2026-07-06	عبير علي محمد علي	Cash	160.0000	97BF886F	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:41pm\\",\\"Payment no.\\":\\"558568280\\",\\"Sale date\\":\\"06 Jul 2026, 8:41pm\\",\\"Sale no.\\":\\"SHS23206\\",\\"Appt. ref.\\":\\"97BF886F\\",\\"Client\\":\\"عمر عماد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+721	15	2	2026-07-06	اسلام احمد امام	Visa	120.0000	55DCEBB6	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:36pm\\",\\"Payment no.\\":\\"558566860\\",\\"Sale date\\":\\"06 Jul 2026, 8:36pm\\",\\"Sale no.\\":\\"SHT37848\\",\\"Appt. ref.\\":\\"55DCEBB6\\",\\"Client\\":\\"محمود\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اسلام احمد امام\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"120\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+722	15	2	2026-07-06	عبير علي محمد علي	Cash	160.0000	38A1674F	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:35pm\\",\\"Payment no.\\":\\"558566650\\",\\"Sale date\\":\\"06 Jul 2026, 8:35pm\\",\\"Sale no.\\":\\"SHS23205\\",\\"Appt. ref.\\":\\"38A1674F\\",\\"Client\\":\\"هانى فرانسيس\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+723	15	2	2026-07-06	عبير علي محمد علي	Cash	710.0000	0ED9DBE0	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:35pm\\",\\"Payment no.\\":\\"558566492\\",\\"Sale date\\":\\"06 Jul 2026, 8:35pm\\",\\"Sale no.\\":\\"SHS23204\\",\\"Appt. ref.\\":\\"0ED9DBE0\\",\\"Client\\":\\"شريف\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"710\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+724	15	2	2026-07-06	اسلام احمد امام	Visa	280.0000	302C5A5D	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:18pm\\",\\"Payment no.\\":\\"558561499\\",\\"Sale date\\":\\"06 Jul 2026, 8:18pm\\",\\"Sale no.\\":\\"SHT37847\\",\\"Appt. ref.\\":\\"302C5A5D\\",\\"Client\\":\\"عمر مدحت\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اسلام احمد امام\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+725	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Visa	280.0000	A2B06885	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:08pm\\",\\"Payment no.\\":\\"558558434\\",\\"Sale date\\":\\"06 Jul 2026, 8:08pm\\",\\"Sale no.\\":\\"NC26285\\",\\"Appt. ref.\\":\\"A2B06885\\",\\"Client\\":\\"Mohmed magdy\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+726	15	2	2026-07-06	عبير علي محمد علي	Cash	155.0000	AEE3A27A	\N	"{\\"Payment date\\":\\"06 Jul 2026, 8:01pm\\",\\"Payment no.\\":\\"558556144\\",\\"Sale date\\":\\"06 Jul 2026, 8:01pm\\",\\"Sale no.\\":\\"SHS23203\\",\\"Appt. ref.\\":\\"AEE3A27A\\",\\"Client\\":\\"محمد الجزار\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"155\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+727	15	2	2026-07-06	عبير علي محمد علي	Cash	310.0000	E8A11501	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:57pm\\",\\"Payment no.\\":\\"558554788\\",\\"Sale date\\":\\"06 Jul 2026, 7:57pm\\",\\"Sale no.\\":\\"SHS23202\\",\\"Appt. ref.\\":\\"E8A11501\\",\\"Client\\":\\"مروان احمد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"310\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+728	15	2	2026-07-06	عبير علي محمد علي	Cash	280.0000	2A131C60	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:52pm\\",\\"Payment no.\\":\\"558553199\\",\\"Sale date\\":\\"06 Jul 2026, 7:52pm\\",\\"Sale no.\\":\\"SHS23201\\",\\"Appt. ref.\\":\\"2A131C60\\",\\"Client\\":\\"احمد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+729	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Cash	160.0000	9C37C288	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:50pm\\",\\"Payment no.\\":\\"558552274\\",\\"Sale date\\":\\"06 Jul 2026, 7:50pm\\",\\"Sale no.\\":\\"NC26284\\",\\"Appt. ref.\\":\\"9C37C288\\",\\"Client\\":\\"محمد الجبالي\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+730	15	2	2026-07-06	عبير علي محمد علي	Cash	120.0000	791AAC04	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:45pm\\",\\"Payment no.\\":\\"558550608\\",\\"Sale date\\":\\"06 Jul 2026, 7:45pm\\",\\"Sale no.\\":\\"SHS23200\\",\\"Appt. ref.\\":\\"791AAC04\\",\\"Client\\":\\"Hamada Tito\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"120\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+731	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	110.0000	5FE29275	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:42pm\\",\\"Payment no.\\":\\"558549693\\",\\"Sale date\\":\\"06 Jul 2026, 7:42pm\\",\\"Sale no.\\":\\"SHT37846\\",\\"Appt. ref.\\":\\"5FE29275\\",\\"Client\\":\\"محمد اشرف\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"110\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+732	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	120.0000	3A82678F	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:26pm\\",\\"Payment no.\\":\\"558544322\\",\\"Sale date\\":\\"06 Jul 2026, 7:26pm\\",\\"Sale no.\\":\\"SHT37845\\",\\"Appt. ref.\\":\\"3A82678F\\",\\"Client\\":\\"ابانوب ميلاد\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"120\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+733	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Visa	661.5000	6FF2A484	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:23pm\\",\\"Payment no.\\":\\"558543422\\",\\"Sale date\\":\\"06 Jul 2026, 7:23pm\\",\\"Sale no.\\":\\"NC26283\\",\\"Appt. ref.\\":\\"6FF2A484\\",\\"Client\\":\\"يوسف\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"661.5\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+734	15	2	2026-07-06	عبير علي محمد علي	Cash	120.0000	D9545B8D	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:20pm\\",\\"Payment no.\\":\\"558542372\\",\\"Sale date\\":\\"06 Jul 2026, 7:20pm\\",\\"Sale no.\\":\\"SHS23199\\",\\"Appt. ref.\\":\\"D9545B8D\\",\\"Client\\":\\"اسر اسامه\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"120\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+735	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	395.0000	AC51F723	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:12pm\\",\\"Payment no.\\":\\"558539828\\",\\"Sale date\\":\\"06 Jul 2026, 7:12pm\\",\\"Sale no.\\":\\"SHT37844\\",\\"Appt. ref.\\":\\"AC51F723\\",\\"Client\\":\\"كرلس يوسف\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"395\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+736	15	2	2026-07-06	عبير علي محمد علي	Cash	531.0000	423B105A	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:07pm\\",\\"Payment no.\\":\\"558538316\\",\\"Sale date\\":\\"06 Jul 2026, 7:07pm\\",\\"Sale no.\\":\\"SHS23198\\",\\"Appt. ref.\\":\\"423B105A\\",\\"Client\\":\\"Malek Malek\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"531\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+737	15	2	2026-07-06	عبير علي محمد علي	Cash	160.0000	7408B2E9	\N	"{\\"Payment date\\":\\"06 Jul 2026, 7:03pm\\",\\"Payment no.\\":\\"558536846\\",\\"Sale date\\":\\"06 Jul 2026, 7:03pm\\",\\"Sale no.\\":\\"SHS23197\\",\\"Appt. ref.\\":\\"7408B2E9\\",\\"Client\\":\\"احمد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+738	15	2	2026-07-06	عبير علي محمد علي	Visa	160.0000	927B7D12	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:54pm\\",\\"Payment no.\\":\\"558533379\\",\\"Sale date\\":\\"06 Jul 2026, 6:54pm\\",\\"Sale no.\\":\\"SHS23196\\",\\"Appt. ref.\\":\\"927B7D12\\",\\"Client\\":\\"Mina Molham\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+739	15	2	2026-07-06	عبير علي محمد علي	Cash	120.0000	7F92BADE	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:51pm\\",\\"Payment no.\\":\\"558532525\\",\\"Sale date\\":\\"06 Jul 2026, 6:51pm\\",\\"Sale no.\\":\\"SHS23195\\",\\"Appt. ref.\\":\\"7F92BADE\\",\\"Client\\":\\"محمد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"120\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+740	15	2	2026-07-06	عبير علي محمد علي	Cash	280.0000	DA176B43	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:43pm\\",\\"Payment no.\\":\\"558529590\\",\\"Sale date\\":\\"06 Jul 2026, 6:43pm\\",\\"Sale no.\\":\\"SHS23194\\",\\"Appt. ref.\\":\\"DA176B43\\",\\"Client\\":\\"ريمون وائل\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+741	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Visa	661.5000	4D514DE1	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:43pm\\",\\"Payment no.\\":\\"558529588\\",\\"Sale date\\":\\"06 Jul 2026, 6:43pm\\",\\"Sale no.\\":\\"NC26282\\",\\"Appt. ref.\\":\\"4D514DE1\\",\\"Client\\":\\"عبد الرحمن احمد\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"661.5\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+742	15	2	2026-07-06	عبير علي محمد علي	Visa	160.0000	9DB4EAEA	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:38pm\\",\\"Payment no.\\":\\"558528152\\",\\"Sale date\\":\\"06 Jul 2026, 6:38pm\\",\\"Sale no.\\":\\"SHS23193\\",\\"Appt. ref.\\":\\"9DB4EAEA\\",\\"Client\\":\\"seif sherif\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+743	15	2	2026-07-06	عبير علي محمد علي	Cash	120.0000	2ADF7E8D	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:25pm\\",\\"Payment no.\\":\\"558523910\\",\\"Sale date\\":\\"06 Jul 2026, 6:25pm\\",\\"Sale no.\\":\\"SHS23192\\",\\"Appt. ref.\\":\\"2ADF7E8D\\",\\"Client\\":\\"محمود\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"120\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+744	15	2	2026-07-06	إياد وائل سلامه احمد	Visa	280.0000	60CDE92C	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:15pm\\",\\"Payment no.\\":\\"558520567\\",\\"Sale date\\":\\"06 Jul 2026, 6:15pm\\",\\"Sale no.\\":\\"SHT37843\\",\\"Appt. ref.\\":\\"60CDE92C\\",\\"Client\\":\\"Marco Gamal\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+745	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Cash	661.5000	106809F3	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:11pm\\",\\"Payment no.\\":\\"558519250\\",\\"Sale date\\":\\"06 Jul 2026, 6:12pm\\",\\"Sale no.\\":\\"NC26281\\",\\"Appt. ref.\\":\\"106809F3\\",\\"Client\\":\\"محمد محمود\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"661.5\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+746	15	2	2026-07-06	يوسف محمود عبدالفتاح محمد	Cash	160.0000	300177DC	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:08pm\\",\\"Payment no.\\":\\"558518090\\",\\"Sale date\\":\\"06 Jul 2026, 6:08pm\\",\\"Sale no.\\":\\"NC26280\\",\\"Appt. ref.\\":\\"300177DC\\",\\"Client\\":\\"هارون\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"يوسف محمود عبدالفتاح محمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+747	15	2	2026-07-06	عبير علي محمد علي	Cash	275.0000	834F218E	\N	"{\\"Payment date\\":\\"06 Jul 2026, 6:06pm\\",\\"Payment no.\\":\\"558517378\\",\\"Sale date\\":\\"06 Jul 2026, 6:06pm\\",\\"Sale no.\\":\\"SHS23191\\",\\"Appt. ref.\\":\\"834F218E\\",\\"Client\\":\\"Mario Sameh\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"275\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+748	15	2	2026-07-06	عبير علي محمد علي	Visa	280.0000	FCB5301A	\N	"{\\"Payment date\\":\\"06 Jul 2026, 5:46pm\\",\\"Payment no.\\":\\"558510735\\",\\"Sale date\\":\\"06 Jul 2026, 5:46pm\\",\\"Sale no.\\":\\"SHS23190\\",\\"Appt. ref.\\":\\"FCB5301A\\",\\"Client\\":\\"Beshoy Samy\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+749	15	2	2026-07-06	عبير علي محمد علي	Cash	320.0000	38D723A7	\N	"{\\"Payment date\\":\\"06 Jul 2026, 5:39pm\\",\\"Payment no.\\":\\"558508721\\",\\"Sale date\\":\\"06 Jul 2026, 5:39pm\\",\\"Sale no.\\":\\"SHS23189\\",\\"Appt. ref.\\":\\"38D723A7\\",\\"Client\\":\\"محمد احمد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"320\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+750	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	160.0000	95B844A8	\N	"{\\"Payment date\\":\\"06 Jul 2026, 5:34pm\\",\\"Payment no.\\":\\"558507111\\",\\"Sale date\\":\\"06 Jul 2026, 5:34pm\\",\\"Sale no.\\":\\"SHT37842\\",\\"Appt. ref.\\":\\"95B844A8\\",\\"Client\\":\\"Mohamed midoamr08@icloud.com\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+751	15	2	2026-07-06	عبير علي محمد علي	Cash	265.0000	4BD03A51	\N	"{\\"Payment date\\":\\"06 Jul 2026, 5:28pm\\",\\"Payment no.\\":\\"558505148\\",\\"Sale date\\":\\"06 Jul 2026, 5:28pm\\",\\"Sale no.\\":\\"SHS23188\\",\\"Appt. ref.\\":\\"4BD03A51\\",\\"Client\\":\\"ريمون\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"265\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+752	15	2	2026-07-06	عبير علي محمد علي	Visa	936.0000	8A1E21AF	\N	"{\\"Payment date\\":\\"06 Jul 2026, 5:24pm\\",\\"Payment no.\\":\\"558504124\\",\\"Sale date\\":\\"06 Jul 2026, 5:24pm\\",\\"Sale no.\\":\\"SHS23187\\",\\"Appt. ref.\\":\\"8A1E21AF\\",\\"Client\\":\\"ادهم\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"936\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+753	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	160.0000	6BBE2452	\N	"{\\"Payment date\\":\\"06 Jul 2026, 5:18pm\\",\\"Payment no.\\":\\"558502385\\",\\"Sale date\\":\\"06 Jul 2026, 5:18pm\\",\\"Sale no.\\":\\"SHT37841\\",\\"Appt. ref.\\":\\"6BBE2452\\",\\"Client\\":\\"diaaa\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+754	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	400.0000	5517828E	\N	"{\\"Payment date\\":\\"06 Jul 2026, 5:17pm\\",\\"Payment no.\\":\\"558501871\\",\\"Sale date\\":\\"06 Jul 2026, 5:17pm\\",\\"Sale no.\\":\\"SHT37840\\",\\"Appt. ref.\\":\\"5517828E\\",\\"Client\\":\\"مينا حنا\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"400\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+755	15	2	2026-07-06	عبير علي محمد علي	Cash	280.0000	9B3AB7F0	\N	"{\\"Payment date\\":\\"06 Jul 2026, 5:12pm\\",\\"Payment no.\\":\\"558500557\\",\\"Sale date\\":\\"06 Jul 2026, 5:12pm\\",\\"Sale no.\\":\\"SHS23186\\",\\"Appt. ref.\\":\\"9B3AB7F0\\",\\"Client\\":\\"يوسف كمال\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+756	15	2	2026-07-06	عبير علي محمد علي	Visa	460.0000	18BB4924	\N	"{\\"Payment date\\":\\"06 Jul 2026, 4:59pm\\",\\"Payment no.\\":\\"558496702\\",\\"Sale date\\":\\"06 Jul 2026, 4:59pm\\",\\"Sale no.\\":\\"SHS23185\\",\\"Appt. ref.\\":\\"18BB4924\\",\\"Client\\":\\"بولا نشات\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"عبير علي محمد علي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"460\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+757	15	2	2026-07-06	حسام عبدالحميد احمد	Cash	110.0000	5FF2920D	\N	"{\\"Payment date\\":\\"06 Jul 2026, 4:45pm\\",\\"Payment no.\\":\\"558492527\\",\\"Sale date\\":\\"06 Jul 2026, 4:45pm\\",\\"Sale no.\\":\\"NC26279\\",\\"Appt. ref.\\":\\"5FF2920D\\",\\"Client\\":\\"محمد السيد السيد\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"حسام عبدالحميد احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"110\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+758	15	2	2026-07-06	اية خلف حامد فرغلى	Visa	280.0000	DC9EDA74	\N	"{\\"Payment date\\":\\"06 Jul 2026, 4:12pm\\",\\"Payment no.\\":\\"558482940\\",\\"Sale date\\":\\"06 Jul 2026, 4:12pm\\",\\"Sale no.\\":\\"SHT37839\\",\\"Appt. ref.\\":\\"DC9EDA74\\",\\"Client\\":\\"كراس\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+759	15	2	2026-07-06	اية خلف حامد فرغلى	Cash	160.0000	1496215C	\N	"{\\"Payment date\\":\\"06 Jul 2026, 4:08pm\\",\\"Payment no.\\":\\"558481755\\",\\"Sale date\\":\\"06 Jul 2026, 4:08pm\\",\\"Sale no.\\":\\"SHT37838\\",\\"Appt. ref.\\":\\"1496215C\\",\\"Client\\":\\"شنوده\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+760	15	2	2026-07-06	اية خلف حامد فرغلى	Cash	84.0000	35745C9A	\N	"{\\"Payment date\\":\\"06 Jul 2026, 4:00pm\\",\\"Payment no.\\":\\"558479291\\",\\"Sale date\\":\\"06 Jul 2026, 4:00pm\\",\\"Sale no.\\":\\"SHT37837\\",\\"Appt. ref.\\":\\"35745C9A\\",\\"Client\\":\\"احمد شفعي\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"84\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+761	15	2	2026-07-06	اية خلف حامد فرغلى	Cash	531.0000	1A8CE1ED	\N	"{\\"Payment date\\":\\"06 Jul 2026, 3:38pm\\",\\"Payment no.\\":\\"558473350\\",\\"Sale date\\":\\"06 Jul 2026, 3:38pm\\",\\"Sale no.\\":\\"SHT37836\\",\\"Appt. ref.\\":\\"1A8CE1ED\\",\\"Client\\":\\"مينا رفعت\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"531\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+762	15	2	2026-07-06	اية خلف حامد فرغلى	Cash	280.0000	41245A78	\N	"{\\"Payment date\\":\\"06 Jul 2026, 3:05pm\\",\\"Payment no.\\":\\"558464512\\",\\"Sale date\\":\\"06 Jul 2026, 3:05pm\\",\\"Sale no.\\":\\"SHT37835\\",\\"Appt. ref.\\":\\"41245A78\\",\\"Client\\":\\"مايكل ماهر\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+763	15	2	2026-07-06	مريم حسام احمد السيد الكومي	Visa	160.0000	A2D7C971	\N	"{\\"Payment date\\":\\"06 Jul 2026, 2:55pm\\",\\"Payment no.\\":\\"558461629\\",\\"Sale date\\":\\"06 Jul 2026, 2:55pm\\",\\"Sale no.\\":\\"SHS23184\\",\\"Appt. ref.\\":\\"A2D7C971\\",\\"Client\\":\\"بيير هاني\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+764	15	2	2026-07-06	مريم حسام احمد السيد الكومي	Cash	196.0000	D326B7E7	\N	"{\\"Payment date\\":\\"06 Jul 2026, 2:38pm\\",\\"Payment no.\\":\\"558457120\\",\\"Sale date\\":\\"06 Jul 2026, 2:38pm\\",\\"Sale no.\\":\\"SHS23183\\",\\"Appt. ref.\\":\\"D326B7E7\\",\\"Client\\":\\"محمد بدوى\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"196\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+765	15	2	2026-07-06	حسام عبدالحميد احمد	Cash	160.0000	1262602A	\N	"{\\"Payment date\\":\\"06 Jul 2026, 2:30pm\\",\\"Payment no.\\":\\"558454975\\",\\"Sale date\\":\\"06 Jul 2026, 2:30pm\\",\\"Sale no.\\":\\"NC26278\\",\\"Appt. ref.\\":\\"1262602A\\",\\"Client\\":\\"كريم\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"حسام عبدالحميد احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+766	15	2	2026-07-06	مريم حسام احمد السيد الكومي	Visa	232.0000	DFC5B39E	\N	"{\\"Payment date\\":\\"06 Jul 2026, 2:17pm\\",\\"Payment no.\\":\\"558451481\\",\\"Sale date\\":\\"06 Jul 2026, 2:17pm\\",\\"Sale no.\\":\\"SHS23182\\",\\"Appt. ref.\\":\\"DFC5B39E\\",\\"Client\\":\\"Mohamed Antr\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"232\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+767	15	2	2026-07-06	حسام عبدالحميد احمد	Visa	661.5000	705E360F	\N	"{\\"Payment date\\":\\"06 Jul 2026, 2:09pm\\",\\"Payment no.\\":\\"558449361\\",\\"Sale date\\":\\"06 Jul 2026, 2:09pm\\",\\"Sale no.\\":\\"NC26277\\",\\"Appt. ref.\\":\\"705E360F\\",\\"Client\\":\\"احمد\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"حسام عبدالحميد احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"661.5\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+768	15	2	2026-07-06	اية خلف حامد فرغلى	Visa	280.0000	AE332261	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:43pm\\",\\"Payment no.\\":\\"558442064\\",\\"Sale date\\":\\"06 Jul 2026, 1:43pm\\",\\"Sale no.\\":\\"SHT37834\\",\\"Appt. ref.\\":\\"AE332261\\",\\"Client\\":\\"Abanoub Rizkallah\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+769	15	2	2026-07-06	مريم حسام احمد السيد الكومي	Cash	232.0000	CD265E75	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:21pm\\",\\"Payment no.\\":\\"558436181\\",\\"Sale date\\":\\"06 Jul 2026, 1:21pm\\",\\"Sale no.\\":\\"SHS23181\\",\\"Appt. ref.\\":\\"CD265E75\\",\\"Client\\":\\"يوسف محمد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"232\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+770	15	2	2026-07-06	مريم حسام احمد السيد الكومي	Visa	196.0000	CA98A100	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:18pm\\",\\"Payment no.\\":\\"558435541\\",\\"Sale date\\":\\"06 Jul 2026, 1:18pm\\",\\"Sale no.\\":\\"SHS23180\\",\\"Appt. ref.\\":\\"CA98A100\\",\\"Client\\":\\"ديفيد\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"196\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+771	15	2	2026-07-06	اية خلف حامد فرغلى	Cash	168.0000	54F2D735	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:03pm\\",\\"Payment no.\\":\\"558431541\\",\\"Sale date\\":\\"06 Jul 2026, 1:03pm\\",\\"Sale no.\\":\\"SHT37833\\",\\"Appt. ref.\\":\\"54F2D735\\",\\"Client\\":\\"احمد\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"168\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+772	15	2	2026-07-06	اية خلف حامد فرغلى	Visa	196.0000	0698B2F8	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:59pm\\",\\"Payment no.\\":\\"558430679\\",\\"Sale date\\":\\"06 Jul 2026, 12:59pm\\",\\"Sale no.\\":\\"SHT37832\\",\\"Appt. ref.\\":\\"0698B2F8\\",\\"Client\\":\\"Andrew Albert\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"196\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+773	15	2	2026-07-06	مريم حسام احمد السيد الكومي	Visa	196.0000	71EB3A41	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:59pm\\",\\"Payment no.\\":\\"558430669\\",\\"Sale date\\":\\"06 Jul 2026, 12:59pm\\",\\"Sale no.\\":\\"SHS23179\\",\\"Appt. ref.\\":\\"71EB3A41\\",\\"Client\\":\\"الفريد وليم\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"196\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+774	15	2	2026-07-06	اية خلف حامد فرغلى	Visa	196.0000	4ABE688F	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:30pm\\",\\"Payment no.\\":\\"558423391\\",\\"Sale date\\":\\"06 Jul 2026, 12:30pm\\",\\"Sale no.\\":\\"SHT37831\\",\\"Appt. ref.\\":\\"4ABE688F\\",\\"Client\\":\\"شادي\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"196\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+775	15	2	2026-07-06	حسام عبدالحميد احمد	Cash	160.0000	1804CBE7	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:24pm\\",\\"Payment no.\\":\\"558421868\\",\\"Sale date\\":\\"06 Jul 2026, 12:24pm\\",\\"Sale no.\\":\\"NC26276\\",\\"Appt. ref.\\":\\"1804CBE7\\",\\"Client\\":\\"Michael Maged\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"حسام عبدالحميد احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+776	15	2	2026-07-06	اية خلف حامد فرغلى	Cash	112.0000	88AE6639	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:11pm\\",\\"Payment no.\\":\\"558419087\\",\\"Sale date\\":\\"06 Jul 2026, 12:11pm\\",\\"Sale no.\\":\\"SHT37830\\",\\"Appt. ref.\\":\\"88AE6639\\",\\"Client\\":\\"Philo Reffat\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"112\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+777	15	2	2026-07-06	اية خلف حامد فرغلى	Visa	196.0000	C2E51D9E	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:56am\\",\\"Payment no.\\":\\"558415552\\",\\"Sale date\\":\\"06 Jul 2026, 11:56am\\",\\"Sale no.\\":\\"SHT37829\\",\\"Appt. ref.\\":\\"C2E51D9E\\",\\"Client\\":\\"Mohamed Imbaby\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"196\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+778	15	2	2026-07-06	اية خلف حامد فرغلى	Visa	456.0000	3EF1A4A0	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:54am\\",\\"Payment no.\\":\\"558415140\\",\\"Sale date\\":\\"06 Jul 2026, 11:54am\\",\\"Sale no.\\":\\"SHT37828\\",\\"Appt. ref.\\":\\"3EF1A4A0\\",\\"Client\\":\\"Mina Sameh\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"456\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+779	15	2	2026-07-06	مريم حسام احمد السيد الكومي	Cash	196.0000	2494A8BC	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:54am\\",\\"Payment no.\\":\\"558414952\\",\\"Sale date\\":\\"06 Jul 2026, 11:54am\\",\\"Sale no.\\":\\"SHS23178\\",\\"Appt. ref.\\":\\"2494A8BC\\",\\"Client\\":\\"The King of pubg Pubg\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"196\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+780	15	2	2026-07-06	اية خلف حامد فرغلى	Cash	283.0000	82F58F26	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:52am\\",\\"Payment no.\\":\\"558414701\\",\\"Sale date\\":\\"06 Jul 2026, 11:52am\\",\\"Sale no.\\":\\"SHT37827\\",\\"Appt. ref.\\":\\"82F58F26\\",\\"Client\\":\\"Raafat Fayez\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"اية خلف حامد فرغلى\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"283\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+781	15	2	2026-07-06	مريم حسام احمد السيد الكومي	Cash	104.0000	3AAC85E4	\N	"{\\"Payment date\\":\\"06 Jul 2026, 11:44am\\",\\"Payment no.\\":\\"558412966\\",\\"Sale date\\":\\"06 Jul 2026, 11:44am\\",\\"Sale no.\\":\\"SHS23177\\",\\"Appt. ref.\\":\\"3AAC85E4\\",\\"Client\\":\\"omar asherf\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"مريم حسام احمد السيد الكومي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"104\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+782	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	280.0000	408F6CDE	\N	"{\\"Payment date\\":\\"06 Jul 2026, 2:05am\\",\\"Payment no.\\":\\"558339087\\",\\"Sale date\\":\\"06 Jul 2026, 2:05am\\",\\"Sale no.\\":\\"SHT37826\\",\\"Appt. ref.\\":\\"408F6CDE\\",\\"Client\\":\\"محب\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+783	15	2	2026-07-06	انطون خالد رمسيس فهمي	Cash	225.0000	178CA660	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:53am\\",\\"Payment no.\\":\\"558337938\\",\\"Sale date\\":\\"06 Jul 2026, 1:53am\\",\\"Sale no.\\":\\"SHS23176\\",\\"Appt. ref.\\":\\"178CA660\\",\\"Client\\":\\"ابرام\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"225\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+784	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	280.0000	7A1BFE0F	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:44am\\",\\"Payment no.\\":\\"558337016\\",\\"Sale date\\":\\"06 Jul 2026, 1:44am\\",\\"Sale no.\\":\\"SHT37825\\",\\"Appt. ref.\\":\\"7A1BFE0F\\",\\"Client\\":\\"Kerullos Michel\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+785	15	2	2026-07-06	حسام عبدالحميد احمد	Cash	280.0000	AB1AED6C	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:41am\\",\\"Payment no.\\":\\"558336659\\",\\"Sale date\\":\\"06 Jul 2026, 1:41am\\",\\"Sale no.\\":\\"NC26275\\",\\"Appt. ref.\\":\\"AB1AED6C\\",\\"Client\\":\\"Walk-In\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"حسام عبدالحميد احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+786	15	2	2026-07-06	انطون خالد رمسيس فهمي	Cash	140.0000	5D069905	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:37am\\",\\"Payment no.\\":\\"558336305\\",\\"Sale date\\":\\"06 Jul 2026, 1:37am\\",\\"Sale no.\\":\\"SHS23175\\",\\"Appt. ref.\\":\\"5D069905\\",\\"Client\\":\\"محمد اسلام\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"140\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+787	15	2	2026-07-06	إياد وائل سلامه احمد	Cash	280.0000	2E491529	\N	"{\\"Payment date\\":\\"06 Jul 2026, 1:24am\\",\\"Payment no.\\":\\"558335047\\",\\"Sale date\\":\\"06 Jul 2026, 1:24am\\",\\"Sale no.\\":\\"SHT37824\\",\\"Appt. ref.\\":\\"2E491529\\",\\"Client\\":\\"بيشوي\\",\\"Location\\":\\"صالون جدو - الترعة البولاقية\\",\\"Team member\\":\\"إياد وائل سلامه احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"280\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - الترعة البولاقية	20
+788	15	2	2026-07-06	انطون خالد رمسيس فهمي	Cash	510.0000	D8DB53FF	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:58am\\",\\"Payment no.\\":\\"558332282\\",\\"Sale date\\":\\"06 Jul 2026, 12:58am\\",\\"Sale no.\\":\\"SHS23174\\",\\"Appt. ref.\\":\\"D8DB53FF\\",\\"Client\\":\\"Ahmed Moataz\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"510\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+789	15	2	2026-07-06	حسام عبدالحميد احمد	Cash	415.0000	BF58CA15	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:54am\\",\\"Payment no.\\":\\"558331762\\",\\"Sale date\\":\\"06 Jul 2026, 12:54am\\",\\"Sale no.\\":\\"NC26274\\",\\"Appt. ref.\\":\\"BF58CA15\\",\\"Client\\":\\"محمد التومي\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"حسام عبدالحميد احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"415\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+790	15	2	2026-07-06	انطون خالد رمسيس فهمي	Cash	160.0000	B940AE62	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:42am\\",\\"Payment no.\\":\\"558330657\\",\\"Sale date\\":\\"06 Jul 2026, 12:42am\\",\\"Sale no.\\":\\"SHS23173\\",\\"Appt. ref.\\":\\"B940AE62\\",\\"Client\\":\\"هانى فاروق\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+791	15	2	2026-07-06	انطون خالد رمسيس فهمي	Cash	152.0000	45EB174B	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:26am\\",\\"Payment no.\\":\\"558328945\\",\\"Sale date\\":\\"06 Jul 2026, 12:26am\\",\\"Sale no.\\":\\"SHS23172\\",\\"Appt. ref.\\":\\"45EB174B\\",\\"Client\\":\\"Ziad Algezawy\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"152\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+792	15	2	2026-07-06	حسام عبدالحميد احمد	Visa	196.0000	63FD7BF1	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:22am\\",\\"Payment no.\\":\\"558328483\\",\\"Sale date\\":\\"06 Jul 2026, 12:22am\\",\\"Sale no.\\":\\"NC26273\\",\\"Appt. ref.\\":\\"63FD7BF1\\",\\"Client\\":\\"محمد دورغام\\",\\"Location\\":\\"صالون جدو - مدينة نصر\\",\\"Team member\\":\\"حسام عبدالحميد احمد\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"196\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - مدينة نصر	19
+793	15	2	2026-07-06	انطون خالد رمسيس فهمي	Visa	160.0000	BA5CA18E	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:10am\\",\\"Payment no.\\":\\"558327101\\",\\"Sale date\\":\\"06 Jul 2026, 12:10am\\",\\"Sale no.\\":\\"SHS23171\\",\\"Appt. ref.\\":\\"BA5CA18E\\",\\"Client\\":\\"سامح محسن\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Visa\\",\\"Payment amount\\":\\"160\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
+794	15	2	2026-07-06	انطون خالد رمسيس فهمي	Cash	500.0000	50E2EBC1	\N	"{\\"Payment date\\":\\"06 Jul 2026, 12:02am\\",\\"Payment no.\\":\\"558326181\\",\\"Sale date\\":\\"06 Jul 2026, 12:02am\\",\\"Sale no.\\":\\"SHS23170\\",\\"Appt. ref.\\":\\"50E2EBC1\\",\\"Client\\":\\"كيرلس\\",\\"Location\\":\\"صالون جدو - شارع شبرا\\",\\"Team member\\":\\"انطون خالد رمسيس فهمي\\",\\"Transaction type\\":\\"Sales\\",\\"Payment method\\":\\"Cash\\",\\"Payment amount\\":\\"500\\"}"	2026-07-07 02:19:02.900175	2026-07-07 02:19:02.900175	صالون جدو - شارع شبرا	21
 \.
 
 
@@ -19650,6 +20631,7 @@ COPY public.pos_transactions (id, pos_import_id, business_id, transaction_date, 
 COPY public.product_barcodes (id, product_id, barcode, barcode_type, is_primary, variant_id, created_at, business_id) FROM stdin;
 78	368	5285003142550	manufacturer	f	\N	2026-06-22 11:45:02.625084	2
 88	357	9336005376620	manufacturer	t	\N	2026-06-24 20:18:58.766381	2
+89	472	000001	internal	t	\N	2026-07-07 16:00:22.117191	2
 23	343	6935481345064	manufacturer	t	\N	2026-06-17 19:48:25.029415	2
 1	315	6224010337824	manufacturer	t	\N	2026-06-17 19:48:25.029415	2
 2	316	622400384227	manufacturer	t	\N	2026-06-17 19:48:25.029415	2
@@ -19773,17 +20755,43 @@ COPY public.products (id, business_id, brand_id, product_category_id, name, sku,
 378	2	\N	5	مفرش شيزلونج رول	UDH-87613	\N	79.0000	\N	79.0000	5.000	30.000	0.00		2026-06-17 00:48:43.747471	2026-06-18 06:18:40.475499	\N	f	t	5	\N	t	\N
 339	2	43	1	بلسم ليف ان - كلاري	GTS-50217	\N	210.0000	\N	210.0000	0.000	3.000	0.00		2026-06-17 00:48:43.621484	2026-06-19 12:32:38.899544	\N	f	t	0	\N	t	\N
 345	2	\N	3	فوط قص	PLG-71712	\N	315.0000	\N	315.0000	0.000	0.000	0.00		2026-06-17 00:48:43.64281	2026-06-19 12:34:40.869508	\N	f	t	0	\N	t	\N
-403	2	12	6	كريم أكسجين للشعر ٢٠ - بلوب	COL20	6223003508975	40.0000	60.0000	57.1429	1.000	6.000	0.00	\N	2026-06-17 00:48:43.836971	2026-06-19 17:45:16.933497	\N	t	t	1	\N	t	\N
+391	2	10	6	صبغة كولور ديزاين - رقم ٣	COL3	8032993960032	150.0000	100.0000	125.0000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.793852	2026-07-07 09:49:26.168572	\N	t	t	1	\N	t	\N
+340	2	2	1	سيروم -  دودج	GKM-84978	6224003842342	100.0000	50.0000	59.9920	1.000	6.000	0.00	\N	2026-06-17 00:48:43.625049	2026-07-08 22:05:33.774373	\N	t	t	1	\N	t	\N
+328	2	4	2	فوم حلاقة - لورد	Lord2	6222001567038	50.0000	60.0000	50.8333	6.000	24.000	0.00	\N	2026-06-17 00:48:43.577146	2026-07-07 09:49:26.173121	\N	t	t	6	\N	t	\N
 323	2	22	1	كريم الشعر – كيراتين ثيرابي – بايو لوكس- 250مل	BIO3	\N	105.0000	\N	105.0000	0.000	6.000	0.00		2026-06-17 00:48:43.559482	2026-06-23 11:10:51.928305	\N	f	t	0	\N	f	2026-06-23 11:10:51.92347
-354	2	26	5	قناع ورقي للوجه لحب الشباب/مبيض- ستارفيل	EKE1	6223012632012	39.0000	\N	39.0000	20.000	50.000	0.00		2026-06-17 00:48:43.669983	2026-06-23 18:44:00.792608	\N	t	t	20	\N	t	\N
 324	2	2	1	كريم ليف ان كيرلي - دودج	PDE-40075	6224003842229	80.0000	76.5000	77.6667	3.000	6.000	0.00	\N	2026-06-17 00:48:43.562158	2026-06-25 11:59:29.723381	\N	t	t	3	\N	t	\N
-357	2	\N	\N	لازق الأنف	AYA1	\N	20.0000	18.9000	19.0179	70.000	240.000	0.00		2026-06-17 00:48:43.676334	2026-06-25 11:59:29.730625	\N	t	t	70	\N	t	\N
 348	2	\N	4	فوط صبغة استعمال مره واحدة	LBF-77687	\N	600.0000	750.0000	750.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.64919	2026-06-29 10:27:18.531153	\N	t	t	0	\N	t	\N
 326	2	23	1	الياف بناء الشعر - بني داكن - توبيك	Top2	\N	130.0000	200.0000	200.0000	0.000	2.000	0.00	\N	2026-06-17 00:48:43.568767	2026-06-29 21:56:31.233201	\N	t	t	0	\N	t	\N
 428	2	\N	7	غسول يدين	HAN-54516	\N	300.0000	475.0000	431.2500	2.000	6.000	0.00	\N	2026-06-17 00:48:43.911995	2026-07-01 16:40:19.015215	\N	t	t	2	\N	t	\N
+403	2	12	6	كريم أكسجين للشعر ٢٠ - بلوب	COL20	6223003508975	40.0000	50.0000	55.1021	1.000	6.000	0.00	\N	2026-06-17 00:48:43.836971	2026-07-07 09:49:26.005316	\N	t	t	1	\N	t	\N
+316	2	2	1	واكس - دودج	DAX2	622400384227	29.0000	39.0000	33.0000	3.000	12.000	0.00		2026-06-17 00:48:43.515177	2026-07-07 09:49:26.030609	\N	t	t	3	\N	t	\N
+358	2	\N	5	اعواد قطن خشبية للاذن	RKE1	6970801430150	22.0000	10.0000	12.0000	6.000	12.000	0.00	\N	2026-06-17 00:48:43.679391	2026-07-07 09:49:26.043092	\N	t	t	6	\N	t	\N
+325	2	23	1	الياف بناء الشعر - اسود - توبيك	Top1	667820011014	190.0000	200.0000	195.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.565499	2026-07-07 09:49:26.052121	\N	t	t	1	\N	t	\N
+355	2	\N	5	اوفر هيد	RFH-67412	\N	35.0000	30.0000	32.8947	3.000	20.000	0.00	\N	2026-06-17 00:48:43.672545	2026-07-07 09:49:26.072787	\N	t	t	3	\N	t	\N
+366	2	26	5	غسول - ستارفيل	OUE-87600	6224010337909	158.0000	50.0000	106.3478	3.000	12.000	0.00	\N	2026-06-17 00:48:43.706912	2026-07-07 09:49:26.089478	\N	t	t	3	\N	t	\N
+332	2	\N	\N	بودرة ثلج	XDP1	6223002840120	20.0000	20.0000	20.0000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.593172	2026-07-07 09:49:26.098298	\N	t	t	1	\N	t	\N
+321	2	\N	1	جل السادا بروفشونال ستايلينج 500مل	sad2	5285001953912	155.0000	70.0000	142.8571	3.000	12.000	0.00	\N	2026-06-17 00:48:43.552305	2026-07-07 09:49:26.107516	\N	t	t	3	\N	t	\N
+334	2	20	2	جل حلاقة للبشرة - شيف كود	Shave1	6223002057948	65.0000	50.0000	62.6923	10.000	24.000	0.00	\N	2026-06-17 00:48:43.601839	2026-07-07 09:49:26.117002	\N	t	t	10	\N	t	\N
+353	2	\N	5	جوانتيات طبية	GLO1	\N	185.0000	180.0000	184.1602	10.000	36.000	0.00	\N	2026-06-17 00:48:43.665533	2026-07-07 09:49:26.12238	\N	t	t	10	\N	t	\N
 343	2	\N	3	فرشاة منفضة رقبة	YJS-93486	6935481345064	220.0000	\N	220.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.637922	2026-06-17 00:48:43.637922	\N	t	t	0	\N	t	\N
 344	2	\N	3	زيت مكن حلاقة	WUP-84414	\N	125.0000	\N	125.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.640387	2026-06-17 00:48:43.640387	\N	t	t	0	\N	t	\N
+386	2	16	6	حناء لائت براؤن - جلوري	IPK-34136	8904033600249	32.1000	25.0000	29.3692	1.000	6.000	0.00	\N	2026-06-17 00:48:43.773096	2026-07-07 09:49:26.133929	\N	t	t	1	\N	t	\N
+376	2	\N	5	سفنجات - تنظيف الوجه	TDF-57005	\N	20.0000	18.0000	18.4348	20.000	60.000	0.00	\N	2026-06-17 00:48:43.742565	2026-07-07 09:49:26.13908	\N	t	t	20	\N	t	\N
+368	2	15	5	سنفره - نايتشرز باونتي	UOV-00465	5285003142611	298.0000	190.0000	214.0000	3.000	6.000	0.00		2026-06-17 00:48:43.713748	2026-07-07 09:49:26.142837	\N	t	t	3	\N	t	\N
+330	2	4	2	شفرات حلاقة مزدوجة - لورد	Lord3	6222001559668	61.0000	70.0000	67.0652	20.000	40.000	0.00	\N	2026-06-17 00:48:43.586406	2026-07-07 09:49:26.149536	\N	t	t	20	\N	t	\N
+360	2	27	5	شمع - كوكو	Coco1	6224003053120	100.0000	90.0000	94.1667	3.000	6.000	0.00		2026-06-17 00:48:43.685673	2026-07-07 09:49:26.152739	\N	t	t	3	\N	t	\N
+389	2	10	6	صبغة كولور ديزاين - رقم ١	COL1	8032993960018	150.0000	100.0000	133.3333	1.000	6.000	0.00	\N	2026-06-17 00:48:43.786267	2026-07-07 09:49:26.161646	\N	t	t	1	\N	t	\N
+390	2	10	6	صبغة كولور ديزاين - رقم ٢	COL2	8032993960025	150.0000	100.0000	141.6667	1.000	6.000	0.00	\N	2026-06-17 00:48:43.790273	2026-07-07 09:49:26.165143	\N	t	t	1	\N	t	\N
+359	2	\N	\N	غسول البشرة للفنش بعد الحلاقة	Eua1	6224007939642	58.0000	50.0000	50.0000	6.000	36.000	0.00	\N	2026-06-17 00:48:43.682121	2026-07-07 09:49:26.180505	\N	t	t	6	\N	t	\N
+372	2	15	5	قناع الطين - نايتشرز باونتي	QYL-32781	5285003142604	241.0000	190.0000	226.4286	3.000	6.000	0.00	\N	2026-06-17 00:48:43.728581	2026-07-07 09:49:26.185431	\N	t	t	3	\N	t	\N
+354	2	26	5	قناع ورقي للوجه لحب الشباب/مبيض- ستارفيل	EKE1	6223012632012	39.0000	12.0000	12.0000	20.000	50.000	0.00		2026-06-17 00:48:43.669983	2026-07-07 09:49:26.189577	\N	t	t	20	\N	t	\N
+322	2	22	1	كريم الشعر – كيراتين ثيرابي – بايو لوكس- 500مل	BIO2	3587925330223	153.0000	50.0000	101.5000	3.000	8.000	0.00	\N	2026-06-17 00:48:43.555308	2026-07-07 09:49:26.192543	\N	t	t	3	\N	t	\N
+357	2	\N	\N	لازق الأنف	AYA1	\N	20.0000	18.0000	18.8602	70.000	240.000	0.00		2026-06-17 00:48:43.676334	2026-07-07 09:49:26.195848	\N	t	t	70	\N	t	\N
+356	2	\N	\N	لاصق العين للترطيب	AYA2	\N	38.0000	12.0000	27.1327	20.000	60.000	0.00	\N	2026-06-17 00:48:43.674499	2026-07-07 09:49:26.201825	\N	t	t	20	\N	t	\N
+369	2	15	5	مقشر جل - نايتشرز باونتي	CHS-54017	5285003142734	241.0000	190.0000	211.8571	3.000	6.000	0.00	\N	2026-06-17 00:48:43.717434	2026-07-07 09:49:26.2144	\N	t	t	3	\N	t	\N
+408	2	\N	6	مزيل صبغة	ZE1	6223009505336	210.0000	20.0000	20.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.85273	2026-07-07 09:49:26.231552	\N	t	t	1	\N	t	\N
 363	2	15	5	ماسك تقشير الرؤوس السوداء - نايتشرز باونتي	NAT1	6222019601946	37.0000	\N	37.0000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.697218	2026-06-17 00:48:43.697218	\N	t	t	0	\N	t	\N
+349	2	\N	4	مناديل رقبة للحلاقة	NDW-62889	8993440013292	125.0000	50.0000	50.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.652151	2026-07-07 09:49:26.236438	\N	t	t	3	\N	t	\N
 315	2	1	1	كلارى مقشر فروة رأس	AKB-60156	6224010337824	260.0000	\N	260.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.494863	2026-06-17 00:48:43.494863	\N	t	t	3	\N	t	\N
 406	2	3	6	بلوند ستوديو ٩ بودرة تفتيح - لوريال	500-77099	\N	150.0000	\N	150.0000	0.000	0.000	0.00		2026-06-17 00:48:43.846752	2026-06-18 06:23:16.807455	\N	f	t	0	\N	t	\N
 410	2	\N	6	بخاخة توبك زجاج	CXD-33533	\N	220.0000	\N	220.0000	0.000	0.000	0.00		2026-06-17 00:48:43.857939	2026-06-19 04:49:13.834163	\N	f	t	0	\N	t	\N
@@ -19792,25 +20800,28 @@ COPY public.products (id, business_id, brand_id, product_category_id, name, sku,
 382	2	\N	5	محلول S2	S2A-18728	\N	67.0000	250.0000	250.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.75788	2026-06-22 11:58:22.789724	\N	t	t	0	\N	t	\N
 383	2	\N	5	محلول S3	S3B-86215	\N	67.0000	250.0000	250.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.76208	2026-06-22 11:58:22.795448	\N	t	t	0	\N	t	\N
 424	2	\N	7	جركن منظف ارضيات	PMA-87058	\N	200.0000	200.0000	200.0000	2.000	6.000	0.00	\N	2026-06-17 00:48:43.902575	2026-06-25 12:20:52.834654	\N	t	t	2	\N	t	\N
-399	2	9	6	صبغة سبيدي رقم ٨٨١ -  أسود طبيعي - بيجن	PGU-59614	\N	135.0000	175.0000	175.0000	0.000	6.000	0.00	\N	2026-06-17 00:48:43.824138	2026-06-29 10:20:06.403602	\N	t	t	0	\N	t	\N
 374	2	\N	5	كريم لازاله الرؤوس السوداء	FGP-16353	6970470536283	450.0000	\N	450.0000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.736354	2026-06-17 00:48:43.736354	\N	t	t	0	\N	t	\N
 400	2	9	6	صبغة سبيدي رقم ٨٨٢ -  بني اسود - بيجن	BIG-82919	\N	135.0000	175.0000	175.0000	0.000	6.000	0.00	\N	2026-06-17 00:48:43.826881	2026-06-29 10:20:06.412124	\N	t	t	0	\N	t	\N
-401	2	9	6	صبغة سبيدي رقم ٨٨٣- بني غامق - بيجن	GNS-10158	\N	135.0000	175.0000	175.0000	0.000	6.000	0.00	\N	2026-06-17 00:48:43.829656	2026-06-29 10:20:06.417444	\N	t	t	0	\N	t	\N
+401	2	9	6	صبغة سبيدي رقم ٨٨٣- بني غامق - بيجن	GNS-10158	\N	135.0000	150.0000	168.7500	0.000	6.000	0.00	\N	2026-06-17 00:48:43.829656	2026-07-07 09:49:26.155676	\N	t	t	0	\N	t	\N
+399	2	9	6	صبغة سبيدي رقم ٨٨١ -  أسود طبيعي - بيجن	PGU-59614	\N	135.0000	150.0000	170.0000	0.000	6.000	0.00	\N	2026-06-17 00:48:43.824138	2026-07-07 09:49:26.158689	\N	t	t	0	\N	t	\N
 380	2	\N	5	فرشاة المروحة	GKF-66827	\N	25.0000	\N	25.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.752676	2026-06-17 00:48:43.752676	\N	t	t	0	\N	t	\N
-407	2	\N	3	فرشة صبغة	VMI-18652	\N	10.0000	\N	10.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.84907	2026-06-17 00:48:43.84907	\N	t	t	0	\N	t	\N
+407	2	\N	3	فرشة صبغة	VMI-18652	\N	10.0000	15.0000	15.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.84907	2026-07-07 09:49:26.177509	\N	t	t	0	\N	t	\N
+379	2	\N	5	ماء ورد	DEF-96097	\N	96.0000	10.0000	78.8000	5.000	12.000	0.00	\N	2026-06-17 00:48:43.749873	2026-07-07 09:49:26.209467	\N	t	t	5	\N	t	\N
+412	2	\N	3	ورق حراراى للفيزا	CYS2	\N	7.0000	5.0000	6.3968	10.000	40.000	0.00	\N	2026-06-17 00:48:43.864759	2026-07-07 09:49:26.240526	\N	t	t	10	\N	t	\N
+370	2	15	5	كريم مرطب - نايتشرز باونتي	AOX-17061	5285003142512	241.0000	50.0000	113.5952	3.000	6.000	0.00	\N	2026-06-17 00:48:43.721139	2026-07-07 09:49:26.246141	\N	t	t	3	\N	t	\N
+371	2	5	5	كريم مرطب - ايفا	WVQ-99992	6223004371592	43.0000	15.0000	40.4545	3.000	12.000	0.00	\N	2026-06-17 00:48:43.725063	2026-07-07 09:49:26.25163	\N	t	t	3	\N	t	\N
 411	2	\N	6	قبعة سيليكون لصبغ الشعر	WIA-89684	691809010309	150.0000	\N	150.0000	0.000	2.000	0.00	\N	2026-06-17 00:48:43.861064	2026-06-17 00:48:43.861064	\N	t	t	0	\N	t	\N
 414	2	\N	3	ميداليات	BQM-60626	6941032917321	11.5000	\N	11.5000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.873489	2026-06-17 00:48:43.873489	\N	t	t	0	\N	t	\N
 415	2	\N	6	بولة صبغ الشعر	BCE-21265	6935481367400	95.0000	\N	95.0000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.877698	2026-06-17 00:48:43.877698	\N	t	t	0	\N	t	\N
-379	2	\N	5	ماء ورد	DEF-96097	\N	96.0000	\N	96.0000	5.000	12.000	0.00	\N	2026-06-17 00:48:43.749873	2026-06-17 00:48:43.749873	\N	t	t	5	\N	t	\N
 416	2	\N	3	زجاجات مضخة بلاستيكية فارغة قابلة لاعادة الملء سعة ٣٠٠ مل	HBZ-05751	\N	75.0000	\N	75.0000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.880471	2026-06-17 00:48:43.880471	\N	t	t	0	\N	t	\N
 417	2	\N	3	زجاجات مضخة بلاستيكية فارغة قابلة لاعادة الملء سعة ١٥٠ مل	YRZ-61083	\N	55.0000	\N	55.0000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.883105	2026-06-17 00:48:43.883105	\N	t	t	0	\N	t	\N
 466	2	\N	3	تيشرت بولو هاوس شتوي	OIS-37405	\N	300.0000	\N	300.0000	0.000	0.000	0.00		2026-06-17 00:48:44.017854	2026-06-18 06:16:23.956219	\N	f	t	0	\N	t	\N
 436	2	44	14	زيت الشعر- جي إف	JFH-56027	\N	124.0000	\N	124.0000	0.000	0.000	0.00		2026-06-17 00:48:43.947693	2026-06-18 06:17:39.516169	\N	f	t	0	\N	t	\N
-433	2	31	14	ماسك لاصلاح الشعر بالاعشاب السويسرية - انيرجي	IMO-54978	\N	270.0000	\N	270.0000	0.000	0.000	0.00		2026-06-17 00:48:43.935194	2026-06-18 06:19:23.139803	\N	f	t	0	\N	t	\N
 423	2	\N	7	سيفتي بوكس	TBX-61481	\N	24.0000	\N	24.0000	0.000	12.000	0.00	\N	2026-06-17 00:48:43.899644	2026-06-17 00:48:43.899644	\N	t	t	0	\N	t	\N
 420	2	\N	7	مضخة جل معقم لليدين	XGQ-46023	\N	85.5000	\N	85.5000	0.000	0.000	0.00		2026-06-17 00:48:43.891882	2026-06-19 12:33:07.848833	\N	f	t	0	\N	t	\N
 425	2	\N	7	منظف خشب	PUH-65115	\N	100.0000	\N	100.0000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.905296	2026-06-17 00:48:43.905296	\N	t	t	0	\N	t	\N
 467	2	\N	3	تيشرت بولو	PNJ-45704	\N	250.0000	\N	250.0000	0.000	0.000	0.00		2026-06-17 00:48:44.019495	2026-06-21 04:15:22.733177	\N	f	t	0	\N	t	\N
+433	2	31	14	ماسك لاصلاح الشعر بالاعشاب السويسرية - انيرجي	IMO-54978	\N	270.0000	180.0000	180.0000	0.000	0.000	0.00		2026-06-17 00:48:43.935194	2026-07-07 09:49:26.226667	\N	f	t	0	\N	t	\N
 431	2	\N	7	صابون لغسل الفوط التنظيف	MON-38776	6224000633356	6.0000	\N	6.0000	0.000	12.000	0.00	\N	2026-06-17 00:48:43.917508	2026-06-17 00:48:43.917508	\N	t	t	0	\N	t	\N
 429	2	\N	7	بخور	THI-91002	\N	60.0000	\N	60.0000	0.000	12.000	0.00		2026-06-17 00:48:43.913584	2026-06-23 10:27:29.482226	\N	f	t	0	\N	t	\N
 437	2	\N	8	اكواب كرتون ٧ اونز	8ZK1	\N	20.0000	\N	20.0000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.950175	2026-06-17 00:48:43.950175	\N	t	t	0	\N	t	\N
@@ -19819,67 +20830,41 @@ COPY public.products (id, business_id, brand_id, product_category_id, name, sku,
 447	2	\N	8	اكواب كرتون ٤ اونز	IPK1	\N	18.0000	\N	18.0000	0.000	3.000	0.00	\N	2026-06-17 00:48:43.977672	2026-06-17 00:48:43.977672	\N	t	t	0	\N	t	\N
 446	2	\N	8	شاي فرت	UNN-34570	\N	55.0000	\N	55.0000	0.000	0.000	0.00		2026-06-17 00:48:43.975035	2026-06-23 10:50:52.888077	\N	f	t	0	\N	f	2026-06-23 10:50:52.884492
 452	2	\N	9	كلور	clorel	\N	250.0000	\N	250.0000	0.000	3.000	0.00		2026-06-17 00:48:43.991858	2026-06-23 11:14:36.968781	\N	t	t	0	\N	t	\N
+472	2	\N	4	بطارية ريموت 	ORB-30162	\N	17.0000	17.0000	17.0000	1.000	5.000	7.00		2026-07-07 16:00:22.084135	2026-07-07 16:04:02.531814	\N	t	t	0	\N	t	\N
 430	2	\N	7	ديتول	KRG-65818	\N	50.0000	50.0000	50.0000	3.000	12.000	0.00		2026-06-17 00:48:43.915362	2026-06-29 22:06:42.100641	12	t	t	3	\N	t	\N
 422	2	\N	7	اكياس قمامة بلاستيكية ٦٠ × ٩٠ سم	KWW-36963	\N	57.0000	27.0000	27.0000	0.000	0.000	0.00	\N	2026-06-17 00:48:43.89708	2026-07-01 16:40:19.010151	\N	t	t	0	\N	t	\N
 427	2	\N	7	معطر جو	QHY1	6223006130456	100.0000	100.0000	116.3636	0.000	0.000	0.00		2026-06-17 00:48:43.910408	2026-07-01 16:40:19.025993	\N	t	t	0	\N	t	\N
 449	2	\N	9	مسحوق غسيل اتوماتيك	okse	\N	425.0000	540.0000	482.5000	0.000	2.000	0.00	\N	2026-06-17 00:48:43.982871	2026-07-01 16:40:19.031464	\N	t	t	0	\N	t	\N
 450	2	\N	9	مسحوق غسيل عادي	oksed	\N	75.0000	240.0000	240.0000	0.000	1.000	0.00	\N	2026-06-17 00:48:43.985773	2026-07-01 16:40:19.036663	\N	t	t	0	\N	t	\N
-471	2	9	6	صبغة سبيدي رقم ٨٨٤- بني طبيعي - بيجن	AIH-19401	\N	0.0000	\N	0.0000	0.000	0.000	0.00		2026-06-17 00:53:30.267665	2026-06-17 00:53:30.267665	\N	t	t	0	\N	t	\N
-318	2	42	1	بخاخ تثبيت شعر - إيفين روز	Evin1	8007675734164	290.0000	240.0000	276.3636	3.000	12.000	0.00	\N	2026-06-17 00:48:43.543528	2026-06-22 11:50:17.436856	\N	t	t	3	\N	t	\N
-317	2	41	1	بخاخ زيت الزيتون للشعر - او آر إس	OLI1	6223012452399	105.0000	\N	105.0000	3.000	3.000	0.00	\N	2026-06-17 00:48:43.538831	2026-06-17 00:48:43.538831	\N	t	t	3	\N	t	\N
+336	2	\N	2	فتله	ADY-98801	\N	45.0000	65.0000	55.9091	1.000	6.000	0.00	\N	2026-06-17 00:48:43.608514	2026-07-07 16:01:50.747463	\N	t	t	1	\N	t	\N
 319	2	17	1	رغوة (موس) - إنليفين	evin2	6224003842212	105.0000	\N	105.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.546814	2026-06-17 00:48:43.546814	\N	t	t	3	\N	t	\N
 320	2	\N	1	جل السادا بروفشونال ستايلينج 1000مل	sad3	5287000234085	240.0000	\N	240.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.549993	2026-06-17 00:48:43.549993	\N	t	t	3	\N	t	\N
-321	2	\N	1	جل السادا بروفشونال ستايلينج 500مل	sad2	5285001953912	155.0000	\N	155.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.552305	2026-06-17 00:48:43.552305	\N	t	t	3	\N	t	\N
-322	2	22	1	كريم الشعر – كيراتين ثيرابي – بايو لوكس- 500مل	BIO2	3587925330223	153.0000	\N	153.0000	3.000	8.000	0.00	\N	2026-06-17 00:48:43.555308	2026-06-17 00:48:43.555308	\N	t	t	3	\N	t	\N
-325	2	23	1	الياف بناء الشعر - اسود - توبيك	Top1	667820011014	190.0000	\N	190.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.565499	2026-06-17 00:48:43.565499	\N	t	t	1	\N	t	\N
-328	2	4	2	فوم حلاقة - لورد	Lord2	6222001567038	50.0000	\N	50.0000	6.000	24.000	0.00	\N	2026-06-17 00:48:43.577146	2026-06-17 00:48:43.577146	\N	t	t	6	\N	t	\N
 329	2	12	1	حمام كريم - بلوب	MIN2	6223003501914	90.0000	\N	90.0000	6.000	24.000	0.00	\N	2026-06-17 00:48:43.581394	2026-06-17 00:48:43.581394	\N	t	t	6	\N	t	\N
 331	2	25	2	بلسم ما بعد الحلاقة - مان لوك	LOV1	6223001385745	63.0000	\N	63.0000	5.000	24.000	0.00	\N	2026-06-17 00:48:43.590079	2026-06-17 00:48:43.590079	\N	t	t	5	\N	t	\N
-332	2	\N	\N	بودرة ثلج	XDP1	6223002840120	20.0000	\N	20.0000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.593172	2026-06-17 00:48:43.593172	\N	t	t	1	\N	t	\N
 333	2	4	2	امواس لورد	Lord1	8801038612171	45.0000	\N	45.0000	48.000	288.000	0.00	\N	2026-06-17 00:48:43.597526	2026-06-17 00:48:43.597526	\N	t	t	48	\N	t	\N
-334	2	20	2	جل حلاقة للبشرة - شيف كود	Shave1	6223002057948	65.0000	\N	65.0000	10.000	24.000	0.00	\N	2026-06-17 00:48:43.601839	2026-06-17 00:48:43.601839	\N	t	t	10	\N	t	\N
 335	2	\N	2	علبة شبة كبريت	VOB-25557	6000980911046	8.0000	\N	8.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.605903	2026-06-17 00:48:43.605903	\N	t	t	3	\N	t	\N
-336	2	\N	2	فتله	ADY-98801	\N	45.0000	\N	45.0000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.608514	2026-06-17 00:48:43.608514	\N	t	t	1	\N	t	\N
-340	2	2	1	سيروم -  دودج	GKM-84978	6224003842342	100.0000	\N	100.0000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.625049	2026-06-17 00:48:43.625049	\N	t	t	1	\N	t	\N
 341	2	\N	3	بخاخات مياة	WHC-27899	\N	30.0000	\N	30.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.631406	2026-06-17 00:48:43.631406	\N	t	t	3	\N	t	\N
 342	2	\N	3	بخاخات تعقيم	WHC-27898	\N	30.0000	\N	30.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.634142	2026-06-17 00:48:43.634142	\N	t	t	3	\N	t	\N
-349	2	\N	4	مناديل رقبة للحلاقة	NDW-62889	8993440013292	125.0000	\N	125.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.652151	2026-06-17 00:48:43.652151	\N	t	t	3	\N	t	\N
 352	2	43	1	ماسك شعر - كلاري	300-16262	6224008073482	252.0000	\N	252.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.663059	2026-06-17 00:48:43.663059	\N	t	t	3	\N	t	\N
-355	2	\N	5	اوفر هيد	RFH-67412	\N	35.0000	\N	35.0000	3.000	20.000	0.00	\N	2026-06-17 00:48:43.672545	2026-06-17 00:48:43.672545	\N	t	t	3	\N	t	\N
-358	2	\N	5	اعواد قطن خشبية للاذن	RKE1	6970801430150	22.0000	\N	22.0000	6.000	12.000	0.00	\N	2026-06-17 00:48:43.679391	2026-06-17 00:48:43.679391	\N	t	t	6	\N	t	\N
-359	2	\N	\N	غسول البشرة للفنش بعد الحلاقة	Eua1	6224007939642	58.0000	\N	58.0000	6.000	36.000	0.00	\N	2026-06-17 00:48:43.682121	2026-06-17 00:48:43.682121	\N	t	t	6	\N	t	\N
 362	2	28	5	أقراص قطنية - فيوناتاج	CFK-54359	6224010787353	78.0000	\N	78.0000	6.000	6.000	0.00	\N	2026-06-17 00:48:43.693385	2026-06-17 00:48:43.693385	\N	t	t	6	\N	t	\N
 365	2	\N	5	قطن تنظيف بشره	RJF1	\N	50.0000	\N	50.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.703283	2026-06-17 00:48:43.703283	\N	t	t	3	\N	t	\N
-366	2	26	5	غسول - ستارفيل	OUE-87600	6224010337909	158.0000	\N	158.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.706912	2026-06-17 00:48:43.706912	\N	t	t	3	\N	t	\N
-369	2	15	5	مقشر جل - نايتشرز باونتي	CHS-54017	5285003142734	241.0000	\N	241.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.717434	2026-06-17 00:48:43.717434	\N	t	t	3	\N	t	\N
-368	2	15	5	سنفره - نايتشرز باونتي	UOV-00465	5285003142611	298.0000	250.0000	262.0000	3.000	6.000	0.00		2026-06-17 00:48:43.713748	2026-06-22 11:47:25.58735	\N	t	t	3	\N	t	\N
-360	2	27	5	شمع - كوكو	Coco1	6224003053120	100.0000	\N	100.0000	3.000	6.000	0.00		2026-06-17 00:48:43.685673	2026-06-23 18:36:47.790055	\N	t	t	3	\N	t	\N
 361	2	27	5	قالب شمع - كوكو	GAZ-65052	6224001498046	100.0000	\N	100.0000	5.000	12.000	0.00	\N	2026-06-17 00:48:43.68962	2026-06-23 18:38:19.980224	\N	t	t	5	\N	f	2026-06-23 18:38:19.976766
 367	2	26	5	غسول تفتيح - ستارفيل	ZSZ-71896	\N	155.0000	\N	155.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.71015	2026-06-23 18:39:29.598178	\N	t	t	3	\N	f	2026-06-23 18:39:29.59277
 337	2	2	1	واكس أند جروم - دودج	PGK-19551	6224003842236	35.0000	\N	35.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.612853	2026-06-23 18:48:13.049106	\N	t	t	3	\N	f	2026-06-23 18:48:13.04653
-316	2	2	1	واكس - دودج	DAX2	622400384227	29.0000	\N	29.0000	3.000	12.000	0.00		2026-06-17 00:48:43.515177	2026-06-23 18:48:35.755832	\N	t	t	3	\N	t	\N
 338	2	43	1	شامبو مضاد للقشرة - كلاري	EEJ-20480	6223012633286	225.0000	245.0000	240.0000	2.000	3.000	0.00	\N	2026-06-17 00:48:43.618008	2026-06-25 12:05:57.547219	\N	t	t	2	\N	t	\N
 350	2	\N	4	كمامات	IOP-74831	6223006345218	80.0000	50.0000	73.3333	20.000	12.000	0.00	\N	2026-06-17 00:48:43.655421	2026-06-25 12:20:52.843415	\N	t	t	20	\N	t	\N
-330	2	4	2	شفرات حلاقة مزدوجة - لورد	Lord3	6222001559668	61.0000	70.0000	66.6250	20.000	40.000	0.00	\N	2026-06-17 00:48:43.586406	2026-06-29 10:10:34.160054	\N	t	t	20	\N	t	\N
 346	2	\N	4	مناديل سحب	LYD1	\N	770.0000	716.6700	730.0025	5.000	5.000	0.00	\N	2026-06-17 00:48:43.644895	2026-06-29 10:22:40.320933	\N	t	t	5	\N	t	\N
 351	2	\N	4	استرتش	BIW-87198	\N	31.0000	50.0000	50.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.657762	2026-06-25 11:40:05.223036	\N	t	t	3	\N	t	\N
-370	2	15	5	كريم مرطب - نايتشرز باونتي	AOX-17061	5285003142512	241.0000	240.7500	240.7857	3.000	6.000	0.00	\N	2026-06-17 00:48:43.721139	2026-06-25 11:59:29.716779	\N	t	t	3	\N	t	\N
 347	2	\N	4	فوط قص استعمال مره واحدة	C1	\N	650.0000	640.0000	645.0000	4.000	6.000	0.00	\N	2026-06-17 00:48:43.647027	2026-06-29 10:27:18.54021	\N	t	t	4	\N	t	\N
 327	2	\N	1	شامبو للشعر	MIN1	6220120381559	180.0000	150.0000	150.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.572529	2026-06-29 21:56:31.224449	\N	t	t	3	\N	t	\N
-356	2	\N	\N	لاصق العين للترطيب	AYA2	\N	38.0000	31.0000	31.0000	20.000	60.000	0.00	\N	2026-06-17 00:48:43.674499	2026-06-29 22:00:31.439665	\N	t	t	20	\N	t	\N
-353	2	\N	5	جوانتيات طبية	GLO1	\N	185.0000	175.0000	184.6970	10.000	36.000	0.00	\N	2026-06-17 00:48:43.665533	2026-07-01 16:40:19.052121	\N	t	t	10	\N	t	\N
-371	2	5	5	كريم مرطب - ايفا	WVQ-99992	6223004371592	43.0000	\N	43.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.725063	2026-06-17 00:48:43.725063	\N	t	t	3	\N	t	\N
-372	2	15	5	قناع الطين - نايتشرز باونتي	QYL-32781	5285003142604	241.0000	\N	241.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.728581	2026-06-17 00:48:43.728581	\N	t	t	3	\N	t	\N
+471	2	9	6	صبغة سبيدي رقم ٨٨٤- بني طبيعي - بيجن	AIH-19401	\N	0.0000	\N	0.0000	0.000	0.000	0.00		2026-06-17 00:53:30.267665	2026-07-07 07:03:27.562638	\N	f	t	0	\N	t	\N
+318	2	42	1	بخاخ تثبيت شعر - إيفين روز	Evin1	8007675734164	290.0000	280.0000	277.8788	3.000	12.000	0.00	\N	2026-06-17 00:48:43.543528	2026-07-07 09:49:25.972743	\N	t	t	3	\N	t	\N
+317	2	41	1	بخاخ زيت الزيتون للشعر - او آر إس	OLI1	6223012452399	105.0000	100.0000	101.5000	3.000	3.000	0.00	\N	2026-06-17 00:48:43.538831	2026-07-07 09:49:25.998506	\N	t	t	3	\N	t	\N
 375	2	\N	5	ماسك صبار	YUO-68634	6223002236701	10.0000	\N	10.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.740143	2026-06-17 00:48:43.740143	\N	t	t	3	\N	t	\N
-376	2	\N	5	سفنجات - تنظيف الوجه	TDF-57005	\N	20.0000	\N	20.0000	20.000	60.000	0.00	\N	2026-06-17 00:48:43.742565	2026-06-17 00:48:43.742565	\N	t	t	20	\N	t	\N
 377	2	\N	5	فرشاة قناع - سيليكون	LVW-10372	\N	23.0000	\N	23.0000	1.000	4.000	0.00	\N	2026-06-17 00:48:43.745009	2026-06-17 00:48:43.745009	\N	t	t	1	\N	t	\N
 385	2	16	6	حناء كستاني - جلوري	CRK-41084	8904033600034	32.1000	\N	32.1000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.76842	2026-06-17 00:48:43.76842	\N	t	t	1	\N	t	\N
-386	2	16	6	حناء لائت براؤن - جلوري	IPK-34136	8904033600249	32.1000	\N	32.1000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.773096	2026-06-17 00:48:43.773096	\N	t	t	1	\N	t	\N
 387	2	16	6	حناء بني - جلوري	UDG-49877	8904033600027	32.1000	\N	32.1000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.777564	2026-06-17 00:48:43.777564	\N	t	t	3	\N	t	\N
 388	2	16	6	حناء الاسود - جلوري	PQP-02901	8904033600010	43.0000	\N	43.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.782184	2026-06-17 00:48:43.782184	\N	t	t	3	\N	t	\N
-389	2	10	6	صبغة كولور ديزاين - رقم ١	COL1	8032993960018	150.0000	\N	150.0000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.786267	2026-06-17 00:48:43.786267	\N	t	t	1	\N	t	\N
-390	2	10	6	صبغة كولور ديزاين - رقم ٢	COL2	8032993960025	150.0000	\N	150.0000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.790273	2026-06-17 00:48:43.790273	\N	t	t	1	\N	t	\N
-391	2	10	6	صبغة كولور ديزاين - رقم ٣	COL3	8032993960032	150.0000	\N	150.0000	1.000	6.000	0.00	\N	2026-06-17 00:48:43.793852	2026-06-17 00:48:43.793852	\N	t	t	1	\N	t	\N
 392	2	10	6	صبغة كولور ديزاين - رقم ٤	COL4	8032993960049	150.0000	\N	150.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.797697	2026-06-17 00:48:43.797697	\N	t	t	1	\N	t	\N
 393	2	10	6	صبغة كولور ديزاين - رقم ٥	COL5	8032993960056	150.0000	\N	150.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.802356	2026-06-17 00:48:43.802356	\N	t	t	1	\N	t	\N
 394	2	3	6	صبغة مجرال ١ - لوريال	MAJ-56189	3474637282813	266.0000	\N	266.0000	1.000	9.000	0.00	\N	2026-06-17 00:48:43.806389	2026-06-17 00:48:43.806389	\N	t	t	1	\N	t	\N
@@ -19888,18 +20873,14 @@ COPY public.products (id, business_id, brand_id, product_category_id, name, sku,
 397	2	3	6	صبغة مجرال ٥ - لوريال	MAJ-21121	3474637282783	266.0000	\N	266.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.817546	2026-06-17 00:48:43.817546	\N	t	t	1	\N	t	\N
 398	2	29	4	بتروليوم جلي - فازلين	vas1	6224000788124	25.0000	\N	25.0000	4.000	12.000	0.00	\N	2026-06-17 00:48:43.821341	2026-06-17 00:48:43.821341	\N	t	t	4	\N	t	\N
 402	2	3	6	كريم اكسجين ٢٠ - لوريال	OXY-39436	3474637284305	500.0000	\N	500.0000	1.000	4.000	0.00	\N	2026-06-17 00:48:43.833194	2026-06-17 00:48:43.833194	\N	t	t	1	\N	t	\N
-404	2	12	6	كريم أكسجين للشعر ٣٠ - بلوب	COL30	6223003508982	40.0000	\N	40.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.840529	2026-06-17 00:48:43.840529	\N	t	t	1	\N	t	\N
 405	2	12	6	كريم أكسجين للشعر ٤٠ - بلوب	COL40	6223003508999	40.0000	\N	40.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.844074	2026-06-17 00:48:43.844074	\N	t	t	1	\N	t	\N
-408	2	\N	6	مزيل صبغة	ZE1	6223009505336	210.0000	\N	210.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.85273	2026-06-17 00:48:43.85273	\N	t	t	1	\N	t	\N
 419	2	\N	7	جركن جل معقم ومطهر اليدين	KUV-38439	\N	350.0000	\N	350.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.889294	2026-06-17 00:48:43.889294	\N	t	t	1	\N	t	\N
-434	2	30	14	كريم ريلاكسر - موشنز	TCB2	\N	370.0000	\N	370.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.941512	2026-06-17 00:48:43.941512	\N	t	t	1	\N	t	\N
 435	2	30	14	شامبو محايد - موشنز  ٤٧٣ مل	SMO-82758	802535335165	284.0000	\N	284.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.945089	2026-06-17 00:48:43.945089	\N	t	t	1	\N	t	\N
 438	2	\N	8	اكواب مياه بلاستيك	FLE1	\N	20.0000	\N	20.0000	12.000	60.000	0.00	\N	2026-06-17 00:48:43.952412	2026-06-17 00:48:43.952412	\N	t	t	12	\N	t	\N
 439	2	\N	8	بن	cof1	\N	115.0000	\N	115.0000	12.000	40.000	0.00	\N	2026-06-17 00:48:43.954605	2026-06-17 00:48:43.954605	\N	t	t	12	\N	t	\N
 440	2	\N	8	ينسون	isis	6223000470084	30.0000	\N	30.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.957578	2026-06-17 00:48:43.957578	\N	t	t	3	\N	t	\N
 441	2	\N	8	نعناع	QOQ-60531	6223000470138	30.0000	\N	30.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.960659	2026-06-17 00:48:43.960659	\N	t	t	3	\N	t	\N
 442	2	\N	8	كركديه	VWA-24212	6223000470121	30.0000	\N	30.0000	3.000	6.000	0.00	\N	2026-06-17 00:48:43.963586	2026-06-17 00:48:43.963586	\N	t	t	3	\N	t	\N
-443	2	\N	8	سكر	sug1	\N	30.0000	\N	30.0000	6.000	20.000	0.00	\N	2026-06-17 00:48:43.965918	2026-06-17 00:48:43.965918	\N	t	t	6	\N	t	\N
 445	2	\N	8	شاي فتله	ABL-95824	6222002300139	75.0000	\N	75.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.972346	2026-06-17 00:48:43.972346	\N	t	t	1	\N	t	\N
 448	2	\N	9	زيت نعناع صيني	NANA	\N	900.0000	\N	900.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.98026	2026-06-17 00:48:43.98026	\N	t	t	1	\N	t	\N
 455	2	\N	9	مزيل صدأ	SADs	\N	25.0000	\N	25.0000	1.000	12.000	0.00	\N	2026-06-17 00:48:43.998295	2026-06-17 00:48:43.998295	\N	t	t	1	\N	t	\N
@@ -19910,10 +20891,12 @@ COPY public.products (id, business_id, brand_id, product_category_id, name, sku,
 451	2	\N	9	مسحوق غسيل عادي كبير	oksedb	\N	250.0000	\N	250.0000	1.000	4.000	0.00		2026-06-17 00:48:43.988876	2026-06-23 11:17:08.012148	\N	f	t	1	\N	f	2026-06-23 11:17:08.009475
 426	2	\N	7	ملح لمون	NGM-76494	\N	25.0000	25.0000	25.0000	2.000	4.000	0.00	\N	2026-06-17 00:48:43.907885	2026-06-26 09:47:02.825924	\N	t	t	2	\N	t	\N
 413	2	\N	3	ورق حرارى - فواتير الكاشير	CYS1	\N	35.0000	35.0000	35.0000	10.000	24.000	0.00	\N	2026-06-17 00:48:43.867887	2026-06-28 07:55:30.749173	\N	t	t	10	\N	t	\N
-412	2	\N	3	ورق حراراى للفيزا	CYS2	\N	7.0000	7.0000	7.0000	10.000	40.000	0.00	\N	2026-06-17 00:48:43.864759	2026-06-29 10:31:21.261632	\N	t	t	10	\N	t	\N
-432	2	44	14	حمام زيت -  جي اف	QQZ1	6297938827821	300.0000	300.0000	300.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.930876	2026-06-29 21:56:31.214288	\N	t	t	3	\N	t	\N
+434	2	30	14	كريم ريلاكسر - موشنز	TCB2	\N	370.0000	365.0000	365.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:43.941512	2026-07-07 15:52:02.504546	\N	t	t	1	\N	t	\N
+443	2	\N	8	سكر	sug1	\N	30.0000	26.0000	26.0000	6.000	20.000	0.00	\N	2026-06-17 00:48:43.965918	2026-07-07 16:01:50.738539	\N	t	t	6	\N	t	\N
 384	2	\N	5	لاصق الجبهة للترطيب	XFH-56644	\N	42.0000	41.5000	41.5000	20.000	80.000	0.00	\N	2026-06-17 00:48:43.764625	2026-06-29 22:00:31.433375	\N	t	t	20	\N	t	\N
 421	2	\N	7	اكياس قمامة بلاستيكية ١٢٠ × ١٤٠ سم	KWW-36962	\N	76.0000	38.5700	38.5700	6.000	20.000	0.00	\N	2026-06-17 00:48:43.894494	2026-07-01 16:40:19.002169	\N	t	t	6	\N	t	\N
+404	2	12	6	كريم أكسجين للشعر ٣٠ - بلوب	COL30	6223003508982	40.0000	50.0000	43.3333	1.000	3.000	0.00	\N	2026-06-17 00:48:43.840529	2026-07-07 09:49:26.018844	\N	t	t	1	\N	t	\N
+432	2	44	14	حمام زيت -  جي اف	QQZ1	6297938827821	300.0000	220.0000	250.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:43.930876	2026-07-07 09:49:26.126274	\N	t	t	3	\N	t	\N
 457	2	\N	9	اكياس فوط سخن	gd2	\N	72.0000	\N	72.0000	20.000	25.000	0.00	\N	2026-06-17 00:48:44.00163	2026-06-17 00:48:44.00163	\N	t	t	20	\N	t	\N
 458	2	\N	9	اكياس فوط تنشيف	gd3	\N	72.0000	\N	72.0000	20.000	25.000	0.00	\N	2026-06-17 00:48:44.003424	2026-06-17 00:48:44.003424	\N	t	t	20	\N	t	\N
 460	2	\N	15	مبرد بيد خشب طويلة بوجهين	EVV-92338	\N	1.0000	\N	1.0000	1.000	12.000	0.00	\N	2026-06-17 00:48:44.00774	2026-06-17 00:48:44.00774	\N	t	t	1	\N	t	\N
@@ -19923,10 +20906,10 @@ COPY public.products (id, business_id, brand_id, product_category_id, name, sku,
 465	2	\N	15	اوفر شوز	ZHA-25284	\N	39.9000	\N	39.9000	1.000	12.000	0.00	\N	2026-06-17 00:48:44.016218	2026-06-17 00:48:44.016218	\N	t	t	1	\N	t	\N
 468	2	32	7	قاتل الحشرات الطائرة بدون رائحة - ريد	RRF-06887	6223001344810	73.0000	\N	73.0000	3.000	12.000	0.00	\N	2026-06-17 00:48:44.02192	2026-06-17 00:48:44.02192	\N	t	t	3	\N	t	\N
 470	2	30	14	شامبو محايد - ٩٤٧مل - موشنز	VVL-70528	802535335325	700.0000	\N	700.0000	1.000	3.000	0.00	\N	2026-06-17 00:48:44.027581	2026-06-17 00:48:44.027581	\N	t	t	1	\N	t	\N
-364	2	\N	5	أعواد خشبية كبيرة	UYN1	6998780198823	30.0000	\N	30.0000	2.000	6.000	10.00		2026-06-17 00:48:43.700515	2026-06-17 02:04:38.684534	\N	t	t	2	\N	t	\N
 459	2	\N	15	زقاقة خشب	WVK1	\N	35.0000	\N	35.0000	1.000	3.000	0.00		2026-06-17 00:48:44.006102	2026-06-18 06:17:08.081397	\N	f	t	1	\N	t	\N
 463	2	\N	15	فرشاة تنظيف بمقبض لأظافر اليدين والباديكير	HFO-75179	\N	35.0000	\N	35.0000	1.000	3.000	0.00		2026-06-17 00:48:44.012711	2026-06-18 06:31:38.980576	\N	f	t	1	\N	t	\N
 469	2	26	5	قناع الوجه المبيض- ستارفيل	BYF-20650	6223012632005	39.0000	\N	39.0000	20.000	50.000	0.00	\N	2026-06-17 00:48:44.024608	2026-06-23 18:45:17.732852	\N	t	t	20	\N	f	2026-06-23 18:45:17.72944
+364	2	\N	5	أعواد خشبية كبيرة	UYN1	6998780198823	30.0000	35.0000	31.0000	2.000	6.000	10.00		2026-06-17 00:48:43.700515	2026-07-07 09:49:26.036859	\N	t	t	2	\N	t	\N
 \.
 
 
@@ -19969,6 +20952,13 @@ COPY public.remaining_deposit_balance_transactions (id, remaining_deposit_balanc
 16	9	settlement	30.00	12	\N	\N	استلم محمد المدير 	2026-07-05 14:59:06.654941	1	\N
 17	15	created	130.00	13	\N	\N		2026-07-05 19:10:03.344528	\N	\N
 18	16	created	130.00	13	\N	\N		2026-07-05 21:54:36.702945	\N	\N
+19	17	created	1370.00	73	\N	\N		2026-07-06 16:51:28.094734	\N	\N
+20	18	created	240.00	18	\N	\N		2026-07-06 21:28:34.606519	\N	\N
+21	19	created	235.00	63	\N	\N		2026-07-06 22:13:33.068702	\N	\N
+22	20	created	175.00	13	\N	\N		2026-07-06 22:56:49.348528	\N	\N
+23	21	created	200.00	49	\N	\N		2026-07-07 14:34:05.954497	\N	\N
+24	22	created	320.00	73	\N	\N		2026-07-08 00:27:53.207918	\N	\N
+25	23	created	1015.00	73	\N	\N		2026-07-08 21:45:58.74693	\N	\N
 \.
 
 
@@ -19993,6 +20983,13 @@ COPY public.remaining_deposit_balances (id, daily_reconciliation_id, till_deposi
 9	3	9	29	29	2	3	30.00	settled	\N	2026-07-03 16:46:18.799018	2026-07-05 14:59:06.682806	0.00	2026-07-05 14:59:06.681601
 15	14	15	13	13	2	3	130.00	open	\N	2026-07-05 19:10:03.331523	2026-07-05 19:10:03.331523	130.00	\N
 16	17	16	13	13	2	3	130.00	open	\N	2026-07-05 21:54:36.693766	2026-07-05 21:54:36.693766	130.00	\N
+17	16	17	73	73	2	4	1370.00	open	\N	2026-07-06 16:51:28.084366	2026-07-06 16:51:28.084366	1370.00	\N
+18	20	18	18	18	2	4	240.00	open	\N	2026-07-06 21:28:34.596176	2026-07-06 21:28:34.596176	240.00	\N
+19	19	19	63	63	2	5	235.00	open	\N	2026-07-06 22:13:33.059438	2026-07-06 22:13:33.059438	235.00	\N
+20	21	20	13	13	2	3	175.00	open	\N	2026-07-06 22:56:49.344884	2026-07-06 22:56:49.344884	175.00	\N
+21	18	21	49	49	2	5	200.00	open	\N	2026-07-07 14:34:05.939846	2026-07-07 14:34:05.939846	200.00	\N
+22	22	22	73	73	2	4	320.00	open	\N	2026-07-08 00:27:53.197359	2026-07-08 00:27:53.197359	320.00	\N
+23	26	23	73	73	2	4	1015.00	open	\N	2026-07-08 21:45:58.735533	2026-07-08 21:45:58.735533	1015.00	\N
 \.
 
 
@@ -20293,6 +21290,10 @@ COPY public.schema_migrations (version) FROM stdin;
 20260705065031
 20260705000000
 20260705000001
+20260708000001
+20260708010000
+20260708110000
+20260708110001
 \.
 
 
@@ -20350,7 +21351,6 @@ COPY public.shift_assignments (id, branch_id, created_at, effective_from, effect
 65	6	2026-06-04 21:27:10.604634	2026-05-18	\N	5	2026-06-04 21:27:10.604634	66	17	\N	\N	\N
 66	6	2026-06-04 21:33:07.641687	2026-05-01	\N	8	2026-06-04 21:33:07.641687	46	17	\N	\N	\N
 58	4	2026-05-30 19:15:03.914741	2026-05-25	2026-05-31	5	2026-06-04 22:28:44.252084	63	17	17	\N	\N
-72	3	2026-06-10 16:45:42.535357	2026-06-01	\N	6	2026-06-10 16:45:42.535357	70	12	\N	\N	\N
 44	4	2026-05-21 10:15:44.809677	2026-05-01	2026-06-10	6	2026-06-10 19:36:20.422346	44	\N	\N	\N	\N
 73	3	2026-06-10 19:37:11.386591	2026-06-11	\N	6	2026-06-10 19:37:11.386591	44	12	\N	\N	\N
 22	3	2026-05-19 16:08:11.190421	2026-05-01	2026-05-31	6	2026-06-10 20:12:56.532559	32	\N	12	\N	\N
@@ -20377,6 +21377,7 @@ COPY public.shift_assignments (id, branch_id, created_at, effective_from, effect
 32	4	2026-05-21 09:25:30.785281	2026-05-01	2026-07-02	6	2026-07-03 12:48:27.154012	61	\N	14	\N	\N
 84	3	2026-07-03 12:54:13.843381	2026-07-03	\N	6	2026-07-03 12:54:13.843381	61	17	\N	\N	\N
 85	4	2026-07-04 08:17:17.086402	2026-07-04	\N	6	2026-07-04 08:17:17.086402	78	12	\N	\N	\N
+72	3	2026-06-10 16:45:42.535357	2026-06-01	2026-07-06	6	2026-07-06 18:14:28.10431	70	12	69	\N	\N
 \.
 
 
@@ -20514,33 +21515,37 @@ COPY public.solid_queue_failed_executions (id, job_id, error, created_at) FROM s
 --
 
 COPY public.solid_queue_jobs (id, queue_name, class_name, arguments, priority, active_job_id, scheduled_at, finished_at, concurrency_key, created_at, updated_at) FROM stdin;
-1806	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"41dd2a13-5092-406d-8695-be0162456c9c","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T16:12:00.015092957Z","scheduled_at":"2026-07-05T16:12:00.015037523Z"}	0	41dd2a13-5092-406d-8695-be0162456c9c	2026-07-05 16:12:00.015037	2026-07-05 16:12:00.833939	\N	2026-07-05 16:12:00.02319	2026-07-05 16:12:00.833939
-1807	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"70b720c6-6054-4737-b557-00cabbd7eb03","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T17:12:00.035871104Z","scheduled_at":"2026-07-05T17:12:00.035506552Z"}	0	70b720c6-6054-4737-b557-00cabbd7eb03	2026-07-05 17:12:00.035506	2026-07-05 17:12:00.934232	\N	2026-07-05 17:12:00.087063	2026-07-05 17:12:00.934232
-1808	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"33ae6535-5e92-4920-93a6-59322e8dda46","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T18:12:00.004181710Z","scheduled_at":"2026-07-05T18:12:00.004153406Z"}	0	33ae6535-5e92-4920-93a6-59322e8dda46	2026-07-05 18:12:00.004153	2026-07-05 18:12:00.836153	\N	2026-07-05 18:12:00.006773	2026-07-05 18:12:00.836153
-1809	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"40dbf194-ad38-4e25-93ce-dfc5a12d5ac8","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T19:12:00.007279029Z","scheduled_at":"2026-07-05T19:12:00.007241952Z"}	0	40dbf194-ad38-4e25-93ce-dfc5a12d5ac8	2026-07-05 19:12:00.007241	2026-07-05 19:12:00.759605	\N	2026-07-05 19:12:00.009126	2026-07-05 19:12:00.759605
-1810	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"b2e33585-fb23-4b16-8d81-af6ee7f20839","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T20:12:00.006606860Z","scheduled_at":"2026-07-05T20:12:00.006551807Z"}	0	b2e33585-fb23-4b16-8d81-af6ee7f20839	2026-07-05 20:12:00.006551	2026-07-05 20:12:00.706722	\N	2026-07-05 20:12:00.006897	2026-07-05 20:12:00.706722
-1811	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"de43a854-76e3-4d03-8b6b-b3e9299ae0b8","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T21:12:00.002376941Z","scheduled_at":"2026-07-05T21:12:00.002345904Z"}	0	de43a854-76e3-4d03-8b6b-b3e9299ae0b8	2026-07-05 21:12:00.002345	2026-07-05 21:12:00.766383	\N	2026-07-05 21:12:00.003379	2026-07-05 21:12:00.766383
-1812	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"0c0b176e-c827-4d5c-b612-82d025076834","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T22:12:00.004183302Z","scheduled_at":"2026-07-05T22:12:00.004139376Z"}	0	0c0b176e-c827-4d5c-b612-82d025076834	2026-07-05 22:12:00.004139	2026-07-05 22:12:00.70015	\N	2026-07-05 22:12:00.004481	2026-07-05 22:12:00.70015
-1791	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"c037634e-7bc1-4eab-b2cc-d85cdcf30885","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T03:12:00.011513284Z","scheduled_at":"2026-07-05T03:12:00.011467885Z"}	0	c037634e-7bc1-4eab-b2cc-d85cdcf30885	2026-07-05 03:12:00.011467	2026-07-05 03:12:00.71389	\N	2026-07-05 03:12:00.011813	2026-07-05 03:12:00.71389
-1813	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"7d1ec574-a4cf-49e1-9c74-ff62c8e92e64","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T23:12:00.002982403Z","scheduled_at":"2026-07-05T23:12:00.002909864Z"}	0	7d1ec574-a4cf-49e1-9c74-ff62c8e92e64	2026-07-05 23:12:00.002909	2026-07-05 23:12:00.697223	\N	2026-07-05 23:12:00.003255	2026-07-05 23:12:00.697223
-1814	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"f8e49c50-59a8-407d-bf83-62b083869be8","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-06T00:12:00.002979089Z","scheduled_at":"2026-07-06T00:12:00.002936355Z"}	0	f8e49c50-59a8-407d-bf83-62b083869be8	2026-07-06 00:12:00.002936	2026-07-06 00:12:00.653826	\N	2026-07-06 00:12:00.00333	2026-07-06 00:12:00.653826
-1815	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"2092883e-1ec9-4179-a637-4812630672c7","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-06T01:12:00.003583768Z","scheduled_at":"2026-07-06T01:12:00.003526561Z"}	0	2092883e-1ec9-4179-a637-4812630672c7	2026-07-06 01:12:00.003526	2026-07-06 01:12:00.639858	\N	2026-07-06 01:12:00.003842	2026-07-06 01:12:00.639858
-1816	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"4b91daa2-8509-4004-b23e-f4a6bec5c5ef","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-06T02:12:00.004228694Z","scheduled_at":"2026-07-06T02:12:00.004188624Z"}	0	4b91daa2-8509-4004-b23e-f4a6bec5c5ef	2026-07-06 02:12:00.004188	2026-07-06 02:12:00.685261	\N	2026-07-06 02:12:00.006523	2026-07-06 02:12:00.685261
-1817	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"56737988-efe6-4284-83e9-8971980789c2","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-06T03:12:00.006986346Z","scheduled_at":"2026-07-06T03:12:00.006902690Z"}	0	56737988-efe6-4284-83e9-8971980789c2	2026-07-06 03:12:00.006902	2026-07-06 03:12:00.727051	\N	2026-07-06 03:12:00.010768	2026-07-06 03:12:00.727051
-1792	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"f83c2e45-ae71-41d4-8b43-6c4dbbaaf73e","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T04:12:00.032460194Z","scheduled_at":"2026-07-05T04:12:00.032101682Z"}	0	f83c2e45-ae71-41d4-8b43-6c4dbbaaf73e	2026-07-05 04:12:00.032101	2026-07-05 04:12:01.070879	\N	2026-07-05 04:12:00.076577	2026-07-05 04:12:01.070879
-1793	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"8ee3c62f-40e4-4ef7-8b1d-bb68dbc4ad9c","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T05:12:00.009777641Z","scheduled_at":"2026-07-05T05:12:00.009733976Z"}	0	8ee3c62f-40e4-4ef7-8b1d-bb68dbc4ad9c	2026-07-05 05:12:00.009733	2026-07-05 05:12:00.934517	\N	2026-07-05 05:12:00.016612	2026-07-05 05:12:00.934517
-1794	background	Payroll::AutoGenerateJob	{"job_class":"Payroll::AutoGenerateJob","job_id":"bd924551-8862-4313-a106-877744cd5118","provider_job_id":null,"queue_name":"background","priority":null,"arguments":[],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T06:00:00.012093682Z","scheduled_at":"2026-07-05T06:00:00.012038308Z"}	0	bd924551-8862-4313-a106-877744cd5118	2026-07-05 06:00:00.012038	2026-07-05 06:00:00.277802	\N	2026-07-05 06:00:00.014575	2026-07-05 06:00:00.277802
-1795	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"447b8131-0e6d-4772-9a52-d67ad8caf8a6","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T06:12:00.025640542Z","scheduled_at":"2026-07-05T06:12:00.025243412Z"}	0	447b8131-0e6d-4772-9a52-d67ad8caf8a6	2026-07-05 06:12:00.025243	2026-07-05 06:12:01.134938	\N	2026-07-05 06:12:00.089247	2026-07-05 06:12:01.134938
-1796	background	Finance::GenerateDueRecurringExpensesJob	{"job_class":"Finance::GenerateDueRecurringExpensesJob","job_id":"00239b19-1388-4190-8c55-630dabdd7b6b","provider_job_id":null,"queue_name":"background","priority":null,"arguments":[],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T06:30:00.021364109Z","scheduled_at":"2026-07-05T06:30:00.021291469Z"}	0	00239b19-1388-4190-8c55-630dabdd7b6b	2026-07-05 06:30:00.021291	2026-07-05 06:30:00.323447	\N	2026-07-05 06:30:00.024136	2026-07-05 06:30:00.323447
-1797	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"8c9a359e-f887-4571-9560-414cbd746034","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T07:12:00.010129040Z","scheduled_at":"2026-07-05T07:12:00.010079806Z"}	0	8c9a359e-f887-4571-9560-414cbd746034	2026-07-05 07:12:00.010079	2026-07-05 07:12:00.771492	\N	2026-07-05 07:12:00.01783	2026-07-05 07:12:00.771492
-1805	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"e2ab5c1a-e75d-43f0-82f1-524209ef6f40","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T15:12:00.029120094Z","scheduled_at":"2026-07-05T15:12:00.026540815Z"}	0	e2ab5c1a-e75d-43f0-82f1-524209ef6f40	2026-07-05 15:12:00.02654	2026-07-05 15:12:00.937747	\N	2026-07-05 15:12:00.078361	2026-07-05 15:12:00.937747
-1798	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"5e81bd22-9798-47f1-a146-312ca3f8083a","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T08:12:00.009795385Z","scheduled_at":"2026-07-05T08:12:00.009723205Z"}	0	5e81bd22-9798-47f1-a146-312ca3f8083a	2026-07-05 08:12:00.009723	2026-07-05 08:12:00.997908	\N	2026-07-05 08:12:00.013041	2026-07-05 08:12:00.997908
-1799	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"d35f6056-9bb5-4131-8254-4737f10257c6","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T09:12:00.010334764Z","scheduled_at":"2026-07-05T09:12:00.010267403Z"}	0	d35f6056-9bb5-4131-8254-4737f10257c6	2026-07-05 09:12:00.010267	2026-07-05 09:12:00.76644	\N	2026-07-05 09:12:00.013399	2026-07-05 09:12:00.76644
-1800	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"3d4d24b4-c477-4dbf-bb43-cbd52f3a74e8","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T10:12:00.011503064Z","scheduled_at":"2026-07-05T10:12:00.011451065Z"}	0	3d4d24b4-c477-4dbf-bb43-cbd52f3a74e8	2026-07-05 10:12:00.011451	2026-07-05 10:12:00.739704	\N	2026-07-05 10:12:00.01186	2026-07-05 10:12:00.739704
-1801	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"540bf883-4c5f-4ea5-8608-6632d5fd864e","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T11:12:00.003297735Z","scheduled_at":"2026-07-05T11:12:00.003260137Z"}	0	540bf883-4c5f-4ea5-8608-6632d5fd864e	2026-07-05 11:12:00.00326	2026-07-05 11:12:00.707186	\N	2026-07-05 11:12:00.003558	2026-07-05 11:12:00.707186
-1802	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"e17bd72f-879e-405e-8984-0cc4e80b6c0f","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T12:12:00.002819844Z","scheduled_at":"2026-07-05T12:12:00.002782547Z"}	0	e17bd72f-879e-405e-8984-0cc4e80b6c0f	2026-07-05 12:12:00.002782	2026-07-05 12:12:00.674883	\N	2026-07-05 12:12:00.003438	2026-07-05 12:12:00.674883
-1803	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"c8528c36-168a-4542-b695-b32509512380","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T13:12:00.004076484Z","scheduled_at":"2026-07-05T13:12:00.004039678Z"}	0	c8528c36-168a-4542-b695-b32509512380	2026-07-05 13:12:00.004039	2026-07-05 13:12:00.693978	\N	2026-07-05 13:12:00.004332	2026-07-05 13:12:00.693978
-1804	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"1d92e2c5-e419-4b5c-94de-a611ac34e9e8","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-05T14:12:00.004998163Z","scheduled_at":"2026-07-05T14:12:00.004907096Z"}	0	1d92e2c5-e419-4b5c-94de-a611ac34e9e8	2026-07-05 14:12:00.004907	2026-07-05 14:12:00.694913	\N	2026-07-05 14:12:00.008008	2026-07-05 14:12:00.694913
+1892	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"bc86ee84-adc9-40c1-899e-98867d28a5ff","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T13:12:00.040473683Z","scheduled_at":"2026-07-08T13:12:00.040068741Z"}	0	bc86ee84-adc9-40c1-899e-98867d28a5ff	2026-07-08 13:12:00.040068	2026-07-08 13:12:01.062433	\N	2026-07-08 13:12:00.096547	2026-07-08 13:12:01.062433
+1893	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"77261d30-49aa-4c83-b462-0b1de2cd070f","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T14:12:00.009106217Z","scheduled_at":"2026-07-08T14:12:00.009050863Z"}	0	77261d30-49aa-4c83-b462-0b1de2cd070f	2026-07-08 14:12:00.00905	2026-07-08 14:12:00.82092	\N	2026-07-08 14:12:00.01654	2026-07-08 14:12:00.82092
+1879	background	Payroll::AutoGenerateJob	{"job_class":"Payroll::AutoGenerateJob","job_id":"e1110089-e8d8-473f-b4dc-5c88ba2e8a45","provider_job_id":null,"queue_name":"background","priority":null,"arguments":[],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T06:00:00.023337884Z","scheduled_at":"2026-07-08T06:00:00.022937358Z"}	0	e1110089-e8d8-473f-b4dc-5c88ba2e8a45	2026-07-08 06:00:00.022937	2026-07-08 06:00:00.527219	\N	2026-07-08 06:00:00.076332	2026-07-08 06:00:00.527219
+1880	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"f8593ab5-6eab-4cd0-89bb-e287870d9601","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T06:12:00.028452932Z","scheduled_at":"2026-07-08T06:12:00.028314472Z"}	0	f8593ab5-6eab-4cd0-89bb-e287870d9601	2026-07-08 06:12:00.028314	2026-07-08 06:12:00.955412	\N	2026-07-08 06:12:00.032507	2026-07-08 06:12:00.955412
+1881	background	Finance::GenerateDueRecurringExpensesJob	{"job_class":"Finance::GenerateDueRecurringExpensesJob","job_id":"d3dd6e01-2c30-4d33-959e-bebb69d24e32","provider_job_id":null,"queue_name":"background","priority":null,"arguments":[],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T06:30:00.009942750Z","scheduled_at":"2026-07-08T06:30:00.009885915Z"}	0	d3dd6e01-2c30-4d33-959e-bebb69d24e32	2026-07-08 06:30:00.009885	2026-07-08 06:30:00.200764	\N	2026-07-08 06:30:00.016658	2026-07-08 06:30:00.200764
+1882	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"6fff69bd-f7fd-45b4-b7b6-8e0968d1d853","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T07:12:00.028039492Z","scheduled_at":"2026-07-08T07:12:00.027650572Z"}	0	6fff69bd-f7fd-45b4-b7b6-8e0968d1d853	2026-07-08 07:12:00.02765	2026-07-08 07:12:00.998229	\N	2026-07-08 07:12:00.079294	2026-07-08 07:12:00.998229
+1887	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"2b27343d-dd41-4648-9079-caec092b981f","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T08:12:00.029996396Z","scheduled_at":"2026-07-08T08:12:00.029525394Z"}	0	2b27343d-dd41-4648-9079-caec092b981f	2026-07-08 08:12:00.029525	2026-07-08 08:12:01.034698	\N	2026-07-08 08:12:00.073593	2026-07-08 08:12:01.034698
+1888	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"6cd4aaac-c975-4ae9-b827-9a5c08cd440c","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T09:12:00.009135226Z","scheduled_at":"2026-07-08T09:12:00.009088294Z"}	0	6cd4aaac-c975-4ae9-b827-9a5c08cd440c	2026-07-08 09:12:00.009088	2026-07-08 09:12:00.796099	\N	2026-07-08 09:12:00.015161	2026-07-08 09:12:00.796099
+1889	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"6c7f8349-8dfd-403e-8670-06c50498679f","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T10:12:00.004918580Z","scheduled_at":"2026-07-08T10:12:00.004886311Z"}	0	6c7f8349-8dfd-403e-8670-06c50498679f	2026-07-08 10:12:00.004886	2026-07-08 10:12:00.940253	\N	2026-07-08 10:12:00.005994	2026-07-08 10:12:00.940253
+1894	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"8551e844-85ae-46ac-8717-57de9599a38e","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T15:12:00.007076342Z","scheduled_at":"2026-07-08T15:12:00.007035851Z"}	0	8551e844-85ae-46ac-8717-57de9599a38e	2026-07-08 15:12:00.007035	2026-07-08 15:12:00.932498	\N	2026-07-08 15:12:00.00893	2026-07-08 15:12:00.932498
+1883	default	ActiveStorage::AnalyzeJob	{"job_class":"ActiveStorage::AnalyzeJob","job_id":"4a3d5781-e2a1-41a3-a589-6ae4e8309a94","provider_job_id":null,"queue_name":"default","priority":null,"arguments":[{"_aj_globalid":"gid://work-pulse/ActiveStorage::Blob/454"}],"executions":0,"exception_executions":{},"locale":"ar","timezone":"Africa/Cairo","enqueued_at":"2026-07-08T07:41:07.299864538Z","scheduled_at":"2026-07-08T07:41:07.296263965Z"}	0	4a3d5781-e2a1-41a3-a589-6ae4e8309a94	2026-07-08 07:41:07.296263	2026-07-08 07:41:08.717689	\N	2026-07-08 07:41:07.388186	2026-07-08 07:41:08.717689
+1890	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"de4caefb-ede4-4dbd-8b75-df2ea4908d60","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T11:12:00.007999355Z","scheduled_at":"2026-07-08T11:12:00.007908768Z"}	0	de4caefb-ede4-4dbd-8b75-df2ea4908d60	2026-07-08 11:12:00.007908	2026-07-08 11:12:00.794789	\N	2026-07-08 11:12:00.008349	2026-07-08 11:12:00.794789
+1895	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"8fe4600c-8552-4039-846b-41505220f3a0","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T16:12:00.085631465Z","scheduled_at":"2026-07-08T16:12:00.085589631Z"}	0	8fe4600c-8552-4039-846b-41505220f3a0	2026-07-08 16:12:00.085589	2026-07-08 16:12:00.895273	\N	2026-07-08 16:12:00.085819	2026-07-08 16:12:00.895273
+1891	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"2aebd58d-d63c-453a-8e5b-3e9984be5f91","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T12:12:00.008160090Z","scheduled_at":"2026-07-08T12:12:00.008123325Z"}	0	2aebd58d-d63c-453a-8e5b-3e9984be5f91	2026-07-08 12:12:00.008123	2026-07-08 12:12:00.681614	\N	2026-07-08 12:12:00.009985	2026-07-08 12:12:00.681614
+1896	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"5d52b69a-b39a-4fbb-ab5b-d5512c19564a","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T17:12:00.083703765Z","scheduled_at":"2026-07-08T17:12:00.083664637Z"}	0	5d52b69a-b39a-4fbb-ab5b-d5512c19564a	2026-07-08 17:12:00.083664	2026-07-08 17:12:00.821306	\N	2026-07-08 17:12:00.085628	2026-07-08 17:12:00.821306
+1897	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"dda57dd1-eb97-482d-9878-1d19b420a06b","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T18:12:00.003998428Z","scheduled_at":"2026-07-08T18:12:00.003924716Z"}	0	dda57dd1-eb97-482d-9878-1d19b420a06b	2026-07-08 18:12:00.003924	2026-07-08 18:12:00.649941	\N	2026-07-08 18:12:00.004273	2026-07-08 18:12:00.649941
+1898	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"da394551-4510-4ea9-aa46-06f5e908a1ac","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T19:12:00.002746297Z","scheduled_at":"2026-07-08T19:12:00.002708269Z"}	0	da394551-4510-4ea9-aa46-06f5e908a1ac	2026-07-08 19:12:00.002708	2026-07-08 19:12:00.669252	\N	2026-07-08 19:12:00.003014	2026-07-08 19:12:00.669252
+1899	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"f9a0116c-76b5-4049-80f9-0d22a72f67fb","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T20:12:00.002794989Z","scheduled_at":"2026-07-08T20:12:00.002754277Z"}	0	f9a0116c-76b5-4049-80f9-0d22a72f67fb	2026-07-08 20:12:00.002754	2026-07-08 20:12:00.697578	\N	2026-07-08 20:12:00.003419	2026-07-08 20:12:00.697578
+1900	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"4805a843-0b39-44ee-a73e-03769709d564","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T21:12:00.002829145Z","scheduled_at":"2026-07-08T21:12:00.002794543Z"}	0	4805a843-0b39-44ee-a73e-03769709d564	2026-07-08 21:12:00.002794	2026-07-08 21:12:00.699909	\N	2026-07-08 21:12:00.003047	2026-07-08 21:12:00.699909
+1901	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"e0492c3f-c0b4-4a92-ba9e-c021fd29f9e6","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T22:12:00.004191747Z","scheduled_at":"2026-07-08T22:12:00.004140929Z"}	0	e0492c3f-c0b4-4a92-ba9e-c021fd29f9e6	2026-07-08 22:12:00.00414	2026-07-08 22:12:00.720167	\N	2026-07-08 22:12:00.006921	2026-07-08 22:12:00.720167
+1884	default	ActiveStorage::PurgeJob	{"job_class":"ActiveStorage::PurgeJob","job_id":"651fafa5-8d14-4209-b1a9-a55aa8a3671a","provider_job_id":null,"queue_name":"default","priority":null,"arguments":[{"_aj_globalid":"gid://work-pulse/ActiveStorage::Blob/454"}],"executions":0,"exception_executions":{},"locale":"ar","timezone":"Africa/Cairo","enqueued_at":"2026-07-08T07:41:32.676482432Z","scheduled_at":"2026-07-08T07:41:32.675783896Z"}	0	651fafa5-8d14-4209-b1a9-a55aa8a3671a	2026-07-08 07:41:32.675783	2026-07-08 07:41:33.114037	\N	2026-07-08 07:41:32.677101	2026-07-08 07:41:33.114037
+1885	default	ActiveStorage::AnalyzeJob	{"job_class":"ActiveStorage::AnalyzeJob","job_id":"c834fda9-5f0a-4c28-a00c-a3ccdb69467a","provider_job_id":null,"queue_name":"default","priority":null,"arguments":[{"_aj_globalid":"gid://work-pulse/ActiveStorage::Blob/455"}],"executions":0,"exception_executions":{},"locale":"ar","timezone":"Africa/Cairo","enqueued_at":"2026-07-08T07:41:32.696182227Z","scheduled_at":"2026-07-08T07:41:32.695933812Z"}	0	c834fda9-5f0a-4c28-a00c-a3ccdb69467a	2026-07-08 07:41:32.695933	2026-07-08 07:41:33.43135	\N	2026-07-08 07:41:32.696529	2026-07-08 07:41:33.43135
+1886	default	ActiveStorage::AnalyzeJob	{"job_class":"ActiveStorage::AnalyzeJob","job_id":"41aeef7d-e809-4997-b9d8-a7d2d053fa7b","provider_job_id":null,"queue_name":"default","priority":null,"arguments":[{"_aj_globalid":"gid://work-pulse/ActiveStorage::Blob/456"}],"executions":0,"exception_executions":{},"locale":"ar","timezone":"Africa/Cairo","enqueued_at":"2026-07-08T07:42:38.530676872Z","scheduled_at":"2026-07-08T07:42:38.530490961Z"}	0	41aeef7d-e809-4997-b9d8-a7d2d053fa7b	2026-07-08 07:42:38.53049	2026-07-08 07:42:39.353697	\N	2026-07-08 07:42:38.531077	2026-07-08 07:42:39.353697
+1902	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"1bd01eb6-bfbe-4280-b75b-f9531a68f295","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T23:12:00.006978856Z","scheduled_at":"2026-07-08T23:12:00.006921880Z"}	0	1bd01eb6-bfbe-4280-b75b-f9531a68f295	2026-07-08 23:12:00.006921	2026-07-08 23:12:00.641691	\N	2026-07-08 23:12:00.009084	2026-07-08 23:12:00.641691
+1903	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"76ab207a-15c8-41d2-85bd-02cb455e18fb","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-09T00:12:00.024059929Z","scheduled_at":"2026-07-09T00:12:00.024007741Z"}	0	76ab207a-15c8-41d2-85bd-02cb455e18fb	2026-07-09 00:12:00.024007	2026-07-09 00:12:00.719661	\N	2026-07-09 00:12:00.024296	2026-07-09 00:12:00.719661
+1904	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"631d1de0-b598-4785-9427-7c875877a636","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-09T01:12:00.025302638Z","scheduled_at":"2026-07-09T01:12:00.025265011Z"}	0	631d1de0-b598-4785-9427-7c875877a636	2026-07-09 01:12:00.025265	2026-07-09 01:12:00.689496	\N	2026-07-09 01:12:00.025524	2026-07-09 01:12:00.689496
+1905	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"5230799f-5422-404d-8645-c668ccc292c0","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-09T02:12:00.004034918Z","scheduled_at":"2026-07-09T02:12:00.003936819Z"}	0	5230799f-5422-404d-8645-c668ccc292c0	2026-07-09 02:12:00.003936	2026-07-09 02:12:00.660995	\N	2026-07-09 02:12:00.004917	2026-07-09 02:12:00.660995
+1906	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"449212c5-ab4e-48f9-9330-587e812ca541","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-09T03:12:00.003332490Z","scheduled_at":"2026-07-09T03:12:00.003291618Z"}	0	449212c5-ab4e-48f9-9330-587e812ca541	2026-07-09 03:12:00.003291	2026-07-09 03:12:00.647844	\N	2026-07-09 03:12:00.003564	2026-07-09 03:12:00.647844
+1876	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"e6172e11-e22d-453f-a608-0893fff53d9d","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T03:12:00.008829943Z","scheduled_at":"2026-07-08T03:12:00.008768169Z"}	0	e6172e11-e22d-453f-a608-0893fff53d9d	2026-07-08 03:12:00.008768	2026-07-08 03:12:00.678272	\N	2026-07-08 03:12:00.009111	2026-07-08 03:12:00.678272
+1877	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"10d35c44-a2c5-4b6e-953f-f2d1ac590570","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T04:12:00.002711785Z","scheduled_at":"2026-07-08T04:12:00.002674469Z"}	0	10d35c44-a2c5-4b6e-953f-f2d1ac590570	2026-07-08 04:12:00.002674	2026-07-08 04:12:00.663861	\N	2026-07-08 04:12:00.003	2026-07-08 04:12:00.663861
+1878	solid_queue_recurring	SolidQueue::RecurringJob	{"job_class":"SolidQueue::RecurringJob","job_id":"c3c68c2d-7501-4b26-a722-13e56084a6d2","provider_job_id":null,"queue_name":"solid_queue_recurring","priority":null,"arguments":["SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"],"executions":0,"exception_executions":{},"locale":"en","timezone":"UTC","enqueued_at":"2026-07-08T05:12:00.002000857Z","scheduled_at":"2026-07-08T05:12:00.001973566Z"}	0	c3c68c2d-7501-4b26-a722-13e56084a6d2	2026-07-08 05:12:00.001973	2026-07-08 05:12:00.70485	\N	2026-07-08 05:12:00.002166	2026-07-08 05:12:00.70485
 \.
 
 
@@ -20557,11 +21562,11 @@ COPY public.solid_queue_pauses (id, queue_name, created_at) FROM stdin;
 --
 
 COPY public.solid_queue_processes (id, kind, last_heartbeat_at, supervisor_id, pid, hostname, metadata, created_at, name) FROM stdin;
-491	Supervisor(fork)	2026-07-06 03:55:50.069231	\N	72	0f0b0c2d31f8	\N	2026-07-06 03:43:49.840504	supervisor(fork)-f95c4c06938d7c3cf6bd
-493	Worker	2026-07-06 03:55:50.178892	491	83	0f0b0c2d31f8	{"polling_interval":0.1,"queues":"*","thread_pool_size":3}	2026-07-06 03:43:49.89871	worker-cc7f87c1cabd0e65be0f
-495	Scheduler	2026-07-06 03:55:50.200017	491	93	0f0b0c2d31f8	{"recurring_schedule":["clear_solid_queue_finished_jobs","auto_generate_payroll","generate_due_recurring_expenses"]}	2026-07-06 03:43:49.936112	scheduler-ea2fc8e99b9933cdf3ed
-494	Worker	2026-07-06 03:55:50.213418	491	88	0f0b0c2d31f8	{"polling_interval":0.1,"queues":"*","thread_pool_size":3}	2026-07-06 03:43:49.912	worker-891759f85b6587d13b38
-492	Dispatcher	2026-07-06 03:55:50.237005	491	79	0f0b0c2d31f8	{"polling_interval":1,"batch_size":500,"concurrency_maintenance_interval":600}	2026-07-06 03:43:49.893633	dispatcher-020f5d4ba46c1a6f82b8
+553	Dispatcher	2026-07-09 03:23:02.797421	551	80	be24174dc3cd	{"polling_interval":1,"batch_size":500,"concurrency_maintenance_interval":600}	2026-07-08 12:46:58.724749	dispatcher-212c8570064258a85ac7
+551	Supervisor(fork)	2026-07-09 03:23:02.868662	\N	73	be24174dc3cd	\N	2026-07-08 12:46:58.683316	supervisor(fork)-5204f1689a14fb158ded
+555	Scheduler	2026-07-09 03:23:03.09025	551	94	be24174dc3cd	{"recurring_schedule":["clear_solid_queue_finished_jobs","auto_generate_payroll","generate_due_recurring_expenses"]}	2026-07-08 12:46:58.74849	scheduler-046babf3b23e1c671156
+554	Worker	2026-07-09 03:23:03.386404	551	84	be24174dc3cd	{"polling_interval":0.1,"queues":"*","thread_pool_size":3}	2026-07-08 12:46:58.73265	worker-47d7ec720d47ab9e7f9a
+552	Worker	2026-07-09 03:23:03.386655	551	87	be24174dc3cd	{"polling_interval":0.1,"queues":"*","thread_pool_size":3}	2026-07-08 12:46:58.730571	worker-987dc607f854245eff82
 \.
 
 
@@ -20578,33 +21583,33 @@ COPY public.solid_queue_ready_executions (id, job_id, queue_name, priority, crea
 --
 
 COPY public.solid_queue_recurring_executions (id, job_id, task_key, run_at, created_at) FROM stdin;
-1341	1791	clear_solid_queue_finished_jobs	2026-07-05 03:12:00	2026-07-05 03:12:00.0128
-1342	1792	clear_solid_queue_finished_jobs	2026-07-05 04:12:00	2026-07-05 04:12:00.04017
-1343	1793	clear_solid_queue_finished_jobs	2026-07-05 05:12:00	2026-07-05 05:12:00.028295
-1344	1794	auto_generate_payroll	2026-07-05 06:00:00	2026-07-05 06:00:00.017094
-1345	1795	clear_solid_queue_finished_jobs	2026-07-05 06:12:00	2026-07-05 06:12:00.036039
-1346	1796	generate_due_recurring_expenses	2026-07-05 06:30:00	2026-07-05 06:30:00.033087
-1347	1797	clear_solid_queue_finished_jobs	2026-07-05 07:12:00	2026-07-05 07:12:00.027518
-1348	1798	clear_solid_queue_finished_jobs	2026-07-05 08:12:00	2026-07-05 08:12:00.017285
-1349	1799	clear_solid_queue_finished_jobs	2026-07-05 09:12:00	2026-07-05 09:12:00.014824
-1350	1800	clear_solid_queue_finished_jobs	2026-07-05 10:12:00	2026-07-05 10:12:00.012857
-1351	1801	clear_solid_queue_finished_jobs	2026-07-05 11:12:00	2026-07-05 11:12:00.004986
-1352	1802	clear_solid_queue_finished_jobs	2026-07-05 12:12:00	2026-07-05 12:12:00.007836
-1353	1803	clear_solid_queue_finished_jobs	2026-07-05 13:12:00	2026-07-05 13:12:00.004979
-1354	1804	clear_solid_queue_finished_jobs	2026-07-05 14:12:00	2026-07-05 14:12:00.008841
-1355	1805	clear_solid_queue_finished_jobs	2026-07-05 15:12:00	2026-07-05 15:12:00.033546
-1356	1806	clear_solid_queue_finished_jobs	2026-07-05 16:12:00	2026-07-05 16:12:00.037348
-1357	1807	clear_solid_queue_finished_jobs	2026-07-05 17:12:00	2026-07-05 17:12:00.04105
-1358	1808	clear_solid_queue_finished_jobs	2026-07-05 18:12:00	2026-07-05 18:12:00.011143
-1359	1809	clear_solid_queue_finished_jobs	2026-07-05 19:12:00	2026-07-05 19:12:00.01176
-1360	1810	clear_solid_queue_finished_jobs	2026-07-05 20:12:00	2026-07-05 20:12:00.008245
-1361	1811	clear_solid_queue_finished_jobs	2026-07-05 21:12:00	2026-07-05 21:12:00.00415
-1362	1812	clear_solid_queue_finished_jobs	2026-07-05 22:12:00	2026-07-05 22:12:00.005452
-1363	1813	clear_solid_queue_finished_jobs	2026-07-05 23:12:00	2026-07-05 23:12:00.005614
-1364	1814	clear_solid_queue_finished_jobs	2026-07-06 00:12:00	2026-07-06 00:12:00.007091
-1365	1815	clear_solid_queue_finished_jobs	2026-07-06 01:12:00	2026-07-06 01:12:00.0045
-1366	1816	clear_solid_queue_finished_jobs	2026-07-06 02:12:00	2026-07-06 02:12:00.007161
-1367	1817	clear_solid_queue_finished_jobs	2026-07-06 03:12:00	2026-07-06 03:12:00.011521
+1438	1899	clear_solid_queue_finished_jobs	2026-07-08 20:12:00	2026-07-08 20:12:00.007917
+1439	1900	clear_solid_queue_finished_jobs	2026-07-08 21:12:00	2026-07-08 21:12:00.003513
+1440	1901	clear_solid_queue_finished_jobs	2026-07-08 22:12:00	2026-07-08 22:12:00.007702
+1441	1902	clear_solid_queue_finished_jobs	2026-07-08 23:12:00	2026-07-08 23:12:00.009614
+1442	1903	clear_solid_queue_finished_jobs	2026-07-09 00:12:00	2026-07-09 00:12:00.024904
+1443	1904	clear_solid_queue_finished_jobs	2026-07-09 01:12:00	2026-07-09 01:12:00.026162
+1444	1905	clear_solid_queue_finished_jobs	2026-07-09 02:12:00	2026-07-09 02:12:00.00614
+1445	1906	clear_solid_queue_finished_jobs	2026-07-09 03:12:00	2026-07-09 03:12:00.004192
+1419	1876	clear_solid_queue_finished_jobs	2026-07-08 03:12:00	2026-07-08 03:12:00.009678
+1420	1877	clear_solid_queue_finished_jobs	2026-07-08 04:12:00	2026-07-08 04:12:00.003587
+1421	1878	clear_solid_queue_finished_jobs	2026-07-08 05:12:00	2026-07-08 05:12:00.002515
+1422	1879	auto_generate_payroll	2026-07-08 06:00:00	2026-07-08 06:00:00.03075
+1423	1880	clear_solid_queue_finished_jobs	2026-07-08 06:12:00	2026-07-08 06:12:00.042732
+1424	1881	generate_due_recurring_expenses	2026-07-08 06:30:00	2026-07-08 06:30:00.025873
+1425	1882	clear_solid_queue_finished_jobs	2026-07-08 07:12:00	2026-07-08 07:12:00.032336
+1426	1887	clear_solid_queue_finished_jobs	2026-07-08 08:12:00	2026-07-08 08:12:00.036341
+1427	1888	clear_solid_queue_finished_jobs	2026-07-08 09:12:00	2026-07-08 09:12:00.025686
+1428	1889	clear_solid_queue_finished_jobs	2026-07-08 10:12:00	2026-07-08 10:12:00.007469
+1429	1890	clear_solid_queue_finished_jobs	2026-07-08 11:12:00	2026-07-08 11:12:00.009919
+1430	1891	clear_solid_queue_finished_jobs	2026-07-08 12:12:00	2026-07-08 12:12:00.010977
+1431	1892	clear_solid_queue_finished_jobs	2026-07-08 13:12:00	2026-07-08 13:12:00.046582
+1432	1893	clear_solid_queue_finished_jobs	2026-07-08 14:12:00	2026-07-08 14:12:00.030527
+1433	1894	clear_solid_queue_finished_jobs	2026-07-08 15:12:00	2026-07-08 15:12:00.011727
+1434	1895	clear_solid_queue_finished_jobs	2026-07-08 16:12:00	2026-07-08 16:12:00.0865
+1435	1896	clear_solid_queue_finished_jobs	2026-07-08 17:12:00	2026-07-08 17:12:00.087039
+1436	1897	clear_solid_queue_finished_jobs	2026-07-08 18:12:00	2026-07-08 18:12:00.005278
+1437	1898	clear_solid_queue_finished_jobs	2026-07-08 19:12:00	2026-07-08 19:12:00.004488
 \.
 
 
@@ -21465,6 +22470,36 @@ COPY public.stock_counts (id, business_id, warehouse_id, created_by_id, approved
 
 
 --
+-- Data for Name: stock_issue_import_batches; Type: TABLE DATA; Schema: public; Owner: work_pulse
+--
+
+COPY public.stock_issue_import_batches (id, business_id, warehouse_id, branch_id, created_by_id, stock_issue_id, status, created_at, updated_at) FROM stdin;
+1	2	1	3	17	16	draft	2026-07-08 22:00:22.529503	2026-07-08 22:00:22.529503
+2	2	1	3	17	17	draft	2026-07-08 22:05:56.004498	2026-07-08 22:05:56.004498
+3	2	1	4	17	19	draft	2026-07-08 22:15:46.158475	2026-07-08 22:15:46.158475
+4	2	1	4	17	20	completed	2026-07-08 22:17:35.571692	2026-07-08 22:17:58.186517
+\.
+
+
+--
+-- Data for Name: stock_issue_import_rows; Type: TABLE DATA; Schema: public; Owner: work_pulse
+--
+
+COPY public.stock_issue_import_rows (id, batch_id, product_id, row_number, sku, quantity, available_hint, status, failure_reason, created_at, updated_at, stock_issue_item_id) FROM stdin;
+1	1	359	2	Eua1	4.000	1.000	pending	insufficient_stock	2026-07-08 22:00:22.546154	2026-07-08 22:00:22.546154	\N
+2	1	340	23	GKM-84978	2.000	1.004	pending	insufficient_stock	2026-07-08 22:00:22.553123	2026-07-08 22:00:22.553123	\N
+3	2	359	2	Eua1	4.000	1.000	pending	insufficient_stock	2026-07-08 22:05:56.022321	2026-07-08 22:05:56.022321	\N
+4	3	359	2	Eua1	3.000	1.000	pending	insufficient_stock	2026-07-08 22:15:46.166438	2026-07-08 22:15:46.166438	\N
+5	3	\N	25	AIH-19401	0.000	\N	pending	invalid_row	2026-07-08 22:15:46.170978	2026-07-08 22:15:46.170978	\N
+6	3	\N	43	COL2	0.000	\N	pending	invalid_row	2026-07-08 22:15:46.17316	2026-07-08 22:15:46.17316	\N
+7	3	\N	44	sug1	0.000	\N	pending	invalid_row	2026-07-08 22:15:46.175453	2026-07-08 22:15:46.175453	\N
+8	4	\N	25	AIH-19401	0.000	\N	skipped	\N	2026-07-08 22:17:35.575761	2026-07-08 22:17:48.18541	\N
+9	4	\N	43	COL2	0.000	\N	skipped	\N	2026-07-08 22:17:35.578847	2026-07-08 22:17:50.419814	\N
+10	4	\N	44	sug1	0.000	\N	skipped	\N	2026-07-08 22:17:35.582444	2026-07-08 22:17:55.19649	\N
+\.
+
+
+--
 -- Data for Name: stock_issue_items; Type: TABLE DATA; Schema: public; Owner: work_pulse
 --
 
@@ -21603,6 +22638,187 @@ COPY public.stock_issue_items (id, stock_issue_id, product_id, quantity, unit_co
 132	11	330	3.000	66.6250	199.8750	2026-07-03 09:15:29.543746	2026-07-03 09:15:29.543746
 133	11	328	2.000	50.0000	100.0000	2026-07-03 09:15:29.544917	2026-07-03 09:15:29.544917
 134	12	439	4.000	115.0000	460.0000	2026-07-05 22:22:17.20272	2026-07-05 22:22:17.20272
+135	13	448	1.000	900.0000	900.0000	2026-07-07 10:00:03.306801	2026-07-07 10:00:03.306801
+136	14	341	4.000	30.0000	120.0000	2026-07-08 21:47:32.832694	2026-07-08 21:47:32.832694
+137	15	360	2.000	94.1667	188.3334	2026-07-08 21:55:47.734234	2026-07-08 21:55:47.830542
+138	15	347	1.000	645.0000	645.0000	2026-07-08 21:55:47.737343	2026-07-08 21:55:47.832538
+139	15	333	12.000	45.0000	540.0000	2026-07-08 21:55:47.739364	2026-07-08 21:55:47.833081
+140	15	328	2.000	50.8333	101.6666	2026-07-08 21:55:47.741474	2026-07-08 21:55:47.833532
+141	15	327	1.000	150.0000	150.0000	2026-07-08 21:55:47.743738	2026-07-08 21:55:47.834128
+142	15	434	1.000	365.0000	365.0000	2026-07-08 21:55:47.745753	2026-07-08 21:55:47.834508
+143	15	334	1.000	62.6923	62.6923	2026-07-08 21:55:47.748375	2026-07-08 21:55:47.834876
+144	15	353	2.000	184.1602	368.3204	2026-07-08 21:55:47.753986	2026-07-08 21:55:47.835312
+145	15	357	20.000	18.8602	377.2040	2026-07-08 21:55:47.761476	2026-07-08 21:55:47.835661
+146	15	354	10.000	12.0000	120.0000	2026-07-08 21:55:47.765653	2026-07-08 21:55:47.836357
+147	15	412	3.000	6.3968	19.1904	2026-07-08 21:55:47.768029	2026-07-08 21:55:47.836927
+148	15	439	1.000	115.0000	115.0000	2026-07-08 21:55:47.770365	2026-07-08 21:55:47.837506
+149	15	356	10.000	27.1327	271.3270	2026-07-08 21:55:47.772839	2026-07-08 21:55:47.838003
+150	15	369	1.000	211.8571	211.8571	2026-07-08 21:55:47.777694	2026-07-08 21:55:47.839047
+151	15	370	1.000	113.5952	113.5952	2026-07-08 21:55:47.781874	2026-07-08 21:55:47.839592
+152	15	421	1.000	38.5700	38.5700	2026-07-08 21:55:47.7845	2026-07-08 21:55:47.840167
+153	15	394	1.000	266.0000	266.0000	2026-07-08 21:55:47.786325	2026-07-08 21:55:47.840686
+154	15	350	1.000	73.3333	73.3333	2026-07-08 21:55:47.787719	2026-07-08 21:55:47.841306
+155	15	376	2.000	18.4348	36.8696	2026-07-08 21:55:47.789364	2026-07-08 21:55:47.842161
+156	15	386	3.000	29.3692	88.1076	2026-07-08 21:55:47.790793	2026-07-08 21:55:47.842714
+157	15	388	3.000	43.0000	129.0000	2026-07-08 21:55:47.792284	2026-07-08 21:55:47.843301
+158	15	430	1.000	50.0000	50.0000	2026-07-08 21:55:47.793672	2026-07-08 21:55:47.843749
+159	16	318	2.000	0.0000	0.0000	2026-07-08 22:00:22.461764	2026-07-08 22:00:22.461764
+160	16	360	2.000	0.0000	0.0000	2026-07-08 22:00:22.465475	2026-07-08 22:00:22.465475
+161	16	347	1.000	0.0000	0.0000	2026-07-08 22:00:22.467639	2026-07-08 22:00:22.467639
+162	16	333	12.000	0.0000	0.0000	2026-07-08 22:00:22.469661	2026-07-08 22:00:22.469661
+163	16	327	1.000	0.0000	0.0000	2026-07-08 22:00:22.471751	2026-07-08 22:00:22.471751
+164	16	434	1.000	0.0000	0.0000	2026-07-08 22:00:22.475599	2026-07-08 22:00:22.475599
+165	16	321	1.000	0.0000	0.0000	2026-07-08 22:00:22.477574	2026-07-08 22:00:22.477574
+166	16	353	2.000	0.0000	0.0000	2026-07-08 22:00:22.479404	2026-07-08 22:00:22.479404
+167	16	329	3.000	0.0000	0.0000	2026-07-08 22:00:22.481312	2026-07-08 22:00:22.481312
+168	16	372	2.000	0.0000	0.0000	2026-07-08 22:00:22.483392	2026-07-08 22:00:22.483392
+169	16	412	5.000	0.0000	0.0000	2026-07-08 22:00:22.485384	2026-07-08 22:00:22.485384
+170	16	443	2.000	0.0000	0.0000	2026-07-08 22:00:22.487608	2026-07-08 22:00:22.487608
+171	16	438	1.000	0.0000	0.0000	2026-07-08 22:00:22.489595	2026-07-08 22:00:22.489595
+172	16	432	2.000	0.0000	0.0000	2026-07-08 22:00:22.49165	2026-07-08 22:00:22.49165
+173	16	421	1.000	0.0000	0.0000	2026-07-08 22:00:22.495348	2026-07-08 22:00:22.495348
+174	16	394	1.000	0.0000	0.0000	2026-07-08 22:00:22.497843	2026-07-08 22:00:22.497843
+175	16	351	2.000	0.0000	0.0000	2026-07-08 22:00:22.50075	2026-07-08 22:00:22.50075
+176	16	350	2.000	0.0000	0.0000	2026-07-08 22:00:22.502779	2026-07-08 22:00:22.502779
+177	16	373	2.000	0.0000	0.0000	2026-07-08 22:00:22.508551	2026-07-08 22:00:22.508551
+178	16	376	4.000	0.0000	0.0000	2026-07-08 22:00:22.510987	2026-07-08 22:00:22.510987
+179	16	430	1.000	0.0000	0.0000	2026-07-08 22:00:22.513634	2026-07-08 22:00:22.513634
+180	16	363	1.000	0.0000	0.0000	2026-07-08 22:00:22.51551	2026-07-08 22:00:22.51551
+181	16	420	1.000	0.0000	0.0000	2026-07-08 22:00:22.517566	2026-07-08 22:00:22.517566
+182	16	427	1.000	0.0000	0.0000	2026-07-08 22:00:22.519971	2026-07-08 22:00:22.519971
+183	16	472	1.000	0.0000	0.0000	2026-07-08 22:00:22.521807	2026-07-08 22:00:22.521807
+184	17	318	2.000	0.0000	0.0000	2026-07-08 22:05:55.914551	2026-07-08 22:05:55.914551
+185	17	360	2.000	0.0000	0.0000	2026-07-08 22:05:55.919681	2026-07-08 22:05:55.919681
+186	17	347	1.000	0.0000	0.0000	2026-07-08 22:05:55.922805	2026-07-08 22:05:55.922805
+187	17	333	12.000	0.0000	0.0000	2026-07-08 22:05:55.925293	2026-07-08 22:05:55.925293
+188	17	327	1.000	0.0000	0.0000	2026-07-08 22:05:55.927857	2026-07-08 22:05:55.927857
+189	17	434	1.000	0.0000	0.0000	2026-07-08 22:05:55.930299	2026-07-08 22:05:55.930299
+190	17	321	1.000	0.0000	0.0000	2026-07-08 22:05:55.932911	2026-07-08 22:05:55.932911
+191	17	353	2.000	0.0000	0.0000	2026-07-08 22:05:55.937312	2026-07-08 22:05:55.937312
+192	17	329	3.000	0.0000	0.0000	2026-07-08 22:05:55.939681	2026-07-08 22:05:55.939681
+193	17	372	2.000	0.0000	0.0000	2026-07-08 22:05:55.941972	2026-07-08 22:05:55.941972
+194	17	412	5.000	0.0000	0.0000	2026-07-08 22:05:55.94459	2026-07-08 22:05:55.94459
+195	17	443	2.000	0.0000	0.0000	2026-07-08 22:05:55.947494	2026-07-08 22:05:55.947494
+196	17	438	1.000	0.0000	0.0000	2026-07-08 22:05:55.949822	2026-07-08 22:05:55.949822
+197	17	432	2.000	0.0000	0.0000	2026-07-08 22:05:55.952101	2026-07-08 22:05:55.952101
+198	17	421	1.000	0.0000	0.0000	2026-07-08 22:05:55.954251	2026-07-08 22:05:55.954251
+199	17	394	1.000	0.0000	0.0000	2026-07-08 22:05:55.956649	2026-07-08 22:05:55.956649
+200	17	351	2.000	0.0000	0.0000	2026-07-08 22:05:55.958849	2026-07-08 22:05:55.958849
+201	17	350	2.000	0.0000	0.0000	2026-07-08 22:05:55.961171	2026-07-08 22:05:55.961171
+202	17	373	2.000	0.0000	0.0000	2026-07-08 22:05:55.964806	2026-07-08 22:05:55.964806
+203	17	376	4.000	0.0000	0.0000	2026-07-08 22:05:55.967404	2026-07-08 22:05:55.967404
+204	17	340	2.000	0.0000	0.0000	2026-07-08 22:05:55.977473	2026-07-08 22:05:55.977473
+205	17	430	1.000	0.0000	0.0000	2026-07-08 22:05:55.982306	2026-07-08 22:05:55.982306
+206	17	363	1.000	0.0000	0.0000	2026-07-08 22:05:55.985146	2026-07-08 22:05:55.985146
+207	17	420	1.000	0.0000	0.0000	2026-07-08 22:05:55.987306	2026-07-08 22:05:55.987306
+208	17	427	1.000	0.0000	0.0000	2026-07-08 22:05:55.989634	2026-07-08 22:05:55.989634
+209	17	472	1.000	0.0000	0.0000	2026-07-08 22:05:55.992387	2026-07-08 22:05:55.992387
+210	18	366	4.000	106.3478	425.3912	2026-07-08 22:12:16.641275	2026-07-08 22:12:16.816394
+211	18	318	2.000	277.8788	555.7576	2026-07-08 22:12:16.645001	2026-07-08 22:12:16.820181
+212	18	360	2.000	94.1667	188.3334	2026-07-08 22:12:16.649277	2026-07-08 22:12:16.822174
+213	18	347	1.000	645.0000	645.0000	2026-07-08 22:12:16.653412	2026-07-08 22:12:16.823275
+214	18	333	12.000	45.0000	540.0000	2026-07-08 22:12:16.661161	2026-07-08 22:12:16.824427
+215	18	327	1.000	150.0000	150.0000	2026-07-08 22:12:16.664553	2026-07-08 22:12:16.825847
+216	18	434	1.000	365.0000	365.0000	2026-07-08 22:12:16.667804	2026-07-08 22:12:16.826704
+217	18	321	1.000	142.8571	142.8571	2026-07-08 22:12:16.671497	2026-07-08 22:12:16.827357
+218	18	353	2.000	184.1602	368.3204	2026-07-08 22:12:16.676215	2026-07-08 22:12:16.827834
+219	18	329	3.000	90.0000	270.0000	2026-07-08 22:12:16.681139	2026-07-08 22:12:16.828337
+220	18	372	2.000	226.4286	452.8572	2026-07-08 22:12:16.684531	2026-07-08 22:12:16.829005
+221	18	412	5.000	6.3968	31.9840	2026-07-08 22:12:16.687715	2026-07-08 22:12:16.829857
+222	18	443	2.000	26.0000	52.0000	2026-07-08 22:12:16.691247	2026-07-08 22:12:16.8316
+223	18	438	1.000	20.0000	20.0000	2026-07-08 22:12:16.694585	2026-07-08 22:12:16.833435
+224	18	432	2.000	250.0000	500.0000	2026-07-08 22:12:16.697803	2026-07-08 22:12:16.83422
+225	18	421	1.000	38.5700	38.5700	2026-07-08 22:12:16.700912	2026-07-08 22:12:16.834729
+226	18	394	1.000	266.0000	266.0000	2026-07-08 22:12:16.706046	2026-07-08 22:12:16.835537
+227	18	351	2.000	50.0000	100.0000	2026-07-08 22:12:16.709096	2026-07-08 22:12:16.836374
+228	18	350	2.000	73.3333	146.6666	2026-07-08 22:12:16.712329	2026-07-08 22:12:16.836883
+229	18	373	2.000	66.9697	133.9394	2026-07-08 22:12:16.715536	2026-07-08 22:12:16.83753
+230	18	376	4.000	18.4348	73.7392	2026-07-08 22:12:16.718806	2026-07-08 22:12:16.838091
+231	18	340	2.000	59.9920	119.9840	2026-07-08 22:12:16.722187	2026-07-08 22:12:16.838775
+232	18	430	1.000	50.0000	50.0000	2026-07-08 22:12:16.725456	2026-07-08 22:12:16.839382
+233	18	363	1.000	37.0000	37.0000	2026-07-08 22:12:16.728505	2026-07-08 22:12:16.84179
+234	18	420	1.000	85.5000	85.5000	2026-07-08 22:12:16.732371	2026-07-08 22:12:16.842324
+235	18	427	1.000	116.3636	116.3636	2026-07-08 22:12:16.735519	2026-07-08 22:12:16.842909
+236	18	472	1.000	17.0000	17.0000	2026-07-08 22:12:16.739648	2026-07-08 22:12:16.843945
+237	19	318	2.000	0.0000	0.0000	2026-07-08 22:15:46.043684	2026-07-08 22:15:46.043684
+238	19	360	2.000	0.0000	0.0000	2026-07-08 22:15:46.047914	2026-07-08 22:15:46.047914
+239	19	333	12.000	0.0000	0.0000	2026-07-08 22:15:46.050828	2026-07-08 22:15:46.050828
+240	19	403	1.000	0.0000	0.0000	2026-07-08 22:15:46.05385	2026-07-08 22:15:46.05385
+241	19	327	1.000	0.0000	0.0000	2026-07-08 22:15:46.056856	2026-07-08 22:15:46.056856
+242	19	321	3.000	0.0000	0.0000	2026-07-08 22:15:46.061529	2026-07-08 22:15:46.061529
+243	19	320	2.000	0.0000	0.0000	2026-07-08 22:15:46.064356	2026-07-08 22:15:46.064356
+244	19	389	1.000	0.0000	0.0000	2026-07-08 22:15:46.069733	2026-07-08 22:15:46.069733
+245	19	408	1.000	0.0000	0.0000	2026-07-08 22:15:46.07607	2026-07-08 22:15:46.07607
+246	19	317	1.000	0.0000	0.0000	2026-07-08 22:15:46.079761	2026-07-08 22:15:46.079761
+247	19	329	3.000	0.0000	0.0000	2026-07-08 22:15:46.08235	2026-07-08 22:15:46.08235
+248	19	354	20.000	0.0000	0.0000	2026-07-08 22:15:46.089433	2026-07-08 22:15:46.089433
+249	19	445	1.000	0.0000	0.0000	2026-07-08 22:15:46.096793	2026-07-08 22:15:46.096793
+250	19	355	1.000	0.0000	0.0000	2026-07-08 22:15:46.099648	2026-07-08 22:15:46.099648
+251	19	394	1.000	0.0000	0.0000	2026-07-08 22:15:46.102994	2026-07-08 22:15:46.102994
+252	19	349	1.000	0.0000	0.0000	2026-07-08 22:15:46.105265	2026-07-08 22:15:46.105265
+253	19	350	2.000	0.0000	0.0000	2026-07-08 22:15:46.107692	2026-07-08 22:15:46.107692
+254	19	384	20.000	0.0000	0.0000	2026-07-08 22:15:46.109818	2026-07-08 22:15:46.109818
+255	19	413	2.000	0.0000	0.0000	2026-07-08 22:15:46.112281	2026-07-08 22:15:46.112281
+256	19	402	1.000	0.0000	0.0000	2026-07-08 22:15:46.114414	2026-07-08 22:15:46.114414
+257	19	377	2.000	0.0000	0.0000	2026-07-08 22:15:46.116435	2026-07-08 22:15:46.116435
+258	19	347	1.000	0.0000	0.0000	2026-07-08 22:15:46.119347	2026-07-08 22:15:46.119347
+259	19	421	1.000	0.0000	0.0000	2026-07-08 22:15:46.121451	2026-07-08 22:15:46.121451
+260	19	399	1.000	0.0000	0.0000	2026-07-08 22:15:46.123602	2026-07-08 22:15:46.123602
+261	19	400	1.000	0.0000	0.0000	2026-07-08 22:15:46.126373	2026-07-08 22:15:46.126373
+262	19	401	1.000	0.0000	0.0000	2026-07-08 22:15:46.128477	2026-07-08 22:15:46.128477
+263	19	324	2.000	0.0000	0.0000	2026-07-08 22:15:46.130767	2026-07-08 22:15:46.130767
+264	19	430	1.000	0.0000	0.0000	2026-07-08 22:15:46.133203	2026-07-08 22:15:46.133203
+265	19	332	1.000	0.0000	0.0000	2026-07-08 22:15:46.135599	2026-07-08 22:15:46.135599
+266	19	432	2.000	0.0000	0.0000	2026-07-08 22:15:46.137672	2026-07-08 22:15:46.137672
+267	19	342	1.000	0.0000	0.0000	2026-07-08 22:15:46.139714	2026-07-08 22:15:46.139714
+268	19	438	1.000	0.0000	0.0000	2026-07-08 22:15:46.141706	2026-07-08 22:15:46.141706
+269	19	356	20.000	0.0000	0.0000	2026-07-08 22:15:46.143853	2026-07-08 22:15:46.143853
+270	19	365	1.000	0.0000	0.0000	2026-07-08 22:15:46.14593	2026-07-08 22:15:46.14593
+271	19	353	2.000	0.0000	0.0000	2026-07-08 22:15:46.148304	2026-07-08 22:15:46.148304
+272	19	334	2.000	0.0000	0.0000	2026-07-08 22:15:46.15045	2026-07-08 22:15:46.15045
+273	19	330	2.000	0.0000	0.0000	2026-07-08 22:15:46.152587	2026-07-08 22:15:46.152587
+274	19	319	1.000	0.0000	0.0000	2026-07-08 22:15:46.154698	2026-07-08 22:15:46.154698
+275	19	357	10.000	0.0000	0.0000	2026-07-08 22:15:46.156834	2026-07-08 22:15:46.156834
+276	20	366	3.000	106.3478	319.0434	2026-07-08 22:17:35.457	2026-07-08 22:17:58.111292
+277	20	318	2.000	277.8788	555.7576	2026-07-08 22:17:35.459994	2026-07-08 22:17:58.112336
+278	20	360	2.000	94.1667	188.3334	2026-07-08 22:17:35.462762	2026-07-08 22:17:58.113014
+279	20	333	12.000	45.0000	540.0000	2026-07-08 22:17:35.465473	2026-07-08 22:17:58.113688
+280	20	403	1.000	55.1021	55.1021	2026-07-08 22:17:35.468343	2026-07-08 22:17:58.114313
+281	20	327	1.000	150.0000	150.0000	2026-07-08 22:17:35.471749	2026-07-08 22:17:58.114873
+282	20	321	3.000	142.8571	428.5713	2026-07-08 22:17:35.4741	2026-07-08 22:17:58.115477
+283	20	320	2.000	240.0000	480.0000	2026-07-08 22:17:35.476938	2026-07-08 22:17:58.116064
+284	20	389	1.000	133.3333	133.3333	2026-07-08 22:17:35.481117	2026-07-08 22:17:58.11665
+285	20	408	1.000	20.0000	20.0000	2026-07-08 22:17:35.484113	2026-07-08 22:17:58.117296
+286	20	317	1.000	101.5000	101.5000	2026-07-08 22:17:35.486632	2026-07-08 22:17:58.117853
+287	20	329	3.000	90.0000	270.0000	2026-07-08 22:17:35.492666	2026-07-08 22:17:58.11842
+288	20	354	20.000	12.0000	240.0000	2026-07-08 22:17:35.495697	2026-07-08 22:17:58.119007
+289	20	445	1.000	75.0000	75.0000	2026-07-08 22:17:35.498246	2026-07-08 22:17:58.120297
+290	20	355	1.000	32.8947	32.8947	2026-07-08 22:17:35.500712	2026-07-08 22:17:58.121213
+291	20	394	1.000	266.0000	266.0000	2026-07-08 22:17:35.503063	2026-07-08 22:17:58.121748
+292	20	349	1.000	50.0000	50.0000	2026-07-08 22:17:35.505406	2026-07-08 22:17:58.122317
+293	20	350	2.000	73.3333	146.6666	2026-07-08 22:17:35.50773	2026-07-08 22:17:58.122911
+294	20	384	20.000	41.5000	830.0000	2026-07-08 22:17:35.510122	2026-07-08 22:17:58.123523
+295	20	413	2.000	35.0000	70.0000	2026-07-08 22:17:35.512503	2026-07-08 22:17:58.124108
+296	20	402	1.000	500.0000	500.0000	2026-07-08 22:17:35.514759	2026-07-08 22:17:58.124638
+297	20	377	2.000	23.0000	46.0000	2026-07-08 22:17:35.516994	2026-07-08 22:17:58.125206
+298	20	347	1.000	645.0000	645.0000	2026-07-08 22:17:35.519096	2026-07-08 22:17:58.125746
+299	20	421	1.000	38.5700	38.5700	2026-07-08 22:17:35.521456	2026-07-08 22:17:58.126407
+300	20	399	1.000	170.0000	170.0000	2026-07-08 22:17:35.523647	2026-07-08 22:17:58.12701
+301	20	400	1.000	175.0000	175.0000	2026-07-08 22:17:35.525789	2026-07-08 22:17:58.127604
+302	20	401	1.000	168.7500	168.7500	2026-07-08 22:17:35.528265	2026-07-08 22:17:58.128246
+303	20	324	2.000	77.6667	155.3334	2026-07-08 22:17:35.530815	2026-07-08 22:17:58.128822
+304	20	430	1.000	50.0000	50.0000	2026-07-08 22:17:35.539379	2026-07-08 22:17:58.129504
+305	20	332	1.000	20.0000	20.0000	2026-07-08 22:17:35.541848	2026-07-08 22:17:58.130152
+306	20	432	2.000	250.0000	500.0000	2026-07-08 22:17:35.544092	2026-07-08 22:17:58.130732
+307	20	342	1.000	30.0000	30.0000	2026-07-08 22:17:35.546873	2026-07-08 22:17:58.131376
+308	20	438	1.000	20.0000	20.0000	2026-07-08 22:17:35.549136	2026-07-08 22:17:58.131972
+309	20	356	20.000	27.1327	542.6540	2026-07-08 22:17:35.55457	2026-07-08 22:17:58.132584
+310	20	365	1.000	50.0000	50.0000	2026-07-08 22:17:35.556938	2026-07-08 22:17:58.133244
+311	20	353	2.000	184.1602	368.3204	2026-07-08 22:17:35.559055	2026-07-08 22:17:58.133825
+312	20	334	2.000	62.6923	125.3846	2026-07-08 22:17:35.56155	2026-07-08 22:17:58.134516
+313	20	330	2.000	67.0652	134.1304	2026-07-08 22:17:35.563857	2026-07-08 22:17:58.135187
+314	20	319	1.000	105.0000	105.0000	2026-07-08 22:17:35.5661	2026-07-08 22:17:58.135744
+315	20	357	10.000	18.8602	188.6020	2026-07-08 22:17:35.568794	2026-07-08 22:17:58.136322
 \.
 
 
@@ -21610,19 +22826,27 @@ COPY public.stock_issue_items (id, stock_issue_id, product_id, quantity, unit_co
 -- Data for Name: stock_issues; Type: TABLE DATA; Schema: public; Owner: work_pulse
 --
 
-COPY public.stock_issues (id, business_id, warehouse_id, created_by_id, issue_number, issued_on, notes, created_at, updated_at, voided_at, voided_by_id, void_reason, branch_id) FROM stdin;
-1	2	1	12	ISS-000001	2026-06-22	\N	2026-06-22 06:29:22.311547	2026-06-22 06:29:22.311547	\N	\N	\N	5
-2	2	1	12	ISS-000002	2026-06-22	\N	2026-06-22 06:34:02.613382	2026-06-22 06:34:02.613382	\N	\N	\N	3
-3	2	1	12	ISS-000003	2026-06-22		2026-06-22 06:37:36.677401	2026-06-22 06:37:36.677401	\N	\N	\N	3
-4	2	1	12	ISS-000004	2026-06-22		2026-06-22 08:40:24.522777	2026-06-22 21:24:10.901703	2026-06-22 21:24:10.884236	12	a	6
-5	2	1	12	ISS-000005	2026-06-23		2026-06-22 21:25:00.1146	2026-06-22 21:25:00.1146	\N	\N	\N	6
-6	2	1	12	ISS-000006	2026-06-23	\N	2026-06-23 06:18:17.945204	2026-06-23 06:18:17.945204	\N	\N	\N	5
-7	2	1	17	ISS-000007	2026-07-03	\N	2026-07-03 08:03:45.496727	2026-07-03 08:03:45.496727	\N	\N	\N	5
-8	2	1	17	ISS-000008	2026-06-29	P2213 فاتورة فرشا \nنسي يستلمها يوسف وخليت حسام يتاكد انها موجوده ويستلمها 	2026-07-03 08:57:12.687523	2026-07-03 08:57:12.687523	\N	\N	\N	5
-9	2	1	17	ISS-000009	2026-07-03	\N	2026-07-03 09:06:42.481181	2026-07-03 09:06:42.481181	\N	\N	\N	3
-10	2	1	17	ISS-000010	2026-06-30	P2215 فاتورة فرشا ؛ نسي المدير يدخلها في الفاتورة وعمل فاتورة جديدة	2026-07-03 09:11:10.197208	2026-07-03 09:11:10.197208	\N	\N	\N	4
-11	2	1	17	ISS-000011	2026-07-03	\N	2026-07-03 09:15:29.508452	2026-07-03 09:15:29.508452	\N	\N	\N	4
-12	2	1	17	ISS-000012	2026-07-06	P2219 فرشا	2026-07-05 22:22:17.19344	2026-07-05 22:22:17.19344	\N	\N	\N	4
+COPY public.stock_issues (id, business_id, warehouse_id, created_by_id, issue_number, issued_on, notes, created_at, updated_at, voided_at, voided_by_id, void_reason, branch_id, status) FROM stdin;
+1	2	1	12	ISS-000001	2026-06-22	\N	2026-06-22 06:29:22.311547	2026-06-22 06:29:22.311547	\N	\N	\N	5	posted
+2	2	1	12	ISS-000002	2026-06-22	\N	2026-06-22 06:34:02.613382	2026-06-22 06:34:02.613382	\N	\N	\N	3	posted
+3	2	1	12	ISS-000003	2026-06-22		2026-06-22 06:37:36.677401	2026-06-22 06:37:36.677401	\N	\N	\N	3	posted
+4	2	1	12	ISS-000004	2026-06-22		2026-06-22 08:40:24.522777	2026-06-22 21:24:10.901703	2026-06-22 21:24:10.884236	12	a	6	posted
+5	2	1	12	ISS-000005	2026-06-23		2026-06-22 21:25:00.1146	2026-06-22 21:25:00.1146	\N	\N	\N	6	posted
+6	2	1	12	ISS-000006	2026-06-23	\N	2026-06-23 06:18:17.945204	2026-06-23 06:18:17.945204	\N	\N	\N	5	posted
+7	2	1	17	ISS-000007	2026-07-03	\N	2026-07-03 08:03:45.496727	2026-07-03 08:03:45.496727	\N	\N	\N	5	posted
+8	2	1	17	ISS-000008	2026-06-29	P2213 فاتورة فرشا \nنسي يستلمها يوسف وخليت حسام يتاكد انها موجوده ويستلمها 	2026-07-03 08:57:12.687523	2026-07-03 08:57:12.687523	\N	\N	\N	5	posted
+9	2	1	17	ISS-000009	2026-07-03	\N	2026-07-03 09:06:42.481181	2026-07-03 09:06:42.481181	\N	\N	\N	3	posted
+10	2	1	17	ISS-000010	2026-06-30	P2215 فاتورة فرشا ؛ نسي المدير يدخلها في الفاتورة وعمل فاتورة جديدة	2026-07-03 09:11:10.197208	2026-07-03 09:11:10.197208	\N	\N	\N	4	posted
+11	2	1	17	ISS-000011	2026-07-03	\N	2026-07-03 09:15:29.508452	2026-07-03 09:15:29.508452	\N	\N	\N	4	posted
+12	2	1	17	ISS-000012	2026-07-06	P2219 فرشا	2026-07-05 22:22:17.19344	2026-07-05 22:22:17.19344	\N	\N	\N	4	posted
+13	2	1	17	ISS-000013	2026-07-07		2026-07-07 10:00:03.295634	2026-07-07 10:00:03.295634	\N	\N	\N	6	posted
+14	2	1	17	ISS-000014	2026-07-09	Order P2216	2026-07-08 21:47:32.822867	2026-07-08 21:47:32.822867	\N	\N	\N	3	posted
+15	2	1	17	ISS-000015	2026-07-09	\N	2026-07-08 21:55:47.719689	2026-07-08 21:55:47.827293	\N	\N	\N	5	posted
+16	2	1	17	ISS-000016	2026-07-09	\N	2026-07-08 22:00:22.454471	2026-07-08 22:00:22.454471	\N	\N	\N	3	draft
+17	2	1	17	ISS-000017	2026-07-09	\N	2026-07-08 22:05:55.901752	2026-07-08 22:05:55.901752	\N	\N	\N	3	draft
+18	2	1	17	ISS-000018	2026-07-09	\N	2026-07-08 22:12:16.633153	2026-07-08 22:12:16.813609	\N	\N	\N	3	posted
+19	2	1	17	ISS-000019	2026-07-09	\N	2026-07-08 22:15:46.032804	2026-07-08 22:15:46.032804	\N	\N	\N	4	draft
+20	2	1	17	ISS-000020	2026-07-09	\N	2026-07-08 22:17:35.45111	2026-07-08 22:17:58.104766	\N	\N	\N	4	posted
 \.
 
 
@@ -21689,6 +22913,13 @@ COPY public.till_deposits (id, payment_method_id, deposited_by_id, amount, depos
 14	1	63	2550.00	2026-07-04 22:07:00	8255		\N	\N	\N	2026-07-04 22:08:28.612318	2026-07-04 22:08:28.612318	15
 15	1	13	7450.00	2026-07-05 19:05:00			\N	\N	\N	2026-07-05 19:10:03.288164	2026-07-05 19:10:03.288164	14
 16	1	13	10400.00	2026-07-05 21:25:00			\N	\N	\N	2026-07-05 21:54:36.669619	2026-07-05 21:54:36.669619	17
+17	1	73	11700.00	2026-07-05 23:50:00	1090950		\N	\N	\N	2026-07-06 16:51:28.052666	2026-07-06 16:51:28.052666	16
+18	1	18	4400.00	2026-07-06 21:28:00	1090950		\N	\N	\N	2026-07-06 21:28:34.545034	2026-07-06 21:28:34.545034	20
+19	1	63	2600.00	2026-07-06 22:12:00	8264		\N	\N	\N	2026-07-06 22:13:33.029138	2026-07-06 22:13:33.029138	19
+20	1	13	7050.00	2026-07-06 21:21:00			\N	\N	\N	2026-07-06 22:56:49.32652	2026-07-06 22:56:49.32652	21
+21	1	49	3550.00	2026-07-07 14:33:00	8262		\N	\N	\N	2026-07-07 14:34:05.893535	2026-07-07 14:34:05.893535	18
+22	1	73	4900.00	2026-07-08 00:27:00	1090950		\N	\N	\N	2026-07-08 00:27:53.16967	2026-07-08 00:27:53.16967	22
+23	1	73	6650.00	2026-07-08 21:45:00	1090950		\N	\N	\N	2026-07-08 21:45:58.708154	2026-07-08 21:45:58.708154	26
 \.
 
 
@@ -21870,6 +23101,85 @@ COPY public.till_handover_amounts (id, till_handover_id, payment_method_id, paym
 171	67	1	نقدا	840.00	0.00	2026-07-06 00:00:41.336462	2026-07-06 00:00:41.336462	next_day
 172	68	1	نقدا	1700.00	0.00	2026-07-06 00:36:40.449018	2026-07-06 00:36:40.449018	next_day
 173	68	2	فيزا	160.00	0.00	2026-07-06 00:36:40.451911	2026-07-06 00:36:40.451911	next_day
+174	69	1	Cash	700.00	0.00	2026-07-06 06:18:04.556198	2026-07-06 06:18:04.556198	operational
+175	69	2	Visa	196.00	0.00	2026-07-06 06:18:04.563139	2026-07-06 06:18:04.563139	operational
+176	70	1	نقدا	1700.00	0.00	2026-07-06 06:40:46.030407	2026-07-06 06:40:46.030407	operational
+177	70	2	فيزا	160.00	0.00	2026-07-06 06:40:46.034445	2026-07-06 06:40:46.034445	operational
+178	71	1	نقدا	840.00	0.00	2026-07-06 07:01:14.780667	2026-07-06 07:01:14.780667	operational
+179	72	1	نقدا	2450.00	0.00	2026-07-06 12:47:49.258964	2026-07-06 12:47:49.258964	operational
+180	72	2	فيزا	944.00	0.00	2026-07-06 12:47:49.261558	2026-07-06 12:47:49.261558	operational
+181	72	3	انستا باي	0.00	0.00	2026-07-06 12:47:49.265632	2026-07-06 12:47:49.265632	operational
+182	73	1	نقدا	2460.00	0.00	2026-07-06 14:11:56.957442	2026-07-06 14:11:56.957442	operational
+183	73	2	فيزا	1604.00	0.00	2026-07-06 14:11:56.963349	2026-07-06 14:11:56.963349	operational
+184	73	3	انستا باي	0.00	0.00	2026-07-06 14:11:56.96689	2026-07-06 14:11:56.96689	operational
+185	74	1	نقدا	1120.00	0.00	2026-07-06 14:16:03.533407	2026-07-06 14:16:03.533407	operational
+186	74	2	فيزا	857.50	0.00	2026-07-06 14:16:03.538761	2026-07-06 14:16:03.538761	operational
+187	74	3	انستا باي	0.00	0.00	2026-07-06 14:16:03.541465	2026-07-06 14:16:03.541465	operational
+188	75	1	نقدا	3810.00	0.00	2026-07-06 16:54:31.627043	2026-07-06 16:54:31.627043	operational
+189	75	2	فيزا	1884.00	0.00	2026-07-06 16:54:31.632942	2026-07-06 16:54:31.632942	operational
+190	75	3	انستا باي	0.00	0.00	2026-07-06 16:54:31.634763	2026-07-06 16:54:31.634763	operational
+191	76	1	نقدا	6985.00	0.00	2026-07-06 17:53:12.645665	2026-07-06 17:53:12.645665	operational
+192	76	2	فيزا	2940.00	0.00	2026-07-06 17:53:12.649619	2026-07-06 17:53:12.649619	operational
+193	76	3	انستا باي	0.00	0.00	2026-07-06 17:53:12.651137	2026-07-06 17:53:12.651137	operational
+194	77	1	نقدا	7225.00	0.00	2026-07-06 20:53:43.03563	2026-07-06 20:53:43.03563	operational
+195	77	2	فيزا	4801.00	0.00	2026-07-06 20:53:43.041773	2026-07-06 20:53:43.041773	operational
+196	77	3	انستا باي	0.00	0.00	2026-07-06 20:53:43.044896	2026-07-06 20:53:43.044896	operational
+197	78	1	نقدا	4640.00	0.00	2026-07-06 21:10:54.653819	2026-07-06 21:10:54.653819	operational
+198	78	2	فيزا	2599.00	0.00	2026-07-06 21:10:54.657842	2026-07-06 21:10:54.657842	operational
+199	78	3	انستا باي	0.00	0.00	2026-07-06 21:10:54.659384	2026-07-06 21:10:54.659384	operational
+200	79	1	نقدا	2835.00	0.00	2026-07-06 21:50:30.253796	2026-07-06 21:50:30.253796	operational
+201	79	2	فيزا	3559.00	0.00	2026-07-06 21:50:30.255827	2026-07-06 21:50:30.255827	operational
+202	79	3	انستا باي	0.00	0.00	2026-07-06 21:50:30.256484	2026-07-06 21:50:30.256484	operational
+203	80	1	نقدا	971.00	0.00	2026-07-06 23:56:24.363295	2026-07-06 23:56:24.363295	next_day
+204	81	1	نقدا	971.00	0.00	2026-07-07 06:49:45.899198	2026-07-07 06:49:45.899198	operational
+205	82	1	نقدا	2625.00	0.00	2026-07-07 13:15:58.944258	2026-07-07 13:15:58.944258	operational
+206	82	2	فيزا	1421.00	0.00	2026-07-07 13:15:58.951532	2026-07-07 13:15:58.951532	operational
+207	82	3	انستا باي	0.00	0.00	2026-07-07 13:15:58.953588	2026-07-07 13:15:58.953588	operational
+208	83	1	نقدا	370.00	0.00	2026-07-07 14:37:27.266652	2026-07-07 14:37:27.266652	operational
+209	83	2	فيزا	5956.00	0.00	2026-07-07 14:37:27.273694	2026-07-07 14:37:27.273694	operational
+210	83	3	انستا باي	0.00	0.00	2026-07-07 14:37:27.276259	2026-07-07 14:37:27.276259	operational
+211	84	1	نقدا	5460.00	0.00	2026-07-07 14:57:51.644827	2026-07-07 14:57:51.644827	operational
+212	84	2	فيزا	2293.25	0.00	2026-07-07 14:57:51.649543	2026-07-07 14:57:51.649543	operational
+213	84	3	انستا باي	0.00	0.00	2026-07-07 14:57:51.65127	2026-07-07 14:57:51.65127	operational
+214	85	1	نقدا	3835.00	0.00	2026-07-07 15:57:51.01559	2026-07-07 15:57:51.01559	operational
+215	85	2	فيزا	2136.00	0.00	2026-07-07 15:57:51.019097	2026-07-07 15:57:51.019097	operational
+216	85	3	انستا باي	0.00	0.00	2026-07-07 15:57:51.021068	2026-07-07 15:57:51.021068	operational
+217	86	1	نقدا	6770.00	0.00	2026-07-07 21:01:04.731329	2026-07-07 21:01:04.731329	operational
+218	86	2	فيزا	4161.25	0.00	2026-07-07 21:01:04.737076	2026-07-07 21:01:04.737076	operational
+219	86	3	انستا باي	0.00	0.00	2026-07-07 21:01:04.738627	2026-07-07 21:01:04.738627	operational
+220	87	1	نقدا	5220.00	0.00	2026-07-07 21:23:10.880371	2026-07-07 21:23:10.880371	operational
+221	87	2	فيزا	2856.00	0.00	2026-07-07 21:23:10.88413	2026-07-07 21:23:10.88413	operational
+222	87	3	انستا باي	0.00	0.00	2026-07-07 21:23:10.886929	2026-07-07 21:23:10.886929	operational
+223	88	2	فيزا	568.00	0.00	2026-07-07 23:36:47.571786	2026-07-07 23:36:47.571786	next_day
+224	89	1	نقدا	840.00	0.00	2026-07-08 00:28:46.234235	2026-07-08 00:28:46.234235	next_day
+225	89	2	فيزا	600.00	0.00	2026-07-08 00:28:46.23579	2026-07-08 00:28:46.23579	next_day
+226	90	1	نقدا	840.00	0.00	2026-07-08 06:15:41.774067	2026-07-08 06:15:41.774067	operational
+227	90	2	فيزا	600.00	0.00	2026-07-08 06:15:41.784361	2026-07-08 06:15:41.784361	operational
+228	91	2	فيزا	568.00	0.00	2026-07-08 06:29:40.21374	2026-07-08 06:29:40.21374	operational
+229	92	1	نقدا	920.00	0.00	2026-07-08 07:58:22.576299	2026-07-08 07:58:22.576299	operational
+230	92	2	فيزا	1416.50	0.00	2026-07-08 07:58:22.581382	2026-07-08 07:58:22.581382	operational
+231	92	3	انستا باي	0.00	0.00	2026-07-08 07:58:22.584369	2026-07-08 07:58:22.584369	operational
+232	93	1	نقدا	950.00	0.00	2026-07-08 13:28:54.063437	2026-07-08 13:28:54.063437	operational
+233	93	2	فيزا	320.00	0.00	2026-07-08 13:28:54.07045	2026-07-08 13:28:54.07045	operational
+234	93	3	انستا باي	0.00	0.00	2026-07-08 13:28:54.074298	2026-07-08 13:28:54.074298	operational
+235	94	1	نقدا	1520.00	0.00	2026-07-08 14:48:17.07543	2026-07-08 14:48:17.07543	operational
+236	94	2	فيزا	2374.00	0.00	2026-07-08 14:48:17.079891	2026-07-08 14:48:17.079891	operational
+237	94	3	انستا باي	0.00	0.00	2026-07-08 14:48:17.082366	2026-07-08 14:48:17.082366	operational
+238	95	1	نقدا	3870.00	0.00	2026-07-08 15:34:43.517913	2026-07-08 15:34:43.517913	operational
+239	95	2	فيزا	1418.00	0.00	2026-07-08 15:34:43.524236	2026-07-08 15:34:43.524236	operational
+240	95	3	انستا باي	0.00	0.00	2026-07-08 15:34:43.526262	2026-07-08 15:34:43.526262	operational
+241	96	1	نقدا	1090.00	0.00	2026-07-08 21:04:43.490817	2026-07-08 21:04:43.490817	operational
+242	96	2	فيزا	1660.00	0.00	2026-07-08 21:04:43.49376	2026-07-08 21:04:43.49376	operational
+243	96	3	انستا باي	0.00	0.00	2026-07-08 21:04:43.496032	2026-07-08 21:04:43.496032	operational
+244	97	1	نقدا	7665.00	0.00	2026-07-08 21:08:51.244865	2026-07-08 21:08:51.244865	operational
+245	97	2	فيزا	3238.00	0.00	2026-07-08 21:08:51.246841	2026-07-08 21:08:51.246841	operational
+246	97	3	انستا باي	0.00	0.00	2026-07-08 21:08:51.250108	2026-07-08 21:08:51.250108	operational
+247	98	1	نقدا	1225.00	0.00	2026-07-08 21:35:39.535641	2026-07-08 21:35:39.535641	operational
+248	98	2	فيزا	1316.00	0.00	2026-07-08 21:35:39.538082	2026-07-08 21:35:39.538082	operational
+249	98	3	انستا باي	0.00	0.00	2026-07-08 21:35:39.539722	2026-07-08 21:35:39.539722	operational
+250	99	1	نقدا	575.00	0.00	2026-07-08 21:59:08.747259	2026-07-08 21:59:08.747259	next_day
+251	100	1	نقدا	680.00	0.00	2026-07-09 00:00:13.323846	2026-07-09 00:00:13.323846	next_day
+252	100	2	فيزا	160.00	0.00	2026-07-09 00:00:13.329261	2026-07-09 00:00:13.329261	next_day
 \.
 
 
@@ -21946,6 +23256,38 @@ COPY public.till_handovers (id, from_user_id, to_user_id, accepted_at, notes, cr
 66	73	\N	\N	\N	2026-07-06 00:00:06.578628	2026-07-06 00:00:06.578628	\N		\N	2026-07-05	t	16	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
 67	73	\N	\N	\N	2026-07-06 00:00:41.323573	2026-07-06 00:00:41.323573	\N	\N	\N	2026-07-05	t	16	\N	\N	\N	\N	\N	\N	t	\N	\N	\N	\N
 68	29	\N	\N	\N	2026-07-06 00:36:40.443007	2026-07-06 00:36:40.443007	\N	\N	\N	2026-07-05	t	17	\N	\N	\N	\N	\N	\N	t	\N	\N	\N	\N
+69	49	49	2026-07-06 06:18:04.532853	\N	2026-07-06 06:18:04.540068	2026-07-06 06:18:04.540068	\N	\N	\N	2026-07-06	f	19	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+70	29	22	2026-07-06 06:40:46.006227	\N	2026-07-06 06:40:46.017041	2026-07-06 06:40:46.017041	\N	\N	\N	2026-07-06	f	21	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+71	73	19	2026-07-06 07:01:14.767255	\N	2026-07-06 07:01:14.768211	2026-07-06 07:01:14.768211	\N	\N	\N	2026-07-06	f	20	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+72	22	13	2026-07-06 12:48:22.466739	\N	2026-07-06 12:47:49.253251	2026-07-06 12:48:22.47411	\N			2026-07-06	f	21	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+73	19	73	2026-07-06 14:12:27.856849	\N	2026-07-06 14:11:56.938188	2026-07-06 14:12:27.86341	\N			2026-07-06	f	20	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+74	49	63	2026-07-06 14:30:33.74392	\N	2026-07-06 14:16:03.518821	2026-07-06 14:30:33.744802	\N			2026-07-06	f	19	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+75	73	18	2026-07-06 16:54:50.632249	\N	2026-07-06 16:54:31.620936	2026-07-06 16:54:50.634487	\N			2026-07-06	f	20	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+76	13	29	2026-07-06 17:53:21.68022	\N	2026-07-06 17:53:12.640257	2026-07-06 17:53:21.681861	\N			2026-07-06	f	21	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+77	29	\N	\N	\N	2026-07-06 20:53:43.025696	2026-07-06 20:53:43.025696	\N	لا يوجد 	\N	2026-07-06	t	21	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+78	18	\N	\N	\N	2026-07-06 21:10:54.646482	2026-07-06 21:10:54.646482	\N		\N	2026-07-06	t	20	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+79	63	\N	\N	\N	2026-07-06 21:50:30.250651	2026-07-06 21:50:30.250651	\N		\N	2026-07-06	t	19	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+80	18	\N	\N	\N	2026-07-06 23:56:24.356098	2026-07-06 23:56:24.356098	\N	\N	\N	2026-07-06	t	20	\N	\N	\N	\N	\N	\N	t	\N	\N	\N	\N
+81	18	19	2026-07-07 06:49:45.868814	\N	2026-07-07 06:49:45.877377	2026-07-07 06:49:45.877377	\N	\N	\N	2026-07-07	f	22	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+82	19	18	2026-07-07 13:16:47.890706	\N	2026-07-07 13:15:58.910858	2026-07-07 13:16:47.893751	\N			2026-07-07	f	22	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+84	13	29	2026-07-07 14:59:54.275827	\N	2026-07-07 14:57:51.633553	2026-07-07 14:59:54.278862	\N			2026-07-07	f	23	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+85	18	73	2026-07-07 15:59:16.799895	\N	2026-07-07 15:57:51.007527	2026-07-07 15:59:16.801262	\N			2026-07-07	f	22	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+83	49	63	2026-07-07 18:55:16.045739	\N	2026-07-07 14:37:27.258159	2026-07-07 18:55:16.056876	\N			2026-07-07	f	24	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+86	29	\N	\N	\N	2026-07-07 21:01:04.711401	2026-07-07 21:01:04.711401	\N	لا يوجد 	\N	2026-07-07	t	23	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+87	73	\N	\N	\N	2026-07-07 21:23:10.87353	2026-07-07 21:23:10.87353	\N		\N	2026-07-07	t	22	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+88	29	\N	\N	\N	2026-07-07 23:36:47.560524	2026-07-07 23:36:47.560524	\N	\N	\N	2026-07-07	t	23	\N	\N	\N	\N	\N	\N	t	\N	\N	\N	\N
+89	73	\N	\N	\N	2026-07-08 00:28:46.231114	2026-07-08 00:28:46.231114	\N	\N	\N	2026-07-07	t	22	\N	\N	\N	\N	\N	\N	t	\N	\N	\N	\N
+90	73	18	2026-07-08 06:15:41.749016	\N	2026-07-08 06:15:41.758078	2026-07-08 06:15:41.758078	\N	\N	\N	2026-07-08	f	26	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+91	29	22	2026-07-08 06:29:40.199124	\N	2026-07-08 06:29:40.204105	2026-07-08 06:29:40.204105	\N	\N	\N	2026-07-08	f	25	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+92	63	\N	\N	\N	2026-07-08 07:58:22.558765	2026-07-08 07:58:22.558765	\N		\N	2026-07-07	t	24	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+93	49	63	2026-07-08 13:29:42.294553	\N	2026-07-08 13:28:54.044917	2026-07-08 13:29:42.298655	\N			2026-07-08	f	27	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+94	22	29	\N	\N	2026-07-08 14:48:17.06154	2026-07-08 14:48:17.06154	\N		\N	2026-07-08	f	25	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+95	18	73	2026-07-08 21:05:12.366228	\N	2026-07-08 15:34:43.503318	2026-07-08 21:05:12.368473	\N			2026-07-08	f	26	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+96	20	73	2026-07-08 21:05:24.183775	\N	2026-07-08 21:04:43.463027	2026-07-08 21:05:24.185363	\N			2026-07-08	f	26	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+97	73	\N	\N	\N	2026-07-08 21:08:51.240807	2026-07-08 21:08:51.240807	\N		\N	2026-07-08	t	26	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+98	63	\N	\N	\N	2026-07-08 21:35:39.530676	2026-07-08 21:35:39.530676	\N		\N	2026-07-08	t	27	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N
+99	63	\N	\N	\N	2026-07-08 21:59:08.738984	2026-07-08 21:59:08.738984	\N	\N	\N	2026-07-08	t	27	\N	\N	\N	\N	\N	\N	t	\N	\N	\N	\N
+100	73	\N	\N	\N	2026-07-09 00:00:13.312826	2026-07-09 00:00:13.312826	\N	\N	\N	2026-07-08	t	26	\N	\N	\N	\N	\N	\N	t	\N	\N	\N	\N
 \.
 
 
@@ -22008,6 +23350,30 @@ COPY public.till_session_amounts (id, payment_method_id, payment_method_name, co
 52	1	نقدا	13070.00	0.00	2026-07-06 00:00:06.602205	2026-07-06 00:00:06.602205	16
 53	2	فيزا	4540.00	0.00	2026-07-06 00:00:06.606635	2026-07-06 00:00:06.606635	16
 54	3	انستا باي	0.00	0.00	2026-07-06 00:00:06.61017	2026-07-06 00:00:06.61017	16
+55	1	نقدا	7225.00	0.00	2026-07-06 20:53:43.058445	2026-07-06 20:53:43.058445	21
+56	2	فيزا	4801.00	0.00	2026-07-06 20:53:43.06399	2026-07-06 20:53:43.06399	21
+57	3	انستا باي	0.00	0.00	2026-07-06 20:53:43.066793	2026-07-06 20:53:43.066793	21
+58	1	نقدا	4640.00	0.00	2026-07-06 21:10:54.680549	2026-07-06 21:10:54.680549	20
+59	2	فيزا	2599.00	0.00	2026-07-06 21:10:54.688629	2026-07-06 21:10:54.688629	20
+60	3	انستا باي	0.00	0.00	2026-07-06 21:10:54.691356	2026-07-06 21:10:54.691356	20
+61	1	نقدا	2835.00	0.00	2026-07-06 21:50:30.25949	2026-07-06 21:50:30.25949	19
+62	2	فيزا	3559.00	0.00	2026-07-06 21:50:30.261307	2026-07-06 21:50:30.261307	19
+63	3	انستا باي	0.00	0.00	2026-07-06 21:50:30.262776	2026-07-06 21:50:30.262776	19
+64	1	نقدا	6770.00	0.00	2026-07-07 21:01:04.756414	2026-07-07 21:01:04.756414	23
+65	2	فيزا	4161.25	0.00	2026-07-07 21:01:04.762832	2026-07-07 21:01:04.762832	23
+66	3	انستا باي	0.00	0.00	2026-07-07 21:01:04.766164	2026-07-07 21:01:04.766164	23
+67	1	نقدا	5220.00	0.00	2026-07-07 21:23:10.901168	2026-07-07 21:23:10.901168	22
+68	2	فيزا	2856.00	0.00	2026-07-07 21:23:10.908264	2026-07-07 21:23:10.908264	22
+69	3	انستا باي	0.00	0.00	2026-07-07 21:23:10.911632	2026-07-07 21:23:10.911632	22
+70	1	نقدا	920.00	0.00	2026-07-08 07:58:22.635889	2026-07-08 07:58:22.635889	24
+71	2	فيزا	1416.50	0.00	2026-07-08 07:58:22.664761	2026-07-08 07:58:22.664761	24
+72	3	انستا باي	0.00	0.00	2026-07-08 07:58:22.670305	2026-07-08 07:58:22.670305	24
+73	1	نقدا	7665.00	0.00	2026-07-08 21:08:51.279065	2026-07-08 21:08:51.279065	26
+74	2	فيزا	3238.00	0.00	2026-07-08 21:08:51.28515	2026-07-08 21:08:51.28515	26
+75	3	انستا باي	0.00	0.00	2026-07-08 21:08:51.287863	2026-07-08 21:08:51.287863	26
+76	1	نقدا	1225.00	0.00	2026-07-08 21:35:39.548856	2026-07-08 21:35:39.548856	27
+77	2	فيزا	1316.00	0.00	2026-07-08 21:35:39.554507	2026-07-08 21:35:39.554507	27
+78	3	انستا باي	0.00	0.00	2026-07-08 21:35:39.557343	2026-07-08 21:35:39.557343	27
 \.
 
 
@@ -22016,15 +23382,26 @@ COPY public.till_session_amounts (id, payment_method_id, payment_method_name, co
 --
 
 COPY public.till_sessions (id, current_holder_id, depositor_id, closed_by_id, created_at, updated_at, daily_reconciliation_id) FROM stdin;
+20	\N	18	18	2026-07-06 00:00:41.358103	2026-07-06 21:10:54.714043	20
+19	\N	63	63	2026-07-05 21:56:37.465689	2026-07-06 21:50:30.264352	19
 1	20	20	20	2026-06-30 12:20:43.990502	2026-06-30 21:17:00.972811	1
 3	29	29	29	2026-06-30 13:13:21.961035	2026-06-30 21:21:30.847426	3
 2	63	63	63	2026-06-30 12:40:17.286117	2026-06-30 21:56:03.85421	2
+21	\N	13	29	2026-07-06 00:36:40.460707	2026-07-06 22:54:52.43841	21
 6	\N	73	73	2026-07-01 14:25:02.115678	2026-07-01 21:18:18.498918	6
 4	\N	63	63	2026-07-01 03:26:36.699519	2026-07-01 22:05:36.32172	4
 5	\N	29	29	2026-07-01 07:52:19.915758	2026-07-01 22:38:14.216512	5
+22	\N	73	73	2026-07-06 23:56:24.38623	2026-07-07 21:23:10.917889	22
+25	22	\N	\N	2026-07-07 23:36:47.596394	2026-07-08 06:29:40.220852	25
+24	\N	63	63	2026-07-07 14:36:29.158091	2026-07-08 07:58:22.692543	24
 9	\N	18	18	2026-07-01 23:51:48.825915	2026-07-02 21:31:27.216664	9
 8	\N	13	13	2026-07-01 23:44:15.35245	2026-07-02 21:41:11.07961	8
 7	\N	63	63	2026-07-01 22:05:55.060063	2026-07-02 22:05:34.782302	7
+26	\N	73	73	2026-07-08 00:28:46.239973	2026-07-08 21:08:51.306269	26
+27	\N	63	63	2026-07-08 13:25:55.732376	2026-07-08 21:35:39.562255	27
+28	\N	\N	\N	2026-07-08 21:59:08.762523	2026-07-08 21:59:08.762523	28
+29	\N	\N	\N	2026-07-09 00:00:13.345914	2026-07-09 00:00:13.345914	29
+23	\N	13	29	2026-07-07 05:59:57.665053	2026-07-09 00:54:44.601678	23
 10	\N	13	13	2026-07-02 21:41:59.339858	2026-07-03 21:08:43.239848	10
 12	\N	18	18	2026-07-03 00:25:02.721623	2026-07-03 21:10:29.729847	12
 11	\N	63	63	2026-07-02 22:06:17.270739	2026-07-03 21:58:58.3827	11
@@ -22033,10 +23410,7 @@ COPY public.till_sessions (id, current_holder_id, depositor_id, closed_by_id, cr
 14	\N	13	29	2026-07-04 00:10:02.18149	2026-07-05 19:07:42.094054	14
 18	\N	49	49	2026-07-05 16:56:24.281242	2026-07-05 21:15:29.885894	18
 17	\N	13	29	2026-07-05 00:06:22.635282	2026-07-05 21:52:49.961305	17
-19	\N	\N	\N	2026-07-05 21:56:37.465689	2026-07-05 21:56:37.465689	19
 16	\N	73	73	2026-07-04 23:32:33.053353	2026-07-06 00:00:06.619518	16
-20	\N	\N	\N	2026-07-06 00:00:41.358103	2026-07-06 00:00:41.358103	20
-21	\N	\N	\N	2026-07-06 00:36:40.460707	2026-07-06 00:36:40.460707	21
 \.
 
 
@@ -22095,6 +23469,7 @@ COPY public.users (id, active, business_id, created_at, email, employee_code, en
 70	t	2	2026-06-10 16:31:12.984694	\N	481	$2a$12$pYhak596gH6HsTIhqlG/reylDJPrBKhGn3GT43Y2Jez/EcL2gY7yC	 سيد	\N	31005180101152	ايمن سيد احمد العجمي	01141897615	ar	\N	\N	\N	2026-06-27 05:30:35.221221	t	t	سيد	01151454540	والد	\N	مساعد		2026-06-10	full_time	{}	\N	\N
 12	t	2	2026-05-14 15:01:56.587776	ahmedbahaa1111@gmail.com	1	$2a$12$elRAleBUn9QwyS3V/VTL3.tH1Gzsn74PoPpUh7NILlowiIi7/TP/q	Ahmed	\N	12345678901234	bahaa	01028669944	ar	2026-06-11 22:29:24.520321	\N	\N	2026-06-11 22:29:24.521758	t	t		\N		\N			\N	\N	{}	\N	\N
 71	f	2	2026-06-11 22:32:34.066635	\N	482		سيد	2028-09-14	30105012102373	رجب سيد حسن رجب	01144772111	\N	\N	\N	\N	2026-06-12 22:16:49.356592	t	t		01142511799	والدة	\N	مصفف شعر		2026-06-11	full_time	{}	\N	\N
+18	t	2	2026-05-16 19:53:57.98849	\N	213	$2a$12$pNKfE6r6q4wKCat67GloE./owxuYCvSUxT6fMJiLGfp26KzHJpHRO	اسلام	\N	29502010101756	احمد امام	01555105314	ar	\N	\N	\N	2026-07-06 23:56:34.634073	t	t		01258153489		7			\N	full_time	{}	2	
 43	t	2	2026-05-20 10:06:20.146922	\N	361	$2a$12$VMfeZI2/hGEp6ALv9stk5.YYa7MYgM/xu1/.MMjl861Jt5ov82VBC	محمد	\N	30909291404874	ياسر محمد عبدالحميد	01101598079	ar	2026-05-31 14:12:12.925747	\N	\N	2026-06-24 05:09:37.451896	t	t		01129933199	والد	\N			\N	\N	{}	\N	\N
 48	t	2	2026-05-20 10:37:53.994144	\N	385	$2a$12$Zkk/q79l/6G1AbkLS.nAkukqObBx9tw/yHH/QRFzvEJOFyGBrw76u	علي	\N	30601042600693	حامد علي ابو المجد حسين	01211865426	ar	\N	\N	\N	2026-06-24 04:48:22.677105	t	t		01288760621		\N			\N	full_time	{}	1	\N
 74	t	2	2026-06-20 06:45:23.339339	\N	485		هشام	\N	30009270100971	ياسر فهيم محمد سليمان 	01029545297	\N	\N	\N	\N	2026-06-20 06:45:25.092477	t	t	ياسر	01222880111	والد	\N	مساعد	\N	2026-06-19	full_time	{}	\N	\N
@@ -22106,17 +23481,16 @@ COPY public.users (id, active, business_id, created_at, email, employee_code, en
 45	t	2	2026-05-20 10:12:28.448012	\N	366	$2a$12$Fwojfs4YSq.DcwmCNkO79.qd3yYROFRvnQo2vR74IPgNxPZO4Q/T2	محمد	\N	30701101702459	رفعت صلاح عوده بروده	01034772159	ar	\N	\N	\N	2026-06-24 04:59:23.941624	t	t		01023737743		\N			\N	full_time	{}	1	\N
 76	f	2	2026-06-23 09:20:51.347551	\N	486		احمد	2028-09-08	28906162200091	يوسف سيد مصطفى 	01001187373	\N	\N	\N	\N	2026-06-24 17:28:14.957606	t	t	الزوجة	01060602002	زوج/زوجة	\N	صنايعي	\N	2026-06-23	full_time	{}	1	\N
 20	t	2	2026-05-16 19:58:19.777114	\N	369	$2a$12$Sd00qzUjfygxzSgOVjw0hu3DgfwfXAVDegoM.Rb7.4DMN7z86R/WO	منه الله	\N	30208240100066	سامح سعيد توفيق ابراهيم	01102821054	ar	2026-06-30 13:06:07.589145	\N	\N	2026-06-30 13:06:07.590888	t	t		01141123508		7			\N	full_time	{}	2	
-18	t	2	2026-05-16 19:53:57.98849	\N	213	$2a$12$pNKfE6r6q4wKCat67GloE./owxuYCvSUxT6fMJiLGfp26KzHJpHRO	اسلام	\N	29502010101756	احمد امام	01555105314	ar	2026-07-04 23:57:06.13256	\N	\N	2026-07-04 23:57:06.133537	t	t		01258153489		7			\N	full_time	{}	2	
 29	t	2	2026-05-19 15:50:35.633103	\N	439	$2a$12$wgUm1MBQQuKJ0FwvYjlY8uHa9FKPGBW9nAAw5O.jMeujF/Yaq6oK6	انطون	\N	30309110103595	خالد رمسيس فهمي	01552113422	ar	\N	\N	\N	2026-07-04 07:43:54.756887	t	t		01221332269		7			\N	full_time	{}	2	
 72	t	2	2026-06-11 22:52:42.147871	\N	483	$2a$12$CAzi6ry3elZ/NmAvchuyMutdixnb65F2EZEM5UWm9KbbTElge6qFm	أيمن	\N	28804041401394	فرغلي عبد المحسن عمر	01156820098	ar	2026-06-28 23:59:46.324357	\N	\N	2026-06-28 23:59:46.324653	t	t		01550046630	حماتك	\N	مصفف شعر		\N	\N	{}	1	\N
 66	t	2	2026-06-02 08:26:03.721381	\N	477		طه	\N	29009062103058	حسين زياد معبدى	01119221027	\N	\N	\N	\N	2026-06-24 04:33:29.92588	t	t	سمر	01102396678	Relative	\N	دراي كلين		2026-05-18	full_time	{}	\N	\N
-77	t	2	2026-06-23 17:02:10.678116	\N	487	$2a$12$UM4/W1Du5M1woIb7iT.DaeBqMN2yAcIY4S4hgBA2V2YP.Eofw2vey	محمود	\N	26810210104224	عبد الله عبد الخالق عزت محمد 	01122836957	ar	\N	\N	\N	2026-06-29 16:08:47.667923	t	t	 عبد الله عبد الخالق عزت محمد 	01118421796	والد	\N		\N	2026-06-19	full_time	{}	\N	\N
 7	t	1	2026-05-14 10:53:34.910058	fatima.ali@workpulse.dev	EMP-002	$2a$12$iZInwS4gJk2q1Os.CpZyx./.08y8RtAvpes4QCFnFbHs9A1hDsHL6	Fatima	\N	1023456789	Ali	+966502220002	ar	\N	\N	\N	2026-05-14 10:53:34.910058	t	t	\N	\N	\N	\N	\N	\N	\N	\N	{}	\N	\N
 13	t	2	2026-05-14 15:14:47.532946	\N	355	$2a$12$i5zUW8YKdyaOAmjj/6P6puNzIsz.Raqs8ItoXJ1JMPuuXK1j5MwVC	عبير	\N	29408080102885	علي محمد علي	01022170560	ar	\N	\N	\N	2026-06-30 12:22:51.348616	t	t		\N		7			\N	full_time	{}	2	
 63	t	2	2026-05-30 17:19:43.21779	yusiifghobashy90@gmail.com	475	$2a$12$y1v3SKkdlGsSfCN042D49uNXEO3oSrTaVNmho/WBAMuCeWAcegJO2	يوسف	2030-07-10	29512042100579	محمود عبدالفتاح محمد	01035709390	ar	2026-06-05 18:26:34.547446	\N	\N	2026-07-04 09:19:31.676164	t	t	الوالدة	01002375543	والدة	7	ريسبشن	المبيعات	2026-05-25	full_time	{}	2	
 28	t	2	2026-05-19 15:47:32.806586	\N	360	$2a$12$Q6QKG1fJ/Ca434SiCl1VZesPjLV/0EEd8FRthWgCZE083PIUxmsy2	محمد	\N	29609081501436	رمضان علي محمد فايد	01130507009	ar	2026-06-05 18:28:11.29241	\N	\N	2026-06-24 05:01:37.409256	t	t		01279425380		\N			\N	\N	{}	1	\N
 30	t	2	2026-05-19 15:52:43.585529	\N	441	$2a$12$WOrj4hG/99MBwE7JtBCk7emKcUGQkn3DSsgbc0c6SbauLqTxXyXrO	عبدالرحمن	\N	30412291401091	 يسرى احمد محمد حسن	01123911379	ar	\N	\N	\N	2026-06-26 05:00:51.885068	t	t		01278164024	أخ	\N			\N	full_time	{}	1	\N
 24	t	2	2026-05-19 15:42:27.658678	\N	18	$2a$12$3/lZ.mBTtksHK7RJM07PsOB/5GYs9dXBDffMu1kUaO.8rjcDMC0ce	ابراهيم	\N	28104280102917	حسن محمد	01221842276	ar	\N	\N	\N	2026-06-12 22:14:31.249383	t	t		1281328218		\N			\N	\N	{}	1	\N
+77	f	2	2026-06-23 17:02:10.678116	\N	487	$2a$12$UM4/W1Du5M1woIb7iT.DaeBqMN2yAcIY4S4hgBA2V2YP.Eofw2vey	محمود	\N	26810210104224	عبد الله عبد الخالق عزت محمد 	01122836957	ar	\N	\N	\N	2026-07-07 02:09:50.010376	t	t	 عبد الله عبد الخالق عزت محمد 	01118421796	والد	\N		\N	2026-06-19	full_time	{}	\N	\N
 67	t	2	2026-06-08 19:59:34.47862	\N	478	$2a$12$hr7Zciz4C/DKKL0o/ECXseSI9LySl9b.vmBF.trrqXtfdHbANKT8G	فارس	\N	30710291400916	وائل عوض عبد المؤمن عطية	01225161583	\N	\N	\N	\N	2026-06-12 22:19:33.715415	f	t	وائل عوض	01116309630	والد	\N	مصفف شعر		2026-06-04	full_time	{}	1	\N
 6	t	1	2026-05-14 10:53:34.700426	ahmed.hassan@workpulse.dev	EMP-001	$2a$12$WjEVJ7TEoVDJ3MWg70KhlOngXjfEhz99sKEX6FTBLEG.O1iTHrk0u	Ahmed	\N	1012345678	Hassan	+966502220001	\N	\N	\N	\N	2026-05-14 10:53:34.700426	t	t	\N	\N	\N	\N	\N	\N	\N	\N	{}	\N	\N
 9	t	1	2026-05-14 10:53:35.334218	layla.ibrahim@workpulse.dev	EMP-004	$2a$12$vKhvsOMG49rx56RpF0H9U.uPqaTIyPYVyBgE/1s9IHJ9Rhh26J/aS	Layla	\N	2045678901	Ibrahim	+966502220004	\N	\N	\N	\N	2026-05-14 10:53:35.334218	t	t	\N	\N	\N	\N	\N	\N	\N	\N	{}	\N	\N
@@ -22135,7 +23509,7 @@ COPY public.users (id, active, business_id, created_at, email, employee_code, en
 38	t	2	2026-05-20 09:41:24.803526	\N	230	$2a$12$fVjo3S.epQtEY6TR./DdmuS8OE4pStw2VR8h4zAFATyOlI0DhzTia	ابراهيم	\N	30404201402814	خالد علي	01221813702	\N	\N	\N	\N	2026-06-12 22:14:38.364494	t	t		\N		\N			\N	\N	{}	1	\N
 31	t	2	2026-05-19 15:53:54.526869	\N	442	$2a$12$3BJEzQmKSWeJHFeKwI9s5OiO0NUoFDdifZ4.Cbc/7FoqlrCldKGsO	احمد	\N	29608211600435	ابراهيم عبد الجواد رضوان	01141334202	ar	2026-06-05 18:22:25.212081	\N	\N	2026-06-12 22:14:55.157633	t	t		01152113123		\N			\N	\N	{}	1	\N
 44	t	2	2026-05-20 10:09:58.938647	\N	362	$2a$12$3Vy0JGKwCaEDTx.N8kIfrOy5aFv7Z/gbnLTjfT7ztNPu4ryEvGkRS	عبدالله	\N	30108300104258	صابر حسن بيومي	01208787376	ar	2026-05-31 11:16:53.56584	\N	\N	2026-06-26 05:04:18.258937	t	t		01225514972	والد	\N			\N	full_time	{}	1	\N
-62	t	2	2026-05-20 15:33:22.761077	\N	473	$2a$12$YRab9SlrFP7P0oODvtYUceSYwp8cgEwATneiiYepAJZ6JqHa/6p0.	ماثيو	2026-05-01	27603202703079	نشات ثروت جرجس	01207113951	ar	2026-05-30 16:37:27.89926	\N	\N	2026-06-01 06:48:59.751679	t	t		01207843801		\N			\N	\N	{}	\N	\N
+57	f	2	2026-05-20 15:15:57.710006	\N	463	$2a$12$t6AYqphE0mpWLdPAXz7/KetjJv0Xb1Nglj.OlPQ/AzvGEe4rLGY4S	احمد	2026-05-01	30908180105553	محمد حلمي عبدالحافظ محمد	01044319212	ar	\N	\N	\N	2026-07-07 02:10:15.141724	t	t		01000361341		\N	\N	\N	\N	\N	{}	\N	\N
 51	t	2	2026-05-20 11:50:50.958981	\N	422	$2a$12$T0Lgbi7bOPMbCqXYAKio3.zkRQu1WtumUZrFzRfndv4/lnYHjTPhK	محمد	\N	30303090104532	جمال جابر	01151283518	ar	\N	\N	\N	2026-07-01 14:18:21.944857	t	t		\N		\N		\N	\N	\N	{}	\N	\N
 55	t	2	2026-05-20 14:04:07.279827	\N	446	$2a$12$xaEYsw2KlsGmyL9NpkL0hOkQ5N6t5g6GLCUNgiognYCDfxZMruy8m	محمد	\N	30709102302099	صالح يوسف شعبان حسن	01034211631	ar	2026-06-03 10:12:35.292664	\N	\N	2026-06-24 05:03:55.870763	t	t		01033397707		\N			\N	full_time	{}	1	\N
 40	t	2	2026-05-20 09:48:17.906663	\N	326	$2a$12$In8hN6M5Q4dCTfYnF315aO1pF8kSPRyz38te4EB5BuAmXUmF.nGrW	عبدالرحمن	\N	30410111700034	السيد عبدالسلام عبدالعاطي	01501068838	ar	2026-06-08 08:36:53.118553	\N	\N	2026-06-12 22:18:15.745462	t	t		01092004051		\N			\N	full_time	{}	1	\N
@@ -22145,12 +23519,12 @@ COPY public.users (id, active, business_id, created_at, email, employee_code, en
 58	t	2	2026-05-20 15:19:12.55391	\N	464	$2a$12$FKC7B8/cFHr9damuUwBJx.mYmBayo2h7giJWjNB0Qlg3u7qRnt/na	مصطفى	\N	31106200101112	درويش مصطفى درويش	01220544364	ar	\N	\N	\N	2026-06-17 20:16:50.713648	t	t		01212066952		\N	\N	\N	\N	\N	{}	\N	\N
 32	f	2	2026-05-19 15:55:08.175744	\N	448		احمد	\N	28901020102911	محمد عبدالقادر عبدالله	01114223028	\N	\N	\N	\N	2026-06-06 09:33:20.715139	t	t		01107597775		\N	\N	\N	\N	\N	{}	\N	\N
 33	f	2	2026-05-19 15:56:08.689871	\N	450		عيد	\N	30604011903654	 فرحان عيد فرحان عيد	01278088691	\N	\N	\N	\N	2026-05-25 15:28:34.841017	t	t		01055061289		\N	\N	\N	\N	\N	{}	\N	\N
-57	t	2	2026-05-20 15:15:57.710006	\N	463	$2a$12$t6AYqphE0mpWLdPAXz7/KetjJv0Xb1Nglj.OlPQ/AzvGEe4rLGY4S	احمد	2026-05-01	30908180105553	محمد حلمي عبدالحافظ محمد	01044319212	ar	\N	\N	\N	2026-06-02 18:42:47.196387	t	t		01000361341		\N	\N	\N	\N	\N	{}	\N	\N
+47	f	2	2026-05-20 10:22:25.127723	\N	373	$2a$12$rP2q/37uRYT4hHQzN8vpkuyDh7vBIPVvYBfQt81H0o0scT31Fcs0S	مارك	\N	30608172801016	عماد ادورد بسخيرون بشاي	01286721884	ar	\N	\N	\N	2026-07-07 07:27:13.02235	t	t		0122471389		\N			\N	full_time	{}	1	\N
 25	t	2	2026-05-19 15:43:28.51842	\N	320		شريف	\N	29408260101453	سمير صدقي 	01276912889	ar	\N	\N	\N	2026-06-26 05:05:36.950469	t	t		01282951823		\N			\N	full_time	{}	1	\N
 61	t	2	2026-05-20 15:31:22.912666	\N	472	$2a$12$aU8Jil8pzlgHUqI9/M7/MexbFNXAK24EYgyrNfePILpSn.gvF/HWS	هشام	\N	28307251401873	سمير عبد الحميد خليل	01225757675	ar	2026-06-02 15:11:03.242363	\N	\N	2026-06-24 05:22:29.416812	t	t		01270441970		\N			\N	full_time	{}	1	\N
-47	t	2	2026-05-20 10:22:25.127723	\N	373	$2a$12$rP2q/37uRYT4hHQzN8vpkuyDh7vBIPVvYBfQt81H0o0scT31Fcs0S	مارك	\N	30608172801016	عماد ادورد بسخيرون بشاي	01286721884	ar	\N	\N	\N	2026-06-24 03:52:16.691672	t	t		0122471389		\N			\N	full_time	{}	1	\N
 19	t	2	2026-05-16 19:56:19.870043	\N	259	$2a$12$qoy5nE.WKGOH4f/S04epluseKfxXioU81vw8gpRPVU2hq/VVKe9Ny	اية	\N	29107260101461	خلف حامد فرغلى	01159128746	ar	2026-05-17 08:47:40.714017	\N	\N	2026-06-30 12:21:10.908615	t	t	 مدام نجلاء	01149993988	قريب	7			\N	full_time	{}	2	
 22	t	2	2026-05-19 08:45:53.316658	\N	378	$2a$12$26mrMUKuVedqarwR6fKWM.XQ7cI/.CZqYZOv1suA6/MMAmE5JIz7q	مريم	\N	30603130103821	حسام احمد السيد الكومي	01117713464	ar	\N	\N	\N	2026-07-04 07:43:25.743275	t	t		01008765881	والد	7		\N	\N	full_time	{}	2	
+62	f	2	2026-05-20 15:33:22.761077	\N	473	$2a$12$YRab9SlrFP7P0oODvtYUceSYwp8cgEwATneiiYepAJZ6JqHa/6p0.	ماثيو	2026-05-01	27603202703079	نشات ثروت جرجس	01207113951	ar	2026-05-30 16:37:27.89926	\N	\N	2026-07-06 05:57:41.873326	t	t		01207843801		\N			\N	\N	{}	\N	\N
 60	t	2	2026-05-20 15:29:24.365694	\N	470	$2a$12$7mOc8stxGSW8CoqwgUGYP.UceTznYAve.6RJ4fZkqLkDhXAHtOA4m	احمد	2026-05-01	28411052301918	محمد فهمي	01095890634	ar	2026-05-30 16:41:46.618264	\N	\N	2026-06-24 04:17:00.721741	t	t	محمود محمد	01090060258	اخ	\N			\N	full_time	{}	1	\N
 73	t	2	2026-06-11 23:01:47.50801	\N	484	$2a$12$MhhtcI4OYsyDjwF4zBE88.KvfKcA4MRoG02EiVB1y5YXlONVmTN46	إياد	\N	30406300102019	وائل سلامه احمد 	01127126601	ar	2026-06-30 15:33:20.944648	\N	\N	2026-07-04 07:44:03.367551	t	t		01115494824	والد	7	استقبال		2026-06-11	full_time	{}	2	
 52	t	2	2026-05-20 12:02:07.797551	\N	433	$2a$12$xc2rLQsVbI/vP/cpPDqyvOcr13RX6LIMmfQa6wliHgioIans.ptXm	مروان	\N	30501202304838	إسماعيل صابر حسين	01019820767	ar	2026-05-31 01:58:33.991776	\N	\N	2026-06-03 06:24:19.985304	t	t		\N		\N			\N	\N	{}	\N	\N
@@ -22158,12 +23532,12 @@ COPY public.users (id, active, business_id, created_at, email, employee_code, en
 2	t	1	2026-05-14 10:53:33.858329	area.manager@workpulse.dev	ARM-001	$2a$12$3kF433jhOLg.1vuydkfQJehUlWUigvoEVmXTD0I4DbyOtJQveaBDq	Tariq	\N	\N	Al-Harbi	+966509990002	\N	\N	\N	\N	2026-05-14 10:53:33.858329	t	t	\N	\N	\N	2	\N	\N	\N	\N	{}	\N	\N
 3	t	1	2026-05-14 10:53:34.068433	accountant@workpulse.dev	ACC-001	$2a$12$aFQ1vmwuLfKS3zQCIz1gNe8SAHOa1dr6z2bDEYUlte0pi1xmsi0hu	Hana	\N	\N	Al-Rashid	+966509990001	\N	\N	\N	\N	2026-05-14 10:53:34.068433	t	t	\N	\N	\N	3	\N	\N	\N	\N	{}	\N	\N
 68	t	2	2026-06-08 20:05:31.223433	\N	479	$2a$12$9.rECIfb7Qs/qvDrTwyi5OiQ82cjn83slPj4dgqvUQwrJtclZUYZq	محمد	2033-05-15	28607240400054	عادل محمد عبد الهادي	01004844155	ar	\N	\N	\N	2026-06-09 14:11:51.763866	t	t	إسلام 	01017134109	أخ	\N	مصفف شعر		2026-06-07	full_time	{}	\N	\N
-64	t	2	2026-05-30 19:30:41.420097	\N	474	$2a$12$e0kewXiIFhPlAw5af7uikuH/JCwzYKCQtFVis24b0nsCs8J34p/3i	كيرولس	2032-08-15	31004240103099	عماد داود كيرلس ابوالسعود	01200154971	ar	2026-06-14 22:48:13.884388	\N	\N	2026-06-14 22:48:13.884654	f	t	الوالدة	01271669264	والدة	\N	صنايعي		2026-05-18	full_time	{}	\N	\N
 23	f	2	2026-05-19 10:46:32.529183	\N	467	$2a$12$RtWHynUCLTMcN6zAaAHIguJ74YVir1kbDHxXHytPv5w.htPjYmzgK	كريم	\N	28712240100831	علاءالدين محمود محمد	01152013869	ar	\N	\N	\N	2026-06-17 16:37:48.897822	t	t		\N		\N	\N	\N	\N	\N	{}	\N	\N
 21	f	2	2026-05-17 07:34:05.403762	test_branch_manager@gedo	EMP-001	$2a$12$sLBSz1IRs4AkSITCDUuIKOWkc35kLbB7q1MpCXCjY8KsrftNRfmyK	حمادة	\N	12345678908744	test	01122334455	ar	\N	\N	\N	2026-06-24 03:53:01.371092	t	t		\N		\N			\N	full_time	{}	1	\N
 14	t	2	2026-05-16 12:13:53.417983	mimo144758@gmail.com	430	$2a$12$Mdm.zw0A/OeC7DRIcQRHZuC3lnxTHChRLrd48WgSijMRGBVMMtA/C	محمود	2032-06-16	27504140102113	حنفي محمود محمد	01226669325	ar	2026-06-27 17:24:23.364318	\N	\N	2026-06-27 17:24:23.365194	t	t		01158602031	أخت	4			\N	\N	{}	\N	\N
-17	t	2	2026-05-16 19:33:26.998521	gedosalon88@gmail.com	5	$2a$12$/SksGqgatfjQijwE5mBGyuUW8OgVtPZljFRh3HAXtmAVv3KmpUR9y	احمد	\N	28804248800779	منير احمد	01033002637	ar	2026-07-02 15:37:44.734246	\N	\N	2026-07-02 15:37:44.735691	t	t	ندى زهير	01555082342	الزوجة	5		\N	\N	\N	{}	\N	\N
 49	t	2	2026-05-20 10:50:24.59287	\N	386	$2a$12$J11ZCU0MHrh6QfoP3aoNo.1wpXL.lpkba0EAQEcjdV9Jj0ld9ynlq	حسام	\N	29812081402292	عبدالحميد احمد	01115929410	ar	2026-07-03 07:11:47.67174	\N	\N	2026-07-03 07:11:47.673039	t	t		\N		7			\N	full_time	{}	2	
+64	f	2	2026-05-30 19:30:41.420097	\N	474	$2a$12$e0kewXiIFhPlAw5af7uikuH/JCwzYKCQtFVis24b0nsCs8J34p/3i	كيرولس	2032-08-15	31004240103099	عماد داود كيرلس ابوالسعود	01200154971	ar	2026-06-14 22:48:13.884388	\N	\N	2026-07-06 05:57:35.562878	f	t	الوالدة	01271669264	والدة	\N	صنايعي		2026-05-18	full_time	{}	\N	\N
+17	t	2	2026-05-16 19:33:26.998521	gedosalon88@gmail.com	5	$2a$12$/SksGqgatfjQijwE5mBGyuUW8OgVtPZljFRh3HAXtmAVv3KmpUR9y	احمد	\N	28804248800779	منير احمد	01033002637	ar	\N	\N	\N	2026-07-07 13:11:26.313603	t	t	ندى زهير	01555082342	الزوجة	5		\N	\N	\N	{}	\N	\N
 \.
 
 
@@ -22188,21 +23562,21 @@ COPY public.warehouses (id, business_id, name, description, status, created_at, 
 -- Name: active_storage_attachments_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.active_storage_attachments_id_seq', 445, true);
+SELECT pg_catalog.setval('public.active_storage_attachments_id_seq', 456, true);
 
 
 --
 -- Name: active_storage_blobs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.active_storage_blobs_id_seq', 445, true);
+SELECT pg_catalog.setval('public.active_storage_blobs_id_seq', 456, true);
 
 
 --
 -- Name: active_storage_variant_records_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.active_storage_variant_records_id_seq', 240, true);
+SELECT pg_catalog.setval('public.active_storage_variant_records_id_seq', 242, true);
 
 
 --
@@ -22230,21 +23604,21 @@ SELECT pg_catalog.setval('public.attendance_import_logs_id_seq', 21, true);
 -- Name: attendance_records_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.attendance_records_id_seq', 4152, true);
+SELECT pg_catalog.setval('public.attendance_records_id_seq', 4252, true);
 
 
 --
 -- Name: audit_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.audit_logs_id_seq', 956, true);
+SELECT pg_catalog.setval('public.audit_logs_id_seq', 1041, true);
 
 
 --
 -- Name: balance_requests_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.balance_requests_id_seq', 2, true);
+SELECT pg_catalog.setval('public.balance_requests_id_seq', 3, true);
 
 
 --
@@ -22272,7 +23646,7 @@ SELECT pg_catalog.setval('public.biometric_devices_id_seq', 3, true);
 -- Name: biometric_punch_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.biometric_punch_logs_id_seq', 7322, true);
+SELECT pg_catalog.setval('public.biometric_punch_logs_id_seq', 7566, true);
 
 
 --
@@ -22321,7 +23695,7 @@ SELECT pg_catalog.setval('public.custody_transactions_id_seq', 23, true);
 -- Name: daily_reconciliations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.daily_reconciliations_id_seq', 21, true);
+SELECT pg_catalog.setval('public.daily_reconciliations_id_seq', 29, true);
 
 
 --
@@ -22335,7 +23709,7 @@ SELECT pg_catalog.setval('public.departments_id_seq', 2, true);
 -- Name: deposit_responsibility_transfers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.deposit_responsibility_transfers_id_seq', 4, true);
+SELECT pg_catalog.setval('public.deposit_responsibility_transfers_id_seq', 6, true);
 
 
 --
@@ -22349,21 +23723,21 @@ SELECT pg_catalog.setval('public.employee_obligations_id_seq', 60, true);
 -- Name: employee_reconciliation_summaries_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.employee_reconciliation_summaries_id_seq', 47, true);
+SELECT pg_catalog.setval('public.employee_reconciliation_summaries_id_seq', 67, true);
 
 
 --
 -- Name: employee_reconciliation_summary_amounts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.employee_reconciliation_summary_amounts_id_seq', 138, true);
+SELECT pg_catalog.setval('public.employee_reconciliation_summary_amounts_id_seq', 198, true);
 
 
 --
 -- Name: employee_requests_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.employee_requests_id_seq', 346, true);
+SELECT pg_catalog.setval('public.employee_requests_id_seq', 363, true);
 
 
 --
@@ -22419,35 +23793,35 @@ SELECT pg_catalog.setval('public.expense_types_id_seq', 60, true);
 -- Name: expenses_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.expenses_id_seq', 54, true);
+SELECT pg_catalog.setval('public.expenses_id_seq', 65, true);
 
 
 --
 -- Name: financial_adjustments_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.financial_adjustments_id_seq', 1, false);
+SELECT pg_catalog.setval('public.financial_adjustments_id_seq', 1, true);
 
 
 --
 -- Name: goods_receipt_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.goods_receipt_items_id_seq', 50, true);
+SELECT pg_catalog.setval('public.goods_receipt_items_id_seq', 99, true);
 
 
 --
 -- Name: goods_receipts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.goods_receipts_id_seq', 28, true);
+SELECT pg_catalog.setval('public.goods_receipts_id_seq', 32, true);
 
 
 --
 -- Name: inventory_movements_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.inventory_movements_id_seq', 368, true);
+SELECT pg_catalog.setval('public.inventory_movements_id_seq', 508, true);
 
 
 --
@@ -22482,7 +23856,7 @@ SELECT pg_catalog.setval('public.payroll_adjustment_edits_id_seq', 25, true);
 -- Name: payroll_adjustments_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.payroll_adjustments_id_seq', 219, true);
+SELECT pg_catalog.setval('public.payroll_adjustments_id_seq', 238, true);
 
 
 --
@@ -22538,7 +23912,7 @@ SELECT pg_catalog.setval('public.penalty_rules_id_seq', 25, true);
 -- Name: performance_observations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.performance_observations_id_seq', 35, true);
+SELECT pg_catalog.setval('public.performance_observations_id_seq', 37, true);
 
 
 --
@@ -22566,21 +23940,21 @@ SELECT pg_catalog.setval('public.permission_roles_id_seq', 7, true);
 -- Name: pos_imports_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.pos_imports_id_seq', 14, true);
+SELECT pg_catalog.setval('public.pos_imports_id_seq', 15, true);
 
 
 --
 -- Name: pos_transactions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.pos_transactions_id_seq', 699, true);
+SELECT pg_catalog.setval('public.pos_transactions_id_seq', 794, true);
 
 
 --
 -- Name: product_barcodes_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.product_barcodes_id_seq', 88, true);
+SELECT pg_catalog.setval('public.product_barcodes_id_seq', 89, true);
 
 
 --
@@ -22608,7 +23982,7 @@ SELECT pg_catalog.setval('public.product_warehouse_settings_id_seq', 1, false);
 -- Name: products_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.products_id_seq', 471, true);
+SELECT pg_catalog.setval('public.products_id_seq', 472, true);
 
 
 --
@@ -22629,14 +24003,14 @@ SELECT pg_catalog.setval('public.recurring_expenses_id_seq', 1, false);
 -- Name: remaining_deposit_balance_transactions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.remaining_deposit_balance_transactions_id_seq', 18, true);
+SELECT pg_catalog.setval('public.remaining_deposit_balance_transactions_id_seq', 25, true);
 
 
 --
 -- Name: remaining_deposit_balances_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.remaining_deposit_balances_id_seq', 16, true);
+SELECT pg_catalog.setval('public.remaining_deposit_balances_id_seq', 23, true);
 
 
 --
@@ -22706,7 +24080,7 @@ SELECT pg_catalog.setval('public.solid_queue_blocked_executions_id_seq', 1, fals
 -- Name: solid_queue_claimed_executions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.solid_queue_claimed_executions_id_seq', 1817, true);
+SELECT pg_catalog.setval('public.solid_queue_claimed_executions_id_seq', 1906, true);
 
 
 --
@@ -22720,7 +24094,7 @@ SELECT pg_catalog.setval('public.solid_queue_failed_executions_id_seq', 1, false
 -- Name: solid_queue_jobs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.solid_queue_jobs_id_seq', 1817, true);
+SELECT pg_catalog.setval('public.solid_queue_jobs_id_seq', 1906, true);
 
 
 --
@@ -22734,28 +24108,28 @@ SELECT pg_catalog.setval('public.solid_queue_pauses_id_seq', 1, false);
 -- Name: solid_queue_processes_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.solid_queue_processes_id_seq', 495, true);
+SELECT pg_catalog.setval('public.solid_queue_processes_id_seq', 555, true);
 
 
 --
 -- Name: solid_queue_ready_executions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.solid_queue_ready_executions_id_seq', 1817, true);
+SELECT pg_catalog.setval('public.solid_queue_ready_executions_id_seq', 1906, true);
 
 
 --
 -- Name: solid_queue_recurring_executions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.solid_queue_recurring_executions_id_seq', 1367, true);
+SELECT pg_catalog.setval('public.solid_queue_recurring_executions_id_seq', 1445, true);
 
 
 --
 -- Name: solid_queue_recurring_tasks_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.solid_queue_recurring_tasks_id_seq', 286, true);
+SELECT pg_catalog.setval('public.solid_queue_recurring_tasks_id_seq', 322, true);
 
 
 --
@@ -22801,17 +24175,31 @@ SELECT pg_catalog.setval('public.stock_counts_id_seq', 4, true);
 
 
 --
+-- Name: stock_issue_import_batches_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
+--
+
+SELECT pg_catalog.setval('public.stock_issue_import_batches_id_seq', 4, true);
+
+
+--
+-- Name: stock_issue_import_rows_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
+--
+
+SELECT pg_catalog.setval('public.stock_issue_import_rows_id_seq', 10, true);
+
+
+--
 -- Name: stock_issue_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.stock_issue_items_id_seq', 134, true);
+SELECT pg_catalog.setval('public.stock_issue_items_id_seq', 315, true);
 
 
 --
 -- Name: stock_issues_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.stock_issues_id_seq', 12, true);
+SELECT pg_catalog.setval('public.stock_issues_id_seq', 20, true);
 
 
 --
@@ -22839,35 +24227,35 @@ SELECT pg_catalog.setval('public.suppliers_id_seq', 18, true);
 -- Name: till_deposits_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.till_deposits_id_seq', 16, true);
+SELECT pg_catalog.setval('public.till_deposits_id_seq', 23, true);
 
 
 --
 -- Name: till_handover_amounts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.till_handover_amounts_id_seq', 173, true);
+SELECT pg_catalog.setval('public.till_handover_amounts_id_seq', 252, true);
 
 
 --
 -- Name: till_handovers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.till_handovers_id_seq', 68, true);
+SELECT pg_catalog.setval('public.till_handovers_id_seq', 100, true);
 
 
 --
 -- Name: till_session_amounts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.till_session_amounts_id_seq', 54, true);
+SELECT pg_catalog.setval('public.till_session_amounts_id_seq', 78, true);
 
 
 --
 -- Name: till_sessions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: work_pulse
 --
 
-SELECT pg_catalog.setval('public.till_sessions_id_seq', 21, true);
+SELECT pg_catalog.setval('public.till_sessions_id_seq', 29, true);
 
 
 --
@@ -23616,6 +25004,22 @@ ALTER TABLE ONLY public.stock_count_items
 
 ALTER TABLE ONLY public.stock_counts
     ADD CONSTRAINT stock_counts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stock_issue_import_batches stock_issue_import_batches_pkey; Type: CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_batches
+    ADD CONSTRAINT stock_issue_import_batches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stock_issue_import_rows stock_issue_import_rows_pkey; Type: CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_rows
+    ADD CONSTRAINT stock_issue_import_rows_pkey PRIMARY KEY (id);
 
 
 --
@@ -24610,6 +26014,13 @@ CREATE INDEX index_dr_on_business_id ON public.daily_reconciliations USING btree
 --
 
 CREATE INDEX index_dr_on_opening_float_source_handover_id ON public.daily_reconciliations USING btree (opening_float_source_handover_id);
+
+
+--
+-- Name: index_dr_on_reviewed_by_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_dr_on_reviewed_by_id ON public.daily_reconciliations USING btree (reviewed_by_id);
 
 
 --
@@ -26307,6 +27718,76 @@ CREATE INDEX index_stock_counts_on_warehouse_id ON public.stock_counts USING btr
 
 
 --
+-- Name: index_stock_issue_import_batches_on_branch_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_batches_on_branch_id ON public.stock_issue_import_batches USING btree (branch_id);
+
+
+--
+-- Name: index_stock_issue_import_batches_on_business_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_batches_on_business_id ON public.stock_issue_import_batches USING btree (business_id);
+
+
+--
+-- Name: index_stock_issue_import_batches_on_created_by_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_batches_on_created_by_id ON public.stock_issue_import_batches USING btree (created_by_id);
+
+
+--
+-- Name: index_stock_issue_import_batches_on_status; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_batches_on_status ON public.stock_issue_import_batches USING btree (status);
+
+
+--
+-- Name: index_stock_issue_import_batches_on_stock_issue_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_batches_on_stock_issue_id ON public.stock_issue_import_batches USING btree (stock_issue_id);
+
+
+--
+-- Name: index_stock_issue_import_batches_on_warehouse_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_batches_on_warehouse_id ON public.stock_issue_import_batches USING btree (warehouse_id);
+
+
+--
+-- Name: index_stock_issue_import_rows_on_batch_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_rows_on_batch_id ON public.stock_issue_import_rows USING btree (batch_id);
+
+
+--
+-- Name: index_stock_issue_import_rows_on_batch_id_and_status; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_rows_on_batch_id_and_status ON public.stock_issue_import_rows USING btree (batch_id, status);
+
+
+--
+-- Name: index_stock_issue_import_rows_on_product_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_rows_on_product_id ON public.stock_issue_import_rows USING btree (product_id);
+
+
+--
+-- Name: index_stock_issue_import_rows_on_stock_issue_item_id; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issue_import_rows_on_stock_issue_item_id ON public.stock_issue_import_rows USING btree (stock_issue_item_id);
+
+
+--
 -- Name: index_stock_issue_items_on_product_id; Type: INDEX; Schema: public; Owner: work_pulse
 --
 
@@ -26346,6 +27827,13 @@ CREATE UNIQUE INDEX index_stock_issues_on_business_id_and_issue_number ON public
 --
 
 CREATE INDEX index_stock_issues_on_created_by_id ON public.stock_issues USING btree (created_by_id);
+
+
+--
+-- Name: index_stock_issues_on_status; Type: INDEX; Schema: public; Owner: work_pulse
+--
+
+CREATE INDEX index_stock_issues_on_status ON public.stock_issues USING btree (status);
 
 
 --
@@ -26678,6 +28166,14 @@ CREATE INDEX index_warehouses_on_business_id_and_name ON public.warehouses USING
 
 
 --
+-- Name: stock_issue_import_batches fk_rails_015d1583bb; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_batches
+    ADD CONSTRAINT fk_rails_015d1583bb FOREIGN KEY (stock_issue_id) REFERENCES public.stock_issues(id);
+
+
+--
 -- Name: bank_statement_transactions fk_rails_059207c5ef; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
 --
 
@@ -26763,6 +28259,14 @@ ALTER TABLE ONLY public.performance_observations
 
 ALTER TABLE ONLY public.stock_adjustments
     ADD CONSTRAINT fk_rails_0cfe86b26b FOREIGN KEY (warehouse_id) REFERENCES public.warehouses(id);
+
+
+--
+-- Name: stock_issue_import_rows fk_rails_0ee7570d9d; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_rows
+    ADD CONSTRAINT fk_rails_0ee7570d9d FOREIGN KEY (stock_issue_item_id) REFERENCES public.stock_issue_items(id);
 
 
 --
@@ -26987,6 +28491,14 @@ ALTER TABLE ONLY public.till_handovers
 
 ALTER TABLE ONLY public.till_handovers
     ADD CONSTRAINT fk_rails_30d9cb854d FOREIGN KEY (cancelled_by_id) REFERENCES public.users(id);
+
+
+--
+-- Name: stock_issue_import_batches fk_rails_3185662cd0; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_batches
+    ADD CONSTRAINT fk_rails_3185662cd0 FOREIGN KEY (warehouse_id) REFERENCES public.warehouses(id);
 
 
 --
@@ -27302,6 +28814,14 @@ ALTER TABLE ONLY public.solid_queue_blocked_executions
 
 
 --
+-- Name: stock_issue_import_rows fk_rails_4d3f954f49; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_rows
+    ADD CONSTRAINT fk_rails_4d3f954f49 FOREIGN KEY (batch_id) REFERENCES public.stock_issue_import_batches(id);
+
+
+--
 -- Name: shift_assignments fk_rails_4d47ff59c3; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
 --
 
@@ -27443,6 +28963,14 @@ ALTER TABLE ONLY public.till_handovers
 
 ALTER TABLE ONLY public.payroll_adjustments
     ADD CONSTRAINT fk_rails_5bb08ba634 FOREIGN KEY (rejected_by_id) REFERENCES public.users(id);
+
+
+--
+-- Name: daily_reconciliations fk_rails_5c323346f0; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.daily_reconciliations
+    ADD CONSTRAINT fk_rails_5c323346f0 FOREIGN KEY (reviewed_by_id) REFERENCES public.users(id);
 
 
 --
@@ -27694,6 +29222,14 @@ ALTER TABLE ONLY public.stock_counts
 
 
 --
+-- Name: stock_issue_import_rows fk_rails_7b411ff4d4; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_rows
+    ADD CONSTRAINT fk_rails_7b411ff4d4 FOREIGN KEY (product_id) REFERENCES public.products(id);
+
+
+--
 -- Name: custody_transactions fk_rails_7b45defb2f; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
 --
 
@@ -27795,6 +29331,14 @@ ALTER TABLE ONLY public.attendance_records
 
 ALTER TABLE ONLY public.balance_requests
     ADD CONSTRAINT fk_rails_88075c0cb7 FOREIGN KEY (approved_by_id) REFERENCES public.users(id);
+
+
+--
+-- Name: stock_issue_import_batches fk_rails_89eed5df2e; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_batches
+    ADD CONSTRAINT fk_rails_89eed5df2e FOREIGN KEY (created_by_id) REFERENCES public.users(id);
 
 
 --
@@ -28035,6 +29579,14 @@ ALTER TABLE ONLY public.payroll_periods
 
 ALTER TABLE ONLY public.stock_adjustments
     ADD CONSTRAINT fk_rails_ab31135854 FOREIGN KEY (voided_by_id) REFERENCES public.users(id);
+
+
+--
+-- Name: stock_issue_import_batches fk_rails_ac838fe41d; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_batches
+    ADD CONSTRAINT fk_rails_ac838fe41d FOREIGN KEY (business_id) REFERENCES public.businesses(id);
 
 
 --
@@ -28582,6 +30134,14 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: stock_issue_import_batches fk_rails_f37f4385f3; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
+--
+
+ALTER TABLE ONLY public.stock_issue_import_batches
+    ADD CONSTRAINT fk_rails_f37f4385f3 FOREIGN KEY (branch_id) REFERENCES public.branches(id);
+
+
+--
 -- Name: recurring_expenses fk_rails_f3ac9a9299; Type: FK CONSTRAINT; Schema: public; Owner: work_pulse
 --
 
@@ -28737,5 +30297,5 @@ ALTER TABLE ONLY public.users
 -- PostgreSQL database dump complete
 --
 
-\unrestrict yaABCVsuvXeqUeqdst5EQbS3PRnzbL25j7Bh2LLtMRB8BqeaOLvFVYXRbO7YQH3
+\unrestrict MAFS3pIIZZ5nCRb9Vvi5TIT9YdXqPwWDzrpQ3WfjY63eYnOSPCCnbr7thC0Ewn4
 

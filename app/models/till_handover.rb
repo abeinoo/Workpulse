@@ -5,6 +5,7 @@ class TillHandover < ApplicationRecord
   belongs_to :from_user,    class_name: "User"
   belongs_to :to_user,      class_name: "User", optional: true
   belongs_to :cancelled_by, class_name: "User", optional: true
+  belongs_to :rejected_by,  class_name: "User", optional: true
   belongs_to :reversed_by,  class_name: "User", optional: true
 
   # Self-referential reversal link.
@@ -56,19 +57,21 @@ class TillHandover < ApplicationRecord
   scope :peer,      -> { where(self_deposit: false) }
 
   # pending: awaiting acceptance by a named recipient.
-  # Excludes self-deposit (close events) and cancelled records — neither of
-  # those is "awaiting" anything in the business sense.
-  scope :pending,   -> { peer.where(accepted_at: nil, cancelled_at: nil) }
+  # Excludes self-deposit (close events), cancelled, and rejected records —
+  # none of those is "awaiting" anything in the business sense.
+  scope :pending,   -> { peer.where(accepted_at: nil, cancelled_at: nil, rejected_at: nil) }
   scope :accepted,  -> { where.not(accepted_at: nil) }
   scope :cancelled, -> { where.not(cancelled_at: nil) }
+  scope :rejected,  -> { where.not(rejected_at: nil) }
   scope :reversed,  -> { where.not(reversed_at: nil) }
   scope :reversals, -> { where.not(reversal_of_handover_id: nil) }
 
   delegate :business, :branch, to: :daily_reconciliation
 
-  def pending?     = !self_deposit? && accepted_at.nil? && cancelled_at.nil?
+  def pending?     = !self_deposit? && accepted_at.nil? && cancelled_at.nil? && rejected_at.nil?
   def accepted?    = accepted_at.present?
   def cancelled?   = cancelled_at.present?
+  def rejected?    = rejected_at.present?
   def reversed?    = reversed_at.present?
   def superseded?  = superseded_at.present?
 
