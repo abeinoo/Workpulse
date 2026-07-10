@@ -30,22 +30,50 @@ RSpec.describe "Finance::DailyReconciliations — partial deposit status", type:
   end
 
   describe "GET index" do
-    it "shows Deposit Incomplete after a partial deposit, not Ready for Verification" do
+    it "shows Ready for Verification as soon as the first deposit is recorded, even with a remaining balance" do
       deposit(4_000)
 
       get finance_daily_reconciliations_path
 
-      expect(response.body).to include("Deposit Incomplete")
-      expect(response.body).not_to include("Ready for Verification")
+      expect(response.body).to include("Ready for Verification")
+      expect(response.body).not_to include("Deposit Incomplete")
     end
 
-    it "shows Ready for Verification once fully deposited" do
+    it "still shows Ready for Verification once fully deposited" do
       deposit(4_000)
       deposit(1_000)
 
       get finance_daily_reconciliations_path
 
       expect(response.body).to include("Ready for Verification")
+    end
+
+    it "shows Awaiting Deposit before any deposit has been recorded" do
+      get finance_daily_reconciliations_path
+
+      expect(response.body).to include("Awaiting Deposit")
+      expect(response.body).not_to include("Ready for Verification")
+    end
+  end
+
+  describe "PATCH verify" do
+    it "verifies successfully with only a partial deposit recorded, leaving a remaining balance" do
+      deposit(4_000)
+
+      patch verify_finance_daily_reconciliation_path(dr)
+
+      expect(dr.reload.verified?).to be true
+      expect(dr.pending_deposit_amount).to eq(1_000)
+      follow_redirect!
+      expect(response.body).not_to include(I18n.t("finance.daily_reconciliations.errors.verify_no_deposit_recorded"))
+    end
+
+    it "still refuses to verify when no deposit has been recorded at all" do
+      patch verify_finance_daily_reconciliation_path(dr)
+
+      expect(dr.reload.verified?).to be false
+      follow_redirect!
+      expect(response.body).to include(I18n.t("finance.daily_reconciliations.errors.verify_no_deposit_recorded"))
     end
   end
 

@@ -63,29 +63,26 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
       expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.verify_no_deposit_recorded"))
     end
 
-    describe "partial deposit guard" do
-      it "rejects via the real deposit flow: a partial deposit leaves an open RemainingDepositBalance" do
+    describe "partial deposit is normal — does not block verification" do
+      it "allows verification via the real deposit flow even though a partial deposit leaves an open RemainingDepositBalance" do
         Finance::TillDepositRecorder.new(
           dr.id, actor: actor,
           params: { payment_method_id: cash_pm.id, amount: "4000.00", deposited_at: Time.current.to_s }
         ).call
 
         result = verify
-        expect(result.ok?).to be false
-        expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.verify_outstanding_balances"))
+        expect(result.ok?).to be true
+        expect(dr.reload.verified?).to be true
+        expect(dr.remaining_deposit_balances.open).not_to be_empty
       end
 
-      it "rejects on the new direct pending_deposit_amount check even when no open RDB exists" do
-        # Constructed directly (bypassing the recorder) so neither the pending-
-        # handover nor open-RDB guards fire — isolates the new direct check,
-        # which exists precisely because the RDB ledger is an indirect signal.
+      it "allows verification when the deposited amount does not cover the full expected amount" do
         dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 4_000, deposited_at: Time.current)
         dr.update_columns(state: "deposited")
-        expect(dr.remaining_deposit_balances.open).to be_empty
+        expect(dr.pending_deposit_amount).to eq(1_000)
 
         result = verify
-        expect(result.ok?).to be false
-        expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.verify_deposit_incomplete"))
+        expect(result.ok?).to be true
       end
 
       it "allows verification once cumulative deposits reach the full expected amount" do

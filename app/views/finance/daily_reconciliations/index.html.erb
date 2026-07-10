@@ -129,19 +129,12 @@
       All associations are eager-loaded — no extra queries below.
     %>
     <%
-      # Computed from preloaded session_amounts/till_deposits — never call
-      # dr.pending_deposit_amount in this loop, it issues its own SQL
-      # aggregation query per DR and would N+1 across the whole list.
-      pending_deposit_for = ->(dr) {
-        expected  = dr.session_amounts.select { |sa| sa.payment_method.cash_like? }.sum(&:net_amount)
-        deposited = dr.till_deposits.reject(&:voided?).sum(&:amount)
-        [ expected - deposited, 0 ].max
-      }
-
       waiting_count     = @reconciliations.count(&:waiting_for_opening?)
       waiting_review_count = @reconciliations.count { |dr| dr.closed? && !dr.reviewed? }
       open_count        = @reconciliations.count(&:open?)
-      deposited_count   = @reconciliations.count { |dr| dr.deposited? && pending_deposit_for.call(dr) <= 0 }
+      # "deposited" state is reached as soon as the first deposit is recorded
+      # — a remaining balance is normal and doesn't change readiness to verify.
+      deposited_count   = @reconciliations.count(&:deposited?)
       verified_count    = @reconciliations.count(&:verified?)
       total_outstanding = @reconciliations.sum { |dr|
         dr.remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
@@ -391,8 +384,6 @@
                 <% elsif dr.closed? %>
                   <% if !dr.reviewed? %>
                     <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_waiting_branch_review") %></span>
-                  <% elsif outstanding > 0 %>
-                    <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_deposit_incomplete") %></span>
                   <% else %>
                     <span class="badge badge-neutral"><%= t("finance.daily_reconciliations.index.status_awaiting_deposit") %></span>
                   <% end %>
@@ -403,11 +394,7 @@
                   <% end %>
 
                 <% elsif dr.deposited? %>
-                  <% if pending_deposit_for.call(dr) > 0 %>
-                    <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_deposit_incomplete") %></span>
-                  <% else %>
-                    <span class="badge badge-accent"><%= t("finance.daily_reconciliations.index.status_ready_for_verify") %></span>
-                  <% end %>
+                  <span class="badge badge-accent"><%= t("finance.daily_reconciliations.index.status_ready_for_verify") %></span>
 
                 <% elsif dr.verified? %>
                   <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 4px;">

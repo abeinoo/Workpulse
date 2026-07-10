@@ -30,23 +30,13 @@ module Finance
         return err(:verify_pending_handovers)
       end
 
-      if @reconciliation.remaining_deposit_balances.open.exists?
-        return err(:verify_outstanding_balances)
-      end
-
+      # A remaining deposit balance (partial deposit, cash leftovers, machine
+      # limits) is normal and does not block verification — it's tracked and
+      # settled independently via the RemainingDepositBalance ledger. Only
+      # the absence of any deposit at all blocks verification.
       expected = @reconciliation.expected_cash_deposit
       if expected > 0 && @reconciliation.till_deposits.active.none?
         return err(:verify_no_deposit_recorded)
-      end
-
-      # Direct check against the same number the rest of the app already
-      # trusts (pending_deposit_amount) — a partial deposit advances DR.state
-      # to "deposited" (see Finance::TillDepositRecorder), so state alone
-      # can't be used to infer full coverage. The open-RDB guard above is an
-      # indirect signal that depends on the ledger being in sync; this is the
-      # direct one.
-      if @reconciliation.pending_deposit_amount > 0
-        return err(:verify_deposit_incomplete)
       end
 
       ActiveRecord::Base.transaction do
