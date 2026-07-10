@@ -8,7 +8,7 @@ class Finance::PosImportsController < Finance::BaseController
     ["cashier_name",        %w[team\ member cashier employee staff operator member]],
     ["payment_method_name", %w[payment\ method method]],
     ["amount",              %w[payment\ amount amount total]],
-    ["reference_number",    %w[reference receipt ref voucher]],
+    ["reference_number",    %w[payment\ no reference receipt ref voucher]],
     ["transaction_id",      %w[transaction\ id trans\ id]]
   ].freeze
 
