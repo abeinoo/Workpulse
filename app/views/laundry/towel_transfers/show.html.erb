@@ -1,0 +1,143 @@
+<% content_for :title, "#{@towel_transfer.source_branch.name} → #{@towel_transfer.destination_branch.name}" %>
+
+<div class="admin-page">
+  <%= link_to laundry_towel_transfers_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="card" style="margin-bottom: var(--space-5);"
+       <%= "data-controller='collapsible'".html_safe if policy(@towel_transfer).cancel? %>>
+    <div class="card-header">
+      <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+        <h1 class="card-title" style="margin: 0; font-size: var(--text-lg);">
+          <%= @towel_transfer.source_branch.name %> → <%= @towel_transfer.destination_branch.name %>
+        </h1>
+        <%= render "status_badge", status: @towel_transfer.status, size: "md" %>
+      </div>
+
+      <div class="page-header__actions">
+        <% if policy(@towel_transfer).dispatch? %>
+          <%= button_to t("laundry.towel_transfers.actions.dispatch"), mark_dispatched_laundry_towel_transfer_path(@towel_transfer),
+                method: :patch, class: "btn btn-primary btn-sm", form: { style: "display:inline" } %>
+        <% end %>
+        <% if policy(@towel_transfer).cancel? %>
+          <button type="button" class="btn btn-danger btn-sm"
+                  data-collapsible-target="trigger" data-action="click->collapsible#toggle">
+            <%= t("laundry.towel_transfers.actions.cancel") %>
+          </button>
+        <% end %>
+      </div>
+    </div>
+
+    <% if policy(@towel_transfer).cancel? %>
+      <div data-collapsible-target="content" hidden
+           style="padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); background: var(--navy-700);">
+        <%= form_with url: cancel_laundry_towel_transfer_path(@towel_transfer), method: :patch,
+              style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+          <%= text_field_tag :cancellation_reason, nil,
+                placeholder: t("laundry.towel_transfers.cancellation_reason_placeholder"),
+                class: "form-control form-control--sm", style: "flex: 1; min-width: 200px;", required: true %>
+          <%= submit_tag t("laundry.towel_transfers.actions.cancel"), class: "btn btn-danger btn-sm" %>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="click->collapsible#toggle">
+            <%= t("common.cancel") %>
+          </button>
+        <% end %>
+      </div>
+    <% end %>
+
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("laundry.towel_transfers.source_branch") %></dt>
+        <dd><%= @towel_transfer.source_branch.name %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("laundry.towel_transfers.destination_branch") %></dt>
+        <dd><%= @towel_transfer.destination_branch.name %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("laundry.common.towel_type") %></dt>
+        <dd><%= @towel_transfer.towel_type.name %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("laundry.towel_transfers.towel_status") %></dt>
+        <dd><%= t("laundry.towel_transfers.towel_statuses.#{@towel_transfer.towel_status}") %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("laundry.towel_transfers.declared_quantity") %></dt>
+        <dd><strong><%= number_with_precision(@towel_transfer.declared_quantity, precision: 0) %></strong></dd>
+      </div>
+      <% if @towel_transfer.confirmed_quantity %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.towel_transfers.confirmed_quantity") %></dt>
+          <dd><strong><%= number_with_precision(@towel_transfer.confirmed_quantity, precision: 0) %></strong></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.towel_transfers.discrepancy") %></dt>
+          <dd style="<%= 'color: var(--danger);' if @towel_transfer.discrepancy.nonzero? %>">
+            <%= @towel_transfer.discrepancy.nonzero? ? number_with_precision(@towel_transfer.discrepancy, precision: 0) : t("laundry.towel_transfers.no_discrepancy") %>
+          </dd>
+        </div>
+      <% end %>
+      <div class="detail-list__row">
+        <dt><%= t("laundry.towel_transfers.created_by_label") %></dt>
+        <dd><%= @towel_transfer.created_by&.full_name || "—" %> · <%= l(@towel_transfer.created_at, format: :short) %></dd>
+      </div>
+      <% if @towel_transfer.dispatched_at %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.towel_transfers.actions.dispatch") %></dt>
+          <dd><%= @towel_transfer.dispatched_by&.full_name || "—" %> · <%= l(@towel_transfer.dispatched_at, format: :short) %></dd>
+        </div>
+      <% end %>
+      <% if @towel_transfer.received_at %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.towel_transfers.actions.receive") %></dt>
+          <dd><%= @towel_transfer.received_by&.full_name || "—" %> · <%= l(@towel_transfer.received_at, format: :short) %></dd>
+        </div>
+      <% end %>
+      <% if @towel_transfer.cancelled_at %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.towel_transfers.actions.cancel") %></dt>
+          <dd><%= @towel_transfer.cancelled_by&.full_name || "—" %> · <%= l(@towel_transfer.cancelled_at, format: :short) %></dd>
+        </div>
+        <% if @towel_transfer.cancellation_reason.present? %>
+          <div class="detail-list__row">
+            <dt><%= t("laundry.common.reason") %></dt>
+            <dd><%= @towel_transfer.cancellation_reason %></dd>
+          </div>
+        <% end %>
+      <% end %>
+      <% if @towel_transfer.notes.present? %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.common.notes") %></dt>
+          <dd><%= simple_format(@towel_transfer.notes) %></dd>
+        </div>
+      <% end %>
+    </dl>
+  </div>
+
+  <% if policy(@towel_transfer).receive? %>
+    <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card-header">
+        <h2 class="card-title"><%= t("laundry.towel_transfers.actions.receive") %></h2>
+      </div>
+      <div style="padding: var(--space-4) var(--space-5);">
+        <p class="form-hint"><%= t("laundry.towel_transfers.receive_hint") %></p>
+        <%= form_with url: receive_laundry_towel_transfer_path(@towel_transfer), method: :patch,
+              style: "display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap;" do %>
+          <div class="form-group" style="margin: 0;">
+            <%= label_tag :confirmed_quantity, t("laundry.towel_transfers.confirmed_quantity"), class: "form-label" %>
+            <%
+              # max is a UX nicety only — the real enforcement is server-side
+              # in Laundry::TowelTransferCreator#receive and the TowelTransfer
+              # model validation, neither of which trust this attribute.
+            %>
+            <%= number_field_tag :confirmed_quantity, @towel_transfer.declared_quantity,
+                  min: 0, max: @towel_transfer.declared_quantity, step: 1, class: "form-control", required: true %>
+          </div>
+          <%= submit_tag t("laundry.towel_transfers.actions.receive"), class: "btn btn-primary" %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

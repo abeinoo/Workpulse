@@ -77,6 +77,15 @@ en:
     finance_outstanding_balances: "Outstanding Balances"
     departments: "Departments"
     evaluation_templates: "Evaluation Templates"
+    section_laundry: "Laundry"
+    laundry_dashboard: "Laundry Dashboard"
+    laundry_transfers: "Towel Transfers"
+    laundry_batches: "Laundry Batches"
+    laundry_balances: "Towel Balances"
+    laundry_adjustments: "Adjustments"
+    laundry_towel_types: "Towel Types"
+    laundry_branch_consumption: "Branch Consumption"
+    laundry_cost_summary: "Laundry Operating Cost"
 
   auth:
     sign_in:
@@ -2144,6 +2153,14 @@ en:
         page_title: "Edit Branch — WorkPulse"
         submit: "Update Branch"
       name: "Name"
+      branch_type: "Branch Type"
+      branch_types:
+        sales: "Sales Branch"
+        laundry: "Laundry"
+        warehouse: "Warehouse"
+        headquarters: "Headquarters / Administration"
+        maintenance: "Maintenance"
+        other: "Other"
       address: "Address"
       phone: "Phone"
       manager: "Manager"
@@ -2208,6 +2225,8 @@ en:
       reviewed_by: "Reviewed By"
       form:
         basic_info: "Basic Information"
+        branch_type: "Branch Type"
+        branch_type_hint: "Determines how this location is used in inventory, laundry, and reports."
         phone: "Phone Number"
         management: "Management"
         area_manager: "Area Manager"
@@ -2420,6 +2439,8 @@ en:
         settings: "Settings"
         obligations: "Obligations"
         administration: "Administration"
+        laundry_operations: "Laundry Operations"
+        laundry_cost_reports: "Laundry Cost Reports"
       role_types:
         branch_manager: "Branch Manager"
         area_manager: "Area Manager"
@@ -2434,6 +2455,7 @@ en:
         manage_salary_profiles: "Manage Salary Profiles"
         view_attendance: "View Attendance"
         manage_attendance: "Edit Attendance Records"
+        delete_attendance: "Delete Attendance Records"
         manage_devices: "Manage Biometric Devices"
         view_payroll: "View Payroll"
         view_draft_payroll: "View Draft Payroll"
@@ -2450,8 +2472,10 @@ en:
         pay_payroll: "Mark Payroll As Paid"
         reopen_payroll: "Reopen Payroll"
         delete_payroll: "Delete Payroll"
+        view_adjustments: "View Adjustments"
         manage_adjustments: "Create Adjustments"
         approve_adjustments: "Approve Adjustments"
+        edit_approved_adjustments: "Edit Approved Adjustments"
         view_requests: "View Requests"
         approve_requests: "Approve / Reject Requests"
         view_shifts: "View Shift Types"
@@ -2526,6 +2550,14 @@ en:
         approve_balance_requests: "Approve Balance Requests"
         view_expense_reports: "View Financial Reports"
         manage_branch_revenue: "Manage Branch Revenue"
+        view_towel_balances: "View Towel Balances"
+        create_towel_transfers: "Create Towel Transfers"
+        confirm_towel_receipt: "Confirm Towel Receipt"
+        adjust_towel_balances: "Adjust Towel Balances"
+        configure_towel_usage_expectations: "Configure Towel Usage Expectations"
+        view_laundry_consumption_reports: "View Laundry Consumption Reports"
+        view_laundry_cost_reports: "View Laundry Cost Reports"
+        manage_laundry_cost_settings: "Manage Laundry Cost Settings"
       scopes:
         self: "Self only"
         branch: "Branch"
@@ -2868,6 +2900,274 @@ en:
     ios_share: "Share"
     ios_add: "Add to Home Screen"
     dismiss: "Dismiss"
+
+  laundry:
+    common:
+      towel_type: "Towel Type"
+      branch: "Branch"
+      status: "Status"
+      quantity: "Quantity"
+      notes: "Notes"
+      reason: "Reason"
+      no_towel_types: "No towel types have been configured yet."
+      create_towel_type_first: "Create a towel type before recording activity."
+      towel_statuses:
+        clean: "Clean"
+        dirty: "Dirty"
+        damaged: "Damaged"
+        disposed: "Disposed"
+        lost: "Lost"
+
+    dashboard:
+      title: "Laundry Dashboard"
+      no_laundry_branch: "No branch is set up as the laundry, and/or no towel type has been configured yet — nothing to show."
+      clean_available: "Clean Available"
+      dirty_waiting: "Dirty Waiting"
+      in_transit: "In Transit"
+      damaged: "Damaged"
+      disposed: "Disposed"
+      received_today: "Received Today"
+      dispatched_today: "Dispatched Today"
+      unresolved_discrepancies: "Unresolved Discrepancies"
+      view_all: "View all"
+
+    towel_types:
+      title: "Towel Types"
+      add: "Add Towel Type"
+      name: "Name"
+      active: "Active"
+      empty: "No towel types yet."
+      created: "Towel type created."
+      updated: "Towel type updated."
+      deleted: "Towel type deleted."
+      delete_failed: "Could not delete — it is already in use."
+      confirm_delete: "Delete this towel type?"
+      current_cost: "Current Standard Washing Cost"
+      no_cost_configured: "No cost configured"
+      set_cost: "Set Washing Cost"
+      update_cost: "Update Washing Cost"
+
+    towel_transfers:
+      title: "Towel Transfers"
+      add: "New Transfer"
+      all_statuses: "All statuses"
+      all_branches: "All branches"
+      source_branch: "From"
+      destination_branch: "To"
+      declared_quantity: "Declared Quantity"
+      confirmed_quantity: "Confirmed Quantity"
+      discrepancy: "Discrepancy"
+      towel_status: "Condition"
+      towel_statuses:
+        clean: "Clean"
+        dirty: "Dirty"
+      empty: "No towel transfers yet."
+      created: "Transfer recorded as draft."
+      dispatched: "Transfer dispatched."
+      received: "Transfer received."
+      cancelled: "Transfer cancelled."
+      clear_filters: "Clear filters"
+      statuses:
+        draft: "Draft"
+        dispatched: "In Transit"
+        received: "Received"
+        cancelled: "Cancelled"
+      actions:
+        dispatch: "Dispatch"
+        receive: "Confirm Receipt"
+        cancel: "Cancel"
+        view: "View"
+      confirm_cancel: "Cancel this transfer?"
+      cancellation_reason_placeholder: "Reason for cancelling…"
+      receive_hint: "Enter the quantity actually counted on arrival — it may differ from what was declared."
+      no_discrepancy: "No discrepancy"
+      created_by_label: "Created By"
+      inferred_condition: "This will be sent as %{condition}"
+      errors:
+        not_dispatchable: "This transfer can no longer be dispatched."
+        not_receivable: "This transfer can no longer be received."
+        invalid_confirmed_quantity: "Confirmed quantity must be zero or more."
+        confirmed_exceeds_declared: "The received quantity cannot exceed the dispatched quantity. Dispatched quantity: %{declared}."
+        not_cancellable: "This transfer can no longer be cancelled."
+        insufficient_clean_stock: "Not enough clean stock at the source branch (available: %{available})."
+        insufficient_dirty_stock: "Not enough dirty stock at the laundry to wash and send this quantity (available: %{available})."
+
+    batches:
+      title: "Laundry Batches"
+      add: "New Batch"
+      all_statuses: "All statuses"
+      batch_number: "Batch #"
+      laundry_branch: "Laundry Branch"
+      operator: "Operator"
+      input_quantity: "Input (Dirty)"
+      output_clean_quantity: "Output (Clean)"
+      damaged_quantity: "Damaged"
+      disposed_quantity: "Disposed"
+      empty: "No laundry batches yet."
+      created: "Batch created as draft."
+      started: "Batch started."
+      completed: "Batch completed."
+      reversed: "Batch reversed."
+      consumption_recorded: "Material consumption recorded."
+      statuses:
+        draft: "Draft"
+        in_progress: "In Progress"
+        completed: "Completed"
+        cancelled: "Cancelled"
+      actions:
+        start: "Start Washing"
+        complete: "Complete Batch"
+        reverse: "Reverse"
+        record_consumption: "Record Consumption"
+      section_consumption: "Material Consumption"
+      section_complete: "Complete Batch"
+      product: "Product"
+      warehouse: "Warehouse"
+      total_material_cost: "Total Material Cost"
+      confirm_reverse: "Reverse this completed batch? Compensating ledger entries will be posted."
+      reverse_reason_placeholder: "Reason for reversal…"
+      no_consumptions: "No materials recorded yet."
+      errors:
+        not_startable: "This batch can no longer be started."
+        not_completable: "This batch can no longer be completed."
+        not_reversible: "Only a completed batch can be reversed."
+        not_in_progress: "Materials can only be consumed while the batch is in progress."
+        invalid_quantity: "Quantity must be greater than zero."
+        insufficient_stock: "Not enough %{product} in the laundry warehouse (available: %{available})."
+
+    adjustments:
+      title: "Towel Adjustments"
+      add: "New Adjustment"
+      adjustment_type: "Adjustment Type"
+      types:
+        correction: "Manual Correction"
+        lost: "Lost"
+        damaged: "Damaged"
+      original_quantity: "Original"
+      adjustment_quantity: "Adjustment (+/-)"
+      resulting_quantity: "Resulting"
+      loss_quantity: "Quantity"
+      loss_quantity_hint: "How many towels were lost/damaged — this reduces the branch's operational balance directly."
+      empty: "No adjustments recorded yet."
+      created: "Adjustment recorded."
+      reason_placeholder: "Why is this adjustment needed? (e.g. physical recount)"
+      adjustment_quantity_hint: "e.g. -2 or 5"
+      hint: "Adjustments are explicit, audited corrections — never a silent balance edit. The current balance is looked up automatically as the \"original\" value."
+
+    balances:
+      title: "Towel Balances"
+      all_towel_types: "Select towel type"
+      clean: "Clean"
+      dirty: "Dirty"
+      damaged: "Damaged"
+      disposed: "Disposed"
+      lost: "Lost"
+      in_transit_out: "Dispatched, In Transit"
+      empty: "No branches to show."
+      operational_balance: "Current Balance"
+      details: "Details"
+      unexpected_balance_hint: "This location also holds an unexpected balance in the other condition — see Details."
+
+    standard_cost_rates:
+      title: "Standard Washing Cost"
+      label: "Standard Washing Cost"
+      help: "Used to calculate this towel type's standard laundry-service cost and does not necessarily represent the laundry's actual operating cost."
+      cost_per_towel: "Standard Washing Cost per Towel"
+      effective_from: "Effective From"
+      current_rate: "Current Rate"
+      no_rate_configured: "No standard cost has been configured yet."
+      history: "Rate History"
+      created: "New standard cost rate set."
+
+    reports:
+      branch_consumption:
+        title: "Branch Towel Consumption"
+        nav: "Branch Consumption"
+        filters:
+          from: "Date From"
+          to: "Date To"
+          today: "Today"
+          this_week: "This Week"
+          this_month: "This Month"
+          previous_month: "Previous Month"
+          branch: "Sales Branch"
+          all_branches: "All Branches"
+          towel_type: "Towel Type"
+          all_towel_types: "All Towel Types"
+        cards:
+          total_towels: "Total Towels Received"
+          standard_cost: "Standard Cost per Towel"
+          total_cost: "Total Standard Cost"
+        table:
+          branch: "Branch"
+          towels_consumed: "Towels Consumed"
+          standard_cost: "Standard Cost per Towel"
+          total_cost: "Total Standard Cost"
+          total_row: "Total"
+        multiple_rates: "Multiple rates"
+        varies_by_towel_type: "Varies by towel type"
+        no_rate_configured: "Standard cost not configured — set a washing cost for each towel type on the Towel Types page before this report can show amounts."
+        empty: "No confirmed towel receipts from branches in this period."
+        details:
+          receipt_date: "Receipt Date"
+          transfer: "Transfer"
+          towel_type: "Towel Type"
+          confirmed_quantity: "Confirmed Quantity"
+          rate_applied: "Standard Cost Applied"
+          line_total: "Total"
+          view_transfer: "View Transfer"
+        csv:
+          branch: "Branch"
+          confirmed_quantity: "Confirmed Towels Consumed"
+          standard_cost: "Standard Cost Applied"
+          total_cost: "Total Standard Cost"
+          period: "Period"
+        export: "Export CSV"
+      cost_summary:
+        title: "Laundry Operating Cost"
+        nav: "Laundry Operating Cost"
+        cards:
+          towels_consumed: "Towels Consumed by Branches"
+          standard_branch_cost: "Standard Cost Charged to Branches"
+          payroll_cost: "Laundry Payroll Cost"
+          direct_expenses: "Laundry Direct Expenses"
+          material_cost: "Laundry Material Consumption"
+          total_actual_cost: "Total Laundry Operating Cost"
+          coverage_variance: "Coverage Variance"
+          actual_cost_per_towel: "Average Actual Cost per Towel"
+        payroll_cost: "Laundry Payroll Cost"
+        direct_expenses: "Laundry Direct Expenses"
+        material_cost: "Laundry Material Consumption"
+        total_actual_cost: "Total Laundry Operating Cost"
+        standard_branch_cost: "Standard Cost Charged to Branches"
+        coverage_variance: "Coverage Variance"
+        payroll_periods_included: "Payroll periods included:"
+        no_payroll_periods: "No finalized payroll period overlaps this date range."
+        no_laundry_branch: "No branch is set up as the laundry — nothing to show."
+        insufficient_data: "Insufficient data"
+        material_details:
+          title: "Material Consumption Details"
+          empty: "No stock issues to the laundry branch in this period."
+          stock_issue: "Stock Issue"
+          issue_date: "Issue Date"
+          warehouse: "Source Warehouse"
+          branch: "Consuming Branch"
+          product: "Product"
+          quantity: "Quantity"
+          unit_cost: "Unit Cost"
+          total_cost: "Total Cost"
+          status: "Status"
+          view_stock_issue: "View Stock Issue"
+        variance:
+          positive: "Coverage is higher than actual cost by %{amount}"
+          negative: "Actual cost is higher than standard coverage by %{amount}"
+          zero: "The standard cost fully covers the operating cost"
+        disclaimer: "Management analysis only — not an accounting profit/loss figure."
+        csv:
+          category: "Cost Category"
+          amount: "Amount"
+          period: "Period"
+        export: "Export CSV"
 
   locale:
     en: "English"
@@ -3572,6 +3872,11 @@ en:
           attributes:
             user_id:
               one_per_employee: "already has a balance account in this business."
+        branch:
+          attributes:
+            branch_type:
+              blank: "must be selected"
+              inclusion: "is not a supported branch type"
     models:
       employee_obligation: "Employee Obligation"
       user: "Employee"
@@ -3687,6 +3992,44 @@ en:
             warehouse_id:
               taken: "already has a threshold for this product"
               different_business: "must belong to the same business as the product"
+        laundry_batch:
+          attributes:
+            base:
+              conservation_mismatch: "Output (clean + damaged + disposed = %{accounted}) must equal the input quantity (%{input})"
+            laundry_branch:
+              invalid: "must belong to the same business"
+        towel_transfer:
+          attributes:
+            destination_branch_id:
+              invalid: "must be different from the source branch"
+            source_branch:
+              invalid: "must belong to the same business"
+            destination_branch:
+              invalid: "must belong to the same business"
+            towel_type:
+              invalid: "must belong to the same business"
+            towel_status:
+              blank: "can't be determined for this branch combination — choose a sales branch and the laundry branch (or two sales branches)"
+            confirmed_quantity:
+              exceeds_declared: "cannot exceed the dispatched quantity (%{declared})"
+        towel_adjustment:
+          attributes:
+            adjustment_quantity:
+              would_go_negative: "would bring the balance below zero"
+            towel_type:
+              invalid: "must belong to the same business"
+            branch:
+              invalid: "must belong to the same business"
+        towel_ledger_entry:
+          attributes:
+            towel_type:
+              invalid: "must belong to the same business"
+            branch:
+              invalid: "must belong to the same business"
+        laundry_batch_consumption:
+          attributes:
+            base:
+              batch_or_branch_required: "must be linked to either a laundry batch or a laundry branch (not both, not neither)"
         stock_adjustment:
           attributes:
             base:

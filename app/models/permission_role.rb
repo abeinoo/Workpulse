@@ -70,7 +70,27 @@ class PermissionRole < ApplicationRecord
                                delete_import],
     settings:              %w[manage_settings manage_branches],
     obligations:           %w[manage_obligations],
-    administration:        %w[manage_roles]
+    administration:        %w[manage_roles],
+    # Simplified to match the active transfer-driven workflow (Towel Balances
+    # -> Towel Transfers -> Dispatch -> Receipt Confirmation -> Adjustments).
+    # declare_dirty_towels/dispatch_clean_towels were never checked by any
+    # policy/controller — towel condition is inferred from branch_type (see
+    # TowelTransfer.infer_towel_status), not declared by the user.
+    # manage_laundry_batches/record_batch_consumption/complete_laundry_batches
+    # protected the LaundryBatch workflow, which is deliberately not part of
+    # normal navigation (see _sidebar.html.erb) — that model/controller/data
+    # are preserved, just no longer reachable through the permission system
+    # for non-owners (see LaundryBatchPolicy, unchanged).
+    laundry_operations:    %w[view_towel_balances create_towel_transfers
+                               confirm_towel_receipt adjust_towel_balances
+                               configure_towel_usage_expectations],
+    # Split out from laundry_operations deliberately: these expose payroll
+    # cost and business-wide financial figures, which normal laundry staff
+    # (granted laundry_operations) must not automatically get — mirrors how
+    # finance_overview/expense_reports are split out from the base expenses
+    # group for the same sensitivity reason.
+    laundry_cost_reports: %w[view_laundry_consumption_reports view_laundry_cost_reports
+                              manage_laundry_cost_settings]
   }.freeze
 
   ALL_PERMISSIONS = PERMISSION_GROUPS.values.flatten.freeze
@@ -141,6 +161,8 @@ class PermissionRole < ApplicationRecord
     view_expenses create_expenses edit_expenses approve_expenses
     view_employee_balances manage_branch_revenue
     view_deposit_verification import_bank_statement verify_deposits manual_match_deposits delete_import
+    view_towel_balances create_towel_transfers confirm_towel_receipt
+    view_laundry_consumption_reports
   ].freeze
 
   # Management-level Daily Reconciliation permissions — the only DR permissions
@@ -276,7 +298,11 @@ class PermissionRole < ApplicationRecord
     "import_bank_statement"       => %w[view_deposit_verification],
     "verify_deposits"             => %w[view_deposit_verification],
     "manual_match_deposits"       => %w[verify_deposits],
-    "delete_import"               => %w[import_bank_statement]
+    "delete_import"               => %w[import_bank_statement],
+    "create_towel_transfers"      => %w[view_towel_balances],
+    "confirm_towel_receipt"       => %w[view_towel_balances],
+    "adjust_towel_balances"       => %w[view_towel_balances],
+    "manage_laundry_cost_settings"       => %w[view_laundry_cost_reports]
   }.freeze
 
   # Reverse index: given a permission, which permissions depend on it?

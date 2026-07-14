@@ -1,0 +1,31 @@
+<%#
+  Reusable collapsible sidebar section — a <details>/<summary> disclosure
+  (same markup/CSS as the original Administration group) enhanced with
+  aria-expanded sync and sessionStorage persistence (see
+  sidebar_group_controller.js). Used as a layout so callers pass their
+  existing nav-item links as the block body, unchanged.
+
+  Locals:
+    key    - stable slug for this group (content id + sessionStorage key)
+    label  - translated group title (already run through t(...) by the caller)
+    active - true when the current page belongs to this group, computed by
+             the caller from the same is-active conditions its child links
+             already use — never re-derived here.
+%>
+<% content_id = "sidebar-group-#{key}" %>
+<details class="sidebar__group" <%= "open" if active %>
+          data-controller="sidebar-group"
+          data-sidebar-group-key-value="<%= key %>"
+          data-sidebar-group-active-value="<%= active ? "true" : "false" %>"
+          data-action="toggle->sidebar-group#onToggle">
+  <summary class="sidebar__section-label sidebar__group-toggle"
+           aria-expanded="<%= active ? "true" : "false" %>"
+           aria-controls="<%= content_id %>"
+           data-sidebar-group-target="summary">
+    <%= label %>
+    <svg class="sidebar__group-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+  </summary>
+  <div id="<%= content_id %>">
+    <%= yield %>
+  </div>
+</details>

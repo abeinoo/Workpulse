@@ -61,8 +61,13 @@ class Admin::BranchesController < Admin::BaseController
   end
 
   def create
-    @branch = current_user.business.branches.build(branch_params)
+    @branch = current_user.business.branches.build
     authorize @branch
+    unless assign_branch_params(@branch)
+      load_managers
+      return render :new, status: :unprocessable_entity
+    end
+
     if @branch.save
       redirect_to admin_branch_path(@branch), notice: t("flash.branch_created")
     else
@@ -80,7 +85,12 @@ class Admin::BranchesController < Admin::BaseController
   def update
     @branch = find_branch
     authorize @branch
-    if @branch.update(branch_params)
+    unless assign_branch_params(@branch)
+      load_managers
+      return render :edit, status: :unprocessable_entity
+    end
+
+    if @branch.save
       redirect_to admin_branch_path(@branch), notice: t("flash.branch_updated")
     else
       load_managers
@@ -109,9 +119,22 @@ class Admin::BranchesController < Admin::BaseController
 
   def branch_params
     params.require(:branch).permit(
-      :name, :address, :phone_number, :active,
+      :name, :address, :phone_number, :active, :branch_type,
       :branch_manager_id, :area_manager_id,
       :geolocation_enabled, :latitude, :longitude, :radius_meters
     )
+  end
+
+  # Branch#branch_type is a Rails enum — assigning an unsupported string
+  # raises ArgumentError immediately (before any validation runs), which
+  # would otherwise surface as an unhandled 500 for a tampered request
+  # rather than a normal form re-render. Guard against that here so an
+  # invalid value is always a clean validation-style failure.
+  def assign_branch_params(branch)
+    branch.assign_attributes(branch_params)
+    true
+  rescue ArgumentError
+    branch.errors.add(:branch_type, :inclusion)
+    false
   end
 end

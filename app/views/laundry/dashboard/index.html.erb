@@ -1,0 +1,83 @@
+<% content_for :title, t("laundry.dashboard.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("laundry.dashboard.title") %></h1>
+    <div class="page-header__actions">
+      <% if policy(TowelTransfer).new? %>
+        <%= link_to t("laundry.towel_transfers.add"), new_laundry_towel_transfer_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @laundry_branch.nil? || @towel_type.nil? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.dashboard.no_laundry_branch") %></p></div>
+  <% else %>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.dashboard.clean_available") %></span>
+        <span class="stat-card__value"><%= number_with_precision(@by_status["clean"] || 0, precision: 0) %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.dashboard.dirty_waiting") %></span>
+        <span class="stat-card__value"><%= number_with_precision(@by_status["dirty"] || 0, precision: 0) %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.dashboard.in_transit") %></span>
+        <span class="stat-card__value"><%= number_with_precision(@in_transit, precision: 0) %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.dashboard.damaged") %></span>
+        <span class="stat-card__value"><%= number_with_precision(@by_status["damaged"] || 0, precision: 0) %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.dashboard.disposed") %></span>
+        <span class="stat-card__value"><%= number_with_precision(@by_status["disposed"] || 0, precision: 0) %></span>
+      </div>
+    </div>
+
+    <div class="stats-grid" style="margin-top: var(--space-4);">
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.dashboard.received_today") %></span>
+        <span class="stat-card__value"><%= @received_today %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.dashboard.dispatched_today") %></span>
+        <span class="stat-card__value"><%= @dispatched_today %></span>
+      </div>
+      <%= link_to laundry_towel_transfers_path(status: "received"),
+            class: "stat-card #{@unresolved_count > 0 ? 'stat-card--warning' : ''}" do %>
+        <span class="stat-card__label"><%= t("laundry.dashboard.unresolved_discrepancies") %></span>
+        <span class="stat-card__value"><%= @unresolved_count %></span>
+      <% end %>
+    </div>
+
+    <% if @unresolved_recent.any? %>
+      <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("laundry.dashboard.unresolved_discrepancies") %></h2>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead><tr>
+            <th><%= t("laundry.towel_transfers.source_branch") %></th>
+            <th><%= t("laundry.towel_transfers.destination_branch") %></th>
+            <th style="text-align: end;"><%= t("laundry.towel_transfers.declared_quantity") %></th>
+            <th style="text-align: end;"><%= t("laundry.towel_transfers.confirmed_quantity") %></th>
+            <th style="text-align: end;"><%= t("laundry.towel_transfers.discrepancy") %></th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            <% @unresolved_recent.each do |transfer| %>
+              <tr>
+                <td><%= transfer.source_branch.name %></td>
+                <td><%= transfer.destination_branch.name %></td>
+                <td style="text-align: end;"><%= number_with_precision(transfer.declared_quantity, precision: 0) %></td>
+                <td style="text-align: end;"><%= number_with_precision(transfer.confirmed_quantity, precision: 0) %></td>
+                <td style="text-align: end; color: var(--danger);"><%= number_with_precision(transfer.discrepancy, precision: 0) %></td>
+                <td><%= link_to t("laundry.towel_transfers.actions.view"), laundry_towel_transfer_path(transfer), class: "btn btn-ghost btn-sm" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  <% end %>
+</div>

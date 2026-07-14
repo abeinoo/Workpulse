@@ -1,0 +1,89 @@
+<% content_for :title, t("laundry.balances.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("laundry.balances.title") %></h1>
+  </div>
+
+  <% if @towel_types.blank? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.common.no_towel_types") %></p></div>
+  <% else %>
+    <%= form_with url: laundry_towel_balances_path, method: :get, local: true, class: "filter-bar" do |f| %>
+      <div class="filter-bar__fields">
+        <div class="filter-bar__field">
+          <%= f.label :towel_type_id, t("laundry.common.towel_type"), class: "filter-bar__label" %>
+          <%= f.select :towel_type_id,
+                options_from_collection_for_select(@towel_types, :id, :name, @towel_type&.id),
+                {}, class: "filter-bar__select", onchange: "this.form.requestSubmit()" %>
+        </div>
+      </div>
+    <% end %>
+
+    <% if @rows.empty? %>
+      <div class="empty-state"><p class="empty-state__title"><%= t("laundry.balances.empty") %></p></div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead><tr>
+            <th><%= t("laundry.common.branch") %></th>
+            <th style="text-align: end;"><%= t("laundry.balances.operational_balance") %></th>
+            <th style="text-align: end;"><%= t("laundry.balances.in_transit_out") %></th>
+            <% if @can_view_details %><th></th><% end %>
+          </tr></thead>
+          <% @rows.each do |row| %>
+              <%
+                is_laundry = row[:branch].branch_type_laundry?
+                # The edge-case safeguard: the location-implied status should
+                # be the only one holding stock. If the *other* status is
+                # unexpectedly non-zero (e.g. a manual adjustment posted
+                # "clean" at the laundry), surface it rather than letting it
+                # go silently missing from the simplified column.
+                unexpected = is_laundry ? row[:clean] : row[:dirty]
+              %>
+              <tbody data-controller="<%= 'collapsible' if @can_view_details %>">
+                <tr>
+                  <td>
+                    <%= row[:branch].name %>
+                    <% if is_laundry %>
+                      <span class="badge badge-neutral"><%= t("nav.section_laundry") %></span>
+                    <% end %>
+                  </td>
+                  <td style="text-align: end;">
+                    <%= number_with_precision(row[:operational], precision: 0) %>
+                    <% if unexpected.nonzero? %>
+                      <span class="badge badge-warning" title="<%= t('laundry.balances.unexpected_balance_hint') %>">!</span>
+                    <% end %>
+                  </td>
+                  <td style="text-align: end;"><%= number_with_precision(row[:in_transit_out], precision: 0) %></td>
+                  <% if @can_view_details %>
+                    <td>
+                      <button type="button" class="btn btn-ghost btn-sm"
+                              data-collapsible-target="trigger" data-action="click->collapsible#toggle"
+                              aria-expanded="false">
+                        <%= t("laundry.balances.details") %>
+                      </button>
+                    </td>
+                  <% end %>
+                </tr>
+
+                <% if @can_view_details %>
+                  <tr data-collapsible-target="content" hidden>
+                    <td colspan="4" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
+                      <div style="display: flex; gap: var(--space-5); flex-wrap: wrap; font-size: var(--text-sm);">
+                        <span><strong><%= t("laundry.balances.clean") %>:</strong> <%= number_with_precision(row[:clean], precision: 0) %></span>
+                        <span><strong><%= t("laundry.balances.dirty") %>:</strong> <%= number_with_precision(row[:dirty], precision: 0) %></span>
+                        <span><strong><%= t("laundry.balances.in_transit_out") %>:</strong> <%= number_with_precision(row[:in_transit_out], precision: 0) %></span>
+                        <span style="<%= 'color: var(--danger);' if row[:damaged].positive? %>"><strong><%= t("laundry.balances.damaged") %>:</strong> <%= number_with_precision(row[:damaged], precision: 0) %></span>
+                        <span><strong><%= t("laundry.balances.disposed") %>:</strong> <%= number_with_precision(row[:disposed], precision: 0) %></span>
+                        <span style="<%= 'color: var(--danger);' if row[:lost].positive? %>"><strong><%= t("laundry.balances.lost") %>:</strong> <%= number_with_precision(row[:lost], precision: 0) %></span>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+          <% end %>
+        </table>
+      </div>
+    <% end %>
+  <% end %>
+</div>

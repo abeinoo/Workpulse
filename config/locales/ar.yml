@@ -77,6 +77,15 @@ ar:
     finance_outstanding_balances: "الأرصدة المعلقة"
     departments: "الأقسام"
     evaluation_templates: "قوالب التقييم"
+    section_laundry: "المغسلة"
+    laundry_dashboard: "لوحة المغسلة"
+    laundry_transfers: "نقل المناشف"
+    laundry_batches: "دفعات الغسيل"
+    laundry_balances: "أرصدة المناشف"
+    laundry_adjustments: "التسويات"
+    laundry_towel_types: "أنواع المناشف"
+    laundry_branch_consumption: "استهلاك الفروع"
+    laundry_cost_summary: "تكلفة تشغيل المغسلة"
 
   auth:
     sign_in:
@@ -2133,6 +2142,14 @@ ar:
         page_title: "تعديل الفرع — ووركبلس"
         submit: "تحديث الفرع"
       name: "الاسم"
+      branch_type: "نوع الفرع"
+      branch_types:
+        sales: "فرع مبيعات"
+        laundry: "مغسلة"
+        warehouse: "مخزن"
+        headquarters: "إدارة / مقر رئيسي"
+        maintenance: "صيانة"
+        other: "أخرى"
       address: "العنوان"
       phone: "الجوال"
       manager: "المدير"
@@ -2197,6 +2214,8 @@ ar:
       reviewed_by: "راجعها"
       form:
         basic_info: "المعلومات الأساسية"
+        branch_type: "نوع الفرع"
+        branch_type_hint: "يحدد نوع الفرع طريقة استخدامه في المخزون والمغسلة والتقارير."
         phone: "رقم الجوال"
         management: "الإدارة"
         area_manager: "مدير المنطقة"
@@ -2410,6 +2429,8 @@ ar:
         settings: "الإعدادات"
         obligations: "الالتزامات"
         administration: "الإدارة"
+        laundry_operations: "عمليات المغسلة"
+        laundry_cost_reports: "تقارير تكاليف المغسلة"
       role_types:
         branch_manager: "مدير فرع"
         area_manager: "مدير منطقة"
@@ -2424,6 +2445,7 @@ ar:
         manage_salary_profiles: "إدارة ملفات الرواتب"
         view_attendance: "عرض سجلات الحضور"
         manage_attendance: "تعديل سجلات الحضور"
+        delete_attendance: "حذف سجلات الحضور"
         manage_devices: "إدارة الأجهزة البيومترية"
         view_payroll: "عرض الرواتب"
         view_draft_payroll: "عرض مسودات الرواتب"
@@ -2440,8 +2462,10 @@ ar:
         pay_payroll: "تحديد الرواتب كمدفوعة"
         reopen_payroll: "إعادة فتح الرواتب"
         delete_payroll: "حذف الرواتب"
+        view_adjustments: "عرض التسويات"
         manage_adjustments: "إنشاء التسويات"
         approve_adjustments: "الموافقة على التسويات"
+        edit_approved_adjustments: "تعديل التسويات المعتمدة"
         view_requests: "عرض الطلبات"
         approve_requests: "الموافقة على الطلبات أو رفضها"
         view_shifts: "عرض أنواع الورديات"
@@ -2516,6 +2540,14 @@ ar:
         approve_balance_requests: "اعتماد طلبات الرصيد"
         view_expense_reports: "عرض التقارير المالية"
         manage_branch_revenue: "إدارة إيرادات الفروع"
+        view_towel_balances: "عرض أرصدة المناشف"
+        create_towel_transfers: "إنشاء عمليات نقل المناشف"
+        confirm_towel_receipt: "تأكيد استلام المناشف"
+        adjust_towel_balances: "تسوية أرصدة المناشف"
+        configure_towel_usage_expectations: "إعداد معدلات استخدام المناشف"
+        view_laundry_consumption_reports: "عرض تقارير استهلاك الفروع"
+        view_laundry_cost_reports: "عرض تقارير تكاليف المغسلة"
+        manage_laundry_cost_settings: "إدارة إعدادات تكاليف المغسلة"
       scopes:
         self: "بيانات شخصية فقط"
         branch: "الفرع"
@@ -2902,6 +2934,274 @@ ar:
       short: "%-d %b %H:%M"
       time: "%-H:%M"
       time_only: "%-H:%M"
+
+  laundry:
+    common:
+      towel_type: "نوع الفوط"
+      branch: "الفرع"
+      status: "الحالة"
+      quantity: "الكمية"
+      notes: "ملاحظات"
+      reason: "السبب"
+      no_towel_types: "لم يتم إعداد أي نوع فوط بعد."
+      create_towel_type_first: "أنشئ نوع فوط قبل تسجيل أي نشاط."
+      towel_statuses:
+        clean: "نظيفة"
+        dirty: "متسخة"
+        damaged: "تالفة"
+        disposed: "متلفة"
+        lost: "مفقودة"
+
+    dashboard:
+      title: "لوحة المغسلة"
+      no_laundry_branch: "لا يوجد فرع مخصّص كمغسلة، أو لم يتم إعداد نوع فوط بعد — لا يوجد ما يُعرض."
+      clean_available: "متوفر نظيف"
+      dirty_waiting: "بانتظار الغسيل"
+      in_transit: "قيد النقل"
+      damaged: "تالف"
+      disposed: "متلف"
+      received_today: "مستلم اليوم"
+      dispatched_today: "مُرسل اليوم"
+      unresolved_discrepancies: "فروقات غير محلولة"
+      view_all: "عرض الكل"
+
+    towel_types:
+      title: "أنواع المناشف"
+      add: "إضافة نوع منشفة"
+      name: "الاسم"
+      active: "نشط"
+      empty: "لا توجد أنواع مناشف بعد."
+      created: "تم إنشاء نوع المنشفة."
+      updated: "تم تحديث نوع المنشفة."
+      deleted: "تم حذف نوع المنشفة."
+      delete_failed: "تعذر الحذف — النوع مستخدم بالفعل."
+      confirm_delete: "حذف نوع المنشفة هذا؟"
+      current_cost: "تكلفة الغسيل الحالية"
+      no_cost_configured: "لا توجد تكلفة محددة"
+      set_cost: "تحديد تكلفة الغسيل"
+      update_cost: "تعديل تكلفة الغسيل"
+
+    towel_transfers:
+      title: "نقل المناشف"
+      add: "نقل جديد"
+      all_statuses: "كل الحالات"
+      all_branches: "كل الفروع"
+      source_branch: "من"
+      destination_branch: "إلى"
+      declared_quantity: "الكمية المرسلة"
+      confirmed_quantity: "الكمية المستلمة فعليًا"
+      discrepancy: "الفرق"
+      towel_status: "حالة الفوط"
+      towel_statuses:
+        clean: "نظيفة"
+        dirty: "متسخة"
+      empty: "لا توجد عمليات نقل بعد."
+      created: "تم تسجيل النقل كمسودة."
+      dispatched: "تم إرسال النقل."
+      received: "تم استلام النقل."
+      cancelled: "تم إلغاء النقل."
+      clear_filters: "مسح الفلاتر"
+      statuses:
+        draft: "مسودة"
+        dispatched: "قيد النقل"
+        received: "تم الاستلام"
+        cancelled: "ملغي"
+      actions:
+        dispatch: "تأكيد الإرسال"
+        receive: "تأكيد الاستلام"
+        cancel: "إلغاء"
+        view: "عرض"
+      confirm_cancel: "إلغاء هذا النقل؟"
+      cancellation_reason_placeholder: "سبب الإلغاء…"
+      receive_hint: "أدخل الكمية الفعلية المعدودة عند الوصول — قد تختلف عن المُرسلة."
+      no_discrepancy: "لا يوجد فرق"
+      created_by_label: "أنشأ بواسطة"
+      inferred_condition: "سيتم إرسالها كـ %{condition}"
+      errors:
+        not_dispatchable: "لا يمكن إرسال هذا النقل بعد الآن."
+        not_receivable: "لا يمكن استلام هذا النقل بعد الآن."
+        invalid_confirmed_quantity: "يجب أن تكون الكمية المؤكدة صفرًا أو أكثر."
+        confirmed_exceeds_declared: "لا يمكن أن تكون الكمية المستلمة أكبر من الكمية المرسلة. الكمية المرسلة: %{declared}."
+        not_cancellable: "لا يمكن إلغاء هذا النقل بعد الآن."
+        insufficient_clean_stock: "لا توجد كمية كافية من النظيف في الفرع المصدر (المتاح: %{available})."
+        insufficient_dirty_stock: "لا توجد كمية كافية من المتسخ في المغسلة لغسل وإرسال هذه الكمية (المتاح: %{available})."
+
+    batches:
+      title: "دفعات الغسيل"
+      add: "دفعة جديدة"
+      all_statuses: "كل الحالات"
+      batch_number: "رقم الدفعة"
+      laundry_branch: "فرع المغسلة"
+      operator: "المشغّل"
+      input_quantity: "المُدخل (متسخ)"
+      output_clean_quantity: "المُخرج (نظيف)"
+      damaged_quantity: "تالف"
+      disposed_quantity: "متلف"
+      empty: "لا توجد دفعات بعد."
+      created: "تم إنشاء الدفعة كمسودة."
+      started: "تم بدء الدفعة."
+      completed: "تم إكمال الدفعة."
+      reversed: "تم عكس الدفعة."
+      consumption_recorded: "تم تسجيل استهلاك المواد."
+      statuses:
+        draft: "مسودة"
+        in_progress: "قيد التنفيذ"
+        completed: "مكتملة"
+        cancelled: "ملغاة"
+      actions:
+        start: "بدء الغسيل"
+        complete: "إكمال الدفعة"
+        reverse: "عكس"
+        record_consumption: "تسجيل استهلاك"
+      section_consumption: "استهلاك المواد"
+      section_complete: "إكمال الدفعة"
+      product: "المنتج"
+      warehouse: "المستودع"
+      total_material_cost: "إجمالي تكلفة المواد"
+      confirm_reverse: "عكس هذه الدفعة المكتملة؟ سيتم ترحيل قيود تعويضية."
+      reverse_reason_placeholder: "سبب العكس…"
+      no_consumptions: "لم يتم تسجيل أي مواد بعد."
+      errors:
+        not_startable: "لا يمكن بدء هذه الدفعة بعد الآن."
+        not_completable: "لا يمكن إكمال هذه الدفعة بعد الآن."
+        not_reversible: "يمكن عكس الدفعات المكتملة فقط."
+        not_in_progress: "لا يمكن استهلاك المواد إلا أثناء تنفيذ الدفعة."
+        invalid_quantity: "يجب أن تكون الكمية أكبر من صفر."
+        insufficient_stock: "الكمية المتوفرة من %{product} في مستودع المغسلة غير كافية (المتاح: %{available})."
+
+    adjustments:
+      title: "تسويات المناشف"
+      add: "تسوية جديدة"
+      adjustment_type: "نوع التسوية"
+      types:
+        correction: "تصحيح يدوي"
+        lost: "مفقود"
+        damaged: "تالف"
+      original_quantity: "الأصلية"
+      adjustment_quantity: "التعديل (+/-)"
+      resulting_quantity: "الناتجة"
+      loss_quantity: "الكمية"
+      loss_quantity_hint: "كم عدد المناشف المفقودة/التالفة — يقلل هذا الرصيد التشغيلي للفرع مباشرة."
+      empty: "لم يتم تسجيل أي تسويات بعد."
+      created: "تم تسجيل التسوية."
+      reason_placeholder: "لماذا هذا التعديل مطلوب؟ (مثال: إعادة عد فعلي)"
+      adjustment_quantity_hint: "مثال: -2 أو 5"
+      hint: "التسويات هي تصحيحات صريحة وموثقة — وليست تعديلاً صامتاً للرصيد. يتم البحث عن الرصيد الحالي تلقائياً كقيمة \"أصلية\"."
+
+    balances:
+      title: "أرصدة المناشف"
+      all_towel_types: "اختر نوع المنشفة"
+      clean: "نظيفة"
+      dirty: "متسخة"
+      damaged: "تالفة"
+      disposed: "متلفة"
+      lost: "مفقودة"
+      in_transit_out: "قيد النقل"
+      empty: "لا توجد فروع لعرضها."
+      operational_balance: "الرصيد الحالي"
+      details: "تفاصيل"
+      unexpected_balance_hint: "يحتوي هذا الموقع أيضًا على رصيد غير متوقع بالحالة الأخرى — راجع التفاصيل."
+
+    standard_cost_rates:
+      title: "تكلفة الغسيل المعيارية"
+      label: "تكلفة الغسيل المعيارية"
+      help: "تُستخدم لحساب تكلفة استهلاك الفروع من خدمة المغسلة لهذا النوع من المناشف، ولا تمثل بالضرورة تكلفة التشغيل الفعلية."
+      cost_per_towel: "تكلفة الغسيل المعيارية للمنشفة"
+      effective_from: "سارية اعتبارًا من"
+      current_rate: "التكلفة الحالية"
+      no_rate_configured: "لم يتم إعداد أي تكلفة معيارية بعد."
+      history: "سجل التكلفة"
+      created: "تم تحديد تكلفة معيارية جديدة."
+
+    reports:
+      branch_consumption:
+        title: "استهلاك الفروع"
+        nav: "استهلاك الفروع"
+        filters:
+          from: "من تاريخ"
+          to: "إلى تاريخ"
+          today: "اليوم"
+          this_week: "هذا الأسبوع"
+          this_month: "هذا الشهر"
+          previous_month: "الشهر السابق"
+          branch: "فرع المبيعات"
+          all_branches: "كل الفروع"
+          towel_type: "نوع الفوط"
+          all_towel_types: "كل الأنواع"
+        cards:
+          total_towels: "إجمالي المناشف المستلمة"
+          standard_cost: "التكلفة المعيارية للمنشفة"
+          total_cost: "إجمالي التكلفة المعيارية"
+        table:
+          branch: "الفرع"
+          towels_consumed: "عدد المناشف المستخدمة"
+          standard_cost: "التكلفة المعيارية للمنشفة"
+          total_cost: "إجمالي التكلفة المعيارية"
+          total_row: "الإجمالي"
+        multiple_rates: "أسعار متعددة"
+        varies_by_towel_type: "يختلف حسب نوع المنشفة"
+        no_rate_configured: "لم يتم إعداد التكلفة المعيارية — يرجى تحديد تكلفة الغسيل لكل نوع منشفة من صفحة أنواع المناشف قبل أن يتمكن هذا التقرير من عرض المبالغ."
+        empty: "لا توجد عمليات استلام مؤكدة من الفروع خلال هذه الفترة."
+        details:
+          receipt_date: "تاريخ الاستلام"
+          transfer: "النقل"
+          towel_type: "نوع الفوط"
+          confirmed_quantity: "الكمية المؤكدة"
+          rate_applied: "التكلفة المعيارية المطبقة"
+          line_total: "الإجمالي"
+          view_transfer: "عرض النقل"
+        csv:
+          branch: "الفرع"
+          confirmed_quantity: "عدد المناشف المستخدمة (مؤكد)"
+          standard_cost: "التكلفة المعيارية المطبقة"
+          total_cost: "إجمالي التكلفة المعيارية"
+          period: "الفترة"
+        export: "تصدير CSV"
+      cost_summary:
+        title: "تكلفة تشغيل المغسلة"
+        nav: "تكلفة تشغيل المغسلة"
+        cards:
+          towels_consumed: "المناشف المستخدمة بواسطة الفروع"
+          standard_branch_cost: "التكلفة المعيارية المحملة على الفروع"
+          payroll_cost: "تكلفة رواتب المغسلة"
+          direct_expenses: "المصروفات المباشرة للمغسلة"
+          material_cost: "تكلفة مواد المغسلة المستهلكة"
+          total_actual_cost: "إجمالي تكلفة تشغيل المغسلة"
+          coverage_variance: "فرق التغطية"
+          actual_cost_per_towel: "متوسط التكلفة الفعلية للمنشفة"
+        payroll_cost: "تكلفة رواتب المغسلة"
+        direct_expenses: "المصروفات المباشرة للمغسلة"
+        material_cost: "تكلفة مواد المغسلة المستهلكة"
+        total_actual_cost: "إجمالي تكلفة تشغيل المغسلة"
+        standard_branch_cost: "التكلفة المعيارية المحملة على الفروع"
+        coverage_variance: "فرق التغطية"
+        payroll_periods_included: "فترات الرواتب المشمولة:"
+        no_payroll_periods: "لا توجد فترة رواتب معتمدة ضمن هذا النطاق الزمني."
+        no_laundry_branch: "لا يوجد فرع مخصّص كمغسلة — لا يوجد ما يُعرض."
+        insufficient_data: "لا توجد بيانات كافية"
+        material_details:
+          title: "تفاصيل استهلاك المواد"
+          empty: "لا توجد إذون صرف مخزون إلى فرع المغسلة خلال هذه الفترة."
+          stock_issue: "إذن الصرف"
+          issue_date: "تاريخ الصرف"
+          warehouse: "المستودع المصدر"
+          branch: "الفرع المستهلك"
+          product: "المنتج"
+          quantity: "الكمية"
+          unit_cost: "تكلفة الوحدة"
+          total_cost: "التكلفة الإجمالية"
+          status: "الحالة"
+          view_stock_issue: "عرض إذن الصرف"
+        variance:
+          positive: "التغطية أعلى من التكلفة بمقدار %{amount}"
+          negative: "التكلفة الفعلية أعلى من التغطية المعيارية بمقدار %{amount}"
+          zero: "التكلفة المعيارية تغطي تكلفة التشغيل بالكامل"
+        disclaimer: "تحليل إداري فقط — لا يمثل ربحًا أو خسارة محاسبية."
+        csv:
+          category: "بند التكلفة"
+          amount: "المبلغ"
+          period: "الفترة"
+        export: "تصدير CSV"
 
   locale:
     en: "English"
@@ -3610,6 +3910,11 @@ ar:
           attributes:
             user_id:
               one_per_employee: "يملك بالفعل حساب رصيد في هذه الشركة."
+        branch:
+          attributes:
+            branch_type:
+              blank: "يجب تحديد نوع الفرع"
+              inclusion: "نوع فرع غير مدعوم"
     models:
       employee_obligation: "التزام موظف"
       user: "موظف"
@@ -3725,6 +4030,44 @@ ar:
             warehouse_id:
               taken: "لديه بالفعل حد لهذا المنتج"
               different_business: "يجب أن ينتمي إلى نفس منشأة المنتج"
+        laundry_batch:
+          attributes:
+            base:
+              conservation_mismatch: "يجب أن يساوي الناتج (نظيف + تالف + متلف = %{accounted}) كمية الإدخال (%{input})"
+            laundry_branch:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+        towel_transfer:
+          attributes:
+            destination_branch_id:
+              invalid: "يجب أن يكون مختلفًا عن الفرع المصدر"
+            source_branch:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+            destination_branch:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+            towel_type:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+            towel_status:
+              blank: "تعذر تحديد الحالة لهذه التوليفة من الفروع — يرجى اختيار فرع مبيعات والمغسلة (أو فرعي مبيعات)"
+            confirmed_quantity:
+              exceeds_declared: "لا يمكن أن تتجاوز الكمية المرسلة (%{declared})"
+        towel_adjustment:
+          attributes:
+            adjustment_quantity:
+              would_go_negative: "سيؤدي إلى رصيد سالب"
+            towel_type:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+            branch:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+        towel_ledger_entry:
+          attributes:
+            towel_type:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+            branch:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+        laundry_batch_consumption:
+          attributes:
+            base:
+              batch_or_branch_required: "يجب أن يكون مرتبطًا إما بدفعة غسيل أو بفرع مغسلة (وليس كليهما أو لا شيء)"
         stock_adjustment:
           attributes:
             base:

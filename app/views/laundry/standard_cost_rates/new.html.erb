@@ -1,0 +1,71 @@
+<% content_for :title, "#{t('laundry.standard_cost_rates.label')} — #{@towel_type.name}" %>
+
+<div class="admin-page">
+  <%= link_to laundry_towel_types_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <h1 class="page-title"><%= t("laundry.standard_cost_rates.label") %></h1>
+  <p class="form-hint"><%= t("laundry.standard_cost_rates.help") %></p>
+
+  <%= form_with model: @rate, url: laundry_towel_type_standard_cost_rates_path(@towel_type),
+        scope: :laundry_standard_cost_rate, class: "form-card" do |f| %>
+    <%= render "shared/error_messages", object: @rate %>
+
+    <div class="form-group">
+      <span class="form-label"><%= t("laundry.common.towel_type") %></span>
+      <p><strong><%= @towel_type.name %></strong></p>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :cost_per_towel, t("laundry.standard_cost_rates.cost_per_towel"), class: "form-label" %>
+        <%= f.number_field :cost_per_towel, min: 0, step: 0.0001, class: "form-control", required: true %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :effective_from, t("laundry.standard_cost_rates.effective_from"), class: "form-label" %>
+        <%= f.datetime_field :effective_from, value: Time.current, class: "form-control" %>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("common.save"), class: "btn btn-primary" %>
+      <%= link_to t("common.cancel"), laundry_towel_types_path, class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+
+  <div class="stats-grid" style="margin-top: var(--space-5);">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("laundry.standard_cost_rates.current_rate") %></span>
+      <span class="stat-card__value">
+        <%= @current_rate ? format_currency(@current_rate.cost_per_towel, precision: 2) : "—" %>
+      </span>
+    </div>
+  </div>
+
+  <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("laundry.standard_cost_rates.history") %></h2>
+  <% if @rates.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.standard_cost_rates.no_rate_configured") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("laundry.standard_cost_rates.effective_from") %></th>
+          <th style="text-align: end;"><%= t("laundry.standard_cost_rates.cost_per_towel") %></th>
+          <th><%= t("laundry.towel_transfers.created_by_label") %></th>
+        </tr></thead>
+        <tbody>
+          <% @rates.each do |rate| %>
+            <tr>
+              <td><%= l(rate.effective_from, format: :long) %></td>
+              <td style="text-align: end;"><%= format_currency(rate.cost_per_towel, precision: 2) %></td>
+              <td class="td-secondary"><%= rate.created_by&.full_name || "—" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

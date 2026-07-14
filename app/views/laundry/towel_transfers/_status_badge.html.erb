@@ -1,0 +1,10 @@
+<%
+  color_class = {
+    "draft"      => "badge badge-neutral",
+    "dispatched" => "badge badge-warning",
+    "received"   => "badge badge-success",
+    "cancelled"  => "badge badge-danger"
+  }.fetch(status, "badge badge-neutral")
+  size_class = local_assigns[:size] == "md" ? " badge--md" : ""
+%>
+<span class="<%= color_class %><%= size_class %>"><%= t("laundry.towel_transfers.statuses.#{status}") %></span>

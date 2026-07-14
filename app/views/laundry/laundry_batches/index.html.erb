@@ -1,0 +1,63 @@
+<% content_for :title, t("laundry.batches.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("laundry.batches.title") %></h1>
+    <div class="page-header__actions">
+      <% if policy(LaundryBatch).new? %>
+        <%= link_to t("laundry.batches.add"), new_laundry_laundry_batch_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%= form_with url: laundry_laundry_batches_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= f.label :status, t("laundry.common.status"), class: "filter-bar__label" %>
+        <%= f.select :status,
+              options_for_select(
+                [[ t("laundry.batches.all_statuses"), "" ]] +
+                  LaundryBatch.statuses.keys.map { |s| [ t("laundry.batches.statuses.#{s}"), s ] },
+                params[:status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+    </div>
+    <div class="filter-bar__actions">
+      <%= f.submit t("forms.filter"), class: "btn btn-primary btn-sm" %>
+      <% if params[:status].present? %>
+        <%= link_to t("laundry.towel_transfers.clear_filters"), laundry_laundry_batches_path, class: "btn btn-ghost btn-sm" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @laundry_batches.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.batches.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("laundry.batches.batch_number") %></th>
+          <th><%= t("laundry.common.towel_type") %></th>
+          <th><%= t("laundry.batches.operator") %></th>
+          <th style="text-align: end;"><%= t("laundry.batches.input_quantity") %></th>
+          <th style="text-align: end;"><%= t("laundry.batches.output_clean_quantity") %></th>
+          <th><%= t("laundry.common.status") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @laundry_batches.each do |batch| %>
+            <tr>
+              <td><%= link_to batch.batch_number, laundry_laundry_batch_path(batch), class: "link" %></td>
+              <td class="td-secondary"><%= batch.towel_type.name %></td>
+              <td class="td-secondary"><%= batch.operator&.full_name || "—" %></td>
+              <td style="text-align: end;"><%= number_with_precision(batch.input_quantity, precision: 0) %></td>
+              <td style="text-align: end;"><%= number_with_precision(batch.output_clean_quantity, precision: 0) %></td>
+              <td><%= render "status_badge", status: batch.status %></td>
+              <td><%= link_to t("laundry.towel_transfers.actions.view"), laundry_laundry_batch_path(batch), class: "btn btn-ghost btn-sm" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

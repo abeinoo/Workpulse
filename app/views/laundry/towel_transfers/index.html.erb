@@ -1,0 +1,84 @@
+<% content_for :title, t("laundry.towel_transfers.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("laundry.towel_transfers.title") %></h1>
+    <div class="page-header__actions">
+      <% if policy(TowelTransfer).new? %>
+        <%= link_to t("laundry.towel_transfers.add"), new_laundry_towel_transfer_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%= form_with url: laundry_towel_transfers_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= f.label :status, t("laundry.common.status"), class: "filter-bar__label" %>
+        <%= f.select :status,
+              options_for_select(
+                [[ t("laundry.towel_transfers.all_statuses"), "" ]] +
+                  TowelTransfer.statuses.keys.map { |s| [ t("laundry.towel_transfers.statuses.#{s}"), s ] },
+                params[:status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+
+      <% if @filter_branches.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :branch_id, t("laundry.common.branch"), class: "filter-bar__label" %>
+          <%= f.select :branch_id,
+                options_for_select(
+                  [[ t("laundry.towel_transfers.all_branches"), "" ]] +
+                    @filter_branches.map { |b| [ b.name, b.id ] },
+                  params[:branch_id]),
+                {}, class: "filter-bar__select" %>
+        </div>
+      <% end %>
+    </div>
+    <div class="filter-bar__actions">
+      <%= f.submit t("forms.filter"), class: "btn btn-primary btn-sm" %>
+      <% if params[:status].present? || params[:branch_id].present? %>
+        <%= link_to t("laundry.towel_transfers.clear_filters"), laundry_towel_transfers_path, class: "btn btn-ghost btn-sm" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @towel_transfers.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.towel_transfers.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("laundry.towel_transfers.source_branch") %></th>
+          <th><%= t("laundry.towel_transfers.destination_branch") %></th>
+          <th><%= t("laundry.towel_transfers.towel_status") %></th>
+          <th style="text-align: end;"><%= t("laundry.towel_transfers.declared_quantity") %></th>
+          <th style="text-align: end;"><%= t("laundry.towel_transfers.confirmed_quantity") %></th>
+          <th><%= t("laundry.common.status") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @towel_transfers.each do |transfer| %>
+            <tr>
+              <td><%= transfer.source_branch.name %></td>
+              <td><%= transfer.destination_branch.name %></td>
+              <td class="td-secondary"><%= t("laundry.towel_transfers.towel_statuses.#{transfer.towel_status}") %></td>
+              <td style="text-align: end;"><%= number_with_precision(transfer.declared_quantity, precision: 0) %></td>
+              <td style="text-align: end;">
+                <% if transfer.confirmed_quantity %>
+                  <%= number_with_precision(transfer.confirmed_quantity, precision: 0) %>
+                  <% if transfer.discrepancy.nonzero? %>
+                    <span style="color: var(--danger);">(<%= number_with_precision(transfer.discrepancy, precision: 0) %>)</span>
+                  <% end %>
+                <% else %>
+                  —
+                <% end %>
+              </td>
+              <td><%= render "status_badge", status: transfer.status %></td>
+              <td><%= link_to t("laundry.towel_transfers.actions.view"), laundry_towel_transfer_path(transfer), class: "btn btn-ghost btn-sm" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

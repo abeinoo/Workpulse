@@ -14,6 +14,15 @@
     </div>
 
     <div class="form-group">
+      <%= f.label :branch_type, t("admin.branches.form.branch_type"), class: "form-label" %>
+      <%= f.select :branch_type,
+            Branch.branch_types.keys.map { |type| [ t("admin.branches.branch_types.#{type}"), type ] },
+            {},
+            class: "form-control #{'is-error' if branch.errors[:branch_type].any?}", required: true %>
+      <p class="form-hint"><%= t("admin.branches.form.branch_type_hint") %></p>
+    </div>
+
+    <div class="form-group">
       <%= f.label :phone_number, t("admin.branches.form.phone"), class: "form-label" %>
       <%= f.telephone_field :phone_number,
             class: "form-control",

@@ -1,0 +1,18 @@
+<% content_for :title, t("laundry.batches.add") %>
+
+<div class="admin-page">
+  <%= link_to laundry_laundry_batches_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <h1 class="page-title"><%= t("laundry.batches.add") %></h1>
+
+  <% if @towel_types.blank? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.common.create_towel_type_first") %></p></div>
+  <% elsif @laundry_branches.blank? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.dashboard.no_laundry_branch") %></p></div>
+  <% else %>
+    <%= render "form", laundry_batch: @laundry_batch %>
+  <% end %>
+</div>

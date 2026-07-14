@@ -14,7 +14,7 @@ class InventoryMovement < ApplicationRecord
 
   DIRECTIONS = %w[in out].freeze
   REASONS    = %w[goods_receipt stock_issue opening_balance adjustment
-                  transfer_in transfer_out reversal].freeze
+                  transfer_in transfer_out reversal laundry_consumption].freeze
 
   # Reasons whose IN movements establish/blend the product's moving-average cost.
   # Everything else (issues, transfers, count corrections, reversals) only moves
@@ -29,7 +29,11 @@ class InventoryMovement < ApplicationRecord
     adjustment:      "adjustment",
     transfer_in:     "transfer_in",
     transfer_out:    "transfer_out",
-    reversal:        "reversal"
+    reversal:        "reversal",
+    # Material consumed by a completed LaundryBatch, posted OUT of the Laundry
+    # Warehouse. Valued at the current average cost like stock_issue; never
+    # cost-bearing (see COST_BEARING_REASONS) and never re-averages the product.
+    laundry_consumption: "laundry_consumption"
   }
 
   def cost_bearing?

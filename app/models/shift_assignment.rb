@@ -54,6 +54,15 @@ class ShiftAssignment < ApplicationRecord
     active_during(from, to).where(user_id: user_ids).distinct.pluck(:branch_id)
   end
 
+  # Distinct user_ids assigned to a single branch at any point during
+  # [from, to] — the inverse of branch_ids_for_users, used for historical
+  # branch-cost attribution (e.g. "who worked at the laundry this payroll
+  # period"). No splitting/prorating: a user counts if they had any
+  # overlapping assignment.
+  def self.user_ids_for_branch_during(branch_id, from:, to:)
+    active_during(from, to).where(branch_id: branch_id).distinct.pluck(:user_id)
+  end
+
   # Map of user_id => branch name for the given users, using assignments active
   # during [from, to]. When a user worked multiple branches, the latest-effective
   # assignment wins.

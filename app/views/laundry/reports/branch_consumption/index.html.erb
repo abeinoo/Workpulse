@@ -1,0 +1,155 @@
+<% content_for :title, t("laundry.reports.branch_consumption.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("laundry.reports.branch_consumption.title") %></h1>
+    <div class="page-header__actions">
+      <%= link_to t("laundry.reports.branch_consumption.export"),
+            laundry_reports_branch_consumption_path(format: :csv, from: @from, to: @to, branch_id: params[:branch_id], towel_type_id: params[:towel_type_id]),
+            class: "btn btn-secondary btn-sm" %>
+    </div>
+  </div>
+
+  <%= form_with url: laundry_reports_branch_consumption_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= f.label :from, t("laundry.reports.branch_consumption.filters.from"), class: "filter-bar__label" %>
+        <%= f.date_field :from, value: @from, class: "filter-bar__input" %>
+      </div>
+      <div class="filter-bar__field">
+        <%= f.label :to, t("laundry.reports.branch_consumption.filters.to"), class: "filter-bar__label" %>
+        <%= f.date_field :to, value: @to, class: "filter-bar__input" %>
+      </div>
+      <% if @branches.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :branch_id, t("laundry.reports.branch_consumption.filters.branch"), class: "filter-bar__label" %>
+          <%= f.select :branch_id,
+                options_from_collection_for_select(@branches.where(branch_type: "sales"), :id, :name, params[:branch_id]),
+                { include_blank: t("laundry.reports.branch_consumption.filters.all_branches") },
+                class: "filter-bar__select" %>
+        </div>
+      <% end %>
+      <% if @towel_types.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :towel_type_id, t("laundry.reports.branch_consumption.filters.towel_type"), class: "filter-bar__label" %>
+          <%= f.select :towel_type_id,
+                options_from_collection_for_select(@towel_types, :id, :name, params[:towel_type_id]),
+                { include_blank: t("laundry.reports.branch_consumption.filters.all_towel_types") },
+                class: "filter-bar__select" %>
+        </div>
+      <% end %>
+    </div>
+    <div class="filter-bar__actions">
+      <%= f.submit t("forms.filter"), class: "btn btn-primary btn-sm" %>
+      <%= link_to t("laundry.reports.branch_consumption.filters.today"), laundry_reports_branch_consumption_path(from: Date.current, to: Date.current), class: "btn btn-ghost btn-sm" %>
+      <%= link_to t("laundry.reports.branch_consumption.filters.this_week"), laundry_reports_branch_consumption_path(from: Date.current.beginning_of_week, to: Date.current.end_of_week), class: "btn btn-ghost btn-sm" %>
+      <%= link_to t("laundry.reports.branch_consumption.filters.this_month"), laundry_reports_branch_consumption_path(from: Date.current.beginning_of_month, to: Date.current.end_of_month), class: "btn btn-ghost btn-sm" %>
+      <%= link_to t("laundry.reports.branch_consumption.filters.previous_month"), laundry_reports_branch_consumption_path(from: 1.month.ago.beginning_of_month, to: 1.month.ago.end_of_month), class: "btn btn-ghost btn-sm" %>
+    </div>
+  <% end %>
+
+  <% unless @report.rate_configured %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.reports.branch_consumption.no_rate_configured") %></p></div>
+  <% end %>
+
+  <div class="stats-grid" style="margin-top: var(--space-4);">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("laundry.reports.branch_consumption.cards.total_towels") %></span>
+      <span class="stat-card__value"><%= number_with_precision(@report.total_towels, precision: 0) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("laundry.reports.branch_consumption.cards.standard_cost") %></span>
+      <span class="stat-card__value">
+        <%# The rate is configured per towel type — only show a single figure
+            when the report is filtered down to one towel type; otherwise
+            different towel types may have different current rates. %>
+        <% if @towel_type_filter %>
+          <% current_rate = LaundryStandardCostRate.effective_for(current_user.business, towel_type: @towel_type_filter, at: Time.current) %>
+          <%= current_rate ? format_currency(current_rate.cost_per_towel, precision: 2) : "—" %>
+        <% else %>
+          <span class="td-secondary" style="font-size: var(--text-sm);"><%= t("laundry.reports.branch_consumption.varies_by_towel_type") %></span>
+        <% end %>
+      </span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("laundry.reports.branch_consumption.cards.total_cost") %></span>
+      <span class="stat-card__value"><%= format_currency(@report.total_cost) %></span>
+    </div>
+  </div>
+
+  <% if @report.rows.empty? %>
+    <div class="empty-state" style="margin-top: var(--space-4);"><p class="empty-state__title"><%= t("laundry.reports.branch_consumption.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards" style="margin-top: var(--space-4);">
+      <table>
+        <thead><tr>
+          <th><%= t("laundry.reports.branch_consumption.table.branch") %></th>
+          <th style="text-align: end;"><%= t("laundry.reports.branch_consumption.table.towels_consumed") %></th>
+          <th style="text-align: end;"><%= t("laundry.reports.branch_consumption.table.standard_cost") %></th>
+          <th style="text-align: end;"><%= t("laundry.reports.branch_consumption.table.total_cost") %></th>
+          <th></th>
+        </tr></thead>
+        <% @report.rows.each do |row| %>
+          <tbody data-controller="collapsible">
+            <tr>
+              <td><%= row.branch.name %></td>
+              <td style="text-align: end;"><%= number_with_precision(row.towel_count, precision: 0) %></td>
+              <td style="text-align: end;">
+                <% if row.multiple_rates %>
+                  <span class="badge badge-neutral"><%= t("laundry.reports.branch_consumption.multiple_rates") %></span>
+                <% elsif row.single_rate %>
+                  <%= format_currency(row.single_rate) %>
+                <% else %>
+                  —
+                <% end %>
+              </td>
+              <td style="text-align: end;"><strong><%= format_currency(row.total_cost) %></strong></td>
+              <td>
+                <button type="button" class="btn btn-ghost btn-sm" data-collapsible-target="trigger" data-action="click->collapsible#toggle" aria-expanded="false">
+                  <%= t("laundry.balances.details") %>
+                </button>
+              </td>
+            </tr>
+            <tr data-collapsible-target="content" hidden>
+              <td colspan="5" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
+                <table style="width: 100%;">
+                  <thead><tr>
+                    <th><%= t("laundry.reports.branch_consumption.details.receipt_date") %></th>
+                    <th><%= t("laundry.reports.branch_consumption.details.transfer") %></th>
+                    <th><%= t("laundry.reports.branch_consumption.details.towel_type") %></th>
+                    <th style="text-align: end;"><%= t("laundry.reports.branch_consumption.details.confirmed_quantity") %></th>
+                    <th style="text-align: end;"><%= t("laundry.reports.branch_consumption.details.rate_applied") %></th>
+                    <th style="text-align: end;"><%= t("laundry.reports.branch_consumption.details.line_total") %></th>
+                    <th></th>
+                  </tr></thead>
+                  <tbody>
+                    <% row.events.each do |e| %>
+                      <tr>
+                        <td class="td-secondary"><%= l(e.received_at, format: :short) %></td>
+                        <td class="td-secondary">#<%= e.transfer.id %></td>
+                        <td class="td-secondary"><%= e.towel_type.name %></td>
+                        <td style="text-align: end;"><%= number_with_precision(e.confirmed_quantity, precision: 0) %></td>
+                        <td style="text-align: end;"><%= e.rate ? format_currency(e.rate) : "—" %></td>
+                        <td style="text-align: end;"><%= e.line_total ? format_currency(e.line_total) : "—" %></td>
+                        <td><%= link_to t("laundry.reports.branch_consumption.details.view_transfer"), laundry_towel_transfer_path(e.transfer), class: "link" %></td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </tbody>
+        <% end %>
+        <tfoot>
+          <tr>
+            <td><strong><%= t("laundry.reports.branch_consumption.table.total_row") %></strong></td>
+            <td style="text-align: end;"><strong><%= number_with_precision(@report.total_towels, precision: 0) %></strong></td>
+            <td></td>
+            <td style="text-align: end;"><strong><%= format_currency(@report.total_cost) %></strong></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <% end %>
+</div>

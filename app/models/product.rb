@@ -44,6 +44,11 @@ class Product < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0 }
   validates :selling_markup_percentage,
             numericality: { greater_than_or_equal_to: 0 }
+  # Display-only — no conversion math anywhere in the app. A product's
+  # quantities (receipts, issues, transfers, laundry consumption) are always
+  # in this one unit; never mix e.g. kg and g on the same product.
+  UNITS_OF_MEASURE = %w[pieces kg g l ml].freeze
+  validates :unit_of_measure, inclusion: { in: UNITS_OF_MEASURE }
   validate :parent_depth_constraint, if: :parent_product_id?
   validate :not_own_parent,          if: :parent_product_id?
 

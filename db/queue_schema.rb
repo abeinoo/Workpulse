@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_13_131414) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -286,6 +286,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
     t.string "address"
     t.integer "area_manager_id"
     t.integer "branch_manager_id"
+    t.string "branch_type", default: "sales", null: false
     t.integer "business_id", null: false
     t.datetime "created_at", null: false
     t.boolean "geolocation_enabled", default: false, null: false
@@ -297,6 +298,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
     t.datetime "updated_at", null: false
     t.index ["area_manager_id"], name: "index_branches_on_area_manager_id"
     t.index ["branch_manager_id"], name: "index_branches_on_branch_manager_id"
+    t.index ["branch_type"], name: "index_branches_on_branch_type"
     t.index ["business_id"], name: "index_branches_on_business_id"
   end
 
@@ -699,6 +701,69 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
     t.index ["product_id"], name: "index_inventory_movements_on_product_id"
     t.index ["source_type", "source_id"], name: "index_inventory_movements_on_source"
     t.index ["warehouse_id"], name: "index_inventory_movements_on_warehouse_id"
+  end
+
+  create_table "laundry_batch_consumptions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "inventory_movement_id", null: false
+    t.bigint "laundry_batch_id"
+    t.bigint "laundry_branch_id"
+    t.bigint "product_id", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.decimal "total_cost_snapshot", precision: 14, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost_snapshot", precision: 12, scale: 4, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["inventory_movement_id"], name: "index_laundry_batch_consumptions_on_inventory_movement_id"
+    t.index ["laundry_batch_id"], name: "index_laundry_batch_consumptions_on_laundry_batch_id"
+    t.index ["laundry_branch_id"], name: "index_laundry_batch_consumptions_on_laundry_branch_id"
+    t.index ["product_id"], name: "index_laundry_batch_consumptions_on_product_id"
+  end
+
+  create_table "laundry_batches", force: :cascade do |t|
+    t.string "batch_number", null: false
+    t.bigint "business_id", null: false
+    t.datetime "completed_at"
+    t.bigint "completed_by_id"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.decimal "damaged_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "disposed_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "input_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.bigint "laundry_branch_id", null: false
+    t.text "notes"
+    t.bigint "operator_id"
+    t.decimal "output_clean_quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.datetime "started_at"
+    t.string "status", default: "draft", null: false
+    t.bigint "towel_type_id", null: false
+    t.datetime "updated_at", null: false
+    t.text "void_reason"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.index ["business_id", "batch_number"], name: "index_laundry_batches_on_business_id_and_batch_number", unique: true
+    t.index ["business_id"], name: "index_laundry_batches_on_business_id"
+    t.index ["completed_by_id"], name: "index_laundry_batches_on_completed_by_id"
+    t.index ["created_by_id"], name: "index_laundry_batches_on_created_by_id"
+    t.index ["laundry_branch_id"], name: "index_laundry_batches_on_laundry_branch_id"
+    t.index ["operator_id"], name: "index_laundry_batches_on_operator_id"
+    t.index ["status"], name: "index_laundry_batches_on_status"
+    t.index ["towel_type_id"], name: "index_laundry_batches_on_towel_type_id"
+    t.index ["voided_by_id"], name: "index_laundry_batches_on_voided_by_id"
+  end
+
+  create_table "laundry_standard_cost_rates", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.decimal "cost_per_towel", precision: 12, scale: 4, null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.datetime "effective_from", null: false
+    t.bigint "towel_type_id"
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "effective_from"], name: "idx_on_business_id_effective_from_9c5086f2af"
+    t.index ["business_id"], name: "index_laundry_standard_cost_rates_on_business_id"
+    t.index ["created_by_id"], name: "index_laundry_standard_cost_rates_on_created_by_id"
+    t.index ["towel_type_id", "effective_from"], name: "idx_on_towel_type_id_effective_from"
+    t.index ["towel_type_id"], name: "index_laundry_standard_cost_rates_on_towel_type_id"
   end
 
   create_table "notifications", force: :cascade do |t|
@@ -1134,6 +1199,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
     t.decimal "selling_markup_percentage", precision: 8, scale: 2, default: "0.0", null: false
     t.string "sku", null: false
     t.boolean "track_inventory", default: true, null: false
+    t.string "unit_of_measure", default: "pieces", null: false
     t.datetime "updated_at", null: false
     t.index "business_id, lower((barcode)::text)", name: "index_products_on_business_id_and_lower_barcode", unique: true, where: "((barcode IS NOT NULL) AND ((barcode)::text <> ''::text))"
     t.index "business_id, lower((sku)::text)", name: "index_products_on_business_id_and_lower_sku", unique: true
@@ -1235,6 +1301,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
     t.integer "user_id", null: false
     t.index ["user_id", "active"], name: "index_salary_profiles_on_user_id_and_active"
     t.index ["user_id"], name: "index_salary_profiles_on_user_id"
+  end
+
+  create_table "services", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.decimal "expected_towel_usage", precision: 8, scale: 2, default: "0.0", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_services_on_business_id_and_name", unique: true
+    t.index ["business_id"], name: "index_services_on_business_id"
   end
 
   create_table "shift_assignments", force: :cascade do |t|
@@ -1757,6 +1834,90 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
     t.index ["depositor_id"], name: "index_till_sessions_on_depositor_id"
   end
 
+  create_table "towel_adjustments", force: :cascade do |t|
+    t.decimal "adjustment_quantity", precision: 12, scale: 3, null: false
+    t.string "adjustment_type", default: "correction", null: false
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.decimal "original_quantity", precision: 12, scale: 3, null: false
+    t.text "reason", null: false
+    t.string "status", null: false
+    t.bigint "towel_type_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id"], name: "index_towel_adjustments_on_branch_id"
+    t.index ["business_id"], name: "index_towel_adjustments_on_business_id"
+    t.index ["created_by_id"], name: "index_towel_adjustments_on_created_by_id"
+    t.index ["towel_type_id"], name: "index_towel_adjustments_on_towel_type_id"
+  end
+
+  create_table "towel_ledger_entries", force: :cascade do |t|
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.string "direction", null: false
+    t.datetime "occurred_at", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.string "reason", null: false
+    t.bigint "source_id"
+    t.string "source_type"
+    t.string "status", null: false
+    t.bigint "towel_type_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["branch_id", "status"], name: "index_towel_ledger_entries_on_branch_id_and_status"
+    t.index ["branch_id"], name: "index_towel_ledger_entries_on_branch_id"
+    t.index ["business_id", "occurred_at"], name: "index_towel_ledger_entries_on_business_id_and_occurred_at"
+    t.index ["business_id"], name: "index_towel_ledger_entries_on_business_id"
+    t.index ["created_by_id"], name: "index_towel_ledger_entries_on_created_by_id"
+    t.index ["source_type", "source_id"], name: "index_towel_ledger_entries_on_source"
+    t.index ["towel_type_id", "branch_id", "status"], name: "index_towel_ledger_on_type_branch_status"
+    t.index ["towel_type_id"], name: "index_towel_ledger_entries_on_towel_type_id"
+  end
+
+  create_table "towel_transfers", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
+    t.decimal "confirmed_quantity", precision: 12, scale: 3
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.decimal "declared_quantity", precision: 12, scale: 3, null: false
+    t.bigint "destination_branch_id", null: false
+    t.datetime "dispatched_at"
+    t.bigint "dispatched_by_id"
+    t.text "notes"
+    t.datetime "received_at"
+    t.bigint "received_by_id"
+    t.bigint "source_branch_id", null: false
+    t.string "status", default: "draft", null: false
+    t.string "towel_status", null: false
+    t.bigint "towel_type_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "status"], name: "index_towel_transfers_on_business_id_and_status"
+    t.index ["business_id"], name: "index_towel_transfers_on_business_id"
+    t.index ["cancelled_by_id"], name: "index_towel_transfers_on_cancelled_by_id"
+    t.index ["created_by_id"], name: "index_towel_transfers_on_created_by_id"
+    t.index ["destination_branch_id"], name: "index_towel_transfers_on_destination_branch_id"
+    t.index ["dispatched_by_id"], name: "index_towel_transfers_on_dispatched_by_id"
+    t.index ["received_by_id"], name: "index_towel_transfers_on_received_by_id"
+    t.index ["source_branch_id"], name: "index_towel_transfers_on_source_branch_id"
+    t.index ["status"], name: "index_towel_transfers_on_status"
+    t.index ["towel_type_id"], name: "index_towel_transfers_on_towel_type_id"
+  end
+
+  create_table "towel_types", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_towel_types_on_business_id_and_name", unique: true
+    t.index ["business_id"], name: "index_towel_types_on_business_id"
+  end
+
   create_table "user_audit_logs", force: :cascade do |t|
     t.string "action", null: false
     t.bigint "actor_id", null: false
@@ -1935,6 +2096,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
   add_foreign_key "inventory_movements", "businesses"
   add_foreign_key "inventory_movements", "products"
   add_foreign_key "inventory_movements", "warehouses"
+  add_foreign_key "laundry_batch_consumptions", "branches", column: "laundry_branch_id"
+  add_foreign_key "laundry_batch_consumptions", "inventory_movements"
+  add_foreign_key "laundry_batch_consumptions", "laundry_batches"
+  add_foreign_key "laundry_batch_consumptions", "products"
+  add_foreign_key "laundry_batches", "branches", column: "laundry_branch_id"
+  add_foreign_key "laundry_batches", "businesses"
+  add_foreign_key "laundry_batches", "towel_types"
+  add_foreign_key "laundry_batches", "users", column: "completed_by_id"
+  add_foreign_key "laundry_batches", "users", column: "created_by_id"
+  add_foreign_key "laundry_batches", "users", column: "operator_id"
+  add_foreign_key "laundry_batches", "users", column: "voided_by_id"
+  add_foreign_key "laundry_standard_cost_rates", "businesses"
+  add_foreign_key "laundry_standard_cost_rates", "towel_types"
+  add_foreign_key "laundry_standard_cost_rates", "users", column: "created_by_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "obligation_deductions", "employee_obligations"
   add_foreign_key "obligation_deductions", "payroll_periods"
@@ -2012,6 +2187,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
   add_foreign_key "remaining_deposit_balances", "users", column: "created_by_id"
   add_foreign_key "remaining_deposit_balances", "users", column: "responsible_user_id"
   add_foreign_key "salary_profiles", "users"
+  add_foreign_key "services", "businesses"
   add_foreign_key "shift_assignments", "branches"
   add_foreign_key "shift_assignments", "shift_rule_profiles"
   add_foreign_key "shift_assignments", "shift_templates", column: "source_template_id"
@@ -2091,6 +2267,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_120000) do
   add_foreign_key "till_sessions", "users", column: "closed_by_id"
   add_foreign_key "till_sessions", "users", column: "current_holder_id"
   add_foreign_key "till_sessions", "users", column: "depositor_id"
+  add_foreign_key "towel_adjustments", "branches"
+  add_foreign_key "towel_adjustments", "businesses"
+  add_foreign_key "towel_adjustments", "towel_types"
+  add_foreign_key "towel_adjustments", "users", column: "created_by_id"
+  add_foreign_key "towel_ledger_entries", "branches"
+  add_foreign_key "towel_ledger_entries", "businesses"
+  add_foreign_key "towel_ledger_entries", "towel_types"
+  add_foreign_key "towel_ledger_entries", "users", column: "created_by_id"
+  add_foreign_key "towel_transfers", "branches", column: "destination_branch_id"
+  add_foreign_key "towel_transfers", "branches", column: "source_branch_id"
+  add_foreign_key "towel_transfers", "businesses"
+  add_foreign_key "towel_transfers", "towel_types"
+  add_foreign_key "towel_transfers", "users", column: "cancelled_by_id"
+  add_foreign_key "towel_transfers", "users", column: "created_by_id"
+  add_foreign_key "towel_transfers", "users", column: "dispatched_by_id"
+  add_foreign_key "towel_transfers", "users", column: "received_by_id"
+  add_foreign_key "towel_types", "businesses"
   add_foreign_key "user_audit_logs", "users", column: "actor_id"
   add_foreign_key "user_audit_logs", "users", column: "target_user_id"
   add_foreign_key "users", "businesses"

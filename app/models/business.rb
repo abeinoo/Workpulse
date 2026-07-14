@@ -50,6 +50,15 @@ class Business < ApplicationRecord
   has_many :inventory_movements,  dependent: :destroy
   has_many :stock_issue_import_batches, dependent: :destroy
 
+  # Laundry Operations
+  has_many :towel_types,             dependent: :destroy
+  has_many :towel_ledger_entries,    dependent: :destroy
+  has_many :towel_transfers,         dependent: :destroy
+  has_many :laundry_batches,         dependent: :destroy
+  has_many :towel_adjustments,       dependent: :destroy
+  has_many :services,                dependent: :destroy
+  has_many :laundry_standard_cost_rates, dependent: :destroy
+
   has_many :departments,              dependent: :destroy
   has_many :evaluation_templates,     dependent: :destroy
   has_many :performance_reviews,      dependent: :destroy

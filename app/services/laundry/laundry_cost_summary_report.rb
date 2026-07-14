@@ -1,0 +1,132 @@
+module Laundry
+  # Read-only report: the central laundry's ACTUAL operating cost for a period
+  # (payroll + direct expenses + material consumption), compared against the
+  # STANDARD cost branches were charged (via BranchTowelConsumptionReport).
+  # These two numbers are computed completely independently and are never
+  # mixed — actual cost is management analysis only, never redistributed back
+  # to branches.
+  #
+  # Date rule per component (see class docs on each source for why):
+  #   towels:    TowelTransfer#received_at
+  #   expenses:  Expense#expense_date (Expense.in_period)
+  #   materials: StockIssue#issued_on (the existing, authoritative Inventory
+  #              Stock Issue workflow — see #laundry_material_cost_and_lines)
+  #   payroll:   whole finalized/paid PayrollPeriods overlapping [from, to] —
+  #              no proration; periods actually included are reported so the
+  #              UI can label them explicitly.
+  class LaundryCostSummaryReport
+    # One Stock Issue line item counted toward laundry material cost — carries
+    # everything the report's drill-down needs (issue #, date, warehouse,
+    # branch, status, product, quantity, cost) without re-deriving anything.
+    MaterialLine = Struct.new(:stock_issue, :product, :quantity, :unit_cost, :total_cost, keyword_init: true)
+
+    Result = Struct.new(
+      :laundry_branch, :consumption, :payroll_cost, :payroll_periods, :direct_expenses,
+      :material_cost, :material_lines, :actual_operating_cost, :coverage_variance, :actual_cost_per_towel,
+      keyword_init: true
+    ) do
+      def has_laundry_branch? = laundry_branch.present?
+    end
+
+    def initialize(business, from:, to:)
+      @business = business
+      @from     = from
+      @to       = to
+    end
+
+    def call
+      laundry_branch = @business.branches.branch_type_laundry.first
+      return Result.new(laundry_branch: nil) unless laundry_branch
+
+      consumption = BranchTowelConsumptionReport.new(@business, from: @from, to: @to).call
+      payroll_cost, payroll_periods = laundry_payroll_cost(laundry_branch)
+      direct_expenses = laundry_direct_expenses(laundry_branch)
+      material_cost, material_lines = laundry_material_cost_and_lines
+
+      actual = payroll_cost + direct_expenses + material_cost
+      variance = consumption.total_cost - actual
+      per_towel = consumption.total_towels.positive? ? (actual / consumption.total_towels) : nil
+
+      Result.new(
+        laundry_branch:         laundry_branch,
+        consumption:            consumption,
+        payroll_cost:           payroll_cost,
+        payroll_periods:        payroll_periods,
+        direct_expenses:        direct_expenses,
+        material_cost:          material_cost,
+        material_lines:         material_lines,
+        actual_operating_cost:  actual,
+        coverage_variance:      variance,
+        actual_cost_per_towel:  per_towel
+      )
+    end
+
+    private
+
+    # Whole finalized/paid payroll periods overlapping [from, to]; the users
+    # counted per period are whoever had a ShiftAssignment at the laundry
+    # branch overlapping that period (no splitting/proration of net_salary —
+    # see class docs).
+    def laundry_payroll_cost(laundry_branch)
+      periods = PayrollPeriod.for_business(@business)
+                             .where(status: %w[finalized paid])
+                             .select { |p| p.period_start <= @to.to_date && p.period_end >= @from.to_date }
+
+      total = periods.sum do |period|
+        user_ids = ShiftAssignment.user_ids_for_branch_during(laundry_branch.id,
+                                                               from: period.period_start, to: period.period_end)
+        next 0 if user_ids.empty?
+
+        PayrollEntry.where(payroll_period_id: period.id, user_id: user_ids).sum(:net_salary)
+      end
+
+      [ total, periods ]
+    end
+
+    # Mirrors Finance::Reports::ExpenseSummary#by_branch's direct+allocated
+    # pattern, restricted to the laundry branch only.
+    def laundry_direct_expenses(laundry_branch)
+      scoped = @business.expenses.where(status: "approved").in_period(@from.to_date, @to.to_date)
+      direct = scoped.where(branch_id: laundry_branch.id).sum(:amount)
+
+      shared_ids = scoped.where(is_shared: true).select(:id)
+      allocated  = ExpenseAllocation.where(expense_id: shared_ids, branch_id: laundry_branch.id)
+                                    .sum(:allocated_amount)
+
+      direct + allocated
+    end
+
+    # The existing Inventory Stock Issue workflow is the single source of
+    # truth for laundry material consumption — NOT a laundry-specific
+    # recording screen, and NOT a warehouse->warehouse stock transfer (a
+    # transfer only relocates stock; it never posts a StockIssue). A Stock
+    # Issue counts when:
+    #   - it's financially effective: status "posted" and not voided
+    #     (StockIssue.posted.active — voiding is the app's only "cancel" path
+    #     for a posted issue; ImmutableDocument means a posted issue is never
+    #     hard-deleted, so "active" is the correct exclusion, not a status
+    #     check alone);
+    #   - its consuming branch (StockIssue#branch) has branch_type: "laundry";
+    #   - its effective date (StockIssue#issued_on) falls in [from, to].
+    # Cost is the existing, immutable StockIssueItem#unit_cost/#total_cost
+    # snapshot — never re-derived from the product's current cost, and never
+    # duplicated with any other laundry-specific cost record.
+    def laundry_material_cost_and_lines
+      issues = StockIssue.for_business(@business)
+                         .posted.active
+                         .joins(:branch)
+                         .where(branches: { branch_type: "laundry" })
+                         .where(issued_on: @from.to_date..@to.to_date)
+                         .includes(:branch, :warehouse, items: :product)
+
+      lines = issues.flat_map do |issue|
+        issue.items.map do |item|
+          MaterialLine.new(stock_issue: issue, product: item.product, quantity: item.quantity,
+                           unit_cost: item.unit_cost, total_cost: item.total_cost)
+        end
+      end
+
+      [ lines.sum(&:total_cost), lines ]
+    end
+  end
+end

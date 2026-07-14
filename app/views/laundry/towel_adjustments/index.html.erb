@@ -1,0 +1,49 @@
+<% content_for :title, t("laundry.adjustments.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("laundry.adjustments.title") %></h1>
+    <div class="page-header__actions">
+      <% if policy(TowelAdjustment).new? %>
+        <%= link_to t("laundry.adjustments.add"), new_laundry_towel_adjustment_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @towel_adjustments.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.adjustments.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("laundry.common.branch") %></th>
+          <th><%= t("laundry.common.towel_type") %></th>
+          <th><%= t("laundry.adjustments.adjustment_type") %></th>
+          <th><%= t("laundry.common.status") %></th>
+          <th style="text-align: end;"><%= t("laundry.adjustments.original_quantity") %></th>
+          <th style="text-align: end;"><%= t("laundry.adjustments.adjustment_quantity") %></th>
+          <th style="text-align: end;"><%= t("laundry.adjustments.resulting_quantity") %></th>
+          <th><%= t("laundry.common.reason") %></th>
+          <th><%= t("laundry.towel_transfers.created_by_label") %></th>
+        </tr></thead>
+        <tbody>
+          <% @towel_adjustments.each do |adj| %>
+            <tr>
+              <td><%= adj.branch.name %></td>
+              <td class="td-secondary"><%= adj.towel_type.name %></td>
+              <td class="td-secondary"><%= t("laundry.adjustments.types.#{adj.adjustment_type}") %></td>
+              <td class="td-secondary"><%= t("laundry.common.towel_statuses.#{adj.status}") %></td>
+              <td style="text-align: end;"><%= number_with_precision(adj.original_quantity, precision: 0) %></td>
+              <td style="text-align: end; <%= 'color: var(--danger);' if adj.adjustment_quantity.negative? %>">
+                <%= adj.adjustment_quantity.positive? ? "+" : "" %><%= number_with_precision(adj.adjustment_quantity, precision: 0) %>
+              </td>
+              <td style="text-align: end;"><strong><%= number_with_precision(adj.resulting_quantity, precision: 0) %></strong></td>
+              <td class="td-secondary"><%= adj.reason %></td>
+              <td class="td-secondary"><%= adj.created_by&.full_name || "—" %> · <%= l(adj.created_at, format: :short) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

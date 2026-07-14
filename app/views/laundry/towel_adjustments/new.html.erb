@@ -1,0 +1,78 @@
+<% content_for :title, t("laundry.adjustments.add") %>
+
+<div class="admin-page">
+  <%= link_to laundry_towel_adjustments_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <h1 class="page-title"><%= t("laundry.adjustments.add") %></h1>
+
+  <% if @towel_types.blank? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.common.create_towel_type_first") %></p></div>
+  <% else %>
+    <%= form_with model: @towel_adjustment, url: laundry_towel_adjustments_path, scope: :towel_adjustment,
+          class: "form-card", data: { controller: "laundry-adjustment-form" } do |f| %>
+      <%= render "shared/error_messages", object: @towel_adjustment %>
+
+      <p class="form-hint"><%= t("laundry.adjustments.hint") %></p>
+
+      <div class="form-group">
+        <%= f.label :adjustment_type, t("laundry.adjustments.adjustment_type"), class: "form-label" %>
+        <%= f.select :adjustment_type,
+              options_for_select(TowelAdjustment.adjustment_types.keys.map { |t| [ t("laundry.adjustments.types.#{t}"), t ] },
+                                 @towel_adjustment.adjustment_type || "correction"),
+              {}, class: "form-control", required: true,
+              data: { action: "change->laundry-adjustment-form#update", laundry_adjustment_form_target: "typeSelect" } %>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <%= f.label :branch_id, t("laundry.common.branch"), class: "form-label" %>
+          <%= f.select :branch_id, options_from_collection_for_select(@branches, :id, :name, @towel_adjustment.branch_id),
+                { include_blank: "— #{t('laundry.common.branch')}" }, class: "form-control", required: true %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :towel_type_id, t("laundry.common.towel_type"), class: "form-label" %>
+          <%= f.select :towel_type_id, options_from_collection_for_select(@towel_types, :id, :name, @towel_adjustment.towel_type_id),
+                { include_blank: "— #{t('laundry.common.towel_type')}" }, class: "form-control", required: true %>
+        </div>
+      </div>
+
+      <div data-laundry-adjustment-form-target="correctionSection" class="form-grid">
+        <div class="form-group">
+          <%= f.label :status, t("laundry.common.status"), class: "form-label" %>
+          <%= f.select :status,
+                options_for_select(@statuses.map { |s| [ t("laundry.common.towel_statuses.#{s}"), s ] }, @towel_adjustment.status),
+                {}, class: "form-control" %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :adjustment_quantity, t("laundry.adjustments.adjustment_quantity"), class: "form-label" %>
+          <%= f.number_field :adjustment_quantity, step: 1, class: "form-control #{'is-error' if @towel_adjustment.errors[:adjustment_quantity].any?}" %>
+          <p class="form-hint"><%= t("laundry.adjustments.adjustment_quantity_hint") %></p>
+        </div>
+      </div>
+
+      <div data-laundry-adjustment-form-target="lossSection" class="form-grid" hidden>
+        <div class="form-group">
+          <%= f.label :quantity, t("laundry.adjustments.loss_quantity"), class: "form-label" %>
+          <%= f.number_field :quantity, min: 1, step: 1, class: "form-control" %>
+          <p class="form-hint"><%= t("laundry.adjustments.loss_quantity_hint") %></p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :reason, t("laundry.common.reason"), class: "form-label" %>
+        <%= f.text_area :reason, rows: 2, placeholder: t("laundry.adjustments.reason_placeholder"),
+              class: "form-control #{'is-error' if @towel_adjustment.errors[:reason].any?}", required: true %>
+      </div>
+
+      <div class="form-actions">
+        <%= f.submit t("common.save"), class: "btn btn-primary" %>
+        <%= link_to t("common.cancel"), laundry_towel_adjustments_path, class: "btn btn-ghost" %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

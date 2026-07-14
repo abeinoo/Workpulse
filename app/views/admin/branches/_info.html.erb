@@ -4,6 +4,10 @@
 
 <div class="info-card">
   <div class="info-card__row">
+    <span class="info-card__label"><%= t("admin.branches.branch_type") %></span>
+    <span><%= t("admin.branches.branch_types.#{@branch.branch_type}") %></span>
+  </div>
+  <div class="info-card__row">
     <span class="info-card__label"><%= t("admin.branches.branch_manager") %></span>
     <span>
       <% if @branch_manager %>

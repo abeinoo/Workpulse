@@ -1,0 +1,50 @@
+<%
+  branch_types_json = @branches.to_h { |b| [ b.id, b.branch_type ] }.to_json
+%>
+<%= form_with model: towel_transfer, url: laundry_towel_transfers_path, scope: :towel_transfer, class: "form-card",
+      data: {
+        controller: "laundry-transfer-form",
+        laundry_transfer_form_branch_types_value: branch_types_json,
+        laundry_transfer_form_dirty_label_value: t("laundry.towel_transfers.inferred_condition", condition: t("laundry.towel_transfers.towel_statuses.dirty")),
+        laundry_transfer_form_clean_label_value: t("laundry.towel_transfers.inferred_condition", condition: t("laundry.towel_transfers.towel_statuses.clean"))
+      } do |f| %>
+  <%= render "shared/error_messages", object: towel_transfer %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :towel_type_id, t("laundry.common.towel_type"), class: "form-label" %>
+      <%= f.select :towel_type_id, options_from_collection_for_select(@towel_types, :id, :name, towel_transfer.towel_type_id),
+            { include_blank: "— #{t('laundry.common.towel_type')}" }, class: "form-control", required: true %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :source_branch_id, t("laundry.towel_transfers.source_branch"), class: "form-label" %>
+      <%= f.select :source_branch_id, options_from_collection_for_select(@branches, :id, :name, towel_transfer.source_branch_id),
+            { include_blank: "— #{t('laundry.towel_transfers.source_branch')}" }, class: "form-control", required: true,
+            data: { laundry_transfer_form_target: "sourceSelect", action: "change->laundry-transfer-form#update" } %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :destination_branch_id, t("laundry.towel_transfers.destination_branch"), class: "form-label" %>
+      <%= f.select :destination_branch_id, options_from_collection_for_select(@branches, :id, :name, towel_transfer.destination_branch_id),
+            { include_blank: "— #{t('laundry.towel_transfers.destination_branch')}" }, class: "form-control", required: true,
+            data: { laundry_transfer_form_target: "destinationSelect", action: "change->laundry-transfer-form#update" } %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :declared_quantity, t("laundry.towel_transfers.declared_quantity"), class: "form-label" %>
+      <%= f.number_field :declared_quantity, min: 1, step: 1, class: "form-control #{'is-error' if towel_transfer.errors[:declared_quantity].any?}" %>
+      <p class="form-hint" data-laundry-transfer-form-target="inferredHint" hidden></p>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :notes, t("laundry.common.notes"), class: "form-label" %>
+    <%= f.text_area :notes, rows: 2, class: "form-control" %>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), laundry_towel_transfers_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

@@ -1,0 +1,191 @@
+<% content_for :title, @laundry_batch.batch_number %>
+
+<div class="admin-page">
+  <%= link_to laundry_laundry_batches_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <div class="card" style="margin-bottom: var(--space-5);"
+       <%= "data-controller='collapsible'".html_safe if policy(@laundry_batch).complete? && @laundry_batch.completed? %>>
+    <div class="card-header">
+      <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+        <h1 class="card-title" style="margin: 0; font-size: var(--text-lg);"><%= @laundry_batch.batch_number %></h1>
+        <%= render "status_badge", status: @laundry_batch.status, size: "md" %>
+        <% if @laundry_batch.voided? %>
+          <span class="badge badge-danger"><%= t("laundry.batches.actions.reverse") %></span>
+        <% end %>
+      </div>
+
+      <div class="page-header__actions">
+        <% if policy(@laundry_batch).complete? && @laundry_batch.completed? %>
+          <button type="button" class="btn btn-danger btn-sm" data-collapsible-target="trigger" data-action="click->collapsible#toggle">
+            <%= t("laundry.batches.actions.reverse") %>
+          </button>
+        <% end %>
+      </div>
+    </div>
+
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("laundry.common.towel_type") %></dt>
+        <dd><%= @laundry_batch.towel_type.name %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("laundry.batches.laundry_branch") %></dt>
+        <dd><%= @laundry_batch.laundry_branch.name %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("laundry.batches.operator") %></dt>
+        <dd><%= @laundry_batch.operator&.full_name || "—" %></dd>
+      </div>
+      <% if @laundry_batch.started_at %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.batches.actions.start") %></dt>
+          <dd><%= number_with_precision(@laundry_batch.input_quantity, precision: 0) %> · <%= l(@laundry_batch.started_at, format: :short) %></dd>
+        </div>
+      <% end %>
+      <% if @laundry_batch.completed_at %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.batches.output_clean_quantity") %></dt>
+          <dd><%= number_with_precision(@laundry_batch.output_clean_quantity, precision: 0) %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.batches.damaged_quantity") %></dt>
+          <dd><%= number_with_precision(@laundry_batch.damaged_quantity, precision: 0) %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.batches.disposed_quantity") %></dt>
+          <dd><%= number_with_precision(@laundry_batch.disposed_quantity, precision: 0) %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.batches.actions.complete") %></dt>
+          <dd><%= @laundry_batch.completed_by&.full_name || "—" %> · <%= l(@laundry_batch.completed_at, format: :short) %></dd>
+        </div>
+      <% end %>
+      <div class="detail-list__row">
+        <dt><%= t("laundry.batches.total_material_cost") %></dt>
+        <dd><strong><%= format_currency(@laundry_batch.total_material_cost) %></strong></dd>
+      </div>
+      <% if @laundry_batch.notes.present? %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.common.notes") %></dt>
+          <dd><%= simple_format(@laundry_batch.notes) %></dd>
+        </div>
+      <% end %>
+      <% if @laundry_batch.voided? %>
+        <div class="detail-list__row">
+          <dt><%= t("laundry.batches.actions.reverse") %></dt>
+          <dd style="color: var(--danger);"><%= @laundry_batch.voided_by&.full_name %> · <%= l(@laundry_batch.voided_at, format: :short) %> — <%= @laundry_batch.void_reason %></dd>
+        </div>
+      <% end %>
+    </dl>
+
+    <% if policy(@laundry_batch).complete? && @laundry_batch.completed? %>
+      <div data-collapsible-target="content" hidden
+           style="padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); background: var(--navy-700);">
+        <%= form_with url: reverse_laundry_laundry_batch_path(@laundry_batch), method: :patch,
+              style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+          <%= text_field_tag :reason, nil, placeholder: t("laundry.batches.reverse_reason_placeholder"),
+                class: "form-control form-control--sm", style: "flex: 1; min-width: 200px;", required: true %>
+          <%= submit_tag t("laundry.batches.actions.reverse"), class: "btn btn-danger btn-sm" %>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="click->collapsible#toggle"><%= t("common.cancel") %></button>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <% if policy(@laundry_batch).start? && @laundry_batch.draft? %>
+    <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card-header"><h2 class="card-title"><%= t("laundry.batches.actions.start") %></h2></div>
+      <div style="padding: var(--space-4) var(--space-5);">
+        <%= form_with url: start_laundry_laundry_batch_path(@laundry_batch), method: :patch,
+              style: "display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap;" do %>
+          <div class="form-group" style="margin: 0;">
+            <%= label_tag :input_quantity, t("laundry.batches.input_quantity"), class: "form-label" %>
+            <%= number_field_tag :input_quantity, nil, min: 1, step: 1, class: "form-control", required: true %>
+          </div>
+          <%= submit_tag t("laundry.batches.actions.start"), class: "btn btn-primary" %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if @laundry_batch.in_progress? %>
+    <% if policy(@laundry_batch).record_consumption? %>
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <div class="card-header"><h2 class="card-title"><%= t("laundry.batches.section_consumption") %></h2></div>
+        <div style="padding: var(--space-4) var(--space-5);">
+          <%= form_with url: laundry_laundry_batch_consumptions_path(@laundry_batch), method: :post,
+                style: "display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap;" do %>
+            <div class="form-group" style="margin: 0; min-width: 200px;">
+              <%= label_tag :product_id, t("laundry.batches.product"), class: "form-label" %>
+              <%= select_tag :product_id,
+                    options_from_collection_for_select(current_user.business.products.transactable.ordered, :id, :name),
+                    include_blank: "— #{t('laundry.batches.product')}", class: "form-control", required: true %>
+            </div>
+            <div class="form-group" style="margin: 0; min-width: 160px;">
+              <%= label_tag :warehouse_id, t("laundry.batches.warehouse"), class: "form-label" %>
+              <%= select_tag :warehouse_id,
+                    options_from_collection_for_select(current_user.business.warehouses.order(:name), :id, :name, laundry_warehouse&.id),
+                    class: "form-control", required: true %>
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <%= label_tag :quantity, t("laundry.common.quantity"), class: "form-label" %>
+              <%= number_field_tag :quantity, nil, min: 0.001, step: 0.001, class: "form-control", required: true %>
+            </div>
+            <%= submit_tag t("laundry.batches.actions.record_consumption"), class: "btn btn-secondary" %>
+          <% end %>
+        </div>
+
+        <% if @consumptions.any? %>
+          <div class="table-wrap" style="margin-bottom: 0;">
+            <table>
+              <thead><tr>
+                <th><%= t("laundry.batches.product") %></th>
+                <th style="text-align: end;"><%= t("laundry.common.quantity") %></th>
+                <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
+              </tr></thead>
+              <tbody>
+                <% @consumptions.each do |c| %>
+                  <tr>
+                    <td><%= c.product.name %> <span class="td-secondary">(<%= c.product.unit_of_measure %>)</span></td>
+                    <td style="text-align: end;"><%= number_with_precision(c.quantity, precision: 3) %></td>
+                    <td style="text-align: end;"><%= format_currency(c.total_cost_snapshot) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% else %>
+          <p class="td-secondary" style="padding: 0 var(--space-5) var(--space-4);"><%= t("laundry.batches.no_consumptions") %></p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if policy(@laundry_batch).complete? %>
+      <div class="card">
+        <div class="card-header"><h2 class="card-title"><%= t("laundry.batches.section_complete") %></h2></div>
+        <div style="padding: var(--space-4) var(--space-5);">
+          <%= form_with url: complete_laundry_laundry_batch_path(@laundry_batch), method: :patch, class: "form-grid" do %>
+            <div class="form-group">
+              <%= label_tag :output_clean_quantity, t("laundry.batches.output_clean_quantity"), class: "form-label" %>
+              <%= number_field_tag :output_clean_quantity, nil, min: 0, step: 1, class: "form-control", required: true %>
+            </div>
+            <div class="form-group">
+              <%= label_tag :damaged_quantity, t("laundry.batches.damaged_quantity"), class: "form-label" %>
+              <%= number_field_tag :damaged_quantity, 0, min: 0, step: 1, class: "form-control" %>
+            </div>
+            <div class="form-group">
+              <%= label_tag :disposed_quantity, t("laundry.batches.disposed_quantity"), class: "form-label" %>
+              <%= number_field_tag :disposed_quantity, 0, min: 0, step: 1, class: "form-control" %>
+            </div>
+            <div class="form-actions" style="grid-column: 1 / -1;">
+              <%= submit_tag t("laundry.batches.actions.complete"), class: "btn btn-primary" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+</div>

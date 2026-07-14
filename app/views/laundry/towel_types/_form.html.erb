@@ -1,0 +1,22 @@
+<%= form_with model: [ :laundry, towel_type ], class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: towel_type %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :name, t("laundry.towel_types.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if towel_type.errors[:name].any?}" %>
+    </div>
+
+    <div class="form-group">
+      <label class="form-check">
+        <%= f.check_box :active, class: "form-check-input" %>
+        <span class="form-check-label"><%= t("laundry.towel_types.active") %></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), laundry_towel_types_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

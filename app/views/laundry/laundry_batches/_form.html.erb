@@ -1,0 +1,33 @@
+<%= form_with model: laundry_batch, url: laundry_laundry_batches_path, scope: :laundry_batch, class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: laundry_batch %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :laundry_branch_id, t("laundry.batches.laundry_branch"), class: "form-label" %>
+      <%= f.select :laundry_branch_id, options_from_collection_for_select(@laundry_branches, :id, :name, laundry_batch.laundry_branch_id),
+            { include_blank: "— #{t('laundry.batches.laundry_branch')}" }, class: "form-control", required: true %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :towel_type_id, t("laundry.common.towel_type"), class: "form-label" %>
+      <%= f.select :towel_type_id, options_from_collection_for_select(@towel_types, :id, :name, laundry_batch.towel_type_id),
+            { include_blank: "— #{t('laundry.common.towel_type')}" }, class: "form-control", required: true %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :operator_id, t("laundry.batches.operator"), class: "form-label" %>
+      <%= f.select :operator_id, options_from_collection_for_select(@operators, :id, :full_name, laundry_batch.operator_id),
+            { include_blank: "— #{t('laundry.batches.operator')}" }, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :notes, t("laundry.common.notes"), class: "form-label" %>
+    <%= f.text_area :notes, rows: 2, class: "form-control" %>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), laundry_laundry_batches_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

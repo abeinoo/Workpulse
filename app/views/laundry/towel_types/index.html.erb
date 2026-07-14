@@ -1,0 +1,59 @@
+<% content_for :title, t("laundry.towel_types.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("laundry.towel_types.title") %></h1>
+    <div class="page-header__actions">
+      <% if policy(TowelType).new? %>
+        <%= link_to t("laundry.towel_types.add"), new_laundry_towel_type_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @towel_types.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("laundry.towel_types.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("laundry.towel_types.name") %></th>
+          <th><%= t("laundry.towel_types.active") %></th>
+          <% if @can_view_cost %>
+            <th><%= t("laundry.towel_types.current_cost") %></th>
+            <th><%= t("laundry.standard_cost_rates.effective_from") %></th>
+          <% end %>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @towel_types.each do |towel_type| %>
+            <% rate = @current_rates && @current_rates[towel_type.id] %>
+            <tr>
+              <td><%= towel_type.name %></td>
+              <td><span class="badge <%= towel_type.active? ? 'badge-success' : 'badge-neutral' %>"><%= towel_type.active? ? t("common.yes") : t("common.no") %></span></td>
+              <% if @can_view_cost %>
+                <td><%= rate ? format_currency(rate.cost_per_towel, precision: 2) : t("laundry.towel_types.no_cost_configured") %></td>
+                <td class="td-secondary"><%= rate ? l(rate.effective_from, format: :short) : "—" %></td>
+              <% end %>
+              <td>
+                <div style="display: flex; gap: var(--space-1); align-items: center;">
+                  <% if policy(towel_type).update? %>
+                    <%= link_to t("common.edit"), edit_laundry_towel_type_path(towel_type), class: "btn btn-secondary btn-sm" %>
+                  <% end %>
+                  <% if @can_manage_cost %>
+                    <%= link_to(rate ? t("laundry.towel_types.update_cost") : t("laundry.towel_types.set_cost"),
+                          new_laundry_towel_type_standard_cost_rate_path(towel_type), class: "btn btn-secondary btn-sm") %>
+                  <% end %>
+                  <% if policy(towel_type).destroy? %>
+                    <%= button_to t("common.delete"), laundry_towel_type_path(towel_type), method: :delete,
+                          class: "btn btn-ghost btn-sm text-danger", form: { style: "display:inline" },
+                          data: { turbo_confirm: t("laundry.towel_types.confirm_delete") } %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

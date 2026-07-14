@@ -487,6 +487,51 @@ Rails.application.routes.draw do
     resources :deposit_verifications, only: %i[index]
   end
 
+  # ── Laundry Operations ─────────────────────────────────────────────────────
+  namespace :laundry do
+    root to: "dashboard#index"
+
+    resources :towel_types, except: [ :show ] do
+      resources :standard_cost_rates, only: %i[new create]
+    end
+
+    resources :towel_transfers, only: %i[index show new create] do
+      member do
+        # NOTE: not named `dispatch` — that's ActionController::Metal's core
+        # routing method; overriding it with a same-named action breaks every
+        # action on the controller, not just this one.
+        patch :mark_dispatched
+        patch :receive
+        patch :cancel
+      end
+    end
+
+    resources :laundry_batches, only: %i[index show new create] do
+      member do
+        patch :start
+        patch :complete
+        patch :reverse
+      end
+      resources :consumptions, only: [ :create ], controller: "laundry_batch_consumptions"
+    end
+
+    resources :towel_adjustments, only: %i[index new create]
+
+    get "balances", to: "towel_balances#index", as: :towel_balances
+
+    # NOTE: laundry material consumption is NOT recorded here — the existing
+    # Inventory Stock Issue workflow (inventory/stock_issues) is the single
+    # source of truth. See Laundry::LaundryCostSummaryReport.
+
+    # NOTE: standard washing-cost rates are managed per towel type, nested
+    # under towel_types above — there is no standalone rate-management page.
+
+    namespace :reports do
+      get "branch_consumption", to: "branch_consumption#index"
+      get "cost_summary",       to: "cost_summary#index"
+    end
+  end
+
   # ── Performance Evaluation ────────────────────────────────────────────────
   namespace :performance do
     root to: "dashboard#index"

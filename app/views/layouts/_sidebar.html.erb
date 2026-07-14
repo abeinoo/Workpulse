@@ -145,9 +145,21 @@
         <% end %>
       <% end %>
 
-      <%# ── INVENTORY ────────────────────────────────────────────────── %>
+      <%# ── INVENTORY (collapsible) ─────────────────────────────────── %>
       <% if current_user.can?(:view_inventory) || current_user.can?(:manage_inventory) || current_user.can?(:view_inventory_reports) %>
-        <span class="sidebar__section-label"><%= t("nav.section_inventory") %></span>
+        <% inventory_active =
+             (controller_name == 'dashboard' && controller_path.start_with?('inventory')) ||
+             (controller_name.in?(%w[products brands product_categories]) && controller_path.start_with?('inventory')) ||
+             controller_name == 'warehouses' ||
+             controller_name == 'suppliers' ||
+             controller_name == 'goods_receipts' ||
+             controller_name == 'stock_issues' ||
+             controller_name == 'stock_transfers' ||
+             controller_name == 'stock_adjustments' ||
+             controller_name == 'stock_counts' ||
+             (controller_name == 'reports' && controller_path.start_with?('inventory')) %>
+        <%= render layout: "layouts/sidebar_group",
+              locals: { key: "inventory", label: t("nav.section_inventory"), active: inventory_active } do %>
 
         <%= link_to inventory_root_path,
               class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('inventory') ? 'is-active' : ''}",
@@ -220,6 +232,7 @@
             <%= t("nav.inventory_reports") %>
           <% end %>
         <% end %>
+        <% end %>
       <% end %>
 
       <%# ── FINANCE ──────────────────────────────────────────────────── %>
@@ -236,7 +249,18 @@
                             settle_remaining_deposit_balance
                             view_deposit_verification import_bank_statement] %>
       <% if finance_perms.any? { |p| current_user.can?(p) } %>
-        <span class="sidebar__section-label"><%= t("nav.section_finance") %></span>
+        <% finance_active =
+             (controller_name == 'dashboard' && controller_path.start_with?('finance')) ||
+             controller_name == 'expenses' ||
+             %w[custody_accounts custody_transactions balance_requests].include?(controller_name) ||
+             controller_name == 'branch_revenues' ||
+             (controller_name == 'reports' && controller_path.start_with?('finance')) ||
+             controller_name == 'payment_methods' ||
+             controller_name == 'daily_reconciliations' ||
+             controller_name == 'deposit_verifications' ||
+             %w[bank_statements bank_statement_transactions].include?(controller_name) %>
+        <%= render layout: "layouts/sidebar_group",
+              locals: { key: "finance", label: t("nav.section_finance"), active: finance_active } do %>
 
         <% if current_user.can?(:view_finance_dashboard) %>
           <%= link_to finance_root_path,
@@ -320,14 +344,115 @@
           <% end %>
         <% end %>
 
+        <% end %>
       <% end %>
 
-      <%# ── PERFORMANCE ──────────────────────────────────────────────── %>
+      <%# ── LAUNDRY (collapsible) ───────────────────────────────────── %>
+      <% laundry_perms = %i[view_towel_balances create_towel_transfers confirm_towel_receipt
+                            adjust_towel_balances configure_towel_usage_expectations
+                            view_laundry_consumption_reports view_laundry_cost_reports
+                            manage_laundry_cost_settings] %>
+      <% if laundry_perms.any? { |p| current_user.can?(p) } %>
+        <% laundry_active =
+             (controller_name == 'dashboard' && controller_path.start_with?('laundry')) ||
+             controller_name == 'towel_balances' ||
+             controller_name == 'towel_transfers' ||
+             controller_name == 'towel_adjustments' ||
+             controller_name == 'towel_types' ||
+             controller_path == 'laundry/reports/branch_consumption' ||
+             controller_path == 'laundry/reports/cost_summary' %>
+        <%= render layout: "layouts/sidebar_group",
+              locals: { key: "laundry", label: t("nav.section_laundry"), active: laundry_active } do %>
+
+        <%= link_to laundry_root_path,
+              class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'dashboard' && controller_path.start_with?('laundry') ? 'is-active' : ''}",
+              data: { action: "click->sidebar#close" } do %>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+          <%= t("nav.laundry_dashboard") %>
+        <% end %>
+
+        <% if current_user.can?(:view_towel_balances) %>
+          <%= link_to laundry_towel_balances_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'towel_balances' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <%= t("nav.laundry_balances") %>
+          <% end %>
+        <% end %>
+
+        <% if current_user.can?(:view_towel_balances) || current_user.can?(:create_towel_transfers) || current_user.can?(:confirm_towel_receipt) %>
+          <%= link_to laundry_towel_transfers_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'towel_transfers' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            <%= t("nav.laundry_transfers") %>
+          <% end %>
+        <% end %>
+
+        <%# Laundry Batches intentionally not linked here — the operational
+            workflow is transfer-driven (see Laundry::TowelTransfersController).
+            The batch domain (app/controllers/laundry/laundry_batches_controller.rb)
+            is preserved and still reachable by direct URL for a future
+            advanced phase; it's just not part of normal navigation. %>
+
+        <% if current_user.can?(:adjust_towel_balances) || current_user.can?(:view_towel_balances) %>
+          <%= link_to laundry_towel_adjustments_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'towel_adjustments' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+            <%= t("nav.laundry_adjustments") %>
+          <% end %>
+        <% end %>
+
+        <% if current_user.can?(:configure_towel_usage_expectations) %>
+          <%= link_to laundry_towel_types_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'towel_types' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+            <%= t("nav.laundry_towel_types") %>
+          <% end %>
+        <% end %>
+
+        <% if current_user.can?(:view_laundry_consumption_reports) %>
+          <%= link_to laundry_reports_branch_consumption_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_path == 'laundry/reports/branch_consumption' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="13" width="3" height="5"/><rect x="12" y="9" width="3" height="9"/><rect x="17" y="6" width="3" height="12"/></svg>
+            <%= t("nav.laundry_branch_consumption") %>
+          <% end %>
+        <% end %>
+
+        <% if current_user.can?(:view_laundry_cost_reports) %>
+          <%= link_to laundry_reports_cost_summary_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_path == 'laundry/reports/cost_summary' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
+            <%= t("nav.laundry_cost_summary") %>
+          <% end %>
+        <% end %>
+
+        <%# Laundry material consumption is recorded through the existing
+            Inventory > Stock Issues workflow, not a laundry-specific screen —
+            see Laundry::LaundryCostSummaryReport. %>
+
+        <%# Standard washing-cost management lives inside the Towel Types
+            page (Laundry::StandardCostRatesController, nested under
+            towel_types) — not a standalone sidebar item. %>
+        <% end %>
+      <% end %>
+
+      <%# ── PERFORMANCE (collapsible) ───────────────────────────────── %>
       <% if current_user.can?(:view_performance_dashboard) || current_user.can?(:view_notes)          ||
             current_user.can?(:view_monthly_reviews)       || current_user.can?(:view_performance_reports) ||
             current_user.can?(:create_observations)        || current_user.can?(:manage_reviews)      ||
             current_user.can?(:finalize_reviews)           || current_user.can?(:manage_evaluation_templates) %>
-        <span class="sidebar__section-label"><%= t("nav.section_performance") %></span>
+        <% performance_active =
+             (controller_name == 'dashboard' && controller_path.start_with?('performance')) ||
+             controller_name == 'observations' ||
+             (controller_name == 'reviews' && controller_path.start_with?('performance')) ||
+             (controller_name == 'reports' && controller_path.start_with?('performance')) %>
+        <%= render layout: "layouts/sidebar_group",
+              locals: { key: "performance", label: t("nav.section_performance"), active: performance_active } do %>
 
         <% if current_user.can?(:view_performance_dashboard) %>
           <%= link_to performance_root_path,
@@ -364,6 +489,7 @@
             <%= t("nav.performance_reports") %>
           <% end %>
         <% end %>
+        <% end %>
       <% end %>
 
       <%# ── ADMINISTRATION (collapsible) ────────────────────────────── %>
@@ -375,11 +501,8 @@
       <% if show_devices || show_obligations || show_roles || show_settings || show_eval_templates %>
         <% admin_paths = %w[/admin/biometric_devices /admin/employee_obligations /admin/permission_roles /admin/settings /admin/departments /admin/evaluation_templates] %>
         <% admin_active = admin_paths.any? { |p| request.path.start_with?(p) } %>
-          <details class="sidebar__group" <%= 'open' if admin_active %>>
-            <summary class="sidebar__section-label sidebar__group-toggle">
-              <%= t("nav.section_administration") %>
-              <svg class="sidebar__group-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-            </summary>
+        <%= render layout: "layouts/sidebar_group",
+              locals: { key: "administration", label: t("nav.section_administration"), active: admin_active } do %>
 
             <% if show_devices %>
               <%= link_to admin_biometric_devices_path,
@@ -432,7 +555,7 @@
                 <%= t("nav.evaluation_templates") %>
               <% end %>
             <% end %>
-          </details>
+        <% end %>
       <% end %>
 
     <% else %>

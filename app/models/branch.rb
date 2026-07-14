@@ -1,4 +1,25 @@
 class Branch < ApplicationRecord
+  # "sales" branches are salon locations that appear in POS/sales-facing branch
+  # pickers. Other types are internal operational units (laundry, a warehouse,
+  # HQ, maintenance, or an uncategorized "other") that reuse Branch purely to
+  # participate in shift assignments, attendance, payroll, and expenses — see
+  # CLAUDE.md's laundry architecture notes for why this is additive rather
+  # than a separate OperationalUnit model.
+  #
+  # branch_type describes operational PURPOSE, not a specific module — it is
+  # reused across inventory, laundry, and reporting. Every module that needs
+  # to restrict itself to certain kinds of locations (e.g. the towel-transfer
+  # selectors only offering sales/laundry branches — see
+  # Laundry::TowelTransfersController) must branch on this field, never infer
+  # anything from Branch#name.
+  #
+  # "warehouse_ops" was renamed to "warehouse" (see
+  # db/migrate/*_rename_warehouse_ops_branch_type_to_warehouse.rb) — verified
+  # zero rows and zero code references used the old value before renaming.
+  enum :branch_type, { sales: "sales", laundry: "laundry", warehouse: "warehouse",
+                        headquarters: "headquarters", maintenance: "maintenance", other: "other" },
+       default: "sales", prefix: true
+
   belongs_to :business
   belongs_to :branch_manager, class_name: "User", optional: true
   belongs_to :area_manager,   class_name: "User", optional: true
@@ -14,8 +35,16 @@ class Branch < ApplicationRecord
   has_many :custody_accounts,    dependent: :restrict_with_error
   has_many :branch_revenues,     dependent: :restrict_with_error
 
-  validates :name,     presence: true
-  validates :business, presence: true
+  # Laundry Operations — towel ledger rows and transfers reference a branch as
+  # a physical location (any branch, not only branch_type: "laundry").
+  has_many :towel_ledger_entries,           dependent: :restrict_with_error
+  has_many :outgoing_towel_transfers, class_name: "TowelTransfer", foreign_key: :source_branch_id,      dependent: :restrict_with_error, inverse_of: :source_branch
+  has_many :incoming_towel_transfers, class_name: "TowelTransfer", foreign_key: :destination_branch_id, dependent: :restrict_with_error, inverse_of: :destination_branch
+  has_many :laundry_batches, foreign_key: :laundry_branch_id, dependent: :restrict_with_error, inverse_of: :laundry_branch
+
+  validates :name,        presence: true
+  validates :business,    presence: true
+  validates :branch_type, presence: true
   validates :latitude, :longitude, :radius_meters,
             presence: true,
             if: :geolocation_enabled?
@@ -25,4 +54,11 @@ class Branch < ApplicationRecord
 
   scope :active,        -> { where(active: true) }
   scope :for_business,  ->(business) { where(business: business) }
+
+  # The only branch types the simplified towel-transfer workflow supports as
+  # a source or destination — see Laundry::TowelTransfersController and
+  # TowelTransfer.infer_towel_status. Warehouse/headquarters/maintenance/other
+  # branches are deliberately excluded from those selectors; they require
+  # explicit support before participating in any laundry workflow.
+  scope :laundry_transfer_eligible, -> { where(branch_type: %w[sales laundry]) }
 end
