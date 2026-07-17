@@ -7,11 +7,12 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   def show
     @goods_receipt = find_receipt
     authorize @goods_receipt
-    @items = @goods_receipt.items.includes(:product)
+    @items       = @goods_receipt.items.includes(:product)
+    @settlements = @goods_receipt.financial_settlements.chronological.includes(:funding_source, :created_by)
   end
 
   def new
-    @goods_receipt = current_user.business.goods_receipts.build(received_on: Date.current)
+    @goods_receipt = current_user.business.goods_receipts.build(received_on: Date.current, funding_source_kind: "employee_custody")
     @goods_receipt.items.build
     authorize @goods_receipt
     load_options
@@ -20,11 +21,11 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   def create
     @goods_receipt = current_user.business.goods_receipts.build(receipt_params)
     @goods_receipt.created_by = current_user
+    assign_funding_source
     authorize @goods_receipt
     ensure_warehouses_accessible!(@goods_receipt.warehouse_id)
 
-    result = Inventory::GoodsReceiptPoster.new(@goods_receipt).call
-    if result.ok?
+    if @goods_receipt.save
       redirect_to inventory_goods_receipt_path(@goods_receipt), notice: t("inventory.goods_receipts.created")
     else
       load_options
@@ -33,15 +34,26 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     end
   end
 
+  def confirm
+    @goods_receipt = find_receipt
+    authorize @goods_receipt, :confirm?
+    result = Inventory::GoodsReceiptConfirmationService.new(goods_receipt_id: @goods_receipt.id, actor: current_user).call
+    if result.ok?
+      redirect_to inventory_goods_receipt_path(@goods_receipt), notice: t("inventory.goods_receipts.confirmed")
+    else
+      redirect_to inventory_goods_receipt_path(@goods_receipt), alert: result.error
+    end
+  end
+
   def void
     @goods_receipt = find_receipt
     authorize @goods_receipt, :void?
-    result = Inventory::DocumentVoider.new(@goods_receipt, user: current_user, reason: params[:void_reason]).call
+    result = Inventory::GoodsReceiptVoider.new(goods_receipt_id: @goods_receipt.id, actor: current_user, reason: params[:void_reason]).call
     if result.ok?
       redirect_to inventory_goods_receipt_path(@goods_receipt), notice: t("inventory.goods_receipts.voided")
     else
       redirect_to inventory_goods_receipt_path(@goods_receipt),
-                  alert: @goods_receipt.errors.full_messages.to_sentence.presence || t("inventory.void.failed")
+                  alert: result.error.presence || @goods_receipt.errors.full_messages.to_sentence.presence || t("inventory.void.failed")
     end
   end
 
@@ -52,14 +64,24 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   end
 
   def load_options
-    @warehouses = accessible_warehouses
-    @suppliers  = current_user.business.suppliers.ordered
-    @products   = current_user.business.products.transactable.ordered
+    @warehouses      = accessible_warehouses
+    @suppliers       = current_user.business.suppliers.ordered
+    @products        = current_user.business.products.transactable.ordered
+    @custody_account = current_user.custody_accounts.active.first
+  end
+
+  # Employee Custody always means the acting user's own account — never a
+  # selectable employee. Ignoring any client-supplied account id here is what
+  # makes "never allow selecting another employee" actually true server-side.
+  def assign_funding_source
+    return unless @goods_receipt.funding_source_kind == "employee_custody"
+
+    @goods_receipt.funding_source = current_user.custody_accounts.active.first
   end
 
   def receipt_params
     params.require(:goods_receipt).permit(
-      :warehouse_id, :supplier_id, :received_on, :notes, invoices: [],
+      :warehouse_id, :supplier_id, :received_on, :notes, :funding_source_kind, invoices: [],
       items_attributes: [ :id, :product_id, :quantity, :unit_cost, :_destroy ]
     )
   end

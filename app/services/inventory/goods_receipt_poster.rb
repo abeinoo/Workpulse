@@ -1,8 +1,15 @@
 module Inventory
-  # Posts a goods receipt: assigns its number, persists it, and for each line
-  # item records an IN movement (the stock increase) and rolls the product's
-  # moving-average / last-purchase cost forward. All-or-nothing in one
-  # transaction so a mid-way failure leaves no partial stock.
+  # Posts a goods receipt: assigns its number (if not already set), persists it,
+  # and for each line item records an IN movement (the stock increase) and rolls
+  # the product's moving-average / last-purchase cost forward. All-or-nothing in
+  # one transaction so a mid-way failure leaves no partial stock.
+  #
+  # Posting IS confirming, as far as stock is concerned — a draft receipt has no
+  # movements yet, so calling this marks it confirmed. It does not set
+  # confirmed_at/confirmed_by or handle a funding source, since it has no actor;
+  # Inventory::GoodsReceiptConfirmationService layers that on top when a real
+  # user is confirming through the UI. Called directly (no actor) by specs that
+  # just need posted stock, and by the confirmation service.
   class GoodsReceiptPoster
     Result = Struct.new(:ok, :receipt, keyword_init: true) do
       def ok? = ok
@@ -21,6 +28,7 @@ module Inventory
         end
 
         @receipt.items.each { |item| post_item(item) }
+        @receipt.update_column(:status, "confirmed") if @receipt.draft?
         return Result.new(ok: true, receipt: @receipt)
       end
 

@@ -4,7 +4,8 @@ class GoodsReceiptPolicy < ApplicationPolicy
   def create?  = can?(:manage_inventory) || can?(:manage_stock_receipts)
   def update?  = create?
   def destroy? = create?
-  def void?    = create?
+  def confirm? = can?(:manage_inventory) || can?(:confirm_goods_receipts)
+  def void?    = create? && (!record.is_a?(GoodsReceipt) || record.confirmed?)
 
   class Scope < ApplicationPolicy::Scope
     def resolve

@@ -314,7 +314,10 @@ Rails.application.routes.draw do
     end
     resources :barcode_labels, only: [ :index, :show ]
     resources :goods_receipts,  only: [ :index, :show, :new, :create ] do
-      member { patch :void }
+      member do
+        patch :void
+        post  :confirm
+      end
     end
     resources :stock_issues,    only: [ :index, :show, :new, :create ] do
       member { patch :void }

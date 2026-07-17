@@ -2495,6 +2495,7 @@ ar:
         manage_suppliers: "إدارة الموردين"
         manage_products: "إدارة المنتجات"
         manage_stock_receipts: "إدارة إذونات الاستلام"
+        confirm_goods_receipts: "تأكيد إذونات الاستلام"
         manage_stock_issues: "إدارة إذونات الصرف"
         manage_stock_transfers: "إدارة تحويلات المخزون"
         manage_stock_counts: "إنشاء / تعديل عمليات الجرد"
@@ -2608,6 +2609,7 @@ ar:
         manage_suppliers: "إنشاء وتعديل الموردين"
         manage_products: "إنشاء وتعديل المنتجات والعلامات التجارية والفئات"
         manage_stock_receipts: "تسجيل المخزون الوارد عبر إذونات الاستلام"
+        confirm_goods_receipts: "تأكيد إذونات الاستلام المسودة — يسجل المخزون ويخصم من مصدر التمويل المرتبط (مثل عهدة الموظف)"
         manage_stock_issues: "تسجيل المخزون الصادر عبر إذونات الصرف"
         manage_stock_transfers: "نقل المخزون بين المستودعات"
         manage_stock_counts: "إنشاء وتعديل عمليات الجرد المسودة"
@@ -3657,12 +3659,44 @@ ar:
       total: "الإجمالي"
       add_item: "إضافة صنف"
       no_items_hint: "لم تتم إضافة أصناف بعد."
-      post: "تسجيل الإذن"
-      created: "تم تسجيل إذن الاستلام — تم تحديث المخزون."
+      save_draft: "حفظ كمسودة"
+      created: "تم حفظ إذن الاستلام كمسودة."
+      confirm: "تأكيد الإذن"
+      confirm_hint: "سيتم تسجيل المخزون، وإذا كان الإذن ممولاً من عهدة موظف سيتم خصم الرصيد. متابعة؟"
+      confirmed: "تم تأكيد إذن الاستلام — تم تحديث المخزون."
       voided: "تم إلغاء إذن الاستلام — تم عكس المخزون والتكلفة."
       invoices: "الفواتير"
       invoices_hint: "أرفق فاتورة (فواتير) المورد — JPG أو PNG أو PDF (بحد أقصى 10 ميجابايت لكل ملف). تُحفظ بشكل دائم مع هذا الإذن."
       no_invoices: "لا توجد فواتير مرفقة."
+      status_draft: "مسودة"
+      status_confirmed: "مؤكد"
+      section_funding_source: "مصدر التمويل"
+      funding_source: "مصدر التمويل"
+      funding_source_kinds:
+        employee_custody: "عهدة موظف"
+        supplier_credit: "أجل المورد"
+        company_cash: "نقدية الشركة"
+        bank_account: "حساب بنكي"
+      my_balance: "رصيدي"
+      no_custody_account: "لا يوجد لديك حساب عهدة."
+      current_balance: "الرصيد الحالي"
+      financial_settlement: "التسوية المالية"
+      financial_status: "الحالة المالية"
+      total_amount: "المبلغ الإجمالي"
+      settled_amount: "المبلغ المسدد"
+      remaining_amount: "المبلغ المتبقي"
+      settlement_date: "التاريخ"
+      settlement_source: "مصدر التمويل"
+      settlement_amount: "المبلغ"
+      settlement_reversal_note: "عكس التسوية - إذن استلام %{reference}"
+      no_settlements: "لا توجد تسويات مسجلة بعد."
+      financial_statuses:
+        pending_settlement: "بانتظار التسوية"
+        partially_settled: "تسوية جزئية"
+        settled: "تمت التسوية"
+      errors:
+        insufficient_custody_balance: "رصيد عهدة الموظف غير كافٍ."
+        already_processed: "تم بالفعل تأكيد أو إلغاء هذا الإذن."
     stock_issues:
       title: "إذونات الصرف"
       new_action: "إذن صرف جديد"
@@ -4094,6 +4128,11 @@ ar:
             parent_product_id:
               too_deep: "لا يمكن أن يكون هذا المنتج نسخة من نسخة أخرى — المنتجات الأصل يمكن أن تكون بمستوى واحد فقط"
               circular: "لا يمكن ضبطه ليكون المنتج نفسه"
+        goods_receipt:
+          attributes:
+            funding_source:
+              required: "يجب اختياره عندما يكون مصدر التمويل عهدة الموظف"
+              must_be_blank: "يجب أن يكون فارغًا ما لم يكن مصدر التمويل عهدة الموظف"
         goods_receipt_item:
           attributes:
             product_id:
@@ -5135,6 +5174,8 @@ ar:
         already_voided: "تم إلغاء هذه المعاملة بالفعل."
         reason_required: "يلزم سبب لإلغاء المعاملة."
       expense_deduction_note: "خصم مصروف — %{reference}"
+      inventory_purchase_note: "شراء مخزون - إذن استلام %{reference}"
+      inventory_purchase_reversal_note: "إلغاء إذن استلام - %{reference}"
       accounts:
         title: "أرصدة الموظفين"
         add: "حساب رصيد جديد"
@@ -5201,6 +5242,8 @@ ar:
           expense_deduction: "خصم مصروف"
           transfer: "تحويل"
           adjustment: "تسوية"
+          inventory_purchase: "شراء مخزون"
+          inventory_purchase_reversal: "إلغاء إذن استلام"
     recurring:
       title: "المصروفات المتكررة"
       add: "مصروف متكرر جديد"

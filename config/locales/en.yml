@@ -2505,6 +2505,7 @@ en:
         manage_suppliers: "Manage Suppliers"
         manage_products: "Manage Products"
         manage_stock_receipts: "Manage Goods Receipts"
+        confirm_goods_receipts: "Confirm Goods Receipts"
         manage_stock_issues: "Manage Stock Issues"
         manage_stock_transfers: "Manage Stock Transfers"
         manage_stock_counts: "Create / Edit Stock Counts"
@@ -2618,6 +2619,7 @@ en:
         manage_suppliers: "Create and edit suppliers"
         manage_products: "Create and edit products, brands, and categories"
         manage_stock_receipts: "Record incoming stock via goods receipts"
+        confirm_goods_receipts: "Confirm draft goods receipts — posts stock and deducts any linked funding source (e.g. employee custody)"
         manage_stock_issues: "Record outgoing stock via stock issues"
         manage_stock_transfers: "Move stock between warehouses"
         manage_stock_counts: "Create and edit draft physical inventory counts"
@@ -3619,12 +3621,44 @@ en:
       total: "Total"
       add_item: "Add Item"
       no_items_hint: "No items added yet."
-      post: "Post Receipt"
-      created: "Goods receipt posted — stock updated."
+      save_draft: "Save Draft"
+      created: "Goods receipt saved as draft."
+      confirm: "Confirm Receipt"
+      confirm_hint: "Post stock and, if funded from Employee Custody, deduct the balance. Continue?"
+      confirmed: "Goods receipt confirmed — stock updated."
       voided: "Goods receipt voided — stock and cost reversed."
       invoices: "Invoices"
       invoices_hint: "Attach the supplier invoice(s) — JPG, PNG, or PDF (max 10 MB each). Kept permanently with this receipt."
       no_invoices: "No invoices attached."
+      status_draft: "Draft"
+      status_confirmed: "Confirmed"
+      section_funding_source: "Funding Source"
+      funding_source: "Funding Source"
+      funding_source_kinds:
+        employee_custody: "Employee Custody"
+        supplier_credit: "Supplier Credit"
+        company_cash: "Company Cash"
+        bank_account: "Bank Account"
+      my_balance: "My Balance"
+      no_custody_account: "You don't have a custody account."
+      current_balance: "Current Balance"
+      financial_settlement: "Financial Settlement"
+      financial_status: "Financial Status"
+      total_amount: "Total Amount"
+      settled_amount: "Settled Amount"
+      remaining_amount: "Remaining Amount"
+      settlement_date: "Date"
+      settlement_source: "Funding Source"
+      settlement_amount: "Amount"
+      settlement_reversal_note: "Settlement Reversal - Goods Receipt %{reference}"
+      no_settlements: "No settlements recorded yet."
+      financial_statuses:
+        pending_settlement: "Pending Settlement"
+        partially_settled: "Partially Settled"
+        settled: "Settled"
+      errors:
+        insufficient_custody_balance: "Insufficient employee custody balance."
+        already_processed: "This receipt has already been confirmed or voided."
     stock_issues:
       title: "Stock Issues"
       new_action: "New Issue"
@@ -4056,6 +4090,11 @@ en:
             parent_product_id:
               too_deep: "cannot be a variant of another variant — parent products can only be one level deep"
               circular: "cannot be set to the product itself"
+        goods_receipt:
+          attributes:
+            funding_source:
+              required: "must be selected when the funding source is Employee Custody"
+              must_be_blank: "must be blank unless the funding source is Employee Custody"
         goods_receipt_item:
           attributes:
             product_id:
@@ -5111,6 +5150,8 @@ en:
         already_voided: "This transaction is already voided."
         reason_required: "A reason is required to void a transaction."
       expense_deduction_note: "Expense deduction — %{reference}"
+      inventory_purchase_note: "Inventory Purchase - Goods Receipt %{reference}"
+      inventory_purchase_reversal_note: "Goods Receipt Cancellation - %{reference}"
       accounts:
         title: "Employee Balances"
         add: "New Balance Account"
@@ -5177,6 +5218,8 @@ en:
           expense_deduction: "Expense Deduction"
           transfer: "Transfer"
           adjustment: "Adjustment"
+          inventory_purchase: "Inventory Purchase"
+          inventory_purchase_reversal: "Goods Receipt Cancellation"
     recurring:
       title: "Recurring Expenses"
       add: "New Recurring Expense"

@@ -29,6 +29,7 @@ class PermissionRole < ApplicationRecord
     reports:               %w[view_dashboard view_reports export_reports],
     inventory:             %w[view_inventory manage_inventory view_inventory_reports
                                manage_suppliers manage_products manage_stock_receipts
+                               confirm_goods_receipts
                                manage_stock_issues manage_stock_transfers
                                manage_stock_counts post_stock_counts view_stock_count_reports],
     performance:           %w[view_performance_dashboard view_notes view_monthly_reviews
@@ -276,6 +277,7 @@ class PermissionRole < ApplicationRecord
     "manage_suppliers"       => %w[view_inventory],
     "manage_products"        => %w[view_inventory],
     "manage_stock_receipts"  => %w[view_inventory],
+    "confirm_goods_receipts" => %w[view_inventory],
     "manage_stock_issues"    => %w[view_inventory],
     "manage_stock_transfers" => %w[view_inventory],
     "manage_stock_counts"    => %w[view_inventory],

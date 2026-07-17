@@ -1,9 +1,11 @@
 <%
   color_class = {
-    "top_up"            => "badge badge-success",
-    "expense_deduction" => "badge badge-danger",
-    "adjustment"        => "badge badge-warning",
-    "transfer"          => "badge badge-accent"
+    "top_up"                      => "badge badge-success",
+    "expense_deduction"           => "badge badge-danger",
+    "adjustment"                  => "badge badge-warning",
+    "transfer"                    => "badge badge-accent",
+    "inventory_purchase"          => "badge badge-danger",
+    "inventory_purchase_reversal" => "badge badge-success"
   }.fetch(txn.txn_type, "badge badge-neutral")
 %>
 <span class="<%= color_class %>"><%= t("finance.custody.transactions.types.#{txn.txn_type}") %></span>

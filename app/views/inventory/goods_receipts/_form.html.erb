@@ -1,4 +1,4 @@
-<%= form_with model: [:inventory, goods_receipt], class: "form-card", data: { controller: "line-items receipt-supplier" } do |f| %>
+<%= form_with model: [:inventory, goods_receipt], class: "form-card", data: { controller: "line-items receipt-supplier funding-source" } do |f| %>
   <%= render "shared/error_messages", object: goods_receipt %>
 
   <h2 class="section-title"><%= t("inventory.goods_receipts.section_header") %></h2>
@@ -35,6 +35,31 @@
 
   <div class="divider"></div>
 
+  <% employee_custody_selected = goods_receipt.funding_source_kind == "employee_custody" %>
+  <h2 class="section-title"><%= t("inventory.goods_receipts.section_funding_source") %></h2>
+  <div class="form-grid">
+    <% GoodsReceipt::FUNDING_SOURCE_KINDS.each do |kind| %>
+      <div class="form-group">
+        <label class="form-label">
+          <%= f.radio_button :funding_source_kind, kind,
+                checked: goods_receipt.funding_source_kind == kind,
+                data: { "funding-source-target": "kindRadio", action: "funding-source#toggle" } %>
+          <%= t("inventory.goods_receipts.funding_source_kinds.#{kind}") %>
+        </label>
+      </div>
+    <% end %>
+
+    <div data-funding-source-target="panel" class="form-group <%= 'hidden' unless employee_custody_selected %>"
+         style="grid-column: 1 / -1;" <%= "hidden" unless employee_custody_selected %>>
+      <p class="form-label"><%= t("inventory.goods_receipts.my_balance") %></p>
+      <% if @custody_account %>
+        <p style="font-weight: 600;"><%= format_currency(@custody_account.current_balance) %></p>
+      <% else %>
+        <p class="form-hint"><%= t("inventory.goods_receipts.no_custody_account") %></p>
+      <% end %>
+    </div>
+  </div>
+
   <h2 class="section-title"><%= t("inventory.goods_receipts.section_items") %></h2>
   <%= render "inventory/shared/barcode_scanner" %>
   <div class="table-wrap table-wrap--form-cards">
@@ -69,7 +94,7 @@
   </template>
 
   <div class="form-actions">
-    <%= f.submit t("inventory.goods_receipts.post"), class: "btn btn-primary" %>
+    <%= f.submit t("inventory.goods_receipts.save_draft"), class: "btn btn-primary" %>
     <%= link_to t("common.cancel"), inventory_goods_receipts_path, class: "btn btn-ghost" %>
   </div>
 <% end %>

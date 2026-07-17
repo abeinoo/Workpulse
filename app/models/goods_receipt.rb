@@ -2,14 +2,26 @@ class GoodsReceipt < ApplicationRecord
   include ImmutableDocument
   include Voidable
   include Attachable
+  include Settleable
+
+  # Only "employee_custody" is wired up to actually move money. The rest are
+  # placeholders reserved on the selector so the funding-source UI doesn't
+  # need to change shape when they're implemented.
+  FUNDING_SOURCE_KINDS = %w[employee_custody supplier_credit company_cash bank_account].freeze
+  FUNDING_SOURCE_TYPES = %w[CustodyAccount].freeze
+
+  enum :status, { draft: "draft", confirmed: "confirmed" }
 
   belongs_to :business
   belongs_to :warehouse
   belongs_to :supplier,   optional: true
   belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :confirmed_by, class_name: "User", optional: true
+  belongs_to :funding_source, polymorphic: true, optional: true
 
   has_many :items, class_name: "GoodsReceiptItem", dependent: :destroy
   has_many :inventory_movements, as: :source, dependent: :destroy
+  has_many :custody_transactions, as: :source, dependent: :restrict_with_error
 
   # Supplier invoice(s) for this receipt — kept permanently for the audit trail.
   has_many_attached :invoices
@@ -18,11 +30,16 @@ class GoodsReceipt < ApplicationRecord
                                 allow_destroy: true,
                                 reject_if:     ->(attrs) { attrs[:product_id].blank? }
 
+  before_validation :assign_receipt_number, on: :create
+
   validates :receipt_number, presence: true,
                              uniqueness: { scope: :business_id, case_sensitive: false }
   validates :received_on, presence: true
+  validates :funding_source_kind, inclusion: { in: FUNDING_SOURCE_KINDS }
   validate  :has_at_least_one_item
   validate  :invoices_acceptable
+  validate  :funding_source_matches_kind
+  validate  :funding_source_type_whitelisted
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(received_on: :desc, id: :desc) }
@@ -30,6 +47,13 @@ class GoodsReceipt < ApplicationRecord
   def total_value
     items.sum(&:total_cost)
   end
+
+  def employee_custody_funded?
+    funding_source_kind == "employee_custody"
+  end
+
+  # Settleable's required hook: the amount considered "fully settled".
+  alias_method :settlement_total, :total_value
 
   # Compensating movements that undo this receipt: remove what was received from
   # the warehouse it landed in.
@@ -42,8 +66,26 @@ class GoodsReceipt < ApplicationRecord
 
   private
 
+  def assign_receipt_number
+    self.receipt_number = Inventory::NumberSequencer.new(business, :goods_receipt).next_number if receipt_number.blank?
+  end
+
   def has_at_least_one_item
     errors.add(:base, :no_items) if items.reject(&:marked_for_destruction?).empty?
+  end
+
+  def funding_source_matches_kind
+    if employee_custody_funded?
+      errors.add(:funding_source, :required) if funding_source.nil?
+    elsif funding_source.present?
+      errors.add(:funding_source, :must_be_blank)
+    end
+  end
+
+  def funding_source_type_whitelisted
+    return if funding_source_type.nil?
+
+    errors.add(:funding_source_type, :invalid) unless FUNDING_SOURCE_TYPES.include?(funding_source_type)
   end
 
   # has_many_attached can't use the Attachable.validates_attachment helper

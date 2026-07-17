@@ -13,11 +13,13 @@ module Finance
     def self.summarize(transactions)
       txns = transactions.to_a
       {
-        top_ups:            txns.select(&:top_up?).sum(&:amount),
-        expense_deductions: txns.select(&:expense_deduction?).sum(&:amount).abs,
-        adjustments:        txns.select(&:adjustment?).sum(&:amount),
-        transfers:          txns.select(&:transfer?).sum(&:amount),
-        net:                txns.sum(&:amount)
+        top_ups:                      txns.select(&:top_up?).sum(&:amount),
+        expense_deductions:           txns.select(&:expense_deduction?).sum(&:amount).abs,
+        adjustments:                  txns.select(&:adjustment?).sum(&:amount),
+        transfers:                    txns.select(&:transfer?).sum(&:amount),
+        inventory_purchases:          txns.select(&:inventory_purchase?).sum(&:amount).abs,
+        inventory_purchase_reversals: txns.select(&:inventory_purchase_reversal?).sum(&:amount),
+        net:                          txns.sum(&:amount)
       }
     end
   end
