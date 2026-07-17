@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_16_102500) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_17_090100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -605,11 +605,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_16_102500) do
     t.bigint "created_by_id"
     t.boolean "deduct_from_balance", default: true, null: false
     t.text "description"
+    t.string "distribution_method"
     t.bigint "expense_category_id", null: false
     t.date "expense_date", null: false
     t.bigint "expense_type_id"
     t.boolean "is_shared", default: false, null: false
     t.text "notes"
+    t.string "payment_source", default: "unpaid", null: false
     t.string "reference_number", null: false
     t.datetime "rejected_at"
     t.text "rejection_reason"

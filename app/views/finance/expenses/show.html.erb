@@ -124,6 +124,45 @@
     <% end %>
   </div>
 
+  <%# ── Financial Information card ─────────────────────────────────────────── %>
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title"><%= t("finance.expenses.financial_information") %></h2>
+    </div>
+    <dl class="detail-list">
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.payment_source") %></dt>
+        <dd><%= render "finance/expenses/payment_source_badge", source: @expense.payment_source %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.financial_status") %></dt>
+        <dd>
+          <span class="badge <%= { "pending_settlement" => "badge-warning", "partially_settled" => "badge-accent", "settled" => "badge-success" }.fetch(@expense.financial_status) %>">
+            <%= t("finance.expenses.financial_statuses.#{@expense.financial_status}") %>
+          </span>
+        </dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.paid_amount") %></dt>
+        <dd><%= format_currency(@expense.total_settled_amount) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.remaining_amount") %></dt>
+        <dd><%= format_currency(@expense.remaining_settlement_amount) %></dd>
+      </div>
+      <% if @expense.employee_custody_funded? && @settlements.any? %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.expenses.financial_settlement") %></dt>
+          <dd>
+            <%= link_to t("finance.expenses.view_custody_account"),
+                  finance_custody_account_path(@settlements.first.funding_source),
+                  class: "link" %>
+          </dd>
+        </div>
+      <% end %>
+    </dl>
+  </div>
+
   <%# ── Allocations card ───────────────────────────────────────────────────── %>
   <% if @allocations.any? %>
     <div class="card" style="margin-bottom: var(--space-5);">

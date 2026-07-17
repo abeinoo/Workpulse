@@ -72,7 +72,10 @@ module Finance
         expense.expense_allocations.build(branch_id: alloc.branch_id,
                                           allocation_percentage: alloc.allocation_percentage)
       end
-      AllocationCalculator.new(expense, mode: "percentage").call if expense.expense_allocations.any?
+      if expense.expense_allocations.any?
+        expense.distribution_method = "percentage"
+        AllocationCalculator.new(expense, mode: "percentage").call
+      end
 
       expense
     end

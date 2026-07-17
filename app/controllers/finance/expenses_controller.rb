@@ -24,6 +24,7 @@ class Finance::ExpensesController < Finance::BaseController
     authorize @expense
     @allocations = @expense.expense_allocations.includes(:branch)
     @audit_logs  = AuditLog.for_auditable(@expense).recent
+    @settlements = @expense.financial_settlements.chronological.includes(:funding_source, :created_by)
   end
 
   def new
@@ -109,8 +110,8 @@ class Finance::ExpensesController < Finance::BaseController
   end
 
   def save_expense
-    if @expense.expense_allocations.reject(&:marked_for_destruction?).any?
-      Finance::AllocationCalculator.new(@expense, mode: allocation_mode).call
+    if @expense.branch_id.blank? && @expense.expense_allocations.reject(&:marked_for_destruction?).any?
+      Finance::AllocationCalculator.new(@expense, mode: @expense.distribution_method || "percentage").call
     end
 
     ActiveRecord::Base.transaction do
@@ -124,10 +125,6 @@ class Finance::ExpensesController < Finance::BaseController
     false
   end
 
-  def allocation_mode
-    %w[equal percentage manual].include?(params[:allocation_mode]) ? params[:allocation_mode] : "percentage"
-  end
-
   def load_options
     @categories          = current_user.business.expense_categories.active.ordered
     @types               = current_user.business.expense_types.active.ordered
@@ -137,12 +134,17 @@ class Finance::ExpensesController < Finance::BaseController
     @show_shared_section = expense_branch_scope == "business"
   end
 
+  # The branch <select> submits the literal string "shared" for the
+  # Shared (Organization Level) option — translate it to a nil branch_id,
+  # which is what the model treats as "shared" throughout.
   def expense_params
-    params.require(:expense).permit(
+    permitted = params.require(:expense).permit(
       :branch_id, :expense_category_id, :expense_type_id, :amount, :expense_date, :notes,
-      :deduct_from_balance,
+      :deduct_from_balance, :distribution_method,
       expense_tag_ids: [], documents: [],
       expense_allocations_attributes: [ :id, :branch_id, :allocation_percentage, :allocated_amount, :_destroy ]
     )
+    permitted[:branch_id] = nil if permitted[:branch_id] == "shared"
+    permitted
   end
 end

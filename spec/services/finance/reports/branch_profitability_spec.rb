@@ -28,7 +28,8 @@ RSpec.describe Finance::Reports::BranchProfitability, type: :model do
     # Direct branch expense 1000 (approved)
     create(:expense, :approved, business: business, branch: branch, amount: 1000, expense_date: Date.current)
     # Shared expense 200 split 50/50 -> 100 allocated to this branch
-    shared = build(:expense, :approved, business: business, branch: nil, amount: 200, expense_date: Date.current)
+    shared = build(:expense, :approved, business: business, branch: nil, amount: 200, expense_date: Date.current,
+                             distribution_method: "percentage")
     shared.expense_allocations.build(branch: branch, allocation_percentage: 50, allocated_amount: 100)
     shared.expense_allocations.build(branch: other, allocation_percentage: 50, allocated_amount: 100)
     shared.save!

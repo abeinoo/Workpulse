@@ -13,7 +13,7 @@ class FinancialSettlement < ApplicationRecord
   # Document types allowed to be settled. Extend as new modules adopt the
   # engine (PurchaseInvoice, Expense, SalaryAdvance, Payroll, VendorPayment,
   # BranchTransfer, ...).
-  SETTLEABLE_TYPES = %w[GoodsReceipt].freeze
+  SETTLEABLE_TYPES = %w[GoodsReceipt Expense].freeze
 
   # Funding sources allowed to settle a document. Only CustodyAccount is
   # functional today; the rest are added as they're implemented (CompanyCash,

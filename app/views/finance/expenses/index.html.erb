@@ -128,6 +128,7 @@
             <th><%= t("finance.expenses.category") %></th>
             <th><%= t("finance.expenses.type") %></th>
             <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
+            <th><%= t("finance.expenses.payment_source") %></th>
             <th><%= t("finance.common.status") %></th>
             <th><%= t("finance.expenses.created_by") %></th>
             <th></th>
@@ -147,6 +148,7 @@
               <td class="td-secondary"><%= expense.expense_category.name %></td>
               <td class="td-secondary"><%= expense.expense_type&.name || "—" %></td>
               <td style="text-align: end;"><%= format_currency(expense.amount) %></td>
+              <td><%= render "finance/expenses/payment_source_badge", source: expense.payment_source %></td>
               <td><%= render "finance/expenses/status_badge", status: expense.status %></td>
               <td class="td-secondary"><%= expense.created_by&.full_name || "—" %></td>
               <td>
@@ -176,7 +178,7 @@
             <%# Inline reject form – revealed by collapsible trigger above %>
             <% if policy(expense).reject? %>
               <tr data-collapsible-target="content" hidden>
-                <td colspan="9" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
+                <td colspan="10" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
                   <%= form_with url: reject_finance_expense_path(expense), method: :patch,
                         style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
                     <%= text_field_tag :rejection_reason, nil,

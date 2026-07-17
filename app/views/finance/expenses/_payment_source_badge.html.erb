@@ -1,0 +1,11 @@
+<%
+  color_class = {
+    "employee_custody" => "badge badge-accent",
+    "company_cash"     => "badge badge-neutral",
+    "bank_account"     => "badge badge-neutral",
+    "supplier_credit"  => "badge badge-neutral",
+    "unpaid"           => "badge badge-warning"
+  }.fetch(source, "badge badge-neutral")
+  size_class = local_assigns[:size] == "md" ? " badge--md" : ""
+%>
+<span class="<%= color_class %><%= size_class %>"><%= t("finance.expenses.payment_sources.#{source}") %></span>

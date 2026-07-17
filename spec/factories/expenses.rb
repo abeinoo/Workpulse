@@ -2,7 +2,7 @@ FactoryBot.define do
   factory :expense do
     business { association :business }
     expense_category { association :expense_category, business: business }
-    branch { nil }
+    branch { association :branch, business: business }
     amount { 100 }
     expense_date { Date.current }
     sequence(:reference_number) { |n| "EXP-#{format('%06d', n)}" }

@@ -3985,7 +3985,7 @@ en:
         before_start: "must be on or after the start date"
         after_start: "must be on or after the start date"
         allocation_not_100: "branch allocations must total 100%"
-        present_for_shared: "must be empty for a shared expense — allocate by branch instead"
+        at_least_one_branch_required: "at least one branch distribution row is required for a shared expense"
       models:
         performance_observation:
           attributes:
@@ -5030,16 +5030,20 @@ en:
       description: "Description"
       shared: "Shared"
       no_branch: "— Shared / business-level"
-      branch_hint: "Leave blank for a shared or business-level expense (allocate below)."
+      shared_option: "Shared (Organization Level)"
+      select_branch_placeholder: "Select an option"
+      branch_hint: "Choose a specific branch, or Shared (Organization Level) to split this expense across branches below."
       select_category: "Select category"
       select_type: "Select type"
       select_branch: "Select branch"
       section_details: "Expense Details"
-      section_allocations: "Branch Allocation (shared expenses)"
+      section_allocations: "Branch Distribution"
       allocations_hint: "Add a row per branch to split a shared expense. Percentages must total 100%."
       hint_percentage_mode: "Enter each branch's share. Percentages must total 100%."
       hint_equal_mode: "Select branches only — the expense will be divided equally among them automatically."
       allocation_mode: "Allocation mode"
+      distribution_method: "Distribution Method"
+      select_distribution_method: "Select distribution method"
       modes:
         percentage: "By percentage"
         equal: "Split equally"
@@ -5051,6 +5055,23 @@ en:
       documents_hint: "PDF or images, up to 10 MB each."
       deduct_from_balance: "Paid from my balance account"
       deduct_from_balance_hint: "Check this if the expense was paid using your balance account. Leave unchecked if you paid personally and are requesting reimbursement."
+      payment_source: "Payment Source"
+      payment_sources:
+        employee_custody: "Employee Custody"
+        company_cash: "Company Cash"
+        bank_account: "Bank Account"
+        supplier_credit: "Supplier Credit"
+        unpaid: "Unpaid"
+      financial_information: "Financial Information"
+      financial_settlement: "Financial Settlement"
+      financial_status: "Financial Settlement Status"
+      paid_amount: "Paid Amount"
+      remaining_amount: "Remaining Amount"
+      financial_statuses:
+        pending_settlement: "Pending Settlement"
+        partially_settled: "Partially Settled"
+        settled: "Settled"
+      view_custody_account: "View Custody Account"
       created: "Expense created."
       updated: "Expense updated."
       deleted: "Expense deleted."
@@ -5085,6 +5106,7 @@ en:
         submit: "Submitted for approval"
         approve: "Approved"
         reject: "Rejected"
+        settle_from_custody: "Marked as paid from employee custody"
       errors:
         invalid_transition: "That action isn't allowed from the expense's current status."
     balance_requests:

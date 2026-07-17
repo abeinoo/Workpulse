@@ -59,6 +59,16 @@ module Finance
       account = creator.custody_accounts.active.first
       return unless account
 
+      settlement_result = FinancialSettlementService.create(
+        settleable:     @expense,
+        funding_source: account,
+        amount:         @expense.amount,
+        actor:          @actor,
+        notes:          I18n.t("finance.custody.expense_deduction_note",
+                               reference: @expense.reference_number)
+      )
+      raise ActiveRecord::RecordInvalid, settlement_result.settlement unless settlement_result.ok?
+
       account.custody_transactions.create!(
         business:   account.business,
         txn_type:   "expense_deduction",
@@ -69,6 +79,9 @@ module Finance
                            reference: @expense.reference_number)
       )
       account.refresh_balance!
+
+      log_audit(actor: @actor, auditable: @expense, action: "settle_from_custody",
+                metadata: { custody_account_id: account.id, amount: @expense.amount })
     end
 
     def self_approval?

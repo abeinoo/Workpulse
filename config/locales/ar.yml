@@ -4023,7 +4023,7 @@ ar:
         before_start: "يجب أن يكون في تاريخ البدء أو بعده"
         after_start: "يجب أن يكون في تاريخ البدء أو بعده"
         allocation_not_100: "يجب أن يكون مجموع توزيعات الفروع 100%"
-        present_for_shared: "يجب تركه فارغًا للمصروف المشترك — وزّعه على الفروع بدلًا من ذلك"
+        at_least_one_branch_required: "مطلوب صف توزيع فرع واحد على الأقل للمصروف المشترك"
       models:
         performance_observation:
           attributes:
@@ -5054,16 +5054,20 @@ ar:
       description: "الوصف"
       shared: "مشترك"
       no_branch: "— مشترك / على مستوى المنشأة"
-      branch_hint: "اتركه فارغًا لمصروف مشترك أو على مستوى المنشأة (وزّعه أدناه)."
+      shared_option: "مشترك (على مستوى المنشأة)"
+      select_branch_placeholder: "اختر خيارًا"
+      branch_hint: "اختر فرعًا محددًا، أو مشترك (على مستوى المنشأة) لتوزيع هذا المصروف على الفروع أدناه."
       select_category: "اختر الفئة"
       select_type: "اختر النوع"
       select_branch: "اختر الفرع"
       section_details: "تفاصيل المصروف"
-      section_allocations: "توزيع الفروع (المصروفات المشتركة)"
+      section_allocations: "توزيع الفروع"
       allocations_hint: "أضف صفًا لكل فرع لتوزيع مصروف مشترك. يجب أن يكون مجموع النسب 100%."
       hint_percentage_mode: "أدخل نسبة كل فرع. يجب أن يكون مجموع النسب 100٪."
       hint_equal_mode: "اختر الفروع فقط وسيتم توزيع المصروف بالتساوي بينها تلقائياً."
       allocation_mode: "طريقة التوزيع"
+      distribution_method: "طريقة التوزيع"
+      select_distribution_method: "اختر طريقة التوزيع"
       modes:
         percentage: "بالنسبة المئوية"
         equal: "تقسيم بالتساوي"
@@ -5075,6 +5079,23 @@ ar:
       documents_hint: "ملفات PDF أو صور، بحد أقصى 10 ميجابايت لكل ملف."
       deduct_from_balance: "تم الدفع من حساب رصيدي"
       deduct_from_balance_hint: "فعّل هذا الخيار إذا كان المصروف قد دُفع من حساب رصيدك. اتركه بدون تفعيل إذا دفعت من مالك الخاص وتطلب السداد."
+      payment_source: "مصدر الدفع"
+      payment_sources:
+        employee_custody: "عهدة موظف"
+        company_cash: "نقدية الشركة"
+        bank_account: "حساب بنكي"
+        supplier_credit: "أجل المورد"
+        unpaid: "غير مدفوع"
+      financial_information: "المعلومات المالية"
+      financial_settlement: "التسوية المالية"
+      financial_status: "حالة التسوية المالية"
+      paid_amount: "المبلغ المسدد"
+      remaining_amount: "المبلغ المتبقي"
+      financial_statuses:
+        pending_settlement: "بانتظار التسوية"
+        partially_settled: "تسوية جزئية"
+        settled: "تمت التسوية"
+      view_custody_account: "عرض حساب العهدة"
       created: "تم إنشاء المصروف."
       updated: "تم تحديث المصروف."
       deleted: "تم حذف المصروف."
@@ -5109,6 +5130,7 @@ ar:
         submit: "أُرسل للاعتماد"
         approve: "اعتُمد"
         reject: "رُفض"
+        settle_from_custody: "تم تحديده كمدفوع من عهدة الموظف"
       errors:
         invalid_transition: "لا يُسمح بهذا الإجراء من الحالة الحالية للمصروف."
     balance_requests:

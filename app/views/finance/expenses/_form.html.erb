@@ -39,11 +39,17 @@
     <% unless @hide_branch %>
       <div class="form-group">
         <%= f.label :branch_id, t("finance.expenses.branch"), class: "form-label" %>
+        <%
+          branch_options = @show_shared_section ? [ [ t("finance.expenses.shared_option"), "shared" ] ] : []
+          branch_options += @branches.map { |b| [ b.name, b.id ] }
+          selected_branch_value = expense.is_shared? ? "shared" : expense.branch_id
+        %>
         <%= f.select :branch_id,
-              options_from_collection_for_select(@branches, :id, :name, expense.branch_id),
-              { include_blank: "— #{t('finance.expenses.no_branch')}" },
-              class: "form-control",
-              data: { action: "change->expense-scope#branchChanged",
+              options_for_select(branch_options, selected_branch_value),
+              { include_blank: "— #{t('finance.expenses.select_branch_placeholder')}" },
+              class: "form-control #{'is-error' if expense.errors[:branch_id].any?}",
+              required: true,
+              data: { action: "change->expense-scope#branchChanged change->allocation#refresh",
                       "expense-scope-target": "branchSelect" } %>
         <p class="form-hint"><%= t("finance.expenses.branch_hint") %></p>
       </div>
@@ -76,7 +82,8 @@
   <% end %>
 
   <% if @show_shared_section %>
-  <div data-expense-scope-target="allocationSection"<%= expense.branch_id.present? ? " hidden" : "" %>>
+  <div data-expense-scope-target="allocationSection" data-allocation-target="section"
+       <%= "hidden" unless expense.is_shared? %>>
     <div class="divider"></div>
     <h2 class="section-title"><%= t("finance.expenses.section_allocations") %></h2>
 
@@ -88,13 +95,15 @@
     </p>
 
     <div class="form-group" style="max-width: 280px;">
-      <%= label_tag :allocation_mode, t("finance.expenses.allocation_mode"), class: "form-label" %>
-      <%= select_tag :allocation_mode,
+      <%= f.label :distribution_method, t("finance.expenses.distribution_method"), class: "form-label" %>
+      <%= f.select :distribution_method,
             options_for_select(
               [ [ t("finance.expenses.modes.percentage"), "percentage" ],
                 [ t("finance.expenses.modes.equal"), "equal" ] ],
-              params[:allocation_mode] || "percentage"),
-            class: "form-control",
+              expense.distribution_method),
+            { include_blank: "— #{t('finance.expenses.select_distribution_method')}" },
+            class: "form-control #{'is-error' if expense.errors[:distribution_method].any?}",
+            required: true,
             data: { allocation_target: "modeSelect", action: "change->allocation#modeChanged" } %>
     </div>
 

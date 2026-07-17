@@ -5,6 +5,6 @@ export default class extends Controller {
 
   branchChanged() {
     if (!this.hasAllocationSectionTarget) return
-    this.allocationSectionTarget.hidden = this.branchSelectTarget.value !== ""
+    this.allocationSectionTarget.hidden = this.branchSelectTarget.value !== "shared"
   }
 }

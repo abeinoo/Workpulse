@@ -6,6 +6,7 @@ import { Controller } from "@hotwired/stimulus"
 // Save button in percentage mode until allocations sum to exactly 100 %.
 export default class extends Controller {
   static targets = [
+    "section",
     "modeSelect",
     "pctHeader",
     "pctCell",
@@ -22,6 +23,12 @@ export default class extends Controller {
 
   // Called when the mode <select> changes.
   modeChanged() {
+    this.#apply()
+  }
+
+  // Called by expense-scope#branchChanged when the branch/shared choice
+  // flips, so the submit button reflects the newly (ir)relevant section.
+  refresh() {
     this.#apply()
   }
 
@@ -64,6 +71,20 @@ export default class extends Controller {
   #updateSummary() {
     if (!this.hasSummaryTarget) return
 
+    // Section irrelevant (a specific branch is selected) — distribution is
+    // ignored entirely, so it can never block the save button.
+    if (this.hasSectionTarget && this.sectionTarget.hidden) {
+      this.#setSubmitDisabled(false)
+      return
+    }
+
+    if (this.#methodBlank) {
+      this.summaryTarget.textContent = "يرجى اختيار طريقة التوزيع."
+      this.summaryTarget.className = "form-hint text-warning"
+      this.#setSubmitDisabled(true)
+      return
+    }
+
     const count = this.#visibleRowCount
 
     if (this.#isEqual) {
@@ -86,32 +107,38 @@ export default class extends Controller {
     }
 
     // Percentage mode
+    if (count === 0) {
+      this.summaryTarget.textContent = "يرجى إضافة فرع واحد على الأقل."
+      this.summaryTarget.className = "form-hint text-warning"
+      this.#setSubmitDisabled(true)
+      return
+    }
+
     const visibleInputs = this.pctInputTargets.filter(
       i => !i.closest("[data-line-row]")?.hidden
     )
     const total   = visibleInputs.reduce((s, i) => s + parseFloat(i.value || 0), 0)
     const rounded = Math.round(total * 100) / 100
 
-    if (count > 0) {
-      this.summaryTarget.textContent = `إجمالي النسب الحالية: ${rounded}٪ من 100٪.`
-      if (rounded === 100) {
-        this.summaryTarget.className = "form-hint text-success"
-        this.#setSubmitDisabled(false)
-      } else if (rounded > 100) {
-        this.summaryTarget.className = "form-hint text-danger"
-        this.#setSubmitDisabled(true)
-      } else {
-        this.summaryTarget.className = "form-hint text-warning"
-        this.#setSubmitDisabled(true)
-      }
-    } else {
-      this.summaryTarget.textContent = ""
+    this.summaryTarget.textContent = `إجمالي النسب الحالية: ${rounded}٪ من 100٪.`
+    if (rounded === 100) {
+      this.summaryTarget.className = "form-hint text-success"
       this.#setSubmitDisabled(false)
+    } else if (rounded > 100) {
+      this.summaryTarget.className = "form-hint text-danger"
+      this.#setSubmitDisabled(true)
+    } else {
+      this.summaryTarget.className = "form-hint text-warning"
+      this.#setSubmitDisabled(true)
     }
   }
 
   #setSubmitDisabled(disabled) {
     if (this.hasSubmitBtnTarget) this.submitBtnTarget.disabled = disabled
+  }
+
+  get #methodBlank() {
+    return !this.hasModeSelectTarget || this.modeSelectTarget.value === ""
   }
 
   get #isEqual() {

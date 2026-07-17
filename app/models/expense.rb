@@ -1,5 +1,6 @@
 class Expense < ApplicationRecord
   include Attachable
+  include Settleable
 
   belongs_to :business
   belongs_to :branch,           optional: true
@@ -26,11 +27,23 @@ class Expense < ApplicationRecord
                   approved: "approved", rejected: "rejected" },
        default: "draft"
 
+  # A branch is always required: either a specific branch, or the "shared" option
+  # (branch_id blank), split across branches via expense_allocations.
+  DISTRIBUTION_METHODS = %w[equal percentage manual].freeze
+
+  # How the expense is funded. Only "employee_custody" (deduct_from_balance checked)
+  # and "unpaid" (unchecked) are reachable today — the others are reserved on the
+  # selector so display logic doesn't need to change shape once they're wired up,
+  # mirroring GoodsReceipt::FUNDING_SOURCE_KINDS.
+  PAYMENT_SOURCES = %w[employee_custody company_cash bank_account supplier_credit unpaid].freeze
+
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :expense_date, presence: true
 
   validates :reference_number, presence: true,
                                uniqueness: { scope: :business_id, case_sensitive: false }
+  validates :distribution_method, inclusion: { in: DISTRIBUTION_METHODS }, allow_nil: true
+  validates :payment_source, inclusion: { in: PAYMENT_SOURCES }
   validate  :branch_in_same_business
   validate  :category_in_same_business
   validate  :type_matches_category
@@ -38,7 +51,8 @@ class Expense < ApplicationRecord
   validate  :documents_acceptable
   validate  :creator_has_balance_account_if_deducting
 
-  before_validation :sync_shared_flag
+  before_validation :normalize_branch_mode
+  before_validation :sync_payment_source
 
   scope :for_business, ->(business)   { where(business: business) }
   scope :for_branch,   ->(branch_id)  { where(branch_id: branch_id) if branch_id.present? }
@@ -55,14 +69,34 @@ class Expense < ApplicationRecord
     expense_allocations.reject(&:marked_for_destruction?)
   end
 
+  def employee_custody_funded?
+    payment_source == "employee_custody"
+  end
+
+  # Settleable's required hook: the amount considered "fully settled".
+  def settlement_total
+    amount
+  end
+
   private
 
   def system_generated?
     source_recurring_expense_id.present?
   end
 
-  def sync_shared_flag
-    self.is_shared = effective_allocations.any?
+  # branch_id present  → specific-branch expense: any distribution data is ignored
+  #                       (existing allocation rows are dropped, not saved).
+  # branch_id blank    → shared/organization-level expense: is_shared is always
+  #                       true, so an incomplete distribution fails validation
+  #                       loudly instead of silently saving as an unscoped expense.
+  def normalize_branch_mode
+    if branch_id.present?
+      expense_allocations.each(&:mark_for_destruction)
+      self.distribution_method = nil
+      self.is_shared = false
+    else
+      self.is_shared = true
+    end
   end
 
   def branch_in_same_business
@@ -86,10 +120,19 @@ class Expense < ApplicationRecord
   def allocations_consistent_when_shared
     return unless is_shared
 
-    errors.add(:branch_id, :present_for_shared) if branch_id.present?
+    errors.add(:distribution_method, :required) if distribution_method.blank?
 
-    total = effective_allocations.sum { |a| a.allocation_percentage.to_d }
-    errors.add(:base, :allocation_not_100) unless total == 100
+    rows = effective_allocations
+    if rows.empty?
+      errors.add(:expense_allocations, :at_least_one_branch_required)
+    else
+      total = rows.sum { |a| a.allocation_percentage.to_d }
+      errors.add(:base, :allocation_not_100) unless total == 100
+    end
+  end
+
+  def sync_payment_source
+    self.payment_source = deduct_from_balance? ? "employee_custody" : "unpaid"
   end
 
   def creator_has_balance_account_if_deducting

@@ -96,7 +96,7 @@ RSpec.describe ExpensePolicy, type: :policy do
     it "shows in-scope, own-created, and shared-allocated expenses but hides other branches" do
       in_scope   = create(:expense, business: business, branch: br1)
       out_scope  = create(:expense, business: business, branch: br2)
-      shared     = build(:expense, business: business, branch: nil, amount: 100)
+      shared     = build(:expense, business: business, branch: nil, amount: 100, distribution_method: "percentage")
       shared.expense_allocations.build(branch: br1, allocation_percentage: 100, allocated_amount: 100)
       shared.save!
 

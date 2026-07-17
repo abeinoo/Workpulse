@@ -91,11 +91,11 @@ RSpec.describe Finance::RecurringExpenseGenerator, type: :model do
 
     it "is enforced at the database level (partial unique index)" do
       rec = recurring
-      business.expenses.create!(expense_category: category, amount: 1, expense_date: Date.current,
+      business.expenses.create!(branch: branch, expense_category: category, amount: 1, expense_date: Date.current,
                                 reference_number: "EXP-RAW1", status: "pending_approval",
                                 source_recurring_expense: rec)
       expect {
-        business.expenses.create!(expense_category: category, amount: 1, expense_date: Date.current,
+        business.expenses.create!(branch: branch, expense_category: category, amount: 1, expense_date: Date.current,
                                   reference_number: "EXP-RAW2", status: "pending_approval",
                                   source_recurring_expense: rec)
       }.to raise_error(ActiveRecord::RecordNotUnique)
