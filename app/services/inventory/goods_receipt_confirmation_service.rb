@@ -21,6 +21,7 @@ module Inventory
       @receipt.with_lock do
         return already_processed_error if @receipt.voided?
         return already_processed_error unless @receipt.draft?
+        return not_approved_error unless @receipt.approval_approved?
 
         account = nil
         if @receipt.employee_custody_funded?
@@ -80,6 +81,11 @@ module Inventory
     def already_processed_error
       Result.new(ok: false, receipt: @receipt,
                 error: I18n.t("inventory.goods_receipts.errors.already_processed"))
+    end
+
+    def not_approved_error
+      Result.new(ok: false, receipt: @receipt,
+                error: I18n.t("inventory.goods_receipts.errors.not_approved"))
     end
   end
 end

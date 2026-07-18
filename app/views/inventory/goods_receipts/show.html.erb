@@ -9,20 +9,52 @@
   <div class="page-header">
     <h1 class="page-title">
       <%= @goods_receipt.receipt_number %>
-      <span class="badge <%= @goods_receipt.voided? ? 'badge-danger' : (@goods_receipt.draft? ? 'badge-warning' : 'badge-success') %>">
-        <% if @goods_receipt.voided? %>
-          <%= t("inventory.void.status_voided") %>
-        <% else %>
-          <%= t("inventory.goods_receipts.status_#{@goods_receipt.status}") %>
-        <% end %>
+      <span class="badge <%= goods_receipt_approval_status_class(@goods_receipt.approval_status) %>">
+        <%= t("inventory.goods_receipts.approval_statuses.#{@goods_receipt.approval_status}") %>
+      </span>
+      <span class="badge <%= goods_receipt_receipt_status_class(@goods_receipt) %>">
+        <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(@goods_receipt)}") %>
       </span>
     </h1>
-    <% if @goods_receipt.draft? && policy(@goods_receipt).confirm? %>
-      <%= button_to t("inventory.goods_receipts.confirm"), confirm_inventory_goods_receipt_path(@goods_receipt),
-            method: :post, class: "btn btn-primary",
-            data: { turbo_confirm: t("inventory.goods_receipts.confirm_hint") } %>
-    <% end %>
+    <div class="flex" style="gap: var(--space-2);">
+      <% if policy(@goods_receipt).update? %>
+        <%= link_to t("inventory.goods_receipts.edit_action"), edit_inventory_goods_receipt_path(@goods_receipt), class: "btn btn-ghost btn-sm" %>
+      <% end %>
+      <% if policy(@goods_receipt).submit_for_approval? %>
+        <%= button_to t("inventory.goods_receipts.submit_for_approval"), submit_inventory_goods_receipt_path(@goods_receipt),
+              method: :post, class: "btn btn-primary btn-sm" %>
+      <% end %>
+      <% if @goods_receipt.approval_approved? && @goods_receipt.draft? && policy(@goods_receipt).confirm? %>
+        <%= button_to t("inventory.goods_receipts.confirm"), confirm_inventory_goods_receipt_path(@goods_receipt),
+              method: :post, class: "btn btn-primary",
+              data: { turbo_confirm: t("inventory.goods_receipts.confirm_hint") } %>
+      <% end %>
+    </div>
   </div>
+
+  <% if @goods_receipt.approval_pending_approval? && policy(@goods_receipt).approve? %>
+    <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+      <%= button_to t("inventory.goods_receipts.approve"), approve_inventory_goods_receipt_path(@goods_receipt),
+            method: :post, class: "btn btn-primary btn-sm",
+            data: { turbo_confirm: t("inventory.goods_receipts.approve_hint") } %>
+      <details style="flex: 1;">
+        <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
+          <%= t("inventory.goods_receipts.reject") %>
+        </summary>
+        <%= form_with url: reject_inventory_goods_receipt_path(@goods_receipt), method: :post, class: "mt-4" do %>
+          <div class="form-group">
+            <label class="form-label" for="rejection_reason"><%= t("inventory.goods_receipts.rejection_reason") %></label>
+            <textarea id="rejection_reason" name="rejection_reason" rows="2" class="form-control" required
+                      placeholder="<%= t('inventory.goods_receipts.rejection_reason_placeholder') %>"></textarea>
+          </div>
+          <button type="submit" class="btn btn-danger btn-sm"
+                  data-turbo-confirm="<%= t('inventory.goods_receipts.reject_confirm') %>">
+            <%= t("inventory.goods_receipts.reject_submit") %>
+          </button>
+        <% end %>
+      </details>
+    </div>
+  <% end %>
 
   <% if @goods_receipt.confirmed? %>
     <%= render "inventory/shared/void_panel",
@@ -40,6 +72,20 @@
       <% if @goods_receipt.notes.present? %>
         <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.notes") %></dt><dd><%= simple_format(@goods_receipt.notes) %></dd></div>
       <% end %>
+    </dl>
+  </div>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("inventory.goods_receipts.people_and_dates") %></h2>
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.requester") %></dt><dd><%= @goods_receipt.created_by&.full_name || "—" %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.approver") %></dt><dd><%= @goods_receipt.decided_by&.full_name || "—" %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.approval_date") %></dt><dd><%= @goods_receipt.decided_at ? l(@goods_receipt.decided_at, format: :long) : "—" %></dd></div>
+      <% if @goods_receipt.approval_rejected? && @goods_receipt.rejection_reason.present? %>
+        <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.rejection_reason") %></dt><dd><%= @goods_receipt.rejection_reason %></dd></div>
+      <% end %>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.storekeeper") %></dt><dd><%= @goods_receipt.confirmed_by&.full_name || "—" %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.receipt_date") %></dt><dd><%= @goods_receipt.confirmed_at ? l(@goods_receipt.confirmed_at, format: :long) : "—" %></dd></div>
     </dl>
   </div>
 
@@ -137,5 +183,46 @@
         </tr>
       </tfoot>
     </table>
+  </div>
+
+  <% approval_logs = @audit_logs.select { |log| log.action.in?(%w[create update submit_for_approval approve reject]) }
+     receipt_logs  = @audit_logs.select { |log| log.action.in?(%w[confirm void]) } %>
+
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.goods_receipts.approval_history") %></h2>
+    </div>
+    <% if approval_logs.any? %>
+      <ul class="timeline" style="margin: 0; padding: var(--space-4) var(--space-5);">
+        <% approval_logs.each do |log| %>
+          <li>
+            <strong><%= t("inventory.goods_receipts.audit.#{log.action}", default: log.action.humanize) %></strong>
+            — <%= log.actor.full_name %>
+            <span class="td-secondary"><%= l(log.created_at, format: :short) %></span>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.goods_receipts.no_history") %></p>
+    <% end %>
+  </div>
+
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.goods_receipts.receipt_history") %></h2>
+    </div>
+    <% if receipt_logs.any? %>
+      <ul class="timeline" style="margin: 0; padding: var(--space-4) var(--space-5);">
+        <% receipt_logs.each do |log| %>
+          <li>
+            <strong><%= t("inventory.goods_receipts.audit.#{log.action}", default: log.action.humanize) %></strong>
+            — <%= log.actor.full_name %>
+            <span class="td-secondary"><%= l(log.created_at, format: :short) %></span>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.goods_receipts.no_history") %></p>
+    <% end %>
   </div>
 </div>

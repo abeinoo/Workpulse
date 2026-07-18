@@ -3,7 +3,7 @@
 <div class="admin-page">
   <div class="page-header">
     <h1 class="page-title"><%= t("inventory.goods_receipts.title") %></h1>
-    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_stock_receipts) %>
+    <% if current_user.can?(:manage_inventory) || current_user.can?(:create_goods_receipts) %>
       <%= link_to t("inventory.goods_receipts.new_action"), new_inventory_goods_receipt_path, class: "btn btn-primary btn-sm" %>
     <% end %>
   </div>
@@ -18,7 +18,8 @@
           <th><%= t("inventory.goods_receipts.date") %></th>
           <th><%= t("inventory.goods_receipts.supplier") %></th>
           <th><%= t("inventory.goods_receipts.warehouse") %></th>
-          <th><%= t("inventory.void.status") %></th>
+          <th><%= t("inventory.goods_receipts.approval_status") %></th>
+          <th><%= t("inventory.goods_receipts.receipt_status") %></th>
           <th style="text-align: end;"><%= t("inventory.goods_receipts.total") %></th>
         </tr></thead>
         <tbody>
@@ -29,8 +30,13 @@
               <td class="td-secondary"><%= receipt.supplier&.name || "—" %></td>
               <td class="td-secondary"><%= receipt.warehouse.name %></td>
               <td>
-                <span class="badge <%= receipt.voided? ? 'badge-danger' : 'badge-success' %>">
-                  <%= receipt.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+                <span class="badge <%= goods_receipt_approval_status_class(receipt.approval_status) %>">
+                  <%= t("inventory.goods_receipts.approval_statuses.#{receipt.approval_status}") %>
+                </span>
+              </td>
+              <td>
+                <span class="badge <%= goods_receipt_receipt_status_class(receipt) %>">
+                  <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(receipt)}") %>
                 </span>
               </td>
               <td style="text-align: end;"><%= format_currency(receipt.total_value) %></td>

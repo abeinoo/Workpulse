@@ -112,33 +112,49 @@ module AttachmentHelper
   end
 
   # Renders a read-only viewer for any Active Storage attachment (e.g. a goods
-  # receipt invoice): image → clickable thumbnail, anything else (PDF) → icon +
-  # filename + open link. Mirrors national_id_viewer_tag but works on a bare
-  # attachment rather than a named user attachment.
+  # receipt invoice): image → clickable thumbnail, PDF → icon + filename + open
+  # link (both open inline in a new tab), anything else → icon + filename +
+  # download link. Mirrors national_id_viewer_tag but works on a bare
+  # ActiveStorage::Attachment (e.g. from iterating a has_many_attached
+  # association) rather than a named user attachment — ActiveStorage::Attachment
+  # has no #attached? method (that only exists on the Attached::One/Many proxy
+  # returned by the named accessor), so it must not be used as the presence guard.
   def document_viewer_tag(attachment)
-    return nil unless attachment&.attached?
+    return nil unless attachment
+    return nil unless (blob = attachment.blob)
 
-    blob = attachment.blob
     if blob.content_type.start_with?("image/")
       content_tag(:div, class: "attachment-viewer attachment-viewer--image") do
-        link_to(url_for(attachment), target: "_blank", rel: "noopener noreferrer", class: "attachment-viewer__link") do
+        link_to(rails_blob_path(attachment, disposition: "inline"),
+                target: "_blank", rel: "noopener noreferrer", class: "attachment-viewer__link") do
           image_tag(url_for(attachment.variant(resize_to_limit: [ 640, 400 ], format: :webp, saver: { quality: 85 })),
                     alt: blob.filename.to_s, class: "attachment-viewer__img", loading: "lazy")
         end
       end
-    else
+    elsif blob.content_type == "application/pdf"
       content_tag(:div, class: "attachment-viewer attachment-viewer--pdf") do
         content_tag(:span, "PDF", class: "attachment-viewer__pdf-icon") +
           content_tag(:div, class: "attachment-viewer__pdf-meta") do
             content_tag(:span, blob.filename.to_s, class: "attachment-viewer__pdf-name") +
-              link_to(t("forms.open"), url_for(attachment),
+              link_to(t("forms.open"), rails_blob_path(attachment, disposition: "inline"),
                       target: "_blank", rel: "noopener noreferrer",
+                      class: "btn btn-sm btn-ghost")
+          end
+      end
+    else
+      extension = blob.filename.extension_without_delimiter.presence&.upcase || "FILE"
+      content_tag(:div, class: "attachment-viewer attachment-viewer--file") do
+        content_tag(:span, extension, class: "attachment-viewer__pdf-icon") +
+          content_tag(:div, class: "attachment-viewer__pdf-meta") do
+            content_tag(:span, blob.filename.to_s, class: "attachment-viewer__pdf-name") +
+              link_to(t("forms.download"), rails_blob_path(attachment, disposition: "attachment"),
                       class: "btn btn-sm btn-ghost")
           end
       end
     end
   rescue => e
     Rails.logger.warn("[AttachmentHelper] document_viewer_tag failed: #{e.message}")
+    raise if Rails.env.test?
     nil
   end
 

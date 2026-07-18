@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_17_090100) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_17_091600) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -681,17 +681,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090100) do
   end
 
   create_table "goods_receipts", force: :cascade do |t|
+    t.string "approval_status", default: "draft", null: false
     t.bigint "business_id", null: false
     t.datetime "confirmed_at"
     t.bigint "confirmed_by_id"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
+    t.datetime "decided_at"
+    t.bigint "decided_by_id"
     t.bigint "funding_source_id"
     t.string "funding_source_kind", default: "supplier_credit", null: false
     t.string "funding_source_type"
     t.text "notes"
     t.string "receipt_number", null: false
     t.date "received_on", null: false
+    t.text "rejection_reason"
     t.string "status", default: "draft", null: false
     t.bigint "supplier_id"
     t.datetime "updated_at", null: false
@@ -703,6 +707,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090100) do
     t.index ["business_id"], name: "index_goods_receipts_on_business_id"
     t.index ["confirmed_by_id"], name: "index_goods_receipts_on_confirmed_by_id"
     t.index ["created_by_id"], name: "index_goods_receipts_on_created_by_id"
+    t.index ["decided_by_id"], name: "index_goods_receipts_on_decided_by_id"
     t.index ["funding_source_type", "funding_source_id"], name: "index_goods_receipts_on_funding_source"
     t.index ["supplier_id"], name: "index_goods_receipts_on_supplier_id"
     t.index ["voided_by_id"], name: "index_goods_receipts_on_voided_by_id"
@@ -2121,6 +2126,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090100) do
   add_foreign_key "goods_receipts", "suppliers"
   add_foreign_key "goods_receipts", "users", column: "confirmed_by_id"
   add_foreign_key "goods_receipts", "users", column: "created_by_id"
+  add_foreign_key "goods_receipts", "users", column: "decided_by_id"
   add_foreign_key "goods_receipts", "users", column: "voided_by_id"
   add_foreign_key "goods_receipts", "warehouses"
   add_foreign_key "inventory_movements", "branches"

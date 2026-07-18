@@ -79,6 +79,12 @@ RSpec.describe "Inventory", type: :request do
       expect(receipt).to be_draft
       expect(product.reload.current_stock).to eq(0) # draft receipts never touch stock
 
+      post submit_inventory_goods_receipt_path(receipt)
+      expect(receipt.reload).to be_approval_pending_approval
+
+      post approve_inventory_goods_receipt_path(receipt)
+      expect(receipt.reload).to be_approval_approved
+
       post confirm_inventory_goods_receipt_path(receipt)
       expect(receipt.reload).to be_confirmed
       expect(product.reload.current_stock).to eq(10)

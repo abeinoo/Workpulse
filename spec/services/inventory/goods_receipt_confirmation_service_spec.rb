@@ -14,11 +14,12 @@ RSpec.describe Inventory::GoodsReceiptConfirmationService, type: :model do
     account.refresh_balance!
   end
 
-  def draft_receipt(qty: 10, cost: 50, funding_source_kind: "supplier_credit", funding_source: nil)
+  def draft_receipt(qty: 10, cost: 50, funding_source_kind: "supplier_credit", funding_source: nil, approval_status: "approved")
     r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current,
                                       funding_source_kind: funding_source_kind, funding_source: funding_source)
     r.items.build(product: product, quantity: qty, unit_cost: cost)
     r.save!
+    r.update_column(:approval_status, approval_status)
     r
   end
 
@@ -88,6 +89,21 @@ RSpec.describe Inventory::GoodsReceiptConfirmationService, type: :model do
       result = confirm(receipt)
       expect(result.ok?).to be(false)
       expect(product.reload.current_stock).to eq(10) # unchanged, not double-posted
+    end
+  end
+
+  describe "approval gate" do
+    %w[draft pending_approval rejected].each do |approval_status|
+      it "blocks confirmation while approval_status is #{approval_status}" do
+        receipt = draft_receipt(approval_status: approval_status)
+
+        result = confirm(receipt)
+
+        expect(result.ok?).to be(false)
+        expect(result.error).to eq(I18n.t("inventory.goods_receipts.errors.not_approved"))
+        expect(receipt.reload).to be_draft
+        expect(product.reload.current_stock).to eq(0)
+      end
     end
   end
 end

@@ -12,11 +12,21 @@ class GoodsReceipt < ApplicationRecord
 
   enum :status, { draft: "draft", confirmed: "confirmed" }
 
+  # Approval (a purchasing decision — "I approve this purchase") is entirely
+  # independent from the status enum above (an inventory event — "the goods
+  # were physically received"). prefix: :approval avoids colliding with
+  # status's draft?/confirmed? methods. A receipt may only be confirmed once
+  # approval_status is "approved" — see Inventory::GoodsReceiptConfirmationService.
+  enum :approval_status, { draft: "draft", pending_approval: "pending_approval",
+                           approved: "approved", rejected: "rejected" },
+       prefix: :approval
+
   belongs_to :business
   belongs_to :warehouse
   belongs_to :supplier,   optional: true
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :confirmed_by, class_name: "User", optional: true
+  belongs_to :decided_by, class_name: "User", optional: true
   belongs_to :funding_source, polymorphic: true, optional: true
 
   has_many :items, class_name: "GoodsReceiptItem", dependent: :destroy

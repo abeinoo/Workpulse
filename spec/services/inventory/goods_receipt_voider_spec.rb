@@ -19,6 +19,7 @@ RSpec.describe Inventory::GoodsReceiptVoider, type: :model do
                                       funding_source_kind: funding_source_kind, funding_source: funding_source)
     r.items.build(product: product, quantity: qty, unit_cost: cost)
     r.save!
+    r.update_column(:approval_status, "approved")
     Inventory::GoodsReceiptConfirmationService.new(goods_receipt_id: r.id, actor: actor).call
     r.reload
   end
@@ -49,6 +50,11 @@ RSpec.describe Inventory::GoodsReceiptVoider, type: :model do
     expect(settlements.map(&:amount)).to eq([ 500, -500 ]) # original untouched, reversal appended
     expect(receipt.total_settled_amount).to eq(0)
     expect(receipt).to be_pending_settlement # financial state fully unwound, independent of inventory status
+
+    void_log = AuditLog.for_auditable(receipt).find_by(action: "void")
+    expect(void_log).to be_present
+    expect(void_log.actor).to eq(actor)
+    expect(void_log.metadata["reason"]).to eq("wrong supplier")
   end
 
   it "does not touch custody or settlements for a supplier-credit receipt" do

@@ -9,6 +9,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     authorize @goods_receipt
     @items       = @goods_receipt.items.includes(:product)
     @settlements = @goods_receipt.financial_settlements.chronological.includes(:funding_source, :created_by)
+    @audit_logs  = AuditLog.for_auditable(@goods_receipt).recent.includes(:actor)
   end
 
   def new
@@ -25,7 +26,8 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     authorize @goods_receipt
     ensure_warehouses_accessible!(@goods_receipt.warehouse_id)
 
-    if @goods_receipt.save
+    result = Inventory::GoodsReceiptDraftService.new(@goods_receipt, actor: current_user).call
+    if result.ok?
       redirect_to inventory_goods_receipt_path(@goods_receipt), notice: t("inventory.goods_receipts.created")
     else
       load_options
@@ -34,15 +36,55 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     end
   end
 
+  def edit
+    @goods_receipt = find_receipt
+    authorize @goods_receipt
+    load_options
+  end
+
+  def update
+    @goods_receipt = find_receipt
+    authorize @goods_receipt
+    @goods_receipt.assign_attributes(receipt_params)
+    assign_funding_source
+    ensure_warehouses_accessible!(@goods_receipt.warehouse_id)
+
+    result = Inventory::GoodsReceiptDraftService.new(@goods_receipt, actor: current_user).call
+    if result.ok?
+      redirect_to inventory_goods_receipt_path(@goods_receipt), notice: t("inventory.goods_receipts.updated")
+    else
+      load_options
+      render :edit, status: :unprocessable_entity
+    end
+  end
+
+  def submit
+    @goods_receipt = find_receipt
+    authorize @goods_receipt, :submit_for_approval?
+    result = Inventory::GoodsReceiptApproval.new(goods_receipt_id: @goods_receipt.id, actor: current_user).submit!
+    redirect_with_result(result, ok_message: t("inventory.goods_receipts.submitted"))
+  end
+
+  def approve
+    @goods_receipt = find_receipt
+    authorize @goods_receipt, :approve?
+    result = Inventory::GoodsReceiptApproval.new(goods_receipt_id: @goods_receipt.id, actor: current_user).approve!
+    redirect_with_result(result, ok_message: t("inventory.goods_receipts.approved"))
+  end
+
+  def reject
+    @goods_receipt = find_receipt
+    authorize @goods_receipt, :reject?
+    result = Inventory::GoodsReceiptApproval.new(goods_receipt_id: @goods_receipt.id, actor: current_user)
+                                            .reject!(reason: params[:rejection_reason])
+    redirect_with_result(result, ok_message: t("inventory.goods_receipts.rejected"))
+  end
+
   def confirm
     @goods_receipt = find_receipt
     authorize @goods_receipt, :confirm?
     result = Inventory::GoodsReceiptConfirmationService.new(goods_receipt_id: @goods_receipt.id, actor: current_user).call
-    if result.ok?
-      redirect_to inventory_goods_receipt_path(@goods_receipt), notice: t("inventory.goods_receipts.confirmed")
-    else
-      redirect_to inventory_goods_receipt_path(@goods_receipt), alert: result.error
-    end
+    redirect_with_result(result, ok_message: t("inventory.goods_receipts.confirmed"))
   end
 
   def void
@@ -61,6 +103,14 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
 
   def find_receipt
     policy_scope(GoodsReceipt).find(params[:id])
+  end
+
+  def redirect_with_result(result, ok_message:)
+    if result.ok?
+      redirect_to inventory_goods_receipt_path(@goods_receipt), notice: ok_message
+    else
+      redirect_to inventory_goods_receipt_path(@goods_receipt), alert: result.error
+    end
   end
 
   def load_options

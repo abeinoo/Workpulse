@@ -15,6 +15,8 @@ module Inventory
   # Everything happens in one transaction: if any reversal fails, the stock
   # reversal is rolled back too.
   class GoodsReceiptVoider
+    include AuditLoggable
+
     Result = Struct.new(:ok, :document, :error, keyword_init: true) do
       def ok? = ok
     end
@@ -33,6 +35,8 @@ module Inventory
         raise ActiveRecord::Rollback unless result.ok?
 
         reverse_settlements!
+
+        log_audit(actor: @actor, auditable: @receipt, action: "void", metadata: { reason: @reason })
 
         return Result.new(ok: true, document: @receipt)
       end

@@ -313,10 +313,13 @@ Rails.application.routes.draw do
       end
     end
     resources :barcode_labels, only: [ :index, :show ]
-    resources :goods_receipts,  only: [ :index, :show, :new, :create ] do
+    resources :goods_receipts,  only: [ :index, :show, :new, :create, :edit, :update ] do
       member do
         patch :void
         post  :confirm
+        post  :submit
+        post  :approve
+        post  :reject
       end
     end
     resources :stock_issues,    only: [ :index, :show, :new, :create ] do

@@ -63,15 +63,15 @@ RSpec.describe "Inventory voids & adjustments", type: :request do
       expect(product.reload.current_stock).to eq(0)
     end
 
-    it "shows Confirmed then Voided status on the show page" do
+    it "shows Received then Voided receipt status on the show page" do
       sign_in owner
       receipt = post_receipt
       get inventory_goods_receipt_path(receipt)
-      expect(response.body).to include(I18n.t("inventory.goods_receipts.status_confirmed"))
+      expect(response.body).to include(I18n.t("inventory.goods_receipts.receipt_statuses.received"))
 
       patch void_inventory_goods_receipt_path(receipt), params: { void_reason: "x" }
       get inventory_goods_receipt_path(receipt)
-      expect(response.body).to include(I18n.t("inventory.void.status_voided"))
+      expect(response.body).to include(I18n.t("inventory.goods_receipts.receipt_statuses.voided"))
     end
   end
 
