@@ -1,19 +1,27 @@
 module Inventory
-  # Voids a confirmed goods receipt via the generic Inventory::DocumentVoider
-  # (stock reversal, unchanged, still shared with StockIssue/StockTransfer),
-  # then reverses every settlement recorded against the receipt via
-  # FinancialSettlementService.reverse_all — each with a new,
-  # equal-and-opposite FinancialSettlement row (never modifying the original)
-  # — plus, for any settlement funded from an employee's custody account, a
-  # matching reversing CustodyTransaction so the balance returns to what it
-  # was before confirmation.
+  # Voids a goods receipt whose financial or inventory effects need reversing —
+  # either a fully confirmed receipt (stock posted) or one that's approved but
+  # not yet confirmed (money already deducted at approval, no stock posted yet).
   #
-  # A receipt can only be voided once (Inventory::DocumentVoider enforces
-  # this), so at the point this runs every existing settlement is an original
-  # — there's nothing to guard against double-reversal.
+  # For a confirmed receipt, stock is reversed via the generic
+  # Inventory::DocumentVoider (unchanged, still shared with StockIssue/
+  # StockTransfer). For an approved-but-unconfirmed receipt, there's no posted
+  # inventory movement to reverse (GoodsReceiptPoster never ran), so the
+  # receipt is simply marked voided directly.
+  #
+  # Either way, every settlement recorded against the receipt is reversed via
+  # FinancialSettlementService.reverse_all — each with a new, equal-and-
+  # opposite FinancialSettlement row (never modifying the original) — plus,
+  # for any settlement funded from an employee's custody account, a matching
+  # reversing CustodyTransaction so the balance returns to what it was before
+  # approval.
+  #
+  # A receipt can only be voided once (guarded below / by DocumentVoider), so
+  # at the point this runs every existing settlement is an original — there's
+  # nothing to guard against double-reversal.
   #
   # Everything happens in one transaction: if any reversal fails, the stock
-  # reversal is rolled back too.
+  # reversal (if any) is rolled back too.
   class GoodsReceiptVoider
     include AuditLoggable
 
@@ -31,8 +39,12 @@ module Inventory
       @receipt = GoodsReceipt.where(business_id: @actor.business_id).find(@goods_receipt_id)
 
       ActiveRecord::Base.transaction do
-        result = Inventory::DocumentVoider.new(@receipt, user: @actor, reason: @reason).call
-        raise ActiveRecord::Rollback unless result.ok?
+        if @receipt.confirmed?
+          result = Inventory::DocumentVoider.new(@receipt, user: @actor, reason: @reason).call
+          raise ActiveRecord::Rollback unless result.ok?
+        else
+          raise ActiveRecord::Rollback unless void_unconfirmed!
+        end
 
         reverse_settlements!
 
@@ -45,6 +57,24 @@ module Inventory
     end
 
     private
+
+    # Mirrors DocumentVoider's own-voided/blank-reason guards, minus the stock
+    # reversal — there's nothing posted yet to reverse.
+    def void_unconfirmed!
+      if @receipt.voided?
+        @receipt.errors.add(:base, :already_voided)
+        return false
+      end
+
+      reason = @reason.to_s.strip
+      if reason.blank?
+        @receipt.errors.add(:void_reason, :blank)
+        return false
+      end
+
+      @receipt.update!(voided_at: Time.current, voided_by: @actor, void_reason: reason)
+      true
+    end
 
     def reverse_settlements!
       originals = @receipt.financial_settlements.to_a

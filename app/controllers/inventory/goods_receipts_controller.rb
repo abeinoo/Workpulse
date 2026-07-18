@@ -5,11 +5,14 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   end
 
   def show
-    @goods_receipt = find_receipt
+    @goods_receipt = find_receipt(
+      includes: [ :funding_source, :custody_transactions, :created_by, :decided_by, :confirmed_by, :voided_by ]
+    )
     authorize @goods_receipt
-    @items       = @goods_receipt.items.includes(:product)
-    @settlements = @goods_receipt.financial_settlements.chronological.includes(:funding_source, :created_by)
-    @audit_logs  = AuditLog.for_auditable(@goods_receipt).recent.includes(:actor)
+    @items           = @goods_receipt.items.includes(:product)
+    @settlements     = @goods_receipt.financial_settlements.chronological.includes(:funding_source, :created_by)
+    @audit_logs      = AuditLog.for_auditable(@goods_receipt).recent.includes(:actor)
+    @timeline_events = build_timeline_events
   end
 
   def new
@@ -101,8 +104,8 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
 
   private
 
-  def find_receipt
-    policy_scope(GoodsReceipt).find(params[:id])
+  def find_receipt(includes: [])
+    policy_scope(GoodsReceipt).includes(includes).find(params[:id])
   end
 
   def redirect_with_result(result, ok_message:)
@@ -134,5 +137,42 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
       :warehouse_id, :supplier_id, :received_on, :notes, :funding_source_kind, invoices: [],
       items_attributes: [ :id, :product_id, :quantity, :unit_cost, :_destroy ]
     )
+  end
+
+  # Builds the show page's Activity Timeline: one entry per event that
+  # actually happened, in chronological order. Only :created (created_at is a
+  # guaranteed column) and :settled (sourced from @settlements, never from an
+  # audit log — settlement creation isn't separately audited) skip the audit
+  # log; every decision/lifecycle step is sourced from @audit_logs rather than
+  # the receipt's own decided_at/decided_by columns, since those are
+  # overwritten on each decision and would lose history across a
+  # reject → resubmit → approve cycle. No queries here — everything is
+  # already preloaded on @goods_receipt / @audit_logs / @settlements by #show.
+  def build_timeline_events
+    events = [ { type: :created, time: @goods_receipt.created_at, actor: @goods_receipt.created_by } ]
+
+    @audit_logs.each do |log|
+      case log.action
+      when "submit_for_approval"
+        events << { type: :submitted, time: log.created_at, actor: log.actor }
+      when "approve"
+        events << { type: :approved, time: log.created_at, actor: log.actor }
+      when "reject"
+        events << { type: :rejected, time: log.created_at, actor: log.actor, data: log.metadata["reason"] }
+      when "confirm"
+        events << { type: :received, time: log.created_at, actor: log.actor }
+      when "void"
+        events << { type: :voided, time: log.created_at, actor: log.actor, data: log.metadata["reason"] }
+      end
+    end
+
+    # Only the original deduction, never its reversal (a negative amount) —
+    # a void already gets its own :voided entry, and reversal-vs-original
+    # nuance belongs in the Payment Information ledger, not the headline timeline.
+    @settlements.select { |s| s.amount.positive? }.each do |settlement|
+      events << { type: :settled, time: settlement.settled_at, actor: settlement.created_by, data: settlement }
+    end
+
+    events.sort_by { |event| event[:time] }
   end
 end

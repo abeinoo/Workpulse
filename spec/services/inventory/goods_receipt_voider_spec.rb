@@ -14,12 +14,24 @@ RSpec.describe Inventory::GoodsReceiptVoider, type: :model do
     account.refresh_balance!
   end
 
-  def confirmed_receipt(qty: 10, cost: 50, funding_source_kind: "employee_custody", funding_source: account)
+  def pending_receipt(qty: 10, cost: 50, funding_source_kind: "employee_custody", funding_source: account)
     r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current,
                                       funding_source_kind: funding_source_kind, funding_source: funding_source)
     r.items.build(product: product, quantity: qty, unit_cost: cost)
     r.save!
-    r.update_column(:approval_status, "approved")
+    r.update_column(:approval_status, "pending_approval")
+    r
+  end
+
+  # Approval is the financial event; confirmation only posts stock.
+  def approved_receipt(**)
+    r = pending_receipt(**)
+    Inventory::GoodsReceiptApproval.new(goods_receipt_id: r.id, actor: actor).approve!
+    r.reload
+  end
+
+  def confirmed_receipt(**)
+    r = approved_receipt(**)
     Inventory::GoodsReceiptConfirmationService.new(goods_receipt_id: r.id, actor: actor).call
     r.reload
   end
@@ -81,5 +93,43 @@ RSpec.describe Inventory::GoodsReceiptVoider, type: :model do
     expect(result.ok?).to be(false)
     expect(receipt.reload).not_to be_voided
     expect(account.reload.current_balance).to eq(500) # unchanged
+  end
+
+  describe "an approved but not yet confirmed receipt" do
+    it "reverses the custody deduction and settlement without touching inventory (nothing was posted)" do
+      top_up!(1000)
+      receipt = approved_receipt(qty: 10, cost: 50)
+      expect(receipt.status).to eq("draft") # never confirmed
+      expect(account.reload.current_balance).to eq(500)
+
+      result = void(receipt)
+
+      expect(result.ok?).to be(true)
+      expect(receipt.reload).to be_voided
+      expect(receipt.status).to eq("draft") # unchanged — no inventory was ever posted
+      expect(product.reload.current_stock).to eq(0)
+      expect(account.reload.current_balance).to eq(1000)
+      expect(receipt).to be_pending_settlement
+    end
+
+    it "refuses to void twice" do
+      top_up!(1000)
+      receipt = approved_receipt(qty: 10, cost: 50)
+      void(receipt)
+
+      result = void(receipt.reload)
+
+      expect(result.ok?).to be(false)
+      expect(account.reload.current_balance).to eq(1000) # unchanged by the second attempt
+    end
+
+    it "requires a non-blank reason" do
+      receipt = approved_receipt(funding_source_kind: "supplier_credit", funding_source: nil)
+
+      result = void(receipt, reason: "  ")
+
+      expect(result.ok?).to be(false)
+      expect(receipt.reload).not_to be_voided
+    end
   end
 end

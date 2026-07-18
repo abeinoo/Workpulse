@@ -66,7 +66,7 @@ RSpec.describe Inventory::GoodsReceiptApproval, type: :model do
       expect(receipt.decided_at).to be_present
     end
 
-    it "never posts stock, custody, or a settlement — approval is purely a purchasing decision" do
+    it "never posts stock for a supplier-credit receipt — approval is a financial decision, not an inventory event" do
       receipt = draft_receipt
       receipt.update_column(:approval_status, "pending_approval")
 
@@ -96,6 +96,62 @@ RSpec.describe Inventory::GoodsReceiptApproval, type: :model do
       receipt = draft_receipt
       result = approval_for(receipt, actor: approver).approve!
       expect(result.ok?).to be(false)
+    end
+
+    context "with an employee-custody-funded receipt" do
+      let(:account) { create(:custody_account, business: business) }
+
+      def top_up!(amount)
+        account.custody_transactions.create!(business: business, txn_type: "top_up", amount: amount)
+        account.refresh_balance!
+      end
+
+      def custody_receipt(qty: 1, cost: 100)
+        r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current, created_by: requester,
+                                          funding_source_kind: "employee_custody", funding_source: account)
+        r.items.build(product: product, quantity: qty, unit_cost: cost)
+        r.save!
+        r.update_column(:approval_status, "pending_approval")
+        r
+      end
+
+      it "is the financial event: deducts the balance and records a settlement plus a linked custody transaction, without posting stock" do
+        top_up!(1000)
+        receipt = custody_receipt(qty: 10, cost: 50)
+
+        result = approval_for(receipt, actor: approver).approve!
+
+        expect(result.ok?).to be(true)
+        receipt.reload
+        expect(receipt).to be_approval_approved
+        expect(receipt.status).to eq("draft") # not confirmed — inventory posting is a separate step
+        expect(account.reload.current_balance).to eq(500)
+
+        settlement = receipt.financial_settlements.sole
+        expect(settlement.amount).to eq(500)
+        expect(settlement.funding_source).to eq(account)
+        expect(receipt).to be_settled
+
+        txn = receipt.custody_transactions.of_type("inventory_purchase").first
+        expect(txn).to be_present
+        expect(txn.amount).to eq(-500)
+        expect(txn.custody_account).to eq(account)
+      end
+
+      it "blocks approval when the balance is insufficient, leaving the receipt pending and creating no settlement or transaction" do
+        top_up!(100)
+        receipt = custody_receipt(qty: 10, cost: 50)
+
+        result = approval_for(receipt, actor: approver).approve!
+
+        expect(result.ok?).to be(false)
+        expect(result.error).to eq(I18n.t("inventory.goods_receipts.errors.insufficient_custody_balance"))
+        expect(receipt.reload).to be_approval_pending_approval
+        expect(account.reload.current_balance).to eq(100)
+        expect(receipt.custody_transactions.count).to eq(0)
+        expect(receipt.financial_settlements.count).to eq(0)
+        expect(receipt).to be_pending_settlement
+      end
     end
   end
 
@@ -131,6 +187,28 @@ RSpec.describe Inventory::GoodsReceiptApproval, type: :model do
       result = approval_for(receipt, actor: requester).reject!(reason: "changed my mind")
       expect(result.ok?).to be(false)
       expect(receipt.reload).to be_approval_pending_approval
+    end
+  end
+
+  describe "a voided receipt (terminal state)" do
+    def voided_receipt(approval_status: "approved")
+      r = draft_receipt
+      r.update_columns(approval_status: approval_status, voided_at: Time.current, void_reason: "test")
+      r
+    end
+
+    it "refuses submit!, approve!, and reject! — a voided receipt can never re-enter the workflow" do
+      submit_result = approval_for(voided_receipt(approval_status: "draft"), actor: approver).submit!
+      expect(submit_result.ok?).to be(false)
+      expect(submit_result.error).to eq(I18n.t("inventory.goods_receipts.errors.already_processed"))
+
+      approve_result = approval_for(voided_receipt(approval_status: "pending_approval"), actor: approver).approve!
+      expect(approve_result.ok?).to be(false)
+      expect(approve_result.error).to eq(I18n.t("inventory.goods_receipts.errors.already_processed"))
+
+      reject_result = approval_for(voided_receipt(approval_status: "pending_approval"), actor: approver).reject!(reason: "x")
+      expect(reject_result.ok?).to be(false)
+      expect(reject_result.error).to eq(I18n.t("inventory.goods_receipts.errors.already_processed"))
     end
   end
 end

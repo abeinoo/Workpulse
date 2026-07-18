@@ -7,15 +7,7 @@
   <% end %>
 
   <div class="page-header">
-    <h1 class="page-title">
-      <%= @goods_receipt.receipt_number %>
-      <span class="badge <%= goods_receipt_approval_status_class(@goods_receipt.approval_status) %>">
-        <%= t("inventory.goods_receipts.approval_statuses.#{@goods_receipt.approval_status}") %>
-      </span>
-      <span class="badge <%= goods_receipt_receipt_status_class(@goods_receipt) %>">
-        <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(@goods_receipt)}") %>
-      </span>
-    </h1>
+    <h1 class="page-title"><%= @goods_receipt.receipt_number %></h1>
     <div class="flex" style="gap: var(--space-2);">
       <% if policy(@goods_receipt).update? %>
         <%= link_to t("inventory.goods_receipts.edit_action"), edit_inventory_goods_receipt_path(@goods_receipt), class: "btn btn-ghost btn-sm" %>
@@ -29,6 +21,30 @@
               method: :post, class: "btn btn-primary",
               data: { turbo_confirm: t("inventory.goods_receipts.confirm_hint") } %>
       <% end %>
+    </div>
+  </div>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-4);"><%= t("inventory.goods_receipts.current_status") %></h2>
+    <div class="flex" style="gap: var(--space-6); flex-wrap: wrap;">
+      <div>
+        <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.goods_receipts.approval_status_label") %></p>
+        <span class="badge badge--md <%= goods_receipt_approval_status_class(@goods_receipt.approval_status) %>">
+          <%= t("inventory.goods_receipts.approval_statuses.#{@goods_receipt.approval_status}") %>
+        </span>
+      </div>
+      <div>
+        <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.goods_receipts.receipt_status_label") %></p>
+        <span class="badge badge--md <%= goods_receipt_receipt_status_class(@goods_receipt) %>">
+          <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(@goods_receipt)}") %>
+        </span>
+      </div>
+      <div>
+        <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.goods_receipts.financial_status_label") %></p>
+        <span class="badge badge--md <%= goods_receipt_financial_status_class(@goods_receipt.financial_status) %>">
+          <%= t("inventory.goods_receipts.financial_statuses.#{@goods_receipt.financial_status}") %>
+        </span>
+      </div>
     </div>
   </div>
 
@@ -56,7 +72,7 @@
     </div>
   <% end %>
 
-  <% if @goods_receipt.confirmed? %>
+  <% if @goods_receipt.confirmed? || @goods_receipt.approval_approved? %>
     <%= render "inventory/shared/void_panel",
           document: @goods_receipt,
           void_path: void_inventory_goods_receipt_path(@goods_receipt),
@@ -68,7 +84,6 @@
       <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.date") %></dt><dd><%= local_date(@goods_receipt.received_on) %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.supplier") %></dt><dd><%= @goods_receipt.supplier&.name || "—" %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.warehouse") %></dt><dd><%= @goods_receipt.warehouse.name %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.funding_source") %></dt><dd><%= t("inventory.goods_receipts.funding_source_kinds.#{@goods_receipt.funding_source_kind}") %></dd></div>
       <% if @goods_receipt.notes.present? %>
         <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.notes") %></dt><dd><%= simple_format(@goods_receipt.notes) %></dd></div>
       <% end %>
@@ -76,32 +91,42 @@
   </div>
 
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
-    <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("inventory.goods_receipts.people_and_dates") %></h2>
+    <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("inventory.goods_receipts.payment_information") %></h2>
     <dl class="detail-list">
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.requester") %></dt><dd><%= @goods_receipt.created_by&.full_name || "—" %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.approver") %></dt><dd><%= @goods_receipt.decided_by&.full_name || "—" %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.approval_date") %></dt><dd><%= @goods_receipt.decided_at ? l(@goods_receipt.decided_at, format: :long) : "—" %></dd></div>
-      <% if @goods_receipt.approval_rejected? && @goods_receipt.rejection_reason.present? %>
-        <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.rejection_reason") %></dt><dd><%= @goods_receipt.rejection_reason %></dd></div>
-      <% end %>
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.storekeeper") %></dt><dd><%= @goods_receipt.confirmed_by&.full_name || "—" %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.receipt_date") %></dt><dd><%= @goods_receipt.confirmed_at ? l(@goods_receipt.confirmed_at, format: :long) : "—" %></dd></div>
-    </dl>
-  </div>
-
-  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
-    <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("inventory.goods_receipts.financial_settlement") %></h2>
-    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.payment_source") %></dt>
+        <dd><%= t("inventory.goods_receipts.funding_source_kinds.#{@goods_receipt.funding_source_kind}") %></dd>
+      </div>
       <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.financial_status") %></dt>
         <dd>
-          <span class="badge <%= { "pending_settlement" => "badge-warning", "partially_settled" => "badge-accent", "settled" => "badge-success" }.fetch(@goods_receipt.financial_status) %>">
+          <span class="badge <%= goods_receipt_financial_status_class(@goods_receipt.financial_status) %>">
             <%= t("inventory.goods_receipts.financial_statuses.#{@goods_receipt.financial_status}") %>
           </span>
         </dd>
       </div>
       <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.total_amount") %></dt><dd><%= format_currency(@goods_receipt.total_value) %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.settled_amount") %></dt><dd><%= format_currency(@goods_receipt.total_settled_amount) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.paid_amount") %></dt><dd><%= format_currency(@goods_receipt.total_settled_amount) %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.remaining_amount") %></dt><dd><%= format_currency(@goods_receipt.remaining_settlement_amount) %></dd></div>
+      <% if @goods_receipt.employee_custody_funded? %>
+        <% original_settlement = @settlements.find { |s| s.amount.positive? } %>
+        <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.custody_account") %></dt>
+          <dd>
+            <% if @goods_receipt.funding_source.present? %>
+              <%= link_to @goods_receipt.funding_source.name, finance_custody_account_path(@goods_receipt.funding_source), class: "link" %>
+            <% else %>
+              —
+            <% end %>
+          </dd>
+        </div>
+        <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.custody_transaction_reference") %></dt>
+          <dd>
+            <% custody_txn = @goods_receipt.custody_transactions.of_type("inventory_purchase").first %>
+            <%= custody_txn ? "##{custody_txn.id}" : "—" %>
+          </dd>
+        </div>
+        <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.financial_settlement_reference") %></dt>
+          <dd><%= original_settlement ? "##{original_settlement.id}" : "—" %></dd>
+        </div>
+      <% end %>
     </dl>
 
     <% if @settlements.any? %>
@@ -185,39 +210,41 @@
     </table>
   </div>
 
-  <% approval_logs = @audit_logs.select { |log| log.action.in?(%w[create update submit_for_approval approve reject]) }
-     receipt_logs  = @audit_logs.select { |log| log.action.in?(%w[confirm void]) } %>
-
-  <div class="card" style="margin-bottom: var(--space-5);">
+  <div class="card" style="margin-top: var(--space-5);">
     <div class="card-header">
-      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.goods_receipts.approval_history") %></h2>
+      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.goods_receipts.activity_timeline") %></h2>
     </div>
-    <% if approval_logs.any? %>
-      <ul class="timeline" style="margin: 0; padding: var(--space-4) var(--space-5);">
-        <% approval_logs.each do |log| %>
-          <li>
-            <strong><%= t("inventory.goods_receipts.audit.#{log.action}", default: log.action.humanize) %></strong>
-            — <%= log.actor.full_name %>
-            <span class="td-secondary"><%= l(log.created_at, format: :short) %></span>
-          </li>
-        <% end %>
-      </ul>
-    <% else %>
-      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.goods_receipts.no_history") %></p>
-    <% end %>
-  </div>
-
-  <div class="card" style="margin-bottom: var(--space-5);">
-    <div class="card-header">
-      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.goods_receipts.receipt_history") %></h2>
-    </div>
-    <% if receipt_logs.any? %>
-      <ul class="timeline" style="margin: 0; padding: var(--space-4) var(--space-5);">
-        <% receipt_logs.each do |log| %>
-          <li>
-            <strong><%= t("inventory.goods_receipts.audit.#{log.action}", default: log.action.humanize) %></strong>
-            — <%= log.actor.full_name %>
-            <span class="td-secondary"><%= l(log.created_at, format: :short) %></span>
+    <% if @timeline_events.any? %>
+      <ul class="activity-timeline" style="padding: var(--space-5);">
+        <% @timeline_events.each do |event| %>
+          <li class="activity-timeline__item">
+            <div class="activity-timeline__marker-col">
+              <span class="activity-timeline__marker <%= goods_receipt_timeline_marker_class(event[:type]) %>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="<%= goods_receipt_timeline_icon(event[:type]) %>" />
+                </svg>
+              </span>
+              <span class="activity-timeline__line"></span>
+            </div>
+            <div class="activity-timeline__content">
+              <p class="activity-timeline__title"><%= t("inventory.goods_receipts.timeline.#{event[:type]}") %></p>
+              <% if event[:type] == :settled %>
+                <p class="activity-timeline__meta">
+                  <%= t("inventory.goods_receipts.timeline.settled_meta",
+                        source: t("inventory.goods_receipts.funding_source_kinds.#{@goods_receipt.funding_source_kind}")) %>
+                  · <%= l(event[:time], format: :short) %>
+                </p>
+                <p class="activity-timeline__amount"><%= format_currency(event[:data].amount) %></p>
+              <% else %>
+                <p class="activity-timeline__meta">
+                  <%= event[:actor]&.full_name || t("inventory.goods_receipts.timeline.unknown_actor") %>
+                  · <%= l(event[:time], format: :short) %>
+                </p>
+                <% if event[:data].present? %>
+                  <p class="activity-timeline__meta"><%= t("inventory.goods_receipts.timeline.reason", reason: event[:data]) %></p>
+                <% end %>
+              <% end %>
+            </div>
           </li>
         <% end %>
       </ul>

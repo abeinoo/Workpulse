@@ -36,6 +36,46 @@ module InventoryHelper
     GOODS_RECEIPT_RECEIPT_STATUS_BADGES.fetch(goods_receipt_receipt_status(receipt), "badge-neutral")
   end
 
+  # Badge colour for a goods receipt's financial_status (Settleable, derived
+  # from its FinancialSettlement ledger).
+  GOODS_RECEIPT_FINANCIAL_STATUS_BADGES = {
+    "pending_settlement" => "badge-warning", "partially_settled" => "badge-accent", "settled" => "badge-success"
+  }.freeze
+
+  def goods_receipt_financial_status_class(financial_status)
+    GOODS_RECEIPT_FINANCIAL_STATUS_BADGES.fetch(financial_status.to_s, "badge-neutral")
+  end
+
+  # Marker colour + icon for one Activity Timeline entry (built by
+  # Inventory::GoodsReceiptsController#build_timeline_events). Kept together
+  # as presentation-only lookups so the view never branches on event type.
+  GOODS_RECEIPT_TIMELINE_MARKER_CLASSES = {
+    created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
+    approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
+    settled: "activity-timeline__marker--accent", received: "activity-timeline__marker--success",
+    voided: "activity-timeline__marker--danger"
+  }.freeze
+
+  def goods_receipt_timeline_marker_class(type)
+    GOODS_RECEIPT_TIMELINE_MARKER_CLASSES.fetch(type, "activity-timeline__marker--neutral")
+  end
+
+  # Heroicons-outline (24x24, stroke-based) paths — inherits marker colour via
+  # stroke="currentColor", matching the stroke-icon convention used elsewhere.
+  GOODS_RECEIPT_TIMELINE_ICONS = {
+    created:   "M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+    submitted: "M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5",
+    approved:  "M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+    rejected:  "m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+    settled:   "M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-9.75 4.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z",
+    received:  "M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z",
+    voided:    "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.02-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+  }.freeze
+
+  def goods_receipt_timeline_icon(type)
+    GOODS_RECEIPT_TIMELINE_ICONS.fetch(type, GOODS_RECEIPT_TIMELINE_ICONS[:created])
+  end
+
   # Product <option>s for document line-item selects. Embeds barcode/SKU as data
   # attributes so the barcode-scanner Stimulus controller can resolve a scan
   # client-side without a server round-trip; default supplier is carried for the

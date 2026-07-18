@@ -41,7 +41,7 @@ RSpec.describe Inventory::GoodsReceiptConfirmationService, type: :model do
   end
 
   describe "employee-custody-funded receipts" do
-    it "deducts the balance and records a settlement plus a linked custody transaction" do
+    it "posts stock without moving any money — the financial event already happened at approval" do
       top_up!(1000)
       receipt = draft_receipt(qty: 10, cost: 50, funding_source_kind: "employee_custody", funding_source: account)
 
@@ -50,34 +50,11 @@ RSpec.describe Inventory::GoodsReceiptConfirmationService, type: :model do
       expect(result.ok?).to be(true)
       expect(receipt.reload).to be_confirmed
       expect(product.reload.current_stock).to eq(10)
-      expect(account.reload.current_balance).to eq(500)
-
-      settlement = receipt.financial_settlements.sole
-      expect(settlement.amount).to eq(500)
-      expect(settlement.funding_source).to eq(account)
-      expect(receipt.total_settled_amount).to eq(500)
-      expect(receipt).to be_settled
-
-      txn = receipt.custody_transactions.of_type("inventory_purchase").first
-      expect(txn).to be_present
-      expect(txn.amount).to eq(-500)
-      expect(txn.custody_account).to eq(account)
-    end
-
-    it "blocks confirmation when the balance is insufficient, posting no stock and creating no settlement or transaction" do
-      top_up!(100)
-      receipt = draft_receipt(qty: 10, cost: 50, funding_source_kind: "employee_custody", funding_source: account)
-
-      result = confirm(receipt)
-
-      expect(result.ok?).to be(false)
-      expect(result.error).to eq(I18n.t("inventory.goods_receipts.errors.insufficient_custody_balance"))
-      expect(receipt.reload).to be_draft
-      expect(product.reload.current_stock).to eq(0)
-      expect(account.reload.current_balance).to eq(100)
+      # Balance is untouched by confirmation regardless of whether a settlement
+      # already exists (created at approval) — receiving goods moves no money.
+      expect(account.reload.current_balance).to eq(1000)
       expect(receipt.custody_transactions.count).to eq(0)
       expect(receipt.financial_settlements.count).to eq(0)
-      expect(receipt).to be_pending_settlement
     end
   end
 

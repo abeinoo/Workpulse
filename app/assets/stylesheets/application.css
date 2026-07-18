@@ -9215,6 +9215,90 @@ dialog::backdrop {
   .bulk-action-bar { gap: var(--space-2); padding: var(--space-2) var(--space-3); }
 }
 
+/* ── Activity timeline (chronological document event list — e.g. Goods
+   Receipt: created → submitted → approved → settled → received → voided) ── */
+.activity-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-timeline__item {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.activity-timeline__marker-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.activity-timeline__marker {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--navy-500);
+  color: var(--text-2);
+}
+
+.activity-timeline__marker svg { width: 16px; height: 16px; }
+
+.activity-timeline__marker--success { background: var(--success-muted); color: var(--success); }
+.activity-timeline__marker--warning { background: var(--warning-muted); color: var(--warning); }
+.activity-timeline__marker--danger  { background: var(--danger-muted);  color: var(--danger); }
+.activity-timeline__marker--accent  { background: var(--accent-muted);  color: var(--accent); }
+.activity-timeline__marker--neutral { background: var(--navy-500);      color: var(--text-2); }
+
+.activity-timeline__line {
+  width: 2px;
+  flex: 1;
+  min-height: var(--space-4);
+  background: var(--border);
+  margin-top: var(--space-1);
+}
+
+.activity-timeline__item:last-child .activity-timeline__line { display: none; }
+
+.activity-timeline__content {
+  flex: 1;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-5);
+}
+
+.activity-timeline__item:last-child .activity-timeline__content { padding-bottom: 0; }
+
+.activity-timeline__title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.activity-timeline__meta {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.activity-timeline__amount {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-1);
+  margin-top: 2px;
+}
+
+[dir="rtl"] .activity-timeline__item { direction: rtl; }
+
+@media (max-width: 480px) {
+  .activity-timeline__marker { width: 28px; height: 28px; }
+  .activity-timeline__marker svg { width: 14px; height: 14px; }
+}
+
 /* ============================================================
    SHIFT ASSIGNMENTS — POLISH PASS
    Mobile card layout, timeline bar, empty states, preview panel

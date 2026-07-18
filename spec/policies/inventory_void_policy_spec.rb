@@ -32,11 +32,14 @@ RSpec.describe "Inventory void & adjustment policies" do
       expect(GoodsReceiptPolicy.new(void_mgr, GoodsReceipt).void?).to be(true)
     end
 
-    it "denies void for a draft receipt even with permission, allows once confirmed" do
+    it "denies void for a draft/unapproved receipt, allows once approved (even unconfirmed) or confirmed" do
       warehouse = business.warehouses.create!(name: "Main")
       draft = business.goods_receipts.create!(warehouse: warehouse, received_on: Date.current,
                                               items_attributes: { "0" => { product_id: business.products.create!(name: "P", sku: "P-1").id, quantity: 1, unit_cost: 1 } })
       expect(GoodsReceiptPolicy.new(manager, draft).void?).to be(false)
+
+      draft.update_column(:approval_status, "approved")
+      expect(GoodsReceiptPolicy.new(manager, draft).void?).to be(true) # approved but not yet confirmed — money already moved
 
       draft.update_column(:status, "confirmed")
       expect(GoodsReceiptPolicy.new(manager, draft).void?).to be(true)
@@ -78,6 +81,35 @@ RSpec.describe "Inventory void & adjustment policies" do
 
       receipt.update_column(:approval_status, "approved")
       expect(GoodsReceiptPolicy.new(creator, receipt).update?).to be(false)
+    end
+
+    it "is a terminal state: a voided receipt permits no workflow action, regardless of its status/approval_status" do
+      warehouse = business.warehouses.create!(name: "Main")
+      product   = business.products.create!(name: "P4", sku: "P-4")
+      manager_and_all = user_with("view_inventory", "manage_inventory")
+
+      [
+        { status: "draft", approval_status: "draft" },
+        { status: "draft", approval_status: "rejected" },
+        { status: "draft", approval_status: "pending_approval" },
+        { status: "draft", approval_status: "approved" },
+        { status: "confirmed", approval_status: "approved" }
+      ].each do |attrs|
+        receipt = business.goods_receipts.create!(
+          warehouse: warehouse, received_on: Date.current, **attrs,
+          items_attributes: { "0" => { product_id: product.id, quantity: 1, unit_cost: 1 } }
+        )
+        receipt.update_columns(voided_at: Time.current, voided_by_id: manager_and_all.id, void_reason: "test")
+
+        policy = GoodsReceiptPolicy.new(manager_and_all, receipt)
+        expect(policy.update?).to be(false), "update? should be false for #{attrs}"
+        expect(policy.submit_for_approval?).to be(false), "submit_for_approval? should be false for #{attrs}"
+        expect(policy.approve?).to be(false), "approve? should be false for #{attrs}"
+        expect(policy.reject?).to be(false), "reject? should be false for #{attrs}"
+        expect(policy.confirm?).to be(false), "confirm? should be false for #{attrs}"
+        expect(policy.void?).to be(false), "void? should be false for #{attrs} (can't void twice)"
+        expect(policy.show?).to be(true) # viewing remains allowed
+      end
     end
   end
 

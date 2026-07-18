@@ -1,8 +1,10 @@
 module Inventory
-  # The single entry point to confirm a draft goods receipt: posts its stock
-  # movements and, if it's funded from an employee's custody account, validates
-  # and deducts the balance — all inside one transaction, so a mid-way failure
-  # (e.g. insufficient balance) leaves no stock posted and no funds moved.
+  # The single entry point to confirm (receive into the warehouse) a draft
+  # goods receipt: posts its stock movements. Purely an inventory event — it
+  # never touches custody balances, settlements, or any other funding source.
+  # The financial event already happened at approval time
+  # (Inventory::GoodsReceiptApproval#approve!); confirmation only requires
+  # that the receipt has already been approved.
   class GoodsReceiptConfirmationService
     include AuditLoggable
 
@@ -23,18 +25,8 @@ module Inventory
         return already_processed_error unless @receipt.draft?
         return not_approved_error unless @receipt.approval_approved?
 
-        account = nil
-        if @receipt.employee_custody_funded?
-          account = @receipt.funding_source
-          account.with_lock do
-            return insufficient_balance_error if account.computed_balance < @receipt.total_value
-          end
-        end
-
         poster_result = GoodsReceiptPoster.new(@receipt).call
         raise ActiveRecord::RecordInvalid, @receipt unless poster_result.ok?
-
-        post_custody_deduction(account) if account
 
         @receipt.status       = "confirmed"
         @receipt.confirmed_at = Time.current
@@ -51,32 +43,6 @@ module Inventory
     end
 
     private
-
-    def post_custody_deduction(account)
-      settlement_result = FinancialSettlementService.create(
-        settleable:     @receipt,
-        funding_source: account,
-        amount:         @receipt.total_value,
-        actor:          @actor,
-        notes:          I18n.t("finance.custody.inventory_purchase_note", reference: @receipt.receipt_number)
-      )
-      raise ActiveRecord::RecordInvalid, settlement_result.settlement unless settlement_result.ok?
-
-      account.custody_transactions.create!(
-        business:       account.business,
-        txn_type:       "inventory_purchase",
-        amount:         -@receipt.total_value,
-        source:         @receipt,
-        created_by:     @actor,
-        notes:          I18n.t("finance.custody.inventory_purchase_note", reference: @receipt.receipt_number)
-      )
-      account.refresh_balance!
-    end
-
-    def insufficient_balance_error
-      Result.new(ok: false, receipt: @receipt,
-                error: I18n.t("inventory.goods_receipts.errors.insufficient_custody_balance"))
-    end
 
     def already_processed_error
       Result.new(ok: false, receipt: @receipt,
