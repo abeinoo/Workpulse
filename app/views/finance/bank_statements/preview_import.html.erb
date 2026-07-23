@@ -82,6 +82,7 @@
               <th style="text-align: end;"><%= t("finance.bank_statements.fields.amount") %></th>
               <th><%= t("finance.bank_statements.fields.reference_number") %></th>
               <th><%= t("finance.bank_statements.fields.description") %></th>
+              <th><%= t("finance.bank_statements.fields.transaction_type") %></th>
             </tr>
           </thead>
           <tbody>
@@ -94,8 +95,11 @@
                 <td style="color: var(--text-3); font-size: var(--text-sm);">
                   <%= row["reference_number"].presence || "—" %>
                 </td>
-                <td style="color: var(--text-3); font-size: var(--text-sm); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <td dir="auto" style="color: var(--text-3); font-size: var(--text-sm); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   <%= row["description"].presence || "—" %>
+                </td>
+                <td dir="auto" style="color: var(--text-3); font-size: var(--text-sm);">
+                  <%= row["transaction_type"].presence || "—" %>
                 </td>
               </tr>
             <% end %>

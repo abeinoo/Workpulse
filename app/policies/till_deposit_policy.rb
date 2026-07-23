@@ -13,6 +13,16 @@ class TillDepositPolicy < ApplicationPolicy
     can?(:void_till_deposit) && !record.daily_reconciliation.verified?
   end
 
+  # Manually attach an unmatched BankStatementTransaction to this deposit —
+  # the deposit-side mirror of BankStatementTransactionPolicy#match?.
+  def match? = can?(:manual_match_deposits) && same_business?
+
+  private
+
+  def same_business?
+    record.daily_reconciliation.business_id == user.business_id
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       if user.can?(:view_daily_reconciliation)

@@ -1,0 +1,104 @@
+<%# ── Bank Deposits ─────────────────────────────────────────────────────────
+    Recorded deposits (with void actions) plus, when the viewer can see deposit
+    verification, a comparison against the imported bank statement. Bank stats
+    come from the controller (build_bank_deposit_stats). %>
+
+<section id="bank-deposits" class="recon-section" style="margin-bottom: var(--space-6);">
+  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+    <div>
+      <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.bank.title") %></h2>
+      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+        <%= t("finance.daily_reconciliations.show.sections.bank.subtitle") %>
+      </p>
+    </div>
+    <% if @can_view_deposit_verification %>
+      <%= link_to t("finance.daily_reconciliations.show.sections.bank.view_verification"),
+            finance_deposit_verifications_path(branch_id: @reconciliation.branch_id,
+                                               from: @reconciliation.business_date,
+                                               to: @reconciliation.business_date),
+            class: "btn btn-ghost btn-sm" %>
+    <% end %>
+  </div>
+
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+
+    <%# ── Bank statement comparison ─────────────────────────────────────── %>
+    <% if @can_view_deposit_verification %>
+      <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border);">
+        <div class="recon-formula-row">
+          <span><%= t("finance.daily_reconciliations.show.sections.bank.expected") %></span>
+          <span class="recon-formula-row__value"><%= format_currency(@total_deposited) %></span>
+        </div>
+        <div class="recon-formula-row">
+          <span><%= t("finance.daily_reconciliations.show.sections.bank.imported") %></span>
+          <span class="recon-formula-row__value"><%= format_currency(@bank_imported_sum) %></span>
+        </div>
+        <div class="recon-formula-row recon-formula-row--total">
+          <span><%= t("finance.daily_reconciliations.show.sections.bank.difference") %></span>
+          <span class="recon-formula-row__value" style="color: <%= @bank_difference.abs < 0.01 ? 'var(--text-3)' : 'var(--warning)' %>;">
+            <%= @bank_difference.abs < 0.01 ? "—" : format_currency(@bank_difference) %>
+          </span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3);">
+          <span class="badge badge-success"><%= t("finance.daily_reconciliations.show.sections.bank.matched", count: @bank_matched_count) %></span>
+          <% if @bank_needs_review_count.positive? %>
+            <span class="badge badge-warning"><%= t("finance.daily_reconciliations.show.sections.bank.needs_review", count: @bank_needs_review_count) %></span>
+          <% end %>
+          <% if @bank_missing_count.positive? %>
+            <span class="badge badge-danger"><%= t("finance.daily_reconciliations.show.sections.bank.missing", count: @bank_missing_count) %></span>
+          <% end %>
+          <% if @bank_not_imported_count.positive? %>
+            <span class="badge badge-neutral"><%= t("finance.daily_reconciliations.show.sections.bank.not_imported", count: @bank_not_imported_count) %></span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# ── Recorded deposits list (with void actions) ────────────────────── %>
+    <% if @deposits.empty? %>
+      <p style="padding: var(--space-5); color: var(--text-2); font-size: var(--text-sm); margin: 0;">
+        <%= t("finance.daily_reconciliations.show.no_deposits") %>
+      </p>
+    <% else %>
+      <% @deposits.each do |deposit| %>
+        <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
+            <div style="min-width: 0;">
+              <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0 0 2px;">
+                <%= deposit.payment_method.display_name %>
+              </p>
+              <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+                <%= deposit.deposited_by.full_name %>
+                · <%= l(deposit.deposited_at, format: :time_only) %>
+                <% if deposit.reference.present? %>· <%= deposit.reference %><% end %>
+              </p>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0;">
+              <span style="font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums;">
+                <%= format_currency(deposit.amount) %>
+              </span>
+              <% if policy(deposit).void? && !@reconciliation.verified? %>
+                <%= button_to void_till_deposit_path(deposit),
+                      method: :patch,
+                      params: { void_reason: "Voided during reconciliation review" },
+                      class: "btn btn-danger btn-sm",
+                      data: { turbo_confirm: t("common.are_you_sure") },
+                      form_class: "inline" do %>
+                  <%= t("common.void") %>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-5); background: var(--surface-2);">
+        <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
+          <%= t("finance.daily_reconciliations.show.total_deposited") %>
+        </span>
+        <span style="font-size: var(--text-base); font-weight: 700; color: var(--success); font-variant-numeric: tabular-nums;">
+          <%= format_currency(@total_deposited) %>
+        </span>
+      </div>
+    <% end %>
+  </div>
+</section>

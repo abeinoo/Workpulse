@@ -38,9 +38,36 @@
                     class: "link", style: "font-size: var(--text-sm);" %>
             </td>
             <td>
-              <%= link_to t("shared.view"),
-                    finance_bank_statement_transaction_path(txn),
-                    class: "btn btn-ghost btn-sm" %>
+              <%# Every row always exposes the actions valid for its current
+                  state — never conditionally hidden beyond that. %>
+              <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end;">
+                <%= link_to t("shared.view"),
+                      finance_bank_statement_transaction_path(txn),
+                      class: "btn btn-ghost btn-sm" %>
+
+                <% if txn.matched? && policy(txn).unmatch? %>
+                  <%= link_to t("finance.bank_statement_transactions.show.unmatch_button"),
+                        unmatch_finance_bank_statement_transaction_path(txn),
+                        class: "btn btn-ghost btn-sm text-danger",
+                        data: { turbo_method: :patch,
+                                turbo_confirm: t("finance.bank_statement_transactions.show.unmatch_confirm") } %>
+                <% end %>
+
+                <% if !txn.matched? && policy(txn).match? %>
+                  <%= link_to t("finance.bank_statement_transactions.show.manual_match_button"),
+                        manual_match_modal_finance_bank_statement_transaction_path(txn),
+                        class: "btn btn-primary btn-sm",
+                        data: { turbo_frame: "modal" } %>
+                <% end %>
+
+                <% if !txn.ignored? && policy(txn).ignore? %>
+                  <%= link_to t("finance.bank_statement_transactions.show.ignore_button"),
+                        ignore_finance_bank_statement_transaction_path(txn),
+                        class: "btn btn-ghost btn-sm",
+                        data: { turbo_method: :patch,
+                                turbo_confirm: t("finance.bank_statement_transactions.show.ignore_confirm") } %>
+                <% end %>
+              </div>
             </td>
           </tr>
         <% end %>

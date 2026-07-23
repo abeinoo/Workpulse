@@ -1,6 +1,6 @@
 module Finance
   module BankStatements
-    # Persists parsed CSV rows as BankStatementTransaction records and then
+    # Persists parsed rows (from a CSV or Excel file) as BankStatementTransaction records and then
     # triggers the MatchingEngine. Called after the user confirms the column
     # mapping.
     #
@@ -28,8 +28,8 @@ module Finance
                             error: "Statement has already been imported")
         end
 
-        csv_data = statement.file.download
-        result   = CsvParser.parse(csv_data, column_mapping: statement.column_mapping)
+        table  = FileReader.read(statement.file.download, filename: statement.file_name)
+        result = RowParser.parse(table, column_mapping: statement.column_mapping)
 
         return Result.new(ok: false, bank_statement: statement, error: result.header_error) unless result.headers_valid?
 
@@ -45,6 +45,7 @@ module Finance
               reference_number:        row["reference_number"],
               description:             row["description"],
               external_transaction_id: row["external_transaction_id"],
+              transaction_type:        row["transaction_type"],
               raw_data:                row["raw_data"],
               status:                  "pending"
             )
@@ -68,10 +69,10 @@ module Finance
           )
         end
 
-        MatchingEngine.call(statement.id, actor: @actor)
+        Finance::DepositVerification::MatchingEngine.call(statement.id, actor: @actor)
 
         Result.new(ok: true, bank_statement: statement, error: nil)
-      rescue ActiveRecord::RecordInvalid => e
+      rescue ActiveRecord::RecordInvalid, FileReader::Error => e
         statement&.update_columns(status: "failed")
         Result.new(ok: false, bank_statement: statement, error: e.message)
       end

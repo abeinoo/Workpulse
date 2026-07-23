@@ -1,5 +1,7 @@
 source "https://rubygems.org"
 
+ruby file: ".ruby-version"
+
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.3"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
@@ -20,6 +22,10 @@ gem "devise"
 gem "pundit"
 gem "phonelib"
 gem "csv"
+
+# Read Excel spreadsheets (.xlsx, .xls) for bank statement imports
+gem "roo", "~> 2.10"
+gem "roo-xls"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 # gem "bcrypt", "~> 3.1.7"

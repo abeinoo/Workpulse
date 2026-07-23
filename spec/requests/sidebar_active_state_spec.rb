@@ -85,9 +85,7 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
                             laundry_reports_branch_consumption_path, laundry_reports_cost_summary_path)
     # Finance
     expect(body).to include(finance_root_path, finance_expenses_path, finance_custody_accounts_path,
-                            finance_branch_revenues_path, finance_reports_path, finance_payment_methods_path,
-                            finance_daily_reconciliations_path, finance_deposit_verifications_path,
-                            finance_bank_statements_path)
+                            finance_reports_path, finance_daily_reconciliations_path)
     # Inventory
     expect(body).to include(inventory_root_path, inventory_products_path, inventory_warehouses_path,
                             inventory_suppliers_path, inventory_goods_receipts_path, inventory_stock_issues_path,

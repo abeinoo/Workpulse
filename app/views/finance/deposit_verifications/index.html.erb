@@ -40,6 +40,10 @@
           value: @stats[:unexpected],
           modifier: @stats[:unexpected] > 0 ? "danger" : nil %>
     <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.needs_review"),
+          value: @stats[:needs_review],
+          modifier: @stats[:needs_review] > 0 ? "warning" : nil %>
+    <%= render "finance/bank_statements/stat_card",
           label: t("finance.deposit_verifications.stats.amount_mismatch"),
           value: @stats[:amount_mismatch],
           modifier: @stats[:amount_mismatch] > 0 ? "warning" : nil %>
@@ -83,10 +87,11 @@
   <%# ── Tabs ────────────────────────────────────────────────────────────── %>
   <div style="display: flex; gap: var(--space-1); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); padding-bottom: var(--space-3);">
     <% [
-         ["all",        t("finance.deposit_verifications.tabs.all")],
-         ["missing",    t("finance.deposit_verifications.tabs.missing")],
-         ["unexpected", t("finance.deposit_verifications.tabs.unexpected")],
-         ["mismatches", t("finance.deposit_verifications.tabs.mismatches")]
+         ["all",          t("finance.deposit_verifications.tabs.all")],
+         ["missing",      t("finance.deposit_verifications.tabs.missing")],
+         ["unexpected",   t("finance.deposit_verifications.tabs.unexpected")],
+         ["needs_review", t("finance.deposit_verifications.tabs.needs_review")],
+         ["mismatches",   t("finance.deposit_verifications.tabs.mismatches")]
        ].each do |tab_key, tab_label| %>
       <%= link_to tab_label,
             finance_deposit_verifications_path(request.query_parameters.merge(tab: tab_key, page: 1)),
@@ -101,7 +106,7 @@
     <%= render "finance/deposit_verifications/deposits_table",
           deposits: @deposits,
           empty_key: "finance.deposit_verifications.empty.missing" %>
-  <% when "unexpected", "mismatches" %>
+  <% when "unexpected", "needs_review", "mismatches" %>
     <%= render "finance/deposit_verifications/transactions_table",
           transactions: @transactions,
           empty_key: "finance.deposit_verifications.empty.#{@active_tab}" %>

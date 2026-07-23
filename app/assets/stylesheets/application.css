@@ -2398,6 +2398,92 @@ body.is-authenticated {
   .dashboard-cols { grid-template-columns: 1fr 1fr; }
 }
 
+/* Daily Reconciliation's POS Verification / Audit Timeline grid must keep a
+   fixed PHYSICAL column order (POS Verification always visually left, Audit
+   Timeline always visually right) regardless of page language — a plain CSS
+   grid's first child renders on the *right* in RTL, which would silently flip
+   these two columns for Arabic. Forcing the grid itself to ltr pins the track
+   positions; resetting direction back to rtl on each column's content keeps
+   Arabic text reading correctly within it. */
+[dir="rtl"] .dr-pos-timeline-grid {
+  direction: ltr;
+}
+[dir="rtl"] .dr-pos-timeline-grid > * {
+  direction: rtl;
+}
+
+/* ── Daily Reconciliation redesigned sections ─────────────────────────────── */
+.recon-section { display: block; }
+
+/* Wraps fixed-column comparison grids (POS/electronic payments tables) so they
+   scroll horizontally on narrow screens instead of overflowing the page. */
+.recon-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* +/− formula lines used in Cash Reconciliation / Electronic / Bank sections */
+.recon-formula-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+}
+.recon-formula-row:last-child { border-bottom: 0; }
+.recon-formula-row__value {
+  font-weight: 600;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.recon-formula-row--total {
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.recon-formula-row--total .recon-formula-row__value { font-size: var(--text-base); }
+
+/* Expand/collapse disclosure wrapper (uses collapsible_controller.js) */
+.recon-disclosure__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent);
+  text-align: start;
+}
+.recon-disclosure__chevron { transition: transform 0.15s ease; flex-shrink: 0; }
+.collapsible--open > .recon-disclosure__trigger .recon-disclosure__chevron { transform: rotate(180deg); }
+
+/* Exceptions list rows */
+.exception-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.exception-row:last-child { border-bottom: 0; }
+.exception-row__main { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.exception-row__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--warning); }
+.exception-row__dot--danger { background: var(--danger); }
+.exception-row__dot--warning { background: var(--warning); }
+.exception-row__title { font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0; }
+.exception-row__sub { font-size: var(--text-xs); color: var(--text-2); margin: 2px 0 0; }
+.exception-row__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+
 /* Info card */
 .info-card {
   background: var(--surface);

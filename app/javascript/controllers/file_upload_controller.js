@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Handles drag-and-drop, click-to-browse, and submit loading state for CSV upload.
+// Handles drag-and-drop, click-to-browse, and submit loading state for bank statement file upload (CSV/Excel).
 export default class extends Controller {
   static targets = ["input", "label", "dropzone", "submitBtn", "progress"]
 

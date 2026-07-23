@@ -277,7 +277,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     # ── TRACE: three-section divergence audit ──────────────────────────────────
     Rails.logger.debug do
-      lines = ["[TRACE DR=#{@reconciliation.id}] Section data sources:"]
+      lines = [ "[TRACE DR=#{@reconciliation.id}] Section data sources:" ]
 
       # Section 1: Cashier Custody Summary (live algorithm)
       lines << "  [1] Cashier Custody Summary (live via ERS#summaries):"
@@ -388,7 +388,39 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       @latest_pos_import = current_user.business.pos_imports
                                        .where(id: @pos_transactions.map(&:pos_import_id).uniq)
                                        .order(updated_at: :desc).first
+
+      # Electronic Payments always shows WorkPulse's own totals — by configured
+      # payment method — regardless of whether a POS file has been imported yet.
+      # Reuses biz_payment_methods (already loaded above) rather than re-querying.
+      @electronic_payment_methods = biz_payment_methods
+                                       .reject(&:cash_like?)
+                                       .select(&:active)
+                                       .sort_by { |pm| [ pm.position, pm.name ] }
+      amounts_by_pm_id = @amounts_by_method.index_by(&:payment_method_id)
+      @electronic_totals_by_method = @electronic_payment_methods.each_with_object({}) do |pm, h|
+        h[pm.id] = amounts_by_pm_id[pm.id]&.net_amount || 0
+      end
+      @electronic_total = @electronic_totals_by_method.values.sum
+
+      # Session Totals table: every configured payment method (cash included) as
+      # a daily sales overview, distinct from the reconciliation table below
+      # (which stays electronic-only). Cash figures are session-totals data, so
+      # this is only built when the viewer also holds that permission —
+      # otherwise it falls back to the electronic-only totals already built above.
+      if @can_view_session_totals
+        @all_payment_methods_for_cards = biz_payment_methods
+                                            .select(&:active)
+                                            .sort_by { |pm| [ pm.position, pm.name ] }
+        @all_payment_method_totals = @all_payment_methods_for_cards.each_with_object({}) do |pm, h|
+          h[pm.id] = amounts_by_pm_id[pm.id]&.net_amount || 0
+        end
+      end
+
+      @session_totals_rows, @session_totals_grand_total = build_session_totals_rows
     end
+
+    # Read-only display aggregates for the redesigned section layout.
+    build_show_summary_aggregates
   end
 
   # POST /finance/daily_reconciliations
@@ -809,6 +841,142 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
 
     events.sort_by! { |e| e[:time] }
+  end
+
+  # Session Totals table: one row per configured payment method (cash included
+  # when the viewer holds view_session_totals; electronic-only otherwise, same
+  # fallback as the summary figures above) plus a Grand Total row. Reuses the
+  # already-computed per-method totals and pos_totals_by_method — no new math,
+  # just a join/sum over data built earlier in #show.
+  def build_session_totals_rows
+    methods    = @all_payment_methods_for_cards || @electronic_payment_methods
+    totals_by_id = @all_payment_method_totals || @electronic_totals_by_method
+    has_pos_data = @pos_totals_by_method.any?
+
+    rows = methods.map do |pm|
+      workpulse_total = totals_by_id[pm.id]
+      pos_total       = has_pos_data ? @pos_totals_by_method[pm.id].to_d : nil
+      difference      = pos_total ? (workpulse_total.to_d - pos_total) : nil
+      { payment_method: pm, workpulse_total: workpulse_total, pos_total: pos_total, difference: difference }
+    end
+
+    grand_total = {
+      workpulse_total: rows.sum { |r| r[:workpulse_total] },
+      pos_total:       has_pos_data ? rows.sum { |r| r[:pos_total].to_d } : nil,
+      difference:      has_pos_data ? rows.sum { |r| r[:difference].to_d } : nil
+    }
+
+    [ rows, grand_total ]
+  end
+
+  # ── Redesign display aggregates ─────────────────────────────────────────────
+  # Pure read-only presentation figures (no mutation), assembled the same way as
+  # the existing @pos_totals_* aggregates. Consumed by the section partials.
+  def build_show_summary_aggregates
+    # Cash payment-method ids drive the Cash Reconciliation per-employee filter.
+    @cash_payment_method_ids = @amounts_by_method
+                                 .select { |sa| sa.payment_method&.settlement_type == "cash" }
+                                 .map(&:payment_method_id)
+
+    # Financial headline figures (permission-gated).
+    @total_sales     = @can_view_session_totals ? @amounts_by_method.sum(&:net_amount) : nil
+    @expected_cash   = @can_view_session_totals ? @reconciliation.expected_cash_deposit : nil
+    @cash_difference = @expected_cash ? (@total_deposited - @expected_cash) : nil
+
+    # POS comparison headline (only when POS data is loaded and viewable).
+    # Uses @electronic_total (electronic payment methods only) rather than summing
+    # all session amounts — cash never appears in a POS import, so including it
+    # here would show a permanent false "difference" equal to the day's cash sales.
+    if @can_view_pos_transactions_verification && @pos_totals_by_method&.any?
+      @pos_entered_total  = @electronic_total
+      @pos_imported_total = @pos_totals_by_method.values.sum
+      @pos_difference     = @pos_entered_total - @pos_imported_total
+    end
+
+    @can_view_deposit_verification = current_user.can?(:view_deposit_verification)
+    build_bank_deposit_stats if @can_view_deposit_verification
+
+    build_exceptions
+  end
+
+  # Compares this DR's deposits against the imported bank statement, scoped to
+  # this branch + business_date. Mirrors Finance::DepositVerificationsController's
+  # query style but narrowed to a single reconciliation.
+  def build_bank_deposit_stats
+    deposits = @reconciliation.till_deposits.active.left_joins(:bank_statement_transaction)
+
+    @bank_matched_count      = deposits.where(bank_statement_transactions: { status: "verified" }).count
+    @bank_needs_review_count = deposits.where(bank_statement_transactions: { status: "needs_manual_review" }).count
+    @bank_imported_sum       = deposits.where(bank_statement_transactions: { status: "verified" })
+                                       .sum("bank_statement_transactions.amount")
+
+    unmatched = deposits.where(bank_statement_transactions: { id: nil })
+
+    # A deposit only counts as "missing from bank" when a completed statement
+    # actually covers this business day; otherwise it is just not imported yet.
+    @bank_statement_covers_day = BankStatement
+      .where(business_id: @reconciliation.business_id)
+      .active.completed
+      .where("statement_from <= :d AND statement_to >= :d", d: @reconciliation.business_date)
+      .where("branch_id IS NULL OR branch_id = ?", @reconciliation.branch_id)
+      .exists?
+    unmatched_count          = unmatched.count
+    @bank_missing_count      = @bank_statement_covers_day ? unmatched_count : 0
+    @bank_not_imported_count = @bank_statement_covers_day ? 0 : unmatched_count
+
+    # Bank transactions with no matching WorkPulse deposit for this branch/day.
+    @bank_unexpected_transactions = BankStatementTransaction
+      .for_business(@reconciliation.business)
+      .joins(:bank_statement)
+      .where(bank_statements: { branch_id: [ nil, @reconciliation.branch_id ] })
+      .where(matched_till_deposit_id: nil, status: "unexpected", transaction_date: @reconciliation.business_date)
+      .includes(:bank_statement)
+      .to_a
+
+    # Bank transactions matched to this DR's deposits but needing manual review.
+    active_deposit_ids = @all_deposits.reject(&:voided?).map(&:id)
+    @bank_review_transactions = if active_deposit_ids.any?
+      BankStatementTransaction
+        .where(matched_till_deposit_id: active_deposit_ids, status: "needs_manual_review")
+        .includes(:bank_statement, :matched_till_deposit)
+        .to_a
+    else
+      []
+    end
+
+    @bank_difference = @total_deposited - @bank_imported_sum
+  end
+
+  # Assembles the unified Exceptions list from already-computed figures/records.
+  def build_exceptions
+    @exceptions = []
+
+    (@bank_review_transactions || []).each do |txn|
+      @exceptions << { type: :bank_needs_review, record: txn, amount: txn.amount, severity: :warning }
+    end
+    (@bank_unexpected_transactions || []).each do |txn|
+      @exceptions << { type: :bank_unexpected, record: txn, amount: txn.amount, severity: :danger }
+    end
+    if @bank_missing_count.to_i.positive?
+      @exceptions << { type: :missing_from_bank, count: @bank_missing_count, severity: :warning }
+    end
+    # Uses @total_remaining_balance (open RemainingDepositBalance amounts only —
+    # same figure the Cash Reconciliation section and the index page's
+    # outstanding badge use), not the raw @cash_difference. A shortfall always
+    # gets an RDB created for it at deposit time (Finance::TillDepositRecorder);
+    # once that RDB is settled or written off, @total_remaining_balance drops to
+    # zero even though @cash_difference (the historical expected-vs-deposited
+    # gap) still shows the original mismatch — so this exception must track the
+    # former, not the latter, or a resolved shortfall would still page as open.
+    if @total_remaining_balance.to_d.abs >= 0.01
+      @exceptions << { type: :cash_difference, amount: @total_remaining_balance, severity: :warning, anchor: "cash-reconciliation" }
+    end
+    if @pos_difference && @pos_difference.abs >= 0.01
+      @exceptions << { type: :pos_difference, amount: @pos_difference, severity: :warning, anchor: "electronic-payments" }
+    end
+    if @bank_difference && @bank_difference.abs >= 0.01
+      @exceptions << { type: :bank_difference, amount: @bank_difference, severity: :warning, anchor: "bank-deposits" }
+    end
   end
 
   def load_edit_opening_float_data

@@ -1,0 +1,115 @@
+<%# ── Cash Reconciliation ───────────────────────────────────────────────────
+    Cash formula (expected vs deposited) plus the remaining-deposit ledger, with
+    a collapsible per-employee cash-only breakdown. All figures come from the
+    model/controller; this partial only formats and lays them out. %>
+
+<% if @can_view_session_totals || @employee_summaries&.any? %>
+  <section id="cash-reconciliation" class="recon-section" style="margin-bottom: var(--space-6);">
+    <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+      <div>
+        <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.cash.title") %></h2>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+          <%= t("finance.daily_reconciliations.show.sections.cash.subtitle") %>
+        </p>
+      </div>
+      <% if @can_edit_session_totals %>
+        <%= link_to t("finance.daily_reconciliations.show.action_edit_session_totals"),
+              edit_session_totals_finance_daily_reconciliation_path(@reconciliation),
+              class: "btn btn-ghost btn-sm" %>
+      <% end %>
+    </div>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+      <% if @can_view_session_totals %>
+        <div style="padding: var(--space-4) var(--space-5);">
+          <div class="recon-formula-row">
+            <span><%= t("finance.daily_reconciliations.show.sections.cash.expected_cash") %></span>
+            <span class="recon-formula-row__value"><%= format_currency(@expected_cash) %></span>
+          </div>
+          <div class="recon-formula-row">
+            <span><%= t("finance.daily_reconciliations.show.sections.cash.actual_deposited") %></span>
+            <span class="recon-formula-row__value" style="color: var(--success);"><%= format_currency(@total_deposited) %></span>
+          </div>
+          <% tone = @cash_difference.abs < 0.01 ? :ok : :warn %>
+          <div class="recon-formula-row recon-formula-row--total">
+            <span><%= t("finance.daily_reconciliations.show.sections.cash.difference") %></span>
+            <span class="recon-formula-row__value"
+                  style="color: <%= tone == :ok ? 'var(--text-3)' : 'var(--warning)' %>;">
+              <%= tone == :ok ? "—" : format_currency(@cash_difference) %>
+            </span>
+          </div>
+
+          <%# Remaining-deposit ledger — preserves the outstanding-balance drill-in. %>
+          <% has_outstanding = @total_remaining_balance.to_d.positive? %>
+          <% if has_outstanding %>
+            <%
+              open_balances = @all_remaining_balances.select(&:open?)
+              rdb_link = open_balances.size == 1 ?
+                finance_remaining_deposit_balance_path(open_balances.first) :
+                finance_daily_reconciliation_path(@reconciliation)
+            %>
+            <%= link_to rdb_link, class: "recon-formula-row", style: "text-decoration: none;" do %>
+              <span style="color: var(--warning); font-weight: 600; display: inline-flex; align-items: center; gap: var(--space-1);">
+                <%= t("finance.daily_reconciliations.show.outstanding_balance") %>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              </span>
+              <span class="recon-formula-row__value" style="color: var(--warning);"><%= format_currency(@total_remaining_balance) %></span>
+            <% end %>
+          <% end %>
+          <% if @total_settled_later.to_d.positive? %>
+            <div class="recon-formula-row">
+              <span style="color: var(--success);"><%= t("finance.daily_reconciliations.show.settled_later") %></span>
+              <span class="recon-formula-row__value" style="color: var(--success);"><%= format_currency(@total_settled_later) %></span>
+            </div>
+          <% end %>
+          <% if @total_written_off.to_d.positive? %>
+            <div class="recon-formula-row">
+              <span style="color: var(--text-3);"><%= t("finance.daily_reconciliations.show.written_off") %></span>
+              <span class="recon-formula-row__value" style="color: var(--text-3); text-decoration: line-through;"><%= format_currency(@total_written_off) %></span>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%# ── Collapsible: per-employee cash-only breakdown ─────────────────── %>
+      <% if @employee_summaries&.any? %>
+        <% cash_ids = Array(@cash_payment_method_ids) %>
+        <div data-controller="collapsible" class="recon-disclosure" style="border-top: 1px solid var(--border);">
+          <button type="button" data-collapsible-target="trigger" data-action="click->collapsible#toggle"
+                  class="recon-disclosure__trigger" aria-expanded="false">
+            <span><%= t("finance.daily_reconciliations.show.sections.cash.detail_toggle") %></span>
+            <svg class="recon-disclosure__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+            </svg>
+          </button>
+          <div data-collapsible-target="content" hidden style="padding: var(--space-2) var(--space-5) var(--space-4);">
+            <% @employee_summaries.each do |summary| %>
+              <% cash_amounts = summary.amounts.select { |a| cash_ids.include?(a.payment_method_id) }
+                                                .reject { |a| a.collected_amount.zero? && a.refund_amount.zero? } %>
+              <% next if cash_amounts.empty? %>
+              <div style="margin-top: var(--space-3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1);">
+                  <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);"><%= summary.user.full_name %></span>
+                  <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums;">
+                    <%= format_currency(cash_amounts.sum(&:net_amount)) %>
+                  </span>
+                </div>
+                <% cash_amounts.each do |amt| %>
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: var(--text-xs); padding: 2px 0; border-bottom: 1px dashed var(--border);">
+                    <span style="color: var(--text-2);"><%= amt.payment_method_name %></span>
+                    <span style="display: flex; gap: var(--space-3); align-items: baseline;">
+                      <% if amt.refund_amount.positive? %>
+                        <span style="color: var(--danger);">− <%= format_currency(amt.refund_amount) %></span>
+                      <% end %>
+                      <span style="font-weight: 600; color: var(--text-1); font-variant-numeric: tabular-nums;"><%= format_currency(amt.net_amount) %></span>
+                    </span>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </section>
+<% end %>

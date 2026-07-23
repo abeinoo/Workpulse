@@ -35,11 +35,16 @@
         <dd><code style="font-size: var(--text-xs);"><%= @transaction.reference_number.presence || "—" %></code></dd>
 
         <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.description") %></dt>
-        <dd><%= @transaction.description.presence || "—" %></dd>
+        <dd dir="auto"><%= @transaction.description.presence || "—" %></dd>
 
         <% if @transaction.external_transaction_id.present? %>
           <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.external_transaction_id") %></dt>
           <dd><code style="font-size: var(--text-xs);"><%= @transaction.external_transaction_id %></code></dd>
+        <% end %>
+
+        <% if @transaction.transaction_type.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.transaction_type") %></dt>
+          <dd dir="auto"><%= @transaction.transaction_type %></dd>
         <% end %>
 
         <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_method") %></dt>
@@ -53,6 +58,18 @@
             <span style="color: var(--text-3);">—</span>
           <% end %>
         </dd>
+
+        <% if @transaction.match_confidence.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_confidence") %></dt>
+          <dd style="font-weight: 600; font-variant-numeric: tabular-nums;">
+            <%= @transaction.match_confidence %>%
+          </dd>
+        <% end %>
+
+        <% if @transaction.match_reason.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_reason") %></dt>
+          <dd dir="auto" style="color: var(--text-2);"><%= @transaction.match_reason %></dd>
+        <% end %>
       </dl>
     </div>
 
@@ -101,6 +118,40 @@
 
   </div>
 
+  <%# ── Candidate explanation (needs_manual_review) ──────────────────────── %>
+  <% if @review_candidates.present? %>
+    <div class="card" style="padding: var(--space-6); margin-bottom: var(--space-4); border: 1px solid rgba(var(--warning-rgb), 0.3);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-2); color: var(--warning);">
+        <%= t("finance.bank_statement_transactions.show.candidates_title") %>
+      </h3>
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 var(--space-4);">
+        <%= @transaction.match_reason %>
+      </p>
+      <div style="overflow-x: auto;">
+        <table class="table" style="margin: 0;">
+          <thead>
+            <tr>
+              <th><%= t("finance.bank_statement_transactions.show.candidates_col_deposit") %></th>
+              <th><%= t("finance.bank_statement_transactions.show.modal_amount") %></th>
+              <th><%= t("finance.bank_statement_transactions.show.modal_date") %></th>
+              <th><%= t("finance.bank_statement_transactions.show.modal_reference") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @review_candidates.each do |c| %>
+              <tr>
+                <td>#<%= c["till_deposit_id"] %></td>
+                <td style="font-variant-numeric: tabular-nums;"><%= format_currency(c["amount"].to_d) %></td>
+                <td><%= l(Date.parse(c["date"]), format: :short) %></td>
+                <td><code style="font-size: var(--text-xs);"><%= c["reference"].presence || "—" %></code></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
   <%# ── Actions ────────────────────────────────────────────────────────── %>
   <% if policy(@transaction).match? || policy(@transaction).unmatch? %>
     <div class="card" style="padding: var(--space-6);">
@@ -123,36 +174,17 @@
         <% end %>
       <% end %>
 
-      <% if @unmatched_deposits.present? && policy(@transaction).match? %>
+      <% if policy(@transaction).match? %>
         <div style="<%= @deposit ? 'margin-top: var(--space-5); border-top: 1px solid var(--border); padding-top: var(--space-5);' : '' %>">
           <p style="font-size: var(--text-sm); color: var(--text-2); margin-bottom: var(--space-3);">
             <%= t("finance.bank_statement_transactions.show.manual_match_hint") %>
           </p>
-          <%= form_with url: match_finance_bank_statement_transaction_path(@transaction), method: :patch,
-                style: "display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap;" do |f| %>
-            <div class="form-group" style="flex: 2; min-width: 200px;">
-              <label class="form-label"><%= t("finance.bank_statement_transactions.show.select_deposit") %></label>
-              <select name="till_deposit_id" class="form-control" required>
-                <option value=""><%= t("shared.select_placeholder") %></option>
-                <% @unmatched_deposits.each do |dep| %>
-                  <option value="<%= dep.id %>">
-                    <%= l(dep.deposited_at.to_date, format: :short) %> &middot;
-                    <%= format_currency(dep.amount) %> &middot;
-                    <%= dep.daily_reconciliation.branch&.name %>
-                    <% if dep.reference.present? %>
-                      &middot; <%= dep.reference %>
-                    <% end %>
-                  </option>
-                <% end %>
-              </select>
-            </div>
-            <div class="form-group" style="flex: 1; min-width: 150px;">
-              <%= f.label :match_notes, t("finance.bank_statement_transactions.show.match_notes"), class: "form-label" %>
-              <%= f.text_field :match_notes, class: "form-control",
-                    placeholder: t("finance.bank_statement_transactions.show.match_notes_placeholder") %>
-            </div>
-            <%= f.submit t("finance.bank_statement_transactions.show.match_button"), class: "btn btn-primary" %>
-          <% end %>
+          <%# Always available regardless of status — even a matched transaction can be re-pointed
+              to a different deposit. Empty-candidate handling happens inside the modal itself. %>
+          <%= link_to t("finance.bank_statement_transactions.show.manual_match_button"),
+                manual_match_modal_finance_bank_statement_transaction_path(@transaction),
+                class: "btn btn-primary",
+                data: { turbo_frame: "modal" } %>
         </div>
       <% end %>
 
@@ -216,6 +248,14 @@
               </div>
 
               <% meta = log.metadata || {} %>
+              <% if meta["reason"].present? %>
+                <p dir="auto" style="font-size: var(--text-sm); color: var(--text-2); margin: var(--space-1) 0 0;">
+                  <%= meta["reason"] %>
+                  <% if meta["confidence"].present? %>
+                    <span style="color: var(--text-3);">(<%= meta["confidence"] %>%)</span>
+                  <% end %>
+                </p>
+              <% end %>
               <% if meta["notes"].present? %>
                 <p style="font-size: var(--text-sm); color: var(--text-2); margin: var(--space-1) 0 0;">
                   "<%= meta["notes"] %>"

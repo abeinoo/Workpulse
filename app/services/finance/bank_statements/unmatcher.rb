@@ -1,8 +1,9 @@
 module Finance
   module BankStatements
-    # Reverses a manual match on a BankStatementTransaction, returning it to
-    # "unexpected" status. Only manual matches may be reversed this way;
-    # auto-matched transactions require re-running the matching engine.
+    # Reverses any match (automatic or manual) on a BankStatementTransaction,
+    # returning it to "unexpected" status so it can be re-matched (by rematch
+    # or by a different manual selection). Any matched_till_deposit is freed
+    # immediately, since the association is cleared here.
     class Unmatcher
       include AuditLoggable
 
@@ -33,6 +34,8 @@ module Finance
           txn.update!(
             matched_till_deposit_id:    nil,
             match_method:               nil,
+            match_confidence:           nil,
+            match_reason:               nil,
             matched_by:                 nil,
             matched_at:                 nil,
             match_notes:                nil,

@@ -106,8 +106,8 @@ class ApplicationPolicy
   # hierarchy default applies (mirrors EmployeeScope#for_permissions). Owners and
   # a business-wide scope authorize any branch.
 
-  # Single-branch records (branch_revenue, single-branch expense, custody
-  # account). allow_nil: true treats a NULL branch as unrestricted (e.g. a
+  # Single-branch records (single-branch expense, custody account).
+  # allow_nil: true treats a NULL branch as unrestricted (e.g. a
   # user-held custody account with no branch); otherwise NULL needs business scope.
   def branch_within_scope?(branch_id, *permissions, allow_nil: false)
     scope_type = resolved_branch_scope(*permissions)

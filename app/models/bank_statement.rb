@@ -68,7 +68,7 @@ class BankStatement < ApplicationRecord
     date.between?(statement_from, statement_to)
   end
 
-  CANONICAL_FIELDS = %w[transaction_date amount reference_number description external_transaction_id].freeze
+  CANONICAL_FIELDS = %w[transaction_date amount reference_number description external_transaction_id transaction_type].freeze
 
   def detected_csv_headers
     return [] if column_mapping.blank?

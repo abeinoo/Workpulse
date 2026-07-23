@@ -93,7 +93,8 @@
 
           <label class="btn btn-ghost btn-sm" style="margin-top: var(--space-3); cursor: pointer;">
             <%= t("finance.bank_statements.new.browse_button") %>
-            <input type="file" name="bank_statement[file]" accept=".csv,text/csv"
+            <input type="file" name="bank_statement[file]"
+                   accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xls,application/vnd.ms-excel"
                    class="visually-hidden"
                    data-file-upload-target="input"
                    data-action="change->file-upload#pick">

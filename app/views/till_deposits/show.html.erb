@@ -1,0 +1,147 @@
+<% content_for :title, t("till_deposits.show.title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("till_deposits.show.title") %></h1>
+      <p class="page-subtitle">
+        <%= l(@deposit.deposited_at.to_date, format: :long) %>
+        &middot; <%= @deposit.daily_reconciliation.branch&.name || "—" %>
+      </p>
+    </div>
+    <div style="display: flex; gap: var(--space-2); align-items: center;">
+      <% if @transaction %>
+        <%= render "finance/bank_statements/txn_status_badge", transaction: @transaction %>
+      <% else %>
+        <span class="badge badge-danger"><%= t("finance.deposit_verifications.statuses.missing") %></span>
+      <% end %>
+      <%= link_to t("shared.back"), finance_deposit_verifications_path, class: "btn btn-ghost" %>
+    </div>
+  </div>
+
+  <%# ── Side-by-side comparison ────────────────────────────────────────── %>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-6);">
+
+    <%# WorkPulse Deposit side %>
+    <div class="card" style="padding: var(--space-6);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-4); color: var(--text-1);">
+        <%= t("finance.bank_statement_transactions.show.workpulse_side") %>
+      </h3>
+      <dl style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); font-size: var(--text-sm);">
+        <dt style="color: var(--text-3); white-space: nowrap;"><%= t("finance.bank_statement_transactions.show.deposit_date") %></dt>
+        <dd><%= l(@deposit.deposited_at.to_date, format: :long) %></dd>
+
+        <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.deposit_amount") %></dt>
+        <dd style="font-weight: 600; font-variant-numeric: tabular-nums;"><%= format_currency(@deposit.amount) %></dd>
+
+        <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.reference") %></dt>
+        <dd><code style="font-size: var(--text-xs);"><%= @deposit.reference.presence || "—" %></code></dd>
+
+        <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.deposited_by") %></dt>
+        <dd><%= @deposit.deposited_by.full_name %></dd>
+
+        <dt style="color: var(--text-3);"><%= t("finance.deposit_verifications.cols.branch") %></dt>
+        <dd><%= @deposit.daily_reconciliation.branch&.name || "—" %></dd>
+
+        <% if @deposit.notes.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.modal_notes") %></dt>
+          <dd dir="auto"><%= @deposit.notes %></dd>
+        <% end %>
+      </dl>
+    </div>
+
+    <%# Bank Statement side %>
+    <div class="card" style="padding: var(--space-6); border: 2px solid <%= @transaction ? 'var(--success)' : 'var(--border)' %>;">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-4); color: var(--text-1);">
+        <%= t("finance.bank_statement_transactions.show.bank_side") %>
+      </h3>
+
+      <% if @transaction %>
+        <dl style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); font-size: var(--text-sm);">
+          <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.transaction_date") %></dt>
+          <dd><%= l(@transaction.transaction_date, format: :long) %></dd>
+
+          <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.amount") %></dt>
+          <dd style="font-weight: 600; font-variant-numeric: tabular-nums;"><%= format_currency(@transaction.amount) %></dd>
+
+          <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.reference_number") %></dt>
+          <dd><code style="font-size: var(--text-xs);"><%= @transaction.reference_number.presence || "—" %></code></dd>
+
+          <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_method") %></dt>
+          <dd><%= t("finance.bank_statement_transactions.match_methods.#{@transaction.match_method}") if @transaction.match_method %></dd>
+
+          <% if @transaction.match_confidence.present? %>
+            <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_confidence") %></dt>
+            <dd style="font-weight: 600;"><%= @transaction.match_confidence %>%</dd>
+          <% end %>
+
+          <dt></dt>
+          <dd>
+            <%= link_to t("finance.bank_statement_transactions.show.title"),
+                  finance_bank_statement_transaction_path(@transaction), class: "link" %>
+          </dd>
+        </dl>
+      <% else %>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    height: 120px; color: var(--text-3); text-align: center;">
+          <p style="margin: 0 0 var(--space-1); font-weight: 500;"><%= t("till_deposits.show.no_match") %></p>
+          <p style="font-size: var(--text-sm); margin: 0;"><%= t("till_deposits.show.no_match_hint") %></p>
+        </div>
+      <% end %>
+    </div>
+
+  </div>
+
+  <%# ── Actions ────────────────────────────────────────────────────────── %>
+  <% if policy(@deposit).match? %>
+    <div class="card" style="padding: var(--space-6);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-4);">
+        <%= t("finance.bank_statement_transactions.show.actions_title") %>
+      </h3>
+
+      <% if @transaction && policy(@transaction).unmatch? %>
+        <%= link_to t("finance.bank_statement_transactions.show.unmatch_button"),
+              unmatch_finance_bank_statement_transaction_path(@transaction),
+              class: "btn btn-ghost btn-sm text-danger",
+              data: { turbo_method: :patch,
+                      turbo_confirm: t("finance.bank_statement_transactions.show.unmatch_confirm") } %>
+      <% end %>
+
+      <div style="<%= @transaction ? 'margin-top: var(--space-5); border-top: 1px solid var(--border); padding-top: var(--space-5);' : '' %>">
+        <p style="font-size: var(--text-sm); color: var(--text-2); margin-bottom: var(--space-3);">
+          <%= t("till_deposits.show.manual_match_hint") %>
+        </p>
+        <%= link_to t("finance.bank_statement_transactions.show.manual_match_button"),
+              manual_match_modal_till_deposit_path(@deposit),
+              class: "btn btn-primary",
+              data: { turbo_frame: "modal" } %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── History ────────────────────────────────────────────────────────── %>
+  <% if @audit_logs.any? %>
+    <div class="card" style="padding: var(--space-6); margin-top: var(--space-4);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-5); color: var(--text-1);">
+        <%= t("finance.bank_statement_transactions.show.timeline_title") %>
+      </h3>
+      <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+        <% @audit_logs.each do |log| %>
+          <div style="display: flex; gap: var(--space-2); align-items: baseline; flex-wrap: wrap; font-size: var(--text-sm);">
+            <span style="font-weight: 600;">
+              <%= t("finance.bank_statement_transactions.timeline.#{log.action}", default: log.action.to_s.humanize) %>
+            </span>
+            <% if log.actor %>
+              <span style="color: var(--text-3); font-size: var(--text-xs);">
+                <%= t("finance.bank_statement_transactions.show.timeline_by", name: log.actor.full_name) %>
+              </span>
+            <% end %>
+            <span style="color: var(--text-3); font-size: var(--text-xs);"><%= l(log.created_at, format: :short) %></span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+</div>

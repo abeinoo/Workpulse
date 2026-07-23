@@ -285,8 +285,12 @@ Rails.application.routes.draw do
     end
   end
 
-  resources :till_deposits, only: %i[new create] do
-    member { patch :void }
+  resources :till_deposits, only: %i[new create show] do
+    member do
+      patch :void
+      get   :manual_match_modal
+      patch :manual_match
+    end
   end
 
   # ── Inventory Management ──────────────────────────────────────────────────
@@ -403,7 +407,6 @@ Rails.application.routes.draw do
       collection { get :options, defaults: { format: :json } }
     end
     resources :expense_tags,       except: [ :show ]
-    resources :branch_revenues,    except: [ :show ]
 
     resources :recurring_expenses do
       member { post :generate }
@@ -484,6 +487,7 @@ Rails.application.routes.draw do
 
     resources :bank_statement_transactions, only: %i[show] do
       member do
+        get   :manual_match_modal
         patch :match
         patch :unmatch
         patch :ignore

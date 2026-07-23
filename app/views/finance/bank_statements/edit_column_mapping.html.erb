@@ -23,7 +23,7 @@
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4); background: var(--bg-2);">
     <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0;">
       <strong><%= t("finance.bank_statements.column_mapping.detected_hint") %>:</strong>
-      <%= @detected_headers.join(", ") %>
+      <span dir="auto"><%= @detected_headers.join(", ") %></span>
     </p>
   </div>
 
@@ -48,8 +48,8 @@
           </tr>
         </thead>
         <tbody>
-          <% Finance::BankStatements::CsvParser::ALL_FIELDS.each do |field| %>
-            <% required = Finance::BankStatements::CsvParser::REQUIRED_FIELDS.include?(field) %>
+          <% Finance::BankStatements::RowParser::ALL_FIELDS.each do |field| %>
+            <% required = Finance::BankStatements::RowParser::REQUIRED_FIELDS.include?(field) %>
             <tr>
               <td>
                 <span style="font-weight: 500;"><%= t("finance.bank_statements.fields.#{field}") %></span>
@@ -60,13 +60,13 @@
                 <% end %>
               </td>
               <td>
-                <select name="column_mapping[<%= field %>]" class="form-control form-control-sm">
+                <select name="column_mapping[<%= field %>]" class="form-control form-control-sm" dir="auto">
                   <% unless required %>
                     <option value=""><%= t("finance.bank_statements.column_mapping.skip") %></option>
                   <% end %>
                   <% @detected_headers.each do |header| %>
                     <% selected = @statement.column_mapping[field] == header %>
-                    <option value="<%= header %>" <%= "selected" if selected %>><%= header %></option>
+                    <option value="<%= header %>" dir="auto" <%= "selected" if selected %>><%= header %></option>
                   <% end %>
                 </select>
               </td>

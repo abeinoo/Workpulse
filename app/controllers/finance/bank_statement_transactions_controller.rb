@@ -1,11 +1,17 @@
 class Finance::BankStatementTransactionsController < Finance::BaseController
   def show
-    @transaction = find_transaction
+    @transaction       = find_transaction
     authorize @transaction
-    @deposit            = @transaction.matched_till_deposit
-    @statement          = @transaction.bank_statement
-    @unmatched_deposits = unmatched_deposits_for_manual_matching if policy(@transaction).match?
-    @audit_logs         = AuditLog.for_auditable(@transaction).includes(:actor).recent
+    @deposit           = @transaction.matched_till_deposit
+    @statement         = @transaction.bank_statement
+    @audit_logs        = AuditLog.for_auditable(@transaction).includes(:actor).recent
+    @review_candidates = review_candidates if @transaction.needs_manual_review?
+  end
+
+  def manual_match_modal
+    @transaction        = find_transaction
+    authorize @transaction, :match?
+    @unmatched_deposits = unmatched_deposits_for_manual_matching
   end
 
   def match
@@ -23,11 +29,8 @@ class Finance::BankStatementTransactionsController < Finance::BaseController
       redirect_to finance_bank_statement_transaction_path(@transaction),
                   notice: t("finance.bank_statement_transactions.matched")
     else
-      flash.now[:alert] = result.error
-      @deposit            = @transaction.matched_till_deposit
-      @statement          = @transaction.bank_statement
-      @unmatched_deposits = unmatched_deposits_for_manual_matching
-      render :show, status: :unprocessable_entity
+      redirect_to finance_bank_statement_transaction_path(@transaction),
+                  alert: result.error
     end
   end
 
@@ -75,6 +78,15 @@ class Finance::BankStatementTransactionsController < Finance::BaseController
     policy_scope(BankStatementTransaction).find(params[:id])
   end
 
+  # The candidate snapshot recorded by MatchingEngine at the moment it flagged
+  # this transaction for manual review — read from the audit trail rather
+  # than re-querying live deposits, so the explanation reflects what the
+  # engine actually saw even if a candidate has since been edited or voided.
+  def review_candidates
+    log = AuditLog.for_auditable(@transaction).where(action: "needs_manual_review").recent.first
+    (log&.metadata || {})["candidates"] || []
+  end
+
   def unmatched_deposits_for_manual_matching
     statement = @transaction.bank_statement
 
@@ -84,7 +96,7 @@ class Finance::BankStatementTransactionsController < Finance::BaseController
       .where(daily_reconciliations: { business_date: statement.statement_from..statement.statement_to })
       .where(voided_at: nil)
       .where.missing(:bank_statement_transaction)
-      .includes(:daily_reconciliation, :payment_method)
+      .includes(:daily_reconciliation, :payment_method, :deposited_by, daily_reconciliation: :branch)
       .order(deposited_at: :desc)
 
     if statement.branch_id?

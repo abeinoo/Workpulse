@@ -64,7 +64,7 @@ class PermissionRole < ApplicationRecord
                                 manage_payment_methods],
     employee_balances:     %w[view_employee_balances manage_employee_balances
                                create_balance_requests approve_balance_requests],
-    expense_reports:       %w[view_expense_reports manage_branch_revenue],
+    expense_reports:       %w[view_expense_reports],
     deposit_verification:  %w[view_deposit_verification
                                import_bank_statement
                                verify_deposits
@@ -127,7 +127,7 @@ class PermissionRole < ApplicationRecord
       view_expenses create_expenses edit_expenses approve_expenses
       manage_expense_categories manage_expense_types manage_expense_tags manage_recurring_expenses
       view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
-      view_expense_reports manage_branch_revenue
+      view_expense_reports
       view_payroll view_draft_payroll view_payroll_analytics view_payroll_audit_log
       view_adjustments approve_adjustments
       view_inventory view_inventory_reports view_stock_count_reports
@@ -161,7 +161,7 @@ class PermissionRole < ApplicationRecord
   # scopable permission.
   BRANCH_SCOPABLE_PERMISSIONS = %w[
     view_expenses create_expenses edit_expenses approve_expenses
-    view_employee_balances manage_branch_revenue
+    view_employee_balances
     view_deposit_verification import_bank_statement verify_deposits manual_match_deposits delete_import
     view_towel_balances create_towel_transfers confirm_towel_receipt
     view_laundry_consumption_reports
@@ -300,7 +300,6 @@ class PermissionRole < ApplicationRecord
     "manage_employee_balances"    => %w[view_employee_balances],
     "create_balance_requests"     => %w[view_employee_balances],
     "approve_balance_requests"    => %w[view_employee_balances],
-    "manage_branch_revenue"       => %w[view_expense_reports],
     "import_bank_statement"       => %w[view_deposit_verification],
     "verify_deposits"             => %w[view_deposit_verification],
     "manual_match_deposits"       => %w[verify_deposits],

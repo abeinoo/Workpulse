@@ -56,13 +56,21 @@ class Finance::BankStatementsController < Finance::BaseController
     @statement.imported_by = current_user
     authorize @statement
 
-    unless params[:bank_statement][:file].present?
+    uploaded_file = params[:bank_statement][:file]
+
+    unless uploaded_file.present?
       @statement.errors.add(:file, t("finance.bank_statements.errors.file_blank"))
       @branches = assignable_branches
       return render :new, status: :unprocessable_entity
     end
 
-    raw_bytes = params[:bank_statement][:file].read
+    unless Finance::BankStatements::FileReader.supported?(uploaded_file.original_filename)
+      @statement.errors.add(:file, t("finance.bank_statements.errors.unsupported_file_type"))
+      @branches = assignable_branches
+      return render :new, status: :unprocessable_entity
+    end
+
+    raw_bytes = uploaded_file.read
 
     if raw_bytes.blank?
       @statement.errors.add(:file, t("finance.bank_statements.errors.file_empty"))
@@ -70,42 +78,31 @@ class Finance::BankStatementsController < Finance::BaseController
       return render :new, status: :unprocessable_entity
     end
 
-    # Normalise to UTF-8; reject if the source encoding is fundamentally incompatible.
     begin
-      csv_data = raw_bytes.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
-    rescue Encoding::UndefinedConversionError, Encoding::InvalidByteSequenceError
-      @statement.errors.add(:file, t("finance.bank_statements.errors.unsupported_encoding"))
+      table = Finance::BankStatements::FileReader.read(raw_bytes, filename: uploaded_file.original_filename)
+    rescue Finance::BankStatements::FileReader::Error
+      @statement.errors.add(:file, t("finance.bank_statements.errors.file_malformed"))
       @branches = assignable_branches
       return render :new, status: :unprocessable_entity
     end
 
-    begin
-      @detected_headers = Finance::BankStatements::CsvParser.detect_headers(csv_data)
-    rescue ArgumentError => e
-      key = e.message.include?("malformed") ? "finance.bank_statements.errors.csv_malformed"
-                                             : "finance.bank_statements.errors.csv_no_header"
-      @statement.errors.add(:file, t(key))
+    if table.headers.empty?
+      @statement.errors.add(:file, t("finance.bank_statements.errors.no_header_row"))
       @branches = assignable_branches
       return render :new, status: :unprocessable_entity
     end
 
-    if @detected_headers.empty?
-      @statement.errors.add(:file, t("finance.bank_statements.errors.csv_no_header"))
-      @branches = assignable_branches
-      return render :new, status: :unprocessable_entity
-    end
-
-    row_count = csv_data_row_count(csv_data)
-    if row_count == 0
+    if table.rows.empty?
       @statement.errors.add(:file, t("finance.bank_statements.errors.no_data_rows"))
       @branches = assignable_branches
       return render :new, status: :unprocessable_entity
     end
 
-    @statement.file_name = params[:bank_statement][:file].original_filename
+    @detected_headers  = table.headers
+    @statement.file_name = uploaded_file.original_filename
 
     if @statement.save
-      @statement.file.attach(params[:bank_statement][:file])
+      @statement.file.attach(uploaded_file)
 
       overlapping = detect_overlapping_statements(@statement)
       if overlapping.any?
@@ -125,7 +122,14 @@ class Finance::BankStatementsController < Finance::BaseController
     @statement        = find_statement
     authorize @statement, :edit_column_mapping?
     # Always re-detect from the stored file — no session dependency.
-    @detected_headers = Finance::BankStatements::CsvParser.detect_headers(@statement.file.download)
+    @detected_headers = read_statement_table(@statement).headers
+    # Pre-fill an auto-detected mapping on first visit only — never overwrite
+    # a mapping the user already saved (or is currently editing after a
+    # validation error, where @statement.column_mapping carries the submitted
+    # values).
+    if @statement.column_mapping.blank?
+      @statement.column_mapping = Finance::BankStatements::ColumnMatcher.match(@detected_headers)
+    end
   end
 
   def update_column_mapping
@@ -136,34 +140,23 @@ class Finance::BankStatementsController < Finance::BaseController
 
     if mapping["transaction_date"].blank? || mapping["amount"].blank?
       @statement.errors.add(:base, t("finance.bank_statements.errors.mapping_missing_required"))
-      @detected_headers = Finance::BankStatements::CsvParser.detect_headers(@statement.file.download)
+      @statement.column_mapping = mapping
+      @detected_headers = read_statement_table(@statement).headers
       return render :edit_column_mapping, status: :unprocessable_entity
     end
 
     @statement.update!(column_mapping: mapping)
 
-    csv_data     = @statement.file.download
-    parse_result = Finance::BankStatements::CsvParser.parse(csv_data, column_mapping: mapping)
+    table        = read_statement_table(@statement)
+    parse_result = Finance::BankStatements::RowParser.parse(table, column_mapping: mapping)
 
     if parse_result.header_error.present?
       @statement.errors.add(:base, parse_result.header_error)
-      @detected_headers = Finance::BankStatements::CsvParser.detect_headers(csv_data)
+      @detected_headers = table.headers
       return render :edit_column_mapping, status: :unprocessable_entity
     end
 
-    # Persist preview data on the record — never in the cookie session.
-    preview = {
-      "total_rows"    => parse_result.total_rows,
-      "valid_count"   => parse_result.valid_count,
-      "invalid_count" => parse_result.invalid_count,
-      "sample_rows"   => parse_result.valid_rows.first(5).map { |r|
-        r.slice("transaction_date", "amount", "reference_number", "description")
-      },
-      "error_rows" => parse_result.invalid_rows.first(10).map { |r|
-        r.slice("row", "transaction_date", "amount", "reference_number", "errors")
-      }
-    }
-    @statement.update_column(:preview_data, preview)
+    @statement.update_column(:preview_data, build_preview(parse_result))
 
     redirect_to preview_import_finance_bank_statement_path(@statement)
   end
@@ -193,7 +186,7 @@ class Finance::BankStatementsController < Finance::BaseController
     @statement = find_statement
     authorize @statement, :rematch?
 
-    result = Finance::BankStatements::MatchingEngine.call(@statement.id, actor: current_user, rematch: true)
+    result = Finance::DepositVerification::MatchingEngine.call(@statement.id, actor: current_user, rematch: true)
 
     if result.ok?
       redirect_to finance_bank_statement_path(@statement),
@@ -220,16 +213,26 @@ class Finance::BankStatementsController < Finance::BaseController
 
   private
 
+  # Reads the stored file through the format-agnostic FileReader — works
+  # identically for CSV and Excel, keyed off the statement's saved file_name.
+  def read_statement_table(statement)
+    Finance::BankStatements::FileReader.read(statement.file.download, filename: statement.file_name)
+  end
+
   # Re-builds preview from the stored file + column_mapping when preview_data is absent.
   def regenerate_preview(statement)
-    csv_data     = statement.file.download
-    parse_result = Finance::BankStatements::CsvParser.parse(csv_data, column_mapping: statement.column_mapping)
+    table        = read_statement_table(statement)
+    parse_result = Finance::BankStatements::RowParser.parse(table, column_mapping: statement.column_mapping)
+    build_preview(parse_result)
+  end
+
+  def build_preview(parse_result)
     {
       "total_rows"    => parse_result.total_rows,
       "valid_count"   => parse_result.valid_count,
       "invalid_count" => parse_result.invalid_count,
       "sample_rows"   => parse_result.valid_rows.first(5).map { |r|
-        r.slice("transaction_date", "amount", "reference_number", "description")
+        r.slice("transaction_date", "amount", "reference_number", "description", "transaction_type")
       },
       "error_rows" => parse_result.invalid_rows.first(10).map { |r|
         r.slice("row", "transaction_date", "amount", "reference_number", "errors")
@@ -248,19 +251,8 @@ class Finance::BankStatementsController < Finance::BaseController
   def build_column_mapping(mapping_params)
     return {} unless mapping_params.respond_to?(:permit)
 
-    permitted = mapping_params.permit(Finance::BankStatements::CsvParser::ALL_FIELDS)
+    permitted = mapping_params.permit(Finance::BankStatements::RowParser::ALL_FIELDS)
     permitted.to_h.reject { |_k, v| v.blank? }
-  end
-
-  def csv_data_row_count(csv_data)
-    require "csv"
-    table = CSV.parse(
-      csv_data.encode("UTF-8", invalid: :replace, undef: :replace, replace: ""),
-      headers: true, skip_blanks: true
-    )
-    table.count
-  rescue CSV::MalformedCSVError
-    0
   end
 
   def detect_overlapping_statements(statement)

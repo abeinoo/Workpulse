@@ -118,7 +118,7 @@
               <td><%= l(txn.transaction_date, format: :short) %></td>
               <td class="text-end font-tabular"><%= format_currency(txn.amount) %></td>
               <td><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></td>
-              <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <td dir="auto" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 <%= txn.description.presence || "—" %>
               </td>
               <td>

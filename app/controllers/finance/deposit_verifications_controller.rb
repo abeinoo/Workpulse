@@ -19,6 +19,8 @@ class Finance::DepositVerificationsController < Finance::BaseController
       load_missing_deposits
     when "unexpected"
       load_unexpected_transactions
+    when "needs_review"
+      load_needs_review_transactions
     when "mismatches"
       load_mismatched_transactions
     else
@@ -100,6 +102,7 @@ class Finance::DepositVerificationsController < Finance::BaseController
       unexpected:      txn_counts["unexpected"].to_i,
       amount_mismatch: txn_counts["amount_mismatch"].to_i,
       date_mismatch:   txn_counts["date_mismatch"].to_i,
+      needs_review:    txn_counts["needs_manual_review"].to_i,
       rate:            total_txns.zero? ? 0 : (verified.to_f / total_txns * 100).round(1)
     }
   end
@@ -152,6 +155,17 @@ class Finance::DepositVerificationsController < Finance::BaseController
   def load_unexpected_transactions
     transactions = base_transaction_scope
                      .unexpected
+                     .includes(:bank_statement)
+                     .ordered
+
+    @total_count  = transactions.count
+    @total_pages  = [ (@total_count.to_f / DEFAULT_PER_PAGE).ceil, 1 ].max
+    @transactions = transactions.offset((@page - 1) * DEFAULT_PER_PAGE).limit(DEFAULT_PER_PAGE)
+  end
+
+  def load_needs_review_transactions
+    transactions = base_transaction_scope
+                     .where(status: "needs_manual_review")
                      .includes(:bank_statement)
                      .ordered
 

@@ -1,0 +1,121 @@
+<%# ── Summary cards ─────────────────────────────────────────────────────────
+    Headline financial figures for the day. Values are computed in the
+    controller (build_show_summary_aggregates); this partial only formats them.
+    Permission-gated cards render only when the relevant data is available. %>
+
+<%
+  # Small helper for a difference card's tone + label.
+  diff_tone = ->(diff) {
+    return :neutral if diff.nil?
+    diff.abs < 0.01 ? :success : :warning
+  }
+  status_map = {
+    "verified"            => { key: "status_verified",  cls: "stat-card--success" },
+    "deposited"           => { key: "status_deposited", cls: "stat-card--success" },
+    "closed"              => { key: "status_closed",    cls: "stat-card--warning" },
+    "open"                => { key: "status_open",      cls: "" },
+    "waiting_for_opening" => { key: "status_waiting",   cls: "stat-card--warning" }
+  }
+  st = status_map[@reconciliation.state] || { key: "status_open", cls: "" }
+%>
+
+<section class="recon-section" style="margin-bottom: var(--space-6);">
+  <div class="stats-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+
+    <%# Total Sales — requires view_session_totals %>
+    <% if @total_sales %>
+      <div class="stat-card">
+        <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.sections.summary.total_sales") %></p>
+        <p class="stat-card__value" style="font-size: var(--text-xl); font-variant-numeric: tabular-nums;">
+          <%= format_currency(@total_sales) %>
+        </p>
+      </div>
+    <% end %>
+
+    <%# Total Deposits — always shown %>
+    <div class="stat-card <%= @total_deposited.to_d.positive? ? 'stat-card--success' : '' %>">
+      <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.sections.summary.total_deposits") %></p>
+      <p class="stat-card__value" style="font-size: var(--text-xl); font-variant-numeric: tabular-nums;">
+        <%= format_currency(@total_deposited) %>
+      </p>
+      <p class="stat-card__sub"><%= t("finance.daily_reconciliations.show.deposit_count", count: @deposits.size) %></p>
+    </div>
+
+    <%# Cash Difference — requires view_session_totals %>
+    <% if @cash_difference %>
+      <% tone = diff_tone.call(@cash_difference) %>
+      <div class="stat-card <%= tone == :success ? 'stat-card--success' : 'stat-card--warning' %>">
+        <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.sections.summary.cash_difference") %></p>
+        <% if tone == :success %>
+          <p class="stat-card__value" style="font-size: var(--text-lg); color: var(--success);">
+            <%= t("finance.daily_reconciliations.show.sections.summary.balanced") %>
+          </p>
+        <% else %>
+          <p class="stat-card__value" style="font-size: var(--text-xl); color: var(--warning); font-variant-numeric: tabular-nums;">
+            <%= format_currency(@cash_difference) %>
+          </p>
+          <p class="stat-card__sub">
+            <%= @cash_difference.negative? ?
+                  t("finance.daily_reconciliations.show.sections.summary.short") :
+                  t("finance.daily_reconciliations.show.sections.summary.over") %>
+          </p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%# POS Difference — requires view_pos_transactions_verification + POS data %>
+    <% if @pos_difference %>
+      <% tone = diff_tone.call(@pos_difference) %>
+      <div class="stat-card <%= tone == :success ? 'stat-card--success' : 'stat-card--warning' %>">
+        <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.sections.summary.pos_difference") %></p>
+        <% if tone == :success %>
+          <p class="stat-card__value" style="font-size: var(--text-lg); color: var(--success);">
+            <%= t("finance.daily_reconciliations.show.sections.summary.balanced") %>
+          </p>
+        <% else %>
+          <p class="stat-card__value" style="font-size: var(--text-xl); color: var(--warning); font-variant-numeric: tabular-nums;">
+            <%= format_currency(@pos_difference) %>
+          </p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%# Bank Difference — requires view_deposit_verification %>
+    <% if @bank_difference %>
+      <% tone = diff_tone.call(@bank_difference) %>
+      <div class="stat-card <%= tone == :success ? 'stat-card--success' : 'stat-card--warning' %>">
+        <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.sections.summary.bank_difference") %></p>
+        <% if tone == :success %>
+          <p class="stat-card__value" style="font-size: var(--text-lg); color: var(--success);">
+            <%= t("finance.daily_reconciliations.show.sections.summary.balanced") %>
+          </p>
+        <% else %>
+          <p class="stat-card__value" style="font-size: var(--text-xl); color: var(--warning); font-variant-numeric: tabular-nums;">
+            <%= format_currency(@bank_difference) %>
+          </p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%# Overall Status — day state + custody context %>
+    <div class="stat-card <%= st[:cls] %>">
+      <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.sections.summary.overall_status") %></p>
+      <p class="stat-card__value" style="font-size: var(--text-lg);">
+        <%= t("finance.daily_reconciliations.show.sections.summary.#{st[:key]}") %>
+      </p>
+      <% if @session&.current_holder %>
+        <p class="stat-card__sub" style="margin-top: var(--space-2);">
+          <%= t("finance.daily_reconciliations.show.q_holder") %>:
+          <span style="color: var(--text-1); font-weight: 600;"><%= @session.current_holder.full_name %></span>
+        </p>
+      <% end %>
+      <% if @session&.depositor %>
+        <p class="stat-card__sub">
+          <%= t("finance.daily_reconciliations.show.q_depositor") %>:
+          <span style="color: var(--text-1); font-weight: 600;"><%= @session.depositor.full_name %></span>
+        </p>
+      <% end %>
+    </div>
+
+  </div>
+</section>

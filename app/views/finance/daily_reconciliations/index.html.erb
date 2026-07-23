@@ -19,6 +19,11 @@
               new_finance_pos_import_path,
               class: "btn btn-ghost" %>
       <% end %>
+      <% if current_user.can?(:manage_payment_methods) %>
+        <%= link_to t("nav.finance_payment_methods"),
+              finance_payment_methods_path,
+              class: "btn btn-ghost" %>
+      <% end %>
       <% if policy(:daily_reconciliation).create? %>
         <%= button_to t("finance.daily_reconciliations.index.create_button"),
               finance_daily_reconciliations_path,
@@ -136,6 +141,13 @@
       # — a remaining balance is normal and doesn't change readiness to verify.
       deposited_count   = @reconciliations.count(&:deposited?)
       verified_count    = @reconciliations.count(&:verified?)
+      # Same definition as DailyReconciliation#total_remaining_balance (open
+      # balances only — settled/written-off amounts are correctly excluded,
+      # matching the show page's "Settled Later"/"Written Off" lines rather
+      # than a raw expected-vs-deposited difference). Filtered on the already
+      # preloaded association (not dr.total_remaining_balance) to avoid an
+      # N+1 — that method re-queries per record since it chains .open onto
+      # the association instead of using the loaded collection.
       total_outstanding = @reconciliations.sum { |dr|
         dr.remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
       }
@@ -315,6 +327,11 @@
           session     = dr.till_session
           holder      = session&.current_holder
           depositor   = session&.depositor
+          # Same definition as DailyReconciliation#total_remaining_balance
+          # (open balances only — a settled shortfall correctly shows no
+          # outstanding difference, matching the show page's Cash
+          # Reconciliation section). Uses the preloaded association rather
+          # than that method directly to avoid an N+1 across this list.
           outstanding = dr.remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
           has_balance = outstanding > 0
 

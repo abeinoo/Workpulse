@@ -1,0 +1,17 @@
+<%# ── Notes ─────────────────────────────────────────────────────────────────
+    DailyReconciliation has a single `notes` column (captured at approval time),
+    so this section surfaces that one field. There is no separate manager /
+    accounting note column and no attachments association on the model. %>
+
+<% if @reconciliation.notes.present? %>
+  <section id="notes" class="recon-section" style="margin-bottom: var(--space-6);">
+    <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+      <h2 class="dashboard-section__title"><%= t("common.notes") %></h2>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm);">
+      <p style="font-size: var(--text-sm); color: var(--text-1); margin: 0; white-space: pre-line; line-height: 1.6;">
+        <%= @reconciliation.notes %>
+      </p>
+    </div>
+  </section>
+<% end %>

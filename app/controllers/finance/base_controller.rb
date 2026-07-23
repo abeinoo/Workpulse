@@ -12,7 +12,7 @@ class Finance::BaseController < ApplicationController
     manage_expense_categories manage_expense_types manage_expense_tags manage_recurring_expenses
     manage_payment_methods
     view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
-    view_expense_reports manage_branch_revenue
+    view_expense_reports
     create_till_session view_daily_reconciliation view_session_totals
     close_till_session accept_till_handover create_till_deposit
     verify_daily_reconciliation edit_session_totals void_till_handover void_till_deposit

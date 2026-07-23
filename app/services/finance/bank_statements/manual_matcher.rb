@@ -48,9 +48,14 @@ module Finance
           # Switching from deposit A to deposit B is net-zero (stays matched).
           was_unmatched = txn.matched_till_deposit_id.nil?
 
+          reason = @notes.presence ||
+                   I18n.t("finance.bank_statement_transactions.match_reasons.manual", actor: @actor.full_name)
+
           txn.update!(
             matched_till_deposit_id:    deposit.id,
             match_method:               "manual",
+            match_confidence:           100,
+            match_reason:               reason,
             matched_by:                 @actor,
             matched_at:                 Time.current,
             match_notes:                @notes,
@@ -71,6 +76,8 @@ module Finance
             action:    :manual_match,
             metadata:  {
               till_deposit_id: deposit.id,
+              confidence:      100,
+              reason:          reason,
               notes:           @notes
             }
           )

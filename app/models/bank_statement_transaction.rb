@@ -6,14 +6,21 @@ class BankStatementTransaction < ApplicationRecord
   belongs_to :matched_till_deposit, class_name: "TillDeposit", optional: true
   belongs_to :matched_by,           class_name: "User",        optional: true
 
-  STATUSES = %w[pending verified amount_mismatch date_mismatch unexpected ignored needs_reverification].freeze
-  MATCH_METHODS = %w[auto_reference auto_amount_date manual].freeze
+  STATUSES = %w[
+    pending verified amount_mismatch date_mismatch unexpected ignored
+    needs_reverification needs_manual_review
+  ].freeze
+  MATCH_METHODS = %w[
+    auto_reference auto_amount_date auto_amount_near_date auto_amount_only
+    auto_description_similarity manual
+  ].freeze
 
   validates :transaction_date, presence: true
   validates :amount,           presence: true,
                                numericality: { greater_than: 0 }
   validates :status,           inclusion: { in: STATUSES }
   validates :match_method,     inclusion: { in: MATCH_METHODS }, allow_nil: true
+  validates :match_confidence, numericality: { only_integer: true, in: 0..100 }, allow_nil: true
 
   scope :for_business, ->(b) { where(business: b) }
   scope :pending,      -> { where(status: "pending") }
@@ -31,6 +38,7 @@ class BankStatementTransaction < ApplicationRecord
   def date_mismatch?         = status == "date_mismatch"
   def ignored?               = status == "ignored"
   def needs_reverification?  = status == "needs_reverification"
+  def needs_manual_review?   = status == "needs_manual_review"
   def matched?               = matched_till_deposit_id.present?
   def manual_match?          = match_method == "manual"
   def has_snapshot?          = snapshot_deposit_amount.present?

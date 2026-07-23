@@ -1,0 +1,82 @@
+<%# ── Exceptions ────────────────────────────────────────────────────────────
+    Unified list of things that need attention: bank transactions needing review,
+    unmatched bank transactions, deposits missing from the statement, and cash /
+    POS / bank differences. Real records expose View / Manual-Match / Ignore
+    (existing routes); calculated-difference rows link to the relevant section.
+    Built in the controller (build_exceptions). %>
+
+<section id="exceptions" class="recon-section" style="margin-bottom: var(--space-6);">
+  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+    <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.exceptions.title") %></h2>
+    <% if @exceptions.any? %>
+      <span class="badge badge-warning"><%= @exceptions.size %></span>
+    <% end %>
+  </div>
+
+  <% if @exceptions.empty? %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: var(--space-3);">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+      <span style="font-size: var(--text-sm); color: var(--text-2);"><%= t("finance.daily_reconciliations.show.sections.exceptions.none") %></span>
+    </div>
+  <% else %>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+      <% @exceptions.each do |ex| %>
+        <div class="exception-row">
+          <div class="exception-row__main">
+            <span class="exception-row__dot exception-row__dot--<%= ex[:severity] || :warning %>"></span>
+            <div style="min-width: 0;">
+              <p class="exception-row__title">
+                <% case ex[:type] %>
+                <% when :bank_needs_review %>
+                  <%= t("finance.daily_reconciliations.show.sections.exceptions.bank_needs_review") %>
+                <% when :bank_unexpected %>
+                  <%= t("finance.daily_reconciliations.show.sections.exceptions.bank_unexpected") %>
+                <% when :missing_from_bank %>
+                  <%= t("finance.daily_reconciliations.show.sections.exceptions.missing_from_bank", count: ex[:count]) %>
+                <% when :cash_difference %>
+                  <%= t("finance.daily_reconciliations.show.sections.exceptions.cash_difference") %>
+                <% when :pos_difference %>
+                  <%= t("finance.daily_reconciliations.show.sections.exceptions.pos_difference") %>
+                <% when :bank_difference %>
+                  <%= t("finance.daily_reconciliations.show.sections.exceptions.bank_difference") %>
+                <% end %>
+              </p>
+              <% if ex[:amount] %>
+                <p class="exception-row__sub" style="font-variant-numeric: tabular-nums;"><%= format_currency(ex[:amount]) %></p>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="exception-row__actions">
+            <% case ex[:type] %>
+            <% when :bank_needs_review, :bank_unexpected %>
+              <% txn = ex[:record] %>
+              <%= link_to t("shared.view"), finance_bank_statement_transaction_path(txn), class: "btn btn-ghost btn-sm" %>
+              <% if !txn.matched? && policy(txn).match? %>
+                <%= link_to t("finance.bank_statement_transactions.show.manual_match_button"),
+                      manual_match_modal_finance_bank_statement_transaction_path(txn),
+                      class: "btn btn-primary btn-sm", data: { turbo_frame: "modal" } %>
+              <% end %>
+              <% if !txn.ignored? && policy(txn).ignore? %>
+                <%= link_to t("finance.bank_statement_transactions.show.ignore_button"),
+                      ignore_finance_bank_statement_transaction_path(txn),
+                      class: "btn btn-ghost btn-sm",
+                      data: { turbo_method: :patch, turbo_confirm: t("finance.bank_statement_transactions.show.ignore_confirm") } %>
+              <% end %>
+            <% when :missing_from_bank %>
+              <%= link_to t("finance.daily_reconciliations.show.sections.exceptions.view_details"),
+                    finance_deposit_verifications_path(tab: "missing",
+                                                       branch_id: @reconciliation.branch_id,
+                                                       from: @reconciliation.business_date,
+                                                       to: @reconciliation.business_date),
+                    class: "btn btn-ghost btn-sm" %>
+            <% else %>
+              <%= link_to t("finance.daily_reconciliations.show.sections.exceptions.view_details"),
+                    "##{ex[:anchor]}", class: "btn btn-ghost btn-sm" %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</section>

@@ -1,0 +1,71 @@
+<turbo-frame id="modal">
+  <div class="emp-dashboard" style="padding: var(--space-5) var(--space-5) var(--space-8); max-width: 640px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
+      <h2 class="card-title"><%= t("finance.bank_statement_transactions.show.modal_title") %></h2>
+      <button type="button"
+              data-action="click->modal#close"
+              style="border: none; background: none; cursor: pointer; color: var(--text-2); padding: var(--space-1); border-radius: var(--radius-sm);"
+              aria-label="<%= t("common.close") %>">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 var(--space-4);">
+      <%= t("finance.bank_statement_transactions.show.manual_match_hint") %>
+    </p>
+
+    <% if @unmatched_deposits.blank? %>
+      <p style="color: var(--text-3); padding: var(--space-6) 0; text-align: center;">
+        <%= t("finance.bank_statement_transactions.show.modal_no_deposits") %>
+      </p>
+    <% else %>
+      <%= form_with url: match_finance_bank_statement_transaction_path(@transaction), method: :patch,
+            data: { turbo_frame: "_top" } do |f| %>
+        <div style="display: flex; flex-direction: column; gap: var(--space-2); max-height: 360px; overflow-y: auto; margin-bottom: var(--space-4);">
+          <% @unmatched_deposits.each do |dep| %>
+            <label class="card" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-4); cursor: pointer; margin: 0;">
+              <input type="radio" name="till_deposit_id" value="<%= dep.id %>" required style="margin-top: 4px;">
+              <div style="flex: 1; display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); font-size: var(--text-sm);">
+                <span style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.modal_deposit_number", id: dep.id) %></span>
+                <span></span>
+
+                <span style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.modal_amount") %></span>
+                <span style="font-weight: 600; font-variant-numeric: tabular-nums;"><%= format_currency(dep.amount) %></span>
+
+                <span style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.modal_date") %></span>
+                <span><%= l(dep.deposited_at.to_date, format: :long) %></span>
+
+                <span style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.modal_employee") %></span>
+                <span><%= dep.deposited_by.full_name %></span>
+
+                <span style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.modal_branch") %></span>
+                <span><%= dep.daily_reconciliation.branch&.name || "—" %></span>
+
+                <span style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.modal_reference") %></span>
+                <span><code style="font-size: var(--text-xs);"><%= dep.reference.presence || "—" %></code></span>
+
+                <% if dep.notes.present? %>
+                  <span style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.modal_notes") %></span>
+                  <span dir="auto"><%= dep.notes %></span>
+                <% end %>
+              </div>
+            </label>
+          <% end %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :match_notes, t("finance.bank_statement_transactions.show.match_notes"), class: "form-label" %>
+          <%= f.text_field :match_notes, class: "form-control",
+                placeholder: t("finance.bank_statement_transactions.show.match_notes_placeholder") %>
+        </div>
+
+        <div style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-4);">
+          <button type="button" class="btn btn-ghost" data-action="click->modal#close">
+            <%= t("shared.cancel") %>
+          </button>
+          <%= f.submit t("finance.bank_statement_transactions.show.match_button"), class: "btn btn-primary" %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</turbo-frame>

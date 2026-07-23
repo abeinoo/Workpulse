@@ -1,0 +1,93 @@
+<%# ── POS Verification (Electronic Payments) ──────────────────────────────────
+    Always visible (once permitted via view_pos_transactions_verification),
+    regardless of whether a POS file has been imported. Rendered in the LEFT
+    column of the two-column grid in show.html.erb (Audit Timeline is the right
+    column). Owns two blocks:
+      - Session Totals table (top) — daily WorkPulse sales overview, ALL
+        payment methods (cash included when the viewer holds
+        view_session_totals, electronic-only otherwise) vs the imported POS
+        totals.
+      - Employee Breakdown (below) — rendered via the "employee_summary"
+        partial; replaces the old standalone "Cashier Custody Summary" card,
+        which no longer exists as a separate section anywhere on the page.
+
+    Locals: pos_totals_by_method, pos_difference, can_manage_pos_import,
+            session_totals_rows, session_totals_grand_total.
+
+    All figures are computed once in Finance::DailyReconciliationsController
+    (build_show_summary_aggregates / build_session_totals_rows) and reused
+    here and in _employee_summary.html.erb (which reads the remaining
+    aggregates — @employee_summaries, @pos_totals_by_cashier,
+    @all_payment_methods_for_cards, @electronic_payment_methods — directly as
+    ivars) — no recalculation. %>
+
+<% has_pos_data = pos_totals_by_method.any? %>
+
+<section id="electronic-payments" class="recon-section" style="margin-bottom: var(--space-6);">
+  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+    <div>
+      <h2 class="dashboard-section__title"><%= t("finance.pos_imports.verification.title") %></h2>
+      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+        <%= t("finance.pos_imports.verification.subtitle") %>
+      </p>
+    </div>
+    <div style="display: flex; align-items: center; gap: var(--space-3);">
+      <% if !has_pos_data %>
+        <span class="badge badge-neutral"><%= t("finance.pos_imports.verification.status_not_imported") %></span>
+      <% else %>
+        <% verified = pos_difference.abs < 0.01 %>
+        <span class="badge <%= verified ? 'badge-success' : 'badge-warning' %>">
+          <%= verified ? t("finance.pos_imports.verification.status_verified") : t("finance.pos_imports.verification.status_difference") %>
+        </span>
+      <% end %>
+      <% if can_manage_pos_import %>
+        <%= link_to(has_pos_data ? t("finance.pos_imports.verification.reimport") : t("finance.daily_reconciliations.show.sections.electronic.import_button"),
+              new_finance_pos_import_path, class: "btn btn-ghost btn-sm") %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Session Totals: daily sales overview, ALL payment methods (cash + electronic
+      when the viewer holds view_session_totals; electronic-only otherwise). ── %>
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--space-4);">
+    <div style="padding: var(--space-3) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+      <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0;">
+        <%= t("finance.daily_reconciliations.show.sections.electronic.session_totals_title") %>
+      </h3>
+    </div>
+    <div class="recon-table-scroll">
+      <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); padding: var(--space-2) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border); min-width: 520px;">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"><%= t("finance.daily_reconciliations.show.sections.electronic.col_payment_method") %></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_workpulse_total") %></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_pos_total") %></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_difference") %></span>
+      </div>
+      <% session_totals_rows.each do |r| %>
+        <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: center; min-width: 520px;">
+          <span style="font-size: var(--text-sm); color: var(--text-2);"><%= r[:payment_method].display_name %></span>
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(r[:workpulse_total]) %></span>
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+            <%= r[:pos_total] ? format_currency(r[:pos_total]) : "—" %>
+          </span>
+          <span style="font-size: var(--text-sm); font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; color: <%= (r[:difference].nil? || r[:difference].abs < 0.01) ? 'var(--text-3)' : (r[:difference] > 0 ? 'var(--warning)' : 'var(--danger)') %>;">
+            <%= (r[:difference].nil? || r[:difference].abs < 0.01) ? "—" : format_currency(r[:difference]) %>
+          </span>
+        </div>
+      <% end %>
+      <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); padding: var(--space-4) var(--space-5); background: var(--surface-2); align-items: center; min-width: 520px;">
+        <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);"><%= t("finance.pos_imports.verification.grand_total") %></span>
+        <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(session_totals_grand_total[:workpulse_total]) %></span>
+        <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+          <%= session_totals_grand_total[:pos_total] ? format_currency(session_totals_grand_total[:pos_total]) : "—" %>
+        </span>
+        <span style="font-size: var(--text-base); font-weight: 700; text-align: end; font-variant-numeric: tabular-nums; color: <%= (session_totals_grand_total[:difference].nil? || session_totals_grand_total[:difference].abs < 0.01) ? 'var(--text-3)' : 'var(--warning)' %>;">
+          <%= (session_totals_grand_total[:difference].nil? || session_totals_grand_total[:difference].abs < 0.01) ? "—" : format_currency(session_totals_grand_total[:difference]) %>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <%# ── Employee Breakdown — owned by POS Verification, replaces the old
+      standalone "Cashier Custody Summary" section. ── %>
+  <%= render "employee_summary" %>
+</section>

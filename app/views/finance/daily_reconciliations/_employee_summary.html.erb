@@ -1,0 +1,141 @@
+<%# ── Employee Breakdown (owned by, and rendered inside, POS Verification —
+    see _electronic_payments.html.erb, below the Session Totals table) ──
+    Replaces the old standalone "Cashier Custody Summary" section, which no
+    longer exists separately anywhere on the page. Each employee is its own
+    collapsible card (click the employee row to expand), showing WorkPulse
+    totals side by side with the Imported POS totals (once a file exists) and
+    a color-coded Difference, per configured payment method.
+
+    Reuses existing controller aggregates only — no new calculations:
+      - @employee_summaries / summary.amounts / summary.grand_total
+        (Finance::EmployeeReconciliationSummarizer, unchanged)
+      - @pos_totals_by_cashier / @pos_totals_by_method (POS import comparison,
+        unchanged)
+      - @all_payment_methods_for_cards / @electronic_payment_methods (the same
+        permission-gated method list used by the Session Totals table, so cash
+        only appears here when the viewer holds view_session_totals). %>
+
+<% if @employee_summaries %>
+<div>
+  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+    <div>
+      <h2 class="dashboard-section__title" style="display: flex; align-items: center; gap: var(--space-2);">
+        <%= t("finance.daily_reconciliations.show.employee_summary_title") %>
+        <span title="<%= t('finance.daily_reconciliations.show.employee_summary_tooltip') %>"
+              style="cursor: help; font-size: 11px; color: var(--text-3); font-style: normal; font-weight: 400; border: 1px solid var(--border); border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1;">
+          i
+        </span>
+      </h2>
+      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+        <%= @can_view_all_summary ?
+              t("finance.daily_reconciliations.show.employee_summary_subtitle") :
+              t("finance.daily_reconciliations.show.employee_summary_subtitle_own") %>
+      </p>
+    </div>
+    <% if @reconciliation.open? && @employee_summaries.any? %>
+      <span style="font-size: 11px; font-weight: 600; color: var(--warning); background: rgba(var(--warning-rgb,202,138,4),0.10); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.30); border-radius: var(--radius-sm); padding: 3px 8px; white-space: nowrap;">
+        <%= t("finance.daily_reconciliations.show.employee_summary_live_hint") %>
+      </span>
+    <% end %>
+  </div>
+
+  <% if @employee_summaries.empty? %>
+    <p style="font-size: var(--text-sm); color: var(--text-2); padding: var(--space-4) 0;">
+      <%= t("finance.daily_reconciliations.show.employee_summary_empty") %>
+    </p>
+  <% else %>
+    <%
+      has_pos_data = @pos_totals_by_method.present? && @pos_totals_by_method.any?
+      # Same permission-gated method list as the Session Totals table: cash only
+      # appears here when the viewer holds view_session_totals.
+      row_methods = @can_view_session_totals ? (@all_payment_methods_for_cards || []) : (@electronic_payment_methods || [])
+      pos_by_cashier_downcase = (@pos_totals_by_cashier || {}).each_with_object({}) { |(k, v), h| h[k.downcase.strip] = v }
+    %>
+
+    <% unless has_pos_data %>
+      <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 var(--space-3); padding: var(--space-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);">
+        <%= t("finance.daily_reconciliations.show.employee_summary_no_pos_note") %>
+      </p>
+    <% end %>
+
+    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <% @employee_summaries.each do |summary| %>
+        <%
+          cashier_pos     = pos_by_cashier_downcase[summary.user.full_name.downcase.strip]
+          workpulse_by_pm = summary.amounts.index_by(&:payment_method_id)
+          employee_pos_total = has_pos_data ? (cashier_pos || {}).values.sum(&:to_d) : nil
+          employee_difference = has_pos_data ? (summary.grand_total.to_d - employee_pos_total) : nil
+        %>
+        <div data-controller="collapsible" class="recon-disclosure" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+
+          <%# ── Employee header (collapsible trigger) ─────────────────────── %>
+          <button type="button" data-collapsible-target="trigger" data-action="click->collapsible#toggle"
+                  class="recon-disclosure__trigger" aria-expanded="false" style="width: 100%;">
+            <span style="display: flex; align-items: center; gap: var(--space-3);">
+              <span style="width: 32px; height: 32px; border-radius: 50%; background: rgba(var(--accent-rgb),0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </span>
+              <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1);">
+                <%= summary.user.full_name %>
+              </span>
+            </span>
+            <span style="display: flex; align-items: center; gap: var(--space-3);">
+              <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums;">
+                <%= format_currency(summary.grand_total) %>
+              </span>
+              <% if employee_difference && employee_difference.abs >= 0.01 %>
+                <span class="badge badge-warning" style="white-space: nowrap;"><%= format_currency(employee_difference) %></span>
+              <% end %>
+              <svg class="recon-disclosure__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </span>
+          </button>
+
+          <%# ── WorkPulse vs Imported POS vs Difference, one row per method ── %>
+          <div data-collapsible-target="content" hidden>
+            <div class="recon-table-scroll" style="border-top: 1px solid var(--border);">
+              <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); padding: var(--space-2) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border); min-width: 520px;">
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"></span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_workpulse_total") %></span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_pos_total") %></span>
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_difference") %></span>
+              </div>
+
+              <%# One row per configured payment method with any activity %>
+              <% row_methods.each do |pm| %>
+                <% workpulse_amt = workpulse_by_pm[pm.id]&.net_amount || 0 %>
+                <% pos_amt = has_pos_data ? (cashier_pos && cashier_pos[pm.id] ? cashier_pos[pm.id].to_d : 0) : nil %>
+                <% next if workpulse_amt.zero? && (pos_amt.nil? || pos_amt.zero?) %>
+                <% row_difference = pos_amt ? (workpulse_amt - pos_amt) : nil %>
+                <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); align-items: center; min-width: 520px;">
+                  <span style="font-size: var(--text-sm); color: var(--text-2);"><%= pm.display_name %></span>
+                  <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(workpulse_amt) %></span>
+                  <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+                    <%= pos_amt ? format_currency(pos_amt) : "—" %>
+                  </span>
+                  <span style="font-size: var(--text-sm); font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; color: <%= (row_difference.nil? || row_difference.abs < 0.01) ? 'var(--text-3)' : 'var(--warning)' %>;">
+                    <%= (row_difference.nil? || row_difference.abs < 0.01) ? "—" : format_currency(row_difference) %>
+                  </span>
+                </div>
+              <% end %>
+
+              <%# Total row %>
+              <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); padding: var(--space-3) var(--space-5); background: var(--surface-2); align-items: center; min-width: 520px; font-weight: 700;">
+                <span style="font-size: var(--text-sm); color: var(--text-1);"><%= t("finance.daily_reconciliations.show.employee_summary_grand_total") %></span>
+                <span style="font-size: var(--text-sm); color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(summary.grand_total) %></span>
+                <span style="font-size: var(--text-sm); color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+                  <%= employee_pos_total ? format_currency(employee_pos_total) : "—" %>
+                </span>
+                <span style="font-size: var(--text-sm); text-align: end; font-variant-numeric: tabular-nums; color: <%= (employee_difference.nil? || employee_difference.abs < 0.01) ? 'var(--text-3)' : 'var(--warning)' %>;">
+                  <%= (employee_difference.nil? || employee_difference.abs < 0.01) ? "—" : format_currency(employee_difference) %>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+<% end %>
