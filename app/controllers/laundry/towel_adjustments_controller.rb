@@ -54,7 +54,7 @@ class Laundry::TowelAdjustmentsController < Laundry::BaseController
   private
 
   def load_options
-    @branches = assignable_branches
+    @branches = assignable_branches(:adjust_towel_balances, :view_towel_balances)
     @towel_types = laundry_towel_types
     @statuses = TowelLedgerEntry::STATUSES
   end

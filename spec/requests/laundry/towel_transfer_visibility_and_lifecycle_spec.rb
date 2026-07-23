@@ -30,9 +30,9 @@ RSpec.describe "Laundry towel transfer — status-gated visibility and lifecycle
   let(:no_access_user) { create(:user, business: business) }
 
   def build_transfer(quantity: 100)
-    business.towel_transfers.create!(towel_type: towel_type, source_branch: sales_branch,
-                                     destination_branch: laundry_branch, towel_status: "dirty",
-                                     declared_quantity: quantity)
+    business.towel_transfers.create!(source_branch: sales_branch, destination_branch: laundry_branch,
+                                     towel_status: "dirty",
+                                     items: [ TowelTransferItem.new(towel_type: towel_type, declared_quantity: quantity) ])
   end
 
   def balances
@@ -59,10 +59,11 @@ RSpec.describe "Laundry towel transfer — status-gated visibility and lifecycle
 
     it "rejects a direct receive attempt on a draft transfer (server-side, not just hidden in the UI)" do
       sign_in staff
-      patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 100 }
+      patch receive_laundry_towel_transfer_path(transfer),
+            params: { confirmed_quantities: { transfer.items.first.id => 100 } }
 
       expect(transfer.reload).to be_draft
-      expect(transfer.confirmed_quantity).to be_nil
+      expect(transfer.items.first.confirmed_quantity).to be_nil
       expect(balances.at_branch(laundry_branch, "dirty")).to eq(0)
     end
   end
@@ -119,12 +120,13 @@ RSpec.describe "Laundry towel transfer — status-gated visibility and lifecycle
 
     it "adds only the confirmed quantity to the destination balance, preserves the declared quantity, and surfaces the discrepancy" do
       sign_in staff
-      patch receive_laundry_towel_transfer_path(transfer.reload), params: { confirmed_quantity: 98 }
+      patch receive_laundry_towel_transfer_path(transfer.reload),
+            params: { confirmed_quantities: { transfer.items.first.id => 98 } }
 
       transfer.reload
       expect(transfer).to be_received
-      expect(transfer.declared_quantity).to eq(100) # never silently modified
-      expect(transfer.confirmed_quantity).to eq(98)
+      expect(transfer.items.first.declared_quantity).to eq(100) # never silently modified
+      expect(transfer.items.first.confirmed_quantity).to eq(98)
       expect(transfer.discrepancy).to eq(2)
       expect(balances.at_branch(laundry_branch, "dirty")).to eq(98) # only the confirmed amount entered the ledger
 
@@ -135,11 +137,12 @@ RSpec.describe "Laundry towel transfer — status-gated visibility and lifecycle
     it "rejects a direct over-receipt request even with a valid, authorized session — the HTML max attribute is not the enforcement" do
       sign_in staff
 
-      patch receive_laundry_towel_transfer_path(transfer.reload), params: { confirmed_quantity: 105 }
+      patch receive_laundry_towel_transfer_path(transfer.reload),
+            params: { confirmed_quantities: { transfer.items.first.id => 105 } }
 
       transfer.reload
       expect(transfer).to be_dispatched # not received — request was rejected
-      expect(transfer.confirmed_quantity).to be_nil
+      expect(transfer.items.first.confirmed_quantity).to be_nil
       expect(balances.at_branch(laundry_branch, "dirty")).to eq(0)
       expect(TowelLedgerEntry.where(source: transfer, reason: "towel_transfer_receipt")).to be_empty
 
@@ -154,7 +157,8 @@ RSpec.describe "Laundry towel transfer — status-gated visibility and lifecycle
     before do
       fund(sales_branch, "clean", 100)
       Laundry::TowelTransferCreator.new(transfer).dispatch(actor: staff)
-      Laundry::TowelTransferCreator.new(transfer.reload).receive(actor: staff, confirmed_quantity: 100)
+      Laundry::TowelTransferCreator.new(transfer.reload)
+                                   .receive(actor: staff, confirmed_quantities: { transfer.items.first.id => 100 })
     end
 
     it "hides Dispatch, Cancel, and Confirm Receipt, showing only the completed summary" do
@@ -169,7 +173,8 @@ RSpec.describe "Laundry towel transfer — status-gated visibility and lifecycle
 
     it "rejects receiving an already-received transfer a second time (server-side)" do
       sign_in staff
-      patch receive_laundry_towel_transfer_path(transfer.reload), params: { confirmed_quantity: 100 }
+      patch receive_laundry_towel_transfer_path(transfer.reload),
+            params: { confirmed_quantities: { transfer.items.first.id => 100 } }
 
       # Balance must not be double-counted.
       expect(balances.at_branch(laundry_branch, "dirty")).to eq(100)
@@ -204,7 +209,8 @@ RSpec.describe "Laundry towel transfer — status-gated visibility and lifecycle
       Laundry::TowelTransferCreator.new(transfer).dispatch(actor: staff)
 
       sign_in outside_user
-      patch receive_laundry_towel_transfer_path(transfer.reload), params: { confirmed_quantity: 100 }
+      patch receive_laundry_towel_transfer_path(transfer.reload),
+            params: { confirmed_quantities: { transfer.items.first.id => 100 } }
 
       expect(response).to have_http_status(:not_found)
       expect(transfer.reload).to be_dispatched

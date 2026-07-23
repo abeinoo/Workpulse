@@ -27,9 +27,10 @@ RSpec.describe "Laundry permission separation", type: :request do
   end
 
   def dispatched_transfer(quantity: 100)
-    transfer = business.towel_transfers.create!(towel_type: towel_type, source_branch: sales_branch,
-                                                destination_branch: laundry_branch, towel_status: "dirty",
-                                                declared_quantity: quantity)
+    transfer = business.towel_transfers.create!(
+      source_branch: sales_branch, destination_branch: laundry_branch, towel_status: "dirty",
+      items: [ TowelTransferItem.new(towel_type: towel_type, declared_quantity: quantity) ]
+    )
     Laundry::TowelTransferCreator.new(transfer).dispatch(actor: owner)
     transfer
   end
@@ -48,18 +49,20 @@ RSpec.describe "Laundry permission separation", type: :request do
   it "lets a user with create_towel_transfers create and dispatch, but not confirm receipt without confirm_towel_receipt" do
     creator = user_with("view_towel_balances", "create_towel_transfers")
     fund(sales_branch, "clean", 100, actor: owner)
-    transfer = business.towel_transfers.create!(towel_type: towel_type, source_branch: sales_branch,
-                                                destination_branch: laundry_branch, towel_status: "dirty",
-                                                declared_quantity: 100)
+    transfer = business.towel_transfers.create!(
+      source_branch: sales_branch, destination_branch: laundry_branch, towel_status: "dirty",
+      items: [ TowelTransferItem.new(towel_type: towel_type, declared_quantity: 100) ]
+    )
     sign_in creator
 
     patch mark_dispatched_laundry_towel_transfer_path(transfer)
     expect(transfer.reload).to be_dispatched
 
-    patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 100 }
+    patch receive_laundry_towel_transfer_path(transfer),
+          params: { confirmed_quantities: { transfer.items.first.id => 100 } }
 
     expect(transfer.reload).to be_dispatched # unchanged — request was denied
-    expect(transfer.confirmed_quantity).to be_nil
+    expect(transfer.items.first.confirmed_quantity).to be_nil
     expect(transfer.received_by_id).to be_nil
     expect(transfer.received_at).to be_nil
   end
@@ -70,7 +73,8 @@ RSpec.describe "Laundry permission separation", type: :request do
     transfer = dispatched_transfer
     sign_in receiver
 
-    patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 100 }
+    patch receive_laundry_towel_transfer_path(transfer),
+          params: { confirmed_quantities: { transfer.items.first.id => 100 } }
     expect(transfer.reload).to be_received
 
     get new_laundry_towel_adjustment_path
@@ -95,10 +99,11 @@ RSpec.describe "Laundry permission separation", type: :request do
     }
     expect(response).to redirect_to(laundry_towel_adjustments_path)
 
-    patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 100 }
+    patch receive_laundry_towel_transfer_path(transfer),
+          params: { confirmed_quantities: { transfer.items.first.id => 100 } }
 
     expect(transfer.reload).to be_dispatched # unchanged — request was denied
-    expect(transfer.confirmed_quantity).to be_nil
+    expect(transfer.items.first.confirmed_quantity).to be_nil
   end
 
   it "rejects a direct HTTP receive request from a user without confirm_towel_receipt, leaving all records untouched" do
@@ -109,11 +114,12 @@ RSpec.describe "Laundry permission separation", type: :request do
     audit_count_before = AuditLog.count
     sign_in no_receipt_user
 
-    patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 100 }
+    patch receive_laundry_towel_transfer_path(transfer),
+          params: { confirmed_quantities: { transfer.items.first.id => 100 } }
 
     transfer.reload
     expect(transfer).to be_dispatched
-    expect(transfer.confirmed_quantity).to be_nil
+    expect(transfer.items.first.confirmed_quantity).to be_nil
     expect(transfer.received_at).to be_nil
     expect(transfer.received_by_id).to be_nil
     expect(transfer.discrepancy).to be_nil
@@ -127,7 +133,8 @@ RSpec.describe "Laundry permission separation", type: :request do
     transfer = dispatched_transfer
     sign_in owner
 
-    patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 100 }
+    patch receive_laundry_towel_transfer_path(transfer),
+          params: { confirmed_quantities: { transfer.items.first.id => 100 } }
     expect(transfer.reload).to be_received
 
     get laundry_towel_balances_path

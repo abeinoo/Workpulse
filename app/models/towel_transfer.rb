@@ -18,7 +18,6 @@
 # user-facing override.
 class TowelTransfer < ApplicationRecord
   belongs_to :business
-  belongs_to :towel_type
   belongs_to :source_branch,      class_name: "Branch", inverse_of: :outgoing_towel_transfers
   belongs_to :destination_branch, class_name: "Branch", inverse_of: :incoming_towel_transfers
   belongs_to :created_by,    class_name: "User", optional: true
@@ -27,13 +26,15 @@ class TowelTransfer < ApplicationRecord
   belongs_to :cancelled_by,  class_name: "User", optional: true
 
   has_many :towel_ledger_entries, as: :source, dependent: :restrict_with_error
+  has_many :items, class_name: "TowelTransferItem", dependent: :destroy, inverse_of: :towel_transfer
+
+  accepts_nested_attributes_for :items, allow_destroy: true,
+                                        reject_if: ->(attrs) { attrs[:towel_type_id].blank? }
 
   enum :status,       { draft: "draft", dispatched: "dispatched", received: "received", cancelled: "cancelled" },
        default: "draft"
   enum :towel_status, { clean: "clean", dirty: "dirty" }, prefix: :towel
 
-  validates :declared_quantity, numericality: { greater_than: 0 }
-  validates :confirmed_quantity, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   # towel_status is always server-inferred from the source/destination branch
   # types (see .infer_towel_status) — there is no user-facing override, so a
   # combination that can't be inferred must fail with a clear message rather
@@ -41,23 +42,21 @@ class TowelTransfer < ApplicationRecord
   validates :towel_status, presence: true
   validate  :branches_differ
   validate  :branches_in_same_business
-  validate  :towel_type_in_same_business
-  # Scoped to when either field actually changes — a record carrying
-  # historical bad data (e.g. an over-receipt from before this validation
-  # existed) must still be writable for unrelated updates (like a status
-  # correction/reversal), not permanently locked by re-validating a value
-  # nothing is trying to change.
-  validate  :confirmed_quantity_not_more_than_declared,
-            if: -> { confirmed_quantity_changed? || declared_quantity_changed? }
+  validate  :has_at_least_one_item
 
   scope :for_business, ->(business) { where(business: business) }
   scope :with_status,  ->(status)    { where(status: status) if status.present? }
   scope :for_branch,   ->(branch_id) {
     where(source_branch_id: branch_id).or(where(destination_branch_id: branch_id)) if branch_id.present?
   }
+  # Any transfer with at least one received line item whose confirmed
+  # quantity differs from what was declared (mirrors StockIssue.search's
+  # EXISTS-subquery style for a per-line condition surfaced at the header).
   scope :unresolved_discrepancy, -> {
-    received.where.not(confirmed_quantity: nil)
-            .where("confirmed_quantity <> declared_quantity")
+    received.where(
+      "EXISTS (SELECT 1 FROM towel_transfer_items ti WHERE ti.towel_transfer_id = towel_transfers.id " \
+      "AND ti.confirmed_quantity IS NOT NULL AND ti.confirmed_quantity <> ti.declared_quantity)"
+    )
   }
 
   # Infers the destination's arrival condition from branch types. Returns nil
@@ -79,12 +78,13 @@ class TowelTransfer < ApplicationRecord
     source_branch&.branch_type_laundry? && towel_clean?
   end
 
-  # Always >= 0 — confirmed_quantity can never exceed declared_quantity (see
-  # confirmed_quantity_not_more_than_declared), so a negative discrepancy
-  # (receiving more than was dispatched) is impossible by construction.
+  # Total across every line item — nil until the transfer has actually been
+  # received (mirrors the single-item original: no discrepancy concept exists
+  # before receipt). Never negative once received, since no individual item's
+  # discrepancy can be (see TowelTransferItem#discrepancy).
   def discrepancy
-    return nil unless confirmed_quantity
-    declared_quantity - confirmed_quantity
+    return nil unless received?
+    items.sum { |item| item.discrepancy || 0 }
   end
 
   private
@@ -99,17 +99,7 @@ class TowelTransfer < ApplicationRecord
     errors.add(:destination_branch, :invalid) if destination_branch && destination_branch.business_id != business_id
   end
 
-  def towel_type_in_same_business
-    return if towel_type.nil? || business_id.nil?
-    errors.add(:towel_type, :invalid) if towel_type.business_id != business_id
-  end
-
-  # Receiving more than was dispatched would create untracked stock with no
-  # valid source — reject it outright rather than let it become a negative
-  # discrepancy. This is defense in depth; Laundry::TowelTransferCreator#receive
-  # checks this first and never posts a ledger entry when it fails.
-  def confirmed_quantity_not_more_than_declared
-    return if confirmed_quantity.nil?
-    errors.add(:confirmed_quantity, :exceeds_declared, declared: declared_quantity) if confirmed_quantity > declared_quantity
+  def has_at_least_one_item
+    errors.add(:base, :no_items) if items.reject(&:marked_for_destruction?).empty?
   end
 end

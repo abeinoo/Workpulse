@@ -188,6 +188,53 @@ RSpec.describe PermissionRole, type: :model do
     end
   end
 
+  describe ".scope_options_for and scope validation" do
+    it "offers all four scope options for an ordinary scopable permission" do
+      expect(PermissionRole.scope_options_for("view_payroll")).to eq(%w[self branch area business])
+    end
+
+    %w[view_towel_balances create_towel_transfers confirm_towel_receipt
+       view_laundry_consumption_reports].each do |perm|
+      # create_towel_transfers/confirm_towel_receipt depend on view_towel_balances
+      # (PERMISSION_DEPENDENCIES) — include it so these examples isolate the
+      # scope behavior under test, not an unrelated dependency failure.
+      required_perms = ([ perm ] + PermissionRole::PERMISSION_DEPENDENCIES.fetch(perm, [])).uniq
+
+      it "excludes 'self' (Personal Only) for the Laundry permission '#{perm}'" do
+        expect(PermissionRole.scope_options_for(perm)).to eq(%w[branch area business])
+      end
+
+      it "rejects 'self' persisted directly for '#{perm}', bypassing the UI" do
+        role = build(:permission_role, permissions: required_perms, permission_scopes: { perm => "self" })
+        expect(role).not_to be_valid
+        expect(role.errors[:permission_scopes]).to be_present
+      end
+
+      %w[branch area business].each do |scope|
+        it "accepts '#{scope}' for '#{perm}'" do
+          role = build(:permission_role, permissions: required_perms, permission_scopes: { perm => scope })
+          expect(role).to be_valid
+        end
+      end
+    end
+
+    it "still allows 'self' for a non-Laundry scopable permission (e.g. view_payroll)" do
+      role = build(:permission_role, permissions: %w[view_payroll], permission_scopes: { "view_payroll" => "self" })
+      expect(role).to be_valid
+    end
+
+    it "still allows 'self' for the pre-existing DR management minimum-scope exclusion list unaffected by this change" do
+      expect(PermissionRole::BRANCH_MINIMUM_SCOPE_PERMISSIONS).to include("view_daily_reconciliation")
+      expect(PermissionRole.scope_options_for("view_daily_reconciliation")).not_to include("self")
+    end
+
+    it "rejects a scope value entirely outside SCOPE_OPTIONS" do
+      role = build(:permission_role, permissions: %w[view_payroll], permission_scopes: { "view_payroll" => "planet" })
+      expect(role).not_to be_valid
+      expect(role.errors[:permission_scopes]).to be_present
+    end
+  end
+
   describe "#permission_count" do
     it "returns the number of permissions granted" do
       role = build(:permission_role, permissions: %w[view_employees view_payroll])

@@ -25,6 +25,13 @@ class TowelTransferPolicy < ApplicationPolicy
                 (branch_within_scope?(record.source_branch_id, :create_towel_transfers, :view_towel_balances) ||
                  branch_within_scope?(record.destination_branch_id, :confirm_towel_receipt, :view_towel_balances))
 
+  private
+
+  # Laundry staff are shift-assigned, not branch/area-managed — branch/area
+  # scope must also resolve from the user's active ShiftAssignment (see
+  # BranchScope).
+  def branch_scope_includes_shift_assignments? = true
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.none unless user.can?(:view_towel_balances)
@@ -35,8 +42,13 @@ class TowelTransferPolicy < ApplicationPolicy
       scope_type = user.scope_for(:view_towel_balances) || :default
       return base if scope_type.to_s == "business"
 
-      branch_ids = BranchScope.new(user).for_scope(scope_type)
+      branch_ids = BranchScope.new(user, include_shift_assignments: branch_scope_includes_shift_assignments?)
+                             .for_scope(scope_type)
       base.where(source_branch_id: branch_ids).or(base.where(destination_branch_id: branch_ids))
     end
+
+    private
+
+    def branch_scope_includes_shift_assignments? = true
   end
 end

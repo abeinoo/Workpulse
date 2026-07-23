@@ -12,9 +12,8 @@ RSpec.describe Laundry::TowelAdjuster, type: :model do
 
   before do
     Laundry::TowelTransferCreator.create(actor: actor, params: {
-      towel_type_id: towel_type.id, source_branch_id: branch.id,
-      destination_branch_id: create(:branch, business: business).id,
-      towel_status: "clean", declared_quantity: 1
+      source_branch_id: branch.id, destination_branch_id: create(:branch, business: business).id,
+      towel_status: "clean", items_attributes: [ { towel_type_id: towel_type.id, declared_quantity: 1 } ]
     })
   end
 

@@ -41,9 +41,18 @@ class LaundryBatchPolicy < ApplicationPolicy
       filter_by_branch_scope(base, user.scope_for(:manage_laundry_batches) || :default,
                              branch_column: :laundry_branch_id)
     end
+
+    private
+
+    def branch_scope_includes_shift_assignments? = true
   end
 
   private
+
+  # Laundry staff are shift-assigned, not branch/area-managed — branch/area
+  # scope must also resolve from the user's active ShiftAssignment (see
+  # BranchScope).
+  def branch_scope_includes_shift_assignments? = true
 
   def laundry_branch_writable?
     branch_within_scope?(record.laundry_branch_id, :manage_laundry_batches, :view_towel_balances)

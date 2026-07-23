@@ -2965,6 +2965,12 @@ en:
       towel_statuses:
         clean: "Clean"
         dirty: "Dirty"
+      section_items: "Towel Types"
+      add_item: "Add Towel Type"
+      no_items_hint: "No towel types added yet."
+      item_count:
+        one: "%{count} towel type"
+        other: "%{count} towel types"
       empty: "No towel transfers yet."
       created: "Transfer recorded as draft."
       dispatched: "Transfer dispatched."
@@ -2993,8 +2999,6 @@ en:
         invalid_confirmed_quantity: "Confirmed quantity must be zero or more."
         confirmed_exceeds_declared: "The received quantity cannot exceed the dispatched quantity. Dispatched quantity: %{declared}."
         not_cancellable: "This transfer can no longer be cancelled."
-        insufficient_clean_stock: "Not enough clean stock at the source branch (available: %{available})."
-        insufficient_dirty_stock: "Not enough dirty stock at the laundry to wash and send this quantity (available: %{available})."
 
     batches:
       title: "Laundry Batches"
@@ -3060,7 +3064,7 @@ en:
 
     balances:
       title: "Towel Balances"
-      all_towel_types: "Select towel type"
+      all_towel_types: "All"
       clean: "Clean"
       dirty: "Dirty"
       damaged: "Damaged"
@@ -3071,6 +3075,19 @@ en:
       operational_balance: "Current Balance"
       details: "Details"
       unexpected_balance_hint: "This location also holds an unexpected balance in the other condition — see Details."
+      status: "Status"
+      actions: "Actions"
+      status_good: "Good"
+      status_low_stock: "Low Stock"
+      status_in_transit: "In Transit"
+      status_needs_attention: "Needs Attention"
+      summary_total_towels: "Total Towels"
+      summary_in_transit: "In Transit"
+      summary_branches_with_issues: "Branches with Issues"
+      summary_towel_types: "Towel Types"
+      overview_total_quantity: "Total Quantity"
+      overview_view_table: "View Table"
+      empty_type_balances: "No balances available for this towel type."
 
     standard_cost_rates:
       title: "Standard Washing Cost"
@@ -4090,10 +4107,17 @@ en:
               invalid: "must belong to the same business"
             destination_branch:
               invalid: "must belong to the same business"
-            towel_type:
-              invalid: "must belong to the same business"
             towel_status:
               blank: "can't be determined for this branch combination — choose a sales branch and the laundry branch (or two sales branches)"
+            base:
+              no_items: "Add at least one towel type to transfer"
+              insufficient_stock: "Not enough %{status} stock for %{towel_type}: %{available} available, %{requested} requested"
+        towel_transfer_item:
+          attributes:
+            towel_type:
+              invalid: "must belong to the same business"
+            towel_type_id:
+              taken: "has already been added to this transfer"
             confirmed_quantity:
               exceeds_declared: "cannot exceed the dispatched quantity (%{declared})"
         towel_adjustment:

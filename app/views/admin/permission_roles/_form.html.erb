@@ -198,13 +198,7 @@
                 <% end %>
 
                 <% if PermissionRole::SCOPABLE_PERMISSIONS.include?(perm) %>
-                  <%
-                    scope_choices = if PermissionRole::BRANCH_MINIMUM_SCOPE_PERMISSIONS.include?(perm)
-                                      PermissionRole::SCOPE_OPTIONS.reject { |s| s == "self" }
-                                    else
-                                      PermissionRole::SCOPE_OPTIONS
-                                    end
-                  %>
+                  <% scope_choices = PermissionRole.scope_options_for(perm) %>
                   <div class="permission-scope-row"
                        data-permission-role-form-target="scopeRow"
                        data-for-perm="<%= perm %>"

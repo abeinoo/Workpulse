@@ -2,7 +2,7 @@ class TowelType < ApplicationRecord
   belongs_to :business
 
   has_many :towel_ledger_entries,       dependent: :restrict_with_error
-  has_many :towel_transfers,            dependent: :restrict_with_error
+  has_many :towel_transfer_items,       dependent: :restrict_with_error
   has_many :laundry_batches,            dependent: :restrict_with_error
   has_many :towel_adjustments,          dependent: :restrict_with_error
   has_many :laundry_standard_cost_rates, dependent: :restrict_with_error

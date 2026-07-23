@@ -1,0 +1,62 @@
+<% if rows.empty? %>
+  <div class="empty-state"><p class="empty-state__title"><%= t("laundry.balances.empty") %></p></div>
+<% elsif towel_balance_rows_all_zero?(rows) %>
+  <div class="empty-state"><p class="empty-state__title"><%= t("laundry.balances.empty_type_balances") %></p></div>
+<% else %>
+  <div class="table-wrap table-wrap--cards">
+    <table>
+      <thead><tr>
+        <th><%= t("laundry.common.branch") %></th>
+        <th style="text-align: end;"><%= t("laundry.balances.operational_balance") %></th>
+        <th style="text-align: end;"><%= t("laundry.balances.in_transit_out") %></th>
+        <th><%= t("laundry.balances.status") %></th>
+        <% if can_view_details %><th><%= t("laundry.balances.actions") %></th><% end %>
+      </tr></thead>
+      <% rows.each do |row| %>
+          <% status = towel_balance_row_status(row) %>
+          <tbody data-controller="<%= 'collapsible' if can_view_details %>">
+            <tr>
+              <td>
+                <%= row[:branch].name %>
+                <% if row[:branch].branch_type_laundry? %>
+                  <span class="badge badge-neutral"><%= t("nav.section_laundry") %></span>
+                <% end %>
+              </td>
+              <td style="text-align: end;"><%= number_with_precision(row[:operational], precision: 0) %></td>
+              <td style="text-align: end;"><%= number_with_precision(row[:in_transit_out], precision: 0) %></td>
+              <td>
+                <%= content_tag :span, towel_balance_status_label(status),
+                      class: "badge #{towel_balance_status_badge_class(status)}",
+                      title: (t("laundry.balances.unexpected_balance_hint") if status == :needs_attention) %>
+              </td>
+              <% if can_view_details %>
+                <td>
+                  <button type="button" class="btn btn-ghost btn-sm btn-icon"
+                          data-collapsible-target="trigger" data-action="click->collapsible#toggle"
+                          aria-expanded="false" aria-label="<%= t('laundry.balances.details') %>"
+                          title="<%= t('laundry.balances.details') %>">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/></svg>
+                  </button>
+                </td>
+              <% end %>
+            </tr>
+
+            <% if can_view_details %>
+              <tr data-collapsible-target="content" hidden>
+                <td colspan="5" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
+                  <div style="display: flex; gap: var(--space-5); flex-wrap: wrap; font-size: var(--text-sm);">
+                    <span><strong><%= t("laundry.balances.clean") %>:</strong> <%= number_with_precision(row[:clean], precision: 0) %></span>
+                    <span><strong><%= t("laundry.balances.dirty") %>:</strong> <%= number_with_precision(row[:dirty], precision: 0) %></span>
+                    <span><strong><%= t("laundry.balances.in_transit_out") %>:</strong> <%= number_with_precision(row[:in_transit_out], precision: 0) %></span>
+                    <span style="<%= 'color: var(--danger);' if row[:damaged].positive? %>"><strong><%= t("laundry.balances.damaged") %>:</strong> <%= number_with_precision(row[:damaged], precision: 0) %></span>
+                    <span><strong><%= t("laundry.balances.disposed") %>:</strong> <%= number_with_precision(row[:disposed], precision: 0) %></span>
+                    <span style="<%= 'color: var(--danger);' if row[:lost].positive? %>"><strong><%= t("laundry.balances.lost") %>:</strong> <%= number_with_precision(row[:lost], precision: 0) %></span>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+      <% end %>
+    </table>
+  </div>
+<% end %>

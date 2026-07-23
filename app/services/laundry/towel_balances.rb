@@ -40,8 +40,8 @@ module Laundry
     # ledger balance, per the towel-domain design (state derived from data
     # shape, not a stored flag).
     def in_transit(branch: nil)
-      scope = @towel_type.towel_transfers.dispatched
-      scope = scope.where(source_branch_id: branch) if branch.present?
+      scope = @towel_type.towel_transfer_items.joins(:towel_transfer).merge(TowelTransfer.dispatched)
+      scope = scope.where(towel_transfers: { source_branch_id: branch }) if branch.present?
       scope.sum(:declared_quantity)
     end
 
@@ -52,6 +52,39 @@ module Laundry
       relation = relation.where(branch_id: branch_id) if branch_id
       relation.group(:towel_type_id, :status)
               .sum(Arel.sql("CASE WHEN direction = 'in' THEN quantity ELSE -quantity END"))
+    end
+
+    # Same shape of row as the controller builds per-towel-type today
+    # ({ branch:, operational:, clean:, dirty:, damaged:, disposed:, lost:,
+    # in_transit_out: }), but for every towel type across every branch in two
+    # aggregate queries total — used by the "All towel types" balances view so
+    # rendering N towel-type sections never costs N x branches queries.
+    def self.batch_rows_for(towel_types, branches)
+      towel_type_ids = towel_types.map(&:id)
+      branch_ids = branches.map(&:id)
+
+      status_totals = Hash.new { |h, k| h[k] = {} }
+      TowelLedgerEntry.where(towel_type_id: towel_type_ids, branch_id: branch_ids)
+                      .group(:towel_type_id, :branch_id, :status)
+                      .sum(Arel.sql("CASE WHEN direction = 'in' THEN quantity ELSE -quantity END"))
+                      .each { |(towel_type_id, branch_id, status), amount| status_totals[[ towel_type_id, branch_id ]][status] = amount }
+
+      transit_totals = TowelTransferItem.joins(:towel_transfer).merge(TowelTransfer.dispatched)
+                                       .where(towel_type_id: towel_type_ids, towel_transfers: { source_branch_id: branch_ids })
+                                       .group(:towel_type_id, "towel_transfers.source_branch_id")
+                                       .sum(:declared_quantity)
+
+      towel_types.index_with do |towel_type|
+        branches.map do |branch|
+          by_status = status_totals[[ towel_type.id, branch.id ]]
+          operational = branch.branch_type_laundry? ? (by_status["dirty"] || 0) : (by_status["clean"] || 0)
+          { branch: branch, operational: operational,
+            clean: by_status["clean"] || 0, dirty: by_status["dirty"] || 0,
+            damaged: by_status["damaged"] || 0, disposed: by_status["disposed"] || 0,
+            lost: by_status["lost"] || 0,
+            in_transit_out: transit_totals[[ towel_type.id, branch.id ]] || 0 }
+        end
+      end
     end
   end
 end

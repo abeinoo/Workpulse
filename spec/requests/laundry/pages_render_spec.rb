@@ -9,9 +9,10 @@ RSpec.describe "Laundry pages render without error, in English and Arabic (RTL)"
   let(:owner) { create(:user, :owner, business: business) }
 
   let!(:transfer) do
-    business.towel_transfers.create!(towel_type: towel_type, source_branch: sales_branch,
-                                     destination_branch: laundry_branch, towel_status: "dirty",
-                                     declared_quantity: 10)
+    business.towel_transfers.create!(
+      source_branch: sales_branch, destination_branch: laundry_branch, towel_status: "dirty",
+      items: [ TowelTransferItem.new(towel_type: towel_type, declared_quantity: 10) ]
+    )
   end
   let!(:batch) do
     business.laundry_batches.create!(laundry_branch: laundry_branch, towel_type: towel_type,

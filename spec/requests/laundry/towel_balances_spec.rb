@@ -50,9 +50,10 @@ RSpec.describe "Laundry towel balances — simplified operational view", type: :
 
   it "keeps in-transit as its own visible column, separate from the operational balance" do
     fund(sales_branch, "clean", 100)
-    transfer = business.towel_transfers.create!(towel_type: towel_type, source_branch: sales_branch,
-                                                destination_branch: laundry_branch, towel_status: "dirty",
-                                                declared_quantity: 40)
+    transfer = business.towel_transfers.create!(
+      source_branch: sales_branch, destination_branch: laundry_branch, towel_status: "dirty",
+      items: [ TowelTransferItem.new(towel_type: towel_type, declared_quantity: 40) ]
+    )
     Laundry::TowelTransferCreator.new(transfer).dispatch(actor: owner)
 
     sign_in owner
@@ -96,5 +97,103 @@ RSpec.describe "Laundry towel balances — simplified operational view", type: :
     get laundry_towel_balances_path
 
     expect(response.body).not_to include(I18n.t("laundry.balances.unexpected_balance_hint"))
+  end
+
+  describe "the 'All towel types' default view" do
+    let(:other_towel_type) { business.towel_types.create!(name: "Hand Towel") }
+
+    def fund_other(branch, status, quantity, actor: owner)
+      Laundry::TowelAdjuster.new(actor: actor).call(
+        towel_type: other_towel_type, branch: branch, status: status, adjustment_quantity: quantity, reason: "test setup"
+      )
+    end
+
+    it "shows a section per towel type with no towel_type_id param, and an All + per-type tab bar" do
+      fund(sales_branch, "clean", 50)
+      fund_other(sales_branch, "clean", 20)
+
+      sign_in owner
+      get laundry_towel_balances_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("laundry.balances.all_towel_types"))
+      expect(response.body).to include(towel_type.name)
+      expect(response.body).to include(other_towel_type.name)
+      expect(response.body).to match(/50/)
+      expect(response.body).to match(/20/)
+    end
+
+    it "shows only the selected towel type's table when towel_type_id is present (bookmarkable)" do
+      fund(sales_branch, "clean", 50)
+      fund_other(sales_branch, "clean", 20)
+
+      sign_in owner
+      get laundry_towel_balances_path(towel_type_id: other_towel_type.id)
+
+      operational_balances = Nokogiri::HTML(response.body).css("table tbody tr").first.css("td")[1].text
+      expect(operational_balances).to include("20")
+      expect(operational_balances).not_to include("50")
+      expect(Nokogiri::HTML(response.body).css("table").size).to eq(1) # only one towel-type section rendered
+    end
+
+    it "falls back to the All view when towel_type_id does not match any towel type" do
+      fund(sales_branch, "clean", 50)
+
+      sign_in owner
+      get laundry_towel_balances_path(towel_type_id: -1)
+
+      expect(response.body).to include(I18n.t("laundry.balances.all_towel_types"))
+      expect(response.body).to match(/50/)
+    end
+
+    it "shows the four summary cards" do
+      fund(sales_branch, "clean", 50)
+
+      sign_in owner
+      get laundry_towel_balances_path
+
+      expect(response.body).to include(I18n.t("laundry.balances.summary_total_towels"))
+      expect(response.body).to include(I18n.t("laundry.balances.summary_in_transit"))
+      expect(response.body).to include(I18n.t("laundry.balances.summary_branches_with_issues"))
+      expect(response.body).to include(I18n.t("laundry.balances.summary_towel_types"))
+    end
+
+    it "shows a proper empty state for a towel type with no balance activity, instead of an all-zero table" do
+      sales_branch
+      laundry_branch
+      other_towel_type # created but never funded — no ledger activity at all
+
+      sign_in owner
+      get laundry_towel_balances_path(towel_type_id: other_towel_type.id)
+
+      expect(response.body).to include(I18n.t("laundry.balances.empty_type_balances"))
+      expect(Nokogiri::HTML(response.body).css("table")).to be_empty
+    end
+
+    it "shows a Needs Attention status badge for the unexpected-balance edge case, and Good otherwise" do
+      fund(laundry_branch, "dirty", 10)
+      fund(laundry_branch, "clean", 5) # unexpected — clean stock sitting at the laundry
+
+      sign_in auditor
+      get laundry_towel_balances_path
+
+      expect(response.body).to include(I18n.t("laundry.balances.status_needs_attention"))
+    end
+
+    it "computes all towel-type sections in a constant, small number of queries (no N+1 across towel types)" do
+      other_towel_type
+      fund(sales_branch, "clean", 50)
+      fund_other(laundry_branch, "dirty", 10)
+
+      sign_in owner
+
+      query_count = 0
+      counter = ->(*) { query_count += 1 }
+      ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+        get laundry_towel_balances_path
+      end
+
+      expect(query_count).to be < 20
+    end
   end
 end

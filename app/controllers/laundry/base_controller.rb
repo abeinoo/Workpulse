@@ -19,11 +19,23 @@ class Laundry::BaseController < ApplicationController
   end
 
   # Active branches the current user may attribute towel activity to, honouring
-  # their branch scope — mirrors Finance::BaseController#assignable_branches.
-  def assignable_branches
+  # their branch scope. Laundry staff are typically shift-assigned rather than
+  # branch/area-managed, so — unlike Finance::BaseController#assignable_branches,
+  # which this otherwise mirrors — branch scope here also resolves from the
+  # user's active ShiftAssignment (see BranchScope).
+  #
+  # `permissions` is an ordered, most-specific-first list of permission names
+  # (mirrors ApplicationPolicy#resolved_branch_scope) — the first one with an
+  # explicitly configured data scope wins (e.g. a business-wide
+  # create_towel_transfers override), else :view_towel_balances's own scope,
+  # else the hierarchy default. Without this, a user configured for "business"
+  # scope would still only see their managed/shift-assigned branches here.
+  def assignable_branches(*permissions)
     return current_user.business.branches.active.order(:name) if current_user.owner?
 
-    ids = BranchScope.new(current_user).default_ids
+    permissions = [ :view_towel_balances ] if permissions.empty?
+    scope_type = permissions.filter_map { |p| current_user.scope_for(p) }.first || :default
+    ids = BranchScope.new(current_user, include_shift_assignments: true).for_scope(scope_type)
     current_user.business.branches.active.where(id: ids).order(:name)
   end
   helper_method :assignable_branches

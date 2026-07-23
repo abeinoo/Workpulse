@@ -24,9 +24,9 @@ RSpec.describe "Laundry towel transfers and batches", type: :request do
   end
   let(:no_access_user) { create(:user, business: business) }
 
-  def fund(branch, status, quantity)
+  def fund(branch, status, quantity, type: towel_type)
     Laundry::TowelAdjuster.new(actor: laundry_staff).call(
-      towel_type: towel_type, branch: branch, status: status, adjustment_quantity: quantity, reason: "test setup"
+      towel_type: type, branch: branch, status: status, adjustment_quantity: quantity, reason: "test setup"
     )
   end
 
@@ -62,8 +62,9 @@ RSpec.describe "Laundry towel transfers and batches", type: :request do
     fund(sales_branch, "clean", 100)
 
     post laundry_towel_transfers_path, params: {
-      towel_transfer: { towel_type_id: towel_type.id, source_branch_id: sales_branch.id,
-                        destination_branch_id: laundry_branch.id, towel_status: "dirty", declared_quantity: 100 }
+      towel_transfer: { source_branch_id: sales_branch.id, destination_branch_id: laundry_branch.id,
+                        towel_status: "dirty",
+                        items_attributes: { "0" => { towel_type_id: towel_type.id, declared_quantity: 100 } } }
     }
     transfer = TowelTransfer.last
     expect(response).to redirect_to(laundry_towel_transfer_path(transfer))
@@ -72,7 +73,8 @@ RSpec.describe "Laundry towel transfers and batches", type: :request do
     patch mark_dispatched_laundry_towel_transfer_path(transfer)
     expect(transfer.reload).to be_dispatched
 
-    patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 98 }
+    patch receive_laundry_towel_transfer_path(transfer),
+          params: { confirmed_quantities: { transfer.items.first.id => 98 } }
     transfer.reload
     expect(transfer).to be_received
     expect(transfer.discrepancy).to eq(2)
@@ -81,13 +83,74 @@ RSpec.describe "Laundry towel transfers and batches", type: :request do
     expect(response.body).to include("2") # discrepancy surfaced on the show page
   end
 
+  it "creates a transfer with multiple towel types (multiple line items) in one document" do
+    other_towel_type = business.towel_types.create!(name: "Hand Towel")
+    sign_in laundry_staff
+    fund(sales_branch, "clean", 100, type: towel_type)
+    fund(sales_branch, "clean", 50, type: other_towel_type)
+
+    post laundry_towel_transfers_path, params: {
+      towel_transfer: { source_branch_id: sales_branch.id, destination_branch_id: laundry_branch.id,
+                        towel_status: "dirty",
+                        items_attributes: {
+                          "0" => { towel_type_id: towel_type.id, declared_quantity: 40 },
+                          "1" => { towel_type_id: other_towel_type.id, declared_quantity: 20 }
+                        } }
+    }
+    transfer = TowelTransfer.last
+    expect(response).to redirect_to(laundry_towel_transfer_path(transfer))
+    expect(transfer.items.count).to eq(2)
+
+    patch mark_dispatched_laundry_towel_transfer_path(transfer)
+    expect(transfer.reload).to be_dispatched
+    expect(TowelLedgerEntry.where(source: transfer, reason: "towel_transfer_dispatch").count).to eq(2)
+
+    item_a = transfer.items.find_by(towel_type: towel_type)
+    item_b = transfer.items.find_by(towel_type: other_towel_type)
+    patch receive_laundry_towel_transfer_path(transfer),
+          params: { confirmed_quantities: { item_a.id => 38, item_b.id => 20 } }
+    transfer.reload
+    expect(transfer).to be_received
+    expect(item_a.reload.confirmed_quantity).to eq(38)
+    expect(item_b.reload.confirmed_quantity).to eq(20)
+  end
+
+  it "rejects creating a transfer with two line items for the same towel type" do
+    sign_in laundry_staff
+    fund(sales_branch, "clean", 100)
+
+    post laundry_towel_transfers_path, params: {
+      towel_transfer: { source_branch_id: sales_branch.id, destination_branch_id: laundry_branch.id,
+                        towel_status: "dirty",
+                        items_attributes: {
+                          "0" => { towel_type_id: towel_type.id, declared_quantity: 40 },
+                          "1" => { towel_type_id: towel_type.id, declared_quantity: 10 }
+                        } }
+    }
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(TowelTransfer.count).to eq(0)
+  end
+
+  it "rejects creating a transfer with zero line items" do
+    sign_in laundry_staff
+
+    post laundry_towel_transfers_path, params: {
+      towel_transfer: { source_branch_id: sales_branch.id, destination_branch_id: laundry_branch.id,
+                        towel_status: "dirty", items_attributes: {} }
+    }
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(TowelTransfer.count).to eq(0)
+  end
+
   it "runs the full laundry->branch return (wash conversion) through the actual HTTP/controller stack, with no loss fields" do
     sign_in laundry_staff
     fund(laundry_branch, "dirty", 50)
 
     post laundry_towel_transfers_path, params: {
-      towel_transfer: { towel_type_id: towel_type.id, source_branch_id: laundry_branch.id,
-                        destination_branch_id: sales_branch.id, declared_quantity: 50 }
+      towel_transfer: { source_branch_id: laundry_branch.id, destination_branch_id: sales_branch.id,
+                        items_attributes: { "0" => { towel_type_id: towel_type.id, declared_quantity: 50 } } }
     }
     transfer = TowelTransfer.last
     expect(response).to redirect_to(laundry_towel_transfer_path(transfer))
@@ -97,7 +160,8 @@ RSpec.describe "Laundry towel transfers and batches", type: :request do
     expect(transfer.reload).to be_dispatched
     expect(Laundry::TowelBalances.new(towel_type).at_branch(laundry_branch, "dirty")).to eq(0)
 
-    patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 50 }
+    patch receive_laundry_towel_transfer_path(transfer),
+          params: { confirmed_quantities: { transfer.items.first.id => 50 } }
     expect(transfer.reload).to be_received
     expect(Laundry::TowelBalances.new(towel_type).at_branch(sales_branch, "clean")).to eq(50)
   end
@@ -107,14 +171,15 @@ RSpec.describe "Laundry towel transfers and batches", type: :request do
     fund(sales_branch, "clean", 100)
 
     post laundry_towel_transfers_path, params: {
-      towel_transfer: { towel_type_id: towel_type.id, source_branch_id: sales_branch.id,
-                        destination_branch_id: laundry_branch.id, declared_quantity: 100 }
+      towel_transfer: { source_branch_id: sales_branch.id, destination_branch_id: laundry_branch.id,
+                        items_attributes: { "0" => { towel_type_id: towel_type.id, declared_quantity: 100 } } }
     }
     transfer = TowelTransfer.last
     patch mark_dispatched_laundry_towel_transfer_path(transfer)
 
     expect {
-      patch receive_laundry_towel_transfer_path(transfer), params: { confirmed_quantity: 98 }
+      patch receive_laundry_towel_transfer_path(transfer),
+            params: { confirmed_quantities: { transfer.items.first.id => 98 } }
     }.not_to change(TowelAdjustment, :count)
 
     expect(Laundry::TowelBalances.new(towel_type).at_branch(laundry_branch, "lost")).to eq(0)
@@ -128,8 +193,9 @@ RSpec.describe "Laundry towel transfers and batches", type: :request do
     # A tampered/incorrect client value ("clean") for a sales->laundry route —
     # the server must still classify it as "dirty".
     post laundry_towel_transfers_path, params: {
-      towel_transfer: { towel_type_id: towel_type.id, source_branch_id: sales_branch.id,
-                        destination_branch_id: laundry_branch.id, towel_status: "clean", declared_quantity: 10 }
+      towel_transfer: { source_branch_id: sales_branch.id, destination_branch_id: laundry_branch.id,
+                        towel_status: "clean",
+                        items_attributes: { "0" => { towel_type_id: towel_type.id, declared_quantity: 10 } } }
     }
 
     expect(TowelTransfer.last.towel_status).to eq("dirty")
@@ -185,15 +251,15 @@ RSpec.describe "Laundry towel transfers and batches", type: :request do
     laundry_branch.update!(branch_manager_id: manager.id)
 
     own_transfer = business.towel_transfers.create!(
-      towel_type: towel_type, source_branch: sales_branch, destination_branch: laundry_branch,
-      towel_status: "dirty", declared_quantity: 10
+      source_branch: sales_branch, destination_branch: laundry_branch, towel_status: "dirty",
+      items: [ TowelTransferItem.new(towel_type: towel_type, declared_quantity: 10) ]
     )
 
     other_branch = create(:branch, business: business, branch_type: "sales")
     another_branch = create(:branch, business: business, branch_type: "sales")
     unmanaged_transfer = business.towel_transfers.create!(
-      towel_type: towel_type, source_branch: other_branch, destination_branch: another_branch,
-      towel_status: "dirty", declared_quantity: 10
+      source_branch: other_branch, destination_branch: another_branch, towel_status: "dirty",
+      items: [ TowelTransferItem.new(towel_type: towel_type, declared_quantity: 10) ]
     )
 
     sign_in manager

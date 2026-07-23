@@ -30,6 +30,12 @@ class ApplicationPolicy
 
     attr_reader :user, :scope
 
+    # Override to true in Scope subclasses whose users are shift-assigned
+    # rather than branch/area-managed (e.g. Laundry) — see BranchScope's
+    # include_shift_assignments option. Defaults to false so existing
+    # management-based callers (Finance) are unaffected.
+    def branch_scope_includes_shift_assignments? = false
+
     # Restricts an inventory relation to the warehouses the user may see.
     # nil from inventory_warehouse_ids means "all warehouses" — the relation
     # passes through unchanged. Pass the relevant column (e.g. :warehouse_id, :id).
@@ -68,7 +74,8 @@ class ApplicationPolicy
     def filter_by_branch_scope(relation, scope_type, branch_column: :branch_id, own_column: :created_by_id)
       return relation if scope_type.to_s == "business"
 
-      branch_ids = BranchScope.new(user).for_scope(scope_type)
+      branch_ids = BranchScope.new(user, include_shift_assignments: branch_scope_includes_shift_assignments?)
+                             .for_scope(scope_type)
       filtered   = relation.where(branch_column => branch_ids)
 
       if own_column && relation.klass.column_names.include?(own_column.to_s)
@@ -86,6 +93,12 @@ class ApplicationPolicy
   def manages_branch? = user.manages_branch?
 
   def can?(permission) = user.can?(permission)
+
+  # Override to true in policies whose users are shift-assigned rather than
+  # branch/area-managed (e.g. Laundry) — see BranchScope's
+  # include_shift_assignments option. Defaults to false so existing
+  # management-based policies (Finance) are unaffected.
+  def branch_scope_includes_shift_assignments? = false
 
   def same_business?(target = record)
     if target.respond_to?(:business_id) && target.business_id.present?
@@ -114,7 +127,8 @@ class ApplicationPolicy
     return true  if scope_type == :business
     return allow_nil if branch_id.nil?
 
-    BranchScope.new(user).for_scope(scope_type).include?(branch_id)
+    BranchScope.new(user, include_shift_assignments: branch_scope_includes_shift_assignments?)
+              .for_scope(scope_type).include?(branch_id)
   end
 
   # Multi-branch records (shared expense / recurring expense with allocations).
@@ -127,7 +141,8 @@ class ApplicationPolicy
     branch_ids = Array(branch_ids).compact
     return false if branch_ids.empty?
 
-    (branch_ids - BranchScope.new(user).for_scope(scope_type)).empty?
+    (branch_ids - BranchScope.new(user, include_shift_assignments: branch_scope_includes_shift_assignments?)
+                            .for_scope(scope_type)).empty?
   end
 
   # Resolves the effective scope value, returning :business for owners and the

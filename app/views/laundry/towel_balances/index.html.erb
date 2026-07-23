@@ -8,81 +8,87 @@
   <% if @towel_types.blank? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("laundry.common.no_towel_types") %></p></div>
   <% else %>
-    <%= form_with url: laundry_towel_balances_path, method: :get, local: true, class: "filter-bar" do |f| %>
-      <div class="filter-bar__fields">
-        <div class="filter-bar__field">
-          <%= f.label :towel_type_id, t("laundry.common.towel_type"), class: "filter-bar__label" %>
-          <%= f.select :towel_type_id,
-                options_from_collection_for_select(@towel_types, :id, :name, @towel_type&.id),
-                {}, class: "filter-bar__select", onchange: "this.form.requestSubmit()" %>
-        </div>
+    <% current_rows = @selected_towel_type ? @rows : @rows_by_towel_type.values.flatten(1) %>
+
+    <%# ── Summary cards ───────────────────────────────────────────────────── %>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.balances.summary_total_towels") %></span>
+        <span class="stat-card__value"><%= number_with_precision(towel_balance_total_quantity(current_rows), precision: 0) %></span>
       </div>
-    <% end %>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.balances.summary_in_transit") %></span>
+        <span class="stat-card__value"><%= number_with_precision(towel_balance_total_in_transit(current_rows), precision: 0) %></span>
+      </div>
+      <% branches_with_issues = towel_balance_branches_with_issues(current_rows) %>
+      <div class="stat-card <%= "stat-card--warning" if branches_with_issues.positive? %>">
+        <span class="stat-card__label"><%= t("laundry.balances.summary_branches_with_issues") %></span>
+        <span class="stat-card__value"><%= branches_with_issues %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("laundry.balances.summary_towel_types") %></span>
+        <span class="stat-card__value"><%= @towel_types.size %></span>
+      </div>
+    </div>
 
-    <% if @rows.empty? %>
-      <div class="empty-state"><p class="empty-state__title"><%= t("laundry.balances.empty") %></p></div>
-    <% else %>
-      <div class="table-wrap table-wrap--cards">
-        <table>
-          <thead><tr>
-            <th><%= t("laundry.common.branch") %></th>
-            <th style="text-align: end;"><%= t("laundry.balances.operational_balance") %></th>
-            <th style="text-align: end;"><%= t("laundry.balances.in_transit_out") %></th>
-            <% if @can_view_details %><th></th><% end %>
-          </tr></thead>
-          <% @rows.each do |row| %>
-              <%
-                is_laundry = row[:branch].branch_type_laundry?
-                # The edge-case safeguard: the location-implied status should
-                # be the only one holding stock. If the *other* status is
-                # unexpectedly non-zero (e.g. a manual adjustment posted
-                # "clean" at the laundry), surface it rather than letting it
-                # go silently missing from the simplified column.
-                unexpected = is_laundry ? row[:clean] : row[:dirty]
-              %>
-              <tbody data-controller="<%= 'collapsible' if @can_view_details %>">
-                <tr>
-                  <td>
-                    <%= row[:branch].name %>
-                    <% if is_laundry %>
-                      <span class="badge badge-neutral"><%= t("nav.section_laundry") %></span>
-                    <% end %>
-                  </td>
-                  <td style="text-align: end;">
-                    <%= number_with_precision(row[:operational], precision: 0) %>
-                    <% if unexpected.nonzero? %>
-                      <span class="badge badge-warning" title="<%= t('laundry.balances.unexpected_balance_hint') %>">!</span>
-                    <% end %>
-                  </td>
-                  <td style="text-align: end;"><%= number_with_precision(row[:in_transit_out], precision: 0) %></td>
-                  <% if @can_view_details %>
-                    <td>
-                      <button type="button" class="btn btn-ghost btn-sm"
-                              data-collapsible-target="trigger" data-action="click->collapsible#toggle"
-                              aria-expanded="false">
-                        <%= t("laundry.balances.details") %>
-                      </button>
-                    </td>
-                  <% end %>
-                </tr>
-
-                <% if @can_view_details %>
-                  <tr data-collapsible-target="content" hidden>
-                    <td colspan="4" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
-                      <div style="display: flex; gap: var(--space-5); flex-wrap: wrap; font-size: var(--text-sm);">
-                        <span><strong><%= t("laundry.balances.clean") %>:</strong> <%= number_with_precision(row[:clean], precision: 0) %></span>
-                        <span><strong><%= t("laundry.balances.dirty") %>:</strong> <%= number_with_precision(row[:dirty], precision: 0) %></span>
-                        <span><strong><%= t("laundry.balances.in_transit_out") %>:</strong> <%= number_with_precision(row[:in_transit_out], precision: 0) %></span>
-                        <span style="<%= 'color: var(--danger);' if row[:damaged].positive? %>"><strong><%= t("laundry.balances.damaged") %>:</strong> <%= number_with_precision(row[:damaged], precision: 0) %></span>
-                        <span><strong><%= t("laundry.balances.disposed") %>:</strong> <%= number_with_precision(row[:disposed], precision: 0) %></span>
-                        <span style="<%= 'color: var(--danger);' if row[:lost].positive? %>"><strong><%= t("laundry.balances.lost") %>:</strong> <%= number_with_precision(row[:lost], precision: 0) %></span>
-                      </div>
-                    </td>
-                  </tr>
-                <% end %>
-              </tbody>
+    <%# ── Towel type tabs/chips — "All" first, then one per towel type ─────── %>
+    <div class="filter-tabs" style="flex-wrap: wrap; width: auto; margin: var(--space-5) 0;">
+      <%= link_to laundry_towel_balances_path,
+            class: "filter-tab #{"filter-tab--active" if @selected_towel_type.nil?}" do %>
+        <%= t("laundry.balances.all_towel_types") %>
+        <span class="badge badge-neutral badge-xs"><%= number_with_precision(towel_balance_total_quantity(current_rows), precision: 0) %></span>
+      <% end %>
+      <% @towel_types.each do |towel_type| %>
+        <%
+          type_rows = if @rows_by_towel_type
+                        @rows_by_towel_type[towel_type]
+                      elsif @selected_towel_type == towel_type
+                        @rows
+                      end
+        %>
+        <%= link_to laundry_towel_balances_path(towel_type_id: towel_type.id),
+              class: "filter-tab #{"filter-tab--active" if @selected_towel_type == towel_type}" do %>
+          <%= towel_type.name %>
+          <% if type_rows %>
+            <span class="badge badge-neutral badge-xs"><%= number_with_precision(towel_balance_total_quantity(type_rows), precision: 0) %></span>
           <% end %>
-        </table>
+        <% end %>
+      <% end %>
+    </div>
+
+    <% if @selected_towel_type %>
+      <%# ── Single towel type selected — one table ──────────────────────────── %>
+      <%= render "balances_table", rows: @rows, can_view_details: @can_view_details %>
+    <% else %>
+      <%# ── "All" — compact overview, one accordion section per towel type ──── %>
+      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+        <% @rows_by_towel_type.each do |towel_type, rows| %>
+          <% overview_status = towel_balance_overview_status(rows) %>
+          <div data-controller="collapsible" class="recon-disclosure"
+               style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;">
+            <button type="button" data-collapsible-target="trigger" data-action="click->collapsible#toggle"
+                    class="recon-disclosure__trigger" aria-expanded="false" style="width: 100%;">
+              <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1);">
+                <%= towel_type.name %>
+              </span>
+              <span style="display: flex; align-items: center; gap: var(--space-3);">
+                <span style="font-size: var(--text-sm); color: var(--text-2);">
+                  <%= t("laundry.balances.overview_total_quantity") %>:
+                  <strong style="color: var(--text-1);"><%= number_with_precision(towel_balance_total_quantity(rows), precision: 0) %></strong>
+                </span>
+                <span class="badge <%= towel_balance_status_badge_class(overview_status) %>">
+                  <%= towel_balance_status_label(overview_status) %>
+                </span>
+                <svg class="recon-disclosure__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                </svg>
+              </span>
+            </button>
+            <div data-collapsible-target="content" hidden style="border-top: 1px solid var(--border); padding: var(--space-4);">
+              <%= render "balances_table", rows: rows, can_view_details: @can_view_details %>
+            </div>
+          </div>
+        <% end %>
       </div>
     <% end %>
   <% end %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_20_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_23_100200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1913,15 +1913,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_080000) do
     t.index ["towel_type_id"], name: "index_towel_ledger_entries_on_towel_type_id"
   end
 
+  create_table "towel_transfer_items", force: :cascade do |t|
+    t.decimal "confirmed_quantity", precision: 12, scale: 3
+    t.datetime "created_at", null: false
+    t.decimal "declared_quantity", precision: 12, scale: 3, null: false
+    t.bigint "towel_transfer_id", null: false
+    t.bigint "towel_type_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["towel_transfer_id", "towel_type_id"], name: "index_towel_transfer_items_on_transfer_and_type", unique: true
+    t.index ["towel_transfer_id"], name: "index_towel_transfer_items_on_towel_transfer_id"
+    t.index ["towel_type_id"], name: "index_towel_transfer_items_on_towel_type_id"
+  end
+
   create_table "towel_transfers", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.text "cancellation_reason"
     t.datetime "cancelled_at"
     t.bigint "cancelled_by_id"
-    t.decimal "confirmed_quantity", precision: 12, scale: 3
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
-    t.decimal "declared_quantity", precision: 12, scale: 3, null: false
     t.bigint "destination_branch_id", null: false
     t.datetime "dispatched_at"
     t.bigint "dispatched_by_id"
@@ -1931,7 +1941,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_080000) do
     t.bigint "source_branch_id", null: false
     t.string "status", default: "draft", null: false
     t.string "towel_status", null: false
-    t.bigint "towel_type_id", null: false
     t.datetime "updated_at", null: false
     t.index ["business_id", "status"], name: "index_towel_transfers_on_business_id_and_status"
     t.index ["business_id"], name: "index_towel_transfers_on_business_id"
@@ -1942,7 +1951,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_080000) do
     t.index ["received_by_id"], name: "index_towel_transfers_on_received_by_id"
     t.index ["source_branch_id"], name: "index_towel_transfers_on_source_branch_id"
     t.index ["status"], name: "index_towel_transfers_on_status"
-    t.index ["towel_type_id"], name: "index_towel_transfers_on_towel_type_id"
   end
 
   create_table "towel_types", force: :cascade do |t|
@@ -2315,10 +2323,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_080000) do
   add_foreign_key "towel_ledger_entries", "businesses"
   add_foreign_key "towel_ledger_entries", "towel_types"
   add_foreign_key "towel_ledger_entries", "users", column: "created_by_id"
+  add_foreign_key "towel_transfer_items", "towel_transfers"
+  add_foreign_key "towel_transfer_items", "towel_types"
   add_foreign_key "towel_transfers", "branches", column: "destination_branch_id"
   add_foreign_key "towel_transfers", "branches", column: "source_branch_id"
   add_foreign_key "towel_transfers", "businesses"
-  add_foreign_key "towel_transfers", "towel_types"
   add_foreign_key "towel_transfers", "users", column: "cancelled_by_id"
   add_foreign_key "towel_transfers", "users", column: "created_by_id"
   add_foreign_key "towel_transfers", "users", column: "dispatched_by_id"

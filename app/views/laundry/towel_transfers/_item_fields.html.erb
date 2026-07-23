@@ -1,0 +1,17 @@
+<tr data-line-row>
+  <td>
+    <%= f.select :towel_type_id,
+          options_from_collection_for_select(towel_types, :id, :name, f.object.towel_type_id),
+          { include_blank: "— #{t('laundry.common.towel_type')}" }, class: "form-control",
+          data: { towel_transfer_items_target: "typeSelect", action: "change->towel-transfer-items#refresh" } %>
+  </td>
+  <td>
+    <%= f.number_field :declared_quantity, min: 1, step: 1, class: "form-control", placeholder: "0" %>
+  </td>
+  <td class="td-actions">
+    <% if f.object.persisted? %>
+      <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
+    <% end %>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" data-action="line-items#remove towel-transfer-items#refresh" aria-label="<%= t('common.delete') %>">×</button>
+  </td>
+</tr>

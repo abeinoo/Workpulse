@@ -8,6 +8,10 @@ RSpec.describe TowelTransfer, type: :model do
   let(:hq_branch)         { create(:branch, business: business, branch_type: "headquarters") }
   let(:towel_type) { business.towel_types.create!(name: "Bath Towel") }
 
+  def build_item(quantity: 10)
+    TowelTransferItem.new(towel_type: towel_type, declared_quantity: quantity)
+  end
+
   describe ".infer_towel_status" do
     it "infers dirty for a sales branch sending to the laundry" do
       expect(described_class.infer_towel_status(sales_branch, laundry_branch)).to eq("dirty")
@@ -29,25 +33,22 @@ RSpec.describe TowelTransfer, type: :model do
 
   describe "#wash_conversion?" do
     it "is true only for a laundry-origin transfer arriving clean" do
-      transfer = business.towel_transfers.build(towel_type: towel_type, source_branch: laundry_branch,
-                                                destination_branch: sales_branch, towel_status: "clean",
-                                                declared_quantity: 10)
+      transfer = business.towel_transfers.build(source_branch: laundry_branch, destination_branch: sales_branch,
+                                                towel_status: "clean", items: [ build_item ])
       expect(transfer.wash_conversion?).to be(true)
     end
 
     it "is false for a sales-branch-origin transfer" do
-      transfer = business.towel_transfers.build(towel_type: towel_type, source_branch: sales_branch,
-                                                destination_branch: laundry_branch, towel_status: "dirty",
-                                                declared_quantity: 10)
+      transfer = business.towel_transfers.build(source_branch: sales_branch, destination_branch: laundry_branch,
+                                                towel_status: "dirty", items: [ build_item ])
       expect(transfer.wash_conversion?).to be(false)
     end
   end
 
   describe "towel_status presence" do
     it "is invalid when the branch combination can't be inferred and no status is given" do
-      transfer = business.towel_transfers.build(towel_type: towel_type, source_branch: hq_branch,
-                                                destination_branch: sales_branch, towel_status: nil,
-                                                declared_quantity: 10)
+      transfer = business.towel_transfers.build(source_branch: hq_branch, destination_branch: sales_branch,
+                                                towel_status: nil, items: [ build_item ])
       expect(transfer).not_to be_valid
       expect(transfer.errors[:towel_status]).to be_present
     end
@@ -58,40 +59,48 @@ RSpec.describe TowelTransfer, type: :model do
     expect(TowelTransfer.new).not_to respond_to(:loss_quantity)
   end
 
-  describe "confirmed_quantity_not_more_than_declared" do
-    def build_transfer(declared:, confirmed:)
-      business.towel_transfers.build(towel_type: towel_type, source_branch: sales_branch,
-                                     destination_branch: laundry_branch, towel_status: "dirty",
-                                     declared_quantity: declared, confirmed_quantity: confirmed)
-    end
-
-    it "is valid when confirmed equals declared" do
-      expect(build_transfer(declared: 50, confirmed: 50)).to be_valid
-    end
-
-    it "is valid when confirmed is less than declared" do
-      expect(build_transfer(declared: 50, confirmed: 48)).to be_valid
-    end
-
-    it "is invalid when confirmed exceeds declared" do
-      transfer = build_transfer(declared: 50, confirmed: 55)
+  describe "has_at_least_one_item" do
+    it "is invalid with zero items" do
+      transfer = business.towel_transfers.build(source_branch: sales_branch, destination_branch: laundry_branch,
+                                                towel_status: "dirty")
       expect(transfer).not_to be_valid
-      expect(transfer.errors[:confirmed_quantity]).to be_present
+      expect(transfer.errors[:base]).to be_present
     end
 
-    it "is unaffected when confirmed_quantity is nil (not yet received)" do
-      expect(build_transfer(declared: 50, confirmed: nil)).to be_valid
+    it "is valid with at least one item" do
+      transfer = business.towel_transfers.build(source_branch: sales_branch, destination_branch: laundry_branch,
+                                                towel_status: "dirty", items: [ build_item ])
+      expect(transfer).to be_valid
     end
   end
 
   describe "#discrepancy" do
-    it "is never negative because confirmed_quantity can never exceed declared_quantity" do
-      transfer = business.towel_transfers.create!(towel_type: towel_type, source_branch: sales_branch,
-                                                   destination_branch: laundry_branch, towel_status: "dirty",
-                                                   declared_quantity: 50)
-      transfer.confirmed_quantity = 48
+    it "is nil before the transfer has been received" do
+      transfer = business.towel_transfers.create!(source_branch: sales_branch, destination_branch: laundry_branch,
+                                                  towel_status: "dirty", items: [ build_item(quantity: 50) ])
+      expect(transfer.discrepancy).to be_nil
+    end
+
+    it "sums discrepancy across every line item and is never negative" do
+      transfer = business.towel_transfers.create!(source_branch: sales_branch, destination_branch: laundry_branch,
+                                                  towel_status: "dirty", items: [ build_item(quantity: 50) ])
+      transfer.items.first.update!(confirmed_quantity: 48)
+      transfer.update!(status: "received")
       expect(transfer.discrepancy).to eq(2)
       expect(transfer.discrepancy).not_to be_negative
+    end
+
+    it "sums discrepancy across multiple line items" do
+      other_towel_type = business.towel_types.create!(name: "Hand Towel")
+      transfer = business.towel_transfers.create!(
+        source_branch: sales_branch, destination_branch: laundry_branch, towel_status: "dirty",
+        items: [ TowelTransferItem.new(towel_type: towel_type, declared_quantity: 50),
+                TowelTransferItem.new(towel_type: other_towel_type, declared_quantity: 30) ]
+      )
+      transfer.items.find { |i| i.towel_type == towel_type }.update!(confirmed_quantity: 48)
+      transfer.items.find { |i| i.towel_type == other_towel_type }.update!(confirmed_quantity: 30)
+      transfer.update!(status: "received")
+      expect(transfer.discrepancy).to eq(2)
     end
   end
 end

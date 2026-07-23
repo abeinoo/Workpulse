@@ -31,15 +31,16 @@ module Laundry
       rates_by_towel_type = rates.group_by(&:towel_type_id)
 
       events_by_branch = Hash.new { |h, k| h[k] = [] }
-      relevant_transfers.each do |transfer|
-        rate = rate_effective_at(rates_by_towel_type[transfer.towel_type_id] || [], transfer.received_at)
+      relevant_items.each do |item|
+        transfer = item.towel_transfer
+        rate = rate_effective_at(rates_by_towel_type[item.towel_type_id] || [], transfer.received_at)
         events_by_branch[transfer.source_branch_id] << Event.new(
           transfer:           transfer,
           received_at:        transfer.received_at,
-          towel_type:         transfer.towel_type,
-          confirmed_quantity: transfer.confirmed_quantity,
+          towel_type:         item.towel_type,
+          confirmed_quantity: item.confirmed_quantity,
           rate:               rate&.cost_per_towel,
-          line_total:         rate ? transfer.confirmed_quantity * rate.cost_per_towel : nil
+          line_total:         rate ? item.confirmed_quantity * rate.cost_per_towel : nil
         )
       end
 
@@ -67,18 +68,19 @@ module Laundry
 
     private
 
-    def relevant_transfers
+    def relevant_items
       range = @from.to_date.beginning_of_day..@to.to_date.end_of_day
-      scope = TowelTransfer.for_business(@business)
-                           .received
-                           .where(received_at: range)
-                           .where.not(confirmed_quantity: nil)
-                           .includes(:source_branch, :destination_branch, :towel_type)
-      scope = scope.where(source_branch_id: @branch_id) if @branch_id.present?
+      scope = TowelTransferItem.joins(:towel_transfer)
+                               .merge(TowelTransfer.for_business(@business).received)
+                               .where(towel_transfers: { received_at: range })
+                               .where.not(confirmed_quantity: nil)
+                               .includes(:towel_type, towel_transfer: [ :source_branch, :destination_branch ])
+      scope = scope.where(towel_transfers: { source_branch_id: @branch_id }) if @branch_id.present?
       scope = scope.where(towel_type_id: @towel_type_id) if @towel_type_id.present?
 
-      scope.select do |t|
-        t.source_branch&.branch_type_sales? && t.destination_branch&.branch_type_laundry?
+      scope.select do |item|
+        transfer = item.towel_transfer
+        transfer.source_branch&.branch_type_sales? && transfer.destination_branch&.branch_type_laundry?
       end
     end
 

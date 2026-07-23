@@ -17,15 +17,16 @@ RSpec.describe Laundry::BranchTowelConsumptionReport, type: :model do
   def create_transfer(source:, destination:, quantity:, type: towel_type)
     status = TowelTransfer.infer_towel_status(source, destination) || "dirty"
     described = Laundry::TowelTransferCreator.create(actor: actor, params: {
-      towel_type_id: type.id, source_branch_id: source.id, destination_branch_id: destination.id,
-      towel_status: status, declared_quantity: quantity
+      source_branch_id: source.id, destination_branch_id: destination.id, towel_status: status,
+      items_attributes: [ { towel_type_id: type.id, declared_quantity: quantity } ]
     })
     described.transfer
   end
 
   def receive!(transfer, confirmed:)
     Laundry::TowelTransferCreator.new(transfer.reload).dispatch(actor: actor)
-    Laundry::TowelTransferCreator.new(transfer.reload).receive(actor: actor, confirmed_quantity: confirmed)
+    item_id = transfer.reload.items.first.id
+    Laundry::TowelTransferCreator.new(transfer).receive(actor: actor, confirmed_quantities: { item_id => confirmed })
   end
 
   def run(from: 1.month.ago.to_date, to: Date.current, **opts)
@@ -100,8 +101,8 @@ RSpec.describe Laundry::BranchTowelConsumptionReport, type: :model do
     hq = create(:branch, business: business, branch_type: "headquarters")
     fund(branch_a, "clean", 50)
     transfer = Laundry::TowelTransferCreator.create(actor: actor, params: {
-      towel_type_id: towel_type.id, source_branch_id: branch_a.id, destination_branch_id: hq.id,
-      towel_status: "dirty", declared_quantity: 20
+      source_branch_id: branch_a.id, destination_branch_id: hq.id, towel_status: "dirty",
+      items_attributes: [ { towel_type_id: towel_type.id, declared_quantity: 20 } ]
     }).transfer
     receive!(transfer, confirmed: 20)
 

@@ -59,6 +59,7 @@
           <thead><tr>
             <th><%= t("laundry.towel_transfers.source_branch") %></th>
             <th><%= t("laundry.towel_transfers.destination_branch") %></th>
+            <th><%= t("laundry.common.towel_type") %></th>
             <th style="text-align: end;"><%= t("laundry.towel_transfers.declared_quantity") %></th>
             <th style="text-align: end;"><%= t("laundry.towel_transfers.confirmed_quantity") %></th>
             <th style="text-align: end;"><%= t("laundry.towel_transfers.discrepancy") %></th>
@@ -66,14 +67,17 @@
           </tr></thead>
           <tbody>
             <% @unresolved_recent.each do |transfer| %>
-              <tr>
-                <td><%= transfer.source_branch.name %></td>
-                <td><%= transfer.destination_branch.name %></td>
-                <td style="text-align: end;"><%= number_with_precision(transfer.declared_quantity, precision: 0) %></td>
-                <td style="text-align: end;"><%= number_with_precision(transfer.confirmed_quantity, precision: 0) %></td>
-                <td style="text-align: end; color: var(--danger);"><%= number_with_precision(transfer.discrepancy, precision: 0) %></td>
-                <td><%= link_to t("laundry.towel_transfers.actions.view"), laundry_towel_transfer_path(transfer), class: "btn btn-ghost btn-sm" %></td>
-              </tr>
+              <% transfer.items.select { |item| item.discrepancy.to_f.positive? }.each do |item| %>
+                <tr>
+                  <td><%= transfer.source_branch.name %></td>
+                  <td><%= transfer.destination_branch.name %></td>
+                  <td><%= item.towel_type.name %></td>
+                  <td style="text-align: end;"><%= number_with_precision(item.declared_quantity, precision: 0) %></td>
+                  <td style="text-align: end;"><%= number_with_precision(item.confirmed_quantity, precision: 0) %></td>
+                  <td style="text-align: end; color: var(--danger);"><%= number_with_precision(item.discrepancy, precision: 0) %></td>
+                  <td><%= link_to t("laundry.towel_transfers.actions.view"), laundry_towel_transfer_path(transfer), class: "btn btn-ghost btn-sm" %></td>
+                </tr>
+              <% end %>
             <% end %>
           </tbody>
         </table>

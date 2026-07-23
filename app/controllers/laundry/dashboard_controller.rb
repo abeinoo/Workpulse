@@ -28,6 +28,6 @@ class Laundry::DashboardController < Laundry::BaseController
     @dispatched_today  = transfers.where(dispatched_at: today).count
     @unresolved_count  = transfers.unresolved_discrepancy.count
     @unresolved_recent = transfers.unresolved_discrepancy.order(received_at: :desc).limit(8)
-                                  .includes(:source_branch, :destination_branch, :towel_type)
+                                  .includes(:source_branch, :destination_branch, items: :towel_type)
   end
 end

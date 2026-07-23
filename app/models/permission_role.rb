@@ -189,10 +189,19 @@ class PermissionRole < ApplicationRecord
     review_daily_reconciliation
   ].freeze
 
+  # The Laundry permissions that are actually scopable (a subset of
+  # laundry_operations/laundry_cost_reports — computed against
+  # BRANCH_SCOPABLE_PERMISSIONS rather than listed again, so this stays correct
+  # if a laundry permission's scopability ever changes).
+  LAUNDRY_BRANCH_SCOPABLE_PERMISSIONS = (
+    (PERMISSION_GROUPS[:laundry_operations] + PERMISSION_GROUPS[:laundry_cost_reports]) & BRANCH_SCOPABLE_PERMISSIONS
+  ).freeze
+
   # Permissions where the minimum scope is "branch" — "Personal Only" (self)
-  # makes no sense because these permissions always relate to a branch, not
-  # an individual user's data. The permission form excludes "self" for these.
-  BRANCH_MINIMUM_SCOPE_PERMISSIONS = DR_MANAGEMENT_PERMISSIONS.freeze
+  # makes no sense because these permissions always relate to a branch/laundry
+  # operation, not an individual user's data. The permission form excludes
+  # "self" for these, and scopes_are_valid rejects it server-side too.
+  BRANCH_MINIMUM_SCOPE_PERMISSIONS = (DR_MANAGEMENT_PERMISSIONS + LAUNDRY_BRANCH_SCOPABLE_PERMISSIONS).freeze
 
   SCOPABLE_PERMISSIONS = (
     PERMISSION_GROUPS.slice(:employees, :attendance, :payroll, :adjustments, :requests, :shifts, :performance)
@@ -219,6 +228,15 @@ class PermissionRole < ApplicationRecord
     "branch_only"            => "branch",
     "business_wide"          => "business"
   }.freeze
+
+  # The scope values a given permission may be assigned — every option except
+  # for permissions in BRANCH_MINIMUM_SCOPE_PERMISSIONS, which exclude "self".
+  # Single source of truth for both the permission-role form and
+  # #scopes_are_valid, so the UI restriction and server-side validation can
+  # never drift apart.
+  def self.scope_options_for(perm)
+    BRANCH_MINIMUM_SCOPE_PERMISSIONS.include?(perm.to_s) ? SCOPE_OPTIONS - %w[self] : SCOPE_OPTIONS
+  end
 
   def self.normalize_scope(value)
     return nil if value.blank?
@@ -391,7 +409,7 @@ class PermissionRole < ApplicationRecord
 
     permission_scopes.each do |perm, scope_val|
       next if scope_val.blank?
-      unless SCOPE_OPTIONS.include?(scope_val.to_s)
+      unless self.class.scope_options_for(perm).include?(scope_val.to_s)
         errors.add(:permission_scopes, "invalid scope '#{scope_val}' for #{perm}")
       end
     end

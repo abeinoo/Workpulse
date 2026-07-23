@@ -2999,6 +2999,12 @@ ar:
       towel_statuses:
         clean: "نظيفة"
         dirty: "متسخة"
+      section_items: "أنواع المناشف"
+      add_item: "إضافة نوع منشفة"
+      no_items_hint: "لم تتم إضافة أي نوع منشفة بعد."
+      item_count:
+        one: "نوع منشفة واحد"
+        other: "%{count} أنواع مناشف"
       empty: "لا توجد عمليات نقل بعد."
       created: "تم تسجيل النقل كمسودة."
       dispatched: "تم إرسال النقل."
@@ -3027,8 +3033,6 @@ ar:
         invalid_confirmed_quantity: "يجب أن تكون الكمية المؤكدة صفرًا أو أكثر."
         confirmed_exceeds_declared: "لا يمكن أن تكون الكمية المستلمة أكبر من الكمية المرسلة. الكمية المرسلة: %{declared}."
         not_cancellable: "لا يمكن إلغاء هذا النقل بعد الآن."
-        insufficient_clean_stock: "لا توجد كمية كافية من النظيف في الفرع المصدر (المتاح: %{available})."
-        insufficient_dirty_stock: "لا توجد كمية كافية من المتسخ في المغسلة لغسل وإرسال هذه الكمية (المتاح: %{available})."
 
     batches:
       title: "دفعات الغسيل"
@@ -3094,7 +3098,7 @@ ar:
 
     balances:
       title: "أرصدة المناشف"
-      all_towel_types: "اختر نوع المنشفة"
+      all_towel_types: "الكل"
       clean: "نظيفة"
       dirty: "متسخة"
       damaged: "تالفة"
@@ -3105,6 +3109,19 @@ ar:
       operational_balance: "الرصيد الحالي"
       details: "تفاصيل"
       unexpected_balance_hint: "يحتوي هذا الموقع أيضًا على رصيد غير متوقع بالحالة الأخرى — راجع التفاصيل."
+      status: "الحالة"
+      actions: "إجراءات"
+      status_good: "جيد"
+      status_low_stock: "مخزون منخفض"
+      status_in_transit: "قيد النقل"
+      status_needs_attention: "يتطلب الانتباه"
+      summary_total_towels: "إجمالي المناشف"
+      summary_in_transit: "قيد النقل"
+      summary_branches_with_issues: "فروع بها مشاكل"
+      summary_towel_types: "أنواع المناشف"
+      overview_total_quantity: "الكمية الإجمالية"
+      overview_view_table: "عرض الجدول"
+      empty_type_balances: "لا توجد أرصدة متاحة لهذا النوع من المناشف."
 
     standard_cost_rates:
       title: "تكلفة الغسيل المعيارية"
@@ -4128,10 +4145,17 @@ ar:
               invalid: "يجب أن ينتمي إلى نفس المنشأة"
             destination_branch:
               invalid: "يجب أن ينتمي إلى نفس المنشأة"
-            towel_type:
-              invalid: "يجب أن ينتمي إلى نفس المنشأة"
             towel_status:
               blank: "تعذر تحديد الحالة لهذه التوليفة من الفروع — يرجى اختيار فرع مبيعات والمغسلة (أو فرعي مبيعات)"
+            base:
+              no_items: "أضف نوع منشفة واحد على الأقل للتحويل"
+              insufficient_stock: "لا يوجد رصيد %{status} كافٍ لـ %{towel_type}: %{available} متاح، %{requested} مطلوب"
+        towel_transfer_item:
+          attributes:
+            towel_type:
+              invalid: "يجب أن ينتمي إلى نفس المنشأة"
+            towel_type_id:
+              taken: "تمت إضافة هذا النوع مسبقًا إلى هذا التحويل"
             confirmed_quantity:
               exceeds_declared: "لا يمكن أن تتجاوز الكمية المرسلة (%{declared})"
         towel_adjustment:

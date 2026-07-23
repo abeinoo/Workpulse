@@ -4,20 +4,27 @@ module Laundry
   # convention. No code should write to TowelTransfer or TowelLedgerEntry
   # directly to move towels between branches.
   #
+  # A transfer is one document with many towel-type line items (see
+  # TowelTransferItem) — one approval flow, one dispatch, one receipt
+  # confirmation, covering every line item at once.
+  #
   # create    — draft, no ledger impact.
-  # dispatch  — draft -> dispatched. See #dispatch for exactly what gets
-  #             posted; a normal transfer posts one OUT entry, a
-  #             laundry-to-sales-branch return (wash_conversion?) also
-  #             converts dirty stock into clean first.
-  # receive   — dispatched -> received. Posts an IN ledger entry at the
-  #             destination branch for the CONFIRMED quantity only, and only
-  #             when confirmed_quantity <= declared_quantity — receiving more
-  #             than was dispatched is rejected outright (no valid source for
-  #             the extra stock) and posts nothing. Any shortfall is left as
-  #             a (never-negative) discrepancy — an investigation signal only,
-  #             never auto-classified as loss/damage and never auto-corrected.
-  #             Recording an actual loss/damage is a separate, explicit action
-  #             through Laundry::TowelAdjuster.
+  # dispatch  — draft -> dispatched. Iterates every line item: a normal line
+  #             posts one OUT entry, a laundry-to-sales-branch return
+  #             (wash_conversion?) also converts dirty stock into clean first.
+  #             Availability is checked per towel type (one line item's
+  #             shortage aborts the whole dispatch — never a partial
+  #             dispatch) before anything is posted.
+  # receive   — dispatched -> received. Posts an IN ledger entry per line item
+  #             at the destination branch for the CONFIRMED quantity only,
+  #             and only when confirmed_quantity <= declared_quantity for that
+  #             line — receiving more than was dispatched on any single line
+  #             is rejected outright (no valid source for the extra stock) and
+  #             posts nothing for the whole document. Any shortfall is left as
+  #             a (never-negative) per-line discrepancy — an investigation
+  #             signal only, never auto-classified as loss/damage and never
+  #             auto-corrected. Recording an actual loss/damage is a separate,
+  #             explicit action through Laundry::TowelAdjuster.
   # cancel    — draft -> cancelled (no ledger impact), or
   #             dispatched/received -> cancelled (posts a compensating entry
   #             for every ledger row this transfer posted — a reversal, never
@@ -37,14 +44,13 @@ module Laundry
 
     def self.create(actor:, params:)
       transfer = TowelTransfer.new(
-        business:            actor.business,
-        towel_type_id:       params[:towel_type_id],
-        source_branch_id:    params[:source_branch_id],
+        business:              actor.business,
+        source_branch_id:      params[:source_branch_id],
         destination_branch_id: params[:destination_branch_id],
-        towel_status:        params[:towel_status],
-        declared_quantity:   params[:declared_quantity],
-        notes:               params[:notes],
-        created_by:          actor
+        towel_status:          params[:towel_status],
+        notes:                 params[:notes],
+        items_attributes:      params[:items_attributes] || {},
+        created_by:            actor
       )
 
       if transfer.save
@@ -68,33 +74,12 @@ module Laundry
           next
         end
 
-        if @transfer.wash_conversion?
-          consumed = @transfer.declared_quantity
-          available = balances.at_branch(@transfer.source_branch, "dirty")
-          if consumed > available
-            result = Result.new(ok: false, error: I18n.t("laundry.towel_transfers.errors.insufficient_dirty_stock",
-                                                          available: available.to_s))
-            next
-          end
-
-          post_entry(direction: :out, status: "dirty", quantity: consumed, reason: "wash_input", actor: actor)
-          post_entry(direction: :in, status: "clean", quantity: @transfer.declared_quantity, reason: "wash_output", actor: actor)
-        else
-          available = balances.at_branch(@transfer.source_branch, "clean")
-          if @transfer.declared_quantity > available
-            result = Result.new(ok: false, error: I18n.t("laundry.towel_transfers.errors.insufficient_clean_stock",
-                                                          available: available.to_s))
-            next
-          end
+        unless dispatch_availability_ok?
+          result = Result.new(ok: false, error: @transfer.errors.full_messages.to_sentence)
+          next
         end
 
-        # The transfer's own dispatch is always posted against the source's
-        # CLEAN balance — a sales branch never tracks a separate "dirty held
-        # here" balance in this model (see TowelTransfer's class comment),
-        # and a laundry-origin return has already converted its dirty stock
-        # into clean, above.
-        post_entry(direction: :out, status: "clean", quantity: @transfer.declared_quantity,
-                   reason: "towel_transfer_dispatch", actor: actor)
+        @transfer.items.each { |item| dispatch_item(item, actor: actor) }
 
         @transfer.update!(status: :dispatched, dispatched_by: actor, dispatched_at: Time.current)
         log(actor, "dispatch")
@@ -105,7 +90,9 @@ module Laundry
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
     end
 
-    def receive(actor:, confirmed_quantity:)
+    # confirmed_quantities: { item_id => quantity } — one receipt confirmation
+    # for the whole document, covering every line item at once.
+    def receive(actor:, confirmed_quantities:)
       result = nil
       @transfer.with_lock do
         unless @transfer.dispatched?
@@ -113,44 +100,51 @@ module Laundry
           next
         end
 
-        confirmed = confirmed_quantity.to_d
-        if confirmed.negative?
-          result = Result.new(ok: false, error: I18n.t("laundry.towel_transfers.errors.invalid_confirmed_quantity"))
-          next
+        parsed = {}
+        @transfer.items.each do |item|
+          confirmed = confirmed_quantities[item.id] || confirmed_quantities[item.id.to_s]
+          confirmed = confirmed.to_d
+          if confirmed.negative?
+            result = Result.new(ok: false, error: I18n.t("laundry.towel_transfers.errors.invalid_confirmed_quantity"))
+            break
+          end
+          # Receiving more than was dispatched would create untracked stock
+          # with no valid source — reject outright, before any ledger entry
+          # is posted for ANY line (all-or-nothing, matching one receipt
+          # confirmation for the whole document). TowelTransferItem also
+          # enforces this at the model layer as defense in depth.
+          if confirmed > item.declared_quantity
+            result = Result.new(ok: false, error: I18n.t("laundry.towel_transfers.errors.confirmed_exceeds_declared",
+                                                          declared: item.declared_quantity.to_i.to_s))
+            break
+          end
+          parsed[item] = confirmed
+        end
+        next if result
+
+        parsed.each do |item, confirmed|
+          if confirmed.positive?
+            TowelLedgerEntry.create!(
+              business:    @transfer.business,
+              towel_type:  item.towel_type,
+              branch:      @transfer.destination_branch,
+              direction:   :in,
+              status:      @transfer.towel_status,
+              reason:      "towel_transfer_receipt",
+              quantity:    confirmed,
+              occurred_at: Time.current,
+              source:      @transfer,
+              created_by:  actor
+            )
+          end
+          item.update!(confirmed_quantity: confirmed)
         end
 
-        # Receiving more than was dispatched would create untracked stock
-        # with no valid source — reject outright, before any ledger entry is
-        # posted. (TowelTransfer also enforces this at the model layer as
-        # defense in depth; this check exists so the rejection is explicit
-        # and no entry is even attempted, rather than relying on the
-        # transaction rollback from a failed #update!.)
-        if confirmed > @transfer.declared_quantity
-          result = Result.new(ok: false, error: I18n.t("laundry.towel_transfers.errors.confirmed_exceeds_declared",
-                                                        declared: @transfer.declared_quantity.to_i.to_s))
-          next
-        end
-
-        if confirmed.positive?
-          TowelLedgerEntry.create!(
-            business:    @transfer.business,
-            towel_type:  @transfer.towel_type,
-            branch:      @transfer.destination_branch,
-            direction:   :in,
-            status:      @transfer.towel_status,
-            reason:      "towel_transfer_receipt",
-            quantity:    confirmed,
-            occurred_at: Time.current,
-            source:      @transfer,
-            created_by:  actor
-          )
-        end
-
-        @transfer.update!(status: :received, received_by: actor, received_at: Time.current,
-                          confirmed_quantity: confirmed)
-        log(actor, "receive", metadata: { declared_quantity: @transfer.declared_quantity,
-                                          confirmed_quantity: confirmed,
-                                          discrepancy: @transfer.discrepancy })
+        @transfer.update!(status: :received, received_by: actor, received_at: Time.current)
+        log(actor, "receive", metadata: { items: parsed.map { |item, confirmed|
+                                            { towel_type_id: item.towel_type_id, declared_quantity: item.declared_quantity,
+                                              confirmed_quantity: confirmed, discrepancy: item.reload.discrepancy }
+                                          } })
         result = Result.new(ok: true, transfer: @transfer)
       end
       result
@@ -168,10 +162,10 @@ module Laundry
 
         unless @transfer.draft?
           # Reverse every ledger entry this transfer posted (dispatch-time
-          # entries, plus the receive-time entry if it was already received)
-          # — correct whether that's the simple one-entry dispatch, the
-          # multi-entry wash conversion, or a full received transfer. Never
-          # mutates the originals.
+          # entries for every line item, plus the receive-time entries if it
+          # was already received) — correct whether that's a single line, a
+          # multi-line document, a wash conversion, or a fully received
+          # transfer. Never mutates the originals.
           @transfer.towel_ledger_entries.each do |entry|
             TowelLedgerEntry.create!(
               business:    entry.business,
@@ -200,14 +194,53 @@ module Laundry
 
     private
 
-    def balances
-      @balances ||= Laundry::TowelBalances.new(@transfer.towel_type)
+    # Checks every line item's availability before anything is posted —
+    # mirrors Inventory::StockIssuePoster#availability_ok?'s aggregate
+    # pattern: collect one error per failing line, abort the whole dispatch
+    # if any line fails (all-or-nothing, never a partial dispatch).
+    def dispatch_availability_ok?
+      ok = true
+      @transfer.items.each do |item|
+        balances = Laundry::TowelBalances.new(item.towel_type)
+        if @transfer.wash_conversion?
+          available = balances.at_branch(@transfer.source_branch, "dirty")
+          status = "dirty"
+        else
+          available = balances.at_branch(@transfer.source_branch, "clean")
+          status = "clean"
+        end
+
+        next unless item.declared_quantity > available
+        ok = false
+        @transfer.errors.add(:base, :insufficient_stock, status: status, towel_type: item.towel_type.name,
+                             available: available.to_s, requested: item.declared_quantity.to_s)
+      end
+      ok
     end
 
-    def post_entry(direction:, status:, quantity:, reason:, actor:)
+    def dispatch_item(item, actor:)
+      balances = Laundry::TowelBalances.new(item.towel_type)
+
+      if @transfer.wash_conversion?
+        post_entry(towel_type: item.towel_type, direction: :out, status: "dirty", quantity: item.declared_quantity,
+                   reason: "wash_input", actor: actor)
+        post_entry(towel_type: item.towel_type, direction: :in, status: "clean", quantity: item.declared_quantity,
+                   reason: "wash_output", actor: actor)
+      end
+
+      # The transfer's own dispatch is always posted against the source's
+      # CLEAN balance — a sales branch never tracks a separate "dirty held
+      # here" balance in this model (see TowelTransfer's class comment),
+      # and a laundry-origin return has already converted its dirty stock
+      # into clean, above.
+      post_entry(towel_type: item.towel_type, direction: :out, status: "clean", quantity: item.declared_quantity,
+                 reason: "towel_transfer_dispatch", actor: actor)
+    end
+
+    def post_entry(towel_type:, direction:, status:, quantity:, reason:, actor:)
       TowelLedgerEntry.create!(
         business:    @transfer.business,
-        towel_type:  @transfer.towel_type,
+        towel_type:  towel_type,
         branch:      @transfer.source_branch,
         direction:   direction,
         status:      status,

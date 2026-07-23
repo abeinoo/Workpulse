@@ -51,8 +51,8 @@
           <th><%= t("laundry.towel_transfers.source_branch") %></th>
           <th><%= t("laundry.towel_transfers.destination_branch") %></th>
           <th><%= t("laundry.towel_transfers.towel_status") %></th>
+          <th><%= t("laundry.common.towel_type") %></th>
           <th style="text-align: end;"><%= t("laundry.towel_transfers.declared_quantity") %></th>
-          <th style="text-align: end;"><%= t("laundry.towel_transfers.confirmed_quantity") %></th>
           <th><%= t("laundry.common.status") %></th>
           <th></th>
         </tr></thead>
@@ -62,17 +62,17 @@
               <td><%= transfer.source_branch.name %></td>
               <td><%= transfer.destination_branch.name %></td>
               <td class="td-secondary"><%= t("laundry.towel_transfers.towel_statuses.#{transfer.towel_status}") %></td>
-              <td style="text-align: end;"><%= number_with_precision(transfer.declared_quantity, precision: 0) %></td>
-              <td style="text-align: end;">
-                <% if transfer.confirmed_quantity %>
-                  <%= number_with_precision(transfer.confirmed_quantity, precision: 0) %>
-                  <% if transfer.discrepancy.nonzero? %>
-                    <span style="color: var(--danger);">(<%= number_with_precision(transfer.discrepancy, precision: 0) %>)</span>
-                  <% end %>
+              <td>
+                <% if transfer.items.size == 1 %>
+                  <%= transfer.items.first.towel_type.name %>
                 <% else %>
-                  —
+                  <span class="badge badge-neutral"><%= t("laundry.towel_transfers.item_count", count: transfer.items.size) %></span>
+                <% end %>
+                <% if transfer.discrepancy&.nonzero? %>
+                  <span class="badge badge-warning" title="<%= t('laundry.towel_transfers.discrepancy') %>">!</span>
                 <% end %>
               </td>
+              <td style="text-align: end;"><%= number_with_precision(transfer.items.sum(&:declared_quantity), precision: 0) %></td>
               <td><%= render "status_badge", status: transfer.status %></td>
               <td><%= link_to t("laundry.towel_transfers.actions.view"), laundry_towel_transfer_path(transfer), class: "btn btn-ghost btn-sm" %></td>
             </tr>

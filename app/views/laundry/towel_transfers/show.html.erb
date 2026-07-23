@@ -56,29 +56,9 @@
         <dd><%= @towel_transfer.destination_branch.name %></dd>
       </div>
       <div class="detail-list__row">
-        <dt><%= t("laundry.common.towel_type") %></dt>
-        <dd><%= @towel_transfer.towel_type.name %></dd>
-      </div>
-      <div class="detail-list__row">
         <dt><%= t("laundry.towel_transfers.towel_status") %></dt>
         <dd><%= t("laundry.towel_transfers.towel_statuses.#{@towel_transfer.towel_status}") %></dd>
       </div>
-      <div class="detail-list__row">
-        <dt><%= t("laundry.towel_transfers.declared_quantity") %></dt>
-        <dd><strong><%= number_with_precision(@towel_transfer.declared_quantity, precision: 0) %></strong></dd>
-      </div>
-      <% if @towel_transfer.confirmed_quantity %>
-        <div class="detail-list__row">
-          <dt><%= t("laundry.towel_transfers.confirmed_quantity") %></dt>
-          <dd><strong><%= number_with_precision(@towel_transfer.confirmed_quantity, precision: 0) %></strong></dd>
-        </div>
-        <div class="detail-list__row">
-          <dt><%= t("laundry.towel_transfers.discrepancy") %></dt>
-          <dd style="<%= 'color: var(--danger);' if @towel_transfer.discrepancy.nonzero? %>">
-            <%= @towel_transfer.discrepancy.nonzero? ? number_with_precision(@towel_transfer.discrepancy, precision: 0) : t("laundry.towel_transfers.no_discrepancy") %>
-          </dd>
-        </div>
-      <% end %>
       <div class="detail-list__row">
         <dt><%= t("laundry.towel_transfers.created_by_label") %></dt>
         <dd><%= @towel_transfer.created_by&.full_name || "—" %> · <%= l(@towel_transfer.created_at, format: :short) %></dd>
@@ -116,28 +96,63 @@
     </dl>
   </div>
 
-  <% if policy(@towel_transfer).receive? %>
-    <div class="card" style="margin-bottom: var(--space-5);">
-      <div class="card-header">
-        <h2 class="card-title"><%= t("laundry.towel_transfers.actions.receive") %></h2>
-      </div>
-      <div style="padding: var(--space-4) var(--space-5);">
-        <p class="form-hint"><%= t("laundry.towel_transfers.receive_hint") %></p>
-        <%= form_with url: receive_laundry_towel_transfer_path(@towel_transfer), method: :patch,
-              style: "display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap;" do %>
-          <div class="form-group" style="margin: 0;">
-            <%= label_tag :confirmed_quantity, t("laundry.towel_transfers.confirmed_quantity"), class: "form-label" %>
-            <%
-              # max is a UX nicety only — the real enforcement is server-side
-              # in Laundry::TowelTransferCreator#receive and the TowelTransfer
-              # model validation, neither of which trust this attribute.
-            %>
-            <%= number_field_tag :confirmed_quantity, @towel_transfer.declared_quantity,
-                  min: 0, max: @towel_transfer.declared_quantity, step: 1, class: "form-control", required: true %>
-          </div>
-          <%= submit_tag t("laundry.towel_transfers.actions.receive"), class: "btn btn-primary" %>
-        <% end %>
-      </div>
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title"><%= t("laundry.towel_transfers.section_items") %></h2>
     </div>
-  <% end %>
+    <%
+      # One receipt confirmation covers every line item at once — a single
+      # form, one confirmed-quantity input per row, one submit.
+      receiving = policy(@towel_transfer).receive?
+    %>
+    <%= form_with url: receive_laundry_towel_transfer_path(@towel_transfer), method: :patch,
+          html: { style: "margin: 0;" } do %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead><tr>
+            <th><%= t("laundry.common.towel_type") %></th>
+            <th style="text-align: end;"><%= t("laundry.towel_transfers.declared_quantity") %></th>
+            <% if @towel_transfer.received? || @towel_transfer.cancelled? %>
+              <th style="text-align: end;"><%= t("laundry.towel_transfers.confirmed_quantity") %></th>
+              <th style="text-align: end;"><%= t("laundry.towel_transfers.discrepancy") %></th>
+            <% elsif receiving %>
+              <th style="text-align: end;"><%= t("laundry.towel_transfers.confirmed_quantity") %></th>
+            <% end %>
+          </tr></thead>
+          <tbody>
+            <% @towel_transfer.items.each do |item| %>
+              <tr>
+                <td><%= item.towel_type.name %></td>
+                <td style="text-align: end;"><%= number_with_precision(item.declared_quantity, precision: 0) %></td>
+                <% if item.confirmed_quantity %>
+                  <td style="text-align: end;"><strong><%= number_with_precision(item.confirmed_quantity, precision: 0) %></strong></td>
+                  <td style="text-align: end; <%= 'color: var(--danger);' if item.discrepancy.nonzero? %>">
+                    <%= item.discrepancy.nonzero? ? number_with_precision(item.discrepancy, precision: 0) : t("laundry.towel_transfers.no_discrepancy") %>
+                  </td>
+                <% elsif receiving %>
+                  <td style="text-align: end;">
+                    <%
+                      # max is a UX nicety only — the real enforcement is
+                      # server-side in Laundry::TowelTransferCreator#receive
+                      # and the TowelTransferItem model validation, neither of
+                      # which trust this attribute.
+                    %>
+                    <%= number_field_tag "confirmed_quantities[#{item.id}]", item.declared_quantity,
+                          min: 0, max: item.declared_quantity, step: 1, class: "form-control", required: true,
+                          style: "min-width: 100px;" %>
+                  </td>
+                <% end %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <% if receiving %>
+        <p class="form-hint" style="padding: 0 var(--space-5);"><%= t("laundry.towel_transfers.receive_hint") %></p>
+        <div class="form-actions">
+          <%= submit_tag t("laundry.towel_transfers.actions.receive"), class: "btn btn-primary" %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
 </div>

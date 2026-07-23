@@ -5,7 +5,7 @@ class Laundry::TowelTransfersController < Laundry::BaseController
                         .with_status(params[:status])
                         .for_branch(params[:branch_id])
                         .order(created_at: :desc)
-                        .includes(:towel_type, :source_branch, :destination_branch, :created_by)
+                        .includes(items: :towel_type, source_branch: [], destination_branch: [], created_by: [])
     @filter_branches = assignable_branches
   end
 
@@ -16,6 +16,7 @@ class Laundry::TowelTransfersController < Laundry::BaseController
 
   def new
     @towel_transfer = current_user.business.towel_transfers.build
+    @towel_transfer.items.build
     authorize @towel_transfer
     load_options
   end
@@ -36,6 +37,7 @@ class Laundry::TowelTransfersController < Laundry::BaseController
     if result.ok?
       redirect_to laundry_towel_transfer_path(@towel_transfer), notice: t("laundry.towel_transfers.created")
     else
+      @towel_transfer.items.build if @towel_transfer.items.empty?
       load_options
       render :new, status: :unprocessable_entity
     end
@@ -52,7 +54,8 @@ class Laundry::TowelTransfersController < Laundry::BaseController
     @towel_transfer = find_transfer
     authorize @towel_transfer, :receive?
     result = Laundry::TowelTransferCreator.new(@towel_transfer)
-                                          .receive(actor: current_user, confirmed_quantity: params[:confirmed_quantity])
+                                          .receive(actor: current_user,
+                                                   confirmed_quantities: params.fetch(:confirmed_quantities, {}).to_unsafe_h)
     redirect_with_result(result, :received)
   end
 
@@ -82,7 +85,8 @@ class Laundry::TowelTransfersController < Laundry::BaseController
   # — warehouse/headquarters/maintenance/other branches are excluded from
   # these selectors rather than offered and then rejected on submit.
   def load_options
-    @branches   = assignable_branches.merge(Branch.laundry_transfer_eligible)
+    @branches   = assignable_branches(:create_towel_transfers, :view_towel_balances)
+                   .merge(Branch.laundry_transfer_eligible)
     @towel_types = laundry_towel_types
   end
 
@@ -99,7 +103,8 @@ class Laundry::TowelTransfersController < Laundry::BaseController
 
   def transfer_params
     params.require(:towel_transfer).permit(
-      :towel_type_id, :source_branch_id, :destination_branch_id, :declared_quantity, :notes
+      :source_branch_id, :destination_branch_id, :notes,
+      items_attributes: [ :id, :towel_type_id, :declared_quantity, :_destroy ]
     ).to_h.symbolize_keys
   end
 end

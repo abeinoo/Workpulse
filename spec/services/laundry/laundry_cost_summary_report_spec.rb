@@ -23,11 +23,12 @@ RSpec.describe Laundry::LaundryCostSummaryReport, type: :model do
   def receive_from_branch!(confirmed:)
     fund(sales_branch, "clean", confirmed + 10)
     transfer = Laundry::TowelTransferCreator.create(actor: actor, params: {
-      towel_type_id: towel_type.id, source_branch_id: sales_branch.id, destination_branch_id: laundry_branch.id,
-      towel_status: "dirty", declared_quantity: confirmed
+      source_branch_id: sales_branch.id, destination_branch_id: laundry_branch.id, towel_status: "dirty",
+      items_attributes: [ { towel_type_id: towel_type.id, declared_quantity: confirmed } ]
     }).transfer
     Laundry::TowelTransferCreator.new(transfer).dispatch(actor: actor)
-    Laundry::TowelTransferCreator.new(transfer.reload).receive(actor: actor, confirmed_quantity: confirmed)
+    Laundry::TowelTransferCreator.new(transfer.reload)
+                                 .receive(actor: actor, confirmed_quantities: { transfer.items.first.id => confirmed })
   end
 
   before { business.laundry_standard_cost_rates.create!(towel_type: towel_type, cost_per_towel: 1.5, effective_from: 1.year.ago) }
