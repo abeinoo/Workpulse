@@ -30,7 +30,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
               .order(opened_at: :desc)
               .limit(200)
 
-    query = query.includes(till_deposits: :bank_statement_transaction) if @show_verification
+    query = query.includes(till_deposits: :bank_statement_transactions) if @show_verification
     query = query.includes(:till_deposits) unless @show_verification
 
     unless current_user.owner?
@@ -903,10 +903,13 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # this branch + business_date. Mirrors Finance::DepositVerificationsController's
   # query style but narrowed to a single reconciliation.
   def build_bank_deposit_stats
-    deposits = @reconciliation.till_deposits.active.left_joins(:bank_statement_transaction)
+    deposits = @reconciliation.till_deposits.active.left_joins(:bank_statement_transactions)
 
-    @bank_matched_count      = deposits.where(bank_statement_transactions: { status: "verified" }).count
-    @bank_needs_review_count = deposits.where(bank_statement_transactions: { status: "needs_manual_review" }).count
+    # .distinct guards against a deposit matched by more than one transaction
+    # being counted once per matching row (a plain LEFT JOIN fans out).
+    @bank_matched_count      = deposits.where(bank_statement_transactions: { status: "verified" }).distinct.count
+    @bank_needs_review_count = deposits.where(bank_statement_transactions: { status: "needs_manual_review" })
+                                       .distinct.count
     @bank_imported_sum       = deposits.where(bank_statement_transactions: { status: "verified" })
                                        .sum("bank_statement_transactions.amount")
 
@@ -929,7 +932,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       .for_business(@reconciliation.business)
       .joins(:bank_statement)
       .where(bank_statements: { branch_id: [ nil, @reconciliation.branch_id ] })
-      .where(matched_till_deposit_id: nil, status: "unexpected", transaction_date: @reconciliation.business_date)
+      .where.missing(:deposit_matches)
+      .where(status: "unexpected", transaction_date: @reconciliation.business_date)
       .includes(:bank_statement)
       .to_a
 
@@ -937,8 +941,9 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     active_deposit_ids = @all_deposits.reject(&:voided?).map(&:id)
     @bank_review_transactions = if active_deposit_ids.any?
       BankStatementTransaction
-        .where(matched_till_deposit_id: active_deposit_ids, status: "needs_manual_review")
-        .includes(:bank_statement, :matched_till_deposit)
+        .joins(:deposit_matches)
+        .where(deposit_matches: { till_deposit_id: active_deposit_ids }, status: "needs_manual_review")
+        .includes(:bank_statement, :till_deposits)
         .to_a
     else
       []
@@ -1091,7 +1096,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     active_deposits = dr.till_deposits.reject(&:voided?)
     return :no_deposits if active_deposits.empty?
 
-    transactions = active_deposits.map(&:bank_statement_transaction).compact
+    transactions = active_deposits.flat_map(&:bank_statement_transactions)
     return :not_imported if transactions.empty?
 
     if transactions.any? { |t| t.needs_reverification? }

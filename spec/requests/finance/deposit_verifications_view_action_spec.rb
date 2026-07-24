@@ -42,12 +42,18 @@ RSpec.describe "Deposit verification 'View' action is available for every status
   end
 
   def transaction(status:, amount: 300, matched_till_deposit_id: nil, match_method: nil, reference: nil)
-    BankStatementTransaction.create!(
+    txn = BankStatementTransaction.create!(
       bank_statement: statement, business: business, transaction_date: business_date,
       amount: amount, reference_number: reference, raw_data: {}, status: status,
-      matched_till_deposit_id: matched_till_deposit_id, match_method: match_method,
-      matched_at: (Time.current if matched_till_deposit_id)
+      match_method: match_method
     )
+    if matched_till_deposit_id
+      DepositMatch.create_for!(
+        till_deposit:               TillDeposit.find(matched_till_deposit_id),
+        bank_statement_transaction: txn
+      )
+    end
+    txn
   end
 
   before { sign_in viewer }

@@ -95,7 +95,7 @@ class Finance::BankStatementTransactionsController < Finance::BaseController
       .where(daily_reconciliations: { business_id: current_user.business_id })
       .where(daily_reconciliations: { business_date: statement.statement_from..statement.statement_to })
       .where(voided_at: nil)
-      .where.missing(:bank_statement_transaction)
+      .not_fully_matched
       .includes(:daily_reconciliation, :payment_method, :deposited_by, daily_reconciliation: :branch)
       .order(deposited_at: :desc)
 

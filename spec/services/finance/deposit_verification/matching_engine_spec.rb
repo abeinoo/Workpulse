@@ -77,7 +77,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       expect(result.needs_review).to eq(0)
 
       [ t1, t2, t3 ].each(&:reload)
-      matched_deposit_ids = [ t1, t2, t3 ].map(&:matched_till_deposit_id)
+      matched_deposit_ids = [ t1, t2, t3 ].map { |t| t.matched_till_deposit&.id }
 
       expect(matched_deposit_ids).to match_array([ d1.id, d2.id, d3.id ])
       expect(matched_deposit_ids.uniq.size).to eq(3) # no deposit used twice
@@ -100,10 +100,10 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       expect(result.unmatched).to eq(0)
 
       [ t300a, t300b, t200, t7400 ].each(&:reload)
-      expect(t300a.matched_till_deposit_id).not_to eq(t300b.matched_till_deposit_id)
-      expect([ t300a, t300b ].map(&:matched_till_deposit_id)).to match_array([ d300a.id, d300b.id ])
-      expect(t200.matched_till_deposit_id).to eq(d200.id)
-      expect(t7400.matched_till_deposit_id).to eq(d7400.id)
+      expect(t300a.matched_till_deposit&.id).not_to eq(t300b.matched_till_deposit&.id)
+      expect([ t300a, t300b ].map { |t| t.matched_till_deposit&.id }).to match_array([ d300a.id, d300b.id ])
+      expect(t200.matched_till_deposit&.id).to eq(d200.id)
+      expect(t7400.matched_till_deposit&.id).to eq(d7400.id)
     end
   end
 
@@ -123,7 +123,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       t2.reload
       matched, unmatched = [ t1, t2 ].partition(&:matched?)
       expect(matched.size).to eq(1)
-      expect(matched.first.matched_till_deposit_id).to eq(d1.id)
+      expect(matched.first.matched_till_deposit&.id).to eq(d1.id)
       expect(unmatched.size).to eq(1)
       expect(unmatched.first.status).to eq("unexpected")
     end
@@ -142,7 +142,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
 
       t1.reload
       expect(t1.needs_manual_review?).to be(true)
-      expect(t1.matched_till_deposit_id).to be_nil
+      expect(t1.matched_till_deposit&.id).to be_nil
     end
 
     it "does not consume any surplus deposits, leaving them available for manual selection" do
@@ -153,7 +153,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       run!
 
       expect(TillDeposit.where(amount: 300).count).to eq(2)
-      expect(TillDeposit.where(amount: 300).where.missing(:bank_statement_transaction).count).to eq(2)
+      expect(TillDeposit.where(amount: 300).where.missing(:deposit_matches).count).to eq(2)
     end
   end
 
@@ -168,8 +168,8 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       run!
 
       t1.reload
-      expect(t1.matched_till_deposit_id).to eq(d_ref.id)
-      expect(t1.matched_till_deposit_id).not_to eq(d_other.id)
+      expect(t1.matched_till_deposit&.id).to eq(d_ref.id)
+      expect(t1.matched_till_deposit&.id).not_to eq(d_other.id)
       expect(t1.match_method).to eq("auto_reference")
       # Amount differs (250 vs 300) despite the reference match — flagged, not silently verified.
       expect(t1.status).to eq("amount_mismatch")
@@ -184,7 +184,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       run!
 
       t1.reload
-      expect(t1.matched_till_deposit_id).to eq(d1.id)
+      expect(t1.matched_till_deposit&.id).to eq(d1.id)
       expect(t1.match_method).to eq("auto_amount_date")
       expect(t1.status).to eq("verified")
     end
@@ -198,7 +198,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       run!
 
       t1.reload
-      expect(t1.matched_till_deposit_id).to eq(d1.id)
+      expect(t1.matched_till_deposit&.id).to eq(d1.id)
       expect(t1.match_method).to eq("auto_amount_near_date")
       expect(t1.status).to eq("date_mismatch")
     end
@@ -210,7 +210,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       run!
 
       t1.reload
-      expect(t1.matched_till_deposit_id).to eq(d1.id)
+      expect(t1.matched_till_deposit&.id).to eq(d1.id)
       expect(t1.match_method).to eq("auto_amount_only")
       expect(t1.status).to eq("date_mismatch")
     end
@@ -226,7 +226,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       run!
 
       t1.reload
-      expect(t1.matched_till_deposit_id).to be_nil
+      expect(t1.matched_till_deposit&.id).to be_nil
       expect(t1.status).to eq("unexpected")
     end
   end
@@ -243,13 +243,13 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       t3 = transaction(amount: 300)
 
       first_run_result = run!
-      first_pairing = [ t1, t2, t3 ].map { |t| t.reload.matched_till_deposit_id }
+      first_pairing = [ t1, t2, t3 ].map { |t| t.reload.matched_till_deposit&.id }
 
       expect(first_run_result.matched).to eq(3)
 
       # Rematch (as if the statement were re-imported / rematch triggered again).
       second_run_result = described_class.call(statement.id, actor: actor, rematch: true)
-      second_pairing = [ t1, t2, t3 ].map { |t| t.reload.matched_till_deposit_id }
+      second_pairing = [ t1, t2, t3 ].map { |t| t.reload.matched_till_deposit&.id }
 
       expect(second_run_result.matched).to eq(3)
       expect(second_pairing).to eq(first_pairing)
@@ -361,7 +361,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       described_class.call(statement.id, actor: actor, rematch: true)
 
       t1.reload
-      expect(t1.matched_till_deposit_id).to eq(d1.id)
+      expect(t1.matched_till_deposit&.id).to eq(d1.id)
       expect(t1.status).to eq("verified")
     end
 
@@ -379,7 +379,7 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       described_class.call(statement.id, actor: actor, rematch: true)
 
       t1.reload
-      expect(t1.matched_till_deposit_id).to eq(d1.id)
+      expect(t1.matched_till_deposit&.id).to eq(d1.id)
       expect(AuditLog.for_auditable(t1).count).to eq(1)
       expect(AuditLog.for_auditable(t1).last.action).to eq("auto_matched")
     end

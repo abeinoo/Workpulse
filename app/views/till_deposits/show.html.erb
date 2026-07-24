@@ -11,10 +11,14 @@
       </p>
     </div>
     <div style="display: flex; gap: var(--space-2); align-items: center;">
-      <% if @transaction %>
-        <%= render "finance/bank_statements/txn_status_badge", transaction: @transaction %>
-      <% else %>
+      <% if @transactions.empty? %>
         <span class="badge badge-danger"><%= t("finance.deposit_verifications.statuses.missing") %></span>
+      <% elsif @transactions.one? %>
+        <%= render "finance/bank_statements/txn_status_badge", transaction: @transactions.first %>
+      <% else %>
+        <span class="badge <%= @deposit.match_status == :fully_matched ? 'badge-success' : 'badge-warning' %>">
+          <%= t("finance.deposit_verifications.match_statuses.#{@deposit.match_status}", count: @transactions.size) %>
+        </span>
       <% end %>
       <%= link_to t("shared.back"), finance_deposit_verifications_path, class: "btn btn-ghost" %>
     </div>
@@ -51,37 +55,60 @@
       </dl>
     </div>
 
-    <%# Bank Statement side %>
-    <div class="card" style="padding: var(--space-6); border: 2px solid <%= @transaction ? 'var(--success)' : 'var(--border)' %>;">
+    <%# Bank Statement side — a deposit may be backed by several matched
+        transactions (e.g. one physical deposit split into two bank lines);
+        this lists every one of them plus the running total vs. the
+        deposit's own amount. %>
+    <div class="card" style="padding: var(--space-6); border: 2px solid <%= @transactions.any? ? 'var(--success)' : 'var(--border)' %>;">
       <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-4); color: var(--text-1);">
         <%= t("finance.bank_statement_transactions.show.bank_side") %>
       </h3>
 
-      <% if @transaction %>
-        <dl style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); font-size: var(--text-sm);">
-          <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.transaction_date") %></dt>
-          <dd><%= l(@transaction.transaction_date, format: :long) %></dd>
+      <% if @transactions.any? %>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); margin-bottom: var(--space-4);">
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2);">
+            <%= t("till_deposits.show.selected_total_label") %>
+          </span>
+          <span style="font-size: var(--text-base); font-weight: 700; font-variant-numeric: tabular-nums; color: <%= @deposit.match_status == :fully_matched ? 'var(--success)' : 'var(--warning)' %>;">
+            <%= format_currency(@deposit.matched_total) %> / <%= format_currency(@deposit.amount) %>
+          </span>
+        </div>
 
-          <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.amount") %></dt>
-          <dd style="font-weight: 600; font-variant-numeric: tabular-nums;"><%= format_currency(@transaction.amount) %></dd>
+        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+          <% @transactions.each do |txn| %>
+            <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4);">
+              <dl style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); font-size: var(--text-sm); margin: 0;">
+                <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.transaction_date") %></dt>
+                <dd><%= l(txn.transaction_date, format: :long) %></dd>
 
-          <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.reference_number") %></dt>
-          <dd><code style="font-size: var(--text-xs);"><%= @transaction.reference_number.presence || "—" %></code></dd>
+                <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.amount") %></dt>
+                <dd style="font-weight: 600; font-variant-numeric: tabular-nums;"><%= format_currency(txn.amount) %></dd>
 
-          <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_method") %></dt>
-          <dd><%= t("finance.bank_statement_transactions.match_methods.#{@transaction.match_method}") if @transaction.match_method %></dd>
+                <dt style="color: var(--text-3);"><%= t("finance.bank_statements.fields.reference_number") %></dt>
+                <dd><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></dd>
 
-          <% if @transaction.match_confidence.present? %>
-            <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_confidence") %></dt>
-            <dd style="font-weight: 600;"><%= @transaction.match_confidence %>%</dd>
+                <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_method") %></dt>
+                <dd><%= t("finance.bank_statement_transactions.match_methods.#{txn.match_method}") if txn.match_method %></dd>
+
+                <% if txn.match_confidence.present? %>
+                  <dt style="color: var(--text-3);"><%= t("finance.bank_statement_transactions.show.match_confidence") %></dt>
+                  <dd style="font-weight: 600;"><%= txn.match_confidence %>%</dd>
+                <% end %>
+              </dl>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-3);">
+                <%= link_to t("finance.bank_statement_transactions.show.title"),
+                      finance_bank_statement_transaction_path(txn), class: "link", style: "font-size: var(--text-sm);" %>
+                <% if policy(txn).unmatch? %>
+                  <%= link_to t("finance.bank_statement_transactions.show.unmatch_button"),
+                        unmatch_finance_bank_statement_transaction_path(txn),
+                        class: "btn btn-ghost btn-sm text-danger",
+                        data: { turbo_method: :patch,
+                                turbo_confirm: t("finance.bank_statement_transactions.show.unmatch_confirm") } %>
+                <% end %>
+              </div>
+            </div>
           <% end %>
-
-          <dt></dt>
-          <dd>
-            <%= link_to t("finance.bank_statement_transactions.show.title"),
-                  finance_bank_statement_transaction_path(@transaction), class: "link" %>
-          </dd>
-        </dl>
+        </div>
       <% else %>
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;
                     height: 120px; color: var(--text-3); text-align: center;">
@@ -93,22 +120,15 @@
 
   </div>
 
-  <%# ── Actions ────────────────────────────────────────────────────────── %>
-  <% if policy(@deposit).match? %>
+  <%# ── Actions ── unmatching an individual transaction is done inline in
+      the list above; this card is only for adding more matches. ────────── %>
+  <% if policy(@deposit).match? && @deposit.match_status != :fully_matched %>
     <div class="card" style="padding: var(--space-6);">
       <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-4);">
         <%= t("finance.bank_statement_transactions.show.actions_title") %>
       </h3>
 
-      <% if @transaction && policy(@transaction).unmatch? %>
-        <%= link_to t("finance.bank_statement_transactions.show.unmatch_button"),
-              unmatch_finance_bank_statement_transaction_path(@transaction),
-              class: "btn btn-ghost btn-sm text-danger",
-              data: { turbo_method: :patch,
-                      turbo_confirm: t("finance.bank_statement_transactions.show.unmatch_confirm") } %>
-      <% end %>
-
-      <div style="<%= @transaction ? 'margin-top: var(--space-5); border-top: 1px solid var(--border); padding-top: var(--space-5);' : '' %>">
+      <div>
         <p style="font-size: var(--text-sm); color: var(--text-2); margin-bottom: var(--space-3);">
           <%= t("till_deposits.show.manual_match_hint") %>
         </p>

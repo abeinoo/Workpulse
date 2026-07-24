@@ -64,6 +64,21 @@
         <%= t("finance.daily_reconciliations.show.no_deposits") %>
       </p>
     <% else %>
+      <%
+        # "تصحيح الإيداع" (Correct Deposit) is only offered on the most
+        # recently voided deposit for a payment method, and only while that
+        # method still has no active replacement — once a correction has been
+        # recorded, active_pm_ids covers it and the action disappears on its
+        # own. Both sets are built from @deposits/@all_deposits, already
+        # loaded in the controller — no new query, no new business logic.
+        active_pm_ids       = (@deposits || []).map(&:payment_method_id).to_set
+        latest_voided_by_pm = @all_deposits.select(&:voided?)
+                                            .group_by(&:payment_method_id)
+                                            .transform_values { |ds| ds.max_by(&:voided_at) }
+        can_create_deposit  = @i_am_depositor &&
+                              (@reconciliation.closed? || @reconciliation.deposited?) &&
+                              policy(TillDeposit.new(daily_reconciliation: @reconciliation)).create?
+      %>
       <% @all_deposits.each do |deposit| %>
         <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); <%= 'opacity: 0.6;' if deposit.voided? %>">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
@@ -97,6 +112,26 @@
                       data: { turbo_confirm: t("common.are_you_sure") },
                       form_class: "inline" do %>
                   <%= t("common.void") %>
+                <% end %>
+              <% end %>
+
+              <%# ── "تصحيح الإيداع" (Correct Deposit) — opens the normal Record
+                  Deposit form pre-filled from this voided deposit's values.
+                  Never touches this (or any) historical deposit; saving the
+                  form creates a brand new TillDeposit through the same
+                  Finance::TillDepositRecorder path as any other deposit. ── %>
+              <% if deposit.voided? && can_create_deposit &&
+                    active_pm_ids.exclude?(deposit.payment_method_id) &&
+                    latest_voided_by_pm[deposit.payment_method_id] == deposit %>
+                <%= link_to new_till_deposit_path(
+                      daily_reconciliation_id: @reconciliation.id,
+                      payment_method_id:       deposit.payment_method_id,
+                      prefill_amount:          deposit.amount,
+                      prefill_reference:       deposit.reference
+                    ),
+                    class: "btn btn-primary btn-sm",
+                    data: { turbo_frame: "modal" } do %>
+                  <%= t("finance.daily_reconciliations.show.sections.bank.correct_deposit_action") %>
                 <% end %>
               <% end %>
             </div>

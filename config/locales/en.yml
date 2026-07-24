@@ -4736,6 +4736,7 @@ en:
             deposited_prefix: "Deposited:"
             by_prefix: "by"
             voided_badge: "Voided"
+            correct_deposit_action: "Correct Deposit"
           exceptions:
             title: "Exceptions"
             none: "No exceptions — everything reconciles."
@@ -5481,7 +5482,9 @@ en:
         no_data_rows: "The file has a header row but no data rows. Please check your bank export and try again."
         mapping_missing_required: "Transaction date and amount columns are required but could not be mapped. Please go back and check your column mapping."
         mapping_missing_fields: "Required column mapping missing for: %{fields}."
-        already_matched_to_another: "This deposit is already matched to another bank transaction."
+        exceeds_deposit_amount: "Matching this would push the deposit's total matched amount over its own amount."
+        already_matched_to_another_deposit: "One of these transactions is already matched to a different deposit."
+        not_found: "One or more selected transactions could not be found."
         not_matched: "This transaction is not matched to any deposit."
         already_ignored: "This transaction is already ignored."
       row_errors:
@@ -5834,6 +5837,11 @@ en:
         rate: "Verification Rate"
       statuses:
         missing: "Missing from Bank"
+      match_statuses:
+        unmatched: "Unmatched"
+        fully_matched: "Fully Matched (%{count} transactions)"
+        partially_matched: "Partially Matched (%{count} transactions)"
+        over_matched: "Over Matched (%{count} transactions)"
       cols:
         verification_status: "Status"
         deposit_date: "Deposit Date"
@@ -6162,9 +6170,10 @@ en:
       title: "Deposit Detail"
       no_match: "No bank transaction matched"
       no_match_hint: "This deposit has not been found in any imported bank statement yet."
-      manual_match_hint: "Select a bank transaction to manually link to this deposit."
-      modal_title: "Select a Bank Transaction to Match"
+      manual_match_hint: "Select one or more bank transactions to manually link to this deposit."
+      modal_title: "Select Bank Transactions to Match"
       modal_no_transactions: "There are no unmatched bank transactions in this deposit's date range."
+      selected_total_label: "Selected total:"
     errors:
       session_not_closed: "Deposits can only be recorded on a closed session."
       not_depositor: "Only the declared depositor may record deposits."
@@ -6177,6 +6186,7 @@ en:
       step_label: "Record Deposit"
       title: "Record a Bank Deposit"
       context: "%{branch} — %{date}"
+      correction_notice: "This form is pre-filled from a voided deposit. The voided deposit is kept in the audit history unchanged — saving here creates a brand new deposit with the corrected amount."
       review_required_title: "Branch Review Override"
       override_reason_label: "Reason for overriding Branch Review"
       override_reason_placeholder: "Explain why this deposit is being recorded without a completed Branch Review…"

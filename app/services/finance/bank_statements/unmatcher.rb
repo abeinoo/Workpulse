@@ -29,20 +29,16 @@ module Finance
         return err("not_matched") unless txn.matched?
 
         ActiveRecord::Base.transaction do
-          previous_deposit_id = txn.matched_till_deposit_id
+          previous_deposit_id = txn.matched_till_deposit&.id
+
+          txn.deposit_matches.destroy_all
 
           txn.update!(
-            matched_till_deposit_id:    nil,
-            match_method:               nil,
-            match_confidence:           nil,
-            match_reason:               nil,
-            matched_by:                 nil,
-            matched_at:                 nil,
-            match_notes:                nil,
-            status:                     "unexpected",
-            snapshot_deposit_amount:    nil,
-            snapshot_deposit_date:      nil,
-            snapshot_deposit_reference: nil
+            match_method:     nil,
+            match_confidence: nil,
+            match_reason:     nil,
+            match_notes:      nil,
+            status:           "unexpected"
           )
 
           txn.bank_statement.decrement!(:matched_rows)

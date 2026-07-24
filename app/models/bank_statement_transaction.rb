@@ -3,8 +3,9 @@ class BankStatementTransaction < ApplicationRecord
 
   belongs_to :bank_statement
   belongs_to :business
-  belongs_to :matched_till_deposit, class_name: "TillDeposit", optional: true
-  belongs_to :matched_by,           class_name: "User",        optional: true
+
+  has_many :deposit_matches, dependent: :destroy
+  has_many :till_deposits, through: :deposit_matches
 
   STATUSES = %w[
     pending verified amount_mismatch date_mismatch unexpected ignored
@@ -28,8 +29,8 @@ class BankStatementTransaction < ApplicationRecord
   scope :unexpected,   -> { where(status: "unexpected") }
   scope :mismatched,   -> { where(status: %w[amount_mismatch date_mismatch]) }
   scope :ignored,      -> { where(status: "ignored") }
-  scope :matched,      -> { where.not(matched_till_deposit_id: nil) }
-  scope :unmatched,    -> { where(matched_till_deposit_id: nil) }
+  scope :matched,      -> { where.associated(:deposit_matches) }
+  scope :unmatched,    -> { where.missing(:deposit_matches) }
   scope :ordered,      -> { order(transaction_date: :desc, created_at: :desc) }
 
   def verified?              = status == "verified"
@@ -39,9 +40,17 @@ class BankStatementTransaction < ApplicationRecord
   def ignored?               = status == "ignored"
   def needs_reverification?  = status == "needs_reverification"
   def needs_manual_review?   = status == "needs_manual_review"
-  def matched?               = matched_till_deposit_id.present?
+  def matched?               = deposit_matches.exists?
   def manual_match?          = match_method == "manual"
-  def has_snapshot?          = snapshot_deposit_amount.present?
+
+  # A transaction backs at most one deposit today (see DepositMatch's
+  # uniqueness constraint) — these delegate to that single pairing for the
+  # many call sites that only care about "the" match. Once partial
+  # allocation is built (multiple deposits per transaction), these become
+  # ambiguous and callers should switch to #deposit_matches/#till_deposits.
+  def matched_till_deposit = till_deposits.first
+  def matched_at           = deposit_matches.first&.matched_at
+  def matched_by           = deposit_matches.first&.matched_by
 
   def amount_difference
     return nil unless matched_till_deposit

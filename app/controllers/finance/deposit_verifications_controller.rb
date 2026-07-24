@@ -118,7 +118,7 @@ class Finance::DepositVerificationsController < Finance::BaseController
 
     return TillDeposit.none if covered_dates.empty?
 
-    base = base_deposit_scope.where.missing(:bank_statement_transaction)
+    base = base_deposit_scope.where.missing(:deposit_matches)
 
     # Filter to deposits within at least one statement's date range
     date_conditions = covered_dates.map { |from, to| "(DATE(till_deposits.deposited_at) BETWEEN ? AND ?)" }
@@ -130,9 +130,10 @@ class Finance::DepositVerificationsController < Finance::BaseController
 
   def load_all_deposits
     deposits = base_deposit_scope
-                 .left_joins(:bank_statement_transaction)
+                 .left_joins(:bank_statement_transactions)
+                 .distinct
                  .includes(:payment_method, :deposited_by,
-                           :bank_statement_transaction,
+                           :bank_statement_transactions,
                            daily_reconciliation: :branch)
                  .order(deposited_at: :desc)
 
@@ -177,7 +178,7 @@ class Finance::DepositVerificationsController < Finance::BaseController
   def load_mismatched_transactions
     transactions = base_transaction_scope
                      .mismatched
-                     .includes(:matched_till_deposit, :bank_statement)
+                     .includes(:till_deposits, :bank_statement)
                      .ordered
 
     @total_count  = transactions.count

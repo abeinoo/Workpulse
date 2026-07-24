@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_23_100200) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_24_110200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -181,14 +181,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_100200) do
     t.string "match_method"
     t.text "match_notes"
     t.text "match_reason"
-    t.datetime "matched_at"
-    t.bigint "matched_by_id"
-    t.bigint "matched_till_deposit_id"
     t.jsonb "raw_data", default: {}, null: false
     t.string "reference_number"
-    t.decimal "snapshot_deposit_amount", precision: 12, scale: 2
-    t.date "snapshot_deposit_date"
-    t.string "snapshot_deposit_reference"
     t.string "status", default: "pending", null: false
     t.date "transaction_date", null: false
     t.string "transaction_type"
@@ -196,7 +190,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_100200) do
     t.index ["bank_statement_id"], name: "index_bank_statement_transactions_on_bank_statement_id"
     t.index ["business_id", "status"], name: "index_bank_statement_transactions_on_business_id_and_status"
     t.index ["business_id"], name: "index_bank_statement_transactions_on_business_id"
-    t.index ["matched_till_deposit_id"], name: "idx_bank_stmt_txns_on_matched_deposit_unique", unique: true, where: "(matched_till_deposit_id IS NOT NULL)"
     t.index ["transaction_date"], name: "index_bank_statement_transactions_on_transaction_date"
   end
 
@@ -418,6 +411,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_100200) do
     t.datetime "updated_at", null: false
     t.index "business_id, lower((name)::text)", name: "index_departments_on_business_id_and_lower_name", unique: true
     t.index ["business_id"], name: "index_departments_on_business_id"
+  end
+
+  create_table "deposit_matches", force: :cascade do |t|
+    t.bigint "bank_statement_transaction_id", null: false
+    t.datetime "created_at", null: false
+    t.decimal "matched_amount", precision: 12, scale: 2, null: false
+    t.datetime "matched_at", null: false
+    t.bigint "matched_by_id"
+    t.bigint "till_deposit_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_statement_transaction_id"], name: "index_deposit_matches_on_bank_statement_transaction_id"
+    t.index ["bank_statement_transaction_id"], name: "index_deposit_matches_on_transaction_unique", unique: true
+    t.index ["matched_by_id"], name: "index_deposit_matches_on_matched_by_id"
+    t.index ["till_deposit_id"], name: "index_deposit_matches_on_till_deposit_id"
   end
 
   create_table "deposit_responsibility_transfers", force: :cascade do |t|
@@ -2060,8 +2067,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_100200) do
   add_foreign_key "balance_requests", "users", column: "paid_by_id"
   add_foreign_key "bank_statement_transactions", "bank_statements"
   add_foreign_key "bank_statement_transactions", "businesses"
-  add_foreign_key "bank_statement_transactions", "till_deposits", column: "matched_till_deposit_id"
-  add_foreign_key "bank_statement_transactions", "users", column: "matched_by_id"
   add_foreign_key "bank_statements", "branches"
   add_foreign_key "bank_statements", "businesses"
   add_foreign_key "bank_statements", "users", column: "deleted_by_id"
@@ -2095,6 +2100,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_23_100200) do
   add_foreign_key "daily_reconciliations", "users", column: "reviewed_by_id"
   add_foreign_key "daily_reconciliations", "users", column: "verified_by_id"
   add_foreign_key "departments", "businesses"
+  add_foreign_key "deposit_matches", "bank_statement_transactions"
+  add_foreign_key "deposit_matches", "till_deposits"
+  add_foreign_key "deposit_matches", "users", column: "matched_by_id"
   add_foreign_key "deposit_responsibility_transfers", "daily_reconciliations"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "cancelled_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "from_user_id"

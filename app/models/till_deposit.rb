@@ -6,7 +6,18 @@ class TillDeposit < ApplicationRecord
   belongs_to :payment_method
   belongs_to :deposited_by, class_name: "User"
 
-  has_one :bank_statement_transaction, foreign_key: :matched_till_deposit_id, dependent: :nullify
+  has_many :deposit_matches, dependent: :destroy
+  has_many :bank_statement_transactions, through: :deposit_matches
+
+  # Deposits still eligible to receive another matched bank transaction —
+  # i.e. not yet fully (or over-) matched. Used to offer a deposit as a valid
+  # target from the transaction-initiated manual-match flow even when it
+  # already has some (but not all) of its transactions linked.
+  scope :not_fully_matched, -> {
+    left_joins(:deposit_matches)
+      .group(:id)
+      .having("COALESCE(SUM(deposit_matches.matched_amount), 0) < till_deposits.amount")
+  }
 
   validates :amount,       presence: true, numericality: { greater_than: 0 }
   validates :deposited_at, presence: true
@@ -17,26 +28,46 @@ class TillDeposit < ApplicationRecord
 
   after_save :invalidate_bank_verification_if_critical_change
 
+  # Sum of every matched bank transaction's contribution toward this deposit.
+  def matched_total = deposit_matches.sum(:matched_amount)
+
+  # :unmatched | :partially_matched | :fully_matched | :over_matched — derived
+  # from the running total, never stored, so it's always correct regardless
+  # of how many transactions end up backing this deposit.
+  def match_status
+    return :unmatched if deposit_matches.none?
+
+    diff = matched_total - amount
+    return :fully_matched if diff.zero?
+
+    diff.positive? ? :over_matched : :partially_matched
+  end
+
   private
 
   def invalidate_bank_verification_if_critical_change
-    return unless bank_statement_transaction.present?
-    return if bank_statement_transaction.ignored?
+    return if bank_statement_transactions.empty?
     return unless VERIFICATION_CRITICAL_FIELDS.any? { |f| saved_change_to_attribute?(f) }
 
-    previous_status = bank_statement_transaction.status
-    bank_statement_transaction.update_columns(status: "needs_reverification")
+    changes = VERIFICATION_CRITICAL_FIELDS.filter_map { |f|
+      change = saved_change_to_attribute(f)
+      [ f, change ] if change
+    }.to_h
 
-    log_audit(
-      actor:     deposited_by,
-      auditable: bank_statement_transaction,
-      action:    :verification_invalidated,
-      changes:   VERIFICATION_CRITICAL_FIELDS.filter_map { |f|
-                   change = saved_change_to_attribute(f)
-                   [ f, change ] if change
-                 }.to_h,
-      metadata:  { previous_status: previous_status }
-    )
+    bank_statement_transactions.each do |txn|
+      next if txn.ignored?
+
+      previous_status = txn.status
+      txn.update_columns(status: "needs_reverification")
+
+      log_audit(
+        actor:     deposited_by,
+        auditable: txn,
+        action:    :verification_invalidated,
+        changes:   changes,
+        metadata:  { previous_status: previous_status }
+      )
+    end
   end
 
   def payment_method_must_be_cash_like

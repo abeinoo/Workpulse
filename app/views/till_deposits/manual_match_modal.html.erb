@@ -19,47 +19,67 @@
         <%= t("till_deposits.show.modal_no_transactions") %>
       </p>
     <% else %>
-      <%= form_with url: manual_match_till_deposit_path(@deposit), method: :patch,
-            data: { turbo_frame: "_top" } do |f| %>
-        <div style="display: flex; flex-direction: column; gap: var(--space-2); max-height: 360px; overflow-y: auto; margin-bottom: var(--space-4);">
-          <% @unmatched_transactions.each do |txn| %>
-            <label class="card" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-4); cursor: pointer; margin: 0;">
-              <input type="radio" name="bank_statement_transaction_id" value="<%= txn.id %>" required style="margin-top: 4px;">
-              <div style="flex: 1; display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); font-size: var(--text-sm);">
-                <span style="color: var(--text-3);"><%= t("finance.bank_statements.fields.amount") %></span>
-                <span style="font-weight: 600; font-variant-numeric: tabular-nums;"><%= format_currency(txn.amount) %></span>
+      <%
+        remaining = @deposit.amount - @deposit.matched_total
+      %>
+      <div data-controller="deposit-match" data-deposit-match-target-value="<%= remaining %>">
+        <%= form_with url: manual_match_till_deposit_path(@deposit), method: :patch,
+              data: { turbo_frame: "_top" } do |f| %>
+          <div style="display: flex; flex-direction: column; gap: var(--space-2); max-height: 360px; overflow-y: auto; margin-bottom: var(--space-4);">
+            <% @unmatched_transactions.each do |txn| %>
+              <label class="card" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-4); cursor: pointer; margin: 0;">
+                <input type="checkbox" name="bank_statement_transaction_ids[]" value="<%= txn.id %>"
+                       data-amount="<%= txn.amount %>" style="margin-top: 4px;"
+                       data-deposit-match-target="checkbox" data-action="change->deposit-match#toggle">
+                <div style="flex: 1; display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); font-size: var(--text-sm);">
+                  <span style="color: var(--text-3);"><%= t("finance.bank_statements.fields.amount") %></span>
+                  <span style="font-weight: 600; font-variant-numeric: tabular-nums;"><%= format_currency(txn.amount) %></span>
 
-                <span style="color: var(--text-3);"><%= t("finance.bank_statements.fields.transaction_date") %></span>
-                <span><%= l(txn.transaction_date, format: :long) %></span>
+                  <span style="color: var(--text-3);"><%= t("finance.bank_statements.fields.transaction_date") %></span>
+                  <span><%= l(txn.transaction_date, format: :long) %></span>
 
-                <span style="color: var(--text-3);"><%= t("finance.bank_statements.fields.reference_number") %></span>
-                <span><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></span>
+                  <span style="color: var(--text-3);"><%= t("finance.bank_statements.fields.reference_number") %></span>
+                  <span><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></span>
 
-                <% if txn.description.present? %>
-                  <span style="color: var(--text-3);"><%= t("finance.bank_statements.fields.description") %></span>
-                  <span dir="auto"><%= txn.description %></span>
-                <% end %>
+                  <% if txn.description.present? %>
+                    <span style="color: var(--text-3);"><%= t("finance.bank_statements.fields.description") %></span>
+                    <span dir="auto"><%= txn.description %></span>
+                  <% end %>
 
-                <span style="color: var(--text-3);"><%= t("finance.deposit_verifications.cols.import_file") %></span>
-                <span><%= txn.bank_statement.file_name %></span>
-              </div>
-            </label>
-          <% end %>
-        </div>
+                  <span style="color: var(--text-3);"><%= t("finance.deposit_verifications.cols.import_file") %></span>
+                  <span><%= txn.bank_statement.file_name %></span>
+                </div>
+              </label>
+            <% end %>
+          </div>
 
-        <div class="form-group">
-          <%= f.label :match_notes, t("finance.bank_statement_transactions.show.match_notes"), class: "form-label" %>
-          <%= f.text_field :match_notes, class: "form-control",
-                placeholder: t("finance.bank_statement_transactions.show.match_notes_placeholder") %>
-        </div>
+          <%# Running total vs. what's still left to match on this deposit —
+              "Confirm Match" only enables once they're exactly equal. %>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); margin-bottom: var(--space-4);">
+            <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2);">
+              <%= t("till_deposits.show.selected_total_label") %>
+            </span>
+            <span data-deposit-match-target="selectedTotal"
+                  style="font-size: var(--text-base); font-weight: 700; font-variant-numeric: tabular-nums;">
+              0.00 / <%= number_with_precision(remaining, precision: 2, delimiter: ",") %>
+            </span>
+          </div>
 
-        <div style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-4);">
-          <button type="button" class="btn btn-ghost" data-action="click->modal#close">
-            <%= t("shared.cancel") %>
-          </button>
-          <%= f.submit t("finance.bank_statement_transactions.show.match_button"), class: "btn btn-primary" %>
-        </div>
-      <% end %>
+          <div class="form-group">
+            <%= f.label :match_notes, t("finance.bank_statement_transactions.show.match_notes"), class: "form-label" %>
+            <%= f.text_field :match_notes, class: "form-control",
+                  placeholder: t("finance.bank_statement_transactions.show.match_notes_placeholder") %>
+          </div>
+
+          <div style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-4);">
+            <button type="button" class="btn btn-ghost" data-action="click->modal#close">
+              <%= t("shared.cancel") %>
+            </button>
+            <%= f.submit t("finance.bank_statement_transactions.show.match_button"), class: "btn btn-primary",
+                  data: { "deposit-match-target": "confirmButton" }, disabled: true %>
+          </div>
+        <% end %>
+      </div>
     <% end %>
   </div>
 </turbo-frame>

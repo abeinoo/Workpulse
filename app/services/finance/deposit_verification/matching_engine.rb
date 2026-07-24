@@ -135,9 +135,9 @@ module Finance
           # memory, so they reflect the true state of every transaction
           # (including rows untouched by this run, e.g. already verified).
           txn_scope = statement.bank_statement_transactions
-          matched      = txn_scope.where.not(matched_till_deposit_id: nil).count
+          matched      = txn_scope.where.associated(:deposit_matches).count
           needs_review = txn_scope.where(status: "needs_manual_review").count
-          unmatched    = txn_scope.where(matched_till_deposit_id: nil)
+          unmatched    = txn_scope.where.missing(:deposit_matches)
                                   .where.not(status: %w[ignored needs_manual_review])
                                   .count
 
@@ -267,17 +267,13 @@ module Finance
         status = derive_status(txn, deposit)
         reason = match_reason(method, txn, deposit)
 
+        DepositMatch.create_for!(till_deposit: deposit, bank_statement_transaction: txn)
+
         txn.update!(
-          matched_till_deposit_id:    deposit.id,
-          match_method:               method,
-          match_confidence:           score,
-          match_reason:               reason,
-          matched_by:                 nil,
-          matched_at:                 Time.current,
-          status:                     status,
-          snapshot_deposit_amount:    deposit.amount,
-          snapshot_deposit_date:      deposit.deposited_at.to_date,
-          snapshot_deposit_reference: deposit.reference
+          match_method:     method,
+          match_confidence: score,
+          match_reason:     reason,
+          status:           status
         )
 
         # Idempotency: a rematch that reproduces the exact same outcome for a
@@ -422,26 +418,36 @@ module Finance
       # run resets it, so commit_match!/mark_needs_review! can tell whether
       # the rematch actually changed anything.
       def capture_previous_outcomes!(statement)
+        rematchable_ids = statement.bank_statement_transactions
+                                    .where(status: REMATCHABLE_STATUSES)
+                                    .pluck(:id)
+        return if rematchable_ids.empty?
+
+        deposit_id_by_txn = DepositMatch.where(bank_statement_transaction_id: rematchable_ids)
+                                         .pluck(:bank_statement_transaction_id, :till_deposit_id)
+                                         .to_h
+
         statement.bank_statement_transactions
-                 .where(status: REMATCHABLE_STATUSES)
-                 .pluck(:id, :matched_till_deposit_id, :match_method, :status)
-                 .each { |id, deposit_id, method, status| @previous_outcomes[id] = [ deposit_id, method, status ] }
+                 .where(id: rematchable_ids)
+                 .pluck(:id, :match_method, :status)
+                 .each { |id, method, status| @previous_outcomes[id] = [ deposit_id_by_txn[id], method, status ] }
       end
 
       def reset_rematchable!(statement)
+        rematchable_ids = statement.bank_statement_transactions
+                                    .where(status: REMATCHABLE_STATUSES)
+                                    .pluck(:id)
+        return if rematchable_ids.empty?
+
+        DepositMatch.where(bank_statement_transaction_id: rematchable_ids).delete_all
+
         statement.bank_statement_transactions
-                 .where(status: REMATCHABLE_STATUSES)
+                 .where(id: rematchable_ids)
                  .update_all(
-                   matched_till_deposit_id:    nil,
-                   match_method:               nil,
-                   match_confidence:           nil,
-                   match_reason:               nil,
-                   matched_by_id:              nil,
-                   matched_at:                 nil,
-                   status:                     "pending",
-                   snapshot_deposit_amount:    nil,
-                   snapshot_deposit_date:      nil,
-                   snapshot_deposit_reference: nil
+                   match_method:     nil,
+                   match_confidence: nil,
+                   match_reason:     nil,
+                   status:           "pending"
                  )
       end
 
@@ -459,7 +465,7 @@ module Finance
           .where(daily_reconciliations: { business_id: @actor.business.id })
           .where(daily_reconciliations: { business_date: statement.statement_from..statement.statement_to })
           .where(voided_at: nil)
-          .where.missing(:bank_statement_transaction)
+          .where.missing(:deposit_matches)
 
         if statement.branch_id?
           scope = scope.where(daily_reconciliations: { branch_id: statement.branch_id })

@@ -33,20 +33,10 @@ module Finance
           was_matched   = txn.matched?
           was_unmatched = !txn.matched?
 
-          attrs = { status: "ignored", ignored_reason: @reason }
+          txn.deposit_matches.destroy_all if was_matched
 
-          if was_matched
-            attrs.merge!(
-              matched_till_deposit_id:    nil,
-              match_method:               nil,
-              matched_by:                 nil,
-              matched_at:                 nil,
-              match_notes:                nil,
-              snapshot_deposit_amount:    nil,
-              snapshot_deposit_date:      nil,
-              snapshot_deposit_reference: nil
-            )
-          end
+          attrs = { status: "ignored", ignored_reason: @reason }
+          attrs.merge!(match_method: nil, match_notes: nil) if was_matched
 
           txn.update!(attrs)
 

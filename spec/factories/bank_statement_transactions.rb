@@ -32,11 +32,31 @@ FactoryBot.define do
       sequence(:reference_number) { |n| "REF-#{format('%06d', n)}" }
     end
 
+    # Builds a minimal, valid TillDeposit (business -> branch -> DR -> till
+    # session -> cash payment method) to match against, mirroring the manual
+    # setup used throughout spec/services/finance/till_deposit_*_spec.rb —
+    # there is no standalone :till_deposit factory in this codebase.
     trait :matched do
-      association :matched_till_deposit, factory: :till_deposit
       match_method { "auto_reference" }
-      matched_at   { Time.current }
       status       { "verified" }
+
+      after(:create) do |txn|
+        branch = FactoryBot.create(:branch, business: txn.business)
+        actor  = FactoryBot.create(:user, business: txn.business)
+        pm     = PaymentMethod.create!(business: txn.business, name: "Cash #{SecureRandom.hex(3)}",
+                                       settlement_type: "cash", active: true)
+        dr = DailyReconciliation.create!(
+          branch: branch, business: txn.business, state: "closed",
+          opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current,
+          reviewed_by: actor, reviewed_at: 1.minute.ago
+        )
+        TillSession.create!(daily_reconciliation: dr, depositor_id: actor.id)
+        deposit = TillDeposit.create!(
+          daily_reconciliation: dr, payment_method: pm, deposited_by: actor,
+          amount: txn.amount, deposited_at: Time.current
+        )
+        DepositMatch.create_for!(till_deposit: deposit, bank_statement_transaction: txn)
+      end
     end
   end
 end

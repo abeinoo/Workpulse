@@ -24,7 +24,7 @@ class Finance::BankStatementsController < Finance::BaseController
     @transactions = @statement.bank_statement_transactions
                                .then { |s| params[:txn_status].present? ? s.where(status: params[:txn_status]) : s }
                                .ordered
-                               .includes(:matched_till_deposit, :matched_by)
+                               .includes(deposit_matches: [ :till_deposit, :matched_by ])
 
     @page        = [ params.fetch(:page, 1).to_i, 1 ].max
     @total_count = @transactions.count

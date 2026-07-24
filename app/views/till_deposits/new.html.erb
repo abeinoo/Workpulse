@@ -1,7 +1,16 @@
 <% content_for :title, t("till_deposits.new.title") %>
 
 <% amounts_json = @expected_amounts_by_pm.transform_keys(&:to_s).to_json %>
-<% default_expected = @payment_methods.one? ? (@expected_amounts_by_pm[@payment_methods.first.id] || 0) : 0 %>
+<%
+  default_expected =
+    if @preselected_payment_method_id && @expected_amounts_by_pm.key?(@preselected_payment_method_id)
+      @expected_amounts_by_pm[@preselected_payment_method_id]
+    elsif @payment_methods.one?
+      @expected_amounts_by_pm[@payment_methods.first.id] || 0
+    else
+      0
+    end
+%>
 
 <turbo-frame id="modal">
 <div class="emp-dashboard"
@@ -41,6 +50,19 @@
     <%= hidden_field_tag "till_deposit[daily_reconciliation_id]", @reconciliation.id %>
     <%= hidden_field_tag "till_deposit[idempotency_key]", @idempotency_key %>
 
+    <%# ── Correction context banner — only shown when arriving via a voided
+         deposit's "تصحيح الإيداع" (Correct Deposit) action. Purely informational:
+         the voided deposit itself is never read or modified here, only its
+         values were copied into this request's query params by the caller. ── %>
+    <% if @prefill_amount.present? %>
+      <div style="background: rgba(var(--accent-rgb,99,102,241), 0.07); border: 1.5px solid rgba(var(--accent-rgb,99,102,241), 0.30); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-4); display: flex; gap: var(--space-3); align-items: flex-start;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px;"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+          <%= t("till_deposits.new.correction_notice") %>
+        </p>
+      </div>
+    <% end %>
+
     <%# ── Branch Review override (only reachable at all when the actor holds
          override_review_requirement — TillDepositPolicy#create? blocks anyone
          else from opening this form while unreviewed) ──────────────────── %>
@@ -78,8 +100,9 @@
         </div>
         <div style="padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; gap: var(--space-2);">
           <% @payment_methods.each_with_index do |pm, i| %>
+            <% checked = @preselected_payment_method_id ? pm.id == @preselected_payment_method_id : i == 0 %>
             <label style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--surface-2); border: 1.5px solid var(--border); border-radius: var(--radius); cursor: pointer;">
-              <%= radio_button_tag "till_deposit[payment_method_id]", pm.id, i == 0,
+              <%= radio_button_tag "till_deposit[payment_method_id]", pm.id, checked,
                     style: "flex-shrink: 0; accent-color: var(--accent); width: 18px; height: 18px;",
                     data: { action: "change->till-deposit#pmSelected", "till-deposit-target": "pmRadio" } %>
               <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
@@ -124,7 +147,7 @@
           <%= t("till_deposits.new.actual_label") %>
         </label>
         <%= number_field_tag "till_deposit[amount]",
-              nil,
+              @prefill_amount,
               step: 0.01, min: 0.01,
               class: "form-control",
               placeholder: "0.00",
@@ -181,7 +204,7 @@
         </div>
         <div class="form-group" style="margin: 0;">
           <%= label_tag "till_deposit[reference]", t("till_deposits.new.reference_label"), class: "form-label" %>
-          <%= text_field_tag "till_deposit[reference]", nil, class: "form-control",
+          <%= text_field_tag "till_deposit[reference]", @prefill_reference, class: "form-control",
                 placeholder: t("till_deposits.new.reference_placeholder") %>
         </div>
         <div class="form-group" style="margin: 0;">

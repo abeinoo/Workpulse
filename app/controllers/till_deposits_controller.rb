@@ -3,12 +3,26 @@ class TillDepositsController < ApplicationController
   before_action :set_deposit, only: %i[void show manual_match_modal manual_match]
 
   # GET /till_deposits/new?daily_reconciliation_id=:id
+  #
+  # Also reachable as a "correction" entry point from a voided deposit's
+  # "تصحيح الإيداع" (Correct Deposit) action — payment_method_id/prefill_amount/
+  # prefill_reference are passed through to pre-fill this same form with the
+  # voided deposit's values. Nothing about deposit creation itself changes:
+  # submitting still goes through the exact same #create action and
+  # Finance::TillDepositRecorder as any other deposit, and the voided deposit
+  # is never read or touched here beyond the caller copying its values into
+  # the URL.
   def new
     @reconciliation  = find_depositor_reconciliation(params[:daily_reconciliation_id])
     @deposit         = TillDeposit.new(daily_reconciliation: @reconciliation)
     @payment_methods = business_payment_methods.select(&:cash_like?)
     @expected_amounts_by_pm = expected_amounts_by_pm(@reconciliation, @payment_methods)
     @idempotency_key = SecureRandom.uuid
+
+    @preselected_payment_method_id = params[:payment_method_id].presence&.to_i
+    @prefill_amount                = params[:prefill_amount].presence
+    @prefill_reference             = params[:prefill_reference].presence
+
     authorize @deposit
   end
 
@@ -53,8 +67,8 @@ class TillDepositsController < ApplicationController
   # verification tables can always be opened, regardless of status.
   def show
     authorize @deposit
-    @transaction = @deposit.bank_statement_transaction
-    @audit_logs  = AuditLog.for_auditable(@deposit).includes(:actor).recent
+    @transactions = @deposit.bank_statement_transactions.includes(:bank_statement).ordered
+    @audit_logs   = AuditLog.for_auditable(@deposit).includes(:actor).recent
   end
 
   # GET /till_deposits/:id/manual_match_modal
@@ -67,11 +81,11 @@ class TillDepositsController < ApplicationController
   def manual_match
     authorize @deposit, :match?
 
-    result = Finance::BankStatements::ManualMatcher.call(
-      params[:bank_statement_transaction_id].to_i,
-      till_deposit_id: @deposit.id,
-      actor:           current_user,
-      notes:           params[:match_notes].presence
+    result = Finance::BankStatements::ManualMatcher.call_many(
+      till_deposit_id:  @deposit.id,
+      transaction_ids:  Array(params[:bank_statement_transaction_ids]).reject(&:blank?),
+      actor:            current_user,
+      notes:            params[:match_notes].presence
     )
 
     if result.ok?
@@ -154,7 +168,7 @@ class TillDepositsController < ApplicationController
 
     BankStatementTransaction
       .where(bank_statement_id: statement_ids)
-      .where(matched_till_deposit_id: nil)
+      .where.missing(:deposit_matches)
       .where.not(status: "ignored")
       .includes(:bank_statement)
       .order(transaction_date: :desc)
