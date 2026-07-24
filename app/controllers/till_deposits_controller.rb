@@ -87,14 +87,16 @@ class TillDepositsController < ApplicationController
 
     dest = finance_daily_reconciliation_path(@deposit.daily_reconciliation)
 
-    if @deposit.update(voided_at: Time.current, voided_by: current_user,
-                       void_reason: params[:void_reason])
-      @deposit.log_audit(actor: current_user, auditable: @deposit, action: "void",
-                         metadata: { void_reason: params[:void_reason],
-                                     amount:       @deposit.amount.to_s })
+    result = Finance::TillDepositVoider.new(
+      @deposit.id,
+      actor:       current_user,
+      void_reason: params[:void_reason]
+    ).call
+
+    if result.ok?
       redirect_to dest, notice: t("till_deposits.voided")
     else
-      redirect_to dest, alert: @deposit.errors.full_messages.to_sentence
+      redirect_to dest, alert: result.error
     end
   end
 

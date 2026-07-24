@@ -4729,6 +4729,8 @@ ar:
             actual_deposited: "المُودَع فعلياً"
             difference: "الفرق"
             detail_toggle: "تفصيل النقد لكل موظف"
+            deposited_at_prefix: "تم الإيداع:"
+            not_deposited_yet: "لم يتم الإيداع بعد"
           electronic:
             session_totals_title: "إجماليات الجلسة"
             import_button: "استيراد ملف نقاط البيع"
@@ -4755,6 +4757,9 @@ ar:
             not_imported:
               one: "واحد غير مستورد"
               other: "%{count} غير مستورد"
+            deposited_prefix: "تم الإيداع:"
+            by_prefix: "بواسطة"
+            voided_badge: "ملغى"
           exceptions:
             title: "الاستثناءات"
             none: "لا توجد استثناءات — كل شيء متطابق."
@@ -6192,6 +6197,7 @@ ar:
       review_required: "يجب أن يراجع مدير الفرع هذه التسوية اليومية قبل تسجيل الإيداعات."
       override_reason_required: "السبب مطلوب لتسجيل إيداع دون مراجعة الفرع."
       exceeds_remaining: "هذا المبلغ يتجاوز المبلغ المتبقي المستحق وهو %{remaining}."
+      already_voided: "تم إلغاء هذا الإيداع بالفعل."
     new:
       step_label: "تسجيل إيداع"
       title: "تسجيل إيداع بنكي"

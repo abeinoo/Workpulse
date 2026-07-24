@@ -4705,6 +4705,8 @@ en:
             actual_deposited: "Actual Deposited"
             difference: "Difference"
             detail_toggle: "Per-employee cash breakdown"
+            deposited_at_prefix: "Deposited:"
+            not_deposited_yet: "Not yet deposited"
           electronic:
             session_totals_title: "Session Totals"
             import_button: "Import POS File"
@@ -4731,6 +4733,9 @@ en:
             not_imported:
               one: "1 not imported"
               other: "%{count} not imported"
+            deposited_prefix: "Deposited:"
+            by_prefix: "by"
+            voided_badge: "Voided"
           exceptions:
             title: "Exceptions"
             none: "No exceptions — everything reconciles."
@@ -6167,6 +6172,7 @@ en:
       review_required: "This Daily Reconciliation must be reviewed by a Branch Manager before deposits can be recorded."
       override_reason_required: "A reason is required to record a deposit without Branch Review."
       exceeds_remaining: "This amount exceeds the remaining deposit due of %{remaining}."
+      already_voided: "This deposit has already been voided."
     new:
       step_label: "Record Deposit"
       title: "Record a Bank Deposit"

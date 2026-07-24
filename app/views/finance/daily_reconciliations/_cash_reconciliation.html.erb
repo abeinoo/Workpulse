@@ -73,7 +73,19 @@
 
       <%# ── Collapsible: per-employee cash-only breakdown ─────────────────── %>
       <% if @employee_summaries&.any? %>
-        <% cash_ids = Array(@cash_payment_method_ids) %>
+        <%# Deposits are recorded per reconciliation + payment method (TillDeposit),
+            not per employee — the custody chain doesn't track whose physical cash
+            ended up in which deposit. Grouping @deposits (already loaded/includes'd
+            in the controller) by payment_method_id is the finest existing
+            granularity available, so every employee row for that payment method
+            shows the same deposit timestamp(s). No new query or calculation. %>
+        <%
+          cash_ids = Array(@cash_payment_method_ids)
+          deposits_by_payment_method = @deposits
+                                          .reject(&:voided?)
+                                          .sort_by(&:deposited_at)
+                                          .group_by(&:payment_method_id)
+        %>
         <div data-controller="collapsible" class="recon-disclosure" style="border-top: 1px solid var(--border);">
           <button type="button" data-collapsible-target="trigger" data-action="click->collapsible#toggle"
                   class="recon-disclosure__trigger" aria-expanded="false">
@@ -95,14 +107,30 @@
                   </span>
                 </div>
                 <% cash_amounts.each do |amt| %>
-                  <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: var(--text-xs); padding: 2px 0; border-bottom: 1px dashed var(--border);">
-                    <span style="color: var(--text-2);"><%= amt.payment_method_name %></span>
-                    <span style="display: flex; gap: var(--space-3); align-items: baseline;">
-                      <% if amt.refund_amount.positive? %>
-                        <span style="color: var(--danger);">− <%= format_currency(amt.refund_amount) %></span>
+                  <div style="padding: 2px 0; border-bottom: 1px dashed var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: var(--text-xs);">
+                      <span style="color: var(--text-2);"><%= amt.payment_method_name %></span>
+                      <span style="display: flex; gap: var(--space-3); align-items: baseline;">
+                        <% if amt.refund_amount.positive? %>
+                          <span style="color: var(--danger);">− <%= format_currency(amt.refund_amount) %></span>
+                        <% end %>
+                        <span style="font-weight: 600; color: var(--text-1); font-variant-numeric: tabular-nums;"><%= format_currency(amt.net_amount) %></span>
+                      </span>
+                    </div>
+                    <%# ── Deposit date/time for this payment method, reusing @deposits ── %>
+                    <% pm_deposits = deposits_by_payment_method[amt.payment_method_id] || [] %>
+                    <div style="font-size: 11px; color: var(--text-3); margin-top: 1px;">
+                      <% if pm_deposits.empty? %>
+                        <%= t("finance.daily_reconciliations.show.sections.cash.not_deposited_yet") %>
+                      <% else %>
+                        <% pm_deposits.each do |dep| %>
+                          <div>
+                            <%= t("finance.daily_reconciliations.show.sections.cash.deposited_at_prefix") %>
+                            <%= l(dep.deposited_at.to_date, format: :long) %> - <%= l(dep.deposited_at, format: :time_only) %>
+                          </div>
+                        <% end %>
                       <% end %>
-                      <span style="font-weight: 600; color: var(--text-1); font-variant-numeric: tabular-nums;"><%= format_currency(amt.net_amount) %></span>
-                    </span>
+                    </div>
                   </div>
                 <% end %>
               </div>

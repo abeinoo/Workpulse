@@ -54,30 +54,42 @@
       </div>
     <% end %>
 
-    <%# ── Recorded deposits list (with void actions) ────────────────────── %>
-    <% if @deposits.empty? %>
+    <%# ── Recorded deposits list (with void actions) ─────────────────────
+        Iterates @all_deposits (includes voided, already eager-loaded with
+        payment_method/deposited_by/voided_by in the controller) so a voided
+        deposit still shows its original timestamp instead of disappearing.
+        @total_deposited below stays scoped to active deposits only. ── %>
+    <% if @all_deposits.empty? %>
       <p style="padding: var(--space-5); color: var(--text-2); font-size: var(--text-sm); margin: 0;">
         <%= t("finance.daily_reconciliations.show.no_deposits") %>
       </p>
     <% else %>
-      <% @deposits.each do |deposit| %>
-        <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
+      <% @all_deposits.each do |deposit| %>
+        <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); <%= 'opacity: 0.6;' if deposit.voided? %>">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4);">
             <div style="min-width: 0;">
               <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0 0 2px;">
                 <%= deposit.payment_method.display_name %>
+                <% if deposit.voided? %>
+                  <span class="badge badge-danger" style="margin-inline-start: var(--space-2);"><%= t("finance.daily_reconciliations.show.sections.bank.voided_badge") %></span>
+                <% end %>
               </p>
               <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
-                <%= deposit.deposited_by.full_name %>
-                · <%= l(deposit.deposited_at, format: :time_only) %>
-                <% if deposit.reference.present? %>· <%= deposit.reference %><% end %>
+                <%= t("finance.daily_reconciliations.show.sections.bank.deposited_prefix") %>
+                <%= l(deposit.deposited_at.to_date, format: :long) %> - <%= l(deposit.deposited_at, format: :time_only) %>
               </p>
+              <% if deposit.deposited_by %>
+                <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+                  <%= t("finance.daily_reconciliations.show.sections.bank.by_prefix") %> <%= deposit.deposited_by.full_name %>
+                  <% if deposit.reference.present? %>· <%= deposit.reference %><% end %>
+                </p>
+              <% end %>
             </div>
             <div style="display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0;">
-              <span style="font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums;">
+              <span style="font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums; <%= 'text-decoration: line-through; color: var(--text-3);' if deposit.voided? %>">
                 <%= format_currency(deposit.amount) %>
               </span>
-              <% if policy(deposit).void? && !@reconciliation.verified? %>
+              <% if !deposit.voided? && policy(deposit).void? && !@reconciliation.verified? %>
                 <%= button_to void_till_deposit_path(deposit),
                       method: :patch,
                       params: { void_reason: "Voided during reconciliation review" },
