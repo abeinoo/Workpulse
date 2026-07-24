@@ -50,6 +50,10 @@
       # appears here when the viewer holds view_session_totals.
       row_methods = @can_view_session_totals ? (@all_payment_methods_for_cards || []) : (@electronic_payment_methods || [])
       pos_by_cashier_downcase = (@pos_totals_by_cashier || {}).each_with_object({}) { |(k, v), h| h[k.downcase.strip] = v }
+      # Raw (non-aggregated) imported rows per cashier, for the "Imported POS
+      # Transactions" detail table below — reuses @pos_transactions as already
+      # loaded in the controller, no new query.
+      pos_transactions_by_cashier_downcase = (@pos_transactions || []).group_by { |txn| txn.cashier_name.downcase.strip }
     %>
 
     <% unless has_pos_data %>
@@ -132,6 +136,47 @@
                 </span>
               </div>
             </div>
+
+            <%# ── Imported POS Transactions (raw rows, not aggregated) —
+                lets a manager verify exactly which POS rows were imported
+                for this employee without leaving the DR page. Reuses
+                @pos_transactions as already loaded/grouped above; no new
+                query and no per-row matching logic (see difference table
+                above for the aggregate WorkPulse-vs-POS comparison). ── %>
+            <% if has_pos_data %>
+              <%
+                employee_pos_transactions = pos_transactions_by_cashier_downcase[summary.user.full_name.downcase.strip] || []
+              %>
+              <div style="border-top: 1px solid var(--border); padding: var(--space-4) var(--space-5);">
+                <h4 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: 0 0 var(--space-3);">
+                  <%= t("finance.daily_reconciliations.show.employee_summary_transactions_title") %>
+                </h4>
+                <% if employee_pos_transactions.empty? %>
+                  <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0;">
+                    <%= t("finance.daily_reconciliations.show.employee_summary_transactions_empty") %>
+                  </p>
+                <% else %>
+                  <div class="recon-table-scroll">
+                    <div style="display: grid; grid-template-columns: minmax(120px, 1fr) minmax(110px, 150px) minmax(90px, 120px) minmax(100px, 130px) minmax(80px, 100px); gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); min-width: 600px;">
+                      <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"><%= t("finance.daily_reconciliations.show.employee_summary_transactions_col_reference") %></span>
+                      <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"><%= t("finance.daily_reconciliations.show.employee_summary_transactions_col_method") %></span>
+                      <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.employee_summary_transactions_col_amount") %></span>
+                      <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"><%= t("finance.daily_reconciliations.show.employee_summary_transactions_col_date") %></span>
+                      <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"><%= t("finance.daily_reconciliations.show.employee_summary_transactions_col_status") %></span>
+                    </div>
+                    <% employee_pos_transactions.each do |txn| %>
+                      <div style="display: grid; grid-template-columns: minmax(120px, 1fr) minmax(110px, 150px) minmax(90px, 120px) minmax(100px, 130px) minmax(80px, 100px); gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); align-items: center; min-width: 600px;">
+                        <span style="font-size: var(--text-xs); color: var(--text-2);"><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || txn.transaction_id.presence || "—" %></code></span>
+                        <span style="font-size: var(--text-xs); color: var(--text-2);"><%= txn.payment_method_name %></span>
+                        <span style="font-size: var(--text-xs); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(txn.amount) %></span>
+                        <span style="font-size: var(--text-xs); color: var(--text-2);"><%= l(txn.transaction_date, format: :short) %></span>
+                        <span class="badge badge-neutral" style="font-size: 10px; white-space: nowrap;"><%= t("finance.daily_reconciliations.show.employee_summary_transactions_status_imported") %></span>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
           </div>
         </div>
       <% end %>
