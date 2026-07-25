@@ -3,10 +3,11 @@ class TillDepositPolicy < ApplicationPolicy
   def show?  = can?(:create_till_deposit) || can?(:view_daily_reconciliation)
 
   def create?
-    can?(:create_till_deposit) &&
-      (record.daily_reconciliation.closed? || record.daily_reconciliation.deposited?) &&
-      record.daily_reconciliation.till_session&.depositor_id == user.id &&
-      (record.daily_reconciliation.reviewed? || can?(:override_review_requirement))
+    (record.daily_reconciliation.closed? || record.daily_reconciliation.deposited?) &&
+      # Super Admin (business owner) is never blocked by depositor assignment.
+      (owner? || (can?(:create_till_deposit) &&
+        record.daily_reconciliation.till_session&.depositor_id == user.id &&
+        (record.daily_reconciliation.reviewed? || can?(:override_review_requirement))))
   end
 
   def void?

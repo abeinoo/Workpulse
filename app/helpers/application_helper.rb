@@ -238,6 +238,41 @@ module ApplicationHelper
     end
   end
 
+  # Single source of truth for DailyReconciliation#bank_reconciliation_status
+  # colors — used by the workflow dashboard cards, the per-row status badge,
+  # and the status <select> so colors stay consistent everywhere on the page.
+  BANK_STATUS_COLORS = {
+    "completed"                 => "var(--success,#16a34a)",
+    "partially_matched"         => "#3b82f6",
+    "waiting_for_deposit"       => "var(--warning,#ca8a04)",
+    "waiting_for_bank_statement" => "#8b5cf6",
+    "waiting_for_matching"      => "#818cf8",
+    "needs_review"              => "#eab308",
+    "difference_found"          => "var(--danger,#dc2626)",
+    "no_bank_transactions"      => "var(--text-3)"
+  }.freeze
+
+  def bank_reconciliation_status_color(status)
+    BANK_STATUS_COLORS[status.to_s] || "var(--text-3)"
+  end
+
+  # Single source of truth for BankDispute status colors — used by the
+  # deposit badge, the dispute show page, and the dashboard card so colors
+  # stay consistent everywhere on the page.
+  DISPUTE_STATUS_COLORS = {
+    "new"                  => "var(--warning,#ca8a04)",
+    "submitted_to_bank"    => "#8b5cf6",
+    "under_investigation"  => "#eab308",
+    "refunded"             => "var(--success,#16a34a)",
+    "confirmed_successful" => "var(--success,#16a34a)",
+    "rejected"             => "var(--danger,#dc2626)",
+    "closed"               => "var(--text-3)"
+  }.freeze
+
+  def bank_dispute_status_color(status)
+    DISPUTE_STATUS_COLORS[status.to_s] || "var(--text-3)"
+  end
+
   # ── Centralized time/date display ─────────────────────────────────────────
   # All attendance/payroll times must go through these helpers so timezone
   # conversions are consistent and format changes only need to happen here.

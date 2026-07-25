@@ -121,10 +121,23 @@ RSpec.describe "Finance::DailyReconciliations — Cancel/Reject a pending till h
       expect(handover.reload.rejected?).to be false
     end
 
-    it "blocks the sender from rejecting their own handover" do
+    it "blocks a non-owner sender from rejecting their own handover" do
+      plain_sender = create(:user, business: business)
+      own_handover = TillHandover.create!(daily_reconciliation: dr, from_user: plain_sender, to_user: receiver,
+                                           self_deposit: false, fresha_date: dr.business_date)
+      sign_in plain_sender
+
+      patch reject_till_handover_path(own_handover)
+
+      expect(own_handover.reload.rejected?).to be false
+    end
+
+    it "allows the business owner (Super Admin) to reject a handover addressed to someone else" do
+      # `sender` in this file is created with the :owner trait — this exercises
+      # the deliberate Super Admin bypass (see TillHandoverPolicy#reject?).
       patch reject_till_handover_path(handover)
 
-      expect(handover.reload.rejected?).to be false
+      expect(handover.reload.rejected?).to be true
     end
   end
 end

@@ -46,7 +46,8 @@ module Finance
 
       session = @daily_reconciliation.till_session
 
-      unless session&.depositor_id == @actor.id
+      # Super Admin (business owner) is never blocked by depositor assignment.
+      unless @actor.owner? || session&.depositor_id == @actor.id
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.not_depositor"))
       end
 

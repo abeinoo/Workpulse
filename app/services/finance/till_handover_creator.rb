@@ -107,6 +107,8 @@ module Finance
     def validate_actor_is_holder!(session)
       return if session.current_holder.nil?
       return if session.current_holder == @actor
+      # Super Admin (business owner) is never blocked by custody assignment.
+      return if @actor.owner?
       raise ArgumentError, I18n.t("till_handovers.errors.cannot_close_session")
     end
 

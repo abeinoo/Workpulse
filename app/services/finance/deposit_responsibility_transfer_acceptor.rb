@@ -24,7 +24,10 @@ module Finance
 
       return Result.new(ok: false, error: I18n.t("deposit_responsibility_transfers.errors.already_accepted")) if @transfer.accepted?
       return Result.new(ok: false, error: I18n.t("deposit_responsibility_transfers.errors.cancelled"))        if @transfer.cancelled?
-      return Result.new(ok: false, error: I18n.t("deposit_responsibility_transfers.errors.wrong_recipient"))  unless @transfer.to_user == @actor
+      # Super Admin (business owner) is never blocked by recipient assignment.
+      unless @actor.owner? || @transfer.to_user == @actor
+        return Result.new(ok: false, error: I18n.t("deposit_responsibility_transfers.errors.wrong_recipient"))
+      end
 
       ActiveRecord::Base.transaction do
         @transfer.update!(accepted_at: Time.current)

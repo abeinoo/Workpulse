@@ -18,7 +18,8 @@ class TillHandoverPolicy < ApplicationPolicy
   def accept?
     can?(:accept_till_handover) &&
       record.pending? &&
-      record.to_user_id == user.id
+      # Super Admin (business owner) is never blocked by recipient assignment.
+      (owner? || record.to_user_id == user.id)
   end
 
   # The sender may cancel their own still-pending handover — no special
@@ -33,14 +34,16 @@ class TillHandoverPolicy < ApplicationPolicy
   end
 
   # Only the intended recipient may reject — the negative counterpart of
-  # accept?, same permission and identity shape. No admin override: rejecting
-  # is the receiver's explicit refusal, not a manager's correction.
+  # accept?, same permission and identity shape. No manager override: rejecting
+  # is the receiver's explicit refusal, not a manager's correction. Super Admin
+  # (business owner) is the sole exception — never blocked by recipient
+  # assignment, per explicit product requirement.
   def reject?
     can?(:accept_till_handover) &&
       record.pending? &&
       !record.daily_reconciliation.verified? &&
       record.daily_reconciliation.business_id == user.business_id &&
-      record.to_user_id == user.id
+      (owner? || record.to_user_id == user.id)
   end
 
   # Case 2: accepted, custody has NOT yet moved on from the receiver.

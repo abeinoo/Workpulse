@@ -1,0 +1,14 @@
+<%# Renders nothing when there's no open dispute. Locals: deposit: (optional), reconciliation: (optional) — pass exactly one. %>
+<%
+  dispute = if local_assigns[:deposit]
+    deposit.open_bank_dispute
+  elsif local_assigns[:reconciliation]
+    reconciliation.bank_disputes.reject(&:resolved?).max_by(&:created_at)
+  end
+%>
+<% if dispute %>
+  <%= link_to finance_bank_dispute_path(dispute),
+        class: "badge", style: "background: #{bank_dispute_status_color(dispute.status)}; color: #fff;" do %>
+    <%= t("finance.bank_disputes.badge_label") %> · <%= t("finance.bank_disputes.statuses.#{dispute.status}") %>
+  <% end %>
+<% end %>

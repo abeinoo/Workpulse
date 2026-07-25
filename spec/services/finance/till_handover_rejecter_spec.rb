@@ -62,6 +62,14 @@ RSpec.describe Finance::TillHandoverRejecter, type: :model do
       expect(result.error).to eq(I18n.t("till_handovers.errors.wrong_recipient"))
     end
 
+    it "allows the business owner to reject a handover addressed to someone else" do
+      owner = create(:user, :owner, business: business)
+      result = reject(actor: owner)
+      expect(result.ok?).to be true
+      expect(handover.reload.rejected?).to be true
+      expect(handover.rejected_by_id).to eq(owner.id)
+    end
+
     it "rejects rejecting an already-accepted handover" do
       handover.update!(accepted_at: Time.current)
       result = reject

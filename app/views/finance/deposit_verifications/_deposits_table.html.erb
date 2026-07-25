@@ -31,7 +31,10 @@
              txn  = txns.first %>
           <tr>
             <td>
-              <% if txns.empty? %>
+              <% dispute = dep.open_bank_dispute %>
+              <% if dispute %>
+                <%= render "finance/bank_disputes/badge", deposit: dep %>
+              <% elsif txns.empty? %>
                 <span class="badge badge-danger">
                   <%= t("finance.deposit_verifications.statuses.missing") %>
                 </span>

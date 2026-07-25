@@ -13,6 +13,7 @@ RSpec.describe TillDepositPolicy do
   let(:override_depositor) do
     user_with("view_daily_reconciliation", "close_till_session", "create_till_deposit", "override_review_requirement")
   end
+  let(:owner) { create(:user, business: business).tap { |u| business.update!(owner: u) } }
 
   def make_deposit(reviewed:, depositor_user:)
     dr = DailyReconciliation.create!(
@@ -38,6 +39,22 @@ RSpec.describe TillDepositPolicy do
     it "allows an unreviewed deposit for a user with override_review_requirement" do
       deposit = make_deposit(reviewed: false, depositor_user: override_depositor)
       expect(described_class.new(override_depositor, deposit).create?).to be true
+    end
+
+    it "allows the business owner to record a deposit even when they are not the assigned depositor" do
+      deposit = make_deposit(reviewed: true, depositor_user: depositor)
+      expect(described_class.new(owner, deposit).create?).to be true
+    end
+
+    it "allows the business owner even on an unreviewed DR" do
+      deposit = make_deposit(reviewed: false, depositor_user: depositor)
+      expect(described_class.new(owner, deposit).create?).to be true
+    end
+
+    it "still blocks a non-owner, non-depositor user without override_review_requirement" do
+      other = user_with("view_daily_reconciliation", "close_till_session", "create_till_deposit")
+      deposit = make_deposit(reviewed: true, depositor_user: depositor)
+      expect(described_class.new(other, deposit).create?).to be false
     end
   end
 end

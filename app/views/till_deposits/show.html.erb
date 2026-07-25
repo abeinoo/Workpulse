@@ -11,14 +11,23 @@
       </p>
     </div>
     <div style="display: flex; gap: var(--space-2); align-items: center;">
-      <% if @transactions.empty? %>
-        <span class="badge badge-danger"><%= t("finance.deposit_verifications.statuses.missing") %></span>
-      <% elsif @transactions.one? %>
-        <%= render "finance/bank_statements/txn_status_badge", transaction: @transactions.first %>
-      <% else %>
-        <span class="badge <%= @deposit.match_status == :fully_matched ? 'badge-success' : 'badge-warning' %>">
-          <%= t("finance.deposit_verifications.match_statuses.#{@deposit.match_status}", count: @transactions.size) %>
-        </span>
+      <%= render "finance/bank_disputes/badge", deposit: @deposit %>
+      <% if @deposit.open_bank_dispute.blank? %>
+        <% if @transactions.empty? %>
+          <span class="badge badge-danger"><%= t("finance.deposit_verifications.statuses.missing") %></span>
+        <% elsif @transactions.one? %>
+          <%= render "finance/bank_statements/txn_status_badge", transaction: @transactions.first %>
+        <% else %>
+          <span class="badge <%= @deposit.match_status == :fully_matched ? 'badge-success' : 'badge-warning' %>">
+            <%= t("finance.deposit_verifications.match_statuses.#{@deposit.match_status}", count: @transactions.size) %>
+          </span>
+        <% end %>
+      <% end %>
+      <% if @transactions.empty? && policy(BankDispute.new(till_deposit: @deposit)).create? %>
+        <%= link_to t("finance.bank_disputes.report_button"),
+              new_finance_bank_dispute_path(till_deposit_id: @deposit.id),
+              class: "btn btn-warning btn-sm",
+              data: { turbo_frame: "modal" } %>
       <% end %>
       <%= link_to t("shared.back"), finance_deposit_verifications_path, class: "btn btn-ghost" %>
     </div>

@@ -451,6 +451,9 @@ Rails.application.routes.draw do
       collection do
         post :bulk_receive_opening_float
         post :bulk_settle
+        post :bulk_mark_reviewed
+        post :bulk_assign_depositor
+        get  :export
       end
     end
 
@@ -468,6 +471,19 @@ Rails.application.routes.draw do
         patch :settle
         patch :write_off
         patch :reassign
+      end
+    end
+
+    resources :bank_disputes, only: %i[new create show] do
+      member do
+        patch :submit_to_bank
+        patch :start_investigation
+        patch :refund
+        patch :confirm_successful
+        patch :reject
+        patch :close
+        patch :update_case
+        patch :confirm_deposit
       end
     end
 

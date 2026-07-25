@@ -51,5 +51,13 @@ RSpec.describe Finance::DepositResponsibilityTransferAcceptor, type: :model do
       expect(result.ok?).to be false
       expect(result.error).to eq(I18n.t("deposit_responsibility_transfers.errors.wrong_recipient"))
     end
+
+    it "allows the business owner to accept a transfer addressed to someone else" do
+      owner = create(:user, :owner, business: business)
+      result = accept(actor: owner)
+      expect(result.ok?).to be true
+      expect(transfer.reload.accepted_at).to be_present
+      expect(till_session.reload.depositor).to eq(owner)
+    end
   end
 end

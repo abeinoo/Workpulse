@@ -22,7 +22,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     query = DailyReconciliation
               .where(business_id: current_user.business_id)
-              .includes(:branch,
+              .includes(:branch, :bank_disputes,
                         remaining_deposit_balances: :responsible_user,
                         opening_float_source_handover: :from_user,
                         till_session: %i[current_holder depositor],
@@ -30,7 +30,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
               .order(opened_at: :desc)
               .limit(200)
 
-    query = query.includes(till_deposits: :bank_statement_transactions) if @show_verification
+    query = query.includes(till_deposits: [ :deposit_matches, :bank_statement_transactions, :bank_disputes ]) if @show_verification
     query = query.includes(:till_deposits) unless @show_verification
 
     unless current_user.owner?
@@ -44,26 +44,118 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       end
     end
 
+    @accessible_branches = accessible_branches_for_dr
+
     # ── Optional filters ─────────────────────────────────────────────────────
     @filter_status       = params[:status].presence
-    @filter_branch       = params[:branch_id].presence
+    @filter_branch       = sticky_branch_filter
     @filter_date         = params[:business_date].presence
-    @filter_verification = @show_verification ? params[:verification_status].presence : nil
+    @filter_bank_status  = @show_verification ? params[:verification_status].presence : nil
+    @filter_bank_imported     = @show_verification && params[:bank_imported].presence == "1"
+    @filter_outstanding_exists = @show_verification && params[:outstanding_exists].presence == "1"
+    @filter_depositor_id = @show_verification ? params[:depositor_id].presence&.to_i : nil
+    @selected_branch     = @accessible_branches.find { |b| b.id.to_s == @filter_branch.to_s } if @filter_branch.present?
 
     query = apply_dr_filters(query)
 
     if @show_verification
       all_drs = query.to_a
-      @verification_counts = Hash.new(0)
-      all_drs.each { |dr| @verification_counts[deposit_verification_status_for(dr)] += 1 }
-      @reconciliations = @filter_verification ?
-        all_drs.select { |dr| deposit_verification_status_for(dr).to_s == @filter_verification } :
-        all_drs
+
+      # Preloaded once for the whole page instead of per-DR, so deriving
+      # bank_reconciliation_status/workflow_stages for up to 200 rows costs
+      # O(1) queries total, not O(N).
+      covering_statements = BankStatement.where(business_id: current_user.business_id)
+                                         .active.completed.to_a
+      review_transactions = BankStatementTransaction
+                              .joins(:bank_statement)
+                              .where(bank_statements: { business_id: current_user.business_id },
+                                     status: "needs_manual_review")
+                              .includes(:bank_statement)
+                              .to_a
+
+      statuses_by_dr = all_drs.index_with do |dr|
+        dr.bank_reconciliation_status(covering_statements: covering_statements,
+                                      review_transactions: review_transactions)
+      end
+      @workflow_stages_by_dr = all_drs.index_with do |dr|
+        dr.workflow_stages(covering_statements: covering_statements, review_transactions: review_transactions)
+      end
+      @bank_statement_imported_by_dr = all_drs.index_with do |dr|
+        dr.bank_statement_imported?(covering_statements: covering_statements)
+      end
+
+      @bank_statuses_by_dr = statuses_by_dr
+
+      # Orthogonal (non-exclusive) filters — apply first, independent of
+      # bank_status/depositor ordering below.
+      scope = all_drs
+      scope = scope.select { |dr| @bank_statement_imported_by_dr[dr] } if @filter_bank_imported
+      scope = scope.select { |dr| dr.total_remaining_balance.positive? } if @filter_outstanding_exists
+
+      # Depositor facet (the <select> options + Top Depositors card) — tallied
+      # from everything EXCEPT the depositor filter itself (so every
+      # depositor stays choosable/switchable), but INCLUDING bank_status, so
+      # the facet still narrows sensibly when a status card is active.
+      # Depositor is already eager-loaded via till_session: depositor above —
+      # no new query.
+      scope_for_depositor_facet = @filter_bank_status ?
+        scope.select { |dr| statuses_by_dr[dr] == @filter_bank_status } :
+        scope
+      depositor_counts = Hash.new(0)
+      scope_for_depositor_facet.each do |dr|
+        depositor = dr.till_session&.depositor
+        depositor_counts[depositor] += 1 if depositor
+      end
+      @depositor_counts = depositor_counts.sort_by { |_user, count| -count }.to_h
+      @top_depositors    = @depositor_counts.first(5)
+
+      # Single source of truth for everything below: dashboard cards, the
+      # reconciliation list, and every counter/total/percentage on the page.
+      # When a depositor is selected, this — and therefore all of the
+      # above — reflects ONLY that depositor's reconciliations; nothing here
+      # is computed from the wider, unfiltered set.
+      scope_for_dashboard = @filter_depositor_id ?
+        scope.select { |dr| dr.till_session&.depositor_id == @filter_depositor_id } :
+        scope
+
+      # Workflow dashboard — count + total expected-cash amount per status,
+      # computed from scope_for_dashboard (i.e. every active filter except
+      # bank_status itself, which is what the cards toggle).
+      @bank_status_counts  = Hash.new(0)
+      @bank_status_amounts = Hash.new(0)
+      scope_for_dashboard.each do |dr|
+        status = statuses_by_dr[dr]
+        @bank_status_counts[status]  += 1
+        @bank_status_amounts[status] += dr.expected_cash_deposit
+      end
+      @bank_status_total_count = scope_for_dashboard.size
+
+      # "Open Disputes" card — reactive to every active filter via
+      # scope_for_dashboard, same single-source-of-truth pattern as the rest
+      # of the dashboard. till_deposits/bank_disputes are already eager
+      # loaded above, so this is pure Ruby, no new queries. Covers both
+      # dispute kinds (missing-from-bank on a deposit, and ATM/POS failures
+      # reported before any deposit exists) via DailyReconciliation#open_bank_disputes.
+      open_disputes = scope_for_dashboard.flat_map { |dr|
+        dr.open_bank_disputes(preloaded_till_deposits: dr.till_deposits.select(&:active?))
+      }
+      @open_dispute_count  = open_disputes.size
+      @open_dispute_amount = open_disputes.sum(&:amount)
+
+      @reconciliations = @filter_bank_status ?
+        scope_for_dashboard.select { |dr| statuses_by_dr[dr] == @filter_bank_status } :
+        scope_for_dashboard
+
+      # Amount summary strip — totals across the final filtered set.
+      @summary_expected = @reconciliations.sum(&:expected_cash_deposit)
+      @summary_deposited = @reconciliations.sum(&:total_deposited)
+      @summary_matched   = @reconciliations.sum(&:total_matched_amount)
+      @summary_outstanding = @reconciliations.sum(&:total_remaining_balance)
+
+      @empty_state_key = empty_state_key_for(@filter_bank_status) if @reconciliations.empty?
     else
       @reconciliations = query
     end
-
-    @accessible_branches = accessible_branches_for_dr
 
     @latest_pos_import = current_user.business.pos_imports.imported.order(updated_at: :desc)
                                      .includes(:imported_by).first if current_user.can?(:manage_pos_import)
@@ -161,6 +253,128 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
   end
 
+  # POST /finance/daily_reconciliations/bulk_mark_reviewed
+  def bulk_mark_reviewed
+    authorize DailyReconciliation, :bulk_mark_reviewed?
+
+    ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
+    if ids.empty?
+      return redirect_to finance_daily_reconciliations_path,
+                         alert: t("finance.daily_reconciliations.errors.bulk_none_selected")
+    end
+
+    reconciliations = policy_scope(DailyReconciliation).where(id: ids)
+
+    successes = 0
+    failures  = 0
+
+    reconciliations.each do |dr|
+      next unless dr.closed? && !dr.reviewed?
+
+      result = Finance::DailyReconciliationReviewer.new(dr.id, actor: current_user).call
+      result.ok? ? successes += 1 : failures += 1
+    end
+
+    if failures.zero? && successes > 0
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  notice: t("finance.daily_reconciliations.bulk_mark_reviewed_done", count: successes)
+    elsif successes > 0
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  notice: t("finance.daily_reconciliations.bulk_mark_reviewed_partial",
+                             success: successes, failure: failures)
+    else
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  alert: t("finance.daily_reconciliations.errors.bulk_mark_reviewed_failed")
+    end
+  end
+
+  # POST /finance/daily_reconciliations/bulk_assign_depositor
+  def bulk_assign_depositor
+    authorize DailyReconciliation, :bulk_assign_depositor?
+
+    ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
+    if ids.empty?
+      return redirect_to finance_daily_reconciliations_path,
+                         alert: t("finance.daily_reconciliations.errors.bulk_none_selected")
+    end
+
+    depositor = current_user.business.users.active.find_by(id: params[:depositor_id])
+    unless depositor
+      return redirect_to finance_daily_reconciliations_path,
+                         alert: t("finance.daily_reconciliations.errors.invalid_depositor")
+    end
+
+    reconciliations = policy_scope(DailyReconciliation).where(id: ids).includes(:till_session)
+
+    successes = 0
+    failures  = 0
+
+    reconciliations.each do |dr|
+      next unless dr.till_session
+
+      result = Finance::DepositorAssigner.new(dr.id, actor: current_user, depositor_id: depositor.id).call
+      result.ok? ? successes += 1 : failures += 1
+    end
+
+    if failures.zero? && successes > 0
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  notice: t("finance.daily_reconciliations.bulk_assign_done", count: successes)
+    elsif successes > 0
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  notice: t("finance.daily_reconciliations.bulk_assign_partial",
+                             success: successes, failure: failures)
+    else
+      redirect_to finance_daily_reconciliations_path(filter_params),
+                  alert: t("finance.daily_reconciliations.errors.bulk_assign_failed")
+    end
+  end
+
+  # GET /finance/daily_reconciliations/export
+  # Exports the currently selected (or, if none selected, currently filtered)
+  # reconciliations as CSV, reusing Finance::Reports::CsvExporter/Table — no
+  # new CSV-generation logic.
+  def export
+    authorize DailyReconciliation, :export?
+
+    ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
+    scope = policy_scope(DailyReconciliation)
+              .includes(:branch, till_session: :depositor,
+                        till_deposits: [ :deposit_matches, :bank_statement_transactions ],
+                        remaining_deposit_balances: [])
+    scope = ids.any? ? scope.where(id: ids) : apply_dr_filters(scope)
+
+    table = Finance::Reports::Table.new(
+      title: t("finance.daily_reconciliations.index.export_title"),
+      columns: [
+        Finance::Reports::Column.new(key: :branch,     label: t("finance.daily_reconciliations.index.export_col_branch")),
+        Finance::Reports::Column.new(key: :date,       label: t("finance.daily_reconciliations.index.export_col_date")),
+        Finance::Reports::Column.new(key: :status,     label: t("finance.daily_reconciliations.index.export_col_status")),
+        Finance::Reports::Column.new(key: :expected,   label: t("finance.daily_reconciliations.index.export_col_expected"), money: true),
+        Finance::Reports::Column.new(key: :deposited,  label: t("finance.daily_reconciliations.index.export_col_deposited"), money: true),
+        Finance::Reports::Column.new(key: :matched,    label: t("finance.daily_reconciliations.index.export_col_matched"), money: true),
+        Finance::Reports::Column.new(key: :remaining,  label: t("finance.daily_reconciliations.index.export_col_remaining"), money: true),
+        Finance::Reports::Column.new(key: :outstanding, label: t("finance.daily_reconciliations.index.export_col_outstanding"), money: true),
+        Finance::Reports::Column.new(key: :depositor,  label: t("finance.daily_reconciliations.index.export_col_depositor"))
+      ],
+      rows: scope.map { |dr|
+        {
+          branch:      dr.branch.name,
+          date:        dr.business_date.iso8601,
+          status:      t("finance.daily_reconciliations.index.bank_status.#{dr.bank_reconciliation_status}"),
+          expected:    dr.expected_cash_deposit,
+          deposited:   dr.total_deposited,
+          matched:     dr.total_matched_amount,
+          remaining:   dr.pending_deposit_amount,
+          outstanding: dr.total_remaining_balance,
+          depositor:   dr.till_session&.depositor&.full_name
+        }
+      }
+    )
+
+    send_data Finance::Reports::CsvExporter.new(table).to_csv,
+              filename: "daily_reconciliations_#{Date.current.iso8601}.csv", type: "text/csv"
+  end
+
   # GET /finance/daily_reconciliations/new
   def new
     authorize DailyReconciliation, :create?
@@ -226,9 +440,24 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                                .includes(:payment_method, :deposited_by)
                                .order(:deposited_at)
 
+    # "Open Deposit Verification" should land on whichever day(s) the actual
+    # deposit(s) were recorded — which can differ from the DR's own business
+    # date (e.g. a deposit made just after midnight). Falls back to the DR's
+    # business date only when there are no active deposits yet to derive it
+    # from. Voided deposits are excluded since @deposits is already
+    # active-only.
+    if @deposits.any?
+      @deposit_verification_from = @deposits.first.deposited_at.to_date
+      @deposit_verification_to   = @deposits.last.deposited_at.to_date
+    else
+      @deposit_verification_from = @reconciliation.business_date
+      @deposit_verification_to   = @reconciliation.business_date
+    end
+
     # Full deposit history (including voided) is needed only by the timeline.
     @all_deposits = @reconciliation.till_deposits
-                                   .includes(:payment_method, :deposited_by, :voided_by)
+                                   .includes(:payment_method, :deposited_by, :voided_by,
+                                             :bank_statement_transactions, :bank_disputes)
                                    .order(:deposited_at)
 
     @amounts_by_method = @reconciliation.session_amounts
@@ -347,6 +576,15 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @deposit_override_events = deposit_ids.any? ?
       AuditLog
         .where(auditable_type: "TillDeposit", auditable_id: deposit_ids, action: "deposit_review_overridden")
+        .includes(:actor)
+        .order(:created_at)
+        .to_a :
+      []
+
+    bank_dispute_ids = (@reconciliation.bank_disputes.to_a + @all_deposits.flat_map(&:bank_disputes)).map(&:id).uniq
+    @bank_dispute_events = bank_dispute_ids.any? ?
+      AuditLog
+        .where(auditable_type: "BankDispute", auditable_id: bank_dispute_ids)
         .includes(:actor)
         .order(:created_at)
         .to_a :
@@ -835,6 +1073,10 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       events << { type: :deposit_review_overridden, time: log.created_at, actor: log.actor, data: log }
     end
 
+    (@bank_dispute_events || []).each do |log|
+      events << { type: :bank_dispute_activity, time: log.created_at, actor: log.actor, data: log }
+    end
+
     if @reconciliation.verified?
       events << { type: :day_verified, time: @reconciliation.verified_at,
                   actor: @reconciliation.verified_by, data: @reconciliation }
@@ -1044,21 +1286,61 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
   end
 
+  # The header branch selector is "sticky": once chosen, it stays selected
+  # across filter changes, opening a reconciliation, returning to the index,
+  # and plain page refreshes — without every link on the page needing to
+  # carry branch_id explicitly. An explicit branch_id param (including a
+  # blank one, from picking "All Branches") always wins and is remembered for
+  # next time; only a request with no branch_id key at all (e.g. a nav link
+  # elsewhere in the app) falls back to the last remembered choice — or, the
+  # very first time (nothing remembered yet), to default_branch_filter's
+  # priority order.
+  def sticky_branch_filter
+    if params.key?(:branch_id)
+      session[:daily_reconciliations_branch_id] = params[:branch_id].presence
+    elsif !session.key?(:daily_reconciliations_branch_id)
+      session[:daily_reconciliations_branch_id] = default_branch_filter
+    end
+
+    session[:daily_reconciliations_branch_id]
+  end
+
+  # First-ever visit only (no explicit param, nothing remembered in session
+  # yet). Priority: the user's only accessible sales branch (nothing else to
+  # pick) > the branch from their current shift assignment (the same
+  # "what's this user's branch" fallback already used above in
+  # accessible_branches_for_dr) > All Branches.
+  def default_branch_filter
+    return @accessible_branches.first.id.to_s if @accessible_branches.size == 1
+
+    shift_branch = current_user.shift_assignments.current.first&.branch
+    return shift_branch.id.to_s if shift_branch && @accessible_branches.include?(shift_branch)
+
+    nil
+  end
+
+  # Only "sales" branches actually run Daily Reconciliations — warehouse,
+  # laundry, headquarters, maintenance, and other operational units never
+  # appear in this picker (see Branch#branch_type).
   def accessible_branches_for_dr
-    return current_user.business.branches.active.order(:name).to_a if current_user.owner?
+    return sales_branches.active.order(:name).to_a if current_user.owner?
 
     scope_name = current_user.scope_for(:view_daily_reconciliation)
 
     # nil scope is consistent with the index query: no explicit restriction → all branches.
     # An explicit scope (branch / area / business) narrows access via BranchScope.
-    return current_user.business.branches.active.order(:name).to_a unless scope_name
+    return sales_branches.active.order(:name).to_a unless scope_name
 
     ids = BranchScope.new(current_user).for_scope(scope_name)
     if ids.empty? && scope_name != "business"
       shift_branch = current_user.shift_assignments.current.first&.branch
-      return shift_branch ? [ shift_branch ] : []
+      return (shift_branch && shift_branch.branch_type == "sales") ? [ shift_branch ] : []
     end
-    current_user.business.branches.active.where(id: ids).order(:name).to_a
+    sales_branches.active.where(id: ids).order(:name).to_a
+  end
+
+  def sales_branches
+    current_user.business.branches.where(branch_type: "sales")
   end
 
   def apply_dr_filters(query)
@@ -1089,23 +1371,17 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   end
 
   def filter_params
-    params.permit(:status, :branch_id, :business_date, :verification_status)
+    params.permit(:status, :branch_id, :business_date, :verification_status,
+                  :bank_imported, :outstanding_exists, :depositor_id)
   end
 
-  def deposit_verification_status_for(dr)
-    active_deposits = dr.till_deposits.reject(&:voided?)
-    return :no_deposits if active_deposits.empty?
+  # Keys into finance.daily_reconciliations.index.empty_states.* — tailors the
+  # empty-list message to whichever bank-status filter is active instead of a
+  # single generic message.
+  def empty_state_key_for(bank_status)
+    return "generic" unless DailyReconciliation::BANK_RECONCILIATION_STATUSES.include?(bank_status)
 
-    transactions = active_deposits.flat_map(&:bank_statement_transactions)
-    return :not_imported if transactions.empty?
-
-    if transactions.any? { |t| t.needs_reverification? }
-      :needs_reverification
-    elsif transactions.all? { |t| t.verified? }
-      :verified
-    else
-      :pending
-    end
+    bank_status
   end
-  helper_method :deposit_verification_status_for
+
 end

@@ -56,7 +56,8 @@ class PermissionRole < ApplicationRecord
                                view_pos_transactions_verification
                                manage_pos_import
                                review_daily_reconciliation
-                               override_review_requirement],
+                               override_review_requirement
+                               manage_bank_disputes],
     finance_overview:      %w[view_finance_dashboard],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
@@ -187,6 +188,7 @@ class PermissionRole < ApplicationRecord
     view_pos_transactions_verification
     manage_pos_import
     review_daily_reconciliation
+    manage_bank_disputes
   ].freeze
 
   # The Laundry permissions that are actually scopable (a subset of
@@ -291,6 +293,7 @@ class PermissionRole < ApplicationRecord
     "manage_pos_import"      => %w[view_pos_transactions_verification],
     "review_daily_reconciliation"       => %w[view_daily_reconciliation],
     "override_review_requirement"       => %w[view_daily_reconciliation],
+    "manage_bank_disputes"              => %w[view_daily_reconciliation],
     "manage_obligations"               => %w[view_employees],
     "manage_inventory"       => %w[view_inventory],
     "manage_suppliers"       => %w[view_inventory],

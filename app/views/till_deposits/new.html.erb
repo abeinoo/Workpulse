@@ -230,5 +230,20 @@
     </div>
   <% end %>
 
+  <%# ── Secondary action: the cash never reached the bank ──────────────
+      Reported directly from this same dialog, opens a BankDispute case
+      instead of saving a deposit — never creates a TillDeposit. Swaps this
+      modal's content to the ATM-report form rather than leaving the page. ── %>
+  <% if @reconciliation.reviewed? && policy(BankDispute.new(daily_reconciliation: @reconciliation)).create? %>
+    <div style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border);">
+      <%= link_to new_finance_bank_dispute_path(daily_reconciliation_id: @reconciliation.id),
+            class: "btn btn-warning",
+            data: { turbo_frame: "modal" },
+            style: "width: 100%; justify-content: center;" do %>
+        ⚠ <%= t("till_deposits.new.report_atm_problem") %>
+      <% end %>
+    </div>
+  <% end %>
+
 </div>
 </turbo-frame>

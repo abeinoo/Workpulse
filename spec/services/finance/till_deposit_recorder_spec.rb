@@ -123,6 +123,13 @@ RSpec.describe Finance::TillDepositRecorder, type: :model do
         expect(result.error).to eq(I18n.t("till_deposits.errors.not_depositor"))
       end
 
+      it "allows the business owner to record a deposit even when they are not the designated depositor" do
+        owner = create(:user, business: business).tap { |u| business.update!(owner: u) }
+        result = record(depositor: owner)
+        expect(result.ok?).to be true
+        expect(result.deposit.deposited_by).to eq(owner)
+      end
+
       it "rejects an unknown payment method" do
         result = record(params: base_params.merge(payment_method_id: 0))
         expect(result.ok?).to be false

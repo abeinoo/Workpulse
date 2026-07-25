@@ -87,7 +87,10 @@ class ApplicationPolicy
 
   protected
 
-  # Kept for use in Scope subclasses only — never use these in action methods.
+  # Primarily for Scope subclasses; also used directly in a handful of DR-domain
+  # action methods that need to bypass an *identity* gate (not a permission
+  # gate — `can?` already covers those) for the business owner, e.g.
+  # TillDepositPolicy#create?, TillHandoverPolicy#accept?/#reject?.
   def owner?          = user.owner?
   def manages_area?   = user.manages_area?
   def manages_branch? = user.manages_branch?

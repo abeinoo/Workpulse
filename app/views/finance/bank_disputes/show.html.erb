@@ -1,0 +1,244 @@
+<% content_for :title, t("finance.bank_disputes.show.title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.bank_disputes.show.title") %></h1>
+      <p class="page-subtitle">
+        <%= l(@dispute.transaction_date, format: :long) %>
+        &middot; <%= @dispute.branch&.name || "—" %>
+      </p>
+    </div>
+    <div style="display: flex; gap: var(--space-2); align-items: center;">
+      <span class="badge" style="background: <%= bank_dispute_status_color(@dispute.status) %>; color: #fff;">
+        <%= t("finance.bank_disputes.statuses.#{@dispute.status}") %>
+      </span>
+      <% if @dispute.till_deposit.present? %>
+        <%= link_to t("shared.view"), till_deposit_path(@dispute.till_deposit), class: "btn btn-ghost" %>
+      <% elsif @dispute.daily_reconciliation.present? %>
+        <%= link_to t("shared.view"), finance_daily_reconciliation_path(@dispute.daily_reconciliation), class: "btn btn-ghost" %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if flash[:alert] %>
+    <div class="alert alert-danger" style="margin-bottom: var(--space-4);"><%= flash[:alert] %></div>
+  <% end %>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-6);">
+
+    <div class="card" style="padding: var(--space-6);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-4); color: var(--text-1);">
+        <%= t("finance.bank_disputes.show.transaction_section") %>
+      </h3>
+      <dl style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); font-size: var(--text-sm); margin: 0;">
+        <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.transaction_date") %></dt>
+        <dd><%= l(@dispute.transaction_date, format: :long) %></dd>
+
+        <% if @dispute.transaction_time.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.transaction_time") %></dt>
+          <dd><%= @dispute.transaction_time.strftime("%H:%M") %></dd>
+        <% end %>
+
+        <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.amount") %></dt>
+        <dd style="font-weight: 600; font-variant-numeric: tabular-nums;"><%= format_currency(@dispute.amount) %></dd>
+
+        <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.bank_name") %></dt>
+        <dd><%= @dispute.bank_name %></dd>
+
+        <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.terminal_id") %></dt>
+        <dd><code style="font-size: var(--text-xs);"><%= @dispute.terminal_id %></code></dd>
+
+        <% if @dispute.merchant_id.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.merchant_id") %></dt>
+          <dd><code style="font-size: var(--text-xs);"><%= @dispute.merchant_id %></code></dd>
+        <% end %>
+
+        <% if @dispute.card_last4.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.card_last4") %></dt>
+          <dd>•••• <%= @dispute.card_last4 %></dd>
+        <% end %>
+
+        <% if @dispute.reference_number.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.reference_number") %></dt>
+          <dd><code style="font-size: var(--text-xs);"><%= @dispute.reference_number %></code></dd>
+        <% end %>
+
+        <% if @dispute.stan.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.stan") %></dt>
+          <dd><code style="font-size: var(--text-xs);"><%= @dispute.stan %></code></dd>
+        <% end %>
+
+        <% if @dispute.authorization_code.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.authorization_code") %></dt>
+          <dd><code style="font-size: var(--text-xs);"><%= @dispute.authorization_code %></code></dd>
+        <% end %>
+
+        <% if @dispute.atm_location.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.atm_location") %></dt>
+          <dd><%= @dispute.atm_location %></dd>
+        <% end %>
+      </dl>
+
+      <% if @dispute.photos.attached? %>
+        <div style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border);">
+          <p style="font-size: var(--text-xs); font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 var(--space-2);">
+            <%= t("finance.bank_disputes.fields.photos") %>
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+            <% @dispute.photos.each do |photo| %>
+              <%= link_to rails_blob_path(photo, disposition: "attachment"), class: "btn btn-ghost btn-sm", target: "_blank", rel: "noopener" do %>
+                <%= photo.filename %>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="card" style="padding: var(--space-6);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-4); color: var(--text-1);">
+        <%= t("finance.bank_disputes.show.case_section") %>
+      </h3>
+      <dl style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); font-size: var(--text-sm); margin: 0 0 var(--space-5);">
+        <% if @dispute.bank_ticket_number.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.bank_ticket_number") %></dt>
+          <dd><code style="font-size: var(--text-xs);"><%= @dispute.bank_ticket_number %></code></dd>
+        <% end %>
+
+        <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.opened_at") %></dt>
+        <dd><%= l(@dispute.opened_at, format: :short) %></dd>
+
+        <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.opened_by") %></dt>
+        <dd><%= @dispute.opened_by.full_name %></dd>
+
+        <% if @dispute.notes.present? %>
+          <dt style="color: var(--text-3);"><%= t("finance.bank_disputes.fields.notes") %></dt>
+          <dd dir="auto"><%= @dispute.notes %></dd>
+        <% end %>
+      </dl>
+
+      <%# ── Next-transition actions — only the valid moves from the current
+          status are ever shown ──────────────────────────────────────────── %>
+      <% next_actions = [
+           { status: "submitted_to_bank",    policy: :submit_to_bank?,    route: submit_to_bank_finance_bank_dispute_path(@dispute),    fields: %i[bank_ticket_number notes] },
+           { status: "under_investigation",  policy: :start_investigation?, route: start_investigation_finance_bank_dispute_path(@dispute), fields: %i[notes] },
+           { status: "refunded",             policy: :refund?,            route: refund_finance_bank_dispute_path(@dispute),             fields: %i[notes] },
+           { status: "confirmed_successful", policy: :confirm_successful?, route: confirm_successful_finance_bank_dispute_path(@dispute), fields: %i[notes] },
+           { status: "rejected",             policy: :reject?,            route: reject_finance_bank_dispute_path(@dispute),             fields: %i[notes] },
+           { status: "closed",               policy: :close?,             route: close_finance_bank_dispute_path(@dispute),              fields: %i[notes] }
+         ].select { |a| policy(@dispute).public_send(a[:policy]) } %>
+
+      <% if next_actions.any? %>
+        <div style="display: flex; flex-direction: column; gap: var(--space-3); border-top: 1px solid var(--border); padding-top: var(--space-4);">
+          <% next_actions.each do |action| %>
+            <%= form_with url: action[:route], method: :patch, local: true do |f| %>
+              <% if action[:fields].include?(:bank_ticket_number) %>
+                <div class="form-group">
+                  <%= f.label :bank_ticket_number, t("finance.bank_disputes.fields.bank_ticket_number"), class: "form-label" %>
+                  <%= f.text_field :bank_ticket_number, class: "form-control" %>
+                </div>
+              <% end %>
+              <div class="form-group">
+                <%= f.label :notes, t("finance.bank_disputes.fields.notes"), class: "form-label" %>
+                <%= f.text_area :notes, class: "form-control", rows: 2, dir: "auto" %>
+              </div>
+              <%= f.submit t("finance.bank_disputes.actions.#{action[:status]}"), class: "btn btn-primary btn-sm" %>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+  </div>
+
+  <%# ── Confirm & Record Deposit — only when the bank has confirmed success
+      and no TillDeposit has been created from this dispute yet. Deliberately
+      a separate, explicit action rather than automatic on status change. ── %>
+  <% if policy(@dispute).confirm_deposit? %>
+    <div class="card" style="padding: var(--space-6); margin-bottom: var(--space-4); border: 2px solid var(--success,#16a34a);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-2); color: var(--text-1);">
+        <%= t("finance.bank_disputes.show.confirm_deposit_title") %>
+      </h3>
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 var(--space-4);">
+        <%= t("finance.bank_disputes.show.confirm_deposit_hint") %>
+      </p>
+      <%= form_with url: confirm_deposit_finance_bank_dispute_path(@dispute), method: :patch, local: true do |f| %>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-3);">
+          <div class="form-group">
+            <%= f.label :payment_method_id, t("finance.bank_disputes.show.payment_method_label"), class: "form-label" %>
+            <%= f.select :payment_method_id,
+                  business_payment_methods.select(&:cash_like?).map { |pm| [ pm.display_name, pm.id ] },
+                  {}, class: "form-control", required: true %>
+          </div>
+          <div class="form-group">
+            <%= f.label :amount, t("finance.bank_disputes.fields.amount"), class: "form-label" %>
+            <%= f.number_field :amount, step: "0.01", class: "form-control", value: @dispute.amount %>
+          </div>
+        </div>
+        <%= f.submit t("finance.bank_disputes.show.confirm_deposit_button"), class: "btn btn-primary" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Case Management — accountant-tier updates: bank ticket number, a
+      categorized case note, and additional photo evidence. Available on any
+      open (not-yet-closed) dispute regardless of status. ── %>
+  <% if policy(@dispute).update_case? %>
+    <div class="card" style="padding: var(--space-6); margin-bottom: var(--space-4);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-4); color: var(--text-1);">
+        <%= t("finance.bank_disputes.show.case_management_title") %>
+      </h3>
+      <%= form_with url: update_case_finance_bank_dispute_path(@dispute), method: :patch,
+            local: true, multipart: true do |f| %>
+        <div class="form-group">
+          <%= f.label :bank_ticket_number, t("finance.bank_disputes.fields.bank_ticket_number"), class: "form-label" %>
+          <%= f.text_field :bank_ticket_number, class: "form-control", value: @dispute.bank_ticket_number %>
+        </div>
+        <div class="form-group">
+          <%= label_tag :case_note_category, t("finance.bank_disputes.show.case_note_category_label"), class: "form-label" %>
+          <%= select_tag :case_note_category,
+                options_for_select(Finance::BankDisputes::CaseUpdater::CASE_NOTE_CATEGORIES.map { |c|
+                  [ t("finance.bank_disputes.case_note_categories.#{c}"), c ]
+                }),
+                include_blank: true, class: "form-control" %>
+        </div>
+        <div class="form-group">
+          <%= label_tag :case_note, t("finance.bank_disputes.show.case_note_label"), class: "form-label" %>
+          <%= text_area_tag :case_note, nil, class: "form-control", rows: 2, dir: "auto" %>
+        </div>
+        <div class="form-group">
+          <%= label_tag "photos", t("finance.bank_disputes.fields.photos"), class: "form-label" %>
+          <%= file_field_tag "photos[]", multiple: true, accept: "image/*,application/pdf", class: "form-control" %>
+        </div>
+        <%= f.submit t("finance.bank_disputes.show.case_update_button"), class: "btn btn-secondary" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── History ────────────────────────────────────────────────────────── %>
+  <% if @audit_logs.any? %>
+    <div class="card" style="padding: var(--space-6);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-5); color: var(--text-1);">
+        <%= t("finance.bank_disputes.show.timeline_title") %>
+      </h3>
+      <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+        <% @audit_logs.each do |log| %>
+          <div style="display: flex; gap: var(--space-2); align-items: baseline; flex-wrap: wrap; font-size: var(--text-sm);">
+            <span style="font-weight: 600;">
+              <%= t("finance.bank_disputes.timeline.#{log.action}", default: log.action.to_s.humanize) %>
+            </span>
+            <% if log.actor %>
+              <span style="color: var(--text-3); font-size: var(--text-xs);">
+                <%= t("finance.bank_statement_transactions.show.timeline_by", name: log.actor.full_name) %>
+              </span>
+            <% end %>
+            <span style="color: var(--text-3); font-size: var(--text-xs);"><%= l(log.created_at, format: :short) %></span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+</div>

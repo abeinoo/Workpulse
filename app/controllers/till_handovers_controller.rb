@@ -250,12 +250,25 @@ class TillHandoversController < ApplicationController
                          .where.not(user_id: current_user.id)
                          .pluck(:user_id)
 
-    current_user.business.users
-                .active
-                .includes(:permission_role)
-                .where(id: ids)
-                .order(:first_name)
-                .select { |u| u.can?(:accept_till_handover) }
+    scope = current_user.business.users
+                        .active
+                        .includes(:permission_role)
+                        .where(id: ids)
+                        .order(:first_name)
+
+    # Users with organization-wide DR authority (Super Admin, or any role
+    # explicitly scoped business-wide on view_daily_reconciliation — the same
+    # umbrella permission Finance::DailyReconciliationsController already
+    # treats as "reaches every branch") may hand the cashier over to any
+    # active employee in the branch — the accept_till_handover permission
+    # filter only applies to ordinary branch-scoped users.
+    return scope.to_a if business_wide_dr_access?
+
+    scope.select { |u| u.can?(:accept_till_handover) }
+  end
+
+  def business_wide_dr_access?
+    current_user.owner? || current_user.scope_for(:view_daily_reconciliation) == "business"
   end
 
   def handover_params

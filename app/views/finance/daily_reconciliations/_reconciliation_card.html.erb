@@ -1,0 +1,266 @@
+<%#
+  Redesigned per-DR workspace card. Locals: dr, can_bulk_settle, show_verification.
+  All figures come from already-loaded associations / DailyReconciliation
+  model methods — this partial only formats and lays them out.
+%>
+<%
+  session     = dr.till_session
+  holder      = session&.current_holder
+  depositor   = session&.depositor
+  outstanding = dr.remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
+  has_balance = outstanding > 0
+
+  bank_status = show_verification ? @bank_statuses_by_dr[dr] : nil
+  stages      = show_verification ? @workflow_stages_by_dr[dr] : nil
+  open_disputes = show_verification ?
+    dr.open_bank_disputes(preloaded_till_deposits: dr.till_deposits.select(&:active?)) : []
+
+  status_color =
+    if dr.verified?           then 'var(--success-rgb)'
+    elsif dr.deposited?        then 'var(--accent-rgb)'
+    elsif dr.waiting_for_opening? then 'var(--warning-rgb)'
+    elsif dr.open?             then 'var(--accent-rgb)'
+    elsif outstanding > 0      then 'var(--warning-rgb)'
+    else                            'var(--text-3-rgb, 100,116,139)'
+    end
+
+  # Quick action — one per bank status, reusing existing routes/pages only.
+  quick_action =
+    case bank_status
+    when "waiting_for_deposit"
+      if session&.depositor_id == current_user.id && dr.reviewed?
+        { label: t("finance.daily_reconciliations.index.workspace.quick_actions.record_deposit"),
+          url: new_till_deposit_path(daily_reconciliation_id: dr.id) }
+      end
+    when "waiting_for_bank_statement"
+      if current_user.can?(:manage_pos_import)
+        { label: t("finance.daily_reconciliations.index.workspace.quick_actions.import_statement"),
+          url: new_finance_bank_statement_path }
+      end
+    when "needs_review"
+      { label: t("finance.daily_reconciliations.index.workspace.quick_actions.review_matches"),
+        url: finance_deposit_verifications_path(tab: "needs_review") }
+    when "waiting_for_matching", "difference_found"
+      { label: t("finance.daily_reconciliations.index.workspace.quick_actions.review_matches"),
+        url: finance_daily_reconciliation_path(dr, anchor: "bank-deposits") }
+    when "partially_matched"
+      { label: t("finance.daily_reconciliations.index.workspace.quick_actions.verify_deposits"),
+        url: finance_daily_reconciliation_path(dr, anchor: "bank-deposits") }
+    end
+  quick_action ||= { label: t("finance.daily_reconciliations.index.workspace.quick_actions.open_details"),
+                      url: finance_daily_reconciliation_path(dr) }
+%>
+
+<div class="dr-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+  <div style="display: flex; align-items: stretch;">
+
+    <%# Status stripe %>
+    <div style="width: 4px; background: rgba(<%= status_color %>, 0.5); flex-shrink: 0; border-radius: var(--radius-lg) 0 0 var(--radius-lg);"></div>
+
+    <div style="flex: 1; padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); min-width: 0;">
+
+      <div style="display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;">
+
+        <%# Checkboxes: existing settle-checkbox (outstanding balances only)
+            plus the new general bulk-action checkbox (workspace actions). ── %>
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 4px;">
+          <% if has_balance && can_bulk_settle %>
+            <input type="checkbox"
+                   class="dr-settle-checkbox"
+                   data-dr-id="<%= dr.id %>"
+                   data-amount="<%= outstanding %>"
+                   style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--warning, #ca8a04);"
+                   aria-label="<%= t('finance.daily_reconciliations.index.select_settle_dr', date: dr.business_date ? l(dr.business_date, format: :short) : '—', branch: dr.branch.name) %>">
+          <% end %>
+          <% if show_verification %>
+            <input type="checkbox"
+                   class="dr-bulk-checkbox"
+                   data-dr-id="<%= dr.id %>"
+                   data-branch-id="<%= dr.branch_id %>"
+                   data-business-date="<%= dr.business_date&.iso8601 %>"
+                   style="width: 16px; height: 16px; cursor: pointer;"
+                   aria-label="<%= dr.branch.name %> — <%= dr.business_date&.iso8601 %>">
+          <% end %>
+        </div>
+
+        <%# Branch + Business Date %>
+        <div style="min-width: 140px; flex: 0 0 140px;">
+          <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1);">
+            <%= dr.branch.name %>
+          </span>
+          <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+            <%= dr.business_date ? l(dr.business_date, format: :short) : l(dr.opened_at.to_date, format: :short) %>
+          </p>
+        </div>
+
+        <%# DR-state status (unchanged) %>
+        <div style="flex: 1; min-width: 200px;">
+          <% if dr.waiting_for_opening? %>
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning,#ca8a04)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span style="font-size: var(--text-sm); font-weight: 600; color: var(--warning,#ca8a04);">
+                <%= t("finance.daily_reconciliations.index.status_awaiting_opening") %>
+              </span>
+            </div>
+            <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-1) 0 0;">
+              <%= t("finance.daily_reconciliations.index.awaiting_opening_hint") %>
+            </p>
+
+          <% elsif dr.open? %>
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+              <span class="badge badge-success"><%= t("finance.daily_reconciliations.index.status_open") %></span>
+            </div>
+            <% if holder %>
+              <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+                <%= t("finance.daily_reconciliations.index.held_by", name: holder.full_name) %>
+              </p>
+            <% end %>
+
+          <% elsif dr.closed? %>
+            <% if !dr.reviewed? %>
+              <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_waiting_branch_review") %></span>
+            <% else %>
+              <span class="badge badge-neutral"><%= t("finance.daily_reconciliations.index.status_awaiting_deposit") %></span>
+            <% end %>
+            <% if depositor %>
+              <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+                <%= t("finance.daily_reconciliations.index.depositor_label", name: depositor.full_name) %>
+              </p>
+            <% end %>
+
+          <% elsif dr.deposited? %>
+            <span class="badge badge-accent"><%= t("finance.daily_reconciliations.index.status_ready_for_verify") %></span>
+
+          <% elsif dr.verified? %>
+            <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 4px;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              <%= t("finance.daily_reconciliations.index.status_verified") %>
+            </span>
+          <% end %>
+        </div>
+
+        <%# Bank reconciliation status badge + per-row progress ── %>
+        <% if show_verification %>
+          <% color = bank_reconciliation_status_color(bank_status) %>
+          <%= link_to finance_daily_reconciliation_path(dr, anchor: "bank-deposits"),
+                style: "display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: 600; padding: 3px 8px; border-radius: 999px; text-decoration: none; white-space: nowrap; color: #{color}; background: var(--bg-2); border: 1px solid var(--border);" do %>
+            <%= t("finance.daily_reconciliations.index.bank_status.#{bank_status}") %>
+          <% end %>
+
+          <%
+            matched_count = dr.bank_reconciliation_deposits_matched_count
+            total_count   = dr.bank_reconciliation_deposits_total_count
+          %>
+          <% if total_count.positive? %>
+            <span style="font-size: 10px; color: <%= matched_count == total_count ? 'var(--success,#16a34a)' : 'var(--text-3)' %>; white-space: nowrap;">
+              <%= t("finance.daily_reconciliations.index.bank_status_progress.#{matched_count == total_count ? 'complete' : 'pending'}",
+                    matched: matched_count, total: total_count) %>
+            </span>
+          <% end %>
+
+          <% if open_disputes.any? %>
+            <span class="badge" style="background: var(--warning,#ca8a04); color: #fff; font-size: 10px;">
+              <%= t("finance.bank_disputes.badge_label") %> · <%= open_disputes.size %>
+            </span>
+          <% end %>
+        <% end %>
+
+        <%# Quick action + View link %>
+        <div style="flex: 0 0 auto; margin-inline-start: auto; display: flex; gap: var(--space-2);">
+          <% if show_verification %>
+            <p style="font-size: 10px; color: var(--text-3); margin: 0; align-self: center;">
+              <%= t("finance.daily_reconciliations.index.workspace.card_action_label") %>
+            </p>
+            <%= link_to quick_action[:label], quick_action[:url],
+                  class: "btn btn-primary btn-sm" %>
+          <% end %>
+          <%= link_to finance_daily_reconciliation_path(dr),
+                style: "display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-sm); font-weight: 500; color: var(--accent); text-decoration: none; padding: var(--space-2) var(--space-3); border-radius: var(--radius); border: 1px solid rgba(var(--accent-rgb), 0.25); background: rgba(var(--accent-rgb), 0.06);" do %>
+            <%= t("finance.daily_reconciliations.index.view") %>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Outstanding balance breakdown — always visible when present %>
+      <% if outstanding > 0 %>
+        <%
+          open_rdbs       = dr.remaining_deposit_balances.select(&:open?)
+          cashier_shorts  = open_rdbs
+                              .group_by { |rdb| rdb.responsible_user }
+                              .map       { |user, rdbs| [user, rdbs.sum(&:remaining_amount)] }
+                              .sort_by   { |_, amt| -amt }
+          visible_shorts  = cashier_shorts.first(3)
+          hidden_count    = cashier_shorts.size - visible_shorts.size
+        %>
+        <div style="display: inline-flex; flex-direction: column; align-items: flex-start; padding: var(--space-2) var(--space-3); background: rgba(var(--warning-rgb,234,179,8),0.08); border: 1px solid rgba(var(--warning-rgb,234,179,8),0.3); border-radius: var(--radius); gap: 2px; align-self: flex-start;">
+          <div style="display: flex; align-items: baseline; gap: var(--space-2); white-space: nowrap;">
+            <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--warning,#ca8a04);">
+              <%= t("finance.daily_reconciliations.index.outstanding_label") %>
+            </span>
+            <span style="font-size: var(--text-sm); font-weight: 700; color: var(--warning,#ca8a04); font-variant-numeric: tabular-nums;">
+              <%= format_currency(outstanding) %>
+            </span>
+          </div>
+          <% visible_shorts.each do |user, amt| %>
+            <div style="display: flex; align-items: baseline; gap: var(--space-3);">
+              <span style="font-size: 10px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;" title="<%= user&.full_name %>">
+                <%= user&.full_name %>
+              </span>
+              <span style="font-size: 10px; font-weight: 600; color: var(--danger,#dc2626); font-variant-numeric: tabular-nums; white-space: nowrap;">
+                −<%= format_currency(amt) %>
+              </span>
+            </div>
+          <% end %>
+          <% if hidden_count > 0 %>
+            <span style="font-size: 10px; color: var(--text-3);">
+              +<%= hidden_count %> <%= t("finance.daily_reconciliations.index.outstanding_more", count: hidden_count) %>
+            </span>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%# Amount fields + workflow timeline — only for users who can see bank verification. ── %>
+      <% if show_verification %>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: var(--space-3); padding: var(--space-3); background: var(--surface-2); border-radius: var(--radius);">
+          <div>
+            <p style="font-size: 10px; color: var(--text-3); margin: 0;"><%= t("finance.daily_reconciliations.index.workspace.card_expected") %></p>
+            <p style="font-size: var(--text-sm); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0;"><%= format_currency(dr.expected_cash_deposit) %></p>
+          </div>
+          <div>
+            <p style="font-size: 10px; color: var(--text-3); margin: 0;"><%= t("finance.daily_reconciliations.index.workspace.card_deposited") %></p>
+            <p style="font-size: var(--text-sm); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: var(--success);"><%= format_currency(dr.total_deposited) %></p>
+          </div>
+          <div>
+            <p style="font-size: 10px; color: var(--text-3); margin: 0;"><%= t("finance.daily_reconciliations.index.workspace.card_matched") %></p>
+            <p style="font-size: var(--text-sm); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: #3b82f6;"><%= format_currency(dr.total_matched_amount) %></p>
+          </div>
+          <div>
+            <p style="font-size: 10px; color: var(--text-3); margin: 0;"><%= t("finance.daily_reconciliations.index.workspace.card_remaining") %></p>
+            <p style="font-size: var(--text-sm); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: <%= dr.pending_deposit_amount.positive? ? 'var(--warning,#ca8a04)' : 'var(--text-3)' %>;"><%= format_currency(dr.pending_deposit_amount) %></p>
+          </div>
+          <div>
+            <p style="font-size: 10px; color: var(--text-3); margin: 0;"><%= t("finance.daily_reconciliations.index.workspace.card_outstanding") %></p>
+            <p style="font-size: var(--text-sm); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: <%= outstanding.positive? ? 'var(--warning,#ca8a04)' : 'var(--text-3)' %>;"><%= format_currency(outstanding) %></p>
+          </div>
+        </div>
+
+        <%# Compact workflow timeline — highlights stages reached so far. %>
+        <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+          <% DailyReconciliation::WORKFLOW_STAGES.each_with_index do |stage, i| %>
+            <%
+              reached = stages.include?(stage)
+              is_current = stages.last == stage
+            %>
+            <span style="font-size: 10px; font-weight: <%= is_current ? '700' : '500' %>; color: <%= reached ? (is_current ? 'var(--accent)' : 'var(--text-2)') : 'var(--text-3)' %>; white-space: nowrap;">
+              <%= t("finance.daily_reconciliations.index.workspace.workflow_stages.#{stage}") %>
+            </span>
+            <% unless i == DailyReconciliation::WORKFLOW_STAGES.size - 1 %>
+              <span style="color: var(--text-3); font-size: 10px;">→</span>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

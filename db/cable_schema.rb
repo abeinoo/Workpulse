@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_24_110200) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_25_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -167,6 +167,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_110200) do
     t.index ["created_by_id"], name: "index_balance_requests_on_created_by_id"
     t.index ["paid_by_id"], name: "index_balance_requests_on_paid_by_id"
     t.index ["reference_number"], name: "index_balance_requests_on_reference_number", unique: true, where: "(reference_number IS NOT NULL)"
+  end
+
+  create_table "bank_disputes", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.string "atm_location"
+    t.string "authorization_code"
+    t.string "bank_name", null: false
+    t.string "bank_ticket_number"
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.string "card_last4", limit: 4
+    t.datetime "created_at", null: false
+    t.bigint "daily_reconciliation_id"
+    t.string "kind", default: "missing_from_bank", null: false
+    t.string "merchant_id"
+    t.text "notes"
+    t.datetime "opened_at", null: false
+    t.bigint "opened_by_id", null: false
+    t.string "reference_number"
+    t.string "stan"
+    t.string "status", default: "new", null: false
+    t.string "terminal_id", null: false
+    t.bigint "till_deposit_id"
+    t.date "transaction_date", null: false
+    t.time "transaction_time"
+    t.datetime "updated_at", null: false
+    t.index ["branch_id"], name: "index_bank_disputes_on_branch_id"
+    t.index ["business_id"], name: "index_bank_disputes_on_business_id"
+    t.index ["daily_reconciliation_id"], name: "index_bank_disputes_on_daily_reconciliation_id"
+    t.index ["kind"], name: "index_bank_disputes_on_kind"
+    t.index ["opened_by_id"], name: "index_bank_disputes_on_opened_by_id"
+    t.index ["status"], name: "index_bank_disputes_on_status"
+    t.index ["till_deposit_id", "status"], name: "index_bank_disputes_on_till_deposit_id_and_status"
+    t.index ["till_deposit_id"], name: "index_bank_disputes_on_till_deposit_id"
   end
 
   create_table "bank_statement_transactions", force: :cascade do |t|
@@ -2065,6 +2099,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_24_110200) do
   add_foreign_key "balance_requests", "users", column: "cancelled_by_id"
   add_foreign_key "balance_requests", "users", column: "created_by_id"
   add_foreign_key "balance_requests", "users", column: "paid_by_id"
+  add_foreign_key "bank_disputes", "branches"
+  add_foreign_key "bank_disputes", "businesses"
+  add_foreign_key "bank_disputes", "daily_reconciliations"
+  add_foreign_key "bank_disputes", "till_deposits"
+  add_foreign_key "bank_disputes", "users", column: "opened_by_id"
   add_foreign_key "bank_statement_transactions", "bank_statements"
   add_foreign_key "bank_statement_transactions", "businesses"
   add_foreign_key "bank_statements", "branches"

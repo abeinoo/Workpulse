@@ -8,6 +8,7 @@ class TillDeposit < ApplicationRecord
 
   has_many :deposit_matches, dependent: :destroy
   has_many :bank_statement_transactions, through: :deposit_matches
+  has_many :bank_disputes, dependent: :restrict_with_error
 
   # Deposits still eligible to receive another matched bank transaction —
   # i.e. not yet fully (or over-) matched. Used to offer a deposit as a valid
@@ -30,6 +31,15 @@ class TillDeposit < ApplicationRecord
 
   # Sum of every matched bank transaction's contribution toward this deposit.
   def matched_total = deposit_matches.sum(:matched_amount)
+
+  # The active bank dispute case, if any — a resolved dispute (refunded,
+  # confirmed successful, rejected, or closed) no longer counts, since the
+  # outcome is known and the deposit is no longer "at risk". Filters the
+  # loaded association in Ruby (rather than a new `.where` query) so this
+  # stays N+1-safe when `bank_disputes` is preloaded across a list of deposits.
+  def open_bank_dispute
+    bank_disputes.reject(&:resolved?).max_by(&:created_at)
+  end
 
   # :unmatched | :partially_matched | :fully_matched | :over_matched — derived
   # from the running total, never stored, so it's always correct regardless

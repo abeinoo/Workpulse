@@ -12,6 +12,7 @@ RSpec.describe TillHandoverPolicy do
   let(:sender)   { user_with("view_daily_reconciliation", "reverse_till_handover", "close_till_session") }
   let(:receiver) { user_with("view_daily_reconciliation", "reverse_till_handover", "accept_till_handover") }
   let(:third)    { user_with("view_daily_reconciliation", "reverse_till_handover") }
+  let(:owner)    { create(:user, business: business).tap { |u| business.update!(owner: u) } }
 
   let(:dr) do
     DailyReconciliation.create!(
@@ -74,6 +75,25 @@ RSpec.describe TillHandoverPolicy do
     end
   end
 
+  describe "#accept?" do
+    let!(:pending_handover) do
+      TillHandover.create!(daily_reconciliation: dr, from_user: sender, to_user: receiver,
+                            self_deposit: false, fresha_date: dr.business_date)
+    end
+
+    it "allows the intended recipient" do
+      expect(described_class.new(receiver, pending_handover).accept?).to be true
+    end
+
+    it "blocks an unrelated employee" do
+      expect(described_class.new(third, pending_handover).accept?).to be false
+    end
+
+    it "allows the business owner even though the handover is addressed to someone else" do
+      expect(described_class.new(owner, pending_handover).accept?).to be true
+    end
+  end
+
   describe "#cancel? / #reject?" do
     let(:no_perm_sender) { create(:user, business: business) }
 
@@ -131,6 +151,10 @@ RSpec.describe TillHandoverPolicy do
       it "blocks it once the handover has been accepted" do
         pending_handover.update!(accepted_at: Time.current)
         expect(described_class.new(receiver, pending_handover).reject?).to be false
+      end
+
+      it "allows the business owner even though the handover is addressed to someone else" do
+        expect(described_class.new(owner, pending_handover).reject?).to be true
       end
     end
   end

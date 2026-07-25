@@ -129,6 +129,37 @@ RSpec.describe Finance::TillHandoverCreator, type: :model do
     end
   end
 
+  describe "self-deposit (Day Close) custody gate" do
+    it "blocks a non-owner from closing the day when someone else currently holds the till" do
+      bystander = create(:user, business: business)
+      till_session.update!(current_holder: receiver)
+
+      result = described_class.new(
+        actor: bystander, daily_reconciliation_id: dr.id,
+        params: { self_deposit: "1", depositor_type: "self",
+                  amounts: { cash_pm.id.to_s => { collected_amount: "100", refund_amount: "0" } } }
+      ).call
+
+      expect(result.ok?).to be false
+      expect(result.error).to eq(I18n.t("till_handovers.errors.cannot_close_session"))
+    end
+
+    it "allows the business owner to close the day even when someone else currently holds the till" do
+      owner = create(:user, :owner, business: business)
+      till_session.update!(current_holder: receiver)
+
+      result = described_class.new(
+        actor: owner, daily_reconciliation_id: dr.id,
+        params: { self_deposit: "1", depositor_type: "self",
+                  amounts: { cash_pm.id.to_s => { collected_amount: "100", refund_amount: "0" } } }
+      ).call
+
+      expect(result.ok?).to be true
+      expect(dr.reload.state).to eq("closed")
+      expect(till_session.reload.depositor).to eq(owner)
+    end
+  end
+
   describe "Branch Review invalidation" do
     before do
       role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}",

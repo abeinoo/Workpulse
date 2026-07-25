@@ -27,7 +27,8 @@ module Finance
                     .where(daily_reconciliations: { business_id: @actor.business_id })
                     .find(@handover_id)
 
-      unless @handover.to_user_id == @actor.id
+      # Super Admin (business owner) is never blocked by recipient assignment.
+      unless @actor.owner? || @handover.to_user_id == @actor.id
         return Result.new(ok: false, error: I18n.t("till_handovers.errors.wrong_recipient"))
       end
 

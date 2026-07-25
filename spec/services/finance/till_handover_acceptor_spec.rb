@@ -50,6 +50,14 @@ RSpec.describe Finance::TillHandoverAcceptor, type: :model do
       expect(till_session.reload.current_holder).to eq(sender)
     end
 
+    it "allows the business owner to accept a handover addressed to someone else" do
+      owner = create(:user, :owner, business: business)
+      result = accept(actor: owner)
+      expect(result.ok?).to be true
+      expect(handover.reload.accepted?).to be true
+      expect(till_session.reload.current_holder).to eq(owner)
+    end
+
     it "rejects double-accept (idempotency / double-submit safety)" do
       accept
       result = accept

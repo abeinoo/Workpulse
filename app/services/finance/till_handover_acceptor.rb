@@ -23,7 +23,10 @@ module Finance
                     .includes(daily_reconciliation: :till_session)
                     .find(@handover_id)
 
-      return Result.new(ok: false, error: I18n.t("till_handovers.errors.wrong_recipient")) unless @handover.to_user_id == @actor.id
+      # Super Admin (business owner) is never blocked by recipient assignment.
+      unless @actor.owner? || @handover.to_user_id == @actor.id
+        return Result.new(ok: false, error: I18n.t("till_handovers.errors.wrong_recipient"))
+      end
 
       # The pending? re-check and the mutation both happen inside the row lock
       # so a concurrent cancel/reject/accept on the same handover can never

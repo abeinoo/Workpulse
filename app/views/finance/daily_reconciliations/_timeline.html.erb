@@ -39,7 +39,7 @@
                                            review_completed review_cancelled review_auto_cancelled] },
           { key: :deposit,       types: %i[deposit_accepted deposit_recorded deposit_voided deposit_review_overridden
                                             remaining_created remaining_settled remaining_reassigned
-                                            remaining_written_off remaining_adjusted] },
+                                            remaining_written_off remaining_adjusted bank_dispute_activity] },
           { key: :session_edit,  types: %i[session_totals_edited day_close_edited] },
           { key: :verification,  types: %i[day_verified] },
         ]
@@ -194,6 +194,11 @@
           deposit_review_overridden: {
             dot: "var(--danger,#dc2626)", lbl: "label_deposit_review_overridden",
             lc: "var(--danger,#dc2626)", lb: "rgba(220,38,38,0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+          },
+          bank_dispute_activity: {
+            dot: "var(--warning,#ca8a04)", lbl: "label_bank_dispute_activity",
+            lc: "var(--warning,#ca8a04)", lb: "rgba(202,138,4,0.10)",
             icon: '<path stroke-linecap="round" stroke-linejoin="round" d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
           },
         }
@@ -1420,6 +1425,29 @@
                         </div>
                       <% end %>
                     </div>
+
+                  <% when :bank_dispute_activity %>
+                    <% log = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0;">
+                      <%= t("finance.bank_disputes.timeline.#{log.action}", default: log.action.to_s.humanize) %>
+                      <% if log.actor %>
+                        <span style="font-weight: 400; color: var(--text-3);">
+                          — <%= item[:actor]&.full_name %>
+                        </span>
+                      <% end %>
+                    </p>
+                    <% if log.metadata&.[]("note").present? %>
+                      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0; font-style: italic;" dir="auto">
+                        <% if log.metadata["category"].present? %>
+                          <strong><%= t("finance.bank_disputes.case_note_categories.#{log.metadata['category']}", default: log.metadata["category"]) %>:</strong>
+                        <% end %>
+                        <%= log.metadata["note"] %>
+                      </p>
+                    <% elsif log.metadata&.[]("bank_ticket_number").present? %>
+                      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+                        <code><%= log.metadata["bank_ticket_number"] %></code>
+                      </p>
+                    <% end %>
 
                   <% when :review_completed %>
                     <% log = item[:data] %>

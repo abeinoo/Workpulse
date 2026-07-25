@@ -12,10 +12,14 @@
       </p>
     </div>
     <% if @can_view_deposit_verification %>
+      <%# Uses the actual deposit date(s) (@deposit_verification_from/_to,
+          derived in the controller from active deposits) rather than the
+          DR's own business date, so a deposit recorded on a different day
+          than the DR is still visible on arrival. %>
       <%= link_to t("finance.daily_reconciliations.show.sections.bank.view_verification"),
             finance_deposit_verifications_path(branch_id: @reconciliation.branch_id,
-                                               from: @reconciliation.business_date,
-                                               to: @reconciliation.business_date),
+                                               from: @deposit_verification_from,
+                                               to: @deposit_verification_to),
             class: "btn btn-ghost btn-sm" %>
     <% end %>
   </div>
@@ -54,6 +58,52 @@
       </div>
     <% end %>
 
+    <%# ── Report ATM Deposit Problem / direct (no-deposit-yet) disputes ────
+        Always rendered, independent of whether any TillDeposit exists yet —
+        an ATM/POS "failed deposit" is reported instead of a deposit, so a DR
+        with zero deposits can still have an open dispute here. ── %>
+    <%
+      # Only available once Branch Review is complete — same rule as Record
+      # Deposit: the review is the approval that the expected cash amount is
+      # final, so nothing banking-related should be actionable before that.
+      can_report_atm_dispute = @reconciliation.reviewed? &&
+                               policy(BankDispute.new(daily_reconciliation: @reconciliation)).create?
+      direct_disputes        = @reconciliation.bank_disputes.reject(&:resolved?)
+    %>
+    <% if can_report_atm_dispute %>
+      <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); background: var(--surface-2); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);">
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+          <%= t("finance.daily_reconciliations.show.sections.bank.atm_problem_hint") %>
+        </p>
+        <%= link_to new_finance_bank_dispute_path(daily_reconciliation_id: @reconciliation.id),
+              class: "btn btn-warning btn-sm",
+              data: { turbo_frame: "modal" } do %>
+          ⚠ <%= t("till_deposits.new.report_atm_problem") %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% direct_disputes.each do |dispute| %>
+      <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);">
+          <div>
+            <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0 0 2px;">
+              <%= t("finance.bank_disputes.dr_section.atm_reported_by", name: dispute.opened_by.full_name) %>
+            </p>
+            <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+              <%= l(dispute.transaction_date, format: :long) %>
+            </p>
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--space-3);">
+            <span style="font-size: var(--text-sm); font-weight: 600; font-variant-numeric: tabular-nums;">
+              <%= format_currency(dispute.amount) %>
+            </span>
+            <%= render "finance/bank_disputes/badge", reconciliation: @reconciliation %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
     <%# ── Recorded deposits list (with void actions) ─────────────────────
         Iterates @all_deposits (includes voided, already eager-loaded with
         payment_method/deposited_by/voided_by in the controller) so a voided
@@ -75,7 +125,7 @@
         latest_voided_by_pm = @all_deposits.select(&:voided?)
                                             .group_by(&:payment_method_id)
                                             .transform_values { |ds| ds.max_by(&:voided_at) }
-        can_create_deposit  = @i_am_depositor &&
+        can_create_deposit  = @i_am_depositor && @reconciliation.reviewed? &&
                               (@reconciliation.closed? || @reconciliation.deposited?) &&
                               policy(TillDeposit.new(daily_reconciliation: @reconciliation)).create?
       %>
@@ -87,6 +137,9 @@
                 <%= deposit.payment_method.display_name %>
                 <% if deposit.voided? %>
                   <span class="badge badge-danger" style="margin-inline-start: var(--space-2);"><%= t("finance.daily_reconciliations.show.sections.bank.voided_badge") %></span>
+                <% end %>
+                <% if deposit.open_bank_dispute %>
+                  <span style="margin-inline-start: var(--space-2);"><%= render "finance/bank_disputes/badge", deposit: deposit %></span>
                 <% end %>
               </p>
               <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
@@ -133,6 +186,14 @@
                     data: { turbo_frame: "modal" } do %>
                   <%= t("finance.daily_reconciliations.show.sections.bank.correct_deposit_action") %>
                 <% end %>
+              <% end %>
+
+              <% if deposit.active? && deposit.bank_statement_transactions.empty? && deposit.open_bank_dispute.blank? &&
+                    policy(BankDispute.new(till_deposit: deposit)).create? %>
+                <%= link_to t("finance.bank_disputes.report_button"),
+                      new_finance_bank_dispute_path(till_deposit_id: deposit.id),
+                      class: "btn btn-warning btn-sm",
+                      data: { turbo_frame: "modal" } %>
               <% end %>
             </div>
           </div>

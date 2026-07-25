@@ -133,7 +133,7 @@ class Finance::DepositVerificationsController < Finance::BaseController
                  .left_joins(:bank_statement_transactions)
                  .distinct
                  .includes(:payment_method, :deposited_by,
-                           :bank_statement_transactions,
+                           :bank_statement_transactions, :bank_disputes,
                            daily_reconciliation: :branch)
                  .order(deposited_at: :desc)
 
@@ -144,7 +144,7 @@ class Finance::DepositVerificationsController < Finance::BaseController
 
   def load_missing_deposits
     deposits = missing_deposits_scope
-                 .includes(:payment_method, :deposited_by,
+                 .includes(:payment_method, :deposited_by, :bank_disputes,
                            daily_reconciliation: :branch)
                  .order(deposited_at: :desc)
 
