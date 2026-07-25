@@ -63,16 +63,17 @@
       </div>
     <% end %>
 
-    <%# ── Branch Review override (only reachable at all when the actor holds
+    <%# ── Deposit-lock override (only reachable at all when the actor holds
          override_review_requirement — TillDepositPolicy#create? blocks anyone
-         else from opening this form while unreviewed) ──────────────────── %>
-    <% unless @reconciliation.reviewed? %>
+         else from opening this form once the Branch Manager has already
+         approved the deposit) ──────────────────────────────────────────── %>
+    <% if @reconciliation.reviewed? %>
       <div style="background: rgba(var(--danger-rgb,220,38,38), 0.07); border: 1.5px solid rgba(var(--danger-rgb,220,38,38), 0.30); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-4);">
         <p style="font-size: var(--text-sm); font-weight: 700; color: var(--danger,#dc2626); margin: 0 0 var(--space-1);">
-          <%= t("till_deposits.new.review_required_title") %>
+          <%= t("till_deposits.new.deposit_locked_title") %>
         </p>
         <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0 0 var(--space-3);">
-          <%= t("till_deposits.errors.review_required") %>
+          <%= t("till_deposits.errors.deposit_locked") %>
         </p>
         <label style="display: block; font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: var(--space-2);">
           <%= t("till_deposits.new.override_reason_label") %>
@@ -234,7 +235,7 @@
       Reported directly from this same dialog, opens a BankDispute case
       instead of saving a deposit — never creates a TillDeposit. Swaps this
       modal's content to the ATM-report form rather than leaving the page. ── %>
-  <% if @reconciliation.reviewed? && policy(BankDispute.new(daily_reconciliation: @reconciliation)).create? %>
+  <% if policy(BankDispute.new(daily_reconciliation: @reconciliation)).create? %>
     <div style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border);">
       <%= link_to new_finance_bank_dispute_path(daily_reconciliation_id: @reconciliation.id),
             class: "btn btn-warning",

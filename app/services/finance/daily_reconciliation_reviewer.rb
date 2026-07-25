@@ -1,7 +1,10 @@
 module Finance
-  # Marks a closed DailyReconciliation as reviewed by a branch manager — the
-  # mandatory checkpoint before a deposit may be recorded (unless the actor
-  # holds override_review_requirement).
+  # Marks a DailyReconciliation's recorded deposit(s) as reviewed/approved by
+  # a branch manager. Only available once at least one deposit exists —
+  # this reviews the deposit itself (amount, date/time, reference, payment
+  # method), not the closed session. Once reviewed, the deposit is locked
+  # (see TillDepositPolicy#create?/#void?) unless the actor holds
+  # override_review_requirement.
   class DailyReconciliationReviewer
     include AuditLoggable
 
@@ -18,7 +21,7 @@ module Finance
                           .find(@reconciliation_id)
 
       return err(:already_reviewed) if @reconciliation.reviewed?
-      return err(:review_not_closed) unless @reconciliation.closed?
+      return err(:review_not_deposited) unless @reconciliation.deposited?
 
       if @reconciliation.till_handovers.pending.exists?
         return err(:review_pending_handovers)

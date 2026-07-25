@@ -6,11 +6,13 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
   let(:actor)    { create(:user, business: business) }
   let(:cash_pm)  { PaymentMethod.create!(business: business, name: "Cash", settlement_type: "cash", active: true) }
 
+  # NOT reviewed by default — Branch Review approves the recorded deposit
+  # BEFORE bank verification, per the current three-stage order. Tests that
+  # need to reach the verify step set reviewed_by/_at explicitly via review!.
   let(:dr) do
     DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",
-      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current,
-      reviewed_by: actor, reviewed_at: 1.minute.ago
+      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current
     )
   end
 
@@ -24,14 +26,28 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
     described_class.new(dr.id, actor: actor).call
   end
 
+  def review!
+    dr.update_columns(reviewed_by_id: actor.id, reviewed_at: Time.current)
+  end
+
   describe "#call" do
     it "verifies successfully once fully deposited with no other blockers" do
       dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 5_000, deposited_at: Time.current)
       dr.update_columns(state: "deposited")
+      review!
 
       result = verify
       expect(result.ok?).to be true
       expect(dr.reload.verified?).to be true
+    end
+
+    it "rejects a recorded deposit that hasn't been reviewed/approved yet" do
+      dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 5_000, deposited_at: Time.current)
+      dr.update_columns(state: "deposited")
+
+      result = verify
+      expect(result.ok?).to be false
+      expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.verify_requires_deposit_review"))
     end
 
     it "rejects when already verified" do
@@ -69,6 +85,7 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
           dr.id, actor: actor,
           params: { payment_method_id: cash_pm.id, amount: "4000.00", deposited_at: Time.current.to_s }
         ).call
+        review!
 
         result = verify
         expect(result.ok?).to be true
@@ -79,6 +96,7 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
       it "allows verification when the deposited amount does not cover the full expected amount" do
         dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 4_000, deposited_at: Time.current)
         dr.update_columns(state: "deposited")
+        review!
         expect(dr.pending_deposit_amount).to eq(1_000)
 
         result = verify
@@ -94,6 +112,7 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
           dr.id, actor: actor,
           params: { payment_method_id: cash_pm.id, amount: "1000.00", deposited_at: Time.current.to_s }
         ).call
+        review!
 
         result = verify
         expect(result.ok?).to be true

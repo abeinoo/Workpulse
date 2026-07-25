@@ -54,8 +54,8 @@
         </div>
 
         <div class="form-group">
-          <%= f.label :match_notes, t("finance.bank_statement_transactions.show.match_notes"), class: "form-label" %>
-          <%= f.text_field :match_notes, class: "form-control",
+          <%= f.label :match_notes, t("finance.bank_statement_transactions.show.match_notes_required"), class: "form-label" %>
+          <%= f.text_field :match_notes, class: "form-control", required: true,
                 placeholder: t("finance.bank_statement_transactions.show.match_notes_placeholder") %>
         </div>
 
@@ -63,7 +63,8 @@
           <button type="button" class="btn btn-ghost" data-action="click->modal#close">
             <%= t("shared.cancel") %>
           </button>
-          <%= f.submit t("finance.bank_statement_transactions.show.match_button"), class: "btn btn-primary" %>
+          <%= f.submit t("finance.bank_statement_transactions.show.match_button"), class: "btn btn-primary",
+                data: { turbo_confirm: t("finance.bank_statement_transactions.show.manual_match_confirm") } %>
         </div>
       <% end %>
     <% end %>

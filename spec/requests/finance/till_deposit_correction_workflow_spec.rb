@@ -6,11 +6,12 @@ RSpec.describe "Bank deposit correction workflow — record, void, correct", typ
   let(:actor)    { create(:user, :owner, business: business) }
   let(:cash_pm)  { PaymentMethod.create!(business: business, name: "Cash", settlement_type: "cash", active: true) }
 
+  # NOT reviewed — the depositor records (and, if needed, corrects) the
+  # deposit BEFORE Branch Review under the current workflow.
   let(:dr) do
     DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",
-      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current,
-      reviewed_by: actor, reviewed_at: 1.minute.ago
+      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current
     )
   end
 

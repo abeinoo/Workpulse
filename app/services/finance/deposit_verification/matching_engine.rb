@@ -18,45 +18,58 @@ module Finance
     # no "first matching record" — every decision is made by comparing the
     # full remaining candidate set.
     #
-    # Matching runs in five priority tiers (SCORE_* constants below). Within
-    # each tier, remaining transactions are grouped into buckets that share a
-    # matching key (reference number; amount+date; amount, for the ±1‑day and
-    # amount‑only tiers) together with the pool deposits eligible for that
-    # bucket. Each bucket is then resolved by comparing **counts**:
+    # Matching runs in two priority tiers (SCORE_* constants below): reference
+    # number, then exact amount+date. Within each tier, remaining transactions
+    # are grouped into buckets that share the tier's matching key, together
+    # with the pool deposits eligible for that bucket. Each bucket is then
+    # resolved by **FIFO pairing**: transactions sorted by id, deposits sorted
+    # by created_at (ties broken by id) — the Nth transaction claims the Nth
+    # deposit. This single rule covers every shape:
     #
-    #   txns.size == deposits.size  → exact 1:1 — every deposit in this bucket
-    #                                  is interchangeable with every other, so
-    #                                  the aggregate outcome is unambiguous
-    #                                  regardless of which specific row pairs
-    #                                  with which. Auto-match all pairs,
-    #                                  deterministically ordered by id. This is
-    #                                  what makes "300/300/300 vs 300/300/300"
-    #                                  resolve as 3 clean matches instead of 3
-    #                                  refusals.
+    #   txns.size == deposits.size  → every transaction gets exactly one
+    #                                  deposit. This is what makes
+    #                                  "300/300/300 vs 300/300/300" resolve as
+    #                                  3 clean matches instead of 3 refusals.
     #
     #   txns.size >  deposits.size  → deposit deficit. Every available deposit
-    #                                  is used exactly once (deterministically,
-    #                                  lowest id first); the excess transactions
+    #                                  is claimed by the earliest (lowest id)
+    #                                  transactions; the excess transactions
     #                                  have no candidate left and fall through
     #                                  to the next tier (or to "no match" if
     #                                  none remains). This is "300,300 vs 300 →
     #                                  1 matched, 1 unmatched".
     #
-    #   txns.size <  deposits.size  → deposit surplus: more equally-good
-    #                                  candidates exist than transactions need,
-    #                                  so *which* specific deposit is correct is
-    #                                  genuinely ambiguous — it is not safe to
-    #                                  guess. We first attempt to break the tie
-    #                                  with description/notes similarity
-    #                                  (SCORE_DESCRIPTION_SIMILARITY); anything
-    #                                  still unresolved is marked
-    #                                  "needs_manual_review" and every deposit
-    #                                  in the bucket is left in the pool
-    #                                  (untouched) as a candidate for the
-    #                                  manual-match modal.
+    #   txns.size <  deposits.size  → deposit surplus. When several equally-
+    #                                  eligible deposits share the same
+    #                                  amount + date, the *oldest* unmatched
+    #                                  deposit (earliest created_at — first
+    #                                  recorded, first reconciled) is
+    #                                  auto-matched; the newer ones are left
+    #                                  untouched in the pool as candidates for
+    #                                  the manual-match modal. No guessing by
+    #                                  description similarity — FIFO is
+    #                                  deterministic and always resolvable.
     #
     # Transactions with no candidate at any tier are classified "unexpected"
     # (or a mismatch hint) exactly as before.
+    #
+    # A candidate can clear a tier's bucketing key (reference number) without
+    # actually satisfying amount+date equality — commit_match! re-checks that
+    # independently and refuses to auto-link anything short of it, surfacing
+    # a "date_mismatch"/"amount_mismatch" instead. There is no day-tolerance
+    # auto-match tier: deposit date is the source of truth (calendar date
+    # only — deposited_at.to_date / transaction_date are date columns, so
+    # time-of-day never enters any comparison in this engine), and a
+    # same-amount/different-date pair is always left unmatched for the
+    # accountant's explicit Manual Match action, never silently linked.
+    #
+    # Branch scoping is enforced by #load_deposits (only deposits from the
+    # statement's branch, when the statement is branch-scoped, ever enter the
+    # pool). Payment method is not a matching dimension: every bank statement
+    # transaction in this system represents a cash till deposit reaching the
+    # bank, so the payment method side of the "same branch, same payment
+    # method, same amount, same date" rule is a constant (cash-only) and
+    # never distinguishes candidates.
     class MatchingEngine
       include AuditLoggable
 
@@ -64,25 +77,20 @@ module Finance
         pending unexpected amount_mismatch date_mismatch needs_reverification needs_manual_review
       ].freeze
 
-      SCORE_REFERENCE               = 100
-      SCORE_AMOUNT_DATE             = 90
-      SCORE_AMOUNT_NEAR_DATE        = 80
-      SCORE_AMOUNT_ONLY             = 70
-      SCORE_DESCRIPTION_SIMILARITY  = 60
+      # A deposit can only ever be AUTO-matched to a transaction when both the
+      # amount and the date agree exactly (deposit date is the source of
+      # truth — see #derive_status). There is deliberately no day-tolerance
+      # tier: a same-amount, different-date pair is always surfaced as
+      # "date_mismatch" and left unmatched, never silently auto-linked — an
+      # accountant who believes it's a genuine banking delay must use the
+      # explicit Manual Match action instead (see commit_match!'s gate).
+      SCORE_REFERENCE   = 100
+      SCORE_AMOUNT_DATE = 90
 
       METHOD_FOR_SCORE = {
-        SCORE_REFERENCE              => "auto_reference",
-        SCORE_AMOUNT_DATE            => "auto_amount_date",
-        SCORE_AMOUNT_NEAR_DATE       => "auto_amount_near_date",
-        SCORE_AMOUNT_ONLY            => "auto_amount_only",
-        SCORE_DESCRIPTION_SIMILARITY => "auto_description_similarity"
+        SCORE_REFERENCE   => "auto_reference",
+        SCORE_AMOUNT_DATE => "auto_amount_date"
       }.freeze
-
-      NEAR_DATE_TOLERANCE_DAYS = 1
-
-      # Token-overlap similarity (0-100) a transaction's description and a
-      # deposit's notes must clear to break a same-amount surplus tie.
-      DESCRIPTION_SIMILARITY_THRESHOLD = 60
 
       Result = Struct.new(:ok, :matched, :unmatched, :needs_review, :error, keyword_init: true) do
         def ok? = ok
@@ -123,8 +131,6 @@ module Finance
 
           run_reference_tier!
           run_exact_date_tier!
-          run_near_date_tier!
-          run_amount_only_tier!
 
           # Anything still pending after every tier had no usable candidate.
           @pending.each do |txn|
@@ -190,82 +196,41 @@ module Finance
         end
       end
 
-      def run_near_date_tier!
-        @pending.group_by(&:amount).each do |amount, txns|
-          next if txns.empty?
+      # ── Bucket resolution: deterministic FIFO pairing ───────────────────
 
-          deposits = @pool.select do |d|
-            d.amount == amount &&
-              txns.any? { |t| (d.deposited_at.to_date - t.transaction_date).to_i.abs <= NEAR_DATE_TOLERANCE_DAYS }
-          end
-          next if deposits.empty?
-
-          resolve_bucket!(txns, deposits, SCORE_AMOUNT_NEAR_DATE)
-        end
-      end
-
-      def run_amount_only_tier!
-        @pending.group_by(&:amount).each do |amount, txns|
-          next if txns.empty?
-
-          deposits = @pool.select { |d| d.amount == amount }
-          next if deposits.empty?
-
-          resolve_bucket!(txns, deposits, SCORE_AMOUNT_ONLY)
-        end
-      end
-
-      # ── Bucket resolution: exact / deficit / surplus ────────────────────
-
+      # The Nth transaction (sorted by id) claims the Nth deposit (sorted by
+      # created_at — earliest recorded first, ties broken by id). When there
+      # are more deposits than transactions, the newest deposits are simply
+      # never reached and stay in the pool for manual matching. When there
+      # are more transactions than deposits, the excess transactions get no
+      # partner here and fall through to the next tier / final classification.
       def resolve_bucket!(txns, deposits, score)
         txns     = txns.sort_by(&:id)
-        deposits = deposits.sort_by(&:id)
+        deposits = deposits.sort_by { |d| [ d.created_at, d.id ] }
 
-        if txns.size == deposits.size
-          txns.zip(deposits).each { |txn, dep| commit_match!(txn, dep, score) }
-        elsif txns.size > deposits.size
-          # Deficit: deposits are the scarce resource here — every deposit is
-          # used exactly once, deterministically (lowest id first); the excess
-          # transactions have no candidate left at this tier and fall through
-          # to the next one (or to "no match" if none remains).
-          txns.first(deposits.size).zip(deposits).each { |txn, dep| commit_match!(txn, dep, score) }
-        else
-          resolve_surplus!(txns, deposits, score)
-        end
-      end
-
-      # More equally-eligible deposits than transactions: try to break the tie
-      # with description/notes similarity; anything left over is genuinely
-      # ambiguous and goes to manual review with every remaining bucket
-      # deposit shown as a candidate.
-      def resolve_surplus!(txns, deposits, score)
-        remaining_deposits = deposits.dup
-
-        txns.each do |txn|
-          scored = remaining_deposits.filter_map do |dep|
-            similarity = description_similarity(txn.description, dep.notes)
-            [ dep, similarity ] if similarity >= DESCRIPTION_SIMILARITY_THRESHOLD
-          end
-
-          top = scored.max_by { |_, similarity| similarity }
-          unique_top = top && scored.count { |_, s| s == top.last } == 1
-
-          if unique_top
-            dep = top.first
-            commit_match!(txn, dep, SCORE_DESCRIPTION_SIMILARITY)
-            remaining_deposits.delete(dep)
-          else
-            mark_needs_review!(txn, remaining_deposits, score)
-          end
+        txns.zip(deposits).each do |txn, dep|
+          break if dep.nil?
+          commit_match!(txn, dep, score)
         end
       end
 
       # ── Committing outcomes ──────────────────────────────────────────────
 
       def commit_match!(txn, deposit, score)
-        method = METHOD_FOR_SCORE.fetch(score)
         status = derive_status(txn, deposit)
-        reason = match_reason(method, txn, deposit)
+
+        # Hard gate: a TillDeposit can only be AUTOMATICALLY matched to a
+        # transaction when amount AND date both agree. A candidate that
+        # cleared a tier on some other signal (reference number) but doesn't
+        # actually satisfy that — most notably a same-amount, different-date
+        # pair — is never auto-linked; it's surfaced as a mismatch and left
+        # for the accountant's explicit Manual Match action instead. The
+        # deposit stays in the pool so a later, better-suited pairing can
+        # still claim it.
+        return decline_match!(txn, status) unless status == "verified"
+
+        method = METHOD_FOR_SCORE.fetch(score)
+        reason = match_reason(method, txn)
 
         DepositMatch.create_for!(till_deposit: deposit, bank_statement_transaction: txn)
 
@@ -300,31 +265,14 @@ module Finance
         @pool.delete(deposit)
       end
 
-      def mark_needs_review!(txn, candidate_deposits, score)
-        # Snapshot the candidates' own attributes at decision time (not just
-        # their ids) so the audit trail and the review UI can explain the
-        # ambiguity even if a candidate deposit is later edited or voided.
-        candidates = candidate_deposits.map do |d|
-          { till_deposit_id: d.id, amount: d.amount.to_s, date: d.deposited_at.to_date.to_s, reference: d.reference }
-        end
-        reason = I18n.t("finance.bank_statement_transactions.match_reasons.needs_manual_review",
-                         count: candidates.size)
-
-        txn.update!(status: "needs_manual_review", match_confidence: score, match_reason: reason)
-
-        if outcome_changed?(txn, deposit_id: nil, method: nil, status: "needs_manual_review")
-          log_audit(
-            actor:     @actor,
-            auditable: txn,
-            action:    :needs_manual_review,
-            metadata:  {
-              confidence:  score,
-              reason:      reason,
-              candidates:  candidates
-            }
-          )
-        end
-
+      # A candidate cleared a tier's bucketing key (reference number) but
+      # fails the hard amount+date gate. No DepositMatch is created and the
+      # deposit is left untouched in the pool — only the transaction is
+      # classified and removed from @pending, matching the same "no audit
+      # entry for an automatic non-match" that classify_no_match! already
+      # uses elsewhere in this engine.
+      def decline_match!(txn, status)
+        txn.update!(status: status, match_method: nil, match_confidence: nil, match_reason: nil)
         @pending.delete(txn)
       end
 
@@ -354,7 +302,7 @@ module Finance
         previous != [ deposit_id, method, status ]
       end
 
-      def match_reason(method, txn, deposit)
+      def match_reason(method, txn)
         case method
         when "auto_reference"
           I18n.t("finance.bank_statement_transactions.match_reasons.auto_reference",
@@ -362,14 +310,6 @@ module Finance
         when "auto_amount_date"
           I18n.t("finance.bank_statement_transactions.match_reasons.auto_amount_date",
                  amount: txn.amount, date: I18n.l(txn.transaction_date))
-        when "auto_amount_near_date"
-          days = (txn.transaction_date - deposit.deposited_at.to_date).to_i.abs
-          I18n.t("finance.bank_statement_transactions.match_reasons.auto_amount_near_date",
-                 amount: txn.amount, days: days)
-        when "auto_amount_only"
-          I18n.t("finance.bank_statement_transactions.match_reasons.auto_amount_only", amount: txn.amount)
-        when "auto_description_similarity"
-          I18n.t("finance.bank_statement_transactions.match_reasons.auto_description_similarity")
         end
       end
 
@@ -394,29 +334,11 @@ module Finance
         end
       end
 
-      # ── Description similarity (token overlap, 0-100) ────────────────────
-
-      def description_similarity(a, b)
-        a_tokens = normalize_text(a).split(" ").to_set
-        b_tokens = normalize_text(b).split(" ").to_set
-        return 0 if a_tokens.empty? || b_tokens.empty?
-
-        overlap = (a_tokens & b_tokens).size
-        return 0 if overlap.zero?
-
-        union = (a_tokens | b_tokens).size
-        ((overlap.to_f / union) * 100).round
-      end
-
-      def normalize_text(value)
-        value.to_s.strip.downcase.gsub(/[^\p{Alnum}\s]/, " ").gsub(/\s+/, " ").strip
-      end
-
       # ── Loading ───────────────────────────────────────────────────────────
 
       # Records what each rematchable transaction's outcome was *before* this
-      # run resets it, so commit_match!/mark_needs_review! can tell whether
-      # the rematch actually changed anything.
+      # run resets it, so commit_match!/decline_match! can tell whether the
+      # rematch actually changed anything.
       def capture_previous_outcomes!(statement)
         rematchable_ids = statement.bank_statement_transactions
                                     .where(status: REMATCHABLE_STATUSES)

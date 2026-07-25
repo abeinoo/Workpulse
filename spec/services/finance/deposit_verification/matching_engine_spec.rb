@@ -29,19 +29,20 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
            statement_to:   business_date + 1.day)
   end
 
-  def deposit(amount:, date: business_date, reference: nil, notes: nil)
+  def deposit(amount:, date: business_date, reference: nil, notes: nil, time_of_day: 12.hours,
+              daily_reconciliation: self.daily_reconciliation)
     TillDeposit.create!(
       daily_reconciliation: daily_reconciliation,
       payment_method:       payment_method,
       deposited_by:         actor,
       amount:                amount,
-      deposited_at:          date.to_time + 12.hours,
+      deposited_at:          date.to_time + time_of_day,
       reference:             reference,
       notes:                 notes
     )
   end
 
-  def transaction(amount:, date: business_date, reference: nil, description: nil)
+  def transaction(amount:, date: business_date, reference: nil, description: nil, statement: self.statement)
     BankStatementTransaction.create!(
       bank_statement:   statement,
       business:         business,
@@ -54,8 +55,8 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
     )
   end
 
-  def run!
-    described_class.call(statement.id, actor: actor)
+  def run!(target_statement: statement)
+    described_class.call(target_statement.id, actor: actor)
   end
 
   # ── Issue 1 — duplicate transactions matched one-to-one ─────────────────── #
@@ -130,37 +131,51 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
   end
 
   describe "duplicate amounts, deposit surplus (more deposits than transactions)" do
-    it "flags the transaction as needs_manual_review instead of guessing which deposit is correct" do
-      deposit(amount: 300)
-      deposit(amount: 300)
+    it "auto-matches the oldest (FIFO) unmatched deposit, not the newer one" do
+      older = deposit(amount: 300)
+      newer = deposit(amount: 300)
       t1 = transaction(amount: 300)
 
       result = run!
 
-      expect(result.matched).to eq(0)
-      expect(result.needs_review).to eq(1)
+      expect(result.matched).to eq(1)
+      expect(result.needs_review).to eq(0)
 
       t1.reload
-      expect(t1.needs_manual_review?).to be(true)
-      expect(t1.matched_till_deposit&.id).to be_nil
+      expect(t1.status).to eq("verified")
+      expect(t1.matched_till_deposit&.id).to eq(older.id)
+      expect(t1.matched_till_deposit&.id).not_to eq(newer.id)
     end
 
-    it "does not consume any surplus deposits, leaving them available for manual selection" do
+    it "leaves the newer surplus deposit unmatched and available for manual selection" do
       deposit(amount: 300)
-      deposit(amount: 300)
+      newer = deposit(amount: 300)
       transaction(amount: 300)
 
       run!
 
-      expect(TillDeposit.where(amount: 300).count).to eq(2)
-      expect(TillDeposit.where(amount: 300).where.missing(:deposit_matches).count).to eq(2)
+      expect(TillDeposit.where(amount: 300).where.missing(:deposit_matches).sole.id).to eq(newer.id)
+    end
+
+    it "matches strictly by created_at, independent of insertion/id order" do
+      # d_higher_id is created SECOND (higher id) but backdated to have the
+      # earlier created_at — proving the FIFO key is created_at, not id.
+      d_lower_id  = deposit(amount: 300)
+      d_higher_id = deposit(amount: 300)
+      d_higher_id.update_column(:created_at, d_lower_id.created_at - 1.day)
+
+      t1 = transaction(amount: 300)
+      run!
+
+      t1.reload
+      expect(t1.matched_till_deposit&.id).to eq(d_higher_id.id)
     end
   end
 
   # ── Matching priority ─────────────────────────────────────────────────────── #
 
   describe "reference number takes priority over amount/date" do
-    it "matches by reference even when amounts differ slightly across candidates" do
+    it "declines to auto-link when the referenced candidate's amount differs" do
       d_ref   = deposit(amount: 250, reference: "DEP-100")
       d_other = deposit(amount: 300)
       t1      = transaction(amount: 300, reference: "DEP-100")
@@ -168,11 +183,14 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       run!
 
       t1.reload
-      expect(t1.matched_till_deposit&.id).to eq(d_ref.id)
-      expect(t1.matched_till_deposit&.id).not_to eq(d_other.id)
-      expect(t1.match_method).to eq("auto_reference")
-      # Amount differs (250 vs 300) despite the reference match — flagged, not silently verified.
+      # Amount differs (250 vs 300) despite the reference match — flagged, never
+      # silently auto-linked. No DepositMatch is created; both records stay
+      # available for the accountant's explicit Manual Match action.
+      expect(t1.matched_till_deposit&.id).to be_nil
+      expect(t1.match_method).to be_nil
       expect(t1.status).to eq("amount_mismatch")
+      expect(d_ref.deposit_matches).to be_empty
+      expect(d_other.deposit_matches).to be_empty
     end
   end
 
@@ -191,28 +209,108 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
   end
 
   describe "same amount, different dates" do
-    it "matches within the ±1 day tolerance" do
+    it "never auto-matches even a single day apart — deposit date is the source of truth" do
       d1 = deposit(amount: 300, date: business_date + 1.day)
       t1 = transaction(amount: 300, date: business_date)
 
       run!
 
       t1.reload
-      expect(t1.matched_till_deposit&.id).to eq(d1.id)
-      expect(t1.match_method).to eq("auto_amount_near_date")
+      expect(t1.matched_till_deposit&.id).to be_nil
+      expect(t1.match_method).to be_nil
       expect(t1.status).to eq("date_mismatch")
+      expect(d1.deposit_matches).to be_empty
     end
 
-    it "matches on amount only when the date gap exceeds 1 day" do
+    it "never auto-matches on amount alone when the date gap is large" do
       d1 = deposit(amount: 300, date: business_date + 3.days)
       t1 = transaction(amount: 300, date: business_date)
 
       run!
 
       t1.reload
-      expect(t1.matched_till_deposit&.id).to eq(d1.id)
-      expect(t1.match_method).to eq("auto_amount_only")
+      expect(t1.matched_till_deposit&.id).to be_nil
+      expect(t1.match_method).to be_nil
       expect(t1.status).to eq("date_mismatch")
+      expect(d1.deposit_matches).to be_empty
+    end
+  end
+
+  # ── Time-of-day must never affect matching ─────────────────────────────────── #
+
+  describe "time of day is completely ignored — only the calendar date matters" do
+    it "matches a deposit recorded at 09:00 against a transaction dated the same day, regardless of clock time" do
+      d1 = deposit(amount: 300, time_of_day: 9.hours)
+      t1 = transaction(amount: 300, date: business_date)
+
+      run!
+
+      t1.reload
+      expect(t1.matched_till_deposit&.id).to eq(d1.id)
+      expect(t1.status).to eq("verified")
+    end
+
+    it "still matches when the deposit is recorded late in the evening (18:30) on the same calendar date" do
+      d1 = deposit(amount: 300, time_of_day: 18.hours + 30.minutes)
+      t1 = transaction(amount: 300, date: business_date)
+
+      run!
+
+      t1.reload
+      expect(t1.matched_till_deposit&.id).to eq(d1.id)
+      expect(t1.status).to eq("verified")
+    end
+
+    it "never auto-matches a deposit on July 24 against a transaction dated July 25, even with an identical amount" do
+      july_24 = Date.new(2026, 7, 24)
+      july_25 = Date.new(2026, 7, 25)
+      d1 = deposit(amount: 500, date: july_24, time_of_day: 23.hours + 59.minutes)
+      t1 = transaction(amount: 500, date: july_25)
+
+      run!
+
+      t1.reload
+      expect(t1.matched_till_deposit&.id).to be_nil
+      expect(t1.status).to eq("date_mismatch")
+      expect(d1.deposit_matches).to be_empty
+    end
+  end
+
+  # ── Branch scoping ───────────────────────────────────────────────────────── #
+
+  describe "same branch is a hard matching condition" do
+    it "never matches a transaction on a branch-scoped statement to a deposit from a different branch" do
+      other_branch = create(:branch, business: business)
+      other_dr = DailyReconciliation.create!(
+        branch: other_branch, business: business, state: "closed",
+        opened_at: business_date.to_time - 1.hour, business_date: business_date
+      )
+
+      other_branch_deposit = deposit(amount: 300, daily_reconciliation: other_dr)
+      t1 = transaction(amount: 300, date: business_date)
+
+      run!
+
+      t1.reload
+      expect(t1.matched_till_deposit&.id).to be_nil
+      expect(t1.status).to eq("unexpected")
+      expect(other_branch_deposit.deposit_matches).to be_empty
+    end
+
+    it "matches within the correct branch once a same-branch deposit exists alongside an other-branch one" do
+      other_branch = create(:branch, business: business)
+      other_dr = DailyReconciliation.create!(
+        branch: other_branch, business: business, state: "closed",
+        opened_at: business_date.to_time - 1.hour, business_date: business_date
+      )
+      deposit(amount: 300, daily_reconciliation: other_dr)
+      same_branch_deposit = deposit(amount: 300)
+
+      t1 = transaction(amount: 300, date: business_date)
+      run!
+
+      t1.reload
+      expect(t1.matched_till_deposit&.id).to eq(same_branch_deposit.id)
     end
   end
 
@@ -268,25 +366,15 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       expect(AuditLog.for_auditable(t1).last.action).to eq("auto_matched")
     end
 
-    it "logs a needs_manual_review entry when a bucket is ambiguous" do
-      deposit(amount: 300)
+    it "still logs a single auto_matched entry (not needs_manual_review) when a bucket has surplus deposits" do
+      older = deposit(amount: 300)
       deposit(amount: 300)
       t1 = transaction(amount: 300)
 
       expect { run! }.to change { AuditLog.for_auditable(t1).count }.by(1)
-      expect(AuditLog.for_auditable(t1).last.action).to eq("needs_manual_review")
-    end
-
-    it "snapshots every candidate's amount/date/reference on a needs_manual_review entry" do
-      d1 = deposit(amount: 300, reference: "A")
-      d2 = deposit(amount: 300, reference: "B")
-      t1 = transaction(amount: 300)
-
-      run!
-
-      candidates = AuditLog.for_auditable(t1).last.metadata["candidates"]
-      expect(candidates.map { |c| c["till_deposit_id"] }).to match_array([ d1.id, d2.id ])
-      expect(candidates.map { |c| c["reference"] }).to match_array(%w[A B])
+      log = AuditLog.for_auditable(t1).last
+      expect(log.action).to eq("auto_matched")
+      expect(log.metadata["till_deposit_id"]).to eq(older.id)
     end
   end
 
@@ -304,18 +392,19 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       expect(t1.match_reason).to include("DEP-9")
     end
 
-    it "gives a lower confidence score to a ±1 day match than an exact-date match" do
+    it "clears match_confidence and match_reason on a declined date-mismatch outcome" do
       deposit(amount: 300, date: business_date + 1.day)
       t1 = transaction(amount: 300, date: business_date)
 
       run!
 
       t1.reload
-      expect(t1.match_confidence).to eq(described_class::SCORE_AMOUNT_NEAR_DATE)
-      expect(t1.match_confidence).to be < described_class::SCORE_AMOUNT_DATE
+      expect(t1.status).to eq("date_mismatch")
+      expect(t1.match_confidence).to be_nil
+      expect(t1.match_reason).to be_nil
     end
 
-    it "persists a confidence score and reason on a needs_manual_review outcome too" do
+    it "persists the same confidence/reason as a clean match when FIFO resolves a surplus bucket" do
       deposit(amount: 300)
       deposit(amount: 300)
       t1 = transaction(amount: 300)

@@ -262,10 +262,12 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
   describe "bulk_mark_reviewed" do
     it "marks eligible reconciliations as reviewed and skips those already reviewed" do
       dr_unreviewed = DailyReconciliation.create!(
-        branch: branch, business: business, state: "closed",
+        branch: branch, business: business, state: "deposited",
         opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current
       )
       TillSession.create!(daily_reconciliation: dr_unreviewed, depositor_id: actor.id)
+      dr_unreviewed.till_deposits.create!(payment_method: cash_pm, deposited_by: actor,
+                                          amount: 100, deposited_at: Time.current)
       dr_reviewed = make_dr(business_date: Date.new(2026, 7, 5))
 
       post bulk_mark_reviewed_finance_daily_reconciliations_path,

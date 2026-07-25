@@ -22,12 +22,12 @@ class DailyReconciliationPolicy < ApplicationPolicy
 
   def mark_reviewed?
     can?(:review_daily_reconciliation) && !record.is_a?(Class) &&
-      record.closed? && !record.reviewed?
+      record.deposited? && !record.reviewed?
   end
 
   def cancel_review?
     can?(:review_daily_reconciliation) && !record.is_a?(Class) &&
-      record.closed? && record.reviewed? && !record.total_deposited.positive?
+      record.deposited? && record.reviewed? && !record.verified?
   end
 
   def show?

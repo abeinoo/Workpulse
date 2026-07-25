@@ -28,7 +28,7 @@
   quick_action =
     case bank_status
     when "waiting_for_deposit"
-      if session&.depositor_id == current_user.id && dr.reviewed?
+      if session&.depositor_id == current_user.id
         { label: t("finance.daily_reconciliations.index.workspace.quick_actions.record_deposit"),
           url: new_till_deposit_path(daily_reconciliation_id: dr.id) }
       end
@@ -117,19 +117,18 @@
             <% end %>
 
           <% elsif dr.closed? %>
-            <% if !dr.reviewed? %>
-              <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_waiting_branch_review") %></span>
-            <% else %>
-              <span class="badge badge-neutral"><%= t("finance.daily_reconciliations.index.status_awaiting_deposit") %></span>
-            <% end %>
+            <span class="badge badge-neutral"><%= t("finance.daily_reconciliations.index.status_awaiting_deposit") %></span>
             <% if depositor %>
               <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
                 <%= t("finance.daily_reconciliations.index.depositor_label", name: depositor.full_name) %>
               </p>
             <% end %>
 
-          <% elsif dr.deposited? %>
-            <span class="badge badge-accent"><%= t("finance.daily_reconciliations.index.status_ready_for_verify") %></span>
+          <% elsif dr.deposited? && !dr.reviewed? %>
+            <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_waiting_branch_deposit_review") %></span>
+
+          <% elsif dr.deposited? && dr.reviewed? %>
+            <span class="badge badge-accent"><%= t("finance.daily_reconciliations.index.status_waiting_bank_verification") %></span>
 
           <% elsif dr.verified? %>
             <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 4px;">

@@ -51,10 +51,14 @@ module Finance
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.not_depositor"))
       end
 
+      # Once the Branch Manager has approved the recorded deposit, it's
+      # locked — only override_review_requirement can still record/correct
+      # one after that point (the reverse of the old pre-review gate: the
+      # deposit now happens BEFORE Branch Review, not after).
       review_overridden = false
-      unless @daily_reconciliation.reviewed?
+      if @daily_reconciliation.reviewed?
         unless @actor.can?(:override_review_requirement)
-          return Result.new(ok: false, error: I18n.t("till_deposits.errors.review_required"))
+          return Result.new(ok: false, error: I18n.t("till_deposits.errors.deposit_locked"))
         end
         if @params[:override_review_reason].blank?
           return Result.new(ok: false, error: I18n.t("till_deposits.errors.override_reason_required"))

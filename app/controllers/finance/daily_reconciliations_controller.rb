@@ -269,7 +269,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     failures  = 0
 
     reconciliations.each do |dr|
-      next unless dr.closed? && !dr.reviewed?
+      next unless dr.deposited? && !dr.reviewed?
 
       result = Finance::DailyReconciliationReviewer.new(dr.id, actor: current_user).call
       result.ok? ? successes += 1 : failures += 1

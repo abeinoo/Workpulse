@@ -39,6 +39,13 @@ module Finance
         return err(:verify_no_deposit_recorded)
       end
 
+      # Bank verification only begins once the Branch Manager has approved
+      # the recorded deposit — the second of the three control points
+      # (recorded → reviewed internally → verified by the bank).
+      if expected > 0 && !@reconciliation.reviewed?
+        return err(:verify_requires_deposit_review)
+      end
+
       ActiveRecord::Base.transaction do
         @reconciliation.update!(
           state:       "verified",

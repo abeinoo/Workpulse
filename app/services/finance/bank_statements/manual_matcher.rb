@@ -46,6 +46,8 @@ module Finance
       end
 
       def call
+        return err("reason_required") if @notes.blank?
+
         txns = BankStatementTransaction
                  .where(business: @actor.business)
                  .where(id: @transaction_ids)
@@ -77,8 +79,7 @@ module Finance
           new_total     = current_total + to_link.sum(&:amount)
           raise OverMatchError if new_total > deposit.amount
 
-          reason = @notes.presence ||
-                   I18n.t("finance.bank_statement_transactions.match_reasons.manual", actor: @actor.full_name)
+          reason = @notes
 
           to_link.each do |txn|
             link!(txn, deposit, reason: reason, running_total: current_total += txn.amount)

@@ -63,7 +63,7 @@ RSpec.describe "Till deposit multi-transaction bank matching", type: :request do
       txn_b = txn(amount: 4_700)
 
       patch manual_match_till_deposit_path(dep),
-            params: { bank_statement_transaction_ids: [ txn_a.id, txn_b.id ] }
+            params: { bank_statement_transaction_ids: [ txn_a.id, txn_b.id ], match_notes: "confirmed with branch" }
 
       expect(response).to redirect_to(till_deposit_path(dep))
       expect(dep.reload.match_status).to eq(:fully_matched)
@@ -75,7 +75,8 @@ RSpec.describe "Till deposit multi-transaction bank matching", type: :request do
       dep   = deposit(amount: 11_700)
       txn_a = txn(amount: 7_000)
 
-      patch manual_match_till_deposit_path(dep), params: { bank_statement_transaction_ids: [ txn_a.id ] }
+      patch manual_match_till_deposit_path(dep),
+            params: { bank_statement_transaction_ids: [ txn_a.id ], match_notes: "confirmed with branch" }
 
       expect(dep.reload.match_status).to eq(:partially_matched)
     end
@@ -86,11 +87,21 @@ RSpec.describe "Till deposit multi-transaction bank matching", type: :request do
       txn_b = txn(amount: 6_000)
 
       patch manual_match_till_deposit_path(dep),
-            params: { bank_statement_transaction_ids: [ txn_a.id, txn_b.id ] }
+            params: { bank_statement_transaction_ids: [ txn_a.id, txn_b.id ], match_notes: "confirmed with branch" }
 
       expect(dep.reload.match_status).to eq(:unmatched)
       expect(txn_a.reload.matched?).to be false
       expect(txn_b.reload.matched?).to be false
+    end
+
+    it "rejects the batch when no reason is given, linking nothing" do
+      dep   = deposit(amount: 11_700)
+      txn_a = txn(amount: 7_000)
+
+      patch manual_match_till_deposit_path(dep), params: { bank_statement_transaction_ids: [ txn_a.id ] }
+
+      expect(dep.reload.match_status).to eq(:unmatched)
+      expect(txn_a.reload.matched?).to be false
     end
   end
 
@@ -100,7 +111,7 @@ RSpec.describe "Till deposit multi-transaction bank matching", type: :request do
       txn_a = txn(amount: 7_000)
       txn_b = txn(amount: 4_700)
       Finance::BankStatements::ManualMatcher.call_many(
-        till_deposit_id: dep.id, transaction_ids: [ txn_a.id, txn_b.id ], actor: actor
+        till_deposit_id: dep.id, transaction_ids: [ txn_a.id, txn_b.id ], actor: actor, notes: "confirmed"
       )
       expect(dep.reload.match_status).to eq(:fully_matched)
 
@@ -118,7 +129,7 @@ RSpec.describe "Till deposit multi-transaction bank matching", type: :request do
       txn_b = txn(amount: 4_700)
 
       Finance::BankStatements::ManualMatcher.call_many(
-        till_deposit_id: dep.id, transaction_ids: [ txn_a.id, txn_b.id ], actor: actor
+        till_deposit_id: dep.id, transaction_ids: [ txn_a.id, txn_b.id ], actor: actor, notes: "confirmed"
       )
 
       get finance_daily_reconciliation_path(dr)

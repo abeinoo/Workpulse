@@ -2,16 +2,21 @@ class TillDepositPolicy < ApplicationPolicy
   def index? = show?
   def show?  = can?(:create_till_deposit) || can?(:view_daily_reconciliation)
 
+  # Depositing happens BEFORE Branch Review (cashier closes → depositor
+  # deposits → Branch Manager reviews the recorded deposit). Once reviewed,
+  # the deposit is locked — only override_review_requirement can still
+  # record/correct one after that point.
   def create?
     (record.daily_reconciliation.closed? || record.daily_reconciliation.deposited?) &&
       # Super Admin (business owner) is never blocked by depositor assignment.
       (owner? || (can?(:create_till_deposit) &&
         record.daily_reconciliation.till_session&.depositor_id == user.id &&
-        (record.daily_reconciliation.reviewed? || can?(:override_review_requirement))))
+        (!record.daily_reconciliation.reviewed? || can?(:override_review_requirement))))
   end
 
   def void?
-    can?(:void_till_deposit) && !record.daily_reconciliation.verified?
+    can?(:void_till_deposit) && !record.daily_reconciliation.verified? &&
+      (!record.daily_reconciliation.reviewed? || can?(:override_review_requirement))
   end
 
   # Manually attach an unmatched BankStatementTransaction to this deposit —

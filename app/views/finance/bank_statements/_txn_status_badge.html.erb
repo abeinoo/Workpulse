@@ -9,3 +9,11 @@
          else                              "badge-neutral"
          end %>
 <span class="badge <%= css %>"><%= t("finance.bank_statement_transactions.statuses.#{transaction.status}") %></span>
+<% if transaction.manual_match? %>
+  <span class="badge badge-accent"><%= t("finance.bank_statement_transactions.statuses.matched_manually") %></span>
+<% end %>
+<% if transaction.date_mismatch? && (days = transaction.date_mismatch_days) %>
+  <span style="font-size: var(--text-xs); color: var(--text-3);">
+    <%= t("finance.bank_statement_transactions.show.date_diff", count: days) %>
+  </span>
+<% end %>

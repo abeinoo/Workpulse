@@ -11,7 +11,7 @@
         <%= t("finance.daily_reconciliations.show.sections.bank.subtitle") %>
       </p>
     </div>
-    <% if @can_view_deposit_verification %>
+    <% if @can_view_deposit_verification && (@reconciliation.reviewed? || @reconciliation.verified?) %>
       <%# Uses the actual deposit date(s) (@deposit_verification_from/_to,
           derived in the controller from active deposits) rather than the
           DR's own business date, so a deposit recorded on a different day
@@ -27,7 +27,10 @@
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
 
     <%# ── Bank statement comparison ─────────────────────────────────────── %>
-    <% if @can_view_deposit_verification %>
+    <%# The verification workflow only becomes active once the Branch Manager
+        has approved the recorded deposit — before that the accountant has
+        nothing settled yet to reconcile against an imported bank statement. ── %>
+    <% if @can_view_deposit_verification && (@reconciliation.reviewed? || @reconciliation.verified?) %>
       <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border);">
         <div class="recon-formula-row">
           <span><%= t("finance.daily_reconciliations.show.sections.bank.expected") %></span>
@@ -63,11 +66,7 @@
         an ATM/POS "failed deposit" is reported instead of a deposit, so a DR
         with zero deposits can still have an open dispute here. ── %>
     <%
-      # Only available once Branch Review is complete — same rule as Record
-      # Deposit: the review is the approval that the expected cash amount is
-      # final, so nothing banking-related should be actionable before that.
-      can_report_atm_dispute = @reconciliation.reviewed? &&
-                               policy(BankDispute.new(daily_reconciliation: @reconciliation)).create?
+      can_report_atm_dispute = policy(BankDispute.new(daily_reconciliation: @reconciliation)).create?
       direct_disputes        = @reconciliation.bank_disputes.reject(&:resolved?)
     %>
     <% if can_report_atm_dispute %>
@@ -125,7 +124,7 @@
         latest_voided_by_pm = @all_deposits.select(&:voided?)
                                             .group_by(&:payment_method_id)
                                             .transform_values { |ds| ds.max_by(&:voided_at) }
-        can_create_deposit  = @i_am_depositor && @reconciliation.reviewed? &&
+        can_create_deposit  = @i_am_depositor &&
                               (@reconciliation.closed? || @reconciliation.deposited?) &&
                               policy(TillDeposit.new(daily_reconciliation: @reconciliation)).create?
       %>

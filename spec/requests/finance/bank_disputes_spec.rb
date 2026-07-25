@@ -119,11 +119,12 @@ RSpec.describe "Bank Disputes", type: :request do
   describe "ATM/POS Failed Deposit flow (reported before any TillDeposit exists)" do
     let(:employee) { user_with("close_till_session", "create_till_deposit") }
 
+    # NOT reviewed — the depositor/accountant confirms the ATM dispute's
+    # resulting deposit BEFORE Branch Review under the current workflow.
     let(:atm_dr) do
       DailyReconciliation.create!(
         branch: branch, business: business, state: "closed",
-        opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.new(2026, 7, 17),
-        reviewed_by: employee, reviewed_at: 1.minute.ago
+        opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.new(2026, 7, 17)
       )
     end
     let!(:atm_till_session) { TillSession.create!(daily_reconciliation: atm_dr, depositor_id: employee.id) }

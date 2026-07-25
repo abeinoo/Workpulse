@@ -14,9 +14,9 @@ RSpec.describe Finance::TillDepositRecorder, type: :model do
     )
   end
 
-  # DR in the state the recorder expects. Reviewed by default so existing
-  # specs exercise the post-Branch-Review happy path; the review-guard
-  # specs below explicitly unset this.
+  # DR in the state the recorder expects. NOT reviewed by default — under the
+  # current workflow the depositor records the deposit BEFORE Branch Review;
+  # the "post-approval lock" specs below explicitly set reviewed_at/_by.
   let(:dr) do
     DailyReconciliation.create!(
       branch:        branch,
@@ -24,9 +24,7 @@ RSpec.describe Finance::TillDepositRecorder, type: :model do
       state:         "closed",
       opened_at:     1.hour.ago,
       closed_at:     Time.current,
-      business_date: Date.current,
-      reviewed_by:   actor,
-      reviewed_at:   1.minute.ago
+      business_date: Date.current
     )
   end
 
@@ -137,44 +135,43 @@ RSpec.describe Finance::TillDepositRecorder, type: :model do
       end
     end
 
-    context "Branch Review gate" do
-      before { dr.update_columns(reviewed_at: nil, reviewed_by_id: nil) }
-
-      it "rejects when unreviewed and the actor has no override permission" do
-        result = record
-        expect(result.ok?).to be false
-        expect(result.error).to eq(I18n.t("till_deposits.errors.review_required"))
-        expect(TillDeposit.count).to eq(0)
-      end
-
-      it "requires a reason when the actor holds override_review_requirement" do
-        role = business.permission_roles.create!(name: "Super Admin #{SecureRandom.hex(3)}",
-                                                   permissions: %w[view_daily_reconciliation override_review_requirement])
-        actor.update_column(:permission_role_id, role.id)
-
-        result = record
-        expect(result.ok?).to be false
-        expect(result.error).to eq(I18n.t("till_deposits.errors.override_reason_required"))
-        expect(TillDeposit.count).to eq(0)
-      end
-
-      it "succeeds and logs the override when the actor has permission and a reason" do
-        role = business.permission_roles.create!(name: "Super Admin #{SecureRandom.hex(3)}",
-                                                   permissions: %w[view_daily_reconciliation override_review_requirement])
-        actor.update_column(:permission_role_id, role.id)
-
-        result = record(params: base_params.merge(override_review_reason: "Cashier leaving for the day, manager unreachable"))
-        expect(result.ok?).to be true
-
-        log = AuditLog.where(auditable: result.deposit, action: "deposit_review_overridden").sole
-        expect(log.actor).to eq(actor)
-        expect(log.metadata["reason"]).to eq("Cashier leaving for the day, manager unreachable")
-      end
-
-      it "does not require a reason once the DR is reviewed" do
-        dr.update_columns(reviewed_at: Time.current, reviewed_by_id: actor.id)
+    context "post-approval lock (Branch Review happens AFTER the deposit)" do
+      it "succeeds normally while not yet reviewed (the default order)" do
         result = record
         expect(result.ok?).to be true
+      end
+
+      context "once the Branch Manager has approved the deposit" do
+        before { dr.update_columns(reviewed_at: Time.current, reviewed_by_id: actor.id) }
+
+        it "rejects further deposits when the actor has no override permission" do
+          result = record
+          expect(result.ok?).to be false
+          expect(result.error).to eq(I18n.t("till_deposits.errors.deposit_locked"))
+        end
+
+        it "requires a reason when the actor holds override_review_requirement" do
+          role = business.permission_roles.create!(name: "Super Admin #{SecureRandom.hex(3)}",
+                                                     permissions: %w[view_daily_reconciliation override_review_requirement])
+          actor.update_column(:permission_role_id, role.id)
+
+          result = record
+          expect(result.ok?).to be false
+          expect(result.error).to eq(I18n.t("till_deposits.errors.override_reason_required"))
+        end
+
+        it "succeeds and logs the override when the actor has permission and a reason" do
+          role = business.permission_roles.create!(name: "Super Admin #{SecureRandom.hex(3)}",
+                                                     permissions: %w[view_daily_reconciliation override_review_requirement])
+          actor.update_column(:permission_role_id, role.id)
+
+          result = record(params: base_params.merge(override_review_reason: "Correcting after approval, manager notified"))
+          expect(result.ok?).to be true
+
+          log = AuditLog.where(auditable: result.deposit, action: "deposit_review_overridden").sole
+          expect(log.actor).to eq(actor)
+          expect(log.metadata["reason"]).to eq("Correcting after approval, manager notified")
+        end
       end
     end
 

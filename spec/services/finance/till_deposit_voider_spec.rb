@@ -14,6 +14,8 @@ RSpec.describe Finance::TillDepositVoider, type: :model do
     )
   end
 
+  # NOT reviewed — voiding/correcting a deposit happens BEFORE Branch Review
+  # under the current workflow.
   let(:dr) do
     DailyReconciliation.create!(
       branch:        branch,
@@ -21,9 +23,7 @@ RSpec.describe Finance::TillDepositVoider, type: :model do
       state:         "closed",
       opened_at:     1.hour.ago,
       closed_at:     Time.current,
-      business_date: Date.current,
-      reviewed_by:   actor,
-      reviewed_at:   1.minute.ago
+      business_date: Date.current
     )
   end
 

@@ -56,4 +56,23 @@ class BankStatementTransaction < ApplicationRecord
     return nil unless matched_till_deposit
     (amount - matched_till_deposit.amount).abs
   end
+
+  # A date_mismatch transaction is, by the matching rule, never linked to a
+  # deposit — so there's no association to read a day-gap from. This finds
+  # the nearest same-amount, still-unmatched deposit and reports how many
+  # days apart it is, purely for display (e.g. "3 days apart") so the
+  # accountant can judge whether a Manual Match override is warranted.
+  def date_mismatch_days
+    return nil unless date_mismatch?
+
+    candidate = TillDeposit.joins(:daily_reconciliation)
+                  .where(daily_reconciliations: { business_id: business_id })
+                  .where(amount: amount, voided_at: nil)
+                  .where.missing(:deposit_matches)
+                  .to_a
+                  .min_by { |d| (d.deposited_at.to_date - transaction_date).to_i.abs }
+    return nil unless candidate
+
+    (candidate.deposited_at.to_date - transaction_date).to_i.abs
+  end
 end

@@ -1,6 +1,7 @@
 module Finance
-  # Undoes a completed Branch Review. Only allowed before the first deposit
-  # exists — once a deposit is recorded, review becomes locked and read-only.
+  # Undoes a completed Branch Review of the recorded deposit. Only allowed
+  # before the accountant has finished bank verification — once verified,
+  # the review is locked and read-only.
   class DailyReconciliationReviewCanceller
     include AuditLoggable
 
@@ -17,8 +18,8 @@ module Finance
                           .find(@reconciliation_id)
 
       return err(:review_not_reviewed) unless @reconciliation.reviewed?
-      return err(:review_not_closed)   unless @reconciliation.closed?
-      return err(:review_locked_after_deposit) if @reconciliation.total_deposited.positive?
+      return err(:review_locked_after_verification) if @reconciliation.verified?
+      return err(:review_not_deposited) unless @reconciliation.deposited?
 
       ActiveRecord::Base.transaction do
         @reconciliation.update!(reviewed_by_id: nil, reviewed_at: nil)

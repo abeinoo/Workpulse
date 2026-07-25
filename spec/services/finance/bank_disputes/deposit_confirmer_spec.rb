@@ -7,11 +7,13 @@ RSpec.describe Finance::BankDisputes::DepositConfirmer do
   let(:accountant)  { create(:user, business: business) }
   let(:cash_pm)     { PaymentMethod.create!(business: business, name: "Cash", settlement_type: "cash", active: true) }
 
+  # NOT reviewed — confirming a resolved ATM dispute records the deposit
+  # BEFORE Branch Review, same as any other deposit under the current
+  # workflow.
   let(:dr) do
     DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",
-      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current,
-      reviewed_by: employee, reviewed_at: 1.minute.ago
+      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current
     )
   end
   let!(:till_session) { TillSession.create!(daily_reconciliation: dr, depositor_id: employee.id) }
@@ -77,8 +79,9 @@ RSpec.describe Finance::BankDisputes::DepositConfirmer do
     expect(result.ok?).to be false
   end
 
-  it "rolls back everything when the underlying deposit recorder rejects it" do
-    dr.update_columns(reviewed_at: nil, reviewed_by_id: nil)
+  it "rolls back everything when the underlying deposit recorder rejects it (e.g. deposit responsibility moved on)" do
+    other_depositor = create(:user, business: business)
+    till_session.update!(depositor_id: other_depositor.id)
 
     result = confirm
 

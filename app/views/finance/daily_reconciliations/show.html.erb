@@ -28,6 +28,14 @@
         <span class="badge badge-warning" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3);">
           <%= t("finance.daily_reconciliations.show.state_open") %>
         </span>
+      <% elsif @reconciliation.deposited? && !@reconciliation.reviewed? %>
+        <span class="badge badge-warning" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3);">
+          <%= t("finance.daily_reconciliations.show.state_waiting_for_branch_deposit_review") %>
+        </span>
+      <% elsif @reconciliation.deposited? && @reconciliation.reviewed? %>
+        <span class="badge" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3); background: rgba(var(--accent-rgb,99,102,241),0.12); color: var(--accent);">
+          <%= t("finance.daily_reconciliations.show.state_waiting_for_bank_verification") %>
+        </span>
       <% end %>
       <% open_disputes = @reconciliation.open_bank_disputes(preloaded_till_deposits: @all_deposits.select(&:active?)) %>
       <% if open_disputes.any? %>
@@ -220,7 +228,7 @@
                        @pending_deposit_transfer_for_me ||
                        @pending_deposit_transfer_from_me ||
                        (@reconciliation.open? && policy(TillHandover.new).create?) ||
-                       (@i_am_depositor && @reconciliation.reviewed? && (@reconciliation.closed? || @reconciliation.deposited?))) %>
+                       (@i_am_depositor && (@reconciliation.closed? || @reconciliation.deposited?))) %>
   <% if show_action_bar %>
     <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4);">
       <%# Accept incoming till handover %>
@@ -286,11 +294,10 @@
         <% end %>
       <% end %>
 
-      <%# Record deposit — only available once Branch Review is complete;
-          the review is the approval that the expected cash amount is final,
-          so cash must never be deposited (or reported as an ATM problem)
-          before that. ── %>
-      <% if @i_am_depositor && @reconciliation.reviewed? && (@reconciliation.closed? || @reconciliation.deposited?) %>
+      <%# Record deposit — available as soon as the session is closed; the
+          Branch Manager reviews the recorded deposit afterward, at which
+          point TillDepositPolicy#create? locks this out (unless override). ── %>
+      <% if @i_am_depositor && (@reconciliation.closed? || @reconciliation.deposited?) %>
         <% deposit_dummy = TillDeposit.new(daily_reconciliation: @reconciliation) %>
         <% if policy(deposit_dummy).create? %>
           <%= link_to new_till_deposit_path(daily_reconciliation_id: @reconciliation.id),
