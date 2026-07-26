@@ -12,7 +12,7 @@
   </div>
 
   <%# ── Branch Deposit Review ─────────────────────────────────────────────── %>
-  <div class="stat-card <%= @reconciliation.reviewed? ? 'stat-card--success' : (@review_invalidated ? 'stat-card--danger' : (@reconciliation.deposited? ? 'stat-card--warning' : '')) %>"
+  <div class="stat-card <%= @reconciliation.reviewed? ? 'stat-card--success' : ((@review_invalidated && @reconciliation.deposited?) ? 'stat-card--danger' : (@reconciliation.deposited? ? 'stat-card--warning' : '')) %>"
        style="margin-bottom: var(--space-4);">
     <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.q_review_status") %></p>
 
