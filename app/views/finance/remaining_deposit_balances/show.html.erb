@@ -46,6 +46,18 @@
         </p>
       </div>
     </div>
+  <% elsif @balance.disputed? %>
+    <div style="background: rgba(var(--accent-rgb,99,102,241),0.07); border: 1px solid rgba(var(--accent-rgb,99,102,241),0.3); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div>
+        <p style="font-size: var(--text-sm); font-weight: 700; color: var(--accent); margin: 0 0 2px;">
+          <%= t("remaining_deposit_balances.show.disputed_title") %>
+        </p>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+          <%= t("remaining_deposit_balances.show.disputed_desc") %>
+        </p>
+      </div>
+    </div>
   <% end %>
 
   <%# ── Header ─────────────────────────────────────────────────────────── %>
@@ -67,6 +79,7 @@
        when "open"        then ["var(--warning,#ca8a04)",  "rgba(202,138,4,0.12)"]
        when "settled"     then ["var(--success,#16a34a)",  "rgba(22,163,74,0.12)"]
        when "written_off" then ["var(--text-3,#9ca3af)",   "var(--surface-2)"]
+       when "disputed"    then ["var(--accent)",           "rgba(var(--accent-rgb,99,102,241),0.12)"]
        end %>
     <span style="background: <%= badge_bg %>; color: <%= badge_color %>; border-radius: var(--radius); padding: var(--space-2) var(--space-4); font-size: var(--text-sm); font-weight: 700; white-space: nowrap; flex-shrink: 0;">
       <%= t("remaining_deposit_balances.statuses.#{@balance.status}") %>
@@ -350,10 +363,12 @@
         <% txns.each_with_index do |txn, idx| %>
           <%
             dot_color = case txn.transaction_type
-            when "created"      then "var(--warning,#ca8a04)"
-            when "settlement"   then "var(--success,#16a34a)"
-            when "reassignment" then "var(--accent)"
-            when "write_off"    then "var(--danger,#dc2626)"
+            when "created"          then "var(--warning,#ca8a04)"
+            when "settlement"       then "var(--success,#16a34a)"
+            when "reassignment"     then "var(--accent)"
+            when "write_off"        then "var(--danger,#dc2626)"
+            when "dispute_reserved" then "var(--accent)"
+            when "dispute_released" then "var(--warning,#ca8a04)"
             else "var(--text-3)"
             end
           %>
@@ -383,22 +398,39 @@
                       <%= t("remaining_deposit_balances.show.txn_ref") %>: <code><%= txn.reference_number %></code>
                     </p>
                   <% end %>
+                  <% if txn.bank_dispute %>
+                    <p style="font-size: var(--text-xs); color: var(--text-2); margin: 2px 0 0;">
+                      <%= link_to t("remaining_deposit_balances.show.txn_bank_dispute_ref", id: txn.bank_dispute_id),
+                            finance_bank_dispute_path(txn.bank_dispute_id) %>
+                    </p>
+                  <% end %>
                 </div>
                 <% if txn.amount %>
                   <%
-                    running_remaining -= txn.amount if %w[settlement write_off].include?(txn.transaction_type)
+                    reducing_types = %w[settlement write_off dispute_reserved]
+                    running_remaining -= txn.amount if reducing_types.include?(txn.transaction_type)
+                    running_remaining += txn.amount if txn.transaction_type == "dispute_released"
                     amt_color = case txn.transaction_type
-                    when "created"    then "var(--warning,#ca8a04)"
-                    when "settlement" then "var(--success,#16a34a)"
-                    when "write_off"  then "var(--danger,#dc2626)"
+                    when "created"          then "var(--warning,#ca8a04)"
+                    when "settlement"       then "var(--success,#16a34a)"
+                    when "write_off"        then "var(--danger,#dc2626)"
+                    when "dispute_reserved" then "var(--accent)"
+                    when "dispute_released" then "var(--warning,#ca8a04)"
                     else "var(--text-1)"
+                    end
+                    amt_prefix = if txn.transaction_type == "dispute_released"
+                      "+"
+                    elsif txn.settlement? || txn.transaction_type == "dispute_reserved"
+                      "−"
+                    else
+                      ""
                     end
                   %>
                   <div style="text-align: end; flex-shrink: 0;">
                     <span style="font-size: var(--text-base); font-weight: 800; color: <%= amt_color %>; font-variant-numeric: tabular-nums;">
-                      <%= txn.settlement? ? "−" : "" %><%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
+                      <%= amt_prefix %><%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
                     </span>
-                    <% if %w[settlement write_off].include?(txn.transaction_type) && idx < txns.size - 1 %>
+                    <% if (reducing_types + %w[dispute_released]).include?(txn.transaction_type) && idx < txns.size - 1 %>
                       <p style="font-size: var(--text-xs); color: var(--text-3); margin: 2px 0 0; font-variant-numeric: tabular-nums;">
                         ↓ <%= number_to_currency([running_remaining, 0].max, unit: "", separator: ".", delimiter: ",") %>
                       </p>

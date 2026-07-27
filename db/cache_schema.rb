@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_27_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1326,6 +1326,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_100000) do
 
   create_table "remaining_deposit_balance_transactions", force: :cascade do |t|
     t.decimal "amount", precision: 12, scale: 2
+    t.bigint "bank_dispute_id"
     t.datetime "created_at", null: false
     t.bigint "new_responsible_user_id"
     t.text "notes"
@@ -1335,6 +1336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_100000) do
     t.string "reference_number"
     t.bigint "remaining_deposit_balance_id", null: false
     t.string "transaction_type", null: false
+    t.index ["bank_dispute_id"], name: "idx_on_bank_dispute_id_9a77f70cc7"
     t.index ["new_responsible_user_id"], name: "idx_rdbt_on_new_user_id"
     t.index ["payment_method_id"], name: "idx_on_payment_method_id_43b68ad05c"
     t.index ["performed_by_id"], name: "idx_rdbt_on_performed_by_id"
@@ -2270,6 +2272,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_100000) do
   add_foreign_key "recurring_expenses", "expense_categories"
   add_foreign_key "recurring_expenses", "expense_types"
   add_foreign_key "recurring_expenses", "users", column: "created_by_id"
+  add_foreign_key "remaining_deposit_balance_transactions", "bank_disputes"
   add_foreign_key "remaining_deposit_balance_transactions", "payment_methods"
   add_foreign_key "remaining_deposit_balance_transactions", "remaining_deposit_balances"
   add_foreign_key "remaining_deposit_balance_transactions", "users", column: "new_responsible_user_id"

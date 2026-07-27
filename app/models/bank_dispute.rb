@@ -32,6 +32,11 @@ class BankDispute < ApplicationRecord
   belongs_to :branch
   belongs_to :opened_by, class_name: "User"
 
+  # Every RemainingDepositBalance reservation/release this dispute has ever
+  # caused — the append-only trail Finance::BankDisputes::RemainingBalance*
+  # services write to and read back from (never a computed/cached figure).
+  has_many :remaining_deposit_balance_transactions, dependent: :restrict_with_error
+
   has_many_attached :photos
 
   validates :transaction_date, presence: true
@@ -47,6 +52,7 @@ class BankDispute < ApplicationRecord
   validate  :photos_acceptable
 
   scope :open_cases, -> { where.not(status: RESOLVED_STATUSES) }
+  scope :atm_deposit_failure, -> { where(kind: "atm_deposit_failure") }
 
   def resolved? = RESOLVED_STATUSES.include?(status)
 

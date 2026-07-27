@@ -1,9 +1,15 @@
 class RemainingDepositBalance < ApplicationRecord
   include AuditLoggable
 
-  STATUSES = %w[open settled written_off].freeze
+  # disputed — fully claimed by an open ATM Deposit Dispute (see
+  # Finance::BankDisputes::RemainingBalanceReserver): the employee has
+  # already declared what happened to this cash, so it's no longer an
+  # unexplained shortfall while the dispute is investigated. Reopens to
+  # "open" (Finance::BankDisputes::RemainingBalanceReleaser) if the dispute
+  # resolves as refunded/rejected without becoming a real deposit.
+  STATUSES = %w[open settled written_off disputed].freeze
 
-  enum :status, { open: "open", settled: "settled", written_off: "written_off" }
+  enum :status, { open: "open", settled: "settled", written_off: "written_off", disputed: "disputed" }
 
   # ── Aggregate root ──────────────────────────────────────────────────────────
   belongs_to :daily_reconciliation, inverse_of: :remaining_deposit_balances
@@ -23,7 +29,7 @@ class RemainingDepositBalance < ApplicationRecord
   validates :amount,           presence: true, numericality: { greater_than: 0 }
   validates :remaining_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :status,           inclusion: { in: STATUSES }
-  validates :closed_at,        presence: true, if: -> { settled? || written_off? }
+  validates :closed_at,        presence: true, if: -> { settled? || written_off? || disputed? }
 
   # ── Scopes ───────────────────────────────────────────────────────────────────
   scope :for_business, ->(b) { where(business: b) }
@@ -32,12 +38,12 @@ class RemainingDepositBalance < ApplicationRecord
   scope :unsettled,    ->    { open }
   scope :overdue,      ->(days: 3) { open.where("remaining_deposit_balances.created_at < ?", days.days.ago) }
 
-  def closed? = settled? || written_off?
+  def closed? = settled? || written_off? || disputed?
 
   # Who closed this balance — derived from the last closure transaction.
   def closed_by
     balance_transactions
-      .where(transaction_type: %w[settlement write_off])
+      .where(transaction_type: %w[settlement write_off dispute_reserved])
       .order(:created_at).last&.performed_by
   end
 

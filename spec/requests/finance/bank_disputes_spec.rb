@@ -133,7 +133,7 @@ RSpec.describe "Bank Disputes", type: :request do
                                 collected_amount: 300, refund_amount: 0)
     end
 
-    it "lets the employee report the problem without creating a TillDeposit or reducing Remaining Cash" do
+    it "lets the employee report the problem without creating a TillDeposit, and reduces Remaining to Deposit by the disputed amount" do
       sign_in employee
 
       post finance_bank_disputes_path, params: {
@@ -151,7 +151,11 @@ RSpec.describe "Bank Disputes", type: :request do
 
       expect(TillDeposit.count).to eq(0)
       expect(RemainingDepositBalance.count).to eq(0)
-      expect(atm_dr.reload.pending_deposit_amount).to eq(300)
+      # The employee has already declared what happened to this cash — it is
+      # now tracked by the Bank Dispute workflow instead of the Deposit
+      # workflow, so it must no longer appear as still owed.
+      expect(atm_dr.reload.pending_deposit_amount).to eq(0)
+      expect(atm_dr.open_atm_dispute_amount).to eq(300)
     end
 
     it "blocks an employee from reporting a problem for a reconciliation they are not the depositor of" do

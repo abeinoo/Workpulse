@@ -118,5 +118,42 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
         expect(result.ok?).to be true
       end
     end
+
+    describe "an open ATM Deposit Dispute counts the same as a recorded deposit for this gate" do
+      def atm_dispute(amount:, status: "new")
+        BankDispute.create!(
+          daily_reconciliation: dr, business: business, branch: branch, opened_by: actor,
+          opened_at: Time.current, transaction_date: Date.current, kind: "atm_deposit_failure",
+          amount: amount, status: status, bank_name: "NBE", terminal_id: "ATM-1", card_last4: "1234"
+        )
+      end
+
+      it "allows verification when the full expected amount is covered by an open dispute, even with zero deposits" do
+        atm_dispute(amount: 5_000)
+        review!
+
+        result = verify
+        expect(result.ok?).to be true
+      end
+
+      it "still blocks verification via verify_no_deposit_recorded once the only dispute is resolved" do
+        atm_dispute(amount: 5_000, status: "closed")
+        review!
+
+        result = verify
+        expect(result.ok?).to be false
+        expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.verify_no_deposit_recorded"))
+      end
+
+      it "allows verification for a partial dispute alongside a partial deposit covering the rest" do
+        dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 2_000, deposited_at: Time.current)
+        atm_dispute(amount: 3_000)
+        dr.update_columns(state: "deposited")
+        review!
+
+        result = verify
+        expect(result.ok?).to be true
+      end
+    end
   end
 end

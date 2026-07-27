@@ -63,6 +63,8 @@ module Finance
 
           log_audit(actor: @actor, auditable: dispute, action: kind == "atm_deposit_failure" ? "reported" : "opened")
 
+          Finance::BankDisputes::RemainingBalanceReserver.call(dispute, actor: @actor)
+
           Result.new(ok: true, dispute: dispute)
         end
       rescue ActiveRecord::RecordInvalid => e

@@ -98,9 +98,60 @@ class DailyReconciliation < ApplicationRecord
                    .sum("collected_amount - refund_amount")
   end
 
+  # Cash already accounted for by an OPEN "cash never reached the bank" ATM
+  # Deposit Dispute (BankDispute kind: atm_deposit_failure) — the employee
+  # has already declared what happened to this money, so it must not also
+  # sit in "still owed" via the ordinary Deposit workflow at the same time.
+  # Disputes of the *other* kind (missing_from_bank) are anchored on an
+  # already-recorded TillDeposit, so their amount is already inside
+  # total_deposited — counting those here too would double-subtract.
+  def open_atm_dispute_amount
+    bank_disputes.atm_deposit_failure.open_cases.sum(:amount)
+  end
+
   # How much is still outstanding before this deposit form is submitted.
+  # Successful deposits AND open ATM Deposit Disputes both reduce this —
+  # disputed cash is being tracked by the Bank Dispute workflow instead of
+  # the Deposit workflow until that dispute resolves.
   def pending_deposit_amount
-    (expected_cash_deposit - total_deposited).clamp(0, Float::INFINITY)
+    (expected_cash_deposit - total_deposited - open_atm_dispute_amount).clamp(0, Float::INFINITY)
+  end
+
+  # Per-payment-method remaining balance still owed — the single source of
+  # truth for both the Record Deposit dialog's displayed figures and
+  # TillDepositRecorder's over-deposit guard, so the two can never disagree.
+  #
+  # BankDispute carries no payment_method_id of its own, so an open ATM
+  # Deposit Dispute's amount can't be attributed to one specific cash-like
+  # payment method — it's spread across all of them *proportionally* to each
+  # method's own remaining base, not dumped entirely onto whichever one
+  # happens to sort first. That keeps this method's sum, across every
+  # payment method, always exactly equal to #pending_deposit_amount (the
+  # DR-wide figure) — e.g. Cash A=325 remaining / Cash B=650 remaining with a
+  # 200 open dispute yields 258.33 / 516.67 (975 total, minus 200 = 775),
+  # never a lopsided 125 / 650 from handing the whole dispute to Cash A alone
+  # just because it happens to be positioned first. Never negative.
+  def remaining_by_payment_method
+    already_deposited = till_deposits.active.group(:payment_method_id).sum(:amount)
+    amounts = session_amounts.includes(:payment_method).order("payment_methods.position").to_a
+
+    bases = amounts.to_h do |sa|
+      base = sa.net_amount - (already_deposited[sa.payment_method_id] || 0)
+      [ sa.payment_method_id, [ base, 0 ].max ]
+    end
+
+    cash_pm_ids     = amounts.select { |sa| sa.payment_method.cash_like? }.map(&:payment_method_id)
+    cash_base_total = bases.values_at(*cash_pm_ids).sum
+    dispute_pool    = open_atm_dispute_amount
+
+    bases.each_with_object({}) do |(pm_id, base), remaining|
+      if cash_pm_ids.include?(pm_id) && dispute_pool.positive? && cash_base_total.positive?
+        share = dispute_pool * base / cash_base_total
+        base  = [ base - share, 0 ].max
+      end
+
+      remaining[pm_id] = base
+    end
   end
 
   # Sum of currently outstanding cash across all open remaining balances.

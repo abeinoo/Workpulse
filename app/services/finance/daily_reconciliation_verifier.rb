@@ -32,10 +32,14 @@ module Finance
 
       # A remaining deposit balance (partial deposit, cash leftovers, machine
       # limits) is normal and does not block verification — it's tracked and
-      # settled independently via the RemainingDepositBalance ledger. Only
-      # the absence of any deposit at all blocks verification.
+      # settled independently via the RemainingDepositBalance ledger. An open
+      # ATM Deposit Dispute counts the same way: the employee has already
+      # declared what happened to that cash, so it's being tracked by the
+      # Bank Dispute workflow instead. Only the absence of BOTH any deposit
+      # and any open dispute blocks verification — nothing has happened yet.
       expected = @reconciliation.expected_cash_deposit
-      if expected > 0 && @reconciliation.till_deposits.active.none?
+      if expected > 0 && @reconciliation.till_deposits.active.none? &&
+         @reconciliation.open_atm_dispute_amount.zero?
         return err(:verify_no_deposit_recorded)
       end
 

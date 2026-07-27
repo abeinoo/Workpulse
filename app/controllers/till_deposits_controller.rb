@@ -17,6 +17,7 @@ class TillDepositsController < ApplicationController
     @deposit         = TillDeposit.new(daily_reconciliation: @reconciliation)
     @payment_methods = business_payment_methods.select(&:cash_like?)
     @expected_amounts_by_pm = expected_amounts_by_pm(@reconciliation, @payment_methods)
+    @open_atm_dispute_amount = @reconciliation.open_atm_dispute_amount
     @idempotency_key = SecureRandom.uuid
 
     @preselected_payment_method_id = params[:payment_method_id].presence&.to_i
@@ -50,6 +51,7 @@ class TillDepositsController < ApplicationController
     else
       @payment_methods = business_payment_methods.select(&:cash_like?)
       @expected_amounts_by_pm = expected_amounts_by_pm(@reconciliation, @payment_methods)
+      @open_atm_dispute_amount = @reconciliation.open_atm_dispute_amount
       # Preserve the same key on re-render so a retry of this exact failed
       # submission stays idempotent rather than minting a fresh one.
       @idempotency_key = deposit_params[:idempotency_key].presence || SecureRandom.uuid
@@ -132,18 +134,12 @@ class TillDepositsController < ApplicationController
   end
 
   # Returns a Hash { pm_id => expected_pending_amount } for use in the form.
-  # Expected = session total for that PM minus what's already been deposited.
+  # Delegates to DailyReconciliation#remaining_by_payment_method — the same
+  # source TillDepositRecorder validates against — so the dialog can never
+  # display a figure the recorder would then reject.
   def expected_amounts_by_pm(reconciliation, payment_methods)
-    already_deposited = reconciliation.till_deposits.active
-                                      .group(:payment_method_id)
-                                      .sum(:amount)
-    session_totals = reconciliation.session_amounts
-                                   .each_with_object({}) do |sa, h|
-                                     h[sa.payment_method_id] = sa.net_amount
-                                   end
-    payment_methods.each_with_object({}) do |pm, h|
-      h[pm.id] = [(session_totals[pm.id] || 0) - (already_deposited[pm.id] || 0), 0].max
-    end
+    remaining = reconciliation.remaining_by_payment_method
+    payment_methods.each_with_object({}) { |pm, h| h[pm.id] = remaining[pm.id] || 0 }
   end
 
   def deposit_params

@@ -32,6 +32,8 @@ module Finance
 
         return err(dispute, "invalid_transition") unless dispute.can_transition_to?(@target_status)
 
+        was_open = !dispute.resolved?
+
         ActiveRecord::Base.transaction do
           attrs = TRANSITION_FIELDS.fetch(@target_status, []).each_with_object({}) do |field, h|
             h[field] = @params[field] if @params.key?(field)
@@ -41,6 +43,15 @@ module Finance
           dispute.update!(attrs)
 
           log_audit(actor: @actor, auditable: dispute, action: @target_status, metadata: attrs.except(:status))
+
+          # The only transitions landing on a resolved status (refunded,
+          # confirmed_successful, rejected) start from "under_investigation"
+          # (never-resolved), so this fires exactly once per dispute — the
+          # later resolved -> closed transition starts from an
+          # already-resolved status and is correctly skipped.
+          if was_open && dispute.resolved?
+            Finance::BankDisputes::RemainingBalanceReleaser.call(dispute, actor: @actor)
+          end
 
           Result.new(ok: true, dispute: dispute)
         end

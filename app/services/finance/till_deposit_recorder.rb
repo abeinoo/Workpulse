@@ -83,16 +83,14 @@ module Finance
 
         # Remaining balance only applies to cash-like methods. Recomputed here,
         # inside the lock, so a concurrent deposit already committed by another
-        # request is reflected before this one is accepted or rejected.
+        # request — or an open ATM Deposit Dispute that already accounts for
+        # part of this amount — is reflected before this one is accepted or
+        # rejected. Shared with the Record Deposit dialog's displayed figures
+        # via DailyReconciliation#remaining_by_payment_method so the two can
+        # never disagree.
         remaining_amount = nil
         if pm.cash_like?
-          pm_session_total  = @daily_reconciliation.session_amounts
-                                                    .where(payment_method_id: pm.id)
-                                                    .sum("collected_amount - refund_amount")
-          already_deposited = @daily_reconciliation.till_deposits.active
-                                                    .where(payment_method_id: pm.id)
-                                                    .sum(:amount)
-          remaining_before  = pm_session_total - already_deposited
+          remaining_before = @daily_reconciliation.remaining_by_payment_method[pm.id] || 0
 
           if actual > remaining_before
             result = Result.new(ok: false,

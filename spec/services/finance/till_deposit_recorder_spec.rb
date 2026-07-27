@@ -247,6 +247,58 @@ RSpec.describe Finance::TillDepositRecorder, type: :model do
       end
     end
 
+    context "with an open ATM Deposit Dispute" do
+      def atm_dispute(amount:, status: "new")
+        BankDispute.create!(
+          daily_reconciliation: dr, business: business, branch: branch, opened_by: actor,
+          opened_at: Time.current, transaction_date: Date.current, kind: "atm_deposit_failure",
+          amount: amount, status: status, bank_name: "NBE", terminal_id: "ATM-1", card_last4: "1234"
+        )
+      end
+
+      it "excludes the disputed amount from what can still be deposited" do
+        atm_dispute(amount: 200)
+
+        result = record(params: base_params.merge(amount: "500.00"))
+
+        expect(result.ok?).to be false
+        expect(result.error).to eq(I18n.t("till_deposits.errors.exceeds_remaining", remaining: "300.0"))
+      end
+
+      it "allows depositing exactly the amount still remaining after the dispute" do
+        atm_dispute(amount: 200)
+
+        result = record(params: base_params.merge(amount: "300.00"))
+
+        expect(result.ok?).to be true
+        expect(result.remaining_amount).to be_nil
+      end
+
+      it "does not create a shortfall/RemainingDepositBalance for cash already covered by the dispute" do
+        atm_dispute(amount: 200)
+
+        record(params: base_params.merge(amount: "300.00"))
+
+        expect(RemainingDepositBalance.count).to eq(0)
+      end
+
+      it "no longer excludes the amount once the dispute resolves as rejected" do
+        atm_dispute(amount: 200, status: "rejected")
+
+        result = record(params: base_params.merge(amount: "500.00"))
+
+        expect(result.ok?).to be true
+      end
+
+      it "does not exclude a resolved (closed) dispute's amount" do
+        atm_dispute(amount: 200, status: "closed")
+
+        result = record(params: base_params.merge(amount: "500.00"))
+
+        expect(result.ok?).to be true
+      end
+    end
+
     context "idempotency" do
       before { session_amount.update!(collected_amount: 5_000) }
 
