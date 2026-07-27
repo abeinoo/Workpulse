@@ -22,7 +22,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     query = DailyReconciliation
               .where(business_id: current_user.business_id)
-              .includes(:branch, :bank_disputes,
+              .includes(:branch, :business, :bank_disputes,
                         remaining_deposit_balances: :responsible_user,
                         opening_float_source_handover: :from_user,
                         till_session: %i[current_holder depositor],
@@ -49,7 +49,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     # ── Optional filters ─────────────────────────────────────────────────────
     @filter_status       = params[:status].presence
     @filter_branch       = sticky_branch_filter
-    @filter_date         = params[:business_date].presence
+    @filter_date_from    = params[:from].presence
+    @filter_date_to      = params[:to].presence
     @filter_bank_status  = @show_verification ? params[:verification_status].presence : nil
     @filter_bank_imported     = @show_verification && params[:bank_imported].presence == "1"
     @filter_outstanding_exists = @show_verification && params[:outstanding_exists].presence == "1"
@@ -250,82 +251,6 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     else
       redirect_to finance_daily_reconciliations_path,
                   alert: t("finance.daily_reconciliations.errors.bulk_receive_failed")
-    end
-  end
-
-  # POST /finance/daily_reconciliations/bulk_mark_reviewed
-  def bulk_mark_reviewed
-    authorize DailyReconciliation, :bulk_mark_reviewed?
-
-    ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
-    if ids.empty?
-      return redirect_to finance_daily_reconciliations_path,
-                         alert: t("finance.daily_reconciliations.errors.bulk_none_selected")
-    end
-
-    reconciliations = policy_scope(DailyReconciliation).where(id: ids)
-
-    successes = 0
-    failures  = 0
-
-    reconciliations.each do |dr|
-      next unless dr.deposited? && !dr.reviewed?
-
-      result = Finance::DailyReconciliationReviewer.new(dr.id, actor: current_user).call
-      result.ok? ? successes += 1 : failures += 1
-    end
-
-    if failures.zero? && successes > 0
-      redirect_to finance_daily_reconciliations_path(filter_params),
-                  notice: t("finance.daily_reconciliations.bulk_mark_reviewed_done", count: successes)
-    elsif successes > 0
-      redirect_to finance_daily_reconciliations_path(filter_params),
-                  notice: t("finance.daily_reconciliations.bulk_mark_reviewed_partial",
-                             success: successes, failure: failures)
-    else
-      redirect_to finance_daily_reconciliations_path(filter_params),
-                  alert: t("finance.daily_reconciliations.errors.bulk_mark_reviewed_failed")
-    end
-  end
-
-  # POST /finance/daily_reconciliations/bulk_assign_depositor
-  def bulk_assign_depositor
-    authorize DailyReconciliation, :bulk_assign_depositor?
-
-    ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
-    if ids.empty?
-      return redirect_to finance_daily_reconciliations_path,
-                         alert: t("finance.daily_reconciliations.errors.bulk_none_selected")
-    end
-
-    depositor = current_user.business.users.active.find_by(id: params[:depositor_id])
-    unless depositor
-      return redirect_to finance_daily_reconciliations_path,
-                         alert: t("finance.daily_reconciliations.errors.invalid_depositor")
-    end
-
-    reconciliations = policy_scope(DailyReconciliation).where(id: ids).includes(:till_session)
-
-    successes = 0
-    failures  = 0
-
-    reconciliations.each do |dr|
-      next unless dr.till_session
-
-      result = Finance::DepositorAssigner.new(dr.id, actor: current_user, depositor_id: depositor.id).call
-      result.ok? ? successes += 1 : failures += 1
-    end
-
-    if failures.zero? && successes > 0
-      redirect_to finance_daily_reconciliations_path(filter_params),
-                  notice: t("finance.daily_reconciliations.bulk_assign_done", count: successes)
-    elsif successes > 0
-      redirect_to finance_daily_reconciliations_path(filter_params),
-                  notice: t("finance.daily_reconciliations.bulk_assign_partial",
-                             success: successes, failure: failures)
-    else
-      redirect_to finance_daily_reconciliations_path(filter_params),
-                  alert: t("finance.daily_reconciliations.errors.bulk_assign_failed")
     end
   end
 
@@ -1347,6 +1272,12 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     case @filter_status
     when "waiting_opening"
       query = query.waiting_for_opening
+    when "waiting_deposit"
+      # Workflow-stage filter: day closed, no deposit recorded yet.
+      # Distinct from "outstanding" below, which is a financial condition
+      # (an open shortfall) that can co-exist with any state, including
+      # verified.
+      query = query.closed
     when "outstanding"
       query = query.joins(:remaining_deposit_balances)
                    .where(remaining_deposit_balances: { status: "open" })
@@ -1362,16 +1293,22 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       query = query.where(branch_id: @filter_branch.to_i)
     end
 
-    if @filter_date.present?
-      date = Date.parse(@filter_date) rescue nil
-      query = query.where(business_date: date) if date
+    date_from = Date.parse(@filter_date_from) rescue nil if @filter_date_from.present?
+    date_to   = Date.parse(@filter_date_to) rescue nil if @filter_date_to.present?
+
+    if date_from && date_to
+      query = query.where(business_date: date_from..date_to)
+    elsif date_from
+      query = query.where(business_date: date_from..)
+    elsif date_to
+      query = query.where(business_date: ..date_to)
     end
 
     query
   end
 
   def filter_params
-    params.permit(:status, :branch_id, :business_date, :verification_status,
+    params.permit(:status, :branch_id, :from, :to, :verification_status,
                   :bank_imported, :outstanding_exists, :depositor_id)
   end
 

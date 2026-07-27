@@ -117,4 +117,25 @@ RSpec.describe ApplicationHelper, type: :helper do
       expect(result).to match(/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\z/)
     end
   end
+
+  describe "#bank_status_summary" do
+    it "maps no_bank_transactions/waiting_for_deposit to no_bank_statement" do
+      expect(helper.bank_status_summary("no_bank_transactions")).to eq("no_bank_statement")
+      expect(helper.bank_status_summary("waiting_for_deposit")).to eq("no_bank_statement")
+    end
+
+    it "maps waiting_for_bank_statement to itself" do
+      expect(helper.bank_status_summary("waiting_for_bank_statement")).to eq("waiting_for_bank_statement")
+    end
+
+    it "collapses every mid-matching state into matching_in_progress" do
+      %w[needs_review waiting_for_matching difference_found partially_matched].each do |raw|
+        expect(helper.bank_status_summary(raw)).to eq("matching_in_progress")
+      end
+    end
+
+    it "maps completed matching to completed, regardless of DR verification state" do
+      expect(helper.bank_status_summary("completed")).to eq("completed")
+    end
+  end
 end

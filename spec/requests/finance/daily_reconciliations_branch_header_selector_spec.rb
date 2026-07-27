@@ -113,8 +113,8 @@ RSpec.describe "Daily Reconciliations index — header branch selector", type: :
     get finance_daily_reconciliations_path(branch_id: sales_branch_a.id)
 
     doc = Nokogiri::HTML(response.body)
-    hidden = doc.at_css("input[type='hidden'][name='branch_id']")
-    expect(hidden["value"]).to eq(sales_branch_a.id.to_s)
+    selected = doc.at_css("select[name='branch_id'] option[selected]")
+    expect(selected["value"]).to eq(sales_branch_a.id.to_s)
   end
 
   describe "sticky selection across navigation" do

@@ -7,8 +7,6 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def receive_opening_float?       = cashier_permission?
   def bulk_receive_opening_float?  = can?(:create_till_session) || can?(:verify_daily_reconciliation)
   def bulk_settle?                 = can?(:settle_remaining_deposit_balance)
-  def bulk_mark_reviewed?          = can?(:review_daily_reconciliation)
-  def bulk_assign_depositor?       = can?(:verify_daily_reconciliation)
   def export?                      = can?(:view_daily_reconciliation)
   def correct_opening_float?        = can?(:correct_opening_float)
   def update_opening_float_amounts? = can?(:correct_opening_float)

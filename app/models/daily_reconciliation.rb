@@ -196,7 +196,20 @@ class DailyReconciliation < ApplicationRecord
     deposits = active_deposits.to_a
     return "waiting_for_deposit" if deposits.empty?
 
-    return "waiting_for_bank_statement" unless bank_statement_covers_deposits?(deposits, covering_statements)
+    # A deposit's match can come from a bank transaction whose own
+    # statement date range does not include the deposit's date at all —
+    # Finance::BankStatements::ManualMatcher explicitly allows this (e.g.
+    # "the bank processed it after midnight"), and DepositConfirmer's
+    # deposits are matched/closed immediately with no date relationship to
+    # any statement either. So a deposit that already has ANY match proves
+    # a statement covered it in practice, regardless of what the date-range
+    # heuristic below says — only fall back to that heuristic while nothing
+    # is matched yet. Without this, a fully-matched DR could permanently
+    # show "waiting_for_bank_statement" even at 1/1 matched deposits.
+    already_matched = deposits.any? { |d| d.match_status != :unmatched }
+    unless already_matched || bank_statement_covers_deposits?(deposits, covering_statements)
+      return "waiting_for_bank_statement"
+    end
 
     return "needs_review" if bank_transactions_need_review?(deposits, review_transactions)
 
@@ -234,15 +247,106 @@ class DailyReconciliation < ApplicationRecord
     (from_deposits + bank_disputes).uniq.reject(&:resolved?)
   end
 
+  # ── Single source of truth for the index card's "Next Action" — the ONE
+  # highest-priority, permission-gated step guiding the accountant toward
+  # completing this reconciliation. Priority order is authoritative: the
+  # first matching workflow-state branch wins, and if the current user lacks
+  # permission for THAT action, the whole call returns nil (no cascading to
+  # a lower-priority action the user might happen to be allowed to do — the
+  # workflow order, not permission, decides WHICH action is "next").
+  #
+  # bank_status/open_disputes are accepted as optional pre-computed args
+  # (matching #bank_reconciliation_status's own covering_statements: pattern)
+  # so index-page callers can reuse the batch-computed @bank_statuses_by_dr /
+  # per-DR dispute arrays already built to avoid N+1 — this method itself
+  # runs no additional queries beyond what's already eager-loaded.
+  #
+  # Every gate below delegates to the SAME Pundit policy method that already
+  # authorizes the destination action/page, so this never drifts from real
+  # authorization logic. permission: in the returned hash is a human-
+  # readable label for the underlying check, not necessarily a literal
+  # PermissionRole permission key (e.g. "create_opening_balance" describes
+  # DailyReconciliationPolicy#receive_opening_float?'s composite
+  # cashier-permission check; "record_deposit" describes the real
+  # create_till_deposit permission plus TillDepositPolicy#create?'s
+  # depositor-assignment/review-lock rules).
+  def next_action_for(user, bank_status: nil, open_disputes: [])
+    routes = Rails.application.routes.url_helpers
+    t = ->(key) { I18n.t("finance.daily_reconciliations.index.workspace.quick_actions.#{key}") }
+    primary_style = "btn btn-primary btn-sm"
+
+    if opening_float_receivable?
+      return nil unless DailyReconciliationPolicy.new(user, self).receive_opening_float?
+
+      { label: t.call(:enter_opening_balance), icon: "wallet",
+        path: routes.finance_daily_reconciliation_path(self),
+        permission: "create_opening_balance", style: primary_style, method: :get }
+
+    elsif closed?
+      return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).create?
+
+      { label: t.call(:record_deposit), icon: "plus-circle",
+        path: routes.new_till_deposit_path(daily_reconciliation_id: id),
+        permission: "record_deposit", style: primary_style, method: :get }
+
+    elsif remaining_deposit_balances.select(&:open?).sum(&:remaining_amount).positive?
+      return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).create?
+
+      { label: t.call(:record_additional_deposit), icon: "plus-circle",
+        path: routes.new_till_deposit_path(daily_reconciliation_id: id),
+        permission: "record_deposit", style: primary_style, method: :get }
+
+    elsif bank_status == "waiting_for_bank_statement"
+      return nil unless user.can?(:import_bank_statement)
+
+      { label: t.call(:import_statement), icon: "upload",
+        path: routes.new_finance_bank_statement_path,
+        permission: "import_bank_statement", style: primary_style, method: :get }
+
+    elsif %w[needs_review waiting_for_matching difference_found partially_matched].include?(bank_status)
+      return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).match?
+
+      { label: t.call(:match_transactions), icon: "git-merge",
+        path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"),
+        permission: "match_bank_transactions", style: primary_style, method: :get }
+
+    elsif deposited? && !reviewed?
+      return nil unless DailyReconciliationPolicy.new(user, self).mark_reviewed?
+
+      { label: t.call(:review_reconciliation), icon: "check-square",
+        path: routes.finance_daily_reconciliation_path(self, anchor: "approval"),
+        permission: "review_daily_reconciliation", style: primary_style, method: :get }
+
+    elsif deposited? && reviewed? && !verified?
+      return nil unless DailyReconciliationPolicy.new(user, self).verify?
+
+      { label: t.call(:verify_reconciliation), icon: "shield-check",
+        path: routes.finance_daily_reconciliation_path(self, anchor: "approval"),
+        permission: "verify_daily_reconciliation", style: primary_style, method: :get }
+
+    elsif open_disputes.any?
+      return nil unless BankDisputePolicy.new(user, open_disputes.first).update_case?
+
+      { label: t.call(:review_bank_dispute), icon: "alert-triangle",
+        path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"),
+        permission: "resolve_bank_dispute", style: "btn btn-warning btn-sm", method: :get }
+
+    end
+    # Verified (or any other state not matched above) → no action, View only.
+  end
+
   # Public wrapper around the private bank_statement_covers_deposits? check,
   # for the "Bank Imported" filter and the workflow-timeline stage below.
   # False (not "unknown") when there are no active deposits to check coverage
-  # against yet.
+  # against yet. Same "already matched proves a statement was imported"
+  # override as #bank_reconciliation_status above — see its comment — so
+  # this can never say "not imported" while a deposit is already matched.
   def bank_statement_imported?(covering_statements: nil)
     deposits = active_deposits.to_a
     return false if deposits.empty?
 
-    bank_statement_covers_deposits?(deposits, covering_statements)
+    deposits.any? { |d| d.match_status != :unmatched } ||
+      bank_statement_covers_deposits?(deposits, covering_statements)
   end
 
   # Ordered stages reached so far, for the compact workflow-timeline

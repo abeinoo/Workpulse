@@ -451,8 +451,6 @@ Rails.application.routes.draw do
       collection do
         post :bulk_receive_opening_float
         post :bulk_settle
-        post :bulk_mark_reviewed
-        post :bulk_assign_depositor
         get  :export
       end
     end

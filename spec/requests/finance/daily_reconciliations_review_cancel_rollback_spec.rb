@@ -72,7 +72,7 @@ RSpec.describe "Cancelling a Branch Deposit Review rolls back the deposit, not j
     expect(response.body).not_to include(cancel_button_text)
     expect(response.body).to include(waiting_for_deposit_text)
     expect(response.body).not_to include(I18n.t("finance.daily_reconciliations.show.state_waiting_for_branch_deposit_review"))
-    expect(response.body).not_to include(I18n.t("finance.daily_reconciliations.show.state_waiting_for_bank_verification"))
+    expect(response.body).not_to include(I18n.t("finance.daily_reconciliations.show.state_waiting_for_accounting_approval"))
 
     # Back to "Ready for Deposit" — both actions visible again to the depositor.
     sign_in employee

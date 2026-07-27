@@ -144,10 +144,18 @@ module Finance
     # new_shortfall is the amount still owed for this PM after the current deposit
     # (nil means fully covered).
     #
-    # Three cases:
+    # Four cases:
     #   1. Existing open RDB + new shortfall reduced  → settle the difference
     #   2. Existing open RDB + no shortfall remaining → fully settle the RDB
-    #   3. No existing RDB  + shortfall still exists  → create a new RDB
+    #   3. Existing open RDB + new shortfall LARGER    → append an adjustment
+    #      raising it to match. This is not a hypothetical: an RDB can be
+    #      left open with a stale (too-small) remaining_amount when the
+    #      deposit that originally created it is later voided/corrected —
+    #      voiding a deposit never touches its RDB — and the replacement
+    #      deposit then reveals a bigger true shortfall (e.g. because an
+    #      open ATM Deposit Dispute now also reduces what's available). The
+    #      ledger must never silently understate the true shortfall.
+    #   4. No existing RDB  + shortfall still exists  → create a new RDB
     def reconcile_remaining_balance!(pm, deposit, new_shortfall)
       open_rdb = @daily_reconciliation.remaining_deposit_balances
                    .open
@@ -156,13 +164,15 @@ module Finance
                    .first
 
       if open_rdb
-        settlement_amount = open_rdb.remaining_amount - new_shortfall.to_d
-        if settlement_amount > 0
+        delta = new_shortfall.to_d - open_rdb.remaining_amount
+        if delta.negative?
           Finance::RemainingDepositBalanceSettler.new(
             open_rdb.id,
             actor:  @actor,
-            amount: settlement_amount
+            amount: -delta
           ).call
+        elsif delta.positive?
+          increase_remaining_balance!(open_rdb, delta)
         end
       elsif new_shortfall
         balance = @daily_reconciliation.remaining_deposit_balances.create!(
@@ -186,6 +196,31 @@ module Finance
                                daily_reconciliation_id: @daily_reconciliation.id,
                                till_deposit_id:         deposit.id })
       end
+    end
+
+    # Appends an append-only adjustment raising an existing open balance's
+    # remaining_amount — never mutates the earlier "created"/settlement
+    # transactions, this is a new, separate ledger entry. Also raises the
+    # balance's own `amount` (the all-time total ever owed) by the same
+    # delta, so `amount - remaining_amount` ("settled since") keeps meaning
+    # "cumulative real settlements" rather than going negative.
+    def increase_remaining_balance!(balance, delta)
+      balance.balance_transactions.create!(
+        transaction_type: "adjustment",
+        amount:           delta,
+        performed_by:     @actor,
+        notes:            "Shortfall increased to #{balance.remaining_amount + delta} after this deposit"
+      )
+
+      balance.update!(
+        amount:            balance.amount + delta,
+        remaining_amount:  balance.remaining_amount + delta
+      )
+
+      log_audit(actor: @actor, auditable: balance, action: "adjustment",
+                metadata: { amount:                  delta.to_s,
+                             daily_reconciliation_id: @daily_reconciliation.id,
+                             reason:                  "shortfall_increased_by_new_deposit" })
     end
   end
 end

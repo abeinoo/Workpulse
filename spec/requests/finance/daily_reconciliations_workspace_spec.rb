@@ -44,7 +44,7 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
   end
 
   describe "workflow dashboard" do
-    it "shows count, total amount, and percentage for each of the 5 stages" do
+    it "shows the four reorganized dashboard sections with correct pipeline/financial figures" do
       dr_waiting = make_dr(business_date: Date.new(2026, 7, 10))
       collect_cash!(dr_waiting, 400)
 
@@ -62,8 +62,11 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
       get finance_daily_reconciliations_path
 
       body = response.body
-      expect(body).to include(t_ws("dashboard_title"))
-      expect(body).to include(format_currency_like(400))
+      expect(body).to include(t_ws("section_workflow_title"))
+      expect(body).to include(t_ws("section_exceptions_title"))
+      expect(body).to include(t_ws("section_financial_title"))
+      expect(body).to include(t_ws("section_operational_title"))
+      # Financial Summary — deposited + matched totals for dr_completed.
       expect(body).to include(format_currency_like(600))
     end
 
@@ -153,27 +156,10 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
       expect(response.body).to include(finance_daily_reconciliation_path(dr_other))
       expect(response.body).to include(finance_daily_reconciliation_path(dr_other_2))
     end
-
-    it "still lists every depositor as a selectable option even while one is active (so switching remains possible)" do
-      other = user_with("view_daily_reconciliation", "close_till_session", "create_till_deposit")
-
-      dr_actor = make_dr(depositor: actor, business_date: Date.new(2026, 7, 10))
-      collect_cash!(dr_actor, 400)
-      dr_other = make_dr(depositor: other, business_date: Date.new(2026, 7, 11))
-      collect_cash!(dr_other, 600)
-
-      get finance_daily_reconciliations_path(depositor_id: actor.id)
-
-      doc = Nokogiri::HTML(response.body)
-      select = doc.at_css("select[name='depositor_id']")
-      option_labels = select.css("option").map(&:text)
-      expect(option_labels).to include(t_ws("depositor_count", name: actor.full_name, count: 1))
-      expect(option_labels).to include(t_ws("depositor_count", name: other.full_name, count: 1))
-    end
   end
 
-  describe "Deposited By filter" do
-    it "tallies deposit counts per depositor and filters when selected" do
+  describe "Deposited By filter (no dedicated select on the index page — driven by the Top Depositors card / depositor_id param directly)" do
+    it "tallies deposit counts per depositor (shown via the Top Depositors card) and filters when a depositor_id is applied" do
       other = user_with("view_daily_reconciliation", "close_till_session", "create_till_deposit")
 
       dr_a = make_dr(depositor: actor, business_date: Date.new(2026, 7, 10))
@@ -204,7 +190,7 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
       deposit(dr_b, amount: 100, depositor: actor)
       _ = other
 
-      get finance_daily_reconciliations_path(depositor_id: actor.id, business_date: "2026-07-10")
+      get finance_daily_reconciliations_path(depositor_id: actor.id, from: "2026-07-10", to: "2026-07-10")
 
       expect(response.body).to include(finance_daily_reconciliation_path(dr_a))
       expect(response.body).not_to include(finance_daily_reconciliation_path(dr_b))
@@ -256,39 +242,6 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
       get finance_daily_reconciliations_path(verification_status: "needs_review")
 
       expect(response.body).to include(t_ws("empty_states.needs_review"))
-    end
-  end
-
-  describe "bulk_mark_reviewed" do
-    it "marks eligible reconciliations as reviewed and skips those already reviewed" do
-      dr_unreviewed = DailyReconciliation.create!(
-        branch: branch, business: business, state: "deposited",
-        opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current
-      )
-      TillSession.create!(daily_reconciliation: dr_unreviewed, depositor_id: actor.id)
-      dr_unreviewed.till_deposits.create!(payment_method: cash_pm, deposited_by: actor,
-                                          amount: 100, deposited_at: Time.current)
-      dr_reviewed = make_dr(business_date: Date.new(2026, 7, 5))
-
-      post bulk_mark_reviewed_finance_daily_reconciliations_path,
-           params: { ids: [ dr_unreviewed.id, dr_reviewed.id ] }
-
-      expect(dr_unreviewed.reload.reviewed?).to be true
-      expect(response).to redirect_to(finance_daily_reconciliations_path)
-    end
-  end
-
-  describe "bulk_assign_depositor" do
-    it "assigns the chosen depositor to every selected reconciliation" do
-      other = user_with("view_daily_reconciliation")
-      dr1 = make_dr(business_date: Date.new(2026, 7, 5))
-      dr2 = make_dr(business_date: Date.new(2026, 7, 6))
-
-      post bulk_assign_depositor_finance_daily_reconciliations_path,
-           params: { ids: [ dr1.id, dr2.id ], depositor_id: other.id }
-
-      expect(dr1.reload.till_session.depositor_id).to eq(other.id)
-      expect(dr2.reload.till_session.depositor_id).to eq(other.id)
     end
   end
 

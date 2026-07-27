@@ -256,6 +256,49 @@ module ApplicationHelper
     BANK_STATUS_COLORS[status.to_s] || "var(--text-3)"
   end
 
+  # Collapses DailyReconciliation#bank_reconciliation_status's 8 granular
+  # values (still used as-is for the filter dropdown and the detailed
+  # workflow-stage legend) down to a 4-state summary shown as SECONDARY
+  # info next to the primary DR-workflow badge on the index card — see
+  # _reconciliation_card.html.erb.
+  #
+  # Deliberately a PURE function of the bank-matching workflow alone, with
+  # no reference to DailyReconciliation#verified? — the DR's own approval
+  # badge (open → awaiting deposit → waiting branch review → waiting
+  # accounting approval → verified) is a completely separate workflow with
+  # its own wording. Mixing the two previously produced the exact same
+  # phrase ("Waiting for Bank Verification") on both the primary and
+  # secondary indicator simultaneously, for two unrelated reasons, which
+  # read as a contradiction next to "1/1 Deposits Matched" even though both
+  # were individually correct. Keeping this one purely about matching
+  # progress means it can never collide with the approval badge's wording
+  # again, no matter how either workflow's vocabulary evolves.
+  BANK_STATUS_SUMMARY_COLORS = {
+    "no_bank_statement"          => "var(--text-3)",
+    "waiting_for_bank_statement" => "#8b5cf6",
+    "matching_in_progress"       => "#818cf8",
+    "completed"                  => "var(--success,#16a34a)"
+  }.freeze
+
+  def bank_status_summary(bank_status)
+    case bank_status.to_s
+    when "no_bank_transactions", "waiting_for_deposit"
+      "no_bank_statement"
+    when "waiting_for_bank_statement"
+      "waiting_for_bank_statement"
+    when "needs_review", "waiting_for_matching", "difference_found", "partially_matched"
+      "matching_in_progress"
+    when "completed"
+      "completed"
+    else
+      "no_bank_statement"
+    end
+  end
+
+  def bank_status_summary_color(status)
+    BANK_STATUS_SUMMARY_COLORS[status.to_s] || "var(--text-3)"
+  end
+
   # Single source of truth for BankDispute status colors — used by the
   # deposit badge, the dispute show page, and the dashboard card so colors
   # stay consistent everywhere on the page.

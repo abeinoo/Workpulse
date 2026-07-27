@@ -299,6 +299,83 @@ RSpec.describe Finance::TillDepositRecorder, type: :model do
       end
     end
 
+    context "regression: an orphaned open RemainingDepositBalance whose shortfall grows on the next deposit" do
+      # Reproduces a real bug: void the deposit that created an open RDB,
+      # then record a replacement deposit whose true shortfall (per the
+      # live, dispute-aware remaining_by_payment_method) is LARGER than the
+      # orphaned RDB's stale remaining_amount. The ledger must never
+      # silently understate the true shortfall.
+      before { session_amount.update!(collected_amount: 1_975) }
+
+      def atm_dispute(amount:, status: "new")
+        BankDispute.create!(
+          daily_reconciliation: dr, business: business, branch: branch, opened_by: actor,
+          opened_at: Time.current, transaction_date: Date.current, kind: "atm_deposit_failure",
+          amount: amount, status: status, bank_name: "NBE", terminal_id: "ATM-1", card_last4: "1234"
+        )
+      end
+
+      it "raises the orphaned RDB's remaining_amount up to the new, larger shortfall via an adjustment" do
+        wrong = record(params: base_params.merge(amount: "1850.00")).deposit
+        rdb = RemainingDepositBalance.sole
+        expect(rdb.remaining_amount).to eq(125)
+
+        Finance::TillDepositVoider.new(wrong.id, actor: actor, void_reason: "Wrong amount").call
+        expect(rdb.reload.remaining_amount).to eq(125) # untouched by voiding — the pre-existing gap
+        expect(rdb).to be_open
+
+        atm_dispute(amount: 200)
+        replacement = record(params: base_params.merge(amount: "1000.00"))
+
+        expect(replacement.ok?).to be true
+        # 1975 expected - 200 open dispute - 1000 deposited = 775 true remaining
+        expect(rdb.reload.remaining_amount).to eq(775)
+        expect(rdb).to be_open
+        expect(dr.reload.total_remaining_balance).to eq(775)
+        expect(dr.pending_deposit_amount).to eq(775)
+      end
+
+      it "appends an adjustment transaction without mutating the original created transaction" do
+        wrong = record(params: base_params.merge(amount: "1850.00")).deposit
+        rdb = RemainingDepositBalance.sole
+        created_txn = rdb.balance_transactions.sole
+
+        Finance::TillDepositVoider.new(wrong.id, actor: actor, void_reason: "Wrong amount").call
+        atm_dispute(amount: 200)
+        record(params: base_params.merge(amount: "1000.00"))
+
+        expect(created_txn.reload.amount).to eq(125) # unchanged
+        adjustment = rdb.balance_transactions.adjustment.sole
+        expect(adjustment.amount).to eq(650) # 775 - 125
+      end
+
+      it "also raises the balance's own amount, so amount - remaining_amount never goes negative" do
+        wrong = record(params: base_params.merge(amount: "1850.00")).deposit
+        rdb = RemainingDepositBalance.sole
+        expect(rdb.amount).to eq(125)
+
+        Finance::TillDepositVoider.new(wrong.id, actor: actor, void_reason: "Wrong amount").call
+        atm_dispute(amount: 200)
+        record(params: base_params.merge(amount: "1000.00"))
+
+        rdb.reload
+        expect(rdb.amount).to eq(775)
+        expect(rdb.amount - rdb.remaining_amount).to eq(0)
+      end
+
+      it "still settles normally (never adjusts) when the new shortfall is smaller, not larger" do
+        wrong = record(params: base_params.merge(amount: "1850.00")).deposit
+        rdb = RemainingDepositBalance.sole
+        expect(rdb.remaining_amount).to eq(125)
+
+        Finance::TillDepositVoider.new(wrong.id, actor: actor, void_reason: "Wrong amount").call
+        record(params: base_params.merge(amount: "1900.00")) # shortfall shrinks: 1975-1900=75
+
+        expect(rdb.reload.remaining_amount).to eq(75)
+        expect(rdb.balance_transactions.pluck(:transaction_type)).to eq(%w[created settlement])
+      end
+    end
+
     context "idempotency" do
       before { session_amount.update!(collected_amount: 5_000) }
 

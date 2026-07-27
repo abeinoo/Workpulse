@@ -44,13 +44,13 @@ RSpec.describe "Finance::DailyReconciliations — partial deposit status", type:
       expect(response.body).not_to include("Deposit Incomplete")
     end
 
-    it "shows Waiting for Bank Verification once approved, even with a remaining balance" do
+    it "shows Waiting for Accounting Approval once approved, even with a remaining balance" do
       deposit(4_000)
       approve!
 
       get finance_daily_reconciliations_path
 
-      expect(response.body).to include("Waiting for Bank Verification")
+      expect(response.body).to include("Waiting for Accounting Approval")
     end
 
     it "shows Awaiting Deposit before any deposit has been recorded" do

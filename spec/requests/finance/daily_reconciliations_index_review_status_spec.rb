@@ -43,7 +43,7 @@ RSpec.describe "Finance::DailyReconciliations index — Waiting for Branch Revie
 
     doc = Nokogiri::HTML(response.body)
     label = doc.at_xpath("//p[contains(., 'Waiting for Branch Review') and contains(@class, 'stat-card__label')]")
-    value = label.parent.parent.at_css(".stat-card__value").text.strip
+    value = label.parent.at_css(".stat-card__value").text.strip
     expect(value).to eq("2")
   end
 end

@@ -14,19 +14,24 @@
       <p class="page-subtitle"><%= t("finance.daily_reconciliations.index.subtitle") %></p>
     </div>
     <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
-      <%# ── Branch selector — the primary context selector for this page.
-          Filters summary cards, the reconciliation list, all counters, and
-          all derived statuses (reuses the same @filter_branch / branch_id
-          param and accessible_branches_for_dr as before this change — pure
-          UI relocation, no new filtering logic). Only sales branches are
-          offered; warehouse/laundry/other operational units never run Daily
-          Reconciliations. ── %>
+      <%# ── Branch selector — page-level context, not a search filter, so it
+          lives in the header next to the title rather than inside the filter
+          card. Filters summary cards, the reconciliation list, all counters,
+          and all derived statuses (reuses the same @filter_branch / branch_id
+          param and accessible_branches_for_dr as always). Only sales branches
+          are offered; warehouse/laundry/other operational units never run
+          Daily Reconciliations. Hidden fields carry the rest of the current
+          filter state through so switching branch doesn't drop it. ── %>
       <% if @accessible_branches.size > 1 %>
         <%= form_with url: finance_daily_reconciliations_path, method: :get,
               data: { controller: "auto-submit" }, style: "display: inline-flex;" do %>
           <%= hidden_field_tag :status, @filter_status %>
-          <%= hidden_field_tag :business_date, @filter_date %>
+          <%= hidden_field_tag :from, @filter_date_from %>
+          <%= hidden_field_tag :to, @filter_date_to %>
           <%= hidden_field_tag :verification_status, @filter_bank_status %>
+          <%= hidden_field_tag :depositor_id, @filter_depositor_id %>
+          <%= hidden_field_tag :bank_imported, (@filter_bank_imported ? "1" : nil) %>
+          <%= hidden_field_tag :outstanding_exists, (@filter_outstanding_exists ? "1" : nil) %>
           <%= select_tag :branch_id,
                 options_for_select(
                   [[ t("finance.daily_reconciliations.index.filter_all_sales_branches"), "" ]] +
@@ -94,68 +99,84 @@
     </div>
   <% end %>
 
-  <%# ── Status filter tabs ──────────────────────────────────────────────── %>
-  <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); border-bottom: 1px solid var(--border); padding-bottom: var(--space-3);">
-    <% [
-         [nil,                 t("finance.daily_reconciliations.index.filter_all")],
-         ["waiting_opening",   t("finance.daily_reconciliations.index.filter_waiting_opening")],
-         ["outstanding",       t("finance.daily_reconciliations.index.filter_outstanding")],
-         ["waiting_verification", t("finance.daily_reconciliations.index.filter_waiting_verification")],
-         ["verified",          t("finance.daily_reconciliations.index.filter_verified")]
-       ].each do |val, label| %>
-      <%= link_to label,
-            finance_daily_reconciliations_path(status: val, branch_id: @filter_branch, business_date: @filter_date),
-            style: "font-size: var(--text-sm); font-weight: 600; padding: var(--space-2) var(--space-3); border-radius: var(--radius); text-decoration: none; " +
-                   (@filter_status == val ? "background: var(--accent); color: #fff;" : "color: var(--text-2); background: none;") %>
+  <%# ── Filters — Status / From / To in the main row, with bank-matching-
+      specific filters (only relevant to users who can see the verification
+      workspace) collapsed into a second, advanced row (selects + small
+      checkboxes) below. Branch lives in the page header instead — it's
+      page-level context, not a search filter. Same @filter_* values and
+      query params as before — pure UI layout change, no filtering-logic
+      changes. ── %>
+  <%= form_with url: finance_daily_reconciliations_path, method: :get, class: "filter-bar" do |f| %>
+    <%= hidden_field_tag :branch_id, @filter_branch %>
+
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= label_tag :status, t("finance.daily_reconciliations.index.filter_status_label"), class: "filter-bar__label" %>
+        <%= f.select :status,
+              options_for_select(
+                [
+                  [ t("finance.daily_reconciliations.index.filter_all"), "" ],
+                  [ t("finance.daily_reconciliations.index.filter_waiting_opening"), "waiting_opening" ],
+                  [ t("finance.daily_reconciliations.index.filter_waiting_deposit"), "waiting_deposit" ],
+                  [ t("finance.daily_reconciliations.index.filter_outstanding"), "outstanding" ],
+                  [ t("finance.daily_reconciliations.index.filter_waiting_verification"), "waiting_verification" ],
+                  [ t("finance.daily_reconciliations.index.filter_verified"), "verified" ]
+                ],
+                @filter_status
+              ),
+              {}, class: "filter-bar__select" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= label_tag :from, t("finance.daily_reconciliations.index.filter_from"), class: "filter-bar__label" %>
+        <%= f.date_field :from, value: @filter_date_from, class: "filter-bar__input" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= label_tag :to, t("finance.daily_reconciliations.index.filter_to"), class: "filter-bar__label" %>
+        <%= f.date_field :to, value: @filter_date_to, class: "filter-bar__input" %>
+      </div>
+    </div>
+
+    <% if @show_verification %>
+      <div class="filter-bar__fields">
+        <div class="filter-bar__field">
+          <%= label_tag :verification_status, t("finance.daily_reconciliations.index.bank_status_filter_label"), class: "filter-bar__label" %>
+          <%= f.select :verification_status,
+                [[ t("finance.daily_reconciliations.index.bank_status_filter_all"), "" ]] +
+                DailyReconciliation::BANK_RECONCILIATION_STATUSES.map { |s| [ t("finance.daily_reconciliations.index.bank_status.#{s}"), s ] },
+                { selected: @filter_bank_status },
+                class: "filter-bar__select" %>
+        </div>
+      </div>
+
+      <%# Deposited By intentionally has no UI control here — rarely used and
+          not worth the extra toolbar complexity. The underlying depositor_id
+          filter (@filter_depositor_id) still works: it's driven by clicking a
+          name in the "Top Depositors" card below, and preserved via the
+          header branch-selector's hidden field and this form's Reset check. ── %>
+      <div class="filter-bar__toggles">
+        <label class="filter-toggle">
+          <%= check_box_tag :outstanding_exists, "1", @filter_outstanding_exists %>
+          <span><%= t("finance.daily_reconciliations.index.workspace.outstanding_exists_label") %></span>
+        </label>
+        <label class="filter-toggle">
+          <%= check_box_tag :bank_imported, "1", @filter_bank_imported %>
+          <span><%= t("finance.daily_reconciliations.index.workspace.bank_imported_label") %></span>
+        </label>
+      </div>
     <% end %>
 
-    <%# Optional branch + date narrow-filters %>
-    <%= form_with url: finance_daily_reconciliations_path, method: :get, style: "display: flex; align-items: center; gap: var(--space-2); margin-inline-start: auto; flex-wrap: wrap;" do |f| %>
-      <%= hidden_field_tag :status, @filter_status %>
-      <%= hidden_field_tag :branch_id, @filter_branch %>
-      <% if @show_verification %>
-        <%= f.select :verification_status,
-              [[ t("finance.daily_reconciliations.index.bank_status_filter_all"), "" ]] +
-              DailyReconciliation::BANK_RECONCILIATION_STATUSES.map { |s| [ t("finance.daily_reconciliations.index.bank_status.#{s}"), s ] },
-              { selected: @filter_bank_status },
-              class: "form-control form-control-sm", style: "width: auto; font-size: var(--text-sm);" %>
-
-        <%# Deposited By — options tallied from the scope filtered so far
-            (branch/date/status/bank-status), before this filter itself, with
-            a per-user deposit count. Searchable via the same progressive-
-            enhancement controller used elsewhere in the app. ── %>
-        <%= f.select :depositor_id,
-              [[ t("finance.daily_reconciliations.index.workspace.depositor_filter_all"), "" ]] +
-                @depositor_counts.map { |user, count|
-                  [ t("finance.daily_reconciliations.index.workspace.depositor_count", name: user.full_name, count: count), user.id ]
-                },
-              { selected: @filter_depositor_id },
-              data: { controller: "searchable-select",
-                      "searchable-select-target": "select",
-                      search_placeholder: t("finance.daily_reconciliations.index.workspace.depositor_filter_search_placeholder") },
-              class: "form-control form-control-sm", style: "width: auto; font-size: var(--text-sm);" %>
-
-        <label style="display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-sm); color: var(--text-2); white-space: nowrap;">
-          <%= check_box_tag :bank_imported, "1", @filter_bank_imported %>
-          <%= t("finance.daily_reconciliations.index.workspace.bank_imported_label") %>
-        </label>
-        <label style="display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-sm); color: var(--text-2); white-space: nowrap;">
-          <%= check_box_tag :outstanding_exists, "1", @filter_outstanding_exists %>
-          <%= t("finance.daily_reconciliations.index.workspace.outstanding_exists_label") %>
-        </label>
-      <% end %>
-      <%= f.date_field :business_date, value: @filter_date,
-            class: "form-control form-control-sm", style: "width: auto; font-size: var(--text-sm);" %>
-      <%= f.submit t("finance.daily_reconciliations.index.filter_apply"),
-            class: "btn btn-ghost btn-sm" %>
-      <% if @filter_branch.present? || @filter_date.present? || @filter_bank_status.present? ||
-            @filter_depositor_id.present? || @filter_bank_imported || @filter_outstanding_exists %>
-        <%= link_to t("finance.daily_reconciliations.index.filter_clear"),
-              finance_daily_reconciliations_path(status: @filter_status),
+    <div class="filter-bar__actions">
+      <%= f.submit t("finance.daily_reconciliations.index.filter_apply"), class: "btn btn-primary btn-sm" %>
+      <% if @filter_status.present? || @filter_date_from.present? || @filter_date_to.present? ||
+            @filter_bank_status.present? || @filter_depositor_id.present? || @filter_bank_imported || @filter_outstanding_exists %>
+        <%= link_to t("finance.daily_reconciliations.index.filter_reset"),
+              finance_daily_reconciliations_path(branch_id: @filter_branch),
               class: "btn btn-ghost btn-sm" %>
       <% end %>
-    <% end %>
-  </div>
+    </div>
+  <% end %>
 
   <% if @reconciliations.empty? %>
 
@@ -195,6 +216,13 @@
     <%
       waiting_count     = @reconciliations.count(&:waiting_for_opening?)
       waiting_review_count = @reconciliations.count { |dr| dr.closed? && !dr.reviewed? }
+      # "Waiting for Deposit" — workflow-stage pipeline card, same population
+      # as the index's status=waiting_deposit filter (query.closed): day
+      # closed, no deposit recorded yet. Distinct from the Outstanding
+      # Balance card below (an open remaining_deposit_balance), which is a
+      # financial condition orthogonal to workflow stage — a DR can be
+      # verified and still carry an outstanding shortfall.
+      closed_count      = @reconciliations.count(&:closed?)
       open_count        = @reconciliations.count(&:open?)
       # "deposited" state is reached as soon as the first deposit is recorded
       # — a remaining balance is normal and doesn't change readiness to verify.
@@ -215,113 +243,208 @@
       payment_methods   = business_payment_methods
     %>
 
-    <%# ── Workflow Dashboard — the 5 primary workspace stages. Only for users
-        with view_deposit_verification. difference_found/waiting_for_matching/
-        no_bank_transactions remain selectable via the status <select> above,
-        not as top cards (same "curated subset" precedent as before). Each
-        card shows count, total expected-cash amount, and % of all
-        branch/date/DR-state-filtered DRs (i.e. before the bank-status filter
-        itself) — clicking toggles that filter exactly like the select. ── %>
-    <% if @show_verification && @bank_status_counts %>
-      <div style="margin-bottom: var(--space-2);">
-        <h2 class="dashboard-section__title" style="font-size: var(--text-base); margin: 0 0 var(--space-3);">
-          <%= t("finance.daily_reconciliations.index.workspace.dashboard_title") %>
-        </h2>
+    <%# ═══════════════════════════════════════════════════════════════════
+        Dashboard — reorganized to follow the reconciliation workflow
+        instead of mixing operational and financial metrics:
+          1. Workflow Status  — the pipeline, start to finish (biggest cards)
+          2. Exceptions       — operational issues that need attention
+          3. Financial Summary — the money, unchanged/unsplit
+          4. Operational Insights — lower-priority informational widgets
+        Every count/amount below is the exact same value that was already
+        computed above or in the controller — this section only changes
+        which cards exist, how they're grouped, their size, and their
+        color, not what they calculate. ═══════════════════════════════ %>
+
+    <%# ── Section 1 — Workflow Status (primary) ──────────────────────────
+        The reconciliation pipeline. Equal-width, the largest cards on the
+        page (plain .stat-card is already the largest variant this design
+        system defines). Fixed color meaning per stage, not conditional on
+        count, per the requested Waiting=orange / Verification=blue /
+        Completed=green scheme. ── %>
+    <div class="dashboard-section">
+      <h2 class="dashboard-section__title" style="margin: 0 0 var(--space-4);">
+        <%= t("finance.daily_reconciliations.index.workspace.section_workflow_title") %>
+      </h2>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-4);">
+        <div class="stat-card" style="border-top: 3px solid var(--warning);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_waiting") %></p>
+          <p class="stat-card__value" style="color: var(--warning);"><%= waiting_count %></p>
+          <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_sub") %></p>
+        </div>
+
+        <div class="stat-card" style="border-top: 3px solid var(--warning);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_waiting_deposit") %></p>
+          <p class="stat-card__value" style="color: var(--warning);"><%= closed_count %></p>
+          <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_deposit_sub") %></p>
+        </div>
+
+        <div class="stat-card" style="border-top: 3px solid var(--warning);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_waiting_review") %></p>
+          <p class="stat-card__value" style="color: var(--warning);"><%= waiting_review_count %></p>
+          <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_review_sub") %></p>
+        </div>
+
+        <div class="stat-card" style="border-top: 3px solid var(--accent);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_pending_verify") %></p>
+          <p class="stat-card__value" style="color: var(--accent);"><%= deposited_count %></p>
+          <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_pending_verify_sub") %></p>
+        </div>
+
+        <div class="stat-card" style="border-top: 3px solid var(--success);">
+          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_verified") %></p>
+          <p class="stat-card__value" style="color: var(--success);"><%= verified_count %></p>
+          <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_verified_sub") %></p>
+        </div>
       </div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); padding-bottom: var(--space-5); border-bottom: 1px solid var(--border);">
-        <% %w[waiting_for_deposit waiting_for_bank_statement needs_review partially_matched completed].each do |status| %>
+    </div>
+
+    <% if @show_verification && @bank_status_counts %>
+      <%# ── Section 2 — Exceptions ──────────────────────────────────────
+          Operational issues, not workflow stages — medium-sized cards,
+          red/orange accent only on cards that currently need attention.
+          "Deposit Matching In Progress" combines the needs_review +
+          partially_matched buckets (both mean matching started but isn't
+          resolved yet) and only appears when there's something to show. ── %>
+      <div class="dashboard-section">
+        <h2 class="dashboard-section__title" style="margin: 0 0 var(--space-4);">
+          <%= t("finance.daily_reconciliations.index.workspace.section_exceptions_title") %>
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-3);">
+          <%# Open Bank Disputes — same link/logic as before, relocated. ── %>
           <%
-            active   = @filter_bank_status == status
-            count    = @bank_status_counts[status].to_i
-            amount   = @bank_status_amounts[status].to_d
-            percent  = @bank_status_total_count.positive? ? (count.to_f / @bank_status_total_count * 100).round : 0
-            color    = bank_reconciliation_status_color(status)
-            link_url = finance_daily_reconciliations_path(
-              status: @filter_status, branch_id: @filter_branch, business_date: @filter_date,
-              depositor_id: @filter_depositor_id, bank_imported: (@filter_bank_imported ? "1" : nil),
-              outstanding_exists: (@filter_outstanding_exists ? "1" : nil),
-              verification_status: active ? nil : status
-            )
+            dispute_color = @open_dispute_count.positive? ? "var(--danger,#dc2626)" : "var(--text-3)"
           %>
-          <%= link_to link_url,
-                style: "text-decoration: none; display: block; border-radius: var(--radius-lg); overflow: hidden; #{active ? 'box-shadow: 0 0 0 2px var(--accent);' : ''}" do %>
-            <div class="stat-card" style="margin: 0; cursor: pointer; border-top: 3px solid <%= color %>; #{active ? 'background: rgba(var(--accent-rgb), 0.06);' : ''}">
+          <%= link_to finance_deposit_verifications_path(tab: "missing"),
+                style: "text-decoration: none; display: block; border-radius: var(--radius-lg); overflow: hidden;" do %>
+            <div class="stat-card" style="margin: 0; padding: var(--space-4); cursor: pointer; border-top: 3px solid <%= dispute_color %>;">
               <p class="stat-card__label" style="font-size: var(--text-xs);">
-                <%= t("finance.daily_reconciliations.index.bank_status.#{status}") %>
+                <%= t("finance.bank_disputes.dashboard_card_title") %>
               </p>
-              <p class="stat-card__value" style="color: <%= color %>;"><%= count %></p>
-              <p class="stat-card__sub" style="font-variant-numeric: tabular-nums;"><%= format_currency(amount) %></p>
-              <p class="stat-card__sub" style="font-size: 10px;">
-                <%= t("finance.daily_reconciliations.index.workspace.dashboard_of_total",
-                      percent: percent, total: @bank_status_total_count) %>
-              </p>
+              <p class="stat-card__value" style="font-size: var(--text-2xl); color: <%= dispute_color %>;"><%= @open_dispute_count %></p>
+              <p class="stat-card__sub" style="font-variant-numeric: tabular-nums;"><%= format_currency(@open_dispute_amount) %></p>
             </div>
           <% end %>
-        <% end %>
 
-        <%# "Open Disputes" — deliberately not part of the bank_reconciliation_status
-            filter set (a dispute is orthogonal to matching progress); links to
-            the Missing tab where disputed deposits now show their case badge. ── %>
-        <%= link_to finance_deposit_verifications_path(tab: "missing"),
-              style: "text-decoration: none; display: block; border-radius: var(--radius-lg); overflow: hidden;" do %>
-          <div class="stat-card" style="margin: 0; cursor: pointer; border-top: 3px solid <%= bank_dispute_status_color('new') %>;">
-            <p class="stat-card__label" style="font-size: var(--text-xs);">
-              <%= t("finance.bank_disputes.dashboard_card_title") %>
-            </p>
-            <p class="stat-card__value" style="color: <%= bank_dispute_status_color('new') %>;"><%= @open_dispute_count %></p>
-            <p class="stat-card__sub" style="font-variant-numeric: tabular-nums;"><%= format_currency(@open_dispute_amount) %></p>
-          </div>
-        <% end %>
+          <%# Waiting for Bank Statement — same bank_status bucket + toggle-
+              filter link as before, just no longer bundled with the other
+              bank-status buckets that moved into Section 1 / dropped. ── %>
+          <%
+            wfbs_active = @filter_bank_status == "waiting_for_bank_statement"
+            wfbs_count  = @bank_status_counts["waiting_for_bank_statement"].to_i
+            wfbs_amount = @bank_status_amounts["waiting_for_bank_statement"].to_d
+            wfbs_color  = wfbs_count.positive? ? "var(--warning,#ca8a04)" : "var(--text-3)"
+            wfbs_link   = finance_daily_reconciliations_path(
+              status: @filter_status, branch_id: @filter_branch, from: @filter_date_from, to: @filter_date_to,
+              depositor_id: @filter_depositor_id, bank_imported: (@filter_bank_imported ? "1" : nil),
+              outstanding_exists: (@filter_outstanding_exists ? "1" : nil),
+              verification_status: wfbs_active ? nil : "waiting_for_bank_statement"
+            )
+          %>
+          <%= link_to wfbs_link,
+                style: "text-decoration: none; display: block; border-radius: var(--radius-lg); overflow: hidden; #{wfbs_active ? 'box-shadow: 0 0 0 2px var(--accent);' : ''}" do %>
+            <div class="stat-card" style="margin: 0; padding: var(--space-4); cursor: pointer; border-top: 3px solid <%= wfbs_color %>; #{wfbs_active ? 'background: rgba(var(--accent-rgb), 0.06);' : ''}">
+              <p class="stat-card__label" style="font-size: var(--text-xs);">
+                <%= t("finance.daily_reconciliations.index.bank_status.waiting_for_bank_statement") %>
+              </p>
+              <p class="stat-card__value" style="font-size: var(--text-2xl); color: <%= wfbs_color %>;"><%= wfbs_count %></p>
+              <p class="stat-card__sub" style="font-variant-numeric: tabular-nums;"><%= format_currency(wfbs_amount) %></p>
+            </div>
+          <% end %>
+
+          <%
+            matching_count  = @bank_status_counts["needs_review"].to_i + @bank_status_counts["partially_matched"].to_i
+            matching_amount = @bank_status_amounts["needs_review"].to_d + @bank_status_amounts["partially_matched"].to_d
+          %>
+          <% if matching_count.positive? %>
+            <div class="stat-card" style="margin: 0; padding: var(--space-4); border-top: 3px solid var(--warning);">
+              <p class="stat-card__label" style="font-size: var(--text-xs);">
+                <%= t("finance.daily_reconciliations.index.workspace.matching_in_progress") %>
+              </p>
+              <p class="stat-card__value" style="font-size: var(--text-2xl); color: var(--warning);"><%= matching_count %></p>
+              <p class="stat-card__sub" style="font-variant-numeric: tabular-nums;"><%= format_currency(matching_amount) %></p>
+            </div>
+          <% end %>
+        </div>
       </div>
 
-      <%# ── Amount Summary — totals across the currently filtered set, with a
-          simple progress visualization (deposited/expected, matched/expected). ── %>
-      <div class="card" style="padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4);">
-        <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-3);">
-          <%= t("finance.daily_reconciliations.index.workspace.summary_title") %>
-        </h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-3);">
-          <div>
-            <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px;"><%= t("finance.daily_reconciliations.index.workspace.summary_expected") %></p>
-            <p style="font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0;"><%= format_currency(@summary_expected) %></p>
+      <%# ── Section 3 — Financial Summary — unchanged, unsplit. ── %>
+      <div class="dashboard-section">
+        <h2 class="dashboard-section__title" style="margin: 0 0 var(--space-4);">
+          <%= t("finance.daily_reconciliations.index.workspace.section_financial_title") %>
+        </h2>
+        <div class="card" style="padding: var(--space-4) var(--space-5);">
+          <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-3);">
+            <%= t("finance.daily_reconciliations.index.workspace.summary_title") %>
+          </h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-3);">
+            <div>
+              <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px;"><%= t("finance.daily_reconciliations.index.workspace.summary_expected") %></p>
+              <p style="font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0;"><%= format_currency(@summary_expected) %></p>
+            </div>
+            <div>
+              <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px;"><%= t("finance.daily_reconciliations.index.workspace.summary_deposited") %></p>
+              <p style="font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: var(--success);"><%= format_currency(@summary_deposited) %></p>
+            </div>
+            <div>
+              <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px;"><%= t("finance.daily_reconciliations.index.workspace.summary_matched") %></p>
+              <p style="font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: #3b82f6;"><%= format_currency(@summary_matched) %></p>
+            </div>
+            <div>
+              <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px;"><%= t("finance.daily_reconciliations.index.workspace.summary_outstanding") %></p>
+              <p style="font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: <%= @summary_outstanding.positive? ? 'var(--warning,#ca8a04)' : 'var(--text-3)' %>;"><%= format_currency(@summary_outstanding) %></p>
+            </div>
           </div>
-          <div>
-            <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px;"><%= t("finance.daily_reconciliations.index.workspace.summary_deposited") %></p>
-            <p style="font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: var(--success);"><%= format_currency(@summary_deposited) %></p>
-          </div>
-          <div>
-            <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px;"><%= t("finance.daily_reconciliations.index.workspace.summary_matched") %></p>
-            <p style="font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: #3b82f6;"><%= format_currency(@summary_matched) %></p>
-          </div>
-          <div>
-            <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 2px;"><%= t("finance.daily_reconciliations.index.workspace.summary_outstanding") %></p>
-            <p style="font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: <%= @summary_outstanding.positive? ? 'var(--warning,#ca8a04)' : 'var(--text-3)' %>;"><%= format_currency(@summary_outstanding) %></p>
+          <%
+            deposited_pct = @summary_expected.positive? ? [ (@summary_deposited / @summary_expected * 100), 100 ].min : 0
+            matched_pct   = @summary_expected.positive? ? [ (@summary_matched / @summary_expected * 100), 100 ].min : 0
+          %>
+          <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+            <div style="height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden;">
+              <div style="height: 100%; width: <%= deposited_pct %>%; background: var(--success);"></div>
+            </div>
+            <div style="height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden;">
+              <div style="height: 100%; width: <%= matched_pct %>%; background: #3b82f6;"></div>
+            </div>
           </div>
         </div>
-        <%
-          deposited_pct = @summary_expected.positive? ? [ (@summary_deposited / @summary_expected * 100), 100 ].min : 0
-          matched_pct   = @summary_expected.positive? ? [ (@summary_matched / @summary_expected * 100), 100 ].min : 0
-        %>
-        <div style="display: flex; flex-direction: column; gap: var(--space-2);">
-          <div style="height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden;">
-            <div style="height: 100%; width: <%= deposited_pct %>%; background: var(--success);"></div>
-          </div>
-          <div style="height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden;">
-            <div style="height: 100%; width: <%= matched_pct %>%; background: #3b82f6;"></div>
-          </div>
+      </div>
+    <% end %>
+
+    <%# ── Section 4 — Operational Insights — lower priority than workflow;
+        smaller cards. Outstanding Balance / Open Sessions are available to
+        every viewer (not gated on view_deposit_verification, same as
+        before); Top Depositors stays gated exactly as before. ── %>
+    <div class="dashboard-section">
+      <h2 class="dashboard-section__title" style="margin: 0 0 var(--space-4);">
+        <%= t("finance.daily_reconciliations.index.workspace.section_operational_title") %>
+      </h2>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4);">
+        <div class="stat-card <%= open_count > 0 ? 'stat-card--accent' : '' %>" style="margin: 0; padding: var(--space-3);">
+          <p class="stat-card__label" style="font-size: var(--text-xs);"><%= t("finance.daily_reconciliations.index.stat_open") %></p>
+          <p class="stat-card__value" style="font-size: var(--text-xl);"><%= open_count %></p>
+          <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_open_sub") %></p>
+        </div>
+
+        <div class="stat-card <%= total_outstanding > 0 ? 'stat-card--warning' : '' %>" style="margin: 0; padding: var(--space-3);">
+          <p class="stat-card__label" style="font-size: var(--text-xs);"><%= t("finance.daily_reconciliations.index.stat_outstanding") %></p>
+          <p class="stat-card__value" style="font-size: var(--text-xl); font-variant-numeric: tabular-nums; <%= total_outstanding > 0 ? 'color: var(--warning);' : '' %>">
+            <%= format_currency(total_outstanding) %>
+          </p>
+          <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_outstanding_sub") %></p>
         </div>
       </div>
 
       <%# ── Top Depositors — clicking applies the same Deposited By filter. ── %>
-      <% if @top_depositors.present? %>
-        <div class="card" style="padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4);">
+      <% if @show_verification && @top_depositors.present? %>
+        <div class="card" style="padding: var(--space-4) var(--space-5);">
           <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-3);">
             <%= t("finance.daily_reconciliations.index.workspace.top_depositors_title") %>
           </h3>
           <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
             <% @top_depositors.each do |user, count| %>
               <%= link_to finance_daily_reconciliations_path(
-                    status: @filter_status, branch_id: @filter_branch, business_date: @filter_date,
+                    status: @filter_status, branch_id: @filter_branch, from: @filter_date_from, to: @filter_date_to,
                     verification_status: @filter_bank_status, depositor_id: (@filter_depositor_id == user.id ? nil : user.id)
                   ),
                   class: "badge #{@filter_depositor_id == user.id ? 'badge-accent' : 'badge-neutral'}",
@@ -332,58 +455,6 @@
           </div>
         </div>
       <% end %>
-    <% end %>
-
-    <%# ── Summary stats ─────────────────────────────────────────────────── %>
-    <div class="stats-grid" style="margin-bottom: var(--space-5);">
-
-      <div class="stat-card <%= waiting_count > 0 ? 'stat-card--warning' : '' %>">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
-          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_waiting") %></p>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: <%= waiting_count > 0 ? 'var(--warning)' : 'var(--text-3)' %>; margin-top:1px;"><path d="M10 3H3v7l9 9 7-7-9-9z"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
-        </div>
-        <p class="stat-card__value" style="<%= waiting_count > 0 ? 'color: var(--warning);' : '' %>"><%= waiting_count %></p>
-        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_sub") %></p>
-      </div>
-
-      <div class="stat-card <%= waiting_review_count > 0 ? 'stat-card--warning' : '' %>">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
-          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_waiting_review") %></p>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: <%= waiting_review_count > 0 ? 'var(--warning)' : 'var(--text-3)' %>; margin-top:1px;"><path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
-        </div>
-        <p class="stat-card__value" style="<%= waiting_review_count > 0 ? 'color: var(--warning);' : '' %>"><%= waiting_review_count %></p>
-        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_review_sub") %></p>
-      </div>
-
-      <div class="stat-card">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
-          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_open") %></p>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: var(--accent); margin-top:1px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </div>
-        <p class="stat-card__value"><%= open_count %></p>
-        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_open_sub") %></p>
-      </div>
-
-      <div class="stat-card <%= total_outstanding > 0 ? 'stat-card--warning' : '' %>">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
-          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_outstanding") %></p>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: <%= total_outstanding > 0 ? 'var(--warning)' : 'var(--text-3)' %>; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        </div>
-        <p class="stat-card__value" style="font-size: var(--text-lg); font-variant-numeric: tabular-nums; <%= total_outstanding > 0 ? 'color: var(--warning);' : '' %>">
-          <%= format_currency(total_outstanding) %>
-        </p>
-        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_outstanding_sub") %></p>
-      </div>
-
-      <div class="stat-card <%= deposited_count > 0 ? 'stat-card--accent' : '' %>">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2);">
-          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_pending_verify") %></p>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; color: var(--accent); margin-top:1px;"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-        </div>
-        <p class="stat-card__value"><%= deposited_count %></p>
-        <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_pending_verify_sub") %></p>
-      </div>
-
     </div>
 
     <%# ── Bulk action bar — settle outstanding balances ───────────────── %>
@@ -451,57 +522,6 @@
       </div>
     <% end %>
 
-    <%# ── General bulk action bar — Open Verification / Export / Print /
-        Mark Reviewed / Assign. Independent from the settle-checkboxes above
-        (different rows qualify for each), driven by .dr-bulk-checkbox. ── %>
-    <% if @show_verification %>
-      <div id="bulk-actions-bar" hidden
-           style="position: sticky; top: 0; z-index: 10; background: var(--surface); border: 1.5px solid rgba(var(--accent-rgb),0.4); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-3); box-shadow: var(--shadow-md); display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
-        <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);">
-          <span id="bulk-actions-count">0</span>
-          <%= t("finance.daily_reconciliations.index.workspace.bulk_bar.selected_label") %>
-        </span>
-
-        <button type="button" id="bulk-open-verification" class="btn btn-ghost btn-sm">
-          <%= t("finance.daily_reconciliations.index.workspace.bulk_bar.open_verification") %>
-        </button>
-        <button type="button" id="bulk-export" class="btn btn-ghost btn-sm">
-          <%= t("finance.daily_reconciliations.index.workspace.bulk_bar.export") %>
-        </button>
-        <button type="button" id="bulk-print" class="btn btn-ghost btn-sm">
-          <%= t("finance.daily_reconciliations.index.workspace.bulk_bar.print") %>
-        </button>
-
-        <% if policy(:daily_reconciliation).bulk_mark_reviewed? %>
-          <form id="bulk-mark-reviewed-form" action="<%= bulk_mark_reviewed_finance_daily_reconciliations_path %>" method="post">
-            <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
-            <button type="submit" class="btn btn-ghost btn-sm"
-                    data-turbo-confirm="<%= t('finance.daily_reconciliations.index.workspace.bulk_bar.mark_reviewed_confirm') %>">
-              <%= t("finance.daily_reconciliations.index.workspace.bulk_bar.mark_reviewed") %>
-            </button>
-          </form>
-        <% end %>
-
-        <% if policy(:daily_reconciliation).bulk_assign_depositor? %>
-          <form id="bulk-assign-form" action="<%= bulk_assign_depositor_finance_daily_reconciliations_path %>" method="post"
-                style="display: flex; align-items: center; gap: var(--space-2);">
-            <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
-            <%= select_tag :depositor_id,
-                  options_from_collection_for_select(current_user.business.users.active.order(:first_name, :last_name), :id, :full_name),
-                  class: "form-control form-control-sm", style: "width: auto; font-size: var(--text-sm);" %>
-            <button type="submit" class="btn btn-ghost btn-sm">
-              <%= t("finance.daily_reconciliations.index.workspace.bulk_bar.assign") %>
-            </button>
-          </form>
-        <% end %>
-
-        <button type="button" id="clear-bulk-selection"
-                style="background: none; border: none; cursor: pointer; font-size: var(--text-sm); color: var(--text-3); text-decoration: underline; padding: 0; margin-inline-start: auto;">
-          <%= t("finance.daily_reconciliations.index.workspace.bulk_bar.clear") %>
-        </button>
-      </div>
-    <% end %>
-
     <%# ── Reconciliation cards ──────────────────────────────────────────── %>
     <div style="display: flex; flex-direction: column; gap: var(--space-2);" id="dr-card-list">
       <%= render partial: "reconciliation_card", collection: @reconciliations, as: :dr,
@@ -555,96 +575,9 @@
 })();
 </script>
 
-<%# ── General bulk actions JS (Open Verification / Export / Print / Mark
-    Reviewed / Assign) — independent selection from the settle checkboxes
-    above, driven by .dr-bulk-checkbox. ── %>
-<script>
-(function () {
-  var bar          = document.getElementById('bulk-actions-bar');
-  var countEl      = document.getElementById('bulk-actions-count');
-  var clearBtn     = document.getElementById('clear-bulk-selection');
-  var openVerifBtn = document.getElementById('bulk-open-verification');
-  var exportBtn    = document.getElementById('bulk-export');
-  var printBtn     = document.getElementById('bulk-print');
-  var reviewedForm = document.getElementById('bulk-mark-reviewed-form');
-  var assignForm   = document.getElementById('bulk-assign-form');
-
-  if (!bar) return;
-
-  function checkedBoxes() {
-    return Array.prototype.slice.call(document.querySelectorAll('.dr-bulk-checkbox:checked'));
-  }
-
-  function syncIdsOn(form) {
-    if (!form) return;
-    form.querySelectorAll('input[name="ids[]"]').forEach(function (el) { el.remove(); });
-    checkedBoxes().forEach(function (cb) {
-      var h = document.createElement('input');
-      h.type = 'hidden'; h.name = 'ids[]'; h.value = cb.dataset.drId;
-      form.appendChild(h);
-    });
-  }
-
-  function sync() {
-    var checked = checkedBoxes();
-    if (countEl) countEl.textContent = checked.length;
-    bar.hidden = checked.length === 0;
-    syncIdsOn(reviewedForm);
-    syncIdsOn(assignForm);
-  }
-
-  document.querySelectorAll('.dr-bulk-checkbox').forEach(function (cb) {
-    cb.addEventListener('change', sync);
-  });
-
-  if (clearBtn) {
-    clearBtn.addEventListener('click', function () {
-      document.querySelectorAll('.dr-bulk-checkbox').forEach(function (cb) { cb.checked = false; });
-      sync();
-    });
-  }
-
-  if (openVerifBtn) {
-    openVerifBtn.addEventListener('click', function () {
-      var checked = checkedBoxes();
-      if (!checked.length) return;
-      var dates  = checked.map(function (cb) { return cb.dataset.businessDate; }).filter(Boolean).sort();
-      var branchIds = checked.map(function (cb) { return cb.dataset.branchId; });
-      var sameBranch = branchIds.every(function (b) { return b === branchIds[0]; });
-      var params = new URLSearchParams();
-      if (dates.length) { params.set('from', dates[0]); params.set('to', dates[dates.length - 1]); }
-      if (sameBranch) params.set('branch_id', branchIds[0]);
-      window.location = '<%= finance_deposit_verifications_path %>?' + params.toString();
-    });
-  }
-
-  if (exportBtn) {
-    exportBtn.addEventListener('click', function () {
-      var checked = checkedBoxes();
-      var params = new URLSearchParams();
-      checked.forEach(function (cb) { params.append('ids[]', cb.dataset.drId); });
-      window.location = '<%= export_finance_daily_reconciliations_path %>?' + params.toString();
-    });
-  }
-
-  if (printBtn) {
-    printBtn.addEventListener('click', function () {
-      var checkedIds = checkedBoxes().map(function (cb) { return cb.dataset.drId; });
-      document.querySelectorAll('#dr-card-list > .dr-card').forEach(function (card, i) {
-        var cb = card.querySelector('.dr-bulk-checkbox');
-        var include = !checkedIds.length || (cb && checkedIds.indexOf(cb.dataset.drId) !== -1);
-        card.classList.toggle('print-hide', !include);
-      });
-      window.print();
-    });
-  }
-})();
-</script>
-
 <style>
   @media print {
-    .page-header, .bulk-action-bar-hide-on-print, #bulk-settle-bar, #bulk-actions-bar,
+    .page-header, .bulk-action-bar-hide-on-print, #bulk-settle-bar,
     .btn, select, input[type="checkbox"] { display: none !important; }
-    .print-hide { display: none !important; }
   }
 </style>

@@ -160,6 +160,55 @@ RSpec.describe DailyReconciliation, "#bank_reconciliation_status" do
     expect(dr.bank_reconciliation_deposits_total_count).to eq(1)
   end
 
+  describe "a matched deposit must never coexist with waiting_for_bank_statement" do
+    # Regression: Finance::BankStatements::ManualMatcher explicitly allows
+    # linking a deposit to a bank transaction whose own statement date range
+    # does NOT include the deposit's date (e.g. "the bank processed it after
+    # midnight"). bank_statement_covers_deposits? is a pure date-range
+    # heuristic and has no way to know this match exists — without the
+    # already-matched override, a fully-matched DR would show
+    # waiting_for_bank_statement forever, even at 1/1 matched deposits.
+    it "returns completed, not waiting_for_bank_statement, when matched via a statement outside the coverage range" do
+      collect_cash!(500)
+      dep = deposit(amount: 500, deposited_at: Time.zone.local(2026, 7, 16, 14, 0, 0))
+      # Statement's own range doesn't include July 16 at all.
+      stmt = statement(from: Date.new(2026, 6, 1), to: Date.new(2026, 6, 10))
+      link!(dep, txn(stmt, amount: 500, transaction_date: Date.new(2026, 6, 5)))
+
+      expect(dep.reload.match_status).to eq(:fully_matched)
+      expect(dr.bank_reconciliation_status).to eq("completed")
+      expect(dr.bank_reconciliation_deposits_matched_count).to eq(1)
+      expect(dr.bank_reconciliation_deposits_total_count).to eq(1)
+    end
+
+    it "returns partially_matched (not waiting_for_bank_statement) when only some deposits are matched this way" do
+      collect_cash!(1_000)
+      dep_a = deposit(amount: 500, deposited_at: Time.zone.local(2026, 7, 16, 14, 0, 0))
+      deposit(amount: 500, deposited_at: Time.zone.local(2026, 7, 16, 15, 0, 0))
+      stmt = statement(from: Date.new(2026, 6, 1), to: Date.new(2026, 6, 10))
+      link!(dep_a, txn(stmt, amount: 500, transaction_date: Date.new(2026, 6, 5)))
+
+      expect(dr.bank_reconciliation_status).to eq("partially_matched")
+    end
+
+    it "still reports waiting_for_bank_statement when nothing is matched yet, even with an out-of-range statement present" do
+      collect_cash!(500)
+      deposit(amount: 500, deposited_at: Time.zone.local(2026, 7, 16, 14, 0, 0))
+      statement(from: Date.new(2026, 6, 1), to: Date.new(2026, 6, 10))
+
+      expect(dr.bank_reconciliation_status).to eq("waiting_for_bank_statement")
+    end
+
+    it "#bank_statement_imported? is also true once a deposit is matched, even outside the coverage range" do
+      collect_cash!(500)
+      dep = deposit(amount: 500, deposited_at: Time.zone.local(2026, 7, 16, 14, 0, 0))
+      stmt = statement(from: Date.new(2026, 6, 1), to: Date.new(2026, 6, 10))
+      link!(dep, txn(stmt, amount: 500, transaction_date: Date.new(2026, 6, 5)))
+
+      expect(dr.bank_statement_imported?).to be true
+    end
+  end
+
   describe "priority ordering" do
     it "no_bank_transactions wins over everything else" do
       # No cash collected, yet other signals (if they existed) would suggest difference_found —

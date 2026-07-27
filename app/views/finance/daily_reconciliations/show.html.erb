@@ -34,7 +34,7 @@
         </span>
       <% elsif @reconciliation.deposited? && @reconciliation.reviewed? %>
         <span class="badge" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3); background: rgba(var(--accent-rgb,99,102,241),0.12); color: var(--accent);">
-          <%= t("finance.daily_reconciliations.show.state_waiting_for_bank_verification") %>
+          <%= t("finance.daily_reconciliations.show.state_waiting_for_accounting_approval") %>
         </span>
       <% end %>
       <% open_disputes = @reconciliation.open_bank_disputes(preloaded_till_deposits: @all_deposits.select(&:active?)) %>
