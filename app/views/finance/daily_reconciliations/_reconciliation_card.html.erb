@@ -30,6 +30,14 @@
   # action — never falls back to a lower-priority one instead). See that
   # method for the full priority list and per-action authorization.
   next_action = dr.next_action_for(current_user, bank_status: bank_status, open_disputes: open_disputes)
+
+  # Required Actions — the SEPARATE, independent POS workflow (import + bank
+  # matching). Never competes with next_action above: a DR can show a
+  # primary "Waiting for Branch Review" badge/action AND still be missing
+  # its POS import at the same time — both are real, both stay visible.
+  # See DailyReconciliation#required_actions.
+  required_actions = show_verification ?
+    dr.required_actions(bank_status: bank_status, pos_imported: @pos_imported_dr_ids.include?(dr.id)) : []
 %>
 
 <div class="dr-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
@@ -165,6 +173,21 @@
           <% end %>
         </div>
       </div>
+
+      <%# Required Actions — the secondary, independent POS workflow. Visually
+          distinct from the primary status row above (its own row, warning-
+          tinted background) so it reads as "also true" rather than a second
+          competing workflow state. Never merged into next_action. ── %>
+      <% if required_actions.any? %>
+        <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-2) var(--space-3); background: rgba(var(--warning-rgb,202,138,4),0.08); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.25); border-radius: var(--radius);">
+          <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--warning,#ca8a04);">
+            <%= t("finance.daily_reconciliations.index.workspace.required_actions.title") %>
+          </span>
+          <% required_actions.each do |action| %>
+            <%= link_to action[:label], action[:path], class: action[:style] %>
+          <% end %>
+        </div>
+      <% end %>
 
       <%# Amount fields + workflow timeline — only for users who can see bank verification. ── %>
       <% if show_verification %>

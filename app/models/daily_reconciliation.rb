@@ -335,6 +335,38 @@ class DailyReconciliation < ApplicationRecord
     # Verified (or any other state not matched above) → no action, View only.
   end
 
+  # ── Secondary, independent "Required Actions" — the POS-import workflow.
+  # Deliberately NOT part of #next_action_for's priority chain: the Daily
+  # Reconciliation workflow (opening → deposit → branch review →
+  # verification) and the POS workflow (import → match) are two separate
+  # tracks that can each be mid-flight at the same time, e.g. a DR sitting
+  # at "Waiting for Branch Review" (the primary action) that also still has
+  # no POS file imported (a required action) — both must stay visible, never
+  # collapsed into a single state. Returns an array (zero, one, or both may
+  # apply simultaneously), never a single winner.
+  #
+  # bank_status/pos_imported are pre-computed by the caller (same pattern as
+  # next_action_for's bank_status/open_disputes) so this runs no queries of
+  # its own — pos_imported in particular comes from a single page-wide
+  # PosTransaction lookup, not a per-DR query.
+  def required_actions(bank_status: nil, pos_imported: false)
+    routes = Rails.application.routes.url_helpers
+    t = ->(key) { I18n.t("finance.daily_reconciliations.index.workspace.required_actions.#{key}") }
+    actions = []
+
+    unless pos_imported
+      actions << { label: t.call(:import_pos_file), icon: "upload",
+                    path: routes.new_finance_pos_import_path, style: "btn btn-ghost btn-sm" }
+    end
+
+    if %w[needs_review waiting_for_matching difference_found partially_matched].include?(bank_status)
+      actions << { label: t.call(:match_bank_transactions), icon: "git-merge",
+                    path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: "btn btn-ghost btn-sm" }
+    end
+
+    actions
+  end
+
   # Public wrapper around the private bank_statement_covers_deposits? check,
   # for the "Bank Imported" filter and the workflow-timeline stage below.
   # False (not "unknown") when there are no active deposits to check coverage

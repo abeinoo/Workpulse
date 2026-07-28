@@ -4736,6 +4736,10 @@ en:
             review_reconciliation: "Review Reconciliation"
             verify_reconciliation: "Verify Reconciliation"
             review_bank_dispute: "Review Bank Dispute"
+          required_actions:
+            title: "Required Actions"
+            import_pos_file: "Import POS File"
+            match_bank_transactions: "Match Bank Transactions"
           workflow_stages:
             open: "Open"
             deposit_recorded: "Deposit Recorded"

@@ -87,6 +87,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
       @bank_statuses_by_dr = statuses_by_dr
 
+      # One query for the whole page (not one per DR) — which of these DRs
+      # already has at least one matched PosTransaction. Feeds the card's
+      # secondary "Required Actions" area (next_action_for's own Match
+      # Bank Statement action stays the primary/workflow action; this is
+      # the independent, orthogonal POS-import requirement).
+      @pos_imported_dr_ids = PosTransaction.where(daily_reconciliation_id: all_drs.map(&:id))
+                                            .distinct.pluck(:daily_reconciliation_id).to_set
+
       # Orthogonal (non-exclusive) filters — apply first, independent of
       # bank_status/depositor ordering below.
       scope = all_drs

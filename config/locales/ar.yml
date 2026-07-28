@@ -4760,6 +4760,10 @@ ar:
             review_reconciliation: "مراجعة التسوية"
             verify_reconciliation: "توثيق التسوية"
             review_bank_dispute: "مراجعة النزاع"
+          required_actions:
+            title: "إجراءات مطلوبة"
+            import_pos_file: "استيراد ملف نقاط البيع"
+            match_bank_transactions: "مطابقة معاملات البنك"
           workflow_stages:
             open: "مفتوح"
             deposit_recorded: "تم تسجيل الإيداع"
