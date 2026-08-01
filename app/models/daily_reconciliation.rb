@@ -278,16 +278,53 @@ class DailyReconciliation < ApplicationRecord
   WORKFLOW_STEPS = %i[opening_float close_handover deposit deposit_review
                        sales_import bank_statement pos_import documentation].freeze
 
+  # ── Single source of truth for "which stage of the core DR lifecycle is
+  # this" — opening float → open (cashier working) → awaiting deposit →
+  # deposited-but-unreviewed → deposited-and-reviewed → verified. Both the
+  # index card's status badge (view) and #workflow_progress's steps 1-4
+  # (below) derive from this SAME ordered list via #lifecycle_stage_index,
+  # so they can never disagree about which of these states a DR is actually
+  # in — only the presentation (badge text vs. step name/checkmark) differs,
+  # never the underlying boolean logic.
+  #
+  # Deliberately excludes RemainingDepositBalance/RDB state. A still-open
+  # cash shortfall is a separate, independently-tracked, append-only-ledger
+  # concern (see RDB's own status lifecycle: open → settled | written_off)
+  # and must never block progression through review/verification — a DR is
+  # routinely reviewed and verified while a shortfall is still being chased
+  # down. Gating "deposit recorded" on the shortfall being fully resolved
+  # was the bug behind an "impossible" card state: a DR already reviewed
+  # (badge correctly showing "Waiting for Accounting Approval") could still
+  # have its Next Step button stuck on "Record Deposit" merely because an
+  # unrelated, independently-tracked shortfall remained open. An open
+  # shortfall is still surfaced — via the Outstanding Bank Deposits issue
+  # badge and the card's own Outstanding amount field — just never as a
+  # blocker on this sequential workflow.
+  LIFECYCLE_STAGES = %i[awaiting_opening open awaiting_deposit
+                        awaiting_branch_review awaiting_accounting_approval verified].freeze
+
+  def lifecycle_stage
+    return :awaiting_opening if waiting_for_opening?
+    return :open if open?
+    return :awaiting_deposit if closed?
+    return :awaiting_branch_review if deposited? && !reviewed?
+    return :awaiting_accounting_approval if deposited? && reviewed? && !verified?
+
+    :verified
+  end
+
+  def lifecycle_stage_index = LIFECYCLE_STAGES.index(lifecycle_stage)
+
   def workflow_progress(user, bank_status: nil, open_disputes: [], sales_imported: false, pos_imported: false)
     routes = Rails.application.routes.url_helpers
     label  = ->(key) { I18n.t("finance.daily_reconciliations.index.workspace.workflow.steps.#{key}") }
     primary_style = "btn btn-primary btn-sm"
 
-    opening_complete = !waiting_for_opening?
-    close_complete   = opening_complete && !open?
-    deposit_complete = close_complete && !closed? &&
-                        remaining_deposit_balances.select(&:open?).sum(&:remaining_amount) <= 0
-    review_complete  = deposit_complete && reviewed?
+    stage_index = lifecycle_stage_index
+    opening_complete = stage_index >= 1
+    close_complete   = stage_index >= 2
+    deposit_complete = stage_index >= 3
+    review_complete  = stage_index >= 4
     sales_complete   = review_complete && sales_imported
     bank_complete    = sales_complete &&
                         %w[completed no_bank_transactions].include?(bank_status) && open_disputes.empty?

@@ -124,8 +124,15 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
       )
     end
 
-    it "stays the current step for an outstanding partial balance, even once the DR has advanced past 'closed'" do
+    it "is complete as soon as any deposit is recorded — an OPEN RemainingDepositBalance shortfall must never reopen it" do
+      # RDB is a separate, independently-tracked, append-only ledger (open ->
+      # settled | written_off) that a DR can be fully reviewed/verified while
+      # still carrying — it must never gate the sequential Deposit step.
       dep = deposit!(dr, amount: 60, depositor: depositor)
+      # Finance::TillDepositRecorder flips state closed -> deposited atomically
+      # on the first deposit; simulate that here since this test writes the
+      # TillDeposit directly.
+      dr.update_columns(state: "deposited")
       RemainingDepositBalance.create!(
         daily_reconciliation: dr, till_deposit: dep, responsible_user: depositor, created_by: depositor,
         business: business, branch: branch, amount: 40, remaining_amount: 40, status: "open"
@@ -133,7 +140,30 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
 
       result = dr.workflow_progress(no_perms_user)
 
-      expect(current_key(result)).to eq(:deposit)
+      expect(current_key(result)).not_to eq(:deposit)
+      expect(result[:steps].find { |s| s[:key] == :deposit }[:complete]).to be true
+    end
+  end
+
+  # ── Regression: reported "impossible" card state ────────────────────────
+  describe "regression — status badge and Next Step must never disagree" do
+    it "never shows the Deposit action once the DR is already deposited and reviewed (badge = awaiting accounting approval), even with an open RDB shortfall" do
+      depositor = create(:user, business: business)
+      dr = make_dr(state: "deposited", depositor: depositor, reviewed: true)
+      dep = deposit!(dr, amount: 60, depositor: depositor)
+      RemainingDepositBalance.create!(
+        daily_reconciliation: dr, till_deposit: dep, responsible_user: depositor, created_by: depositor,
+        business: business, branch: branch, amount: 40, remaining_amount: 40, status: "open"
+      )
+
+      expect(dr.lifecycle_stage).to eq(:awaiting_accounting_approval)
+
+      result = dr.workflow_progress(no_perms_user, sales_imported: false)
+
+      expect(result[:steps].find { |s| s[:key] == :deposit }[:complete]).to be true
+      expect(result[:steps].find { |s| s[:key] == :deposit_review }[:complete]).to be true
+      expect(current_key(result)).to eq(:sales_import)
+      expect(result[:action][:label]).to eq("Import Sales Transactions")
     end
   end
 

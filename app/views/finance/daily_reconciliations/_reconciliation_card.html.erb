@@ -14,13 +14,17 @@
   open_disputes = show_verification ?
     dr.open_bank_disputes(preloaded_till_deposits: dr.till_deposits.select(&:active?)) : []
 
+  # Same dr.lifecycle_stage single source of truth the status badge and
+  # #workflow_progress use — only the :awaiting_deposit case layers on an
+  # extra (non-core-state) visual signal for a lingering open RDB shortfall.
   status_color =
-    if dr.verified?           then 'var(--success-rgb)'
-    elsif dr.deposited?        then 'var(--accent-rgb)'
-    elsif dr.waiting_for_opening? then 'var(--warning-rgb)'
-    elsif dr.open?             then 'var(--accent-rgb)'
-    elsif outstanding > 0      then 'var(--warning-rgb)'
-    else                            'var(--text-3-rgb, 100,116,139)'
+    case dr.lifecycle_stage
+    when :verified                                        then 'var(--success-rgb)'
+    when :awaiting_branch_review, :awaiting_accounting_approval then 'var(--accent-rgb)'
+    when :awaiting_opening                                then 'var(--warning-rgb)'
+    when :open                                            then 'var(--accent-rgb)'
+    when :awaiting_deposit
+      has_balance ? 'var(--warning-rgb)' : 'var(--text-3-rgb, 100,116,139)'
     end
 
   # Unified "Next Step" — single source of truth is
@@ -100,9 +104,13 @@
           </p>
         </div>
 
-        <%# DR-state status (unchanged) %>
+        <%# DR-state status — switches on dr.lifecycle_stage, the SAME single
+            source of truth #workflow_progress derives steps 1-4 from, so
+            this badge and the Next Step section below can never disagree
+            about which stage the DR is actually in. ── %>
         <div style="flex: 1; min-width: 200px;">
-          <% if dr.waiting_for_opening? %>
+          <% case dr.lifecycle_stage %>
+          <% when :awaiting_opening %>
             <div style="display: flex; align-items: center; gap: var(--space-2);">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning,#ca8a04)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <span style="font-size: var(--text-sm); font-weight: 600; color: var(--warning,#ca8a04);">
@@ -113,7 +121,7 @@
               <%= t("finance.daily_reconciliations.index.awaiting_opening_hint") %>
             </p>
 
-          <% elsif dr.open? %>
+          <% when :open %>
             <div style="display: flex; align-items: center; gap: var(--space-2);">
               <span class="badge badge-success"><%= t("finance.daily_reconciliations.index.status_open") %></span>
             </div>
@@ -123,7 +131,7 @@
               </p>
             <% end %>
 
-          <% elsif dr.closed? %>
+          <% when :awaiting_deposit %>
             <span class="badge badge-neutral"><%= t("finance.daily_reconciliations.index.status_awaiting_deposit") %></span>
             <% if depositor %>
               <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
@@ -131,13 +139,13 @@
               </p>
             <% end %>
 
-          <% elsif dr.deposited? && !dr.reviewed? %>
+          <% when :awaiting_branch_review %>
             <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_waiting_branch_deposit_review") %></span>
 
-          <% elsif dr.deposited? && dr.reviewed? %>
+          <% when :awaiting_accounting_approval %>
             <span class="badge badge-accent"><%= t("finance.daily_reconciliations.index.status_waiting_accounting_approval") %></span>
 
-          <% elsif dr.verified? %>
+          <% when :verified %>
             <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 4px;">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
               <%= t("finance.daily_reconciliations.index.status_verified") %>
