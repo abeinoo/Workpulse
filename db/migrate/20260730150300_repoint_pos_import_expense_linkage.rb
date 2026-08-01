@@ -11,11 +11,27 @@ class RepointPosImportExpenseLinkage < ActiveRecord::Migration[8.1]
   # Idempotent / schema-history-tolerant: every remove_* is guarded by the
   # matching *_exists? check, and every add_* is guarded the same way, so
   # this migration is safe to run regardless of which of these FKs/indexes/
-  # columns actually exist on a given database (e.g. a database whose
-  # earlier migration history diverged and never created
-  # source_pos_transaction_id's FK in the first place) — never assumes any
-  # of them are present or absent.
+  # columns actually exist on a given database — never assumes any of them
+  # are present or absent.
+  #
+  # Notably, source_pos_import_id ITSELF is not guaranteed to exist. It was
+  # originally created (pointing at sales_imports) by ~20 migrations from an
+  # earlier, abandoned attempt at this feature (dated 2026-07-28 through
+  # 2026-07-30) that were later deleted from db/migrate/ without ever being
+  # rolled back. Local/dev databases that ran those migrations before they
+  # were deleted still carry the column (and 21 orphaned rows in their own
+  # schema_migrations table with no matching file); any database built purely
+  # by replaying the CURRENT db/migrate/*.rb in order — production, or a
+  # fresh `db:migrate` setup — never ran those deleted files and never got
+  # the column at all. This migration is now the single source of truth for
+  # source_pos_import_id's existence, not just its FK/index: it creates the
+  # column when missing (fresh/production) and leaves it untouched when
+  # already present (existing local/dev), before doing anything else to it.
   def up
+    unless column_exists?(:expenses, :source_pos_import_id)
+      add_column :expenses, :source_pos_import_id, :bigint
+    end
+
     if foreign_key_exists?(:expenses, column: "source_pos_transaction_id")
       remove_foreign_key :expenses, column: "source_pos_transaction_id"
     end
@@ -50,6 +66,9 @@ class RepointPosImportExpenseLinkage < ActiveRecord::Migration[8.1]
 
     if foreign_key_exists?(:expenses, column: "source_pos_import_id")
       remove_foreign_key :expenses, column: "source_pos_import_id"
+    end
+    unless column_exists?(:expenses, :source_pos_import_id)
+      add_column :expenses, :source_pos_import_id, :bigint
     end
     unless foreign_key_exists?(:expenses, :sales_imports, column: "source_pos_import_id")
       add_foreign_key :expenses, :sales_imports, column: "source_pos_import_id"
