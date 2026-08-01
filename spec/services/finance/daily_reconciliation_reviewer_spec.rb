@@ -88,8 +88,8 @@ RSpec.describe Finance::DailyReconciliationReviewer, type: :model do
       it "allows review even when imported POS data does not match session totals" do
         TillSessionAmount.create!(daily_reconciliation: dr, payment_method: cash_pm, payment_method_name: "Cash",
                                   collected_amount: 500, refund_amount: 0)
-        pos_import = PosImport.create!(business: business, imported_by: actor, file_name: "x.csv", status: "imported")
-        PosTransaction.create!(pos_import: pos_import, business: business, daily_reconciliation: dr,
+        sales_import = SalesImport.create!(business: business, imported_by: actor, file_name: "x.csv", status: "imported")
+        SalesTransaction.create!(sales_import: sales_import, business: business, daily_reconciliation: dr,
                                transaction_date: Date.current, cashier_name: "Someone", branch_name: branch.name,
                                payment_method_name: "Cash", amount: 300)
 

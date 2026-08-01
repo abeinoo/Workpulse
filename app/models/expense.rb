@@ -9,6 +9,7 @@ class Expense < ApplicationRecord
   belongs_to :created_by,  class_name: "User", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
   belongs_to :source_recurring_expense, class_name: "RecurringExpense", optional: true
+  belongs_to :source_pos_import, class_name: "PosImport", optional: true, inverse_of: :generated_expenses
 
   has_many :expense_allocations, dependent: :destroy
   has_many :allocated_branches,  through: :expense_allocations, source: :branch

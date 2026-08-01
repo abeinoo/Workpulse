@@ -63,8 +63,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       all_drs = query.to_a
 
       # Preloaded once for the whole page instead of per-DR, so deriving
-      # bank_reconciliation_status/workflow_stages for up to 200 rows costs
-      # O(1) queries total, not O(N).
+      # bank_reconciliation_status for up to 200 rows costs O(1) queries
+      # total, not O(N).
       covering_statements = BankStatement.where(business_id: current_user.business_id)
                                          .active.completed.to_a
       review_transactions = BankStatementTransaction
@@ -78,9 +78,6 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         dr.bank_reconciliation_status(covering_statements: covering_statements,
                                       review_transactions: review_transactions)
       end
-      @workflow_stages_by_dr = all_drs.index_with do |dr|
-        dr.workflow_stages(covering_statements: covering_statements, review_transactions: review_transactions)
-      end
       @bank_statement_imported_by_dr = all_drs.index_with do |dr|
         dr.bank_statement_imported?(covering_statements: covering_statements)
       end
@@ -88,12 +85,24 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       @bank_statuses_by_dr = statuses_by_dr
 
       # One query for the whole page (not one per DR) — which of these DRs
-      # already has at least one matched PosTransaction. Feeds the card's
-      # secondary "Required Actions" area (next_action_for's own Match
-      # Bank Statement action stays the primary/workflow action; this is
-      # the independent, orthogonal POS-import requirement).
-      @pos_imported_dr_ids = PosTransaction.where(daily_reconciliation_id: all_drs.map(&:id))
+      # already has at least one matched SalesTransaction. Feeds the unified
+      # "Next Step" workflow (DailyReconciliation#workflow_progress) — step 5
+      # (Sales Import) counts as complete once any row exists for the DR.
+      @sales_imported_dr_ids = SalesTransaction.where(daily_reconciliation_id: all_drs.map(&:id))
                                             .distinct.pluck(:daily_reconciliation_id).to_set
+
+      # Same pattern for step 7 (POS Import) — one query for the whole page,
+      # a plain existence check (no financial figures read here). Deliberately
+      # ungated by view_pos_import — same as the Sales Import existence check
+      # above, this only proves "was anything imported?", never amounts.
+      @pos_imported_dr_ids = build_pos_imported_dr_ids(all_drs)
+
+      # Issue badges (Unmatched POS Transactions / Unmatched Sales
+      # Transactions / Outstanding Bank Deposits) surfaced directly on each
+      # card — see build_dr_issue_badges. No new reconciliation rule: same
+      # Finance::PosVerification::Comparator the DR show page already uses,
+      # just precomputed once for the whole page instead of per-DR.
+      build_dr_issue_badges(all_drs)
 
       # Orthogonal (non-exclusive) filters — apply first, independent of
       # bank_status/depositor ordering below.
@@ -155,6 +164,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         scope_for_dashboard.select { |dr| statuses_by_dr[dr] == @filter_bank_status } :
         scope_for_dashboard
 
+      # Employee Sales Reconciliation issue badges — the heaviest per-DR
+      # figure (Finance::EmployeeReconciliationSummarizer re-runs the
+      # handover graph per DR, unchanged), so it only runs for the DRs
+      # actually being rendered (@reconciliations, after every filter) —
+      # never the wider up-to-200-row all_drs set — and is skipped entirely
+      # for a DR with no imported Sales data at all.
+      build_employee_issue_badges(@reconciliations)
+
       # Amount summary strip — totals across the final filtered set.
       @summary_expected = @reconciliations.sum(&:expected_cash_deposit)
       @summary_deposited = @reconciliations.sum(&:total_deposited)
@@ -166,8 +183,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       @reconciliations = query
     end
 
-    @latest_pos_import = current_user.business.pos_imports.imported.order(updated_at: :desc)
-                                     .includes(:imported_by).first if current_user.can?(:manage_pos_import)
+    @latest_sales_import = current_user.business.sales_imports.imported.order(updated_at: :desc)
+                                     .includes(:imported_by).first if current_user.can?(:manage_sales_import)
   end
 
   # POST /finance/daily_reconciliations/bulk_settle
@@ -448,9 +465,9 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         lines << "    #{s.user&.full_name}: #{amt_str.presence || "(no amounts)"} | grand_total=#{s.grand_total}"
       end
 
-      # Section 2: POS Per Cashier Breakdown (direct DB, stale persisted rows)
+      # Section 2: Sales Per Cashier Breakdown (direct DB, stale persisted rows)
       db_summaries = @reconciliation.employee_reconciliation_summaries.includes(:user, amounts: :payment_method)
-      lines << "  [2] POS Per Cashier (DB employee_reconciliation_summaries, #{db_summaries.size} rows):"
+      lines << "  [2] Sales Per Cashier (DB employee_reconciliation_summaries, #{db_summaries.size} rows):"
       db_summaries.each do |s|
         amt_str = s.amounts.map { |a| "#{a.payment_method_name}: net=#{a.net_amount}" }.join(", ")
         lines << "    #{s.user&.full_name}: #{amt_str.presence || "(no amounts)"} | computed_at=#{s.computed_at}"
@@ -525,43 +542,86 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     @timeline_events = build_timeline_events
 
-    @can_manage_pos_import = policy(@reconciliation).manage_pos_import?
-    @can_view_pos_transactions_verification = policy(@reconciliation).view_pos_transactions_verification?
+    @can_manage_sales_import = policy(@reconciliation).manage_sales_import?
+    @can_view_sales_transactions_verification = policy(@reconciliation).view_sales_transactions_verification?
+    @can_view_pos_transaction_verification    = policy(@reconciliation).view_pos_transaction_verification?
 
-    # Load POS transactions linked to this DR for the comparison sections.
-    # Gated on view_pos_transactions_verification — without it, none of this
-    # data is loaded, so every POS-derived UI section (comparison columns,
+    # Load Sales transactions linked to this DR for the comparison sections.
+    # Gated on view_sales_transactions_verification — without it, none of this
+    # data is loaded, so every Sales-derived UI section (comparison columns,
     # per-cashier breakdown, the dedicated verification section) stays hidden.
-    if @can_view_pos_transactions_verification
-      @pos_transactions = @reconciliation.pos_transactions
+    if @can_view_sales_transactions_verification
+      @sales_transactions = @reconciliation.sales_transactions
                                          .order(:transaction_date, :cashier_name, :payment_method_name)
                                          .to_a
 
-      # POS CSV stores English payment method names; TillSessionAmount stores locale-specific
+      # Display-only ordering (transaction datetime ascending) for the "Sales
+      # Transactions" review table — a separate array so @sales_transactions'
+      # own order (grouping-friendly, used by the totals below) is untouched.
+      # Sorts the already-loaded records in memory; no additional query.
+      @sales_transactions_all_rows = @sales_transactions
+        .sort_by { |t| [ t.transaction_date, t.transaction_time&.strftime("%H:%M:%S") || "" ] }
+
+      # Sales CSV stores English payment method names; TillSessionAmount stores locale-specific
       # display names (e.g. "Cash" vs "نقداً"). Normalise on payment_method_id so comparisons
       # work regardless of the UI language. Fall back to the raw English name for any CSV method
       # that has no matching PaymentMethod record (shows as an unrecognised entry).
       biz_payment_methods      = PaymentMethod.for_business(@reconciliation.business).to_a
-      @pos_payment_methods_by_id = biz_payment_methods.index_by(&:id)
+      @sales_payment_methods_by_id = biz_payment_methods.index_by(&:id)
       pm_id_by_english_name    = biz_payment_methods
                                    .each_with_object({}) { |pm, h| h[pm.name.downcase.strip] = pm.id }
-      pos_method_key = ->(txn) { pm_id_by_english_name[txn.payment_method_name.downcase.strip] || txn.payment_method_name }
+      sales_method_key = ->(txn) { pm_id_by_english_name[txn.payment_method_name.downcase.strip] || txn.payment_method_name }
 
-      @pos_totals_by_method  = @pos_transactions
-                                 .group_by(&pos_method_key)
+      # Groups the same, already-sorted @sales_transactions_all_rows by the
+      # same key used for @sales_totals_by_method, so the per-payment-method
+      # "Sales Transactions" disclosures below line up exactly with the
+      # Session Totals rows they're nested under — no new query, no new
+      # matching logic.
+      @sales_transactions_by_payment_method = @sales_transactions_all_rows.group_by(&sales_method_key)
+
+      # POS Transaction Verification — compares the Sales Transactions whose
+      # payment method is flagged include_in_pos_verification (configured per
+      # PaymentMethod — never hardcoded by name; see PaymentMethod#include_in_pos_verification)
+      # against the real payment-terminal transactions imported for this
+      # branch on this calendar date. Requires view_pos_import in addition to
+      # the Sales gate above (see DailyReconciliationPolicy#view_pos_transaction_verification?)
+      # since it displays Sales data alongside POS data.
+      #
+      # Deliberately uses PosTransaction.for_calendar_date, NOT
+      # business_day/BusinessDay.for_timestamp — POS transactions are
+      # external financial records reconciled against their actual Paid At
+      # timestamp; business_day_start_hour rollover is an operational-data
+      # concept (appointments, sales sessions, cash reconciliation) and must
+      # never shift which day an imported POS transaction is attributed to.
+      if @can_view_pos_transaction_verification
+        pos_verification_method_ids = biz_payment_methods.select(&:include_in_pos_verification).map(&:id).to_set
+        pos_verification_sales_transactions = @sales_transactions.select { |txn| pos_verification_method_ids.include?(sales_method_key.call(txn)) }
+
+        pos_transactions = PosTransaction.for_calendar_date(
+          branch: @reconciliation.branch, date: @reconciliation.business_date, business: @reconciliation.business
+        ).order(:transaction_date).to_a
+
+        @pos_verification = Finance::PosVerification::Comparator.call(pos_verification_sales_transactions, pos_transactions)
+        @pos_verification_pos_transactions       = build_pos_verification_pos_transactions(@pos_verification)
+        @pos_verification_unmatched_rows         = build_pos_verification_unmatched_rows(@pos_verification)
+        @pos_verification_unmatched_sales_rows   = build_pos_verification_unmatched_sales_rows(@pos_verification)
+      end
+
+      @sales_totals_by_method  = @sales_transactions
+                                 .group_by(&sales_method_key)
                                  .transform_values { |txns| txns.sum(&:amount) }
-      @pos_totals_by_cashier = @pos_transactions
+      @sales_totals_by_cashier = @sales_transactions
                                  .group_by(&:cashier_name)
                                  .transform_values { |txns|
-                                   txns.group_by(&pos_method_key)
+                                   txns.group_by(&sales_method_key)
                                        .transform_values { |t| t.sum(&:amount) }
                                  }
-      @latest_pos_import = current_user.business.pos_imports
-                                       .where(id: @pos_transactions.map(&:pos_import_id).uniq)
+      @latest_sales_import = current_user.business.sales_imports
+                                       .where(id: @sales_transactions.map(&:sales_import_id).uniq)
                                        .order(updated_at: :desc).first
 
       # Electronic Payments always shows WorkPulse's own totals — by configured
-      # payment method — regardless of whether a POS file has been imported yet.
+      # payment method — regardless of whether a Sales file has been imported yet.
       # Reuses biz_payment_methods (already loaded above) rather than re-querying.
       @electronic_payment_methods = biz_payment_methods
                                        .reject(&:cash_like?)
@@ -1021,32 +1081,214 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # Session Totals table: one row per configured payment method (cash included
   # when the viewer holds view_session_totals; electronic-only otherwise, same
   # fallback as the summary figures above) plus a Grand Total row. Reuses the
-  # already-computed per-method totals and pos_totals_by_method — no new math,
+  # already-computed per-method totals and sales_totals_by_method — no new math,
   # just a join/sum over data built earlier in #show.
   def build_session_totals_rows
     methods    = @all_payment_methods_for_cards || @electronic_payment_methods
     totals_by_id = @all_payment_method_totals || @electronic_totals_by_method
-    has_pos_data = @pos_totals_by_method.any?
+    has_sales_data = @sales_totals_by_method.any?
 
     rows = methods.map do |pm|
       workpulse_total = totals_by_id[pm.id]
-      pos_total       = has_pos_data ? @pos_totals_by_method[pm.id].to_d : nil
-      difference      = pos_total ? (workpulse_total.to_d - pos_total) : nil
-      { payment_method: pm, workpulse_total: workpulse_total, pos_total: pos_total, difference: difference }
+      sales_total       = has_sales_data ? @sales_totals_by_method[pm.id].to_d : nil
+      difference      = sales_total ? (workpulse_total.to_d - sales_total) : nil
+      { payment_method: pm, workpulse_total: workpulse_total, sales_total: sales_total, difference: difference }
     end
 
     grand_total = {
       workpulse_total: rows.sum { |r| r[:workpulse_total] },
-      pos_total:       has_pos_data ? rows.sum { |r| r[:pos_total].to_d } : nil,
-      difference:      has_pos_data ? rows.sum { |r| r[:difference].to_d } : nil
+      sales_total:       has_sales_data ? rows.sum { |r| r[:sales_total].to_d } : nil,
+      difference:      has_sales_data ? rows.sum { |r| r[:difference].to_d } : nil
     }
 
     [ rows, grand_total ]
   end
 
+  # Every POS Transaction for the day, time-sorted — this section exposes
+  # only the POS side (the DR already shows the Sales side elsewhere), with
+  # no per-row match status displayed (the summary cards above already
+  # surface the Difference; see Finance::PosVerification::Comparator::Result
+  # for the matching detail this is derived from). Pure presentation
+  # ordering — no financial totals are computed here; those are read
+  # directly off the Result's own methods in the view.
+  def build_pos_verification_pos_transactions(result)
+    (result.matched_pairs.map(&:pos_transaction) + result.extra_in_pos).sort_by(&:transaction_date)
+  end
+
+  # Every POS Transaction the Comparator could NOT cleanly reconcile —
+  # extra_in_pos (no matching Sales Transaction at all) and matched_pairs
+  # flagged amount_mismatch? (matched by reference, but the amounts
+  # disagree). No new reconciliation rule is introduced here; this only
+  # reads the existing Result. Each row is
+  # { transaction:, reason:, sales_employee: } — reason is one of
+  # :no_matching_sales / :amount_mismatch, and sales_employee is the
+  # matched SalesTransaction's cashier_name when one exists, else nil (view
+  # renders "—").
+  def build_pos_verification_unmatched_rows(result)
+    rows = result.extra_in_pos.map { |txn| { transaction: txn, reason: :no_matching_sales, sales_employee: nil } }
+    rows += result.matched_pairs.select(&:amount_mismatch?).map do |pair|
+      { transaction: pair.pos_transaction, reason: :amount_mismatch, sales_employee: pair.sales_transaction.cashier_name }
+    end
+    rows.sort_by { |r| r[:transaction].transaction_date }
+  end
+
+  # Every Sales Transaction the Comparator could not match to any POS
+  # Transaction at all (result.missing_from_pos) — no new reconciliation
+  # rule, this only reads the existing Result. Sales Transactions matched by
+  # reference but flagged amount_mismatch? did match (see
+  # build_pos_verification_unmatched_rows) so they are excluded here.
+  def build_pos_verification_unmatched_sales_rows(result)
+    result.missing_from_pos
+      .map { |txn| { transaction: txn, reason: :no_matching_pos } }
+      .sort_by { |r| r[:transaction].transaction_date }
+  end
+
+  # DR ids where a PosTransaction already exists for the DR's own
+  # (branch_id, business_date) — one query for the whole page, grouped in
+  # Ruby by [branch_id, business-timezone calendar date] to mirror
+  # PosTransaction.for_calendar_date's per-branch bucketing exactly. Feeds
+  # DailyReconciliation#workflow_progress's step 7 (POS Import) completion
+  # check — existence only, never reads amounts.
+  def build_pos_imported_dr_ids(drs)
+    dated_drs = drs.select(&:business_date)
+    return Set.new if dated_drs.empty?
+
+    business    = current_user.business
+    tz          = business.timezone_object
+    min_date    = dated_drs.map(&:business_date).min
+    max_date    = dated_drs.map(&:business_date).max
+    range_start = tz.local(min_date.year, min_date.month, min_date.day)
+    range_end   = tz.local(max_date.year, max_date.month, max_date.day) + 1.day
+
+    imported_branch_dates = PosTransaction
+      .where(branch_id: dated_drs.map(&:branch_id).uniq, business_id: business.id)
+      .where(transaction_date: range_start...range_end)
+      .pluck(:branch_id, :transaction_date)
+      .map { |branch_id, txn_date| [ branch_id, txn_date.in_time_zone(tz).to_date ] }
+      .to_set
+
+    dated_drs.select { |dr| imported_branch_dates.include?([ dr.branch_id, dr.business_date ]) }.map(&:id).to_set
+  end
+
+  # ── Index card issue badges ──────────────────────────────────────────────
+  # Precomputes, for the whole page (up to 200 DRs) in a fixed small number
+  # of queries, the same actionable-issue figures the DR show page already
+  # surfaces one DR at a time — Outstanding (unmatched) Bank Deposits, and
+  # (via the unchanged Finance::PosVerification::Comparator) counts of
+  # Unmatched POS Transactions and Unmatched Sales Transactions. Sets
+  # @unmatched_bank_deposits_count_by_dr, @pos_unmatched_count_by_dr and
+  # @sales_unmatched_count_by_dr (both nil when the viewer lacks
+  # view_sales_transactions_verification + view_pos_import) — the card
+  # partial only reads these hashes. Cash Difference and overall Sales
+  # Difference are deliberately NOT surfaced here — both are already visible
+  # elsewhere on the card/page and would only duplicate that figure.
+  def build_dr_issue_badges(drs)
+    # Outstanding Bank Deposits — pure Ruby over the already-eager-loaded
+    # till_deposits/deposit_matches associations (see index's .includes), so
+    # this adds zero new queries.
+    @unmatched_bank_deposits_count_by_dr = drs.index_with do |dr|
+      dr.till_deposits.to_a.select(&:active?).count { |d| d.deposit_matches.to_a.empty? }
+    end
+
+    @can_view_pos_verification_index =
+      current_user.can?(:view_sales_transactions_verification) && current_user.can?(:view_pos_import)
+    return unless @can_view_pos_verification_index
+
+    biz_payment_methods = PaymentMethod.for_business(current_user.business).to_a
+    pm_id_by_english_name = biz_payment_methods.each_with_object({}) { |pm, h| h[pm.name.downcase.strip] = pm.id }
+    pos_verification_method_ids = biz_payment_methods.select(&:include_in_pos_verification).map(&:id).to_set
+
+    # One query for the whole page — every Sales Transaction belonging to
+    # any of these DRs, grouped in Ruby by daily_reconciliation_id.
+    sales_by_dr = SalesTransaction.where(daily_reconciliation_id: drs.map(&:id)).group_by(&:daily_reconciliation_id)
+
+    # One query for the whole page — every PosTransaction for any branch/date
+    # combination appearing in this list, grouped in Ruby by
+    # [branch_id, business-timezone calendar date] to mirror
+    # PosTransaction.for_calendar_date's per-branch bucketing exactly.
+    business    = current_user.business
+    tz          = business.timezone_object
+    dated_drs   = drs.select(&:business_date)
+    pos_by_branch_date = {}
+    if dated_drs.any?
+      min_date = dated_drs.map(&:business_date).min
+      max_date = dated_drs.map(&:business_date).max
+      range_start = tz.local(min_date.year, min_date.month, min_date.day)
+      range_end   = tz.local(max_date.year, max_date.month, max_date.day) + 1.day
+
+      pos_by_branch_date = PosTransaction
+        .where(branch_id: dated_drs.map(&:branch_id).uniq, business_id: business.id)
+        .where(transaction_date: range_start...range_end)
+        .to_a
+        .group_by { |t| [ t.branch_id, t.transaction_date.in_time_zone(tz).to_date ] }
+    end
+
+    @pos_unmatched_count_by_dr   = {}
+    @sales_unmatched_count_by_dr = {}
+
+    drs.each do |dr|
+      next unless dr.business_date
+
+      sales_for_dr = (sales_by_dr[dr.id] || []).select do |txn|
+        pm_id = pm_id_by_english_name[txn.payment_method_name.downcase.strip] || txn.payment_method_name
+        pos_verification_method_ids.include?(pm_id)
+      end
+      pos_for_dr = pos_by_branch_date[[ dr.branch_id, dr.business_date ]] || []
+      next if sales_for_dr.empty? && pos_for_dr.empty?
+
+      result = Finance::PosVerification::Comparator.call(sales_for_dr, pos_for_dr)
+      unmatched_pos_count = result.extra_in_pos.size + result.matched_pairs.count(&:amount_mismatch?)
+      @pos_unmatched_count_by_dr[dr.id]   = unmatched_pos_count if unmatched_pos_count.positive?
+      @sales_unmatched_count_by_dr[dr.id] = result.missing_from_pos.size if result.missing_from_pos.any?
+    end
+  end
+
+  # ── Index card issue badges: Employee Sales Reconciliation ──────────────
+  # One badge per employee whose WorkPulse-recorded total (from the SAME
+  # live Finance::EmployeeReconciliationSummarizer the DR show page's
+  # "Sales Transactions Verification Summary" uses, unchanged) falls short
+  # of what Sales Transactions show they actually took in — i.e. a
+  # negative (WorkPulse − Sales Imported) difference. Deliberately the
+  # heaviest figure on the card (the summarizer re-walks the handover graph
+  # per DR), so it only ever runs for `drs` — callers must pass the final,
+  # already-filtered/paginated set actually being rendered, never the wider
+  # unfiltered list — and skips any DR with no imported Sales data at all
+  # (has_sales_data false, same gate the show page's own partial uses).
+  # Sets @employee_sales_issues_by_dr (dr.id => [{ user:, amount: }, ...]).
+  def build_employee_issue_badges(drs)
+    @employee_sales_issues_by_dr = Hash.new { |h, k| h[k] = [] }
+
+    return unless current_user.can?(:view_all_employee_reconciliation_summary) &&
+                  current_user.can?(:view_sales_transactions_verification)
+
+    dr_ids = drs.map(&:id)
+    return if dr_ids.empty?
+
+    sales_by_dr = SalesTransaction.where(daily_reconciliation_id: dr_ids).group_by(&:daily_reconciliation_id)
+
+    drs.each do |dr|
+      sales_for_dr = sales_by_dr[dr.id]
+      next if sales_for_dr.blank?
+
+      sales_total_by_cashier = sales_for_dr
+        .group_by { |txn| txn.cashier_name.to_s.downcase.strip }
+        .transform_values { |txns| txns.sum(&:amount) }
+
+      Finance::EmployeeReconciliationSummarizer.new(dr).summaries.each do |summary|
+        next unless summary.user
+
+        employee_sales_total = sales_total_by_cashier[summary.user.full_name.downcase.strip] || 0
+        employee_difference  = summary.grand_total.to_d - employee_sales_total
+        next unless employee_difference.negative?
+
+        @employee_sales_issues_by_dr[dr.id] << { user: summary.user, amount: employee_difference.abs }
+      end
+    end
+  end
+
   # ── Redesign display aggregates ─────────────────────────────────────────────
   # Pure read-only presentation figures (no mutation), assembled the same way as
-  # the existing @pos_totals_* aggregates. Consumed by the section partials.
+  # the existing @sales_totals_* aggregates. Consumed by the section partials.
   def build_show_summary_aggregates
     # Cash payment-method ids drive the Cash Reconciliation per-employee filter.
     @cash_payment_method_ids = @amounts_by_method
@@ -1058,14 +1300,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @expected_cash   = @can_view_session_totals ? @reconciliation.expected_cash_deposit : nil
     @cash_difference = @expected_cash ? (@total_deposited - @expected_cash) : nil
 
-    # POS comparison headline (only when POS data is loaded and viewable).
+    # Sales comparison headline (only when Sales data is loaded and viewable).
     # Uses @electronic_total (electronic payment methods only) rather than summing
-    # all session amounts — cash never appears in a POS import, so including it
+    # all session amounts — cash never appears in a Sales import, so including it
     # here would show a permanent false "difference" equal to the day's cash sales.
-    if @can_view_pos_transactions_verification && @pos_totals_by_method&.any?
-      @pos_entered_total  = @electronic_total
-      @pos_imported_total = @pos_totals_by_method.values.sum
-      @pos_difference     = @pos_entered_total - @pos_imported_total
+    if @can_view_sales_transactions_verification && @sales_totals_by_method&.any?
+      @sales_entered_total  = @electronic_total
+      @sales_imported_total = @sales_totals_by_method.values.sum
+      @sales_difference     = @sales_entered_total - @sales_imported_total
     end
 
     @can_view_deposit_verification = current_user.can?(:view_deposit_verification)
@@ -1151,8 +1393,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     if @total_remaining_balance.to_d.abs >= 0.01
       @exceptions << { type: :cash_difference, amount: @total_remaining_balance, severity: :warning, anchor: "cash-reconciliation" }
     end
-    if @pos_difference && @pos_difference.abs >= 0.01
-      @exceptions << { type: :pos_difference, amount: @pos_difference, severity: :warning, anchor: "electronic-payments" }
+    if @sales_difference && @sales_difference.abs >= 0.01
+      @exceptions << { type: :sales_difference, amount: @sales_difference, severity: :warning, anchor: "electronic-payments" }
     end
     if @bank_difference && @bank_difference.abs >= 0.01
       @exceptions << { type: :bank_difference, amount: @bank_difference, severity: :warning, anchor: "bank-deposits" }
@@ -1328,5 +1570,4 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     bank_status
   end
-
 end

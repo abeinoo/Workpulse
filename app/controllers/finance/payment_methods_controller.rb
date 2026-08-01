@@ -73,7 +73,7 @@ class Finance::PaymentMethodsController < Finance::BaseController
 
   def payment_method_params
     params.require(:payment_method).permit(
-      :name, :name_ar, :settlement_type, :supports_refunds, :active, :position
+      :name, :name_ar, :settlement_type, :supports_refunds, :active, :position, :include_in_pos_verification
     )
   end
 

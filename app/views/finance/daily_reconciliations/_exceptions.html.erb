@@ -1,7 +1,7 @@
 <%# ── Exceptions ────────────────────────────────────────────────────────────
     Unified list of things that need attention: bank transactions needing review,
     unmatched bank transactions, deposits missing from the statement, and cash /
-    POS / bank differences. Real records expose View / Manual-Match / Ignore
+    Sales / bank differences. Real records expose View / Manual-Match / Ignore
     (existing routes); calculated-difference rows link to the relevant section.
     Built in the controller (build_exceptions). %>
 
@@ -35,8 +35,8 @@
                   <%= t("finance.daily_reconciliations.show.sections.exceptions.missing_from_bank", count: ex[:count]) %>
                 <% when :cash_difference %>
                   <%= t("finance.daily_reconciliations.show.sections.exceptions.cash_difference") %>
-                <% when :pos_difference %>
-                  <%= t("finance.daily_reconciliations.show.sections.exceptions.pos_difference") %>
+                <% when :sales_difference %>
+                  <%= t("finance.daily_reconciliations.show.sections.exceptions.sales_difference") %>
                 <% when :bank_difference %>
                   <%= t("finance.daily_reconciliations.show.sections.exceptions.bank_difference") %>
                 <% end %>

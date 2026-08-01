@@ -30,7 +30,6 @@ RSpec.describe "Cancelling a Branch Deposit Review rolls back the deposit, not j
   end
 
   def record_deposit_text     = I18n.t("finance.daily_reconciliations.show.action_deposit")
-  def report_atm_text         = I18n.t("till_deposits.new.report_atm_problem")
   def approved_status_text    = I18n.t("finance.daily_reconciliations.show.review_status_reviewed")
   def cancel_button_text      = I18n.t("finance.daily_reconciliations.show.cancel_review_button")
   def waiting_for_deposit_text = I18n.t("finance.daily_reconciliations.show.waiting_for_deposit_placeholder")
@@ -74,11 +73,10 @@ RSpec.describe "Cancelling a Branch Deposit Review rolls back the deposit, not j
     expect(response.body).not_to include(I18n.t("finance.daily_reconciliations.show.state_waiting_for_branch_deposit_review"))
     expect(response.body).not_to include(I18n.t("finance.daily_reconciliations.show.state_waiting_for_accounting_approval"))
 
-    # Back to "Ready for Deposit" — both actions visible again to the depositor.
+    # Back to "Ready for Deposit" — the action is visible again to the depositor.
     sign_in employee
     get finance_daily_reconciliation_path(dr)
     expect(response.body).to include(record_deposit_text)
-    expect(response.body).to include(report_atm_text)
 
     # The old deposit cannot be reused — the depositor must submit a new one.
     get new_till_deposit_path(daily_reconciliation_id: dr.id)

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Finance::PosImports::CsvParser do
+RSpec.describe Finance::SalesImports::CsvParser do
   # Minimal valid column mapping (required fields only).
   let(:required_mapping) do
     {
@@ -42,7 +42,7 @@ RSpec.describe Finance::PosImports::CsvParser do
 
   describe "parse_row return-shape contract" do
     it "always returns a Hash with string keys including 'errors' as an Array" do
-      csv   = make_csv([VALID_ROW])
+      csv   = make_csv([ VALID_ROW ])
       result = described_class.parse(csv, column_mapping: required_mapping)
 
       result.valid_rows.each do |row|
@@ -54,7 +54,7 @@ RSpec.describe Finance::PosImports::CsvParser do
 
     it "invalid rows also carry errors as an Array, never nil" do
       bad_row = VALID_ROW.merge("Amount" => "not-a-number")
-      csv     = make_csv([bad_row])
+      csv     = make_csv([ bad_row ])
       result  = described_class.parse(csv, column_mapping: required_mapping)
 
       result.invalid_rows.each do |row|
@@ -66,15 +66,15 @@ RSpec.describe Finance::PosImports::CsvParser do
     end
 
     it "every row (valid or invalid) has identical top-level keys" do
-      mixed_csv = make_csv([VALID_ROW, VALID_ROW.merge("Amount" => "bad")])
+      mixed_csv = make_csv([ VALID_ROW, VALID_ROW.merge("Amount" => "bad") ])
       result    = described_class.parse(mixed_csv, column_mapping: required_mapping)
 
       all_rows = result.valid_rows + result.invalid_rows
       expect(all_rows.size).to eq(2)
 
-      expected_keys = %w[row transaction_date branch_name cashier_name
+      expected_keys = %w[row transaction_date transaction_time branch_name cashier_name
                          payment_method_name amount reference_number
-                         transaction_id raw_data valid errors]
+                         transaction_id sale_number raw_data valid errors]
       all_rows.each do |row|
         expect(row.keys).to match_array(expected_keys)
       end
@@ -85,7 +85,7 @@ RSpec.describe Finance::PosImports::CsvParser do
 
   describe "optional columns left unmapped" do
     it "parses successfully when reference_number and transaction_id are not mapped" do
-      csv    = make_csv([VALID_ROW])
+      csv    = make_csv([ VALID_ROW ])
       result = described_class.parse(csv, column_mapping: required_mapping)
 
       expect(result.headers_valid?).to be(true)
@@ -94,7 +94,7 @@ RSpec.describe Finance::PosImports::CsvParser do
     end
 
     it "sets optional fields to nil when not mapped" do
-      csv  = make_csv([VALID_ROW])
+      csv  = make_csv([ VALID_ROW ])
       row  = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
 
       expect(row["reference_number"]).to be_nil
@@ -115,7 +115,7 @@ RSpec.describe Finance::PosImports::CsvParser do
     end
 
     it "a missing optional mapping never adds to errors" do
-      csv = make_csv([VALID_ROW])
+      csv = make_csv([ VALID_ROW ])
       row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
 
       expect(row["errors"]).to be_empty
@@ -126,49 +126,49 @@ RSpec.describe Finance::PosImports::CsvParser do
 
   describe "required-field validation" do
     it "rejects a row with a blank transaction_date" do
-      csv  = make_csv([VALID_ROW.merge("Date" => "")])
+      csv  = make_csv([ VALID_ROW.merge("Date" => "") ])
       row  = described_class.parse(csv, column_mapping: required_mapping).invalid_rows.first
       expect(row["errors"]).to include(match(/transaction_date/))
     end
 
     it "rejects a row with an unparseable date" do
-      csv = make_csv([VALID_ROW.merge("Date" => "not-a-date")])
+      csv = make_csv([ VALID_ROW.merge("Date" => "not-a-date") ])
       row = described_class.parse(csv, column_mapping: required_mapping).invalid_rows.first
       expect(row["errors"]).to include(match(/transaction_date/))
     end
 
     it "rejects a row with a blank branch_name" do
-      csv = make_csv([VALID_ROW.merge("Branch" => "")])
+      csv = make_csv([ VALID_ROW.merge("Branch" => "") ])
       row = described_class.parse(csv, column_mapping: required_mapping).invalid_rows.first
       expect(row["errors"]).to include(match(/branch_name/))
     end
 
     it "rejects a row with a blank cashier_name" do
-      csv = make_csv([VALID_ROW.merge("Cashier" => "")])
+      csv = make_csv([ VALID_ROW.merge("Cashier" => "") ])
       row = described_class.parse(csv, column_mapping: required_mapping).invalid_rows.first
       expect(row["errors"]).to include(match(/cashier_name/))
     end
 
     it "rejects a row with a blank payment_method_name" do
-      csv = make_csv([VALID_ROW.merge("Method" => "")])
+      csv = make_csv([ VALID_ROW.merge("Method" => "") ])
       row = described_class.parse(csv, column_mapping: required_mapping).invalid_rows.first
       expect(row["errors"]).to include(match(/payment_method_name/))
     end
 
     it "rejects a row with a non-numeric amount" do
-      csv = make_csv([VALID_ROW.merge("Amount" => "abc")])
+      csv = make_csv([ VALID_ROW.merge("Amount" => "abc") ])
       row = described_class.parse(csv, column_mapping: required_mapping).invalid_rows.first
       expect(row["errors"]).to include(match(/amount/))
     end
 
     it "rejects a row with a zero amount" do
-      csv = make_csv([VALID_ROW.merge("Amount" => "0")])
+      csv = make_csv([ VALID_ROW.merge("Amount" => "0") ])
       row = described_class.parse(csv, column_mapping: required_mapping).invalid_rows.first
       expect(row["errors"]).to include(match(/greater than zero/))
     end
 
     it "rejects a row with a negative amount" do
-      csv = make_csv([VALID_ROW.merge("Amount" => "-5.00")])
+      csv = make_csv([ VALID_ROW.merge("Amount" => "-5.00") ])
       row = described_class.parse(csv, column_mapping: required_mapping).invalid_rows.first
       expect(row["errors"]).to include(match(/greater than zero/))
     end
@@ -177,7 +177,7 @@ RSpec.describe Finance::PosImports::CsvParser do
   describe "mapping-level validation" do
     it "returns a header_error when a required mapping column is missing" do
       bad_mapping = required_mapping.except("amount")
-      result      = described_class.parse(make_csv([VALID_ROW]), column_mapping: bad_mapping)
+      result      = described_class.parse(make_csv([ VALID_ROW ]), column_mapping: bad_mapping)
 
       expect(result.headers_valid?).to be(false)
       expect(result.header_error).to match(/amount/)
@@ -199,7 +199,7 @@ RSpec.describe Finance::PosImports::CsvParser do
     end
 
     it "accepts integer-format amounts" do
-      csv = make_csv([VALID_ROW.merge("Amount" => "200")])
+      csv = make_csv([ VALID_ROW.merge("Amount" => "200") ])
       row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
       expect(row["amount"]).to eq("200.0")
     end
@@ -218,16 +218,80 @@ RSpec.describe Finance::PosImports::CsvParser do
       "DD Mon YYYY 12:00pm" => "03 Jul 2026, 12:00pm"
     }.each do |format_name, date_str|
       it "parses #{format_name} format" do
-        csv = make_csv([VALID_ROW.merge("Date" => date_str)])
+        csv = make_csv([ VALID_ROW.merge("Date" => date_str) ])
         row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
         expect(row["transaction_date"]).not_to be_nil
       end
     end
 
-    it "strips the time component and returns only the date" do
-      csv = make_csv([VALID_ROW.merge("Date" => "03 Jul 2026, 1:09pm")])
+    it "splits a combined date+time source into transaction_date AND transaction_time — never discarding the time" do
+      csv = make_csv([ VALID_ROW.merge("Date" => "03 Jul 2026, 1:09pm") ])
       row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+
       expect(row["transaction_date"]).to eq("2026-07-03")
+      expect(row["transaction_time"]).to eq("13:09:00")
+    end
+
+    it "preserves a single-digit-hour AM time exactly" do
+      csv = make_csv([ VALID_ROW.merge("Date" => "03 Jul 2026, 9:05am") ])
+      row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+
+      expect(row["transaction_date"]).to eq("2026-07-03")
+      expect(row["transaction_time"]).to eq("09:05:00")
+    end
+
+    it "preserves noon (12:00pm) correctly, not as midnight" do
+      csv = make_csv([ VALID_ROW.merge("Date" => "03 Jul 2026, 12:00pm") ])
+      row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+
+      expect(row["transaction_time"]).to eq("12:00:00")
+    end
+
+    it "parses a 24-hour 'YYYY-MM-DD HH:MM:SS' source with its time intact" do
+      csv = make_csv([ VALID_ROW.merge("Date" => "2024-03-15 14:22:05") ])
+      row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+
+      expect(row["transaction_date"]).to eq("2024-03-15")
+      expect(row["transaction_time"]).to eq("14:22:05")
+    end
+
+    it "leaves transaction_time nil when the source is genuinely date-only" do
+      csv = make_csv([ VALID_ROW.merge("Date" => "2024-03-15") ])
+      row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+
+      expect(row["transaction_date"]).to eq("2024-03-15")
+      expect(row["transaction_time"]).to be_nil
+    end
+  end
+
+  # ── Sale Number ──────────────────────────────────────────────────────────── #
+
+  describe "sale_number (optional column)" do
+    let(:mapping_with_sale_number) { required_mapping.merge("sale_number" => "SaleNo") }
+
+    it "is nil when not mapped" do
+      csv = make_csv([ VALID_ROW ])
+      row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+      expect(row["sale_number"]).to be_nil
+    end
+
+    it "is captured when mapped, distinct from reference_number" do
+      headers = %w[Date Branch Cashier Method Amount SaleNo Ref]
+      csv = [
+        headers.join(","),
+        "2024-01-15,Main Branch,Ahmed,Cash,150.00,SHT39378,568443187"
+      ].join("\n")
+
+      row = described_class.parse(csv, column_mapping: mapping_with_sale_number.merge("reference_number" => "Ref")).valid_rows.first
+
+      expect(row["sale_number"]).to eq("SHT39378")
+      expect(row["reference_number"]).to eq("568443187")
+    end
+
+    it "a missing sale_number mapping never adds to errors (optional)" do
+      csv = make_csv([ VALID_ROW ])
+      row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+      expect(row["errors"]).to be_empty
     end
   end
 

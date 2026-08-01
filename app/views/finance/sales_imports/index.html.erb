@@ -1,0 +1,121 @@
+<% content_for :title, t("finance.sales_imports.index.title") %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("finance.sales_imports.index.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.sales_imports.index.subtitle") %></p>
+    </div>
+    <div class="page-header__actions">
+      <%= link_to t("finance.daily_reconciliations.index.title"),
+            finance_daily_reconciliations_path,
+            class: "btn btn-ghost btn-sm" %>
+      <% if policy(:sales_import).create? %>
+        <%= link_to t("finance.sales_imports.index.import_button"),
+              new_finance_sales_import_path,
+              class: "btn btn-primary" %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @imports.empty? %>
+    <div class="empty-state" style="padding: var(--space-16) var(--space-8);">
+      <div class="empty-state__icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
+        </svg>
+      </div>
+      <p class="empty-state__title"><%= t("finance.sales_imports.index.empty") %></p>
+      <p class="empty-state__text"><%= t("finance.sales_imports.index.empty_hint") %></p>
+      <div style="margin-top: var(--space-6);">
+        <%= link_to t("finance.sales_imports.index.import_button"),
+              new_finance_sales_import_path,
+              class: "btn btn-primary" %>
+      </div>
+    </div>
+  <% else %>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+      <div style="padding: var(--space-3) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 2fr 80px 100px 120px 120px 100px 1fr;">
+        <% [
+             t("finance.sales_imports.index.col_file"),
+             t("finance.sales_imports.index.col_rows"),
+             t("finance.sales_imports.index.col_matched"),
+             t("finance.sales_imports.index.col_drs"),
+             t("finance.sales_imports.index.col_imported_by"),
+             t("finance.sales_imports.index.col_imported_at"),
+             ""
+           ].each do |label| %>
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);">
+            <%= label %>
+          </span>
+        <% end %>
+      </div>
+
+      <% @imports.each do |import| %>
+        <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 2fr 80px 100px 120px 120px 100px 1fr; align-items: center; gap: var(--space-2);">
+          <div style="min-width: 0;">
+            <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0; truncate;">
+              <%= import.file_name %>
+            </p>
+            <% if import.imported? && import.unmatched_rows > 0 %>
+              <p style="font-size: 11px; color: var(--warning); margin: 1px 0 0;">
+                <%= t("finance.sales_imports.index.unmatched_warning", count: import.unmatched_rows) %>
+              </p>
+            <% end %>
+            <% if import.imported? && import.duplicate_rows > 0 %>
+              <p style="font-size: 11px; color: var(--text-3); margin: 1px 0 0;">
+                <%= t("finance.sales_imports.index.duplicate_warning", count: import.duplicate_rows) %>
+              </p>
+            <% end %>
+          </div>
+          <span style="font-size: var(--text-sm); color: var(--text-2);">
+            <%= import.total_rows %>
+          </span>
+          <span style="font-size: var(--text-sm); color: var(--text-2);">
+            <span style="color: var(--success); font-weight: 600;"><%= import.matched_rows %></span>
+            <% if import.unmatched_rows > 0 %>
+              / <span style="color: var(--warning);">+<%= import.unmatched_rows %></span>
+            <% end %>
+          </span>
+          <span style="font-size: var(--text-sm); color: var(--text-2);">
+            <%= import.dr_count %>
+            <%= t("finance.sales_imports.index.dr_count_suffix", count: import.dr_count) %>
+          </span>
+          <span style="font-size: var(--text-sm); color: var(--text-2);">
+            <%= import.imported_by.full_name %>
+          </span>
+          <span style="font-size: var(--text-sm); color: var(--text-3);">
+            <%= l(import.updated_at, format: :short) %>
+          </span>
+          <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
+            <% if import.imported? %>
+              <span class="badge badge-success" style="font-size: 11px;">
+                <%= t("finance.sales_imports.index.status_imported") %>
+              </span>
+            <% elsif import.failed? %>
+              <span class="badge badge-danger" style="font-size: 11px;">
+                <%= t("finance.sales_imports.index.status_failed") %>
+              </span>
+            <% else %>
+              <span class="badge" style="font-size: 11px;">
+                <%= t("finance.sales_imports.index.status_pending") %>
+              </span>
+            <% end %>
+            <% if policy(import).destroy? %>
+              <%= button_to t("common.delete"),
+                    finance_sales_import_path(import),
+                    method: :delete,
+                    data: { turbo_confirm: t("common.are_you_sure") },
+                    class: "btn btn-danger btn-sm",
+                    form_class: "inline" %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+  <% end %>
+
+</div>

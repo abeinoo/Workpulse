@@ -61,27 +61,11 @@
       </div>
     <% end %>
 
-    <%# ── Report ATM Deposit Problem / direct (no-deposit-yet) disputes ────
+    <%# ── Direct (no-deposit-yet) disputes ──────────────────────────────
         Always rendered, independent of whether any TillDeposit exists yet —
         an ATM/POS "failed deposit" is reported instead of a deposit, so a DR
         with zero deposits can still have an open dispute here. ── %>
-    <%
-      can_report_atm_dispute = policy(BankDispute.new(daily_reconciliation: @reconciliation)).create?
-      direct_disputes        = @reconciliation.bank_disputes.reject(&:resolved?)
-    %>
-    <% if can_report_atm_dispute %>
-      <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); background: var(--surface-2); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);">
-        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
-          <%= t("finance.daily_reconciliations.show.sections.bank.atm_problem_hint") %>
-        </p>
-        <%= link_to new_finance_bank_dispute_path(daily_reconciliation_id: @reconciliation.id),
-              class: "btn btn-warning btn-sm",
-              data: { turbo_frame: "modal" } do %>
-          ⚠ <%= t("till_deposits.new.report_atm_problem") %>
-        <% end %>
-      </div>
-    <% end %>
-
+    <% direct_disputes = @reconciliation.bank_disputes.reject(&:resolved?) %>
     <% direct_disputes.each do |dispute| %>
       <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
         <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);">

@@ -6,7 +6,7 @@ module Finance
   # self-deposit (day-close). These represent what each cashier collected and
   # refunded during their custody period(s).
   #
-  # Future swap point: when Fresha POS transaction import is available, only
+  # Future swap point: when Fresha Sales transaction import is available, only
   # #aggregate_by_employee changes — the persistence and display layers stay
   # identical.
   #
@@ -56,7 +56,7 @@ module Finance
     # Returns summaries ready for display.
     # Always computed live from the handover graph so the display always reflects
     # the current algorithm. The persist!/db_to_rows path is preserved for future
-    # use (e.g. POS snapshot swap) but is not used for rendering.
+    # use (e.g. Sales snapshot swap) but is not used for rendering.
     # Pass for_user: to restrict results to a single user (own-only permission).
     def summaries(for_user: nil)
       rows = live_rows
@@ -73,7 +73,7 @@ module Finance
 
     private
 
-    # ── Data source (swap this method when POS transactions are available) ─────
+    # ── Data source (swap this method when Sales transactions are available) ─────
     #
     # Formula (per cashier, per payment method):
     #

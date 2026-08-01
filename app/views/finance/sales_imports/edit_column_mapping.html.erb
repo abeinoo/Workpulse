@@ -1,38 +1,38 @@
-<% content_for :title, t("finance.pos_imports.column_mapping.title") %>
+<% content_for :title, t("finance.sales_imports.column_mapping.title") %>
 
 <div class="admin-page" style="max-width: 680px;">
 
   <div class="page-header">
     <div>
-      <h1 class="page-title"><%= t("finance.pos_imports.column_mapping.title") %></h1>
-      <p class="page-subtitle"><%= t("finance.pos_imports.column_mapping.subtitle") %></p>
+      <h1 class="page-title"><%= t("finance.sales_imports.column_mapping.title") %></h1>
+      <p class="page-subtitle"><%= t("finance.sales_imports.column_mapping.subtitle") %></p>
     </div>
   </div>
 
   <%# Step indicator %>
   <div dir="ltr" style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-6); font-size: var(--text-sm); color: var(--text-3);">
-    <span><%= t("finance.pos_imports.steps.upload") %></span>
+    <span><%= t("finance.sales_imports.steps.upload") %></span>
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-    <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.pos_imports.steps.map_columns") %></span>
+    <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.sales_imports.steps.map_columns") %></span>
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-    <span><%= t("finance.pos_imports.steps.preview") %></span>
+    <span><%= t("finance.sales_imports.steps.preview") %></span>
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-    <span><%= t("finance.pos_imports.steps.import") %></span>
+    <span><%= t("finance.sales_imports.steps.import") %></span>
   </div>
 
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4); background: var(--bg-2);">
     <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0;">
-      <strong><%= t("finance.pos_imports.column_mapping.detected_hint") %>:</strong>
+      <strong><%= t("finance.sales_imports.column_mapping.detected_hint") %>:</strong>
       <%= @detected_headers.join(", ") %>
     </p>
   </div>
 
-  <%= form_with url: update_column_mapping_finance_pos_import_path(@pos_import), method: :patch do |f| %>
+  <%= form_with url: update_column_mapping_finance_sales_import_path(@sales_import), method: :patch do |f| %>
 
-    <% if @pos_import.errors.any? %>
+    <% if @sales_import.errors.any? %>
       <div class="alert alert-danger" style="margin-bottom: var(--space-4);">
         <ul style="margin: 0; padding-inline-start: var(--space-5);">
-          <% @pos_import.errors.each do |e| %>
+          <% @sales_import.errors.each do |e| %>
             <li><%= e.full_message %></li>
           <% end %>
         </ul>
@@ -43,16 +43,16 @@
       <table class="table" style="margin-bottom: var(--space-6);">
         <thead>
           <tr>
-            <th style="width: 40%;"><%= t("finance.pos_imports.column_mapping.col_field") %></th>
-            <th><%= t("finance.pos_imports.column_mapping.col_csv_column") %></th>
+            <th style="width: 40%;"><%= t("finance.sales_imports.column_mapping.col_field") %></th>
+            <th><%= t("finance.sales_imports.column_mapping.col_csv_column") %></th>
           </tr>
         </thead>
         <tbody>
-          <% Finance::PosImports::CsvParser::ALL_FIELDS.each do |field| %>
-            <% required = Finance::PosImports::CsvParser::REQUIRED_FIELDS.include?(field) %>
+          <% Finance::SalesImports::CsvParser::ALL_FIELDS.each do |field| %>
+            <% required = Finance::SalesImports::CsvParser::REQUIRED_FIELDS.include?(field) %>
             <tr>
               <td>
-                <span style="font-weight: 500;"><%= t("finance.pos_imports.fields.#{field}") %></span>
+                <span style="font-weight: 500;"><%= t("finance.sales_imports.fields.#{field}") %></span>
                 <% if required %>
                   <span class="text-danger" style="font-size: var(--text-xs); margin-inline-start: 4px;">*</span>
                 <% else %>
@@ -62,12 +62,12 @@
               <td>
                 <select name="column_mapping[<%= field %>]" class="form-control form-control-sm">
                   <% if required %>
-                    <option value=""><%= t("finance.pos_imports.column_mapping.select_column") %></option>
+                    <option value=""><%= t("finance.sales_imports.column_mapping.select_column") %></option>
                   <% else %>
-                    <option value=""><%= t("finance.pos_imports.column_mapping.skip") %></option>
+                    <option value=""><%= t("finance.sales_imports.column_mapping.skip") %></option>
                   <% end %>
                   <% @detected_headers.each do |header| %>
-                    <% selected = @pos_import.column_mapping[field] == header %>
+                    <% selected = @sales_import.column_mapping[field] == header %>
                     <option value="<%= header %>" <%= "selected" if selected %>><%= header %></option>
                   <% end %>
                 </select>
@@ -79,7 +79,7 @@
 
       <div style="display: flex; gap: var(--space-3); justify-content: flex-end;">
         <%= link_to t("shared.cancel"), finance_daily_reconciliations_path, class: "btn btn-ghost" %>
-        <%= f.submit t("finance.pos_imports.column_mapping.import_button"), class: "btn btn-primary" %>
+        <%= f.submit t("finance.sales_imports.column_mapping.import_button"), class: "btn btn-primary" %>
       </div>
     </div>
 

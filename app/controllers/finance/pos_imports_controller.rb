@@ -1,24 +1,15 @@
 class Finance::PosImportsController < Finance::BaseController
-  before_action :set_pos_import, only: %i[edit_column_mapping update_column_mapping
-                                           preview_import confirm_import destroy]
+  before_action :set_pos_import, only: %i[preview_import confirm_import ignore_row destroy]
 
-  COLUMN_DETECTION_RULES = [
-    ["transaction_date",    %w[payment\ date transaction\ date date]],
-    ["branch_name",         %w[location branch store outlet]],
-    ["cashier_name",        %w[team\ member cashier employee staff operator member]],
-    ["payment_method_name", %w[payment\ method method]],
-    ["amount",              %w[payment\ amount amount total]],
-    ["reference_number",    %w[payment\ no reference receipt ref voucher]],
-    ["transaction_id",      %w[transaction\ id trans\ id]]
-  ].freeze
+  ACCEPTED_EXTENSION = ".xlsx".freeze
 
   # GET /finance/pos_imports
   def index
     authorize PosImport
     @imports = current_user.business.pos_imports
-                           .includes(:imported_by)
-                           .ordered
-                           .limit(50)
+                          .includes(:imported_by)
+                          .ordered
+                          .limit(50)
   end
 
   # GET /finance/pos_imports/new
@@ -33,163 +24,101 @@ class Finance::PosImportsController < Finance::BaseController
     @pos_import.imported_by = current_user
     authorize @pos_import
 
-    unless params.dig(:pos_import, :file).present?
+    file = params.dig(:pos_import, :file)
+    unless file.present?
       @pos_import.errors.add(:file, t("finance.pos_imports.errors.file_blank"))
       return render :new, status: :unprocessable_entity
     end
 
-    raw_bytes = params[:pos_import][:file].read
-    if raw_bytes.blank?
+    unless File.extname(file.original_filename.to_s).downcase == ACCEPTED_EXTENSION
+      @pos_import.errors.add(:file, t("finance.pos_imports.errors.invalid_extension"))
+      return render :new, status: :unprocessable_entity
+    end
+
+    bytes = file.read
+    if bytes.blank?
       @pos_import.errors.add(:file, t("finance.pos_imports.errors.file_empty"))
       return render :new, status: :unprocessable_entity
     end
 
-    csv_data = Finance::PosImports::CsvParser.to_utf8(raw_bytes)
+    @pos_import.file_name = file.original_filename
+
+    unless @pos_import.save
+      return render :new, status: :unprocessable_entity
+    end
+
+    @pos_import.file.attach(io: StringIO.new(bytes), filename: file.original_filename)
 
     begin
-      @detected_headers = Finance::PosImports::CsvParser.detect_headers(csv_data)
-    rescue ArgumentError => e
-      key = e.message.include?("malformed") ? "finance.pos_imports.errors.csv_malformed"
-                                            : "finance.pos_imports.errors.csv_no_header"
-      @pos_import.errors.add(:file, t(key))
+      @preview = build_preview(@pos_import)
+    rescue Finance::PosImports::ExcelReader::MalformedFile
+      @pos_import.destroy
+      @pos_import = PosImport.new(file_name: file.original_filename)
+      @pos_import.errors.add(:file, t("finance.pos_imports.errors.malformed_file"))
+      return render :new, status: :unprocessable_entity
+    rescue Finance::PosImports::HeaderDetector::HeaderNotFoundError
+      @pos_import.destroy
+      @pos_import = PosImport.new(file_name: file.original_filename)
+      @pos_import.errors.add(:file, t("finance.pos_imports.errors.header_not_found"))
+      return render :new, status: :unprocessable_entity
+    rescue Finance::PosImports::Mapper::MissingRequiredColumnsError => e
+      @pos_import.destroy
+      @pos_import = PosImport.new(file_name: file.original_filename)
+      @pos_import.errors.add(:file, t("finance.pos_imports.errors.missing_required_columns", fields: e.message))
       return render :new, status: :unprocessable_entity
     end
 
-    if @detected_headers.empty?
-      @pos_import.errors.add(:file, t("finance.pos_imports.errors.csv_no_header"))
-      return render :new, status: :unprocessable_entity
-    end
-
-    row_count = csv_row_count(csv_data)
-    if row_count == 0
-      @pos_import.errors.add(:file, t("finance.pos_imports.errors.no_data_rows"))
-      return render :new, status: :unprocessable_entity
-    end
-
-    @pos_import.file_name = params[:pos_import][:file].original_filename
-
-    if @pos_import.save
-      @pos_import.file.attach(params[:pos_import][:file])
-      redirect_to edit_column_mapping_finance_pos_import_path(@pos_import)
-    else
-      render :new, status: :unprocessable_entity
-    end
-  end
-
-  # GET /finance/pos_imports/:id/edit_column_mapping
-  def edit_column_mapping
-    authorize @pos_import
-    # Always re-detect from the stored file — no session dependency.
-    @detected_headers = Finance::PosImports::CsvParser.detect_headers(@pos_import.file.download)
-    # Pre-fill an auto-detected mapping on first visit (when no mapping has been saved yet).
-    if @pos_import.column_mapping.blank?
-      @pos_import.column_mapping = auto_detect_column_mapping(@detected_headers)
-    end
-  end
-
-  # PATCH /finance/pos_imports/:id/update_column_mapping
-  def update_column_mapping
-    authorize @pos_import, :edit_column_mapping?
-
-    mapping = build_column_mapping(params[:column_mapping])
-
-    missing = Finance::PosImports::CsvParser::REQUIRED_FIELDS.select { |f| mapping[f].blank? }
-    if missing.any?
-      @pos_import.errors.add(:base, t("finance.pos_imports.errors.mapping_missing_required",
-                                       fields: missing.join(", ")))
-      @detected_headers = Finance::PosImports::CsvParser.detect_headers(@pos_import.file.download)
-      return render :edit_column_mapping, status: :unprocessable_entity
-    end
-
-    @pos_import.update!(column_mapping: mapping, status: "column_mapped")
-
-    csv_data     = @pos_import.file.download
-    parse_result = Finance::PosImports::CsvParser.parse(csv_data, column_mapping: mapping)
-
-    if parse_result.header_error.present?
-      @pos_import.errors.add(:base, parse_result.header_error)
-      @detected_headers = Finance::PosImports::CsvParser.detect_headers(csv_data)
-      return render :edit_column_mapping, status: :unprocessable_entity
-    end
-
-    matcher      = Finance::PosImports::DrMatcher.new(current_user.business)
-    match_result = matcher.match(parse_result.valid_rows)
-
-    incoming_refs  = parse_result.valid_rows.filter_map { |r| r["reference_number"].presence }.uniq
-    existing_refs  = incoming_refs.any? ?
-      PosTransaction
-        .where(business_id: current_user.business_id,
-               reference_number: incoming_refs)
-        .where.not(pos_import_id: @pos_import.id)
-        .pluck(:reference_number)
-        .to_set :
-      Set.new
-    duplicate_count = parse_result.valid_rows.count { |row|
-      ref = row["reference_number"]
-      ref.present? && existing_refs.include?(ref)
-    }
-
-    # Persist preview data on the record — never in the cookie session.
-    preview = {
-      "total_rows"       => parse_result.total_rows,
-      "valid_count"      => parse_result.valid_count,
-      "invalid_count"    => parse_result.invalid_count,
-      "duplicate_count"  => duplicate_count,
-      "matched_count"    => match_result.matched_count,
-      "unmatched_count"  => match_result.unmatched_count,
-      "dr_count"         => match_result.affected_dr_ids.size,
-      "unmatched_groups" => match_result.unmatched_groups.map { |g|
-        {
-          "branch_name"         => g[:branch_name],
-          "cashier_name"        => g[:cashier_name],
-          "payment_method_name" => g[:payment_method_name],
-          "date"                => g[:date],
-          "count"               => g[:count],
-          "reason"              => g[:reason].to_s
-        }
-      },
-      "sample_rows" => parse_result.valid_rows.first(5).map { |r|
-        r.slice("transaction_date", "branch_name", "cashier_name", "payment_method_name", "amount")
-      },
-      "error_rows" => parse_result.invalid_rows.first(10).map { |r|
-        r.slice("row", "transaction_date", "branch_name", "cashier_name",
-                "payment_method_name", "amount", "errors")
-      }
-    }
-    @pos_import.update_column(:preview_data, preview)
-
+    @pos_import.update_column(:preview_data, @preview)
     redirect_to preview_import_finance_pos_import_path(@pos_import)
   end
 
   # GET /finance/pos_imports/:id/preview_import
   def preview_import
-    authorize @pos_import, :update_column_mapping?
-    @preview = @pos_import.preview_data.presence || regenerate_preview(@pos_import)
+    authorize @pos_import
+    @preview = (@pos_import.preview_data.presence || regenerate_preview(@pos_import)).with_indifferent_access
+  end
+
+  # POST /finance/pos_imports/:id/ignore_row
+  # Excludes a single row-level validation error from the pending import
+  # (mandatory reason, full audit trail via RowIgnorer) and immediately
+  # recalculates the preview — no re-upload needed. Rejected server-side for
+  # anything that isn't currently a row-level validation error (structural
+  # problems and Unknown Terminal IDs are never row-ignorable).
+  def ignore_row
+    authorize @pos_import, :ignore_row?
+
+    result = Finance::PosImports::RowIgnorer.call(
+      @pos_import.id, row_number: params[:row_number], reason: params[:reason], actor: current_user
+    )
+
+    if result.ok?
+      @pos_import.update_column(:preview_data, build_preview(@pos_import))
+      redirect_to preview_import_finance_pos_import_path(@pos_import),
+                  notice: t("finance.pos_imports.row_ignored", row: params[:row_number])
+    else
+      redirect_to preview_import_finance_pos_import_path(@pos_import), alert: result.error
+    end
   end
 
   # POST /finance/pos_imports/:id/confirm_import
   def confirm_import
-    authorize @pos_import, :update_column_mapping?
+    authorize @pos_import
 
-    skip_unmatched = params[:skip_unmatched] == "1"
-
-    result = Finance::PosImports::Importer.call(
-      @pos_import.id,
-      actor:          current_user,
-      skip_unmatched: skip_unmatched
-    )
+    result = Finance::PosImports::Importer.call(@pos_import.id, actor: current_user)
 
     if result.ok?
-      pi = result.pos_import
-      redirect_to finance_daily_reconciliations_path,
+      summary = Finance::PosImports::SummaryBuilder.for_import(result.pos_import)
+      redirect_to finance_pos_imports_path,
                   notice: t("finance.pos_imports.imported_summary",
-                             total:      pi.total_rows,
-                             imported:   pi.matched_rows,
-                             duplicates: pi.duplicate_rows,
-                             invalid:    pi.failed_rows)
+                            imported:  summary[:imported_rows],
+                            total:     summary[:total_rows],
+                            duplicates: summary[:duplicate_rows],
+                            invalid:   summary[:invalid_rows],
+                            ignored:   summary[:ignored_rows],
+                            expenses:  summary[:expenses_created],
+                            fees:      helpers.format_currency(summary[:total_fees]))
     else
-      redirect_to preview_import_finance_pos_import_path(@pos_import),
-                  alert: result.error
+      redirect_to preview_import_finance_pos_import_path(@pos_import), alert: result.error
     end
   end
 
@@ -198,8 +127,7 @@ class Finance::PosImportsController < Finance::BaseController
     authorize @pos_import
 
     @pos_import.destroy!
-    redirect_to finance_pos_imports_path,
-                notice: t("finance.pos_imports.deleted")
+    redirect_to finance_pos_imports_path, notice: t("finance.pos_imports.deleted")
   end
 
   private
@@ -208,86 +136,23 @@ class Finance::PosImportsController < Finance::BaseController
     @pos_import = current_user.business.pos_imports.find(params[:id])
   end
 
-  def auto_detect_column_mapping(headers)
-    norm = ->(s) { s.to_s.downcase.gsub(/[\s\-_]+/, " ").strip }
-    used = Set.new
+  # Runs the shared read-only Pipeline (no persistence beyond preview_data)
+  # to build the preview shown before confirming. Importer re-runs the same
+  # Pipeline fresh from the stored file at confirm time rather than trusting
+  # this cached result.
+  def build_preview(pos_import)
+    pipeline = Finance::PosImports::Pipeline.call(pos_import, business: current_user.business)
 
-    COLUMN_DETECTION_RULES.each_with_object({}) do |(field, keywords), mapping|
-      matched = keywords.lazy.filter_map { |kw|
-        headers.find { |h| !used.include?(h) && norm.call(h).include?(kw) }
-      }.first
-      next unless matched
-
-      mapping[field] = matched
-      used << matched
-    end
-  end
-
-  def build_column_mapping(mapping_params)
-    return {} unless mapping_params.respond_to?(:permit)
-    permitted = mapping_params.permit(Finance::PosImports::CsvParser::ALL_FIELDS)
-    permitted.to_h.reject { |_k, v| v.blank? }
-  end
-
-  def csv_row_count(csv_data)
-    require "csv"
-    table = CSV.parse(
-      Finance::PosImports::CsvParser.to_utf8(csv_data),
-      headers: true, skip_blanks: true
+    Finance::PosImports::SummaryBuilder.for_preview(
+      mapped_rows: pipeline.mapped, status_split: pipeline.status_split,
+      validation: pipeline.validation, resolution: pipeline.resolution, business: current_user.business,
+      pos_import: pos_import
     )
-    table.count
-  rescue CSV::MalformedCSVError
-    0
   end
 
-  # Re-builds preview from the stored file + column_mapping when preview_data is absent.
-  # This covers the edge case where someone navigates directly to the preview URL
-  # without going through update_column_mapping (e.g., bookmarked URL or admin action).
+  # Re-derives the preview from the stored file when preview_data is absent —
+  # covers direct/bookmarked access to the preview URL.
   def regenerate_preview(pos_import)
-    csv_data     = pos_import.file.download
-    parse_result = Finance::PosImports::CsvParser.parse(csv_data, column_mapping: pos_import.column_mapping)
-    matcher      = Finance::PosImports::DrMatcher.new(current_user.business)
-    match_result = matcher.match(parse_result.valid_rows)
-
-    incoming_refs  = parse_result.valid_rows.filter_map { |r| r["reference_number"].presence }.uniq
-    existing_refs  = incoming_refs.any? ?
-      PosTransaction
-        .where(business_id: current_user.business_id,
-               reference_number: incoming_refs)
-        .where.not(pos_import_id: pos_import.id)
-        .pluck(:reference_number)
-        .to_set :
-      Set.new
-    duplicate_count = parse_result.valid_rows.count { |row|
-      ref = row["reference_number"]
-      ref.present? && existing_refs.include?(ref)
-    }
-
-    {
-      "total_rows"       => parse_result.total_rows,
-      "valid_count"      => parse_result.valid_count,
-      "invalid_count"    => parse_result.invalid_count,
-      "duplicate_count"  => duplicate_count,
-      "matched_count"    => match_result.matched_count,
-      "unmatched_count"  => match_result.unmatched_count,
-      "dr_count"         => match_result.affected_dr_ids.size,
-      "unmatched_groups" => match_result.unmatched_groups.map { |g|
-        {
-          "branch_name"         => g[:branch_name],
-          "cashier_name"        => g[:cashier_name],
-          "payment_method_name" => g[:payment_method_name],
-          "date"                => g[:date],
-          "count"               => g[:count],
-          "reason"              => g[:reason].to_s
-        }
-      },
-      "sample_rows" => parse_result.valid_rows.first(5).map { |r|
-        r.slice("transaction_date", "branch_name", "cashier_name", "payment_method_name", "amount")
-      },
-      "error_rows" => parse_result.invalid_rows.first(10).map { |r|
-        r.slice("row", "transaction_date", "branch_name", "cashier_name",
-                "payment_method_name", "amount", "errors")
-      }
-    }
+    build_preview(pos_import)
   end
 end

@@ -45,7 +45,7 @@ class DailyReconciliation < ApplicationRecord
            through: :remaining_deposit_balances,
            source:  :balance_transactions
 
-  has_many :pos_transactions, dependent: :destroy
+  has_many :sales_transactions, dependent: :destroy
 
   # Direct anchor for a BankDispute reported before any TillDeposit exists
   # (the ATM/POS "failed deposit" flow) — see #open_bank_disputes below for
@@ -247,125 +247,126 @@ class DailyReconciliation < ApplicationRecord
     (from_deposits + bank_disputes).uniq.reject(&:resolved?)
   end
 
-  # ── Single source of truth for the index card's "Next Action" — the ONE
-  # highest-priority, permission-gated step guiding the accountant toward
-  # completing this reconciliation. Priority order is authoritative: the
-  # first matching workflow-state branch wins, and if the current user lacks
-  # permission for THAT action, the whole call returns nil (no cascading to
-  # a lower-priority action the user might happen to be allowed to do — the
-  # workflow order, not permission, decides WHICH action is "next").
+  # ── Single source of truth for the index card's unified "Next Step" —
+  # replaces the old, separate next_action_for (opening → deposit → review →
+  # bank matching → verify) and required_actions (Sales import + bank
+  # matching, shown independently) with ONE strictly sequential 8-step
+  # workflow. Each step is only ever considered complete once every step
+  # before it is complete too — that chaining is what makes "the first
+  # incomplete step" well-defined and prevents a later step's own condition
+  # from accidentally reading as "done" before its predecessors really are
+  # (e.g. a DR that has never opened is technically "not open?", but that
+  # must never be read as step 2 — close/handover — being complete).
   #
-  # bank_status/open_disputes are accepted as optional pre-computed args
-  # (matching #bank_reconciliation_status's own covering_statements: pattern)
-  # so index-page callers can reuse the batch-computed @bank_statuses_by_dr /
-  # per-DR dispute arrays already built to avoid N+1 — this method itself
-  # runs no additional queries beyond what's already eager-loaded.
+  # Returns { steps: [{ key:, label:, complete: }, ...], action: {…} or nil }.
+  # `action` is the SAME kind of hash next_action_for used to return: nil
+  # whenever the current user lacks permission for the first incomplete
+  # step's action (no cascading to a lower-priority action they might
+  # happen to be allowed to do — the workflow order, not permission,
+  # decides which step is "next"), matching the established convention.
   #
-  # Every gate below delegates to the SAME Pundit policy method that already
-  # authorizes the destination action/page, so this never drifts from real
-  # authorization logic. permission: in the returned hash is a human-
-  # readable label for the underlying check, not necessarily a literal
-  # PermissionRole permission key (e.g. "create_opening_balance" describes
-  # DailyReconciliationPolicy#receive_opening_float?'s composite
-  # cashier-permission check; "record_deposit" describes the real
-  # create_till_deposit permission plus TillDepositPolicy#create?'s
-  # depositor-assignment/review-lock rules).
-  def next_action_for(user, bank_status: nil, open_disputes: [])
+  # bank_status/open_disputes/sales_imported/pos_imported are accepted as
+  # optional pre-computed args (matching #bank_reconciliation_status's own
+  # covering_statements: pattern) so index-page callers can reuse
+  # page-wide-batched data instead of a fresh query per DR — this method
+  # itself runs no additional queries.
+  #
+  # Every action gate below delegates to the SAME Pundit policy method that
+  # already authorized the equivalent action under the old next_action_for /
+  # required_actions — no new authorization logic, only re-sequenced
+  # presentation.
+  WORKFLOW_STEPS = %i[opening_float close_handover deposit deposit_review
+                       sales_import bank_statement pos_import documentation].freeze
+
+  def workflow_progress(user, bank_status: nil, open_disputes: [], sales_imported: false, pos_imported: false)
     routes = Rails.application.routes.url_helpers
-    t = ->(key) { I18n.t("finance.daily_reconciliations.index.workspace.quick_actions.#{key}") }
+    label  = ->(key) { I18n.t("finance.daily_reconciliations.index.workspace.workflow.steps.#{key}") }
     primary_style = "btn btn-primary btn-sm"
 
-    if opening_float_receivable?
+    opening_complete = !waiting_for_opening?
+    close_complete   = opening_complete && !open?
+    deposit_complete = close_complete && !closed? &&
+                        remaining_deposit_balances.select(&:open?).sum(&:remaining_amount) <= 0
+    review_complete  = deposit_complete && reviewed?
+    sales_complete   = review_complete && sales_imported
+    bank_complete    = sales_complete &&
+                        %w[completed no_bank_transactions].include?(bank_status) && open_disputes.empty?
+    pos_complete     = bank_complete && pos_imported
+    doc_complete     = pos_complete && verified?
+
+    steps = [
+      { key: :opening_float,  complete: opening_complete },
+      { key: :close_handover, complete: close_complete },
+      { key: :deposit,        complete: deposit_complete },
+      { key: :deposit_review, complete: review_complete },
+      { key: :sales_import,   complete: sales_complete },
+      { key: :bank_statement, complete: bank_complete },
+      { key: :pos_import,     complete: pos_complete },
+      { key: :documentation,  complete: doc_complete }
+    ].map { |s| s.merge(label: label.call(s[:key])) }
+
+    current = steps.find { |s| !s[:complete] }
+    action  = current && workflow_step_action(current[:key], user, routes: routes, label: label,
+                                              primary_style: primary_style, bank_status: bank_status,
+                                              open_disputes: open_disputes)
+
+    { steps: steps, action: action }
+  end
+
+  private
+
+  def workflow_step_action(key, user, routes:, label:, primary_style:, bank_status:, open_disputes:)
+    case key
+    when :opening_float
+      return nil unless opening_float_receivable?
       return nil unless DailyReconciliationPolicy.new(user, self).receive_opening_float?
 
-      { label: t.call(:enter_opening_balance), icon: "wallet",
-        path: routes.finance_daily_reconciliation_path(self),
-        permission: "create_opening_balance", style: primary_style, method: :get }
+      { label: label.call(:opening_float), path: routes.finance_daily_reconciliation_path(self), style: primary_style }
 
-    elsif closed?
+    when :close_handover
+      { label: label.call(:close_handover), path: routes.finance_daily_reconciliation_path(self), style: primary_style }
+
+    when :deposit
       return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).create?
 
-      { label: t.call(:record_deposit), icon: "plus-circle",
-        path: routes.new_till_deposit_path(daily_reconciliation_id: id),
-        permission: "record_deposit", style: primary_style, method: :get }
+      { label: label.call(:deposit), path: routes.new_till_deposit_path(daily_reconciliation_id: id), style: primary_style }
 
-    elsif remaining_deposit_balances.select(&:open?).sum(&:remaining_amount).positive?
-      return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).create?
-
-      { label: t.call(:record_additional_deposit), icon: "plus-circle",
-        path: routes.new_till_deposit_path(daily_reconciliation_id: id),
-        permission: "record_deposit", style: primary_style, method: :get }
-
-    elsif bank_status == "waiting_for_bank_statement"
-      return nil unless user.can?(:import_bank_statement)
-
-      { label: t.call(:import_statement), icon: "upload",
-        path: routes.new_finance_bank_statement_path,
-        permission: "import_bank_statement", style: primary_style, method: :get }
-
-    elsif %w[needs_review waiting_for_matching difference_found partially_matched].include?(bank_status)
-      return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).match?
-
-      { label: t.call(:match_transactions), icon: "git-merge",
-        path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"),
-        permission: "match_bank_transactions", style: primary_style, method: :get }
-
-    elsif deposited? && !reviewed?
+    when :deposit_review
       return nil unless DailyReconciliationPolicy.new(user, self).mark_reviewed?
 
-      { label: t.call(:review_reconciliation), icon: "check-square",
-        path: routes.finance_daily_reconciliation_path(self, anchor: "approval"),
-        permission: "review_daily_reconciliation", style: primary_style, method: :get }
+      { label: label.call(:deposit_review), path: routes.finance_daily_reconciliation_path(self, anchor: "approval"), style: primary_style }
 
-    elsif deposited? && reviewed? && !verified?
+    when :sales_import
+      { label: label.call(:sales_import), path: routes.new_finance_sales_import_path, style: primary_style }
+
+    when :bank_statement
+      if bank_status == "waiting_for_bank_statement"
+        return nil unless user.can?(:import_bank_statement)
+
+        { label: label.call(:bank_statement), path: routes.new_finance_bank_statement_path, style: primary_style }
+      elsif %w[needs_review waiting_for_matching difference_found partially_matched].include?(bank_status)
+        return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).match?
+
+        { label: label.call(:bank_statement), path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: primary_style }
+      elsif open_disputes.any?
+        return nil unless BankDisputePolicy.new(user, open_disputes.first).update_case?
+
+        { label: label.call(:bank_statement), path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: "btn btn-warning btn-sm" }
+      end
+
+    when :pos_import
+      return nil unless user.can?(:manage_pos_import)
+
+      { label: label.call(:pos_import), path: routes.new_finance_pos_import_path, style: primary_style }
+
+    when :documentation
       return nil unless DailyReconciliationPolicy.new(user, self).verify?
 
-      { label: t.call(:verify_reconciliation), icon: "shield-check",
-        path: routes.finance_daily_reconciliation_path(self, anchor: "approval"),
-        permission: "verify_daily_reconciliation", style: primary_style, method: :get }
-
-    elsif open_disputes.any?
-      return nil unless BankDisputePolicy.new(user, open_disputes.first).update_case?
-
-      { label: t.call(:review_bank_dispute), icon: "alert-triangle",
-        path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"),
-        permission: "resolve_bank_dispute", style: "btn btn-warning btn-sm", method: :get }
-
+      { label: label.call(:documentation), path: routes.finance_daily_reconciliation_path(self, anchor: "approval"), style: primary_style }
     end
-    # Verified (or any other state not matched above) → no action, View only.
   end
 
-  # ── Secondary, independent "Required Actions" — the POS-import workflow.
-  # Deliberately NOT part of #next_action_for's priority chain: the Daily
-  # Reconciliation workflow (opening → deposit → branch review →
-  # verification) and the POS workflow (import → match) are two separate
-  # tracks that can each be mid-flight at the same time, e.g. a DR sitting
-  # at "Waiting for Branch Review" (the primary action) that also still has
-  # no POS file imported (a required action) — both must stay visible, never
-  # collapsed into a single state. Returns an array (zero, one, or both may
-  # apply simultaneously), never a single winner.
-  #
-  # bank_status/pos_imported are pre-computed by the caller (same pattern as
-  # next_action_for's bank_status/open_disputes) so this runs no queries of
-  # its own — pos_imported in particular comes from a single page-wide
-  # PosTransaction lookup, not a per-DR query.
-  def required_actions(bank_status: nil, pos_imported: false)
-    routes = Rails.application.routes.url_helpers
-    t = ->(key) { I18n.t("finance.daily_reconciliations.index.workspace.required_actions.#{key}") }
-    actions = []
-
-    unless pos_imported
-      actions << { label: t.call(:import_pos_file), icon: "upload",
-                    path: routes.new_finance_pos_import_path, style: "btn btn-ghost btn-sm" }
-    end
-
-    if %w[needs_review waiting_for_matching difference_found partially_matched].include?(bank_status)
-      actions << { label: t.call(:match_bank_transactions), icon: "git-merge",
-                    path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: "btn btn-ghost btn-sm" }
-    end
-
-    actions
-  end
+  public
 
   # Public wrapper around the private bank_statement_covers_deposits? check,
   # for the "Bank Imported" filter and the workflow-timeline stage below.
@@ -381,23 +382,6 @@ class DailyReconciliation < ApplicationRecord
       bank_statement_covers_deposits?(deposits, covering_statements)
   end
 
-  # Ordered stages reached so far, for the compact workflow-timeline
-  # indicator. Purely derived from existing signals — no new stored state.
-  # covering_statements lets index-page callers reuse the same preloaded
-  # array as bank_reconciliation_status instead of a fresh query per DR.
-  WORKFLOW_STAGES = %i[open deposit_recorded bank_statement_imported matched verified completed].freeze
-
-  def workflow_stages(covering_statements: nil, review_transactions: nil)
-    stages = [ :open ]
-    stages << :deposit_recorded if total_deposited.positive?
-    stages << :bank_statement_imported if stages.include?(:deposit_recorded) &&
-                                         bank_statement_imported?(covering_statements: covering_statements)
-    stages << :matched if active_deposits.to_a.any? { |d| d.match_status != :unmatched }
-    stages << :verified if reviewed?
-    stages << :completed if bank_reconciliation_status(covering_statements: covering_statements,
-                                                        review_transactions: review_transactions) == "completed"
-    stages
-  end
 
   # Returns the current open reconciliation for a branch, or nil.
   # Never creates — use create_for! to open a new accounting day.

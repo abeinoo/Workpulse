@@ -63,18 +63,18 @@
       </div>
     <% end %>
 
-    <%# POS Difference — requires view_pos_transactions_verification + POS data %>
-    <% if @pos_difference %>
-      <% tone = diff_tone.call(@pos_difference) %>
+    <%# Sales Difference — requires view_sales_transactions_verification + Sales data %>
+    <% if @sales_difference %>
+      <% tone = diff_tone.call(@sales_difference) %>
       <div class="stat-card <%= tone == :success ? 'stat-card--success' : 'stat-card--warning' %>">
-        <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.sections.summary.pos_difference") %></p>
+        <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.sections.summary.sales_difference") %></p>
         <% if tone == :success %>
           <p class="stat-card__value" style="font-size: var(--text-lg); color: var(--success);">
             <%= t("finance.daily_reconciliations.show.sections.summary.balanced") %>
           </p>
         <% else %>
           <p class="stat-card__value" style="font-size: var(--text-xl); color: var(--warning); font-variant-numeric: tabular-nums;">
-            <%= format_currency(@pos_difference) %>
+            <%= format_currency(@sales_difference) %>
           </p>
         <% end %>
       </div>

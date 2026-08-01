@@ -66,28 +66,53 @@ RSpec.describe DailyReconciliationPolicy do
     end
   end
 
-  describe "#view_pos_transactions_verification?" do
+  describe "#view_sales_transactions_verification?" do
     it "allows a user with the dedicated permission" do
-      viewer = user_with("view_daily_reconciliation", "view_pos_transactions_verification")
+      viewer = user_with("view_daily_reconciliation", "view_sales_transactions_verification")
       dr = make_dr
-      expect(described_class.new(viewer, dr).view_pos_transactions_verification?).to be true
+      expect(described_class.new(viewer, dr).view_sales_transactions_verification?).to be true
     end
 
     it "blocks a user without the permission, even with view_daily_reconciliation" do
       dr = make_dr
-      expect(described_class.new(no_perm, dr).view_pos_transactions_verification?).to be false
+      expect(described_class.new(no_perm, dr).view_sales_transactions_verification?).to be false
     end
 
     it "blocks a user who only has review_daily_reconciliation" do
       dr = make_dr
-      expect(described_class.new(manager, dr).view_pos_transactions_verification?).to be false
+      expect(described_class.new(manager, dr).view_sales_transactions_verification?).to be false
     end
 
-    it "is independent of manage_pos_import — granted separately, not implied by it" do
-      importer = user_with("view_daily_reconciliation", "view_pos_transactions_verification", "manage_pos_import")
+    it "is independent of manage_sales_import — granted separately, not implied by it" do
+      importer = user_with("view_daily_reconciliation", "view_sales_transactions_verification", "manage_sales_import")
       dr = make_dr
-      expect(described_class.new(importer, dr).view_pos_transactions_verification?).to be true
-      expect(described_class.new(importer, dr).manage_pos_import?).to be true
+      expect(described_class.new(importer, dr).view_sales_transactions_verification?).to be true
+      expect(described_class.new(importer, dr).manage_sales_import?).to be true
+    end
+  end
+
+  describe "#view_pos_transaction_verification?" do
+    it "requires BOTH view_sales_transactions_verification and view_pos_import" do
+      both = user_with("view_daily_reconciliation", "view_sales_transactions_verification", "view_pos_import")
+      dr = make_dr
+      expect(described_class.new(both, dr).view_pos_transaction_verification?).to be true
+    end
+
+    it "blocks a user with only view_sales_transactions_verification" do
+      sales_only = user_with("view_daily_reconciliation", "view_sales_transactions_verification")
+      dr = make_dr
+      expect(described_class.new(sales_only, dr).view_pos_transaction_verification?).to be false
+    end
+
+    it "blocks a user with only view_pos_import" do
+      pos_only = user_with("view_daily_reconciliation", "view_pos_import")
+      dr = make_dr
+      expect(described_class.new(pos_only, dr).view_pos_transaction_verification?).to be false
+    end
+
+    it "blocks a user with neither permission" do
+      dr = make_dr
+      expect(described_class.new(no_perm, dr).view_pos_transaction_verification?).to be false
     end
   end
 end

@@ -1,7 +1,7 @@
 # Minimal salon service catalog. Today this only backs the standalone
 # expected_towel_usage analytical field — it is intentionally NOT wired to
-# PosTransaction (no per-service line items exist there yet), so
-# "expected towel usage" stays a manual/analytical figure until POS import can
+# SalesTransaction (no per-service line items exist there yet), so
+# "expected towel usage" stays a manual/analytical figure until Sales import can
 # reliably supply a service breakdown.
 class Service < ApplicationRecord
   belongs_to :business

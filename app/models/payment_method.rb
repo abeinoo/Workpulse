@@ -18,6 +18,7 @@ class PaymentMethod < ApplicationRecord
   scope :for_business, ->(business) { where(business: business) }
   scope :active,       -> { where(active: true) }
   scope :ordered,      -> { order(:position, :name) }
+  scope :included_in_pos_verification, -> { where(include_in_pos_verification: true) }
 
   # Methods with settlement_type 'cash' participate in the ATM deposit workflow.
   def cash_like? = cash?

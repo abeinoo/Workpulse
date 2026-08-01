@@ -1,223 +1,190 @@
 <% content_for :title, t("finance.pos_imports.preview.title") %>
 
-<div class="admin-page" style="max-width: 860px;">
+<div class="admin-page" style="max-width: 880px;">
 
   <div class="page-header">
     <div>
       <h1 class="page-title"><%= t("finance.pos_imports.preview.title") %></h1>
       <p class="page-subtitle"><%= @pos_import.file_name %></p>
     </div>
-  </div>
-
-  <%# Step indicator %>
-  <div dir="ltr" style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-6); font-size: var(--text-sm); color: var(--text-3);">
-    <span><%= t("finance.pos_imports.steps.upload") %></span>
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-    <span><%= t("finance.pos_imports.steps.map_columns") %></span>
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-    <span style="color: var(--text-1); font-weight: 500;"><%= t("finance.pos_imports.steps.preview") %></span>
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-    <span><%= t("finance.pos_imports.steps.import") %></span>
-  </div>
-
-  <%# Summary counts %>
-  <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--space-3); margin-bottom: var(--space-5);">
-    <% [
-         [t("finance.pos_imports.preview.total_rows"),     @preview["total_rows"],               "var(--text-1)"],
-         [t("finance.pos_imports.preview.valid_rows"),     @preview["valid_count"],              "var(--text-1)"],
-         [t("finance.pos_imports.preview.invalid_rows"),   @preview["invalid_count"].to_i,       @preview["invalid_count"].to_i  > 0 ? "var(--danger)"  : "var(--text-3)"],
-         [t("finance.pos_imports.preview.duplicate_rows"), @preview["duplicate_count"].to_i,     @preview["duplicate_count"].to_i > 0 ? "var(--warning)" : "var(--text-3)"],
-         [t("finance.pos_imports.preview.matched_rows"),   @preview["matched_count"].to_i,       "var(--success)"],
-         [t("finance.pos_imports.preview.unmatched_rows"), @preview["unmatched_count"].to_i,     @preview["unmatched_count"].to_i > 0 ? "var(--warning)" : "var(--text-3)"]
-       ].each do |label, value, color| %>
-      <div class="card" style="padding: var(--space-4); text-align: center;">
-        <p style="font-size: var(--text-xs); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 var(--space-1);">
-          <%= label %>
-        </p>
-        <p style="font-size: var(--text-2xl); font-weight: 700; color: <%= color %>; margin: 0;">
-          <%= value %>
-        </p>
-      </div>
-    <% end %>
-  </div>
-
-  <%# ── Matching summary ───────────────────────────────────────────────────── %>
-  <% if @preview["matched_count"].to_i > 0 %>
-    <div style="background: rgba(var(--success-rgb,34,197,94),0.06); border: 1px solid rgba(var(--success-rgb,34,197,94),0.25); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-      <p style="font-size: var(--text-sm); color: var(--text-1); margin: 0;">
-        <%= t("finance.pos_imports.preview.match_summary",
-               count:    @preview["matched_count"],
-               dr_count: @preview["dr_count"]) %>
-      </p>
+    <div class="page-header__actions">
+      <%= link_to t("finance.pos_imports.index.title"),
+            finance_pos_imports_path,
+            class: "btn btn-ghost btn-sm" %>
     </div>
-  <% end %>
+  </div>
 
-  <%# ── Unmatched warning ──────────────────────────────────────────────────── %>
-  <% unmatched_groups = @preview["unmatched_groups"] || [] %>
-  <% if unmatched_groups.any? %>
-    <div style="background: rgba(var(--warning-rgb,202,138,4),0.06); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.30); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-5);">
-      <div style="display: flex; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-4);">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0; margin-top: 2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <div>
-          <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-1);">
-            <%= t("finance.pos_imports.preview.unmatched_title", count: @preview["unmatched_count"]) %>
-          </p>
-          <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
-            <%= t("finance.pos_imports.preview.unmatched_hint") %>
-          </p>
+  <% has_unknown_terminals = @preview[:unknown_terminals].present? %>
+
+  <% if has_unknown_terminals %>
+    <div class="alert alert-danger" style="margin-bottom: var(--space-5);">
+      <p style="font-weight: 600; margin: 0 0 var(--space-2);">
+        <% if current_user.can?(:manage_branches) %>
+          <%= t("finance.pos_imports.preview.unknown_terminal_banner_html",
+                link: link_to(t("admin.branches.index.title"), admin_branches_path)) %>
+        <% else %>
+          <%= t("finance.pos_imports.preview.unknown_terminal_banner") %>
+        <% end %>
+      </p>
+      <div style="background: var(--surface); border-radius: var(--radius); overflow: hidden; margin-top: var(--space-3); overflow-x: auto;">
+        <div style="min-width: 760px; padding: var(--space-2) var(--space-4); background: var(--surface-2); display: grid; grid-template-columns: 70px 120px 1fr 100px 90px 140px 120px 1fr; gap: var(--space-2); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-3);">
+          <span><%= t("finance.pos_imports.preview.col_row_number") %></span>
+          <span><%= t("finance.pos_imports.preview.col_terminal_id") %></span>
+          <span><%= t("finance.pos_imports.preview.col_product_name") %></span>
+          <span><%= t("finance.pos_imports.preview.col_amount") %></span>
+          <span><%= t("finance.pos_imports.preview.col_status") %></span>
+          <span><%= t("finance.pos_imports.preview.col_paid_at") %></span>
+          <span><%= t("finance.pos_imports.preview.col_reference_number") %></span>
+          <span><%= t("finance.pos_imports.preview.col_actions") %></span>
         </div>
-      </div>
-
-      <div style="background: var(--surface); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.20); border-radius: var(--radius); overflow: hidden;">
-        <% unmatched_groups.each do |group| %>
-          <%
-            reason = group["reason"].presence || "no_dr"
-            case reason
-            when "employee_not_found"
-              icon_path     = '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'
-              display_label = group["cashier_name"].presence || "—"
-            when "unknown_payment_method"
-              icon_path     = '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>'
-              display_label = group["payment_method_name"].presence || "—"
-            else
-              icon_path     = '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'
-              display_label = group["branch_name"].presence || "—"
-            end
-            name_for_reason = display_label
-            reason_label    = t("finance.pos_imports.preview.failure_reasons.#{reason}",
-                                 name: name_for_reason,
-                                 default: reason.to_s.humanize)
-          %>
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border);">
-            <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><%= icon_path.html_safe %></svg>
-              <span style="font-size: var(--text-sm); color: var(--text-1); font-weight: 500;">
-                <%= display_label %>
-              </span>
-              <span style="font-size: var(--text-xs); color: var(--text-3);">
-                <%= group["date"] %>
-              </span>
-              <span style="font-size: var(--text-xs); color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 6px;">
-                <%= reason_label %>
-              </span>
-            </div>
-            <span style="font-size: var(--text-xs); font-weight: 600; color: var(--warning); white-space: nowrap; margin-inline-start: var(--space-3);">
-              <%= t("finance.pos_imports.preview.unmatched_count_badge", count: group["count"]) %>
+        <% @preview[:unknown_terminals].each do |row| %>
+          <div style="min-width: 760px; padding: var(--space-2) var(--space-4); display: grid; grid-template-columns: 70px 120px 1fr 100px 90px 140px 120px 1fr; gap: var(--space-2); border-top: 1px solid var(--border); align-items: start;">
+            <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.row_prefix") %> <%= row[:row_number] %></span>
+            <span><%= row[:terminal_id].presence || "—" %></span>
+            <span><%= row[:product_name].presence || "—" %></span>
+            <span><%= format_currency(row[:amount]) %></span>
+            <span><%= row[:status] %></span>
+            <span><%= row[:transaction_date] %></span>
+            <span><%= row[:reference_number].presence || "—" %></span>
+            <span style="display: flex; flex-direction: column; gap: var(--space-1); align-items: flex-start;">
+              <% if current_user.can?(:manage_branches) %>
+                <%= link_to t("finance.pos_imports.preview.assign_terminal_action"),
+                      admin_branches_path,
+                      style: "font-size: var(--text-xs); color: var(--accent); text-decoration: underline; text-decoration-style: dotted;" %>
+              <% end %>
+              <%= render "ignore_row_action", pos_import: @pos_import, row_number: row[:row_number] %>
             </span>
           </div>
         <% end %>
       </div>
-
-      <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-3) 0 0;">
-        <%= t("finance.pos_imports.preview.unmatched_resolution_hint") %>
-      </p>
     </div>
   <% end %>
 
-  <%# Sample valid rows %>
-  <% if @preview["sample_rows"]&.any? %>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-5);">
+    <div class="card" style="padding: var(--space-4);">
+      <p style="font-size: 11px; text-transform: uppercase; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.total_transactions") %></p>
+      <p style="font-size: var(--text-xl); font-weight: 700; margin: var(--space-1) 0 0;"><%= @preview[:total_transactions] %></p>
+    </div>
+    <div class="card" style="padding: var(--space-4);">
+      <p style="font-size: 11px; text-transform: uppercase; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.total_amount") %></p>
+      <p style="font-size: var(--text-xl); font-weight: 700; margin: var(--space-1) 0 0;"><%= format_currency(@preview[:total_amount]) %></p>
+    </div>
+    <div class="card" style="padding: var(--space-4);">
+      <p style="font-size: 11px; text-transform: uppercase; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.total_fees") %></p>
+      <p style="font-size: var(--text-xl); font-weight: 700; margin: var(--space-1) 0 0;"><%= format_currency(@preview[:total_fees]) %></p>
+    </div>
+    <div class="card" style="padding: var(--space-4);">
+      <p style="font-size: 11px; text-transform: uppercase; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.invalid_rows") %></p>
+      <p style="font-size: var(--text-xl); font-weight: 700; margin: var(--space-1) 0 0;"><%= @preview[:invalid_count] %></p>
+    </div>
+    <div class="card" style="padding: var(--space-4);">
+      <p style="font-size: 11px; text-transform: uppercase; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.ignored_transactions") %></p>
+      <p style="font-size: var(--text-xl); font-weight: 700; margin: var(--space-1) 0 0;"><%= @preview[:ignored_count] %></p>
+    </div>
+    <div class="card" style="padding: var(--space-4);">
+      <p style="font-size: 11px; text-transform: uppercase; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.ignored_amount") %></p>
+      <p style="font-size: var(--text-xl); font-weight: 700; margin: var(--space-1) 0 0;"><%= format_currency(@preview[:ignored_amount]) %></p>
+    </div>
+  </div>
+
+  <% if @preview[:ignored_count].to_i > 0 %>
+    <p style="font-size: var(--text-xs); color: var(--text-3); margin: calc(var(--space-4) * -1) 0 var(--space-5);">
+      <%= t("finance.pos_imports.preview.ignored_hint") %>
+    </p>
+  <% end %>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4);">
+    <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; color: var(--text-3); margin: 0 0 var(--space-3);">
+      <%= t("finance.pos_imports.preview.detected_branches") %>
+    </h2>
+    <% if @preview[:detected_branches].present? %>
+      <p style="margin: 0;"><%= @preview[:detected_branches].join(", ") %></p>
+    <% else %>
+      <p style="color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.none") %></p>
+    <% end %>
+  </div>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4);">
+    <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; color: var(--text-3); margin: 0 0 var(--space-3);">
+      <%= t("finance.pos_imports.preview.detected_terminal_ids") %>
+    </h2>
+    <% if @preview[:detected_terminal_ids].present? %>
+      <p style="margin: 0;"><%= @preview[:detected_terminal_ids].join(", ") %></p>
+    <% else %>
+      <p style="color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.none") %></p>
+    <% end %>
+  </div>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4);">
+    <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; color: var(--text-3); margin: 0 0 var(--space-3);">
+      <%= t("finance.pos_imports.preview.expenses_to_generate") %>
+    </h2>
+    <% if @preview[:expenses_to_generate].present? %>
+      <div style="display: grid; grid-template-columns: 1fr 160px; gap: var(--space-2);">
+        <% @preview[:expenses_to_generate].each do |row| %>
+          <span><%= row[:branch_name] %></span>
+          <span style="font-weight: 600;"><%= format_currency(row[:total_fees]) %></span>
+        <% end %>
+      </div>
+    <% else %>
+      <p style="color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.no_expenses") %></p>
+    <% end %>
+  </div>
+
+  <% has_invalid_rows = @preview[:invalid_count].to_i > 0 %>
+
+  <% if @preview[:validation_errors].present? %>
     <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
-      <h2 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-4);">
-        <%= t("finance.pos_imports.preview.sample_title") %>
+      <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; color: var(--text-3); margin: 0 0 var(--space-3);">
+        <%= t("finance.pos_imports.preview.validation_errors") %>
       </h2>
-      <div style="overflow-x: auto;">
-        <table class="table" style="font-size: var(--text-sm);">
-          <thead>
-            <tr>
-              <th><%= t("finance.pos_imports.fields.transaction_date") %></th>
-              <th><%= t("finance.pos_imports.fields.branch_name") %></th>
-              <th><%= t("finance.pos_imports.fields.cashier_name") %></th>
-              <th><%= t("finance.pos_imports.fields.payment_method_name") %></th>
-              <th style="text-align: end;"><%= t("finance.pos_imports.fields.amount") %></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @preview["sample_rows"].each do |row| %>
-              <tr>
-                <td><%= row["transaction_date"] %></td>
-                <td><%= row["branch_name"] %></td>
-                <td><%= row["cashier_name"] %></td>
-                <td><%= row["payment_method_name"] %></td>
-                <td style="text-align: end; font-variant-numeric: tabular-nums;">
-                  <%= number_to_currency(row["amount"].to_d, unit: "", separator: ".", delimiter: ",") %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
+      <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0 0 var(--space-3);">
+        <%= t("finance.pos_imports.preview.validation_errors_hint") %>
+      </p>
+      <div style="display: grid; grid-template-columns: 90px 1fr 220px; gap: var(--space-2); align-items: start;">
+        <% @preview[:validation_errors].each do |row| %>
+          <span style="color: var(--text-3); padding-top: 4px;"><%= t("finance.pos_imports.preview.row_prefix") %> <%= row[:row_number] %></span>
+          <span>
+            <span style="color: var(--danger); display: block;"><%= row[:errors].join(", ") %></span>
+            <%= render "row_values", attributes: row[:attributes] %>
+          </span>
+          <span>
+            <%= render "ignore_row_action", pos_import: @pos_import, row_number: row[:row_number] %>
+          </span>
+        <% end %>
       </div>
     </div>
   <% end %>
 
-  <%# Invalid rows %>
-  <% if @preview["error_rows"]&.any? %>
-    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5); border-color: var(--danger);">
-      <h2 style="font-size: var(--text-sm); font-weight: 700; color: var(--danger); margin: 0 0 var(--space-4);">
-        <%= t("finance.pos_imports.preview.errors_title") %>
+  <% if @preview[:manually_ignored_rows].present? %>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+      <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; color: var(--text-3); margin: 0 0 var(--space-3);">
+        <%= t("finance.pos_imports.preview.manually_ignored_rows") %>
       </h2>
-      <table class="table" style="font-size: var(--text-sm);">
-        <thead>
-          <tr>
-            <th><%= t("finance.pos_imports.preview.col_row") %></th>
-            <th><%= t("finance.pos_imports.fields.branch_name") %></th>
-            <th><%= t("finance.pos_imports.fields.cashier_name") %></th>
-            <th><%= t("finance.pos_imports.preview.col_errors") %></th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @preview["error_rows"].each do |row| %>
-            <tr>
-              <td style="color: var(--text-3);">#<%= row["row"] %></td>
-              <td><%= row["branch_name"].presence || "—" %></td>
-              <td><%= row["cashier_name"].presence || "—" %></td>
-              <td style="color: var(--danger);">
-                <%= Array(row["errors"]).join("; ") %>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-      <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-3) 0 0;">
-        <%= t("finance.pos_imports.preview.errors_skipped_hint") %>
-      </p>
+      <div style="display: grid; grid-template-columns: 90px 1fr 160px 160px; gap: var(--space-2); font-size: var(--text-sm);">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-3);"><%= t("finance.pos_imports.preview.row_prefix") %></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-3);"><%= t("finance.pos_imports.preview.ignore_reason_label") %></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-3);"><%= t("finance.pos_imports.preview.ignored_by_label") %></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-3);"><%= t("finance.pos_imports.preview.ignored_at_label") %></span>
+        <% @preview[:manually_ignored_rows].each do |row| %>
+          <span><%= row[:row_number] %></span>
+          <span style="color: var(--text-2);"><%= row[:reason] %></span>
+          <span style="color: var(--text-3);"><%= row[:ignored_by] %></span>
+          <span style="color: var(--text-3);"><%= l(Time.zone.parse(row[:ignored_at].to_s), format: :short) %></span>
+        <% end %>
+      </div>
     </div>
   <% end %>
 
-  <%# No valid rows at all %>
-  <% if @preview["valid_count"].to_i == 0 %>
-    <div class="alert alert-danger" style="margin-bottom: var(--space-5);">
-      <%= t("finance.pos_imports.preview.no_valid_rows") %>
-    </div>
-  <% end %>
-
-  <%# Actions %>
-  <% has_matched    = @preview["matched_count"].to_i > 0 %>
-  <% has_unmatched  = @preview["unmatched_count"].to_i > 0 %>
-
-  <div style="display: flex; gap: var(--space-3); justify-content: flex-end; flex-wrap: wrap; align-items: center;">
-    <%= link_to t("finance.pos_imports.preview.back_to_mapping"),
-          edit_column_mapping_finance_pos_import_path(@pos_import),
-          class: "btn btn-ghost" %>
-
-    <% if has_unmatched && has_matched %>
-      <%# Both matched and unmatched exist — offer "skip and import" %>
-      <%= button_to confirm_import_finance_pos_import_path(@pos_import),
-            method: :post,
-            params: { skip_unmatched: "1" },
-            class: "btn btn-warning" do %>
-        <%= t("finance.pos_imports.preview.confirm_skip_unmatched",
-               matched: @preview["matched_count"],
-               skipped: @preview["unmatched_count"]) %>
-      <% end %>
-    <% elsif has_matched && !has_unmatched %>
-      <%# All matched — clean import %>
-      <%= button_to t("finance.pos_imports.preview.confirm_import",
-                       count:    @preview["matched_count"],
-                       dr_count: @preview["dr_count"]),
+  <div style="display: flex; gap: var(--space-3); justify-content: flex-end;">
+    <%= link_to t("shared.cancel"), finance_pos_imports_path, class: "btn btn-ghost" %>
+    <% if policy(@pos_import).confirm_import? %>
+      <%= button_to t("finance.pos_imports.preview.confirm_import"),
             confirm_import_finance_pos_import_path(@pos_import),
             method: :post,
-            class: "btn btn-primary" %>
+            class: "btn btn-primary",
+            disabled: has_unknown_terminals || has_invalid_rows,
+            form_class: "inline" %>
     <% end %>
   </div>
 

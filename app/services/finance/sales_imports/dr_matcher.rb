@@ -1,5 +1,5 @@
 module Finance
-  module PosImports
+  module SalesImports
     # Matches parsed CSV rows to existing DailyReconciliation records and
     # validates employee + payment-method existence in four ordered steps:
     #

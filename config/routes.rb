@@ -455,12 +455,20 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :pos_imports, only: %i[index new create destroy] do
+    resources :sales_imports, only: %i[index new create destroy] do
       member do
         get   :edit_column_mapping
         patch :update_column_mapping
         get   :preview_import
         post  :confirm_import
+      end
+    end
+
+    resources :pos_imports, only: %i[index new create destroy] do
+      member do
+        get  :preview_import
+        post :confirm_import
+        post :ignore_row
       end
     end
 

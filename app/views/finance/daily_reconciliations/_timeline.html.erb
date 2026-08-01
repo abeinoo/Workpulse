@@ -1271,7 +1271,7 @@
                       <div style="display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-1);">
                         <% adjusted_amounts.each do |entry| %>
                           <% pm_name = entry["payment_method_name"].presence ||
-                                       @pos_payment_methods_by_id[entry["payment_method_id"].to_i]&.display_name ||
+                                       @sales_payment_methods_by_id[entry["payment_method_id"].to_i]&.display_name ||
                                        entry["payment_method_id"] %>
                           <% net = entry["collected_amount"].to_d - entry["refund_amount"].to_d %>
                           <span style="font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 7px; color: var(--text-2);">

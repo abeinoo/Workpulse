@@ -1,150 +1,166 @@
 module Finance
   module PosImports
-    # Imports POS transactions from a CSV, matches each row to its Daily
-    # Reconciliation, and persists everything in batch.
+    # Imports payment-provider transactions from an XLSX file. Re-derives
+    # headers/mapping/validation/branch-resolution fresh from the stored file
+    # via the shared Pipeline, rather than trusting persisted preview_data —
+    # terminal mappings (and manually-ignored rows) could have changed since
+    # the preview was generated (same rationale as
+    # Finance::SalesImportsController#regenerate_preview).
     #
-    # Accepts pos_import_id so the record is reloaded inside the service
-    # (avoids inverse_of / autosave issues per the service architecture rules).
-    #
-    # When skip_unmatched: true, rows without a matching DR are silently dropped
-    # and counted in pos_import.unmatched_rows. When false (default), the service
-    # refuses to proceed if any unmatched rows exist.
-    #
-    # Idempotency: rows with a non-NULL reference_number are deduplicated against
-    # all pos_transactions for the same business. A single bulk query loads all
-    # existing reference numbers up front; no per-row EXISTS check is performed.
-    # The DB unique index on (business_id, reference_number) enforces correctness
-    # at the storage layer regardless of the in-memory filter.
+    # Two structural conditions abort the ENTIRE import before any DB write:
+    # any Unknown Terminal ID, or any remaining row-level validation error
+    # (one not yet fixed by re-upload or explicitly excluded via RowIgnorer).
+    # Duplicate transaction_ids are the only normal, non-fatal outcome still
+    # reported in the summary without aborting; a genuine failure (a DB
+    # error, or ExpenseGenerator failing) rolls back the transaction —
+    # "everything transactional" per the spec.
     class Importer
+      include AuditLoggable
+
       BATCH_SIZE = 500
 
-      Result = Struct.new(:ok, :pos_import, :error, keyword_init: true) do
-        def ok? = ok
+      Result = Struct.new(:ok, :pos_import, :error, keyword_init: true) { def ok? = ok }
+
+      ExpenseGenerationFailed = Class.new(StandardError)
+
+      def self.call(pos_import_id, actor:)
+        new(pos_import_id, actor: actor).call
       end
 
-      def self.call(pos_import_id, actor:, skip_unmatched: false)
-        new(pos_import_id, actor: actor, skip_unmatched: skip_unmatched).call
-      end
-
-      def initialize(pos_import_id, actor:, skip_unmatched:)
-        @pos_import_id  = pos_import_id
-        @actor          = actor
-        @skip_unmatched = skip_unmatched
+      def initialize(pos_import_id, actor:)
+        @pos_import_id = pos_import_id
+        @actor         = actor
       end
 
       def call
         pos_import = PosImport.where(business: @actor.business).find(@pos_import_id)
 
-        unless pos_import.pending? || pos_import.column_mapped? || pos_import.failed?
+        unless pos_import.pending? || pos_import.failed?
           return Result.new(ok: false, pos_import: pos_import,
-                            error: "POS import has already been imported")
+                            error: "This file has already been imported")
         end
 
-        csv_data = pos_import.file.download
-        result   = CsvParser.parse(csv_data, column_mapping: pos_import.column_mapping)
-        return Result.new(ok: false, pos_import: pos_import, error: result.header_error) unless result.headers_valid?
+        pipeline = Pipeline.call(pos_import, business: @actor.business)
 
-        matcher      = DrMatcher.new(@actor.business)
-        match_result = matcher.match(result.valid_rows)
-
-        if match_result.unmatched_count > 0 && !@skip_unmatched
+        if pipeline.resolution.unknown_terminals.any?
+          terminal_ids = pipeline.resolution.unknown_terminals.map { |r| r[:terminal_id] }.uniq.join(", ")
           return Result.new(ok: false, pos_import: pos_import,
-                            error: "#{match_result.unmatched_count} transactions could not be matched to a Daily Reconciliation. Use skip_unmatched to proceed anyway.")
+                            error: "Unknown Terminal ID(s): #{terminal_ids}. " \
+                                   "Configure these Terminal IDs first, then retry the import.")
         end
 
-        now = Time.current
-
-        ActiveRecord::Base.transaction do
-          # Clear previous transactions for this import (re-import support).
-          pos_import.pos_transactions.delete_all
-
-          # Collect the reference numbers present in this CSV, then query only
-          # those against the DB. Memory and query cost stay proportional to the
-          # uploaded file rather than the business's full transaction history.
-          # Runs after delete_all so re-importing this file sees zero existing
-          # refs for its own previous transactions.
-          incoming_refs = result.valid_rows.filter_map { |r| r["reference_number"].presence }.uniq
-          existing_refs = incoming_refs.any? ?
-            PosTransaction
-              .where(business_id: @actor.business_id, reference_number: incoming_refs)
-              .pluck(:reference_number)
-              .to_set :
-            Set.new
-
-          duplicate_count = 0
-          records         = []
-
-          result.valid_rows.each do |row|
-            dr_id = match_result.dr_id_for(row)
-            # Skip unmatched rows when the caller did not opt in.
-            next if dr_id.nil? && !@skip_unmatched
-
-            ref_num = row["reference_number"]
-            if ref_num.present? && existing_refs.include?(ref_num)
-              duplicate_count += 1
-              next
-            end
-
-            records << {
-              pos_import_id:           pos_import.id,
-              business_id:             @actor.business_id,
-              daily_reconciliation_id: dr_id,
-              transaction_date:        row["transaction_date"],
-              branch_name:             row["branch_name"],
-              cashier_name:            row["cashier_name"],
-              payment_method_name:     row["payment_method_name"],
-              amount:                  BigDecimal(row["amount"]),
-              reference_number:        ref_num,
-              transaction_id:          row["transaction_id"],
-              raw_data:                row["raw_data"].to_json,
-              created_at:              now,
-              updated_at:              now
-            }
-          end
-
-          imported_dr_ids = records.filter_map { |r| r[:daily_reconciliation_id] }.uniq
-
-          records.each_slice(BATCH_SIZE) do |batch|
-            # insert_all (no bang) uses ON CONFLICT DO NOTHING — belt-and-suspenders
-            # safety net on top of the Ruby-level duplicate filter above.
-            PosTransaction.insert_all(batch)
-          end
-
-          pos_import.update!(
-            total_rows:     result.total_rows,
-            failed_rows:    result.invalid_count,
-            matched_rows:   records.size,
-            unmatched_rows: match_result.unmatched_count,
-            duplicate_rows: duplicate_count,
-            dr_count:       imported_dr_ids.size,
-            status:         "imported"
-          )
-
-          log_audit(
-            actor:     @actor,
-            auditable: pos_import,
-            action:    :pos_import_imported,
-            metadata:  {
-              file_name:      pos_import.file_name,
-              total_rows:     result.total_rows,
-              invalid_rows:   result.invalid_count,
-              duplicate_rows: duplicate_count,
-              imported_rows:  records.size,
-              unmatched_rows: match_result.unmatched_count,
-              dr_count:       imported_dr_ids.size
-            }
-          )
+        if pipeline.validation.invalid_rows.any?
+          rows = pipeline.validation.invalid_rows.map { |r| r[:row_number] }.join(", ")
+          return Result.new(ok: false, pos_import: pos_import,
+                            error: "Row(s) #{rows} still have validation errors. Fix the file or ignore " \
+                                   "each row before confirming.")
         end
 
-        Result.new(ok: true, pos_import: pos_import, error: nil)
-      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+        persist!(pos_import, pipeline)
+
+        Result.new(ok: true, pos_import: pos_import)
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, ExpenseGenerationFailed => e
         pos_import&.update_columns(status: "failed")
         Result.new(ok: false, pos_import: pos_import, error: e.message)
       end
 
       private
 
-      include AuditLoggable
+      def persist!(pos_import, pipeline)
+        mapped       = pipeline.mapped
+        status_split = pipeline.status_split
+        validation   = pipeline.validation
+        resolution   = pipeline.resolution
+
+        now             = Time.current
+        seen_ids        = existing_transaction_ids(resolution)
+        duplicate_count = 0
+        records         = []
+        total_amount    = 0.to_d
+        total_fees      = 0.to_d
+
+        ActiveRecord::Base.transaction do
+          resolution.resolved_rows.each do |row|
+            attrs = row.attributes
+
+            if seen_ids.include?(attrs[:transaction_id])
+              duplicate_count += 1
+              next
+            end
+            seen_ids << attrs[:transaction_id]
+
+            amount     = attrs[:amount].to_s.to_d
+            fees       = attrs[:fees].to_s.to_d
+            admin_fees = attrs[:administrative_fees].to_s.to_d
+            total_amount += amount
+            total_fees   += fees + admin_fees
+
+            records << {
+              pos_import_id:        pos_import.id,
+              business_id:          @actor.business_id,
+              branch_id:            attrs[:branch_id],
+              transaction_id:       attrs[:transaction_id],
+              reference_number:     attrs[:reference_number],
+              amount:               amount,
+              payment_method:       attrs[:payment_method],
+              status:               attrs[:status],
+              transaction_date:     parse_time(attrs[:transaction_date]),
+              provider_created_at:  parse_time(attrs[:provider_created_at]),
+              terminal_id:          attrs[:terminal_id],
+              fees:                 fees,
+              administrative_fees:  admin_fees,
+              created_at:           now,
+              updated_at:           now
+            }
+          end
+
+          records.each_slice(BATCH_SIZE) { |batch| PosTransaction.insert_all(batch) }
+
+          ignored_amount = status_split.ignored_rows.sum { |row| row.attributes[:amount].to_s.to_d }
+
+          pos_import.update!(
+            total_rows:             mapped.size,
+            imported_rows:          records.size,
+            duplicate_rows:         duplicate_count,
+            invalid_rows:           validation.invalid_rows.size,
+            unknown_terminal_rows:  0,
+            ignored_rows:           status_split.ignored_rows.size,
+            ignored_amount:         ignored_amount,
+            total_amount:           total_amount,
+            total_fees:             total_fees,
+            status:                 "imported"
+          )
+
+          expense_result = ExpenseGenerator.call(pos_import.id, actor: @actor)
+          raise ExpenseGenerationFailed, expense_result.reason unless expense_result.ok?
+
+          pos_import.update!(expenses_created_count: expense_result.expenses.size)
+
+          log_audit(actor: @actor, auditable: pos_import, action: "pos_import_imported",
+                    metadata: {
+                      total_rows: mapped.size, imported_rows: records.size,
+                      duplicate_rows: duplicate_count, invalid_rows: validation.invalid_rows.size,
+                      ignored_rows: status_split.ignored_rows.size, ignored_amount: ignored_amount.to_s,
+                      manually_ignored_rows: pos_import.pos_import_ignored_rows.count,
+                      total_amount: total_amount.to_s, total_fees: total_fees.to_s,
+                      expenses_created: expense_result.expenses.size
+                    })
+        end
+      end
+
+      def existing_transaction_ids(resolution)
+        incoming = resolution.resolved_rows.map { |row| row.attributes[:transaction_id] }.uniq
+        return Set.new if incoming.empty?
+
+        PosTransaction.where(business_id: @actor.business_id, transaction_id: incoming)
+                      .pluck(:transaction_id).to_set
+      end
+
+      def parse_time(value)
+        return nil if value.blank?
+
+        Time.zone.parse(value.to_s)
+      end
     end
   end
 end

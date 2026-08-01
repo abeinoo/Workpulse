@@ -1,0 +1,23 @@
+<div data-line-row class="form-grid" style="grid-template-columns: 1fr 1fr auto auto; align-items: end; gap: var(--space-3); margin-bottom: var(--space-3);">
+  <%= f.hidden_field :id if f.object.persisted? %>
+  <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } if f.object.persisted? %>
+
+  <div class="form-group" style="margin-bottom: 0;">
+    <%= f.label :terminal_id, t("admin.branches.form.terminal_id"), class: "form-label" %>
+    <%= f.text_field :terminal_id, class: "form-control #{'is-error' if f.object.errors[:terminal_id].any?}" %>
+  </div>
+
+  <div class="form-group" style="margin-bottom: 0;">
+    <%= f.label :label, t("admin.branches.form.terminal_label"), class: "form-label" %>
+    <%= f.text_field :label, class: "form-control" %>
+  </div>
+
+  <label class="form-check" style="margin-bottom: var(--space-2);">
+    <%= f.check_box :active %>
+    <span class="form-check-label"><%= t("finance.common.active") %></span>
+  </label>
+
+  <button type="button" class="btn btn-ghost btn-sm text-danger"
+          data-action="line-items#remove"
+          aria-label="<%= t('common.delete') %>">×</button>
+</div>

@@ -4,7 +4,7 @@ module Finance
   # the same source of truth Finance::DayCloseEditor writes to — then
   # re-syncing TillSessionAmount and the Employee Reconciliation Summary from
   # it. This keeps every downstream consumer (deposit expected amounts, the
-  # live Employee/Cashier Custody Summary, POS Verification) in sync with a
+  # live Employee/Cashier Custody Summary, Sales Verification) in sync with a
   # single correction instead of drifting from a separately-edited snapshot.
   #
   # Requires a non-blank notes field. Each changed field is logged as a

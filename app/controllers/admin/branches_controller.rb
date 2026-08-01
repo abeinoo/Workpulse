@@ -121,7 +121,8 @@ class Admin::BranchesController < Admin::BaseController
     params.require(:branch).permit(
       :name, :address, :phone_number, :active, :branch_type,
       :branch_manager_id, :area_manager_id,
-      :geolocation_enabled, :latitude, :longitude, :radius_meters
+      :geolocation_enabled, :latitude, :longitude, :radius_meters,
+      pos_terminals_attributes: [ :id, :terminal_id, :label, :active, :_destroy ]
     )
   end
 

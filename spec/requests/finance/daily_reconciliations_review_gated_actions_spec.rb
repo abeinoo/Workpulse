@@ -31,16 +31,14 @@ RSpec.describe "Record Deposit / Report ATM Deposit Issue happen BEFORE Branch R
   before { sign_in employee }
 
   def record_deposit_text = I18n.t("finance.daily_reconciliations.show.action_deposit")
-  def report_atm_text     = I18n.t("till_deposits.new.report_atm_problem")
 
   describe "immediately after the cashier closes the session (no review needed yet)" do
-    it "shows both actions on the DR show page" do
+    it "shows the Record Deposit action on the DR show page" do
       expect(dr.reviewed?).to be false
 
       get finance_daily_reconciliation_path(dr)
 
       expect(response.body).to include(record_deposit_text)
-      expect(response.body).to include(report_atm_text)
     end
 
     it "shows the Record Deposit quick action on the index card" do
@@ -86,10 +84,10 @@ RSpec.describe "Record Deposit / Report ATM Deposit Issue happen BEFORE Branch R
       expect(response.body).not_to include(record_deposit_text)
     end
 
-    it "still shows Report ATM Deposit Issue — it is never locked by deposit approval" do
-      get finance_daily_reconciliation_path(dr)
+    it "the ATM dispute endpoint is never locked by deposit approval" do
+      get new_finance_bank_dispute_path(daily_reconciliation_id: dr.id)
 
-      expect(response.body).to include(report_atm_text)
+      expect(response).to have_http_status(:ok)
     end
 
     it "blocks recording a further deposit via the policy gate (not just hidden UI)" do

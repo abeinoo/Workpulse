@@ -1,0 +1,216 @@
+<%# ── POS Transaction Verification ─────────────────────────────────────────
+    Deliberately mirrors _bank_deposits.html.erb's structure — same
+    .recon-section wrapper, same .dashboard-section__header, same single
+    bordered surface box containing stacked sub-blocks separated by
+    border-bottom lines:
+      - Summary: .recon-formula-row rows (Visa Sales Total / POS
+        Transactions Total / Difference) + a status badge row — copied
+        verbatim from Bank Deposits' "Expected / Imported / Difference" +
+        matched/needs_review/missing badge block.
+      - Three INDEPENDENT collapsibles below the summary, each its own
+        data-controller="collapsible" / .recon-disclosure instance (no
+        shared group value — expanding one never affects the others):
+          1. Unmatched POS Transactions — only rendered when any exist.
+          2. POS Transactions — every imported POS transaction, no
+             unmatched rows mixed in.
+          3. Unmatched Sales Transactions — only rendered when any exist;
+             Sales Transactions the Comparator could not match to any POS
+             Transaction at all.
+    This section is presentation-only, not a card grid — it should read as
+    another reconciliation section belonging to the same page, not a
+    different visual style.
+
+    All matching/aggregation happens in Finance::PosVerification::Comparator
+    (@pos_verification, built from Sales Transactions whose payment method
+    has include_in_pos_verification: true — see
+    DailyReconciliationsController#show) and
+    #build_pos_verification_pos_transactions (@pos_verification_pos_transactions),
+    #build_pos_verification_unmatched_rows (@pos_verification_unmatched_rows),
+    #build_pos_verification_unmatched_sales_rows (@pos_verification_unmatched_sales_rows)
+    — this partial only formats and displays. %>
+
+<% result = @pos_verification %>
+<% tz = @reconciliation.business.timezone_object %>
+<% balanced = result.difference.abs < 0.01 %>
+
+<section id="pos-transaction-verification" class="recon-section" style="margin-bottom: var(--space-6);">
+  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+    <div>
+      <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.pos_verification.title") %></h2>
+      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+        <%= t("finance.daily_reconciliations.show.sections.pos_verification.subtitle") %>
+      </p>
+    </div>
+  </div>
+
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+
+    <%# ── Summary: same stacked-row layout as Bank Deposits' comparison block ── %>
+    <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border);">
+      <div class="recon-formula-row">
+        <span><%= t("finance.daily_reconciliations.show.sections.pos_verification.sales_total") %></span>
+        <span class="recon-formula-row__value"><%= format_currency(result.sales_total) %></span>
+      </div>
+      <div class="recon-formula-row">
+        <span><%= t("finance.daily_reconciliations.show.sections.pos_verification.pos_total") %></span>
+        <span class="recon-formula-row__value"><%= format_currency(result.pos_total) %></span>
+      </div>
+      <div class="recon-formula-row recon-formula-row--total">
+        <span><%= t("finance.daily_reconciliations.show.sections.pos_verification.difference") %></span>
+        <span class="recon-formula-row__value" style="color: <%= balanced ? 'var(--text-3)' : 'var(--warning)' %>;">
+          <%= balanced ? "—" : format_currency(result.difference) %>
+        </span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3);">
+        <span class="badge <%= balanced ? 'badge-success' : 'badge-warning' %>">
+          <%= balanced ? t("finance.daily_reconciliations.show.sections.pos_verification.status_matched") :
+                         t("finance.daily_reconciliations.show.sections.pos_verification.status_difference") %>
+        </span>
+      </div>
+    </div>
+
+    <%# ── Collapsible 1: Unmatched POS Transactions — only rendered when any
+        exist. reason/sales_employee come straight from
+        #build_pos_verification_unmatched_rows, which only reads the
+        existing Finance::PosVerification::Comparator::Result — no new
+        reconciliation rule is introduced here. ── %>
+    <% if @pos_verification_unmatched_rows.any? %>
+      <div data-controller="collapsible" class="recon-disclosure">
+        <button type="button" data-collapsible-target="trigger" data-action="click->collapsible#toggle"
+                class="recon-disclosure__trigger" aria-expanded="false">
+          <span><%= t("finance.daily_reconciliations.show.sections.pos_verification.unmatched_title") %></span>
+          <svg class="recon-disclosure__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+          </svg>
+        </button>
+        <div data-collapsible-target="content" hidden>
+          <div class="recon-table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_date") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_time") %></th>
+                  <th class="text-end"><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_amount") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_reference_number") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_terminal_id") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_sales_employee") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_reason") %></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @pos_verification_unmatched_rows.each do |row| %>
+                  <% txn = row[:transaction] %>
+                  <% local_time = txn.transaction_date.in_time_zone(tz) %>
+                  <tr>
+                    <td><%= local_time.strftime("%Y-%m-%d") %></td>
+                    <td><%= local_time.strftime("%H:%M:%S") %></td>
+                    <td class="text-end" style="font-variant-numeric: tabular-nums;"><%= format_currency(txn.amount) %></td>
+                    <td><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></td>
+                    <td><%= txn.terminal_id %></td>
+                    <td><%= row[:sales_employee] || "—" %></td>
+                    <td style="color: var(--warning);">
+                      <%= t("finance.daily_reconciliations.show.sections.pos_verification.reason_#{row[:reason]}") %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <%# ── Collapsible 2: POS Transactions — every imported POS transaction,
+        no unmatched rows mixed in. ── %>
+    <div data-controller="collapsible" class="recon-disclosure">
+      <button type="button" data-collapsible-target="trigger" data-action="click->collapsible#toggle"
+              class="recon-disclosure__trigger" aria-expanded="false">
+        <span><%= t("finance.daily_reconciliations.show.sections.pos_verification.all_pos_title") %></span>
+        <svg class="recon-disclosure__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </button>
+      <div data-collapsible-target="content" hidden>
+        <% if @pos_verification_pos_transactions.empty? %>
+          <p style="padding: 0 var(--space-5) var(--space-4); color: var(--text-3); margin: 0;">
+            <%= t("finance.daily_reconciliations.show.sections.pos_verification.no_pos") %>
+          </p>
+        <% else %>
+          <div class="recon-table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_date") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_time") %></th>
+                  <th class="text-end"><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_amount") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_terminal_id") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_reference_number") %></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @pos_verification_pos_transactions.each do |txn| %>
+                  <% local_time = txn.transaction_date.in_time_zone(tz) %>
+                  <tr>
+                    <td><%= local_time.strftime("%Y-%m-%d") %></td>
+                    <td><%= local_time.strftime("%H:%M:%S") %></td>
+                    <td class="text-end" style="font-variant-numeric: tabular-nums;"><%= format_currency(txn.amount) %></td>
+                    <td><%= txn.terminal_id %></td>
+                    <td><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%# ── Collapsible 3: Unmatched Sales Transactions — only rendered when
+        any exist. Sales Transactions the Comparator could not match to any
+        POS Transaction at all (result.missing_from_pos via
+        #build_pos_verification_unmatched_sales_rows) — never the ones
+        already matched-with-amount-mismatch shown in collapsible 1. ── %>
+    <% if @pos_verification_unmatched_sales_rows.any? %>
+      <div data-controller="collapsible" class="recon-disclosure">
+        <button type="button" data-collapsible-target="trigger" data-action="click->collapsible#toggle"
+                class="recon-disclosure__trigger" aria-expanded="false">
+          <span><%= t("finance.daily_reconciliations.show.sections.pos_verification.unmatched_sales_title") %></span>
+          <svg class="recon-disclosure__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+          </svg>
+        </button>
+        <div data-collapsible-target="content" hidden>
+          <div class="recon-table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_sale_number") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_reference_number") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_time") %></th>
+                  <th class="text-end"><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_amount") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_employee") %></th>
+                  <th><%= t("finance.daily_reconciliations.show.sections.pos_verification.col_reason") %></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @pos_verification_unmatched_sales_rows.each do |row| %>
+                  <% txn = row[:transaction] %>
+                  <tr>
+                    <td><code style="font-size: var(--text-xs);"><%= txn.sale_number.presence || "—" %></code></td>
+                    <td><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></td>
+                    <td><%= txn.transaction_time&.strftime("%H:%M:%S") || "—" %></td>
+                    <td class="text-end" style="font-variant-numeric: tabular-nums;"><%= format_currency(txn.amount) %></td>
+                    <td><%= txn.cashier_name %></td>
+                    <td style="color: var(--warning);">
+                      <%= t("finance.daily_reconciliations.show.sections.pos_verification.reason_#{row[:reason]}") %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</section>

@@ -8,9 +8,11 @@
       <p class="page-subtitle"><%= t("finance.pos_imports.index.subtitle") %></p>
     </div>
     <div class="page-header__actions">
-      <%= link_to t("finance.daily_reconciliations.index.title"),
-            finance_daily_reconciliations_path,
-            class: "btn btn-ghost btn-sm" %>
+      <% if current_user.can?(:manage_branches) %>
+        <%= link_to t("admin.branches.index.title"),
+              admin_branches_path,
+              class: "btn btn-ghost btn-sm" %>
+      <% end %>
       <% if policy(:pos_import).create? %>
         <%= link_to t("finance.pos_imports.index.import_button"),
               new_finance_pos_import_path,
@@ -19,13 +21,53 @@
     </div>
   </div>
 
+  <%# ── Last import summary — @imports is already ordered newest-first, so
+      the first entry is the latest; no controller change needed. ── %>
+  <% if @imports.any? %>
+    <% latest = @imports.first %>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4);">
+      <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; color: var(--text-3); margin: 0 0 var(--space-3);">
+        <%= t("finance.daily_reconciliations.index.pos_last_import") %>
+      </h2>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-4);">
+        <div>
+          <p style="font-size: 11px; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.index.col_imported_at") %></p>
+          <p style="font-size: var(--text-sm); font-weight: 600; margin: var(--space-1) 0 0;"><%= l(latest.updated_at, format: :short) %></p>
+        </div>
+        <div>
+          <p style="font-size: 11px; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.index.col_file") %></p>
+          <p style="font-size: var(--text-sm); font-weight: 600; margin: var(--space-1) 0 0;"><%= latest.file_name %></p>
+        </div>
+        <div>
+          <p style="font-size: 11px; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.total_transactions") %></p>
+          <p style="font-size: var(--text-sm); font-weight: 600; margin: var(--space-1) 0 0;"><%= latest.imported_rows %></p>
+        </div>
+        <div>
+          <p style="font-size: 11px; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.total_amount") %></p>
+          <p style="font-size: var(--text-sm); font-weight: 600; margin: var(--space-1) 0 0;"><%= format_currency(latest.total_amount) %></p>
+        </div>
+        <div>
+          <p style="font-size: 11px; color: var(--text-3); margin: 0;"><%= t("finance.pos_imports.preview.total_fees") %></p>
+          <p style="font-size: var(--text-sm); font-weight: 600; margin: var(--space-1) 0 0;"><%= format_currency(latest.total_fees) %></p>
+        </div>
+        <div>
+          <p style="font-size: 11px; color: var(--text-3); margin: 0;"><%= t("finance.daily_reconciliations.index.pos_status") %></p>
+          <p style="margin: var(--space-1) 0 0;">
+            <% if latest.imported? %>
+              <span class="badge badge-success"><%= t("finance.pos_imports.index.status_imported") %></span>
+            <% elsif latest.failed? %>
+              <span class="badge badge-danger"><%= t("finance.pos_imports.index.status_failed") %></span>
+            <% else %>
+              <span class="badge"><%= t("finance.pos_imports.index.status_pending") %></span>
+            <% end %>
+          </p>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
   <% if @imports.empty? %>
     <div class="empty-state" style="padding: var(--space-16) var(--space-8);">
-      <div class="empty-state__icon">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
-        </svg>
-      </div>
       <p class="empty-state__title"><%= t("finance.pos_imports.index.empty") %></p>
       <p class="empty-state__text"><%= t("finance.pos_imports.index.empty_hint") %></p>
       <div style="margin-top: var(--space-6);">
@@ -41,8 +83,8 @@
         <% [
              t("finance.pos_imports.index.col_file"),
              t("finance.pos_imports.index.col_rows"),
-             t("finance.pos_imports.index.col_matched"),
-             t("finance.pos_imports.index.col_drs"),
+             t("finance.pos_imports.index.col_imported"),
+             t("finance.pos_imports.index.col_expenses"),
              t("finance.pos_imports.index.col_imported_by"),
              t("finance.pos_imports.index.col_imported_at"),
              ""
@@ -55,53 +97,19 @@
 
       <% @imports.each do |import| %>
         <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 2fr 80px 100px 120px 120px 100px 1fr; align-items: center; gap: var(--space-2);">
-          <div style="min-width: 0;">
-            <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0; truncate;">
-              <%= import.file_name %>
-            </p>
-            <% if import.imported? && import.unmatched_rows > 0 %>
-              <p style="font-size: 11px; color: var(--warning); margin: 1px 0 0;">
-                <%= t("finance.pos_imports.index.unmatched_warning", count: import.unmatched_rows) %>
-              </p>
-            <% end %>
-            <% if import.imported? && import.duplicate_rows > 0 %>
-              <p style="font-size: 11px; color: var(--text-3); margin: 1px 0 0;">
-                <%= t("finance.pos_imports.index.duplicate_warning", count: import.duplicate_rows) %>
-              </p>
-            <% end %>
-          </div>
-          <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <%= import.total_rows %>
-          </span>
-          <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <span style="color: var(--success); font-weight: 600;"><%= import.matched_rows %></span>
-            <% if import.unmatched_rows > 0 %>
-              / <span style="color: var(--warning);">+<%= import.unmatched_rows %></span>
-            <% end %>
-          </span>
-          <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <%= import.dr_count %>
-            <%= t("finance.pos_imports.index.dr_count_suffix", count: import.dr_count) %>
-          </span>
-          <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <%= import.imported_by.full_name %>
-          </span>
-          <span style="font-size: var(--text-sm); color: var(--text-3);">
-            <%= l(import.updated_at, format: :short) %>
-          </span>
+          <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0;"><%= import.file_name %></p>
+          <span style="font-size: var(--text-sm); color: var(--text-2);"><%= import.total_rows %></span>
+          <span style="font-size: var(--text-sm); color: var(--text-2);"><%= import.imported_rows %></span>
+          <span style="font-size: var(--text-sm); color: var(--text-2);"><%= import.expenses_created_count %></span>
+          <span style="font-size: var(--text-sm); color: var(--text-2);"><%= import.imported_by.full_name %></span>
+          <span style="font-size: var(--text-sm); color: var(--text-3);"><%= l(import.updated_at, format: :short) %></span>
           <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
             <% if import.imported? %>
-              <span class="badge badge-success" style="font-size: 11px;">
-                <%= t("finance.pos_imports.index.status_imported") %>
-              </span>
+              <span class="badge badge-success" style="font-size: 11px;"><%= t("finance.pos_imports.index.status_imported") %></span>
             <% elsif import.failed? %>
-              <span class="badge badge-danger" style="font-size: 11px;">
-                <%= t("finance.pos_imports.index.status_failed") %>
-              </span>
+              <span class="badge badge-danger" style="font-size: 11px;"><%= t("finance.pos_imports.index.status_failed") %></span>
             <% else %>
-              <span class="badge" style="font-size: 11px;">
-                <%= t("finance.pos_imports.index.status_pending") %>
-              </span>
+              <span class="badge" style="font-size: 11px;"><%= t("finance.pos_imports.index.status_pending") %></span>
             <% end %>
             <% if policy(import).destroy? %>
               <%= button_to t("common.delete"),

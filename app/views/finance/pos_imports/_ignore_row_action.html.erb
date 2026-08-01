@@ -1,0 +1,22 @@
+<% if policy(pos_import).ignore_row? %>
+  <details style="display: inline-block;">
+    <summary style="cursor: pointer; color: var(--danger); font-size: var(--text-xs); list-style: none;">
+      <%= t("finance.pos_imports.preview.ignore_row_action") %>
+    </summary>
+    <%= form_with url: ignore_row_finance_pos_import_path(pos_import), method: :post,
+          style: "display: flex; gap: var(--space-1); margin-top: var(--space-2);" do %>
+      <%= hidden_field_tag :row_number, row_number %>
+      <%= text_field_tag :reason, nil,
+            placeholder: t("finance.pos_imports.preview.ignore_reason_placeholder"),
+            required: true,
+            class: "form-control", style: "font-size: var(--text-xs); padding: 4px 8px;" %>
+      <button type="submit" class="btn btn-ghost btn-sm" style="white-space: nowrap;">
+        <%= t("finance.pos_imports.preview.ignore_row_action") %>
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm"
+              onclick="this.closest('details').removeAttribute('open')">
+        <%= t("shared.cancel") %>
+      </button>
+    <% end %>
+  </details>
+<% end %>

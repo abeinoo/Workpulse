@@ -342,23 +342,23 @@
   <%# ── Redesigned reconciliation sections (see build_show_summary_aggregates) ── %>
   <%= render "summary_cards" %>
 
-  <%# ── Two-column body: POS Verification (left, Session Totals + Employee
+  <%# ── Two-column body: Sales Verification (left, Session Totals + Employee
       Breakdown) | Audit Timeline (right) — restores the pre-redesign
       .dashboard-cols layout. The old standalone "Cashier Custody Summary"
       card is gone; the Employee Breakdown is now owned by, and rendered
-      inside, the POS Verification section on the left.
+      inside, the Sales Verification section on the left.
 
-      dr-pos-timeline-grid pins these two columns to a fixed physical
+      dr-sales-timeline-grid pins these two columns to a fixed physical
       left/right order in both languages (see the matching CSS rule) — a
       plain grid's first child would otherwise render on the right in RTL,
       silently swapping the columns for Arabic. ── %>
-  <div class="dashboard-cols dr-pos-timeline-grid" style="margin-bottom: var(--space-6);">
+  <div class="dashboard-cols dr-sales-timeline-grid" style="margin-bottom: var(--space-6);">
     <div>
-      <% if @can_view_pos_transactions_verification %>
+      <% if @can_view_sales_transactions_verification %>
         <%= render "electronic_payments",
-                   pos_totals_by_method:       @pos_totals_by_method,
-                   pos_difference:             @pos_difference,
-                   can_manage_pos_import:      @can_manage_pos_import,
+                   sales_totals_by_method:       @sales_totals_by_method,
+                   sales_difference:             @sales_difference,
+                   can_manage_sales_import:      @can_manage_sales_import,
                    session_totals_rows:        @session_totals_rows,
                    session_totals_grand_total: @session_totals_grand_total %>
       <% end %>
@@ -366,6 +366,10 @@
       <%= render "cash_reconciliation" %>
 
       <%= render "bank_deposits" %>
+
+      <% if @can_view_pos_transaction_verification %>
+        <%= render "pos_transaction_verification" %>
+      <% end %>
     </div>
     <div>
       <%= render "timeline" %>

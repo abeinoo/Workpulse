@@ -1,0 +1,23 @@
+<details style="margin-top: var(--space-1);">
+  <summary style="cursor: pointer; font-size: var(--text-xs); color: var(--accent);">
+    <%= t("finance.pos_imports.preview.view_row_action") %>
+  </summary>
+  <div style="margin-top: var(--space-2); display: grid; grid-template-columns: 140px 1fr; gap: var(--space-1) var(--space-3); font-size: var(--text-xs); background: var(--surface-2); padding: var(--space-3); border-radius: var(--radius);">
+    <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.col_transaction_id") %></span>
+    <span><%= attributes[:transaction_id].presence || "—" %></span>
+    <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.col_terminal_id") %></span>
+    <span><%= attributes[:terminal_id].presence || "—" %></span>
+    <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.col_product_name") %></span>
+    <span><%= attributes[:product_name].presence || "—" %></span>
+    <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.col_amount") %></span>
+    <span><%= attributes[:amount].presence || "—" %></span>
+    <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.col_payment_method") %></span>
+    <span><%= attributes[:payment_method].presence || "—" %></span>
+    <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.col_status") %></span>
+    <span><%= attributes[:status].presence || "—" %></span>
+    <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.col_paid_at") %></span>
+    <span><%= attributes[:transaction_date].presence || "—" %></span>
+    <span style="color: var(--text-3);"><%= t("finance.pos_imports.preview.col_reference_number") %></span>
+    <span><%= attributes[:reference_number].presence || "—" %></span>
+  </div>
+</details>

@@ -103,6 +103,69 @@ RSpec.describe "Admin::Branches", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(branch.reload.branch_type).to eq("sales") # unchanged
     end
+
+    describe "Terminal IDs (nested)" do
+      it "adds a new Terminal ID to the branch" do
+        expect {
+          patch admin_branch_path(branch), params: {
+            branch: { pos_terminals_attributes: { "0" => { terminal_id: "TERM-1", label: "Front Desk", active: "1" } } }
+          }
+        }.to change { branch.pos_terminals.count }.by(1)
+
+        expect(branch.pos_terminals.last.terminal_id).to eq("TERM-1")
+      end
+
+      it "edits an existing Terminal ID" do
+        terminal = create(:pos_terminal, business: business, branch: branch, terminal_id: "OLD-ID")
+
+        patch admin_branch_path(branch), params: {
+          branch: { pos_terminals_attributes: { "0" => { id: terminal.id, terminal_id: "NEW-ID" } } }
+        }
+
+        expect(terminal.reload.terminal_id).to eq("NEW-ID")
+      end
+
+      it "deletes a Terminal ID via _destroy" do
+        terminal = create(:pos_terminal, business: business, branch: branch)
+
+        expect {
+          patch admin_branch_path(branch), params: {
+            branch: { pos_terminals_attributes: { "0" => { id: terminal.id, _destroy: "1" } } }
+          }
+        }.to change(PosTerminal, :count).by(-1)
+      end
+
+      it "rejects a Terminal ID that already exists elsewhere in the business" do
+        other_branch = create(:branch, business: business)
+        create(:pos_terminal, business: business, branch: other_branch, terminal_id: "DUP-ID")
+
+        patch admin_branch_path(branch), params: {
+          branch: { pos_terminals_attributes: { "0" => { terminal_id: "DUP-ID" } } }
+        }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(branch.pos_terminals.where(terminal_id: "DUP-ID")).to be_empty
+      end
+
+      it "allows the same Terminal ID text in a different business" do
+        other_business = create(:business)
+        create(:pos_terminal, business: other_business, terminal_id: "SHARED-ID")
+
+        patch admin_branch_path(branch), params: {
+          branch: { pos_terminals_attributes: { "0" => { terminal_id: "SHARED-ID" } } }
+        }
+
+        expect(branch.reload.pos_terminals.pluck(:terminal_id)).to include("SHARED-ID")
+      end
+
+      it "sets business_id from the branch, not from user input" do
+        patch admin_branch_path(branch), params: {
+          branch: { pos_terminals_attributes: { "0" => { terminal_id: "TERM-AUTO" } } }
+        }
+
+        expect(branch.pos_terminals.find_by(terminal_id: "TERM-AUTO").business_id).to eq(business.id)
+      end
+    end
   end
 
   describe "authorization" do

@@ -77,6 +77,37 @@
 
   <div class="divider"></div>
 
+  <%# ── Terminal IDs — the single place Terminal ID → Branch mappings are
+      managed (no standalone Terminal configuration page). Uniqueness across
+      the business is enforced by PosTerminal's own validation; errors surface
+      per-row via the nested fields' own error state. ── %>
+  <div data-controller="line-items">
+    <h2 class="section-title"><%= t("admin.branches.form.terminal_ids_title") %></h2>
+    <p class="form-hint"><%= t("admin.branches.form.terminal_ids_hint") %></p>
+
+    <div data-line-items-target="rows">
+      <%= f.fields_for :pos_terminals do |pt_f| %>
+        <%= render "pos_terminal_fields", f: pt_f %>
+      <% end %>
+    </div>
+
+    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if branch.pos_terminals.any? %>>
+      <%= t("admin.branches.form.no_terminal_ids") %>
+    </p>
+
+    <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
+      + <%= t("admin.branches.form.add_terminal_id") %>
+    </button>
+
+    <template data-line-items-target="template">
+      <%= f.fields_for :pos_terminals, PosTerminal.new, child_index: "NEW_INDEX" do |pt_f| %>
+        <%= render "pos_terminal_fields", f: pt_f %>
+      <% end %>
+    </template>
+  </div>
+
+  <div class="divider"></div>
+
   <%# ── Geolocation ───────────────────────────────────────── %>
   <div data-controller="geo-fields">
 

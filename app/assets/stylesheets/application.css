@@ -2405,10 +2405,10 @@ body.is-authenticated {
    these two columns for Arabic. Forcing the grid itself to ltr pins the track
    positions; resetting direction back to rtl on each column's content keeps
    Arabic text reading correctly within it. */
-[dir="rtl"] .dr-pos-timeline-grid {
+[dir="rtl"] .dr-sales-timeline-grid {
   direction: ltr;
 }
-[dir="rtl"] .dr-pos-timeline-grid > * {
+[dir="rtl"] .dr-sales-timeline-grid > * {
   direction: rtl;
 }
 

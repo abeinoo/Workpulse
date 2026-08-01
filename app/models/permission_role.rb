@@ -53,12 +53,13 @@ class PermissionRole < ApplicationRecord
                                view_own_employee_reconciliation_summary
                                view_all_employee_reconciliation_summary
                                correct_opening_float
-                               view_pos_transactions_verification
-                               manage_pos_import
+                               view_sales_transactions_verification
+                               manage_sales_import
                                review_daily_reconciliation
                                override_review_requirement
                                manage_bank_disputes],
     finance_overview:      %w[view_finance_dashboard],
+    pos_import:            %w[view_pos_import manage_pos_import],
     expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
     expense_administration: %w[manage_expense_categories manage_expense_types
                                 manage_expense_tags manage_recurring_expenses
@@ -133,7 +134,8 @@ class PermissionRole < ApplicationRecord
       view_adjustments approve_adjustments
       view_inventory view_inventory_reports view_stock_count_reports
       view_deposit_verification import_bank_statement
-      view_pos_transactions_verification manage_pos_import
+      view_sales_transactions_verification manage_sales_import
+      view_pos_import manage_pos_import
     ],
     "employee" => %w[
       view_employee_balances create_balance_requests
@@ -166,6 +168,7 @@ class PermissionRole < ApplicationRecord
     view_deposit_verification import_bank_statement verify_deposits manual_match_deposits delete_import
     view_towel_balances create_towel_transfers confirm_towel_receipt
     view_laundry_consumption_reports
+    view_pos_import manage_pos_import
   ].freeze
 
   # Management-level Daily Reconciliation permissions — the only DR permissions
@@ -185,8 +188,8 @@ class PermissionRole < ApplicationRecord
     void_till_deposit
     settle_remaining_deposit_balance
     view_all_employee_reconciliation_summary
-    view_pos_transactions_verification
-    manage_pos_import
+    view_sales_transactions_verification
+    manage_sales_import
     review_daily_reconciliation
     manage_bank_disputes
   ].freeze
@@ -289,8 +292,8 @@ class PermissionRole < ApplicationRecord
     "correct_opening_float"            => %w[view_daily_reconciliation],
     "settle_remaining_deposit_balance"            => %w[view_daily_reconciliation],
     "view_all_employee_reconciliation_summary"    => %w[view_daily_reconciliation],
-    "view_pos_transactions_verification" => %w[view_daily_reconciliation],
-    "manage_pos_import"      => %w[view_pos_transactions_verification],
+    "view_sales_transactions_verification" => %w[view_daily_reconciliation],
+    "manage_sales_import"      => %w[view_sales_transactions_verification],
     "review_daily_reconciliation"       => %w[view_daily_reconciliation],
     "override_review_requirement"       => %w[view_daily_reconciliation],
     "manage_bank_disputes"              => %w[view_daily_reconciliation],
@@ -318,6 +321,7 @@ class PermissionRole < ApplicationRecord
     "manage_expense_types"        => %w[view_expenses],
     "manage_expense_tags"         => %w[view_expenses],
     "manage_recurring_expenses"   => %w[view_expenses],
+    "manage_pos_import"           => %w[view_pos_import],
     "manage_employee_balances"    => %w[view_employee_balances],
     "create_balance_requests"     => %w[view_employee_balances],
     "approve_balance_requests"    => %w[view_employee_balances],

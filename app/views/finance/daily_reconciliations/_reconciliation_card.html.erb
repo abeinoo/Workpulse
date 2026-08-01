@@ -11,7 +11,6 @@
   has_balance = outstanding > 0
 
   bank_status = show_verification ? @bank_statuses_by_dr[dr] : nil
-  stages      = show_verification ? @workflow_stages_by_dr[dr] : nil
   open_disputes = show_verification ?
     dr.open_bank_disputes(preloaded_till_deposits: dr.till_deposits.select(&:active?)) : []
 
@@ -24,20 +23,49 @@
     else                            'var(--text-3-rgb, 100,116,139)'
     end
 
-  # Next Action — single source of truth is DailyReconciliation#next_action_for,
-  # which is both workflow-state-driven (priority order) and permission-aware
-  # (returns nil if the current user can't perform the highest-priority
-  # action — never falls back to a lower-priority one instead). See that
-  # method for the full priority list and per-action authorization.
-  next_action = dr.next_action_for(current_user, bank_status: bank_status, open_disputes: open_disputes)
+  # Unified "Next Step" — single source of truth is
+  # DailyReconciliation#workflow_progress, which replaces the old, separate
+  # next_action_for + required_actions with ONE strictly sequential 8-step
+  # workflow (opening float → close/handover → deposit → deposit review →
+  # sales import → bank statement → POS import → documentation). Only ever
+  # ONE action button anywhere on the card: the first incomplete step's
+  # action, or nil if that step exists but the current user lacks
+  # permission for it (never cascades to a lower-priority action — see the
+  # model method's own comment) or if every step is already complete.
+  workflow = dr.workflow_progress(current_user, bank_status: bank_status, open_disputes: open_disputes,
+                                  sales_imported: show_verification && @sales_imported_dr_ids.include?(dr.id),
+                                  pos_imported: show_verification && @pos_imported_dr_ids.include?(dr.id))
+  workflow_current_key = workflow[:steps].find { |s| !s[:complete] }&.dig(:key)
 
-  # Required Actions — the SEPARATE, independent POS workflow (import + bank
-  # matching). Never competes with next_action above: a DR can show a
-  # primary "Waiting for Branch Review" badge/action AND still be missing
-  # its POS import at the same time — both are real, both stay visible.
-  # See DailyReconciliation#required_actions.
-  required_actions = show_verification ?
-    dr.required_actions(bank_status: bank_status, pos_imported: @pos_imported_dr_ids.include?(dr.id)) : []
+  # Issue badges — surfaces only ACTIONABLE reconciliation problems directly on
+  # the card, so a manager never has to open the DR just to notice one. Cash
+  # Difference and the overall Sales Difference are deliberately NOT shown
+  # here — both are already visible elsewhere and would only duplicate that
+  # figure. Figures come from @employee_sales_issues_by_dr /
+  # @pos_unmatched_count_by_dr / @sales_unmatched_count_by_dr /
+  # @unmatched_bank_deposits_count_by_dr, precomputed once for the whole page
+  # in Finance::DailyReconciliationsController#build_dr_issue_badges /
+  # #build_employee_issue_badges — no new matching logic, no query here.
+  # POS/Sales/Employee badges stay empty (hidden) unless the current user
+  # holds the same permission the DR show page's own sections require.
+  employee_sales_issues   = show_verification ? (@employee_sales_issues_by_dr[dr.id] || []) : []
+  pos_unmatched_count     = show_verification ? (@pos_unmatched_count_by_dr || {})[dr.id] : nil
+  sales_unmatched_count   = show_verification ? (@sales_unmatched_count_by_dr || {})[dr.id] : nil
+  unmatched_deposits_count = show_verification ? @unmatched_bank_deposits_count_by_dr[dr] : nil
+
+  issue_badges = []
+  employee_sales_issues.each do |issue|
+    issue_badges << { type: :employee, user: issue[:user], amount: issue[:amount] }
+  end
+  if pos_unmatched_count.to_i.positive?
+    issue_badges << { type: :simple, label: t("finance.daily_reconciliations.index.issue_badges.pos_unmatched", count: pos_unmatched_count) }
+  end
+  if sales_unmatched_count.to_i.positive?
+    issue_badges << { type: :simple, label: t("finance.daily_reconciliations.index.issue_badges.sales_unmatched", count: sales_unmatched_count) }
+  end
+  if unmatched_deposits_count.to_i.positive?
+    issue_badges << { type: :simple, label: t("finance.daily_reconciliations.index.issue_badges.outstanding_deposit", count: unmatched_deposits_count) }
+  end
 %>
 
 <div class="dr-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
@@ -155,17 +183,9 @@
           <% end %>
         <% end %>
 
-        <%# Next Action + View link — next_action is nil whenever the current
-            user isn't allowed to perform the highest-priority action (see
-            DailyReconciliation#next_action_for); in that case only View
-            renders, per "hide the action, don't show a fallback one." ── %>
+        <%# View link — the single Next Step action button lives in its own
+            section below, not here; this row now only ever offers View. ── %>
         <div style="flex: 0 0 auto; margin-inline-start: auto; display: flex; gap: var(--space-2);">
-          <% if next_action %>
-            <p style="font-size: 10px; color: var(--text-3); margin: 0; align-self: center;">
-              <%= t("finance.daily_reconciliations.index.workspace.card_action_label") %>
-            </p>
-            <%= link_to next_action[:label], next_action[:path], class: next_action[:style] %>
-          <% end %>
           <%= link_to finance_daily_reconciliation_path(dr),
                 style: "display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-sm); font-weight: 500; color: var(--accent); text-decoration: none; padding: var(--space-2) var(--space-3); border-radius: var(--radius); border: 1px solid rgba(var(--accent-rgb), 0.25); background: rgba(var(--accent-rgb), 0.06);" do %>
             <%= t("finance.daily_reconciliations.index.view") %>
@@ -174,22 +194,32 @@
         </div>
       </div>
 
-      <%# Required Actions — the secondary, independent POS workflow. Visually
-          distinct from the primary status row above (its own row, warning-
-          tinted background) so it reads as "also true" rather than a second
-          competing workflow state. Never merged into next_action. ── %>
-      <% if required_actions.any? %>
-        <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-2) var(--space-3); background: rgba(var(--warning-rgb,202,138,4),0.08); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.25); border-radius: var(--radius);">
-          <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--warning,#ca8a04);">
-            <%= t("finance.daily_reconciliations.index.workspace.required_actions.title") %>
-          </span>
-          <% required_actions.each do |action| %>
-            <%= link_to action[:label], action[:path], class: action[:style] %>
+      <%# Issue badges — surfaced right under the Branch/Date information so a
+          manager can spot a problematic reconciliation without opening it.
+          Wraps onto multiple lines automatically via flex-wrap. Reuses the
+          existing .badge component + warning palette already used throughout
+          Finance (same badge-warning styling as the Open Disputes badge
+          above). ── %>
+      <% if issue_badges.any? %>
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+          <% issue_badges.each do |issue| %>
+            <% if issue[:type] == :employee %>
+              <span class="badge badge-warning" style="display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; padding-block: 6px; line-height: 1.3;">
+                <span>👤 <%= issue[:user].full_name %></span>
+                <span style="font-variant-numeric: tabular-nums;">
+                  <%= t("finance.daily_reconciliations.index.issue_badges.employee_sales_difference_label") %>: <%= format_currency(issue[:amount]) %>
+                </span>
+              </span>
+            <% else %>
+              <span class="badge badge-warning" style="white-space: nowrap;">
+                <%= issue[:label] %>
+              </span>
+            <% end %>
           <% end %>
         </div>
       <% end %>
 
-      <%# Amount fields + workflow timeline — only for users who can see bank verification. ── %>
+      <%# Amount fields — only for users who can see bank verification. ── %>
       <% if show_verification %>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: var(--space-3); padding: var(--space-3); background: var(--surface-2); border-radius: var(--radius);">
           <div>
@@ -213,23 +243,41 @@
             <p style="font-size: var(--text-sm); font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; color: <%= outstanding.positive? ? 'var(--warning,#ca8a04)' : 'var(--text-3)' %>;"><%= format_currency(outstanding) %></p>
           </div>
         </div>
+      <% end %>
 
-        <%# Compact workflow timeline — highlights stages reached so far. %>
-        <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
-          <% DailyReconciliation::WORKFLOW_STAGES.each_with_index do |stage, i| %>
+      <%# ── Unified "Next Step" — replaces the old separate Next Action +
+          Required Actions widgets with ONE progress indicator and ONE
+          action button, driven entirely by DailyReconciliation#workflow_progress.
+          Never more than one button on the whole card. ── %>
+      <div style="display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--border);">
+        <div style="display: flex; flex-wrap: wrap; gap: 4px 10px;">
+          <% workflow[:steps].each do |step| %>
             <%
-              reached = stages.include?(stage)
-              is_current = stages.last == stage
+              is_current = step[:key] == workflow_current_key
+              color = if step[:complete] then 'var(--success,#16a34a)'
+                      elsif is_current    then 'var(--warning,#ca8a04)'
+                      else                     'var(--text-3)'
+                      end
             %>
-            <span style="font-size: 10px; font-weight: <%= is_current ? '700' : '500' %>; color: <%= reached ? (is_current ? 'var(--accent)' : 'var(--text-2)') : 'var(--text-3)' %>; white-space: nowrap;">
-              <%= t("finance.daily_reconciliations.index.workspace.workflow_stages.#{stage}") %>
+            <span style="font-size: 10px; font-weight: <%= is_current ? '700' : '500' %>; color: <%= color %>; white-space: nowrap;">
+              <%= step[:complete] ? "✓" : "○" %> <%= step[:label] %>
             </span>
-            <% unless i == DailyReconciliation::WORKFLOW_STAGES.size - 1 %>
-              <span style="color: var(--text-3); font-size: 10px;">→</span>
-            <% end %>
           <% end %>
         </div>
-      <% end %>
+
+        <% if workflow_current_key.nil? %>
+          <span style="font-size: var(--text-sm); font-weight: 600; color: var(--success,#16a34a); display: inline-flex; align-items: center; gap: 6px;">
+            ✓ <%= t("finance.daily_reconciliations.index.workspace.workflow.completed") %>
+          </span>
+        <% elsif workflow[:action] %>
+          <div>
+            <p style="font-size: 10px; color: var(--text-3); margin: 0 0 4px;">
+              <%= t("finance.daily_reconciliations.index.workspace.workflow.title") %>
+            </p>
+            <%= link_to workflow[:action][:label], workflow[:action][:path], class: workflow[:action][:style] %>
+          </div>
+        <% end %>
+      </div>
     </div>
   </div>
 </div>
