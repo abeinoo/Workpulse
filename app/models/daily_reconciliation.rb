@@ -422,7 +422,7 @@ class DailyReconciliation < ApplicationRecord
       { label: label.call(:deposit_review), path: routes.finance_daily_reconciliation_path(self, anchor: "approval"), style: primary_style }
 
     when :sales_import
-      { label: label.call(:sales_import), path: routes.new_finance_sales_import_path, style: primary_style }
+      { label: label.call(:sales_import), path: routes.finance_sales_imports_path, style: primary_style }
 
     when :pos_import
       return nil unless user.can?(:manage_pos_import)

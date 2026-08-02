@@ -19,6 +19,46 @@
     </div>
   </div>
 
+  <%# ── Summary cards — business-wide totals, unaffected by filters below ── %>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-6);">
+    <%= render "finance/sales_imports/stat_card", label: t("finance.sales_imports.index.stat_total_imports"), value: @summary[:total_imports] %>
+    <%= render "finance/sales_imports/stat_card", label: t("finance.sales_imports.index.stat_total_rows"), value: @summary[:total_rows] %>
+    <%= render "finance/sales_imports/stat_card", label: t("finance.sales_imports.index.stat_imported_rows"), value: @summary[:imported_rows], modifier: (@summary[:imported_rows] > 0 ? "success" : nil) %>
+    <%= render "finance/sales_imports/stat_card", label: t("finance.sales_imports.index.stat_duplicate_rows"), value: @summary[:duplicate_rows], modifier: (@summary[:duplicate_rows] > 0 ? "warning" : nil) %>
+    <%= render "finance/sales_imports/stat_card", label: t("finance.sales_imports.index.stat_failed_rows"), value: @summary[:failed_rows], modifier: (@summary[:failed_rows] > 0 ? "danger" : nil) %>
+  </div>
+
+  <%# ── Filters ─────────────────────────────────────────────────────────── %>
+  <%= form_with url: finance_sales_imports_path, method: :get,
+        style: "display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4);" do |f| %>
+    <%= f.text_field :file_name, value: params[:file_name],
+          placeholder: t("finance.sales_imports.index.filter_file_name"),
+          class: "form-control form-control-sm", style: "width: auto;" %>
+    <% if @filter_branch_names.any? %>
+      <%= f.select :branch_name,
+            [[t("finance.sales_imports.index.all_branches"), ""]] + @filter_branch_names.map { |n| [n, n] },
+            { selected: params[:branch_name] },
+            class: "form-control form-control-sm", style: "width: auto;" %>
+    <% end %>
+    <% if @filter_uploaders.any? %>
+      <%= f.select :imported_by_id,
+            [[t("finance.sales_imports.index.all_uploaders"), ""]] + @filter_uploaders.map { |u| [u.full_name, u.id] },
+            { selected: params[:imported_by_id] },
+            class: "form-control form-control-sm", style: "width: auto;" %>
+    <% end %>
+    <%= f.select :status,
+          [[t("finance.sales_imports.index.all_statuses"), ""]] +
+          @filter_statuses.map { |s| [t("finance.sales_imports.index.status_#{s}"), s] },
+          { selected: params[:status] },
+          class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.date_field :date_from, value: params[:date_from], class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.date_field :date_to,   value: params[:date_to],   class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.submit t("shared.filter"), class: "btn btn-ghost btn-sm" %>
+    <% if params.slice(:file_name, :branch_name, :imported_by_id, :status, :date_from, :date_to).values.any?(&:present?) %>
+      <%= link_to t("shared.clear_filters"), finance_sales_imports_path, class: "btn btn-ghost btn-sm" %>
+    <% end %>
+  <% end %>
+
   <% if @imports.empty? %>
     <div class="empty-state" style="padding: var(--space-16) var(--space-8);">
       <div class="empty-state__icon">
@@ -28,93 +68,91 @@
       </div>
       <p class="empty-state__title"><%= t("finance.sales_imports.index.empty") %></p>
       <p class="empty-state__text"><%= t("finance.sales_imports.index.empty_hint") %></p>
-      <div style="margin-top: var(--space-6);">
-        <%= link_to t("finance.sales_imports.index.import_button"),
-              new_finance_sales_import_path,
-              class: "btn btn-primary" %>
-      </div>
-    </div>
-  <% else %>
-
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
-      <div style="padding: var(--space-3) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 2fr 80px 100px 120px 120px 100px 1fr;">
-        <% [
-             t("finance.sales_imports.index.col_file"),
-             t("finance.sales_imports.index.col_rows"),
-             t("finance.sales_imports.index.col_matched"),
-             t("finance.sales_imports.index.col_drs"),
-             t("finance.sales_imports.index.col_imported_by"),
-             t("finance.sales_imports.index.col_imported_at"),
-             ""
-           ].each do |label| %>
-          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);">
-            <%= label %>
-          </span>
-        <% end %>
-      </div>
-
-      <% @imports.each do |import| %>
-        <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 2fr 80px 100px 120px 120px 100px 1fr; align-items: center; gap: var(--space-2);">
-          <div style="min-width: 0;">
-            <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0; truncate;">
-              <%= import.file_name %>
-            </p>
-            <% if import.imported? && import.unmatched_rows > 0 %>
-              <p style="font-size: 11px; color: var(--warning); margin: 1px 0 0;">
-                <%= t("finance.sales_imports.index.unmatched_warning", count: import.unmatched_rows) %>
-              </p>
-            <% end %>
-            <% if import.imported? && import.duplicate_rows > 0 %>
-              <p style="font-size: 11px; color: var(--text-3); margin: 1px 0 0;">
-                <%= t("finance.sales_imports.index.duplicate_warning", count: import.duplicate_rows) %>
-              </p>
-            <% end %>
-          </div>
-          <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <%= import.total_rows %>
-          </span>
-          <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <span style="color: var(--success); font-weight: 600;"><%= import.matched_rows %></span>
-            <% if import.unmatched_rows > 0 %>
-              / <span style="color: var(--warning);">+<%= import.unmatched_rows %></span>
-            <% end %>
-          </span>
-          <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <%= import.dr_count %>
-            <%= t("finance.sales_imports.index.dr_count_suffix", count: import.dr_count) %>
-          </span>
-          <span style="font-size: var(--text-sm); color: var(--text-2);">
-            <%= import.imported_by.full_name %>
-          </span>
-          <span style="font-size: var(--text-sm); color: var(--text-3);">
-            <%= l(import.updated_at, format: :short) %>
-          </span>
-          <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
-            <% if import.imported? %>
-              <span class="badge badge-success" style="font-size: 11px;">
-                <%= t("finance.sales_imports.index.status_imported") %>
-              </span>
-            <% elsif import.failed? %>
-              <span class="badge badge-danger" style="font-size: 11px;">
-                <%= t("finance.sales_imports.index.status_failed") %>
-              </span>
-            <% else %>
-              <span class="badge" style="font-size: 11px;">
-                <%= t("finance.sales_imports.index.status_pending") %>
-              </span>
-            <% end %>
-            <% if policy(import).destroy? %>
-              <%= button_to t("common.delete"),
-                    finance_sales_import_path(import),
-                    method: :delete,
-                    data: { turbo_confirm: t("common.are_you_sure") },
-                    class: "btn btn-danger btn-sm",
-                    form_class: "inline" %>
-            <% end %>
-          </div>
+      <% if policy(:sales_import).create? %>
+        <div style="margin-top: var(--space-6);">
+          <%= link_to t("finance.sales_imports.index.import_button"),
+                new_finance_sales_import_path, class: "btn btn-primary" %>
         </div>
       <% end %>
     </div>
+  <% else %>
+
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><%= t("finance.sales_imports.index.col_file") %></th>
+            <th><%= t("finance.sales_imports.index.col_uploaded_at") %></th>
+            <th><%= t("finance.sales_imports.index.col_uploaded_by") %></th>
+            <th><%= t("finance.sales_imports.index.col_branches") %></th>
+            <th class="text-end"><%= t("finance.sales_imports.index.col_rows") %></th>
+            <th class="text-end"><%= t("finance.sales_imports.index.col_imported") %></th>
+            <th class="text-end"><%= t("finance.sales_imports.index.col_duplicates") %></th>
+            <th class="text-end"><%= t("finance.sales_imports.index.col_failed") %></th>
+            <th><%= t("finance.sales_imports.index.col_status") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @imports.each do |import| %>
+            <tr>
+              <td>
+                <% if policy(import).show? %>
+                  <%= link_to import.file_name, finance_sales_import_path(import), class: "link" %>
+                <% else %>
+                  <%= import.file_name %>
+                <% end %>
+              </td>
+              <td><%= l(import.created_at, format: :short) %></td>
+              <td><%= import.imported_by.full_name %></td>
+              <td dir="auto">
+                <% branches = @import_branch_names[import.id] || [] %>
+                <%= branches.any? ? branches.join(", ") : "—" %>
+              </td>
+              <td class="text-end font-tabular"><%= import.total_rows %></td>
+              <td class="text-end font-tabular"><%= import.matched_rows %></td>
+              <td class="text-end font-tabular"><%= import.duplicate_rows %></td>
+              <td class="text-end font-tabular"><%= import.failed_rows %></td>
+              <td>
+                <% if import.imported? %>
+                  <span class="badge badge-success"><%= t("finance.sales_imports.index.status_imported") %></span>
+                <% elsif import.failed? %>
+                  <span class="badge badge-danger"><%= t("finance.sales_imports.index.status_failed") %></span>
+                <% elsif import.column_mapped? %>
+                  <span class="badge"><%= t("finance.sales_imports.index.status_column_mapped") %></span>
+                <% else %>
+                  <span class="badge"><%= t("finance.sales_imports.index.status_pending") %></span>
+                <% end %>
+              </td>
+              <td>
+                <div style="display: flex; gap: var(--space-2); justify-content: flex-end; flex-wrap: wrap;">
+                  <% if policy(import).show? %>
+                    <%= link_to t("shared.view"), finance_sales_import_path(import), class: "btn btn-ghost btn-sm" %>
+                  <% end %>
+                  <% if import.file.attached? %>
+                    <%= link_to t("finance.sales_imports.index.download_file"),
+                          rails_blob_path(import.file, disposition: "attachment"),
+                          class: "btn btn-ghost btn-sm" %>
+                  <% end %>
+                  <% if policy(import).destroy? %>
+                    <%= button_to t("common.delete"),
+                          finance_sales_import_path(import),
+                          method: :delete,
+                          data: { turbo_confirm: t("common.are_you_sure") },
+                          class: "btn btn-danger btn-sm",
+                          form_class: "inline" %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%= render "shared/pagination",
+          page: @page, total_pages: @total_pages,
+          path_proc: ->(p) { finance_sales_imports_path(request.query_parameters.merge(page: p)) } %>
 
   <% end %>
 

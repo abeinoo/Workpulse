@@ -1,5 +1,6 @@
 class SalesImportPolicy < ApplicationPolicy
   def index?                 = can?(:manage_sales_import)
+  def show?                  = can?(:manage_sales_import) && same_business?
   def create?                = can?(:manage_sales_import)
   def destroy?               = can?(:manage_sales_import)
   def edit_column_mapping?   = can?(:manage_sales_import)

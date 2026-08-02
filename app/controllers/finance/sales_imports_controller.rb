@@ -1,6 +1,10 @@
 class Finance::SalesImportsController < Finance::BaseController
-  before_action :set_sales_import, only: %i[edit_column_mapping update_column_mapping
+  before_action :set_sales_import, only: %i[show edit_column_mapping update_column_mapping
                                            preview_import confirm_import destroy]
+
+  DEFAULT_PER_PAGE = 25
+
+  SORT_COLUMNS = { "date" => "transaction_date", "amount" => "amount", "fee" => "fees" }.freeze
 
   COLUMN_DETECTION_RULES = [
     [ "transaction_date",    %w[payment\ date transaction\ date date] ],
@@ -16,10 +20,65 @@ class Finance::SalesImportsController < Finance::BaseController
   # GET /finance/sales_imports
   def index
     authorize SalesImport
-    @imports = current_user.business.sales_imports
-                           .includes(:imported_by)
-                           .ordered
-                           .limit(50)
+
+    base_scope = current_user.business.sales_imports
+
+    @imports = base_scope
+                 .then { |s| params[:file_name].present? ? s.where("file_name ILIKE ?", "%#{params[:file_name]}%") : s }
+                 .then { |s| params[:status].present? ? s.where(status: params[:status]) : s }
+                 .then { |s| params[:imported_by_id].present? ? s.where(imported_by_id: params[:imported_by_id]) : s }
+                 .then { |s| params[:branch_name].present? ? s.where(id: sales_transaction_import_ids(params[:branch_name])) : s }
+                 .then { |s| params[:date_from].present? ? s.where(created_at: parse_date(params[:date_from]).beginning_of_day..) : s }
+                 .then { |s| params[:date_to].present? ? s.where(created_at: ..parse_date(params[:date_to]).end_of_day) : s }
+                 .includes(:imported_by)
+                 .ordered
+
+    @page        = [ params.fetch(:page, 1).to_i, 1 ].max
+    @total_count = @imports.count
+    @total_pages = [ (@total_count.to_f / DEFAULT_PER_PAGE).ceil, 1 ].max
+    @imports     = @imports.offset((@page - 1) * DEFAULT_PER_PAGE).limit(DEFAULT_PER_PAGE).to_a
+
+    @import_branch_names = branch_names_by_import(@imports)
+
+    @filter_uploaders    = current_user.business.users.where(id: base_scope.distinct.pluck(:imported_by_id)).sort_by(&:full_name)
+    @filter_branch_names = SalesTransaction.where(business_id: current_user.business.id).distinct.pluck(:branch_name).compact.sort
+    @filter_statuses     = SalesImport::STATUSES
+
+    # Summary cards reflect the business-wide picture (base_scope, before
+    # filters) — see Performance Guidelines: "Scope counts separately from
+    # the display set."
+    @summary = {
+      total_imports:  base_scope.count,
+      total_rows:     base_scope.sum(:total_rows),
+      imported_rows:  base_scope.sum(:matched_rows),
+      duplicate_rows: base_scope.sum(:duplicate_rows),
+      failed_rows:    base_scope.sum(:failed_rows)
+    }
+  end
+
+  # GET /finance/sales_imports/:id
+  def show
+    authorize @sales_import
+
+    @transactions = @sales_import.sales_transactions
+                       .then { |s| params[:transaction_id].present? ? s.where("transaction_id ILIKE ?", "%#{params[:transaction_id]}%") : s }
+                       .then { |s| params[:reference_number].present? ? s.where("reference_number ILIKE ?", "%#{params[:reference_number]}%") : s }
+                       .then { |s| params[:branch_name].present? ? s.where(branch_name: params[:branch_name]) : s }
+                       .then { |s| params[:payment_method].present? ? s.where(payment_method_name: params[:payment_method]) : s }
+                       .then { |s| params[:status].present? ? s.where(status: params[:status]) : s }
+                       .then { |s| params[:date_from].present? ? s.where(transaction_date: parse_date(params[:date_from])..) : s }
+                       .then { |s| params[:date_to].present? ? s.where(transaction_date: ..parse_date(params[:date_to])) : s }
+                       .includes(daily_reconciliation: :branch)
+                       .order(Arel.sql("#{SORT_COLUMNS.fetch(params[:sort], "transaction_date")} #{params[:direction] == "asc" ? "asc" : "desc"}"))
+
+    @page        = [ params.fetch(:page, 1).to_i, 1 ].max
+    @total_count = @transactions.count
+    @total_pages = [ (@total_count.to_f / DEFAULT_PER_PAGE).ceil, 1 ].max
+    @transactions = @transactions.offset((@page - 1) * DEFAULT_PER_PAGE).limit(DEFAULT_PER_PAGE).to_a
+
+    @filter_branch_names    = @sales_import.sales_transactions.distinct.pluck(:branch_name).compact.sort
+    @filter_payment_methods = @sales_import.sales_transactions.distinct.pluck(:payment_method_name).compact.sort
+    @filter_statuses        = @sales_import.sales_transactions.distinct.pluck(:status).compact.sort
   end
 
   # GET /finance/sales_imports/new
@@ -207,6 +266,31 @@ class Finance::SalesImportsController < Finance::BaseController
 
   def set_sales_import
     @sales_import = current_user.business.sales_imports.find(params[:id])
+  end
+
+  def parse_date(value)
+    Date.iso8601(value)
+  rescue ArgumentError, TypeError
+    Date.current
+  end
+
+  def sales_transaction_import_ids(branch_name)
+    SalesTransaction.where(business_id: current_user.business.id, branch_name: branch_name).select(:sales_import_id)
+  end
+
+  # Batch-resolves the distinct branch names present in each import's
+  # transactions in one query for the whole page, rather than one query per
+  # row — SalesTransaction only carries a free-text branch_name (populated
+  # from the CSV), not a real Branch association, so this can't be an
+  # `.includes(:branch)` preload.
+  def branch_names_by_import(imports)
+    return {} if imports.empty?
+
+    SalesTransaction.where(sales_import_id: imports.map(&:id))
+                     .distinct
+                     .pluck(:sales_import_id, :branch_name)
+                     .group_by(&:first)
+                     .transform_values { |pairs| pairs.filter_map(&:last).sort }
   end
 
   def auto_detect_column_mapping(headers)

@@ -163,7 +163,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
       expect(result[:steps].find { |s| s[:key] == :deposit }[:complete]).to be true
       expect(result[:steps].find { |s| s[:key] == :deposit_review }[:complete]).to be true
       expect(current_key(result)).to eq(:sales_import)
-      expect(result[:action][:label]).to eq("Import Sales Transactions")
+      expect(result[:action][:label]).to eq("Verify Sales Transactions")
     end
   end
 
@@ -205,7 +205,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
 
       expect(current_key(result)).to eq(:sales_import)
       expect(result[:action]).to eq(
-        label: "Import Sales Transactions", path: new_finance_sales_import_path, style: "btn btn-primary btn-sm"
+        label: "Verify Sales Transactions", path: finance_sales_imports_path, style: "btn btn-primary btn-sm"
       )
     end
 

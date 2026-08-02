@@ -455,7 +455,7 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :sales_imports, only: %i[index new create destroy] do
+    resources :sales_imports, only: %i[index show new create destroy] do
       member do
         get   :edit_column_mapping
         patch :update_column_mapping
