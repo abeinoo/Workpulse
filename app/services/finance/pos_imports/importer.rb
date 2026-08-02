@@ -116,6 +116,8 @@ module Finance
 
           records.each_slice(BATCH_SIZE) { |batch| PosTransaction.insert_all(batch) }
 
+          invalidate_stale_bank_verifications!(records)
+
           ignored_amount = status_split.ignored_rows.sum { |row| row.attributes[:amount].to_s.to_d }
 
           pos_import.update!(
@@ -146,6 +148,31 @@ module Finance
                       expenses_created: expense_result.expenses.size
                     })
         end
+      end
+
+      # New POS rows can undermine bank matching that was already marked
+      # "completed" against the old POS picture (see
+      # DailyReconciliation#invalidate_bank_verification_for_pos_change! for
+      # the actual invalidation — this just finds which DRs to check: the
+      # (branch, calendar-date) buckets the newly inserted rows fall into,
+      # same bucketing PosTransaction.for_calendar_date and
+      # DailyReconciliationsController#build_pos_imported_dr_ids use).
+      # Skipped rows (duplicates) never reach `records`, so a re-upload that
+      # adds nothing new correctly triggers no invalidation.
+      def invalidate_stale_bank_verifications!(records)
+        return if records.empty?
+
+        tz = @actor.business.timezone_object
+        branch_dates = records.map { |r| [ r[:branch_id], r[:transaction_date].in_time_zone(tz).to_date ] }.uniq
+
+        DailyReconciliation
+          .where(business_id: @actor.business_id, branch_id: branch_dates.map(&:first).uniq,
+                 business_date: branch_dates.map(&:last).uniq)
+          .each do |dr|
+            next unless branch_dates.include?([ dr.branch_id, dr.business_date ])
+
+            dr.invalidate_bank_verification_for_pos_change!(actor: @actor)
+          end
       end
 
       def existing_transaction_ids(resolution)

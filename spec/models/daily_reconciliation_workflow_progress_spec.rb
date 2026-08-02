@@ -47,7 +47,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     dr = make_dr(state: "waiting_for_opening", business_date: Date.yesterday)
 
     expect(keys_of(dr.workflow_progress(no_perms_user))).to eq(
-      %i[opening_float close_handover deposit deposit_review sales_import bank_statement pos_import documentation]
+      %i[opening_float close_handover deposit deposit_review sales_import pos_import bank_statement documentation]
     )
   end
 
@@ -217,8 +217,41 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     end
   end
 
-  # ── Step 6: Bank Statement (import + matching + dispute resolution) ─────
-  describe "step 6 — bank_statement" do
+  # ── Step 6: POS Import ──────────────────────────────────────────────────
+  describe "step 6 — pos_import" do
+    let(:depositor) { create(:user, business: business) }
+    let(:dr) { make_dr(state: "deposited", depositor: depositor, reviewed: true) }
+
+    before { deposit!(dr, amount: 100, depositor: depositor) }
+
+    it "returns Import POS Transactions for a user with manage_pos_import" do
+      user = user_with("manage_pos_import", "view_pos_import")
+
+      result = dr.workflow_progress(user, sales_imported: true, pos_imported: false)
+
+      expect(current_key(result)).to eq(:pos_import)
+      expect(result[:action]).to eq(
+        label: "Import POS Transactions", path: new_finance_pos_import_path, style: "btn btn-primary btn-sm"
+      )
+    end
+
+    it "returns no action for a user without manage_pos_import" do
+      result = dr.workflow_progress(no_perms_user, sales_imported: true, pos_imported: false)
+
+      expect(current_key(result)).to eq(:pos_import)
+      expect(result[:action]).to be_nil
+    end
+
+    it "is complete once pos_imported is true, advancing to the next step" do
+      result = dr.workflow_progress(no_perms_user, sales_imported: true, pos_imported: true)
+
+      expect(current_key(result)).not_to eq(:pos_import)
+      expect(result[:steps].find { |s| s[:key] == :pos_import }[:complete]).to be true
+    end
+  end
+
+  # ── Step 7: Bank Statement (import + matching + dispute resolution) ─────
+  describe "step 7 — bank_statement" do
     let(:depositor) { create(:user, business: business) }
     let(:dr) { make_dr(state: "deposited", depositor: depositor, reviewed: true) }
 
@@ -227,7 +260,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     it "returns Import Bank Statement when bank_status is waiting_for_bank_statement" do
       user = user_with("import_bank_statement", "view_deposit_verification")
 
-      result = dr.workflow_progress(user, bank_status: "waiting_for_bank_statement", sales_imported: true)
+      result = dr.workflow_progress(user, bank_status: "waiting_for_bank_statement", sales_imported: true, pos_imported: true)
 
       expect(current_key(result)).to eq(:bank_statement)
       expect(result[:action]).to eq(
@@ -235,11 +268,17 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
       )
     end
 
+    it "is not reachable until pos_import is complete, even if bank_status is otherwise clean" do
+      result = dr.workflow_progress(no_perms_user, bank_status: "completed", sales_imported: true, pos_imported: false)
+
+      expect(current_key(result)).to eq(:pos_import)
+    end
+
     %w[needs_review waiting_for_matching difference_found partially_matched].each do |status|
       it "returns the bank_statement action (pointing at matching) for bank_status=#{status}" do
         user = user_with("manual_match_deposits", "verify_deposits", "view_deposit_verification")
 
-        result = dr.workflow_progress(user, bank_status: status, sales_imported: true)
+        result = dr.workflow_progress(user, bank_status: status, sales_imported: true, pos_imported: true)
 
         expect(current_key(result)).to eq(:bank_statement)
         expect(result[:action]).to eq(
@@ -257,7 +296,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
                                     bank_name: "NBE", terminal_id: "T-001")
       user = user_with("manage_bank_disputes", "view_daily_reconciliation")
 
-      result = dr.workflow_progress(user, bank_status: "completed", open_disputes: [ dispute ], sales_imported: true)
+      result = dr.workflow_progress(user, bank_status: "completed", open_disputes: [ dispute ], sales_imported: true, pos_imported: true)
 
       expect(current_key(result)).to eq(:bank_statement)
       expect(result[:action]).to eq(
@@ -267,41 +306,9 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     end
 
     it "is complete once bank_status is completed and there are no open disputes" do
-      result = dr.workflow_progress(no_perms_user, bank_status: "completed", sales_imported: true)
-
-      expect(current_key(result)).not_to eq(:bank_statement)
-    end
-  end
-
-  # ── Step 7: POS Import ──────────────────────────────────────────────────
-  describe "step 7 — pos_import" do
-    let(:depositor) { create(:user, business: business) }
-    let(:dr) { make_dr(state: "deposited", depositor: depositor, reviewed: true) }
-
-    before { deposit!(dr, amount: 100, depositor: depositor) }
-
-    it "returns Import POS Transactions for a user with manage_pos_import" do
-      user = user_with("manage_pos_import", "view_pos_import")
-
-      result = dr.workflow_progress(user, bank_status: "completed", sales_imported: true, pos_imported: false)
-
-      expect(current_key(result)).to eq(:pos_import)
-      expect(result[:action]).to eq(
-        label: "Import POS Transactions", path: new_finance_pos_import_path, style: "btn btn-primary btn-sm"
-      )
-    end
-
-    it "returns no action for a user without manage_pos_import" do
-      result = dr.workflow_progress(no_perms_user, bank_status: "completed", sales_imported: true, pos_imported: false)
-
-      expect(current_key(result)).to eq(:pos_import)
-      expect(result[:action]).to be_nil
-    end
-
-    it "is complete once pos_imported is true" do
       result = dr.workflow_progress(no_perms_user, bank_status: "completed", sales_imported: true, pos_imported: true)
 
-      expect(current_key(result)).not_to eq(:pos_import)
+      expect(current_key(result)).not_to eq(:bank_statement)
     end
   end
 

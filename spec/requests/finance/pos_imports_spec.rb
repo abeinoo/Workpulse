@@ -311,13 +311,35 @@ RSpec.describe "Finance::PosImports", type: :request do
   end
 
   describe "DELETE /finance/pos_imports/:id" do
-    it "deletes the import" do
+    it "deletes a pending import" do
       sign_in importer
-      pos_import = create(:pos_import, business: business, imported_by: importer)
+      pos_import = create(:pos_import, business: business, imported_by: importer, status: "pending")
 
       expect {
         delete finance_pos_import_path(pos_import)
       }.to change(PosImport, :count).by(-1)
+    end
+
+    it "deletes a failed import" do
+      sign_in importer
+      pos_import = create(:pos_import, business: business, imported_by: importer, status: "failed")
+
+      expect {
+        delete finance_pos_import_path(pos_import)
+      }.to change(PosImport, :count).by(-1)
+    end
+
+    it "refuses to delete a confirmed import — it's a financial document now, correct it by re-uploading instead" do
+      sign_in importer
+      pos_import = create(:pos_import, business: business, imported_by: importer, status: "imported")
+      create(:pos_transaction, pos_import: pos_import, business: business, branch: branch)
+
+      expect {
+        delete finance_pos_import_path(pos_import)
+      }.not_to change(PosImport, :count)
+
+      expect(response).to redirect_to(root_path)
+      expect(PosTransaction.where(pos_import: pos_import).count).to eq(1)
     end
   end
 end

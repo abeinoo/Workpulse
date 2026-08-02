@@ -81,6 +81,22 @@ class DailyReconciliation < ApplicationRecord
               metadata: { reason: "Financial data changed after review." })
   end
 
+  # Symmetric counterpart to #clear_review! for the later, separate
+  # "Verified" milestone (Finance::DailyReconciliationVerifier) — called when
+  # data the verification depended on changes after the fact. Reverts state
+  # to whatever the data shape says it should be (deposited if an active
+  # deposit still exists, closed otherwise — same derivation
+  # TillDepositVoider#revert_deposited_state! uses), since nothing stores
+  # "what state was this before verified".
+  def clear_verification!(actor:)
+    return unless verified?
+
+    reverted_state = till_deposits.active.exists? ? "deposited" : "closed"
+    update!(verified_at: nil, verified_by_id: nil, state: reverted_state)
+    log_audit(actor: actor, auditable: self, action: "verification_auto_cancelled",
+              metadata: { reason: "Bank matching data changed after verification." })
+  end
+
   # The self-deposit handover that closed the accounting day (as opposed to a
   # standalone "leave opening float" self-deposit, which also sets
   # self_deposit: true but is not the closing event).
@@ -220,6 +236,38 @@ class DailyReconciliation < ApplicationRecord
     deposits.all? { |d| d.match_status == :fully_matched } ? "completed" : "partially_matched"
   end
 
+  # Called by Finance::PosImports::Importer when new PosTransaction rows land
+  # for this DR's (branch, business_date) bucket — POS data is the source of
+  # truth for expected card-payment deposits, so bank matching already
+  # marked "completed" against the OLD POS picture can no longer be trusted.
+  # Mirrors TillDeposit#invalidate_bank_verification_if_critical_change
+  # exactly (same needs_reverification flip + audit event per transaction),
+  # just triggered from the POS side instead of a TillDeposit edit. Does NOT
+  # re-run Finance::DepositVerification::MatchingEngine — the user must
+  # press Re-match explicitly after reviewing the new POS data. If the DR
+  # had already been through the separate, later Verified milestone, that is
+  # invalidated too via #clear_verification!, since it was necessarily
+  # signed off on the same now-stale matching.
+  def invalidate_bank_verification_for_pos_change!(actor:)
+    return unless bank_reconciliation_status == "completed"
+
+    affected_transactions = active_deposits.includes(:bank_statement_transactions)
+                                            .flat_map(&:bank_statement_transactions)
+                                            .uniq
+                                            .reject(&:ignored?)
+    return if affected_transactions.empty?
+
+    affected_transactions.each do |txn|
+      previous_status = txn.status
+      txn.update_columns(status: "needs_reverification")
+      log_audit(actor: actor, auditable: txn, action: :verification_invalidated,
+                metadata: { previous_status: previous_status,
+                            reason: "POS transactions changed after bank verification." })
+    end
+
+    clear_verification!(actor: actor)
+  end
+
   def bank_reconciliation_deposits_matched_count
     active_deposits.to_a.count { |d| d.match_status == :fully_matched }
   end
@@ -276,7 +324,7 @@ class DailyReconciliation < ApplicationRecord
   # required_actions — no new authorization logic, only re-sequenced
   # presentation.
   WORKFLOW_STEPS = %i[opening_float close_handover deposit deposit_review
-                       sales_import bank_statement pos_import documentation].freeze
+                       sales_import pos_import bank_statement documentation].freeze
 
   # ── Single source of truth for "which stage of the core DR lifecycle is
   # this" — opening float → open (cashier working) → awaiting deposit →
@@ -326,10 +374,10 @@ class DailyReconciliation < ApplicationRecord
     deposit_complete = stage_index >= 3
     review_complete  = stage_index >= 4
     sales_complete   = review_complete && sales_imported
-    bank_complete    = sales_complete &&
+    pos_complete     = sales_complete && pos_imported
+    bank_complete    = pos_complete &&
                         %w[completed no_bank_transactions].include?(bank_status) && open_disputes.empty?
-    pos_complete     = bank_complete && pos_imported
-    doc_complete     = pos_complete && verified?
+    doc_complete     = bank_complete && verified?
 
     steps = [
       { key: :opening_float,  complete: opening_complete },
@@ -337,8 +385,8 @@ class DailyReconciliation < ApplicationRecord
       { key: :deposit,        complete: deposit_complete },
       { key: :deposit_review, complete: review_complete },
       { key: :sales_import,   complete: sales_complete },
-      { key: :bank_statement, complete: bank_complete },
       { key: :pos_import,     complete: pos_complete },
+      { key: :bank_statement, complete: bank_complete },
       { key: :documentation,  complete: doc_complete }
     ].map { |s| s.merge(label: label.call(s[:key])) }
 
@@ -376,6 +424,11 @@ class DailyReconciliation < ApplicationRecord
     when :sales_import
       { label: label.call(:sales_import), path: routes.new_finance_sales_import_path, style: primary_style }
 
+    when :pos_import
+      return nil unless user.can?(:manage_pos_import)
+
+      { label: label.call(:pos_import), path: routes.new_finance_pos_import_path, style: primary_style }
+
     when :bank_statement
       if bank_status == "waiting_for_bank_statement"
         return nil unless user.can?(:import_bank_statement)
@@ -390,11 +443,6 @@ class DailyReconciliation < ApplicationRecord
 
         { label: label.call(:bank_statement), path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: "btn btn-warning btn-sm" }
       end
-
-    when :pos_import
-      return nil unless user.can?(:manage_pos_import)
-
-      { label: label.call(:pos_import), path: routes.new_finance_pos_import_path, style: primary_style }
 
     when :documentation
       return nil unless DailyReconciliationPolicy.new(user, self).verify?

@@ -91,7 +91,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       @sales_imported_dr_ids = SalesTransaction.where(daily_reconciliation_id: all_drs.map(&:id))
                                             .distinct.pluck(:daily_reconciliation_id).to_set
 
-      # Same pattern for step 7 (POS Import) — one query for the whole page,
+      # Same pattern for step 6 (POS Import) — one query for the whole page,
       # a plain existence check (no financial figures read here). Deliberately
       # ungated by view_pos_import — same as the Sales Import existence check
       # above, this only proves "was anything imported?", never amounts.
@@ -1147,7 +1147,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # (branch_id, business_date) — one query for the whole page, grouped in
   # Ruby by [branch_id, business-timezone calendar date] to mirror
   # PosTransaction.for_calendar_date's per-branch bucketing exactly. Feeds
-  # DailyReconciliation#workflow_progress's step 7 (POS Import) completion
+  # DailyReconciliation#workflow_progress's step 6 (POS Import) completion
   # check — existence only, never reads amounts.
   def build_pos_imported_dr_ids(drs)
     dated_drs = drs.select(&:business_date)

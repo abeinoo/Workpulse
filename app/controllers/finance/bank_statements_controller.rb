@@ -109,6 +109,8 @@ class Finance::BankStatementsController < Finance::BaseController
         flash[:warning] = t("finance.bank_statements.overlap_warning",
                              count: overlapping.count,
                              files: overlapping.map(&:file_name).join(", "))
+      elsif !pos_transactions_imported_for?(@statement)
+        flash[:warning] = t("finance.bank_statements.pos_not_imported_warning")
       end
 
       redirect_to edit_column_mapping_finance_bank_statement_path(@statement)
@@ -262,6 +264,21 @@ class Finance::BankStatementsController < Finance::BaseController
                        statement.statement_to, statement.statement_from)
                 .then { |s| statement.branch_id? ? s.where(branch_id: [ statement.branch_id, nil ]) : s }
                 .limit(5)
+  end
+
+  # Non-blocking check backing the pos_not_imported_warning: bank statement
+  # matching is most reliable once POS transactions are already in the
+  # system (they're the source of truth for expected card-payment deposits),
+  # so we warn rather than hard-block — some businesses' bank statements do
+  # cover periods with no card sales at all (e.g. cash-only branches).
+  def pos_transactions_imported_for?(statement)
+    tz          = current_user.business.timezone_object
+    range_start = tz.local(statement.statement_from.year, statement.statement_from.month, statement.statement_from.day)
+    range_end   = tz.local(statement.statement_to.year, statement.statement_to.month, statement.statement_to.day) + 1.day
+
+    scope = PosTransaction.where(business_id: current_user.business.id, transaction_date: range_start...range_end)
+    scope = scope.where(branch_id: statement.branch_id) if statement.branch_id?
+    scope.exists?
   end
 
   def build_statement_stats(statement)

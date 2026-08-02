@@ -4756,8 +4756,8 @@ en:
               deposit: "Record Deposit"
               deposit_review: "Review Deposit"
               sales_import: "Import Sales Transactions"
-              bank_statement: "Import Bank Statement"
               pos_import: "Import POS Transactions"
+              bank_statement: "Import Bank Statement"
               documentation: "Document Reconciliation"
           empty_states:
             waiting_for_deposit: "No deposits waiting."
@@ -5607,6 +5607,7 @@ en:
       overlap_warning:
         one: "Warning: 1 existing import covers an overlapping date range (%{files}). You may be importing duplicate transactions."
         other: "Warning: %{count} existing imports cover an overlapping date range (%{files}). You may be importing duplicate transactions."
+      pos_not_imported_warning: "Warning: No POS transactions have been imported yet for this branch and date range. Import POS transactions first so bank matching runs against complete expected data."
       errors:
         file_blank: "Please select a bank statement file to upload."
         file_empty: "The file is empty. Please export a statement that contains a header row and at least one data row."
