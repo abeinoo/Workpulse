@@ -5,12 +5,50 @@
   <%# ── Page header ──────────────────────────────────────────────────────── %>
   <div class="page-header">
     <div>
-      <h1 class="page-title">
-        <% if @reconciliation.business_date %>
-          <%= l(@reconciliation.business_date, format: :long) %>
-          <span style="font-weight: 400; color: var(--text-3);">·</span>
+      <%# Previous/Next Day nav: physical position must stay right=Next,
+          left=Previous in BOTH LTR and RTL. CSS flexbox reverses DOM order
+          under dir="rtl" (first child renders on the right there, not the
+          left), so which button block is emitted first has to flip with
+          text direction — the buttons' own targets/icons never change. %>
+      <% previous_day_button = capture do %>
+        <% if @previous_reconciliation %>
+          <%= link_to finance_daily_reconciliation_path(@previous_reconciliation),
+                class: "btn btn-ghost btn-sm", title: t("finance.daily_reconciliations.show.nav_previous_day") do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+            <span class="sr-only"><%= t("finance.daily_reconciliations.show.nav_previous_day") %></span>
+          <% end %>
+        <% else %>
+          <span class="btn btn-ghost btn-sm" aria-disabled="true" style="opacity: 0.4; pointer-events: none;" title="<%= t("finance.daily_reconciliations.show.nav_previous_day") %>">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+          </span>
         <% end %>
-        <%= @reconciliation.branch.name %>
+      <% end %>
+      <% next_day_button = capture do %>
+        <% if @next_reconciliation %>
+          <%= link_to finance_daily_reconciliation_path(@next_reconciliation),
+                class: "btn btn-ghost btn-sm", title: t("finance.daily_reconciliations.show.nav_next_day") do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="sr-only"><%= t("finance.daily_reconciliations.show.nav_next_day") %></span>
+          <% end %>
+        <% else %>
+          <span class="btn btn-ghost btn-sm" aria-disabled="true" style="opacity: 0.4; pointer-events: none;" title="<%= t("finance.daily_reconciliations.show.nav_next_day") %>">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+          </span>
+        <% end %>
+      <% end %>
+      <h1 class="page-title" style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+        <% if I18n.locale.to_s == "ar" %>
+          <%= next_day_button %><%= previous_day_button %>
+        <% else %>
+          <%= previous_day_button %><%= next_day_button %>
+        <% end %>
+        <span>
+          <% if @reconciliation.business_date %>
+            <%= l(@reconciliation.business_date, format: :long) %>
+            <span style="font-weight: 400; color: var(--text-3);">·</span>
+          <% end %>
+          <%= @reconciliation.branch.name %>
+        </span>
       </h1>
       <p class="page-subtitle"><%= t("finance.daily_reconciliations.show.subtitle") %></p>
     </div>

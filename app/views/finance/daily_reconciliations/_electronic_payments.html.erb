@@ -29,13 +29,16 @@
 
 <% has_sales_data = sales_totals_by_method.any? %>
 
-<section id="electronic-payments" class="recon-section" style="margin-bottom: var(--space-6);">
-  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
-    <div>
-      <h2 class="dashboard-section__title"><%= t("finance.sales_imports.verification.title") %></h2>
-      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
-        <%= t("finance.sales_imports.verification.subtitle") %>
-      </p>
+<section id="electronic-payments" class="recon-section" data-controller="accordion" data-accordion-key-value="sales-verification" style="margin-bottom: var(--space-6);">
+  <div class="dashboard-section__header recon-accordion__header" style="margin-bottom: var(--space-4);">
+    <div class="recon-accordion__trigger" data-accordion-target="trigger" data-action="click->accordion#toggle keydown.enter->accordion#toggle keydown.space->accordion#toggle" role="button" tabindex="0" aria-expanded="false">
+      <span class="recon-accordion__chevron" data-accordion-target="icon" aria-hidden="true">▶</span>
+      <div>
+        <h2 class="dashboard-section__title"><%= t("finance.sales_imports.verification.title") %></h2>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+          <%= t("finance.sales_imports.verification.subtitle") %>
+        </p>
+      </div>
     </div>
     <div style="display: flex; align-items: center; gap: var(--space-3);">
       <% if !has_sales_data %>
@@ -52,6 +55,9 @@
       <% end %>
     </div>
   </div>
+
+  <div class="recon-accordion__panel" data-accordion-target="content">
+  <div class="recon-accordion__panel-inner">
 
   <%# ── Session Totals: daily sales overview, ALL payment methods (cash + electronic
       when the viewer holds view_session_totals; electronic-only otherwise). ── %>
@@ -146,7 +152,13 @@
     </div>
   </div>
 
-  <%# ── Employee Breakdown — owned by Sales Verification, replaces the old
-      standalone "Cashier Custody Summary" section. ── %>
-  <%= render "employee_summary" %>
+  </div>
+  </div>
 </section>
+
+<%# ── Employee Breakdown — its own independent accordion ("Sales Verification
+    Summary"), replacing the old standalone "Cashier Custody Summary" section.
+    Rendered as a sibling of, not nested inside, the Sales Verification
+    section above — see _employee_summary.html.erb for its own accordion
+    wrapper (id="sales-verification-summary"). ── %>
+<%= render "employee_summary" %>

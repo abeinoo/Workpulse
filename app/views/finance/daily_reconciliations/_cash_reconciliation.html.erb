@@ -4,13 +4,16 @@
     model/controller; this partial only formats and lays them out. %>
 
 <% if @can_view_session_totals || @employee_summaries&.any? %>
-  <section id="cash-reconciliation" class="recon-section" style="margin-bottom: var(--space-6);">
-    <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
-      <div>
-        <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.cash.title") %></h2>
-        <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
-          <%= t("finance.daily_reconciliations.show.sections.cash.subtitle") %>
-        </p>
+  <section id="cash-reconciliation" class="recon-section" data-controller="accordion" data-accordion-key-value="cash-reconciliation" style="margin-bottom: var(--space-6);">
+    <div class="dashboard-section__header recon-accordion__header" style="margin-bottom: var(--space-4);">
+      <div class="recon-accordion__trigger" data-accordion-target="trigger" data-action="click->accordion#toggle keydown.enter->accordion#toggle keydown.space->accordion#toggle" role="button" tabindex="0" aria-expanded="false">
+        <span class="recon-accordion__chevron" data-accordion-target="icon" aria-hidden="true">▶</span>
+        <div>
+          <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.cash.title") %></h2>
+          <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+            <%= t("finance.daily_reconciliations.show.sections.cash.subtitle") %>
+          </p>
+        </div>
       </div>
       <% if @can_edit_session_totals %>
         <%= link_to t("finance.daily_reconciliations.show.action_edit_session_totals"),
@@ -19,6 +22,8 @@
       <% end %>
     </div>
 
+    <div class="recon-accordion__panel" data-accordion-target="content">
+    <div class="recon-accordion__panel-inner">
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
       <% if @can_view_session_totals %>
         <div style="padding: var(--space-4) var(--space-5);">
@@ -138,6 +143,8 @@
           </div>
         </div>
       <% end %>
+    </div>
+    </div>
     </div>
   </section>
 <% end %>

@@ -16,21 +16,24 @@
         only appears here when the viewer holds view_session_totals). %>
 
 <% if @employee_summaries %>
-<div>
-  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
-    <div>
-      <h2 class="dashboard-section__title" style="display: flex; align-items: center; gap: var(--space-2);">
-        <%= t("finance.daily_reconciliations.show.employee_summary_title") %>
-        <span title="<%= t('finance.daily_reconciliations.show.employee_summary_tooltip') %>"
-              style="cursor: help; font-size: 11px; color: var(--text-3); font-style: normal; font-weight: 400; border: 1px solid var(--border); border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1;">
-          i
-        </span>
-      </h2>
-      <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
-        <%= @can_view_all_summary ?
-              t("finance.daily_reconciliations.show.employee_summary_subtitle") :
-              t("finance.daily_reconciliations.show.employee_summary_subtitle_own") %>
-      </p>
+<section id="sales-verification-summary" class="recon-section" data-controller="accordion" data-accordion-key-value="sales-verification-summary" style="margin-bottom: var(--space-6);">
+  <div class="dashboard-section__header recon-accordion__header" style="margin-bottom: var(--space-4);">
+    <div class="recon-accordion__trigger" data-accordion-target="trigger" data-action="click->accordion#toggle keydown.enter->accordion#toggle keydown.space->accordion#toggle" role="button" tabindex="0" aria-expanded="false">
+      <span class="recon-accordion__chevron" data-accordion-target="icon" aria-hidden="true">▶</span>
+      <div>
+        <h2 class="dashboard-section__title" style="display: flex; align-items: center; gap: var(--space-2);">
+          <%= t("finance.daily_reconciliations.show.employee_summary_title") %>
+          <span title="<%= t('finance.daily_reconciliations.show.employee_summary_tooltip') %>"
+                style="cursor: help; font-size: 11px; color: var(--text-3); font-style: normal; font-weight: 400; border: 1px solid var(--border); border-radius: 50%; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1;">
+            i
+          </span>
+        </h2>
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+          <%= @can_view_all_summary ?
+                t("finance.daily_reconciliations.show.employee_summary_subtitle") :
+                t("finance.daily_reconciliations.show.employee_summary_subtitle_own") %>
+        </p>
+      </div>
     </div>
     <% if @reconciliation.open? && @employee_summaries.any? %>
       <span style="font-size: 11px; font-weight: 600; color: var(--warning); background: rgba(var(--warning-rgb,202,138,4),0.10); border: 1px solid rgba(var(--warning-rgb,202,138,4),0.30); border-radius: var(--radius-sm); padding: 3px 8px; white-space: nowrap;">
@@ -38,6 +41,9 @@
       </span>
     <% end %>
   </div>
+
+  <div class="recon-accordion__panel" data-accordion-target="content">
+  <div class="recon-accordion__panel-inner">
 
   <% if @employee_summaries.empty? %>
     <p style="font-size: var(--text-sm); color: var(--text-2); padding: var(--space-4) 0;">
@@ -180,5 +186,8 @@
       <% end %>
     </div>
   <% end %>
-</div>
+
+  </div>
+  </div>
+</section>
 <% end %>

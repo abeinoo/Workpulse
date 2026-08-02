@@ -4806,6 +4806,8 @@ ar:
       show:
         title: "مراجعة الجلسة"
         subtitle: "مراجعة الجلسة — سلسلة التسليمات، إجماليات الجلسة، وسجلات الإيداع."
+        nav_previous_day: "اليوم السابق"
+        nav_next_day: "اليوم التالي"
         sections:
           summary:
             total_sales: "إجمالي المبيعات"
@@ -5042,6 +5044,9 @@ ar:
             label_responsible: "المسؤول"
             label_from_deposit: "من إيداع"
             label_settled_amount: "المبلغ المُسوَّى"
+            label_payment_method: "طريقة الدفع"
+            label_deposit_amount: "مبلغ الإيداع"
+            label_remaining_after: "الفرق المتبقي"
             label_settled_by: "سُوِّي بواسطة"
             label_settled_at: "وقت التسوية"
             label_prev_responsible: "المسؤول السابق"

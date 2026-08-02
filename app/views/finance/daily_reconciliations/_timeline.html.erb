@@ -214,17 +214,24 @@
         dl_val  = "font-size: 11px; color: var(--text-1); font-weight: 500;"
         cur_fmt = { unit: "", separator: ".", delimiter: "," }
       %>
-      <div>
+      <section id="audit-log" class="recon-section" data-controller="accordion" data-accordion-key-value="audit-log">
         <%# Section header with description %>
-        <div style="margin-bottom: var(--space-4);">
-          <h2 class="dashboard-section__title" style="margin-bottom: var(--space-1);">
-            <%= t("finance.daily_reconciliations.show.timeline_title") %>
-          </h2>
-          <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
-            <%= t("finance.daily_reconciliations.show.timeline.description") %>
-          </p>
+        <div class="dashboard-section__header recon-accordion__header" style="margin-bottom: var(--space-4);">
+          <div class="recon-accordion__trigger" data-accordion-target="trigger" data-action="click->accordion#toggle keydown.enter->accordion#toggle keydown.space->accordion#toggle" role="button" tabindex="0" aria-expanded="false">
+            <span class="recon-accordion__chevron" data-accordion-target="icon" aria-hidden="true">▶</span>
+            <div>
+              <h2 class="dashboard-section__title" style="margin-bottom: var(--space-1);">
+                <%= t("finance.daily_reconciliations.show.timeline_title") %>
+              </h2>
+              <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
+                <%= t("finance.daily_reconciliations.show.timeline.description") %>
+              </p>
+            </div>
+          </div>
         </div>
 
+        <div class="recon-accordion__panel" data-accordion-target="content">
+        <div class="recon-accordion__panel-inner">
         <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm);">
 
           <% stage_groups.each_with_index do |(stage_key, stage_events), si| %>
@@ -287,6 +294,9 @@
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                     <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: <%= cfg[:lc] %>; background: <%= cfg[:lb] %>; border-radius: 4px; padding: 1px 6px;">
                       <%= t("finance.daily_reconciliations.show.timeline.#{cfg[:lbl]}") %>
+                      <% if item[:type] == :remaining_settled && item[:payment_method] %>
+                        (<%= item[:payment_method].display_name %>)
+                      <% end %>
                     </span>
                     <button data-action="click->timeline-event#toggle"
                             style="background: none; border: none; cursor: pointer; padding: 2px; color: var(--text-3); display: flex; align-items: center; border-radius: var(--radius-sm);"
@@ -847,12 +857,34 @@
                       <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
                         <%= t("finance.daily_reconciliations.show.timeline.detail.ref_remaining", id: rdb.id) %>
                       </div>
+                      <% if item[:payment_method] %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_payment_method") %></span>
+                          <span style="<%= dl_val %>"><%= item[:payment_method].display_name %></span>
+                        </div>
+                      <% end %>
                       <div style="<%= dl_row %>">
                         <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_settled_amount") %></span>
                         <span style="<%= dl_val %>; color: var(--success,#16a34a);">
                           <%= number_to_currency(txn.amount, unit: "", separator: ".", delimiter: ",") %>
                         </span>
                       </div>
+                      <% if item[:triggering_deposit] %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_deposit_amount") %></span>
+                          <span style="<%= dl_val %>">
+                            <%= number_to_currency(item[:triggering_deposit].amount, unit: "", separator: ".", delimiter: ",") %>
+                          </span>
+                        </div>
+                      <% end %>
+                      <% if item[:remaining_after] %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_remaining_after") %></span>
+                          <span style="<%= dl_val %>; color: <%= item[:remaining_after].positive? ? 'var(--warning,#ca8a04)' : 'var(--text-3)' %>;">
+                            <%= number_to_currency(item[:remaining_after], unit: "", separator: ".", delimiter: ",") %>
+                          </span>
+                        </div>
+                      <% end %>
                       <div style="<%= dl_row %>">
                         <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_settled_by") %></span>
                         <span style="<%= dl_val %>"><%= item[:actor]&.full_name || "—" %></span>
@@ -1493,5 +1525,7 @@
           <% end %>
 
         </div>
-      </div>
+        </div>
+        </div>
+      </section>
     <% end %>

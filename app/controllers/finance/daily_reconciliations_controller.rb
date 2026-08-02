@@ -336,6 +336,22 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # GET /finance/daily_reconciliations/:id
   def show
     authorize @reconciliation
+
+    # Previous/Next Day navigation — same branch only, adjacency is by
+    # business_date (not id, which reflects creation order and can diverge
+    # from the business-date sequence). policy_scope keeps this within
+    # whatever branches/records the current user is authorized to see.
+    @previous_reconciliation = policy_scope(DailyReconciliation)
+                                  .where(branch_id: @reconciliation.branch_id)
+                                  .where("business_date < ?", @reconciliation.business_date)
+                                  .order(business_date: :desc)
+                                  .first
+    @next_reconciliation = policy_scope(DailyReconciliation)
+                              .where(branch_id: @reconciliation.branch_id)
+                              .where("business_date > ?", @reconciliation.business_date)
+                              .order(business_date: :asc)
+                              .first
+
     @session  = @reconciliation.till_session
     @handovers = @reconciliation.till_handovers
                                 .includes(:from_user, :to_user, :cancelled_by,
@@ -428,10 +444,11 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @pending_deposit_transfer_from_me  = @pending_deposit_transfer if @pending_deposit_transfer&.from_user_id == current_user.id
 
     @all_remaining_balances = @reconciliation.remaining_deposit_balances
-                                              .includes(:responsible_user, :created_by, :till_deposit,
-                                                         balance_transactions: %i[performed_by
-                                                                                  previous_responsible_user
-                                                                                  new_responsible_user])
+                                              .includes(:responsible_user, :created_by, till_deposit: :payment_method)
+                                              .includes(balance_transactions: %i[performed_by
+                                                                                 previous_responsible_user
+                                                                                 new_responsible_user
+                                                                                 payment_method])
                                               .order(:created_at)
     @total_remaining_balance  = @reconciliation.total_remaining_balance
     @total_settled_later      = @reconciliation.total_settled_later
@@ -1038,7 +1055,10 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       rdb.balance_transactions.each do |txn|
         type = txn_type_map[txn.transaction_type]
         next unless type
-        events << { type: type, time: txn.created_at, actor: txn.performed_by, data: txn, balance: rdb }
+
+        event = { type: type, time: txn.created_at, actor: txn.performed_by, data: txn, balance: rdb }
+        event.merge!(settlement_detail_for(txn, rdb)) if type == :remaining_settled
+        events << event
       end
     end
 
@@ -1076,6 +1096,69 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
 
     events.sort_by! { |e| e[:time] }
+  end
+
+  # ── Partial Settlement timeline detail (presentation only) ────────────────
+  # Adds payment_method / triggering_deposit / remaining_after to a
+  # :remaining_settled timeline event so the audit timeline can show which
+  # payment method was settled, the deposit that triggered it, and the
+  # balance left afterward — without the accountant opening the deposit or
+  # the Remaining Deposit Balance page. Reads only already-loaded
+  # associations (@all_deposits, @all_remaining_balances); never touches
+  # RemainingDepositBalance, its ledger, or any settlement rule.
+  def settlement_detail_for(txn, rdb)
+    triggering_deposit = triggering_deposit_for(txn, rdb)
+    payment_method = txn.payment_method || triggering_deposit&.payment_method || rdb.till_deposit&.payment_method
+
+    {
+      payment_method:     payment_method,
+      triggering_deposit: triggering_deposit,
+      remaining_after:    remaining_balance_after(rdb, txn)
+    }
+  end
+
+  # Finance::TillDepositRecorder#reconcile_remaining_balance! always creates
+  # the TillDeposit row first, then synchronously — same request, same DB
+  # transaction, a few milliseconds later — creates the resulting
+  # "settlement" ledger transaction. The nearest deposit at-or-before the
+  # settlement's own created_at, for the same payment method as the
+  # balance's originating deposit, is therefore reliably the one that
+  # triggered it. Manual settlements (recorded directly from the Remaining
+  # Deposit Balance page, via Finance::RemainingDepositBalanceSettler) have
+  # no triggering deposit at all — returns nil, and settlement_detail_for
+  # falls back to the transaction's own payment_method_id in that case.
+  def triggering_deposit_for(txn, rdb)
+    return nil unless rdb.till_deposit
+
+    pm_id = rdb.till_deposit.payment_method_id
+    (@all_deposits || [])
+      .select { |d| d.payment_method_id == pm_id && d.created_at <= txn.created_at }
+      .max_by(&:created_at)
+  end
+
+  # Read-only replay of this balance's own ledger up to and including txn,
+  # mirroring — never altering — the exact remaining_amount arithmetic each
+  # service already applies: Finance::RemainingDepositBalanceSettler
+  # (settlement: subtract), Finance::TillDepositRecorder#increase_remaining_balance!
+  # (adjustment: add), Finance::RemainingDepositBalanceWriteOff (write_off:
+  # zero), Finance::BankDisputes::RemainingBalanceReserver/Releaser
+  # (dispute_reserved: subtract / dispute_released: add). reassignment never
+  # touches the amount. balance.remaining_amount already holds the current/
+  # latest value; this recomputes historical snapshots for past events only.
+  def remaining_balance_after(rdb, txn)
+    running = 0
+    rdb.balance_transactions.sort_by(&:created_at).each do |t|
+      case t.transaction_type
+      when "created"          then running = t.amount
+      when "settlement"       then running -= t.amount
+      when "adjustment"       then running += t.amount
+      when "write_off"        then running = 0
+      when "dispute_reserved" then running -= t.amount
+      when "dispute_released" then running += t.amount
+      end
+      break if t.id == txn.id
+    end
+    running
   end
 
   # Session Totals table: one row per configured payment method (cash included

@@ -4782,6 +4782,8 @@ en:
       show:
         title: "Till Audit"
         subtitle: "End-of-session audit — handover timeline, session totals, and deposit records."
+        nav_previous_day: "Previous Day"
+        nav_next_day: "Next Day"
         sections:
           summary:
             total_sales: "Total Sales"
@@ -5018,6 +5020,9 @@ en:
             label_responsible: "Responsible"
             label_from_deposit: "From deposit"
             label_settled_amount: "Settled amount"
+            label_payment_method: "Payment Method"
+            label_deposit_amount: "Deposit Amount"
+            label_remaining_after: "Remaining Difference"
             label_settled_by: "Settled by"
             label_settled_at: "Settled at"
             label_prev_responsible: "Previous responsible"
