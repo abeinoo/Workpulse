@@ -78,6 +78,7 @@ Rails.application.routes.draw do
 
     resources :users do
       resources :salary_profiles, only: [ :new, :create, :edit, :update ]
+      resource  :employee_insurance_profile, only: [ :edit, :update ]
       resource  :password, only: [ :edit, :update ], controller: "user_passwords"
       member do
         patch :transfer_ownership

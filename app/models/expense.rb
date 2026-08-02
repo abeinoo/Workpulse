@@ -10,6 +10,7 @@ class Expense < ApplicationRecord
   belongs_to :approved_by, class_name: "User", optional: true
   belongs_to :source_recurring_expense, class_name: "RecurringExpense", optional: true
   belongs_to :source_pos_import, class_name: "PosImport", optional: true, inverse_of: :generated_expenses
+  belongs_to :source_payroll_period, class_name: "PayrollPeriod", optional: true
 
   has_many :expense_allocations, dependent: :destroy
   has_many :allocated_branches,  through: :expense_allocations, source: :branch
@@ -38,6 +39,12 @@ class Expense < ApplicationRecord
   # mirroring GoodsReceipt::FUNDING_SOURCE_KINDS.
   PAYMENT_SOURCES = %w[employee_custody company_cash bank_account supplier_credit unpaid].freeze
 
+  # Once system_generated? (see #system_generated?), only these columns may
+  # still change — the void path. Everything else is locked at the model
+  # layer, not just the policy layer, so a system-generated expense can never
+  # be edited even from the console or a future service bug.
+  SYSTEM_GENERATED_MUTABLE_ATTRIBUTES = %w[voided_at voided_by_id void_reason updated_at].freeze
+
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :expense_date, presence: true
 
@@ -54,6 +61,8 @@ class Expense < ApplicationRecord
 
   before_validation :normalize_branch_mode
   before_validation :sync_payment_source
+  before_update  :prevent_system_generated_mutation
+  before_destroy :prevent_system_generated_destruction
 
   scope :for_business, ->(business)   { where(business: business) }
   scope :for_branch,   ->(branch_id)  { where(branch_id: branch_id) if branch_id.present? }
@@ -79,11 +88,12 @@ class Expense < ApplicationRecord
     amount
   end
 
-  private
-
+  # Public: read by ExpensePolicy (blocks manual edit/delete) and views (badge).
   def system_generated?
-    source_recurring_expense_id.present?
+    source_recurring_expense_id.present? || source_payroll_period_id.present?
   end
+
+  private
 
   # branch_id present  → specific-branch expense: any distribution data is ignored
   #                       (existing allocation rows are dropped, not saved).
@@ -142,6 +152,19 @@ class Expense < ApplicationRecord
     return if created_by.custody_accounts.active.exists?
 
     errors.add(:base, :no_balance_account)
+  end
+
+  def prevent_system_generated_mutation
+    return unless system_generated?
+
+    disallowed = changed_attribute_names_to_save - SYSTEM_GENERATED_MUTABLE_ATTRIBUTES
+    return if disallowed.empty?
+
+    raise ActiveRecord::ReadOnlyRecord, "System-generated expenses can only be voided, not edited."
+  end
+
+  def prevent_system_generated_destruction
+    raise ActiveRecord::ReadOnlyRecord, "System-generated expenses cannot be deleted." if system_generated?
   end
 
   def documents_acceptable

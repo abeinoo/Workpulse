@@ -47,6 +47,7 @@ class User < ApplicationRecord
   has_many :advances,              dependent: :destroy
   has_many :payroll_entries,       dependent: :destroy
   has_many :employee_obligations,  dependent: :destroy, foreign_key: :user_id
+  has_one  :employee_insurance_profile, dependent: :destroy
 
   # Performance evaluation (new module). employee_id is the subject of reviews
   # and observations; reviewer_id / observed_by_id are tracked separately.

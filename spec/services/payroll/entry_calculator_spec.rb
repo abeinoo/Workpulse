@@ -762,4 +762,54 @@ RSpec.describe Payroll::EntryCalculator do
       expect(entry.base_salary).to eq(400.0 * 22)
     end
   end
+
+  describe "insurance snapshot freeze after a period has been finalized" do
+    let!(:insurance_profile) do
+      create(:employee_insurance_profile, user: user,
+             employee_contribution_amount: 450.0, employer_contribution_amount: 1_250.0)
+    end
+
+    def recalculate(entry)
+      described_class.call(period: period, user: user, business: business, entry: entry)
+    end
+
+    it "snapshots live values on a period that has never been finalized" do
+      entry = run
+      expect(entry.insured).to be true
+      expect(entry.employee_insurance_amount).to eq(450.0)
+      expect(entry.employer_insurance_amount).to eq(1_250.0)
+    end
+
+    it "re-reads the profile on recalculation before the period is ever finalized" do
+      entry = run
+      insurance_profile.update!(employee_contribution_amount: 500.0, employer_contribution_amount: 1_400.0)
+
+      recalculated = recalculate(entry)
+      expect(recalculated.employee_insurance_amount).to eq(500.0)
+      expect(recalculated.employer_insurance_amount).to eq(1_400.0)
+    end
+
+    it "freezes the snapshot on recalculation once the period has been finalized, even after reopening" do
+      entry = run
+      create(:payroll_audit_log, payroll_period: period, action_type: "finalized",
+             from_status: "branch_review_completed", to_status: "finalized")
+
+      insurance_profile.update!(employee_contribution_amount: 999.0, employer_contribution_amount: 999.0)
+
+      recalculated = recalculate(entry)
+      expect(recalculated.employee_insurance_amount).to eq(450.0)
+      expect(recalculated.employer_insurance_amount).to eq(1_250.0)
+    end
+
+    it "keeps the frozen insurance_deduction line item amount in total_deductions after a post-finalize recalculation" do
+      entry = run
+      create(:payroll_audit_log, payroll_period: period, action_type: "finalized",
+             from_status: "branch_review_completed", to_status: "finalized")
+      insurance_profile.update!(employee_contribution_amount: 999.0)
+
+      recalculated = recalculate(entry)
+      line_item = recalculated.payroll_line_items.find_by(item_type: "insurance_deduction")
+      expect(line_item.amount).to eq(-450.0)
+    end
+  end
 end

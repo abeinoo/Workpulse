@@ -45,6 +45,7 @@ module Payroll
             from_status:    from,
             to_status:      "finalized"
           )
+          Payroll::InsuranceExpenseGenerator.call(period: @period, actor: @by)
         when "paid"
           settle_advances!
           @period.update!(status: "paid")

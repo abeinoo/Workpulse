@@ -72,6 +72,7 @@ class Business < ApplicationRecord
   has_many :balance_requests,      dependent: :destroy
   has_many :recurring_expenses,    dependent: :destroy
   has_many :custody_accounts,      dependent: :destroy
+  has_many :employee_insurance_profiles, dependent: :destroy
   has_many :custody_transactions,  dependent: :destroy
   has_many :branch_revenues,       dependent: :destroy
   has_many :sales_imports,         dependent: :destroy

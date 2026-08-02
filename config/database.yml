@@ -3,6 +3,17 @@ default: &default
   encoding: unicode
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
 
+# cache/queue/cable share the primary connection's physical database in every
+# environment (see the production note below). `database_tasks: false` tells
+# Rails these roles don't own independent schema/migration lifecycle — db:migrate,
+# db:schema:dump, and db:test:prepare only ever touch `primary`. Without this,
+# each role's schema dump captures *every* table currently in the shared
+# database (there's no way for the dumper to know which tables are "its own"),
+# and reloading them in sequence after primary clobbers primary's tables with
+# whatever was in that stale dump. The solid_queue/solid_cache/solid_cable
+# tables themselves are created via ordinary migrations in db/migrate (see
+# 20260731140000_create_solid_queue_tables.rb and siblings) — they're part of
+# primary's own migration stream now, not a separately-dumped schema.
 development:
   primary: &development_primary
     <<: *default
@@ -14,12 +25,15 @@ development:
   cache:
     <<: *development_primary
     migrations_paths: db/cache_migrate
+    database_tasks: false
   queue:
     <<: *development_primary
     migrations_paths: db/queue_migrate
+    database_tasks: false
   cable:
     <<: *development_primary
     migrations_paths: db/cable_migrate
+    database_tasks: false
 
 test:
   primary: &test_primary
@@ -32,12 +46,15 @@ test:
   cache:
     <<: *test_primary
     migrations_paths: db/cache_migrate
+    database_tasks: false
   queue:
     <<: *test_primary
     migrations_paths: db/queue_migrate
+    database_tasks: false
   cable:
     <<: *test_primary
     migrations_paths: db/cable_migrate
+    database_tasks: false
 
 # In production all four connections share a single PostgreSQL database.
 # The solid_cache / solid_queue / solid_cable tables live alongside the
@@ -49,9 +66,12 @@ production:
   cache:
     <<: *production_primary
     migrations_paths: db/cache_migrate
+    database_tasks: false
   queue:
     <<: *production_primary
     migrations_paths: db/queue_migrate
+    database_tasks: false
   cable:
     <<: *production_primary
     migrations_paths: db/cable_migrate
+    database_tasks: false

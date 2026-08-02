@@ -290,6 +290,54 @@
     <% end %>
   </div>
 
+  <%# Social Insurance %>
+  <% insurance_profile = @user.employee_insurance_profile %>
+  <% if policy(EmployeeInsuranceProfile.new(user: @user)).show? %>
+    <div class="card" style="margin-top: var(--space-6);">
+      <div class="card-header">
+        <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("insurance.card_title") %></h2>
+        <% if policy(insurance_profile || EmployeeInsuranceProfile.new(user: @user)).update? %>
+          <%= link_to t("insurance.edit_btn"), edit_admin_user_employee_insurance_profile_path(@user), class: "btn btn-sm btn-secondary" %>
+        <% end %>
+      </div>
+
+      <% if insurance_profile&.insured? %>
+        <dl class="data-list">
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("insurance.status_label") %></dt>
+            <dd class="data-list__value"><span class="badge badge-success"><%= t("insurance.insured") %></span></dd>
+          </div>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("insurance.employee_contribution") %></dt>
+            <dd class="data-list__value"><%= format_currency(insurance_profile.employee_contribution_amount) %></dd>
+          </div>
+          <% if policy(insurance_profile).view_employer_contribution? %>
+            <div class="data-list__item">
+              <dt class="data-list__label"><%= t("insurance.employer_contribution") %></dt>
+              <dd class="data-list__value"><%= format_currency(insurance_profile.employer_contribution_amount) %></dd>
+            </div>
+          <% end %>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("insurance.start_date") %></dt>
+            <dd class="data-list__value"><%= local_date(insurance_profile.insurance_start_date) %></dd>
+          </div>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("insurance.end_date") %></dt>
+            <dd class="data-list__value"><%= insurance_profile.insurance_end_date ? local_date(insurance_profile.insurance_end_date) : "—" %></dd>
+          </div>
+          <% if insurance_profile.insurance_number.present? %>
+            <div class="data-list__item">
+              <dt class="data-list__label"><%= t("insurance.insurance_number") %></dt>
+              <dd class="data-list__value"><%= insurance_profile.insurance_number %></dd>
+            </div>
+          <% end %>
+        </dl>
+      <% else %>
+        <p style="padding: var(--space-4); color: var(--text-2);"><%= t("insurance.not_insured") %></p>
+      <% end %>
+    </div>
+  <% end %>
+
   <%# ── Shift Timeline ─────────────────────────────────────────────────────── %>
   <div class="card shift-timeline" style="margin-top: var(--space-6);">
     <div class="card-header">

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_01_000300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -315,7 +315,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.boolean "active", default: true, null: false
     t.string "address"
     t.integer "area_manager_id"
-    t.string "bank_account_number"
     t.integer "branch_manager_id"
     t.string "branch_type", default: "sales", null: false
     t.integer "business_id", null: false
@@ -359,7 +358,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.bigint "owner_id"
     t.integer "payroll_auto_generate_day", comment: "day-of-month to auto-generate (nil = disabled, 1-28)"
     t.integer "payroll_cutoff_day", default: 0, null: false, comment: "attendance cutoff day for prior month (0 = end-of-month)"
-    t.integer "pos_match_time_tolerance_minutes", default: 5, null: false
     t.text "settings"
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
@@ -477,6 +475,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.index ["daily_reconciliation_id"], name: "idx_on_daily_reconciliation_id_5e4449e75b"
     t.index ["from_user_id"], name: "index_deposit_responsibility_transfers_on_from_user_id"
     t.index ["to_user_id"], name: "index_deposit_responsibility_transfers_on_to_user_id"
+  end
+
+  create_table "employee_insurance_profiles", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.decimal "employee_contribution_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "employer_contribution_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.date "insurance_end_date"
+    t.string "insurance_number"
+    t.date "insurance_start_date"
+    t.boolean "insured", default: false, null: false
+    t.text "notes"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["business_id"], name: "index_employee_insurance_profiles_on_business_id"
+    t.index ["created_by_id"], name: "index_employee_insurance_profiles_on_created_by_id"
+    t.index ["user_id"], name: "index_employee_insurance_profiles_on_user_id", unique: true
   end
 
   create_table "employee_obligations", force: :cascade do |t|
@@ -661,9 +677,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.string "reference_number", null: false
     t.datetime "rejected_at"
     t.text "rejection_reason"
+    t.bigint "source_payroll_period_id"
     t.bigint "source_pos_import_id"
     t.bigint "source_recurring_expense_id"
-    t.string "source_transaction_id"
     t.string "status", default: "draft", null: false
     t.datetime "updated_at", null: false
     t.text "void_reason"
@@ -673,14 +689,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.index ["branch_id", "expense_date"], name: "index_expenses_on_branch_id_and_expense_date"
     t.index ["business_id", "expense_date"], name: "index_expenses_on_business_id_and_expense_date"
     t.index ["business_id", "reference_number"], name: "index_expenses_on_business_id_and_reference_number", unique: true
-    t.index ["business_id", "source_transaction_id", "expense_category_id"], name: "idx_expenses_biz_source_txn_category_unique", unique: true, where: "((source_transaction_id IS NOT NULL) AND (voided_at IS NULL))"
     t.index ["business_id", "status"], name: "index_expenses_on_business_id_and_status"
     t.index ["business_id"], name: "index_expenses_on_business_id"
     t.index ["created_by_id"], name: "index_expenses_on_created_by_id"
     t.index ["expense_category_id"], name: "index_expenses_on_expense_category_id"
     t.index ["expense_type_id"], name: "index_expenses_on_expense_type_id"
+    t.index ["source_payroll_period_id"], name: "idx_expenses_on_active_source_payroll_period", unique: true, where: "((source_payroll_period_id IS NOT NULL) AND (voided_at IS NULL))"
     t.index ["source_pos_import_id", "branch_id"], name: "idx_expenses_on_source_pos_import_and_branch", unique: true, where: "(source_pos_import_id IS NOT NULL)"
-    t.index ["source_pos_import_id"], name: "index_expenses_on_source_pos_import_id"
     t.index ["source_recurring_expense_id", "expense_date"], name: "index_expenses_on_recurring_source_and_date", unique: true, where: "(source_recurring_expense_id IS NOT NULL)"
     t.index ["source_recurring_expense_id"], name: "index_expenses_on_source_recurring_expense_id"
     t.index ["voided_by_id"], name: "index_expenses_on_voided_by_id"
@@ -989,6 +1004,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.decimal "calculated_overtime_pay", precision: 12, scale: 2, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.integer "days_worked", default: 0, null: false
+    t.decimal "employee_insurance_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "employer_insurance_amount", precision: 12, scale: 2, default: "0.0", null: false
+    t.string "insurance_number"
+    t.boolean "insured", default: false, null: false
     t.decimal "net_salary", precision: 12, scale: 2, null: false
     t.text "notes"
     t.decimal "obligations_deducted", precision: 12, scale: 2, default: "0.0", null: false
@@ -1434,30 +1453,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.integer "duplicate_rows", default: 0, null: false
     t.integer "failed_rows", default: 0, null: false
     t.string "file_name", null: false
-    t.integer "ignored_rows", default: 0, null: false
     t.bigint "imported_by_id", null: false
     t.integer "matched_rows", default: 0, null: false
     t.jsonb "preview_data", default: {}, null: false
     t.string "status", default: "pending", null: false
-    t.integer "subscription_expense_rows", default: 0, null: false
-    t.datetime "superseded_at"
-    t.bigint "superseded_by_id"
     t.integer "total_rows", default: 0, null: false
-    t.integer "unknown_terminal_rows", default: 0, null: false
     t.integer "unmatched_rows", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["business_id"], name: "index_sales_imports_on_business_id"
     t.index ["imported_by_id"], name: "index_sales_imports_on_imported_by_id"
     t.index ["status"], name: "index_sales_imports_on_status"
-    t.index ["superseded_by_id"], name: "index_sales_imports_on_superseded_by_id"
   end
 
   create_table "sales_transactions", force: :cascade do |t|
-    t.decimal "amount", precision: 15, scale: 4
+    t.decimal "amount", precision: 15, scale: 4, null: false
     t.bigint "branch_id"
     t.string "branch_name"
     t.bigint "business_id", null: false
-    t.string "cashier_name"
+    t.string "cashier_name", null: false
     t.datetime "created_at", null: false
     t.bigint "daily_reconciliation_id"
     t.decimal "fees", precision: 15, scale: 4
@@ -1470,12 +1483,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.string "status", default: "successful", null: false
     t.datetime "superseded_at"
     t.string "terminal_id"
-    t.date "transaction_date"
+    t.date "transaction_date", null: false
     t.string "transaction_id"
     t.time "transaction_time"
     t.datetime "updated_at", null: false
     t.index ["branch_id"], name: "index_sales_transactions_on_branch_id"
     t.index ["branch_name"], name: "index_sales_transactions_on_branch_name"
+    t.index ["business_id", "reference_number"], name: "idx_pos_txn_business_reference_unique", unique: true, where: "(reference_number IS NOT NULL)"
     t.index ["business_id", "transaction_id"], name: "idx_pos_txn_business_transaction_id_unique", unique: true, where: "((transaction_id IS NOT NULL) AND (superseded_at IS NULL))"
     t.index ["business_id"], name: "index_sales_transactions_on_business_id"
     t.index ["cashier_name"], name: "index_sales_transactions_on_cashier_name"
@@ -2254,6 +2268,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
   add_foreign_key "deposit_responsibility_transfers", "users", column: "cancelled_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "from_user_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "to_user_id"
+  add_foreign_key "employee_insurance_profiles", "businesses"
+  add_foreign_key "employee_insurance_profiles", "users"
+  add_foreign_key "employee_insurance_profiles", "users", column: "created_by_id"
   add_foreign_key "employee_obligations", "businesses"
   add_foreign_key "employee_obligations", "users"
   add_foreign_key "employee_obligations", "users", column: "created_by_id"
@@ -2279,6 +2296,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
   add_foreign_key "expenses", "businesses"
   add_foreign_key "expenses", "expense_categories"
   add_foreign_key "expenses", "expense_types"
+  add_foreign_key "expenses", "payroll_periods", column: "source_payroll_period_id"
   add_foreign_key "expenses", "pos_imports", column: "source_pos_import_id"
   add_foreign_key "expenses", "recurring_expenses", column: "source_recurring_expense_id"
   add_foreign_key "expenses", "users", column: "approved_by_id"
@@ -2399,7 +2417,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
   add_foreign_key "remaining_deposit_balances", "users", column: "responsible_user_id"
   add_foreign_key "salary_profiles", "users"
   add_foreign_key "sales_imports", "businesses"
-  add_foreign_key "sales_imports", "sales_imports", column: "superseded_by_id"
   add_foreign_key "sales_imports", "users", column: "imported_by_id"
   add_foreign_key "sales_transactions", "branches"
   add_foreign_key "sales_transactions", "businesses"

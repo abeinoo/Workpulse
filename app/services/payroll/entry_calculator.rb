@@ -43,7 +43,8 @@ module Payroll
       effective_start        = [ earliest_effective, @period.period_start ].max
       effective_working_days = working_days_for(effective_start)
 
-      records = load_records
+      records   = load_records
+      insurance = resolve_insurance_snapshot
 
       # Only COMPLETE attendance days are payable. Incomplete/single-punch records
       # (check-in without check-out) remain visible in attendance reports but never
@@ -51,6 +52,7 @@ module Payroll
       days_worked        = records.count(&:complete?)
       line_items         = attendance_line_items(records, daily_rate, profile.overtime_multiplier)
       line_items        += absence_line_items(profile, days_worked, daily_rate, effective_working_days, effective_start)
+      line_items        += insurance_line_items(insurance)
       advance_result     = AdvanceDeductor.call(user: @user)
       obligation_result  = ObligationDeductor.call(user: @user, period: @period)
       adj_items          = adjustment_line_items
@@ -94,6 +96,10 @@ module Payroll
           already_paid_total:   already_paid_total.round(2),
           advances_deducted:    advances_deducted.round(2),
           obligations_deducted: obligations_deducted.round(2),
+          insured:                     insurance[:insured],
+          employee_insurance_amount:   insurance[:employee_amount].round(2),
+          employer_insurance_amount:   insurance[:employer_amount].round(2),
+          insurance_number:            insurance[:insurance_number],
           net_salary:           net_salary.round(2),
           status:               "draft",
           notes:                nil
@@ -125,6 +131,56 @@ module Payroll
     end
 
     private
+
+    # Insurance values are "live" (re-read from EmployeeInsuranceProfile on every
+    # recalculation) up until the period's first finalize — matching every other
+    # field (attendance, obligations, bonuses). But unlike those fields, once a
+    # period has EVER been finalized, its insurance snapshot must stay frozen
+    # for good, even if the period is later reopened and recalculated for an
+    # unrelated reason: Payroll::EntryRecalculator runs on any !locked? period
+    # (draft, under_review, branch_review_completed — including a reopened
+    # finalized period, since Payroll::Reopener only ever returns a period to
+    # branch_review_completed, never draft), triggered by attendance edits or
+    # obligation changes that have nothing to do with insurance. Without this
+    # guard, an unrelated attendance fix during a reopen would silently
+    # re-derive insurance from whatever the profile says *today*, breaking the
+    # "frozen after finalization" guarantee the feature depends on.
+    #
+    # period_ever_finalized? is the only reliable signal: PayrollPeriod#status
+    # itself gets reset to branch_review_completed on reopen (see Reopener), so
+    # status alone can't distinguish "never finalized" from "reopened".
+    def resolve_insurance_snapshot
+      profile = @user.employee_insurance_profile
+
+      if @existing_entry && period_ever_finalized?
+        {
+          insured:          @existing_entry.insured?,
+          employee_amount:  @existing_entry.employee_insurance_amount.to_f,
+          employer_amount:  @existing_entry.employer_insurance_amount.to_f,
+          insurance_number: @existing_entry.insurance_number,
+          source:           @existing_entry.insured? ? profile : nil
+        }
+      else
+        insured = profile&.covers_period?(@period.period_start, @period.period_end) || false
+        {
+          insured:          insured,
+          employee_amount:  insured ? profile.employee_contribution_amount.to_f : 0.0,
+          employer_amount:  insured ? profile.employer_contribution_amount.to_f : 0.0,
+          insurance_number: insured ? profile.insurance_number : nil,
+          source:           insured ? profile : nil
+        }
+      end
+    end
+
+    def period_ever_finalized?
+      @period.payroll_audit_logs.exists?(action_type: "finalized")
+    end
+
+    def insurance_line_items(insurance)
+      return [] unless insurance[:insured]
+
+      [ item("insurance_deduction", -insurance[:employee_amount], insurance[:source], "Social insurance contribution") ]
+    end
 
     def load_records
       AttendanceRecord

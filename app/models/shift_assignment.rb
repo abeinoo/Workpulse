@@ -75,6 +75,17 @@ class ShiftAssignment < ApplicationRecord
       .each_with_object({}) { |(uid, name), h| h[uid] = name }
   end
 
+  # Same as branch_names_by_user but keyed to branch_id — used where a system
+  # process needs to attribute a business-wide cost (e.g. payroll-generated
+  # expenses) back to the branch(es) it's actually associated with.
+  def self.branch_ids_by_user(user_ids, from:, to:)
+    active_during(from, to)
+      .where(user_id: user_ids)
+      .order(:effective_from)
+      .pluck(:user_id, :branch_id)
+      .each_with_object({}) { |(uid, branch_id), h| h[uid] = branch_id }
+  end
+
   # ── Status helpers ───────────────────────────────────────────────────────────
 
   # Assignment starts in the future (before today — no punches yet).

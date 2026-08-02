@@ -5,6 +5,7 @@ class PayrollLineItem < ApplicationRecord
 
   ITEM_TYPES = %w[
     late_penalty early_leave_penalty overtime advance_deduction obligation_deduction
+    insurance_deduction
     cash_incentive commission
     penalty manual_deduction manual_adjustment
   ].freeze
@@ -19,6 +20,7 @@ class PayrollLineItem < ApplicationRecord
     overtime:             "overtime",
     advance_deduction:    "advance_deduction",
     obligation_deduction: "obligation_deduction",
+    insurance_deduction:  "insurance_deduction",
     cash_incentive:       "cash_incentive",
     commission:           "commission",
     penalty:              "penalty",

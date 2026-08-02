@@ -1,0 +1,24 @@
+<% content_for :title, "#{t('insurance.edit.title')} — #{@employee.full_name}" %>
+
+<div class="form-page">
+  <%= link_to admin_user_path(@employee), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("insurance.edit.back", name: @employee.full_name) %>
+  <% end %>
+
+  <div class="card">
+    <div class="card-header">
+      <h1 class="card-title"><%= t("insurance.edit.title") %></h1>
+      <p class="card-subtitle"><%= t("insurance.edit.for", name: @employee.full_name) %></p>
+    </div>
+
+    <% if @payroll_insurance_notice != :none %>
+      <div class="alert <%= @payroll_insurance_notice == :finalized ? "alert-warning" : "alert-info" %>"
+           style="margin: 0 var(--space-5) var(--space-5);">
+        <%= t("insurance.payroll_notice.#{@payroll_insurance_notice}") %>
+      </div>
+    <% end %>
+
+    <%= render "form", profile: @profile %>
+  </div>
+</div>

@@ -214,6 +214,22 @@
     </div>
   </div>
 
+  <%
+    show_employer_insurance = @entry.insured? && @entry.user_id != current_user.id &&
+                               current_user.can?(:manage_employee_insurance)
+  %>
+  <% if show_employer_insurance %>
+    <div class="payslip-breakdown payslip-breakdown--info" style="margin-bottom: 1.5rem;">
+      <div class="payslip-breakdown__row" style="font-weight: 600; color: var(--text-2);">
+        <span><%= t("insurance.payslip_employer_info_title") %></span>
+      </div>
+      <div class="payslip-breakdown__row">
+        <span class="payslip-breakdown__label"><%= t("insurance.payslip_employer_contribution") %></span>
+        <span class="payslip-breakdown__value"><%= format_currency(@entry.employer_insurance_amount) %></span>
+      </div>
+    </div>
+  <% end %>
+
   <%# ── Deductions (attendance penalties, manual deductions, advance/obligation
        repayments — every deduction that affected net salary, in one table) ── %>
   <% show_deductions_section = @deductions.any? || (can_manage && @period.reviewable?) %>

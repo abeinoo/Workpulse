@@ -16,6 +16,7 @@ class PermissionRole < ApplicationRecord
 
   PERMISSION_GROUPS = {
     employees:             %w[view_employees manage_employees manage_salary_profiles],
+    insurance:             %w[view_employee_insurance manage_employee_insurance],
     attendance:            %w[view_attendance manage_attendance delete_attendance manage_devices],
     payroll:               %w[view_payroll view_draft_payroll view_payroll_analytics view_payroll_audit_log
                                create_payroll regenerate_payroll submit_payroll_review
@@ -209,7 +210,7 @@ class PermissionRole < ApplicationRecord
   BRANCH_MINIMUM_SCOPE_PERMISSIONS = (DR_MANAGEMENT_PERMISSIONS + LAUNDRY_BRANCH_SCOPABLE_PERMISSIONS).freeze
 
   SCOPABLE_PERMISSIONS = (
-    PERMISSION_GROUPS.slice(:employees, :attendance, :payroll, :adjustments, :requests, :shifts, :performance)
+    PERMISSION_GROUPS.slice(:employees, :insurance, :attendance, :payroll, :adjustments, :requests, :shifts, :performance)
                      .values.flatten -
       %w[finalize_payroll pay_payroll delete_payroll reopen_payroll
          approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
@@ -260,6 +261,7 @@ class PermissionRole < ApplicationRecord
     "delete_attendance"      => %w[manage_attendance],
     "manage_employees"       => %w[view_employees],
     "manage_salary_profiles" => %w[view_employees],
+    "manage_employee_insurance" => %w[view_employee_insurance],
     "view_draft_payroll"     => %w[view_payroll],
     "finalize_payroll"       => %w[view_payroll],
     "view_payroll_analytics" => %w[view_payroll],

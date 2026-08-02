@@ -16,6 +16,9 @@
           <%= @expense.reference_number %>
         </h1>
         <%= render "finance/expenses/status_badge", status: @expense.status, size: "md" %>
+        <% if @expense.system_generated? %>
+          <span class="badge badge-neutral"><%= t("insurance.generated_automatically") %></span>
+        <% end %>
       </div>
 
       <div class="page-header__actions">
@@ -78,6 +81,12 @@
         <div class="detail-list__row">
           <dt><%= t("finance.expenses.approved_by") %></dt>
           <dd><%= @expense.approved_by.full_name %></dd>
+        </div>
+      <% end %>
+      <% if @expense.source_payroll_period %>
+        <div class="detail-list__row">
+          <dt><%= t("insurance.generated_from_payroll") %></dt>
+          <dd><%= t("insurance.reference_period", period: "#{@expense.source_payroll_period.period_month}/#{@expense.source_payroll_period.period_year}") %></dd>
         </div>
       <% end %>
       <% if @expense.notes.present? %>

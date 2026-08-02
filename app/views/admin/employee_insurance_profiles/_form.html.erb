@@ -1,0 +1,65 @@
+<%= form_with model: profile, url: admin_user_employee_insurance_profile_path(@employee), method: :patch, class: "form-card" do |f| %>
+
+  <%= render "users/shared/error_messages", resource: profile %>
+
+  <div class="form-group">
+    <label class="form-check">
+      <%= f.check_box :insured %>
+      <%= t("insurance.insured") %>
+    </label>
+    <p class="form-hint"><%= t("insurance.insured_hint") %></p>
+  </div>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :employee_contribution_amount, t("insurance.employee_contribution"), class: "form-label" %>
+      <%= f.number_field :employee_contribution_amount,
+            class: "form-control #{'is-error' if profile.errors[:employee_contribution_amount].any?}",
+            min: 0, step: "0.01" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :employer_contribution_amount, t("insurance.employer_contribution"), class: "form-label" %>
+      <%= f.number_field :employer_contribution_amount,
+            class: "form-control #{'is-error' if profile.errors[:employer_contribution_amount].any?}",
+            min: 0, step: "0.01" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :insurance_start_date, t("insurance.start_date"), class: "form-label" %>
+      <%= f.date_field :insurance_start_date,
+            class: "form-control #{'is-error' if profile.errors[:insurance_start_date].any?}" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :insurance_end_date, class: "form-label" do %>
+        <%= t("insurance.end_date") %>
+        <span class="form-label__optional"><%= t("forms.optional") %></span>
+      <% end %>
+      <%= f.date_field :insurance_end_date,
+            class: "form-control #{'is-error' if profile.errors[:insurance_end_date].any?}" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :insurance_number, class: "form-label" do %>
+        <%= t("insurance.insurance_number") %>
+        <span class="form-label__optional"><%= t("forms.optional") %></span>
+      <% end %>
+      <%= f.text_field :insurance_number, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <%= f.label :notes, class: "form-label" do %>
+      <%= t("insurance.notes") %>
+      <span class="form-label__optional"><%= t("forms.optional") %></span>
+    <% end %>
+    <%= f.text_area :notes, class: "form-control", rows: 3 %>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("insurance.edit.submit"), class: "btn btn-primary" %>
+    <%= link_to t("forms.cancel"), admin_user_path(@employee), class: "btn btn-ghost" %>
+  </div>
+
+<% end %>

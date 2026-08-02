@@ -11,6 +11,7 @@ class ExpensePolicy < ApplicationPolicy
   # an expense is locked. Editors may edit; creators may edit their own draft.
   # The target branch(es) must also be within the writer's scope.
   def update?
+    return false if record.system_generated?
     return false unless same_business? && editable_status?
     return false unless can?(:edit_expenses) || (own_expense? && record.draft?)
 
@@ -18,6 +19,8 @@ class ExpensePolicy < ApplicationPolicy
   end
 
   def destroy?
+    return false if record.system_generated?
+
     same_business? && record.draft? && (can?(:edit_expenses) || own_expense?) &&
       branches_writable?(:edit_expenses, :view_expenses)
   end
