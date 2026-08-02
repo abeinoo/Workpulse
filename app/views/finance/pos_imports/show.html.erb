@@ -1,0 +1,157 @@
+<% content_for :title, @pos_import.file_name %>
+
+<div class="admin-page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= @pos_import.file_name %></h1>
+      <p class="page-subtitle">
+        <%= t("finance.pos_imports.show.subtitle_imported_by", name: @pos_import.imported_by.full_name, date: l(@pos_import.updated_at, format: :long)) %>
+        &middot;
+        <%= t("finance.pos_imports.show.branches_label") %>:
+        <%= @filter_branches.any? ? @filter_branches.map(&:last).join(", ") : t("finance.pos_imports.show.no_branches") %>
+      </p>
+    </div>
+    <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+      <% if @pos_import.imported? %>
+        <span class="badge badge-success"><%= t("finance.pos_imports.index.status_imported") %></span>
+      <% elsif @pos_import.failed? %>
+        <span class="badge badge-danger"><%= t("finance.pos_imports.index.status_failed") %></span>
+      <% else %>
+        <span class="badge"><%= t("finance.pos_imports.index.status_pending") %></span>
+      <% end %>
+      <%= link_to t("shared.back"), finance_pos_imports_path, class: "btn btn-ghost" %>
+    </div>
+  </div>
+
+  <%# ── Import Summary ──────────────────────────────────────────────────── %>
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-6);">
+    <h2 style="font-size: var(--text-sm); font-weight: 700; text-transform: uppercase; color: var(--text-3); margin: 0 0 var(--space-4);">
+      <%= t("finance.pos_imports.show.summary_title") %>
+    </h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-4);">
+      <%= render "finance/pos_imports/stat_card", label: t("finance.pos_imports.show.stat_rows_in_file"), value: @pos_import.total_rows %>
+      <%= render "finance/pos_imports/stat_card", label: t("finance.pos_imports.show.stat_imported"), value: @pos_import.imported_rows, modifier: (@pos_import.imported_rows > 0 ? "success" : nil) %>
+      <%= render "finance/pos_imports/stat_card", label: t("finance.pos_imports.show.stat_duplicates"), value: @pos_import.duplicate_rows, modifier: (@pos_import.duplicate_rows > 0 ? "warning" : nil) %>
+      <%= render "finance/pos_imports/stat_card", label: t("finance.pos_imports.show.stat_failed"), value: @pos_import.invalid_rows, modifier: (@pos_import.invalid_rows > 0 ? "danger" : nil) %>
+      <% warnings = @pos_import.unknown_terminal_rows + @pos_import.ignored_rows %>
+      <% if warnings > 0 %>
+        <%= render "finance/pos_imports/stat_card", label: t("finance.pos_imports.show.stat_warnings"), value: warnings, modifier: "warning" %>
+      <% end %>
+      <%= render "finance/pos_imports/stat_card", label: t("finance.pos_imports.show.stat_total_amount"), value: format_currency(@pos_import.total_amount) %>
+      <%= render "finance/pos_imports/stat_card", label: t("finance.pos_imports.show.stat_total_fees"), value: format_currency(@pos_import.total_fees) %>
+    </div>
+  </div>
+
+  <%# ── Filters ─────────────────────────────────────────────────────────── %>
+  <%= form_with url: finance_pos_import_path(@pos_import), method: :get,
+        style: "display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4);" do |f| %>
+    <%= f.text_field :transaction_id, value: params[:transaction_id],
+          placeholder: t("finance.pos_imports.show.filter_transaction_id"),
+          class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.text_field :reference_number, value: params[:reference_number],
+          placeholder: t("finance.pos_imports.show.filter_reference_number"),
+          class: "form-control form-control-sm", style: "width: auto;" %>
+    <% if @filter_branches.size > 1 %>
+      <%= f.select :branch_id,
+            [[t("finance.pos_imports.show.all_branches"), ""]] + @filter_branches.map { |id, name| [name, id] },
+            { selected: params[:branch_id] },
+            class: "form-control form-control-sm", style: "width: auto;" %>
+    <% end %>
+    <% if @filter_payment_methods.any? %>
+      <%= f.select :payment_method,
+            [[t("finance.pos_imports.show.all_payment_methods"), ""]] + @filter_payment_methods.map { |m| [m, m] },
+            { selected: params[:payment_method] },
+            class: "form-control form-control-sm", style: "width: auto;" %>
+    <% end %>
+    <% if @filter_statuses.any? %>
+      <%= f.select :status,
+            [[t("finance.pos_imports.show.all_statuses"), ""]] + @filter_statuses.map { |s| [s, s] },
+            { selected: params[:status] },
+            class: "form-control form-control-sm", style: "width: auto;" %>
+    <% end %>
+    <%= f.date_field :date_from, value: params[:date_from], class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.date_field :date_to,   value: params[:date_to],   class: "form-control form-control-sm", style: "width: auto;" %>
+    <%= f.hidden_field :sort, value: params[:sort] %>
+    <%= f.hidden_field :direction, value: params[:direction] %>
+    <%= f.submit t("shared.filter"), class: "btn btn-ghost btn-sm" %>
+    <% if params.slice(:transaction_id, :reference_number, :branch_id, :payment_method, :status, :date_from, :date_to).values.any?(&:present?) %>
+      <%= link_to t("shared.clear_filters"), finance_pos_import_path(@pos_import), class: "btn btn-ghost btn-sm" %>
+    <% end %>
+  <% end %>
+
+  <% if @pos_import.pos_transactions.none? %>
+    <div class="empty-state" style="padding: var(--space-16) var(--space-8);">
+      <p class="empty-state__title"><%= t("finance.pos_imports.show.empty") %></p>
+    </div>
+  <% elsif @transactions.empty? %>
+    <div class="empty-state" style="padding: var(--space-16) var(--space-8);">
+      <p class="empty-state__title"><%= t("finance.pos_imports.show.no_matches") %></p>
+      <p class="empty-state__text"><%= t("finance.pos_imports.show.no_matches_hint") %></p>
+    </div>
+  <% else %>
+
+    <% sort_link = ->(key, label) {
+         next_direction = (params[:sort] == key && params[:direction] != "asc") ? "asc" : "desc"
+         link_to label,
+               finance_pos_import_path(@pos_import, request.query_parameters.merge(sort: key, direction: next_direction, page: nil)),
+               style: "color: inherit; text-decoration: none;"
+       } %>
+
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th><%= t("finance.pos_imports.show.col_transaction_id") %></th>
+            <th><%= t("finance.pos_imports.show.col_branch") %></th>
+            <th><%= sort_link.call("date", t("finance.pos_imports.show.col_transaction_date")) %></th>
+            <th><%= t("finance.pos_imports.show.col_payment_method") %></th>
+            <th class="text-end"><%= sort_link.call("amount", t("finance.pos_imports.show.col_amount")) %></th>
+            <th class="text-end"><%= sort_link.call("fee", t("finance.pos_imports.show.col_fee")) %></th>
+            <th class="text-end"><%= t("finance.pos_imports.show.col_net_amount") %></th>
+            <th><%= t("finance.pos_imports.show.col_reference_number") %></th>
+            <th><%= t("finance.pos_imports.show.col_status") %></th>
+            <th><%= t("finance.pos_imports.show.col_created_at") %></th>
+            <th><%= t("finance.pos_imports.show.col_daily_reconciliation") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @transactions.each do |txn| %>
+            <tr>
+              <td><code style="font-size: var(--text-xs);"><%= txn.transaction_id %></code></td>
+              <td><%= txn.branch.name %></td>
+              <td><%= l(txn.transaction_date, format: :short) %></td>
+              <td><%= txn.payment_method.presence || "—" %></td>
+              <td class="text-end font-tabular"><%= format_currency(txn.amount) %></td>
+              <td class="text-end font-tabular"><%= format_currency(txn.total_fees) %></td>
+              <td class="text-end font-tabular"><%= format_currency(txn.amount - txn.total_fees) %></td>
+              <td><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></td>
+              <td><span class="badge"><%= txn.status %></span></td>
+              <td><%= l(txn.created_at, format: :short) %></td>
+              <td>
+                <% dr = @daily_reconciliations_by_branch_and_date[[ txn.branch_id, txn.transaction_date.to_date ]] %>
+                <% if dr %>
+                  <div style="font-size: var(--text-xs); color: var(--text-2); margin-bottom: var(--space-1);">
+                    <%= dr.branch.name %> &middot; <%= l(dr.business_date, format: :short) %>
+                    &middot; <%= t("finance.pos_imports.show.dr_states.#{dr.state}") %>
+                  </div>
+                  <%= link_to t("finance.pos_imports.show.open_dr_action"),
+                        finance_daily_reconciliation_path(dr),
+                        class: "btn btn-ghost btn-sm" %>
+                <% else %>
+                  <span style="color: var(--text-3);"><%= t("finance.pos_imports.show.no_dr") %></span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%= render "shared/pagination",
+          page: @page, total_pages: @total_pages,
+          path_proc: ->(p) { finance_pos_import_path(@pos_import, request.query_parameters.merge(page: p)) } %>
+
+  <% end %>
+
+</div>

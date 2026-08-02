@@ -310,6 +310,72 @@ RSpec.describe "Finance::PosImports", type: :request do
     end
   end
 
+  describe "GET /finance/pos_imports/:id" do
+    it "requires view_pos_import permission" do
+      sign_in create(:user, business: business)
+      pos_import = create(:pos_import, business: business, imported_by: importer, status: "imported")
+
+      get finance_pos_import_path(pos_import)
+
+      expect(response).to redirect_to(root_path)
+    end
+
+    it "is visible to a view-only user, without manage_pos_import" do
+      viewer = user_with("view_pos_import")
+      pos_import = create(:pos_import, business: business, imported_by: importer, status: "imported",
+                          total_rows: 1, imported_rows: 1, total_amount: 100, total_fees: 5)
+      create(:pos_transaction, pos_import: pos_import, business: business, branch: branch,
+             transaction_id: "TXN-1", amount: 100, fees: 5, reference_number: "REF-1")
+
+      sign_in viewer
+      get finance_pos_import_path(pos_import)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("TXN-1")
+      expect(response.body).to include("REF-1")
+      expect(response.body).to include(branch.name)
+    end
+
+    it "shows the empty-transactions message for an import that created no transactions" do
+      sign_in importer
+      pos_import = create(:pos_import, business: business, imported_by: importer, status: "imported")
+
+      get finance_pos_import_path(pos_import)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("finance.pos_imports.show.empty"))
+    end
+
+    it "filters by transaction id" do
+      sign_in importer
+      pos_import = create(:pos_import, business: business, imported_by: importer, status: "imported")
+      create(:pos_transaction, pos_import: pos_import, business: business, branch: branch, transaction_id: "TXN-MATCH")
+      create(:pos_transaction, pos_import: pos_import, business: business, branch: branch, transaction_id: "TXN-OTHER")
+
+      get finance_pos_import_path(pos_import, transaction_id: "MATCH")
+
+      expect(response.body).to include("TXN-MATCH")
+      expect(response.body).not_to include("TXN-OTHER")
+    end
+
+    it "links a transaction to its Daily Reconciliation when one exists for that branch and calendar date" do
+      sign_in importer
+      pos_import = create(:pos_import, business: business, imported_by: importer, status: "imported")
+      txn_time = Time.zone.local(2026, 7, 1, 10, 0, 0)
+      create(:pos_transaction, pos_import: pos_import, business: business, branch: branch,
+             transaction_id: "TXN-DR", transaction_date: txn_time)
+      dr = DailyReconciliation.create!(
+        branch: branch, business: business, state: "closed",
+        opened_at: 1.hour.ago, closed_at: Time.current, business_date: txn_time.to_date
+      )
+
+      get finance_pos_import_path(pos_import)
+
+      expect(response.body).to include(I18n.t("finance.pos_imports.show.open_dr_action"))
+      expect(response.body).to include(finance_daily_reconciliation_path(dr))
+    end
+  end
+
   describe "DELETE /finance/pos_imports/:id" do
     it "deletes a pending import" do
       sign_in importer

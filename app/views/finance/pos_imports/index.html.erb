@@ -97,13 +97,22 @@
 
       <% @imports.each do |import| %>
         <div style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 2fr 80px 100px 120px 120px 100px 1fr; align-items: center; gap: var(--space-2);">
-          <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0;"><%= import.file_name %></p>
+          <p style="font-size: var(--text-sm); font-weight: 500; color: var(--text-1); margin: 0;">
+            <% if policy(import).show? %>
+              <%= link_to import.file_name, finance_pos_import_path(import), class: "link" %>
+            <% else %>
+              <%= import.file_name %>
+            <% end %>
+          </p>
           <span style="font-size: var(--text-sm); color: var(--text-2);"><%= import.total_rows %></span>
           <span style="font-size: var(--text-sm); color: var(--text-2);"><%= import.imported_rows %></span>
           <span style="font-size: var(--text-sm); color: var(--text-2);"><%= import.expenses_created_count %></span>
           <span style="font-size: var(--text-sm); color: var(--text-2);"><%= import.imported_by.full_name %></span>
           <span style="font-size: var(--text-sm); color: var(--text-3);"><%= l(import.updated_at, format: :short) %></span>
           <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
+            <% if policy(import).show? %>
+              <%= link_to t("shared.view"), finance_pos_import_path(import), class: "btn btn-ghost btn-sm" %>
+            <% end %>
             <% if import.imported? %>
               <span class="badge badge-success" style="font-size: 11px;"><%= t("finance.pos_imports.index.status_imported") %></span>
             <% elsif import.failed? %>

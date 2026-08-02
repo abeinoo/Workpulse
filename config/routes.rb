@@ -464,7 +464,7 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :pos_imports, only: %i[index new create destroy] do
+    resources :pos_imports, only: %i[index show new create destroy] do
       member do
         get  :preview_import
         post :confirm_import

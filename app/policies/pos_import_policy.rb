@@ -1,5 +1,6 @@
 class PosImportPolicy < ApplicationPolicy
   def index?          = can?(:manage_pos_import)
+  def show?           = can?(:view_pos_import) && same_business?
   def create?         = can?(:manage_pos_import)
   # Only a not-yet-confirmed (or failed/rolled-back) import may be deleted —
   # once confirmed, PosImport#deletable? is false and the model-level guard
