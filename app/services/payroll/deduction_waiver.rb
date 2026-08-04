@@ -36,7 +36,7 @@ module Payroll
       return err(I18n.t("payroll.deduction_waiver.errors.permission")) unless @actor.can?(:manage_payroll_deduction_waivers)
 
       period = @line_item.payroll_entry.payroll_period
-      return err(I18n.t("payroll.deduction_waiver.errors.locked")) unless period&.reviewable?
+      return err(I18n.t("payroll.deduction_waiver.errors.locked")) unless period&.editable?
       return err(I18n.t("payroll.deduction_waiver.errors.not_waivable")) unless @line_item.deduction_waivable?
 
       case @action

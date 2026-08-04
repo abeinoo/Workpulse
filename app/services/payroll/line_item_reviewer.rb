@@ -41,7 +41,7 @@ module Payroll
       end
 
       period = @line_item.payroll_entry.payroll_period
-      return err("Payroll period is already finalized") unless period.reviewable?
+      return err("Payroll period is already finalized") unless period.editable?
 
       case @action
       when "approve", "reject"

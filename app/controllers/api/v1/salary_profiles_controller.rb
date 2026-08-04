@@ -17,7 +17,7 @@ module Api
 
       def create
         authorize SalaryProfile
-        result = Salary::ProfileUpdater.call(user: @target_user, params: profile_params)
+        result = Salary::ProfileUpdater.call(user: @target_user, params: profile_params, actor: current_user)
 
         if result.success?
           render_success(profile_json(result.profile), status: :created)
@@ -31,6 +31,7 @@ module Api
       def update
         authorize @profile
         if @profile.update(profile_params.except(:effective_from, :salary_type))
+          recalculate_open_periods
           render_success(profile_json(@profile))
         else
           render_error("Failed to update salary profile", errors: @profile.errors.full_messages)
@@ -54,6 +55,15 @@ module Api
 
       def profile_json(profile)
         profile.slice(:id, :salary_type, :base_amount, :currency, :effective_from, :active)
+      end
+
+      # A base_amount correction should be reflected in every currently
+      # editable period, not just the next full generation. Never allowed to
+      # fail the salary profile update itself.
+      def recalculate_open_periods
+        Payroll::EntryRecalculator.recalculate_all_open_periods_for(user: @target_user, triggered_by: current_user)
+      rescue => e
+        Rails.logger.error("[Api::V1::SalaryProfilesController] payroll recalc failed user=#{@target_user.id}: #{e.class}: #{e.message}")
       end
     end
   end

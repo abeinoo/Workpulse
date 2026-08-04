@@ -35,6 +35,8 @@ module Payroll
           notes:        @notes
         )
 
+        clear_branch_needs_review
+
         if @period.reload.all_branches_reviewed?
           @period.update!(status: :branch_review_completed)
           PayrollAuditLog.create!(
@@ -53,6 +55,25 @@ module Payroll
     end
 
     private
+
+    # Approving a branch's review is the natural "start clean" point for the
+    # next edit cycle: any employee flagged Needs Review because of changes
+    # made during this review cycle no longer needs a visual flag once the
+    # branch manager has signed off. Scoped to employees actually assigned to
+    # this branch during the period (not the whole period's entries).
+    def clear_branch_needs_review
+      branch_user_ids = ShiftAssignment
+        .active_during(@period.period_start, @period.period_end)
+        .where(branch_id: @branch.id)
+        .select(:user_id)
+
+      entry_ids = @period.payroll_entries
+                          .where(user_id: branch_user_ids, needs_review: true)
+                          .pluck(:id)
+      return if entry_ids.empty?
+
+      Payroll::BulkEntryReviewClearer.call(period: @period, actor: @reviewer, entry_ids: entry_ids)
+    end
 
     def err(message)
       Result.new(success: false, error: message)

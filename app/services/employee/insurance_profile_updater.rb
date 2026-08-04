@@ -40,11 +40,25 @@ module Employee
         )
       end
 
+      recalculate_open_periods(user)
+
       Result.new(ok: true, profile: profile)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, profile: e.record, error: e.record.errors.full_messages.join(", "))
     rescue ActiveRecord::RecordNotFound => e
       Result.new(ok: false, error: e.message)
+    end
+
+    private
+
+    # An insurance change should be reflected in every currently editable
+    # period, not just the next full generation — mirrors the
+    # attendance-triggered recalculation path. Never allowed to fail the
+    # insurance profile change itself.
+    def recalculate_open_periods(user)
+      Payroll::EntryRecalculator.recalculate_all_open_periods_for(user: user, triggered_by: @actor)
+    rescue => e
+      Rails.logger.error("[Employee::InsuranceProfileUpdater] payroll recalc failed user=#{user.id}: #{e.class}: #{e.message}")
     end
   end
 end

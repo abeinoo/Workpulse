@@ -6283,6 +6283,19 @@ details:not([open]) .permission-group__chevron {
   border: 1px solid rgba(var(--danger-rgb), 0.25);
   color: var(--danger);
 }
+.needs-review-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.needs-review-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
 
 /* ── File upload area ───────────────────────────────────────────────────────── */
 .file-upload-area {

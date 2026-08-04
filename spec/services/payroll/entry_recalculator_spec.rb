@@ -747,4 +747,83 @@ RSpec.describe Payroll::EntryRecalculator do
       expect(current_entry.payroll_line_items.where(item_type: "obligation_deduction").count).to eq(1)
     end
   end
+
+  # ── needs_review flagging ──────────────────────────────────────────────────
+
+  describe "needs_review flagging" do
+    before { period.update_column(:status, "under_review") }
+
+    it "flags a brand-new entry as needing review (never yet reviewed)" do
+      create_record(Date.new(2026, 6, 1), worked: 480)
+      initial = build_initial_entry
+      expect(initial.needs_review?).to be true
+    end
+
+    it "re-flags a previously-reviewed entry when attendance changes actually change the payable result" do
+      create_record(Date.new(2026, 6, 1), worked: 480)
+      initial = build_initial_entry
+      initial.update!(needs_review: false)
+
+      create_record(Date.new(2026, 6, 2), worked: 480)
+      run
+
+      expect(current_entry.needs_review?).to be true
+    end
+
+    it "does not re-flag a reviewed entry when the recalculation changes nothing" do
+      create_record(Date.new(2026, 6, 1), worked: 480)
+      build_initial_entry.update!(needs_review: false)
+
+      run
+
+      expect(current_entry.needs_review?).to be false
+    end
+
+    it "never flags once the period is locked" do
+      create_record(Date.new(2026, 6, 1), worked: 480)
+      build_initial_entry.update!(needs_review: false)
+      period.update_column(:status, "finalized")
+
+      create_record(Date.new(2026, 6, 2), worked: 480)
+      run
+
+      expect(current_entry&.needs_review?).to be_falsey
+    end
+  end
+
+  # ── recalculate_all_open_periods_for ───────────────────────────────────────
+
+  describe ".recalculate_all_open_periods_for" do
+    let(:other_period) do
+      create(:payroll_period, business: business, period_year: 2026, period_month: 5, working_days: 22, status: "under_review")
+    end
+    let(:locked_period) do
+      create(:payroll_period, business: business, period_year: 2026, period_month: 4, working_days: 22, status: "finalized")
+    end
+
+    before do
+      create_record(Date.new(2026, 6, 1), worked: 480)
+      build_initial_entry
+      Payroll::EntryCalculator.call(period: other_period, user: employee, business: business)
+      Payroll::EntryCalculator.call(period: locked_period, user: employee, business: business)
+    end
+
+    it "recalculates every non-locked period that already has an entry for the user" do
+      other_entry = other_period.payroll_entries.find_by(user: employee)
+      other_entry.update!(base_salary: 1.0)
+
+      described_class.recalculate_all_open_periods_for(user: employee, triggered_by: actor)
+
+      expect(other_entry.reload.base_salary).to eq(8_800.0)
+    end
+
+    it "does not touch entries in locked periods" do
+      locked_entry = locked_period.payroll_entries.find_by(user: employee)
+      locked_entry.update_column(:base_salary, 1.0)
+
+      described_class.recalculate_all_open_periods_for(user: employee, triggered_by: actor)
+
+      expect(locked_entry.reload.base_salary).to eq(1.0)
+    end
+  end
 end

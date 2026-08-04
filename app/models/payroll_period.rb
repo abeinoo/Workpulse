@@ -40,11 +40,6 @@ class PayrollPeriod < ApplicationRecord
     period_start.end_of_month
   end
 
-  # Line items may be reviewed while draft or under active branch review.
-  def reviewable?
-    draft? || under_review?
-  end
-
   # All branch review slots have been approved (completed). Pending or
   # changes_requested slots both block advancement — only :completed counts.
   def all_branches_reviewed?

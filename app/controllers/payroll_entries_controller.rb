@@ -36,6 +36,16 @@ class PayrollEntriesController < ApplicationController
                                    : { alert: result.error })
   end
 
+  def mark_reviewed
+    authorize @entry, :mark_reviewed?
+
+    result = Payroll::EntryReviewClearer.call(entry: @entry, actor: current_user)
+
+    redirect_to payroll_period_payroll_entry_path(@period, @entry),
+                **(result.success? ? { notice: t("payroll.needs_review.flash.cleared") }
+                                   : { alert: result.error })
+  end
+
   private
 
   def set_period_and_entry

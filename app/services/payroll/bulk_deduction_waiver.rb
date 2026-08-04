@@ -32,7 +32,7 @@ module Payroll
     def call
       return err(I18n.t("payroll.deduction_waiver.errors.invalid_action")) unless ACTIONS.include?(@action)
       return err(I18n.t("payroll.deduction_waiver.errors.permission")) unless @actor.can?(:manage_payroll_deduction_waivers)
-      return err(I18n.t("payroll.deduction_waiver.errors.locked")) unless @period.reviewable?
+      return err(I18n.t("payroll.deduction_waiver.errors.locked")) unless @period.editable?
       return err(I18n.t("payroll.deduction_waiver.errors.none_selected")) if @entry_ids.empty?
       return err(I18n.t("payroll.deduction_waiver.errors.reason_required")) if @reason.blank?
 

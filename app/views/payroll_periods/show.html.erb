@@ -395,9 +395,28 @@
     </div>
   <% end %>
 
+  <%# ── Needs-review banner — visual aid only, does not touch Branch Review ─── %>
+  <% if @needs_review_count.to_i > 0 %>
+    <div class="alert alert-warning needs-review-banner">
+      <span><%= t("payroll.needs_review.banner", count: @needs_review_count) %></span>
+      <div class="needs-review-banner__actions">
+        <%= link_to(@filter_needs_review ? t("payroll.needs_review.filter_clear") : t("payroll.needs_review.filter_link"),
+              payroll_period_path(@period, needs_review: @filter_needs_review ? nil : "1"),
+              class: "link-muted") %>
+        <% if policy(@period).mark_all_reviewed? %>
+          <%= button_to t("payroll.needs_review.mark_all_btn"),
+                mark_all_reviewed_payroll_period_path(@period),
+                method: :patch,
+                class: "btn btn-secondary btn-sm",
+                data: { turbo_confirm: t("payroll.needs_review.confirm_mark_all", count: @needs_review_count) } %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
   <%# ── Employee payroll entries table ─────────────────────────────────────── %>
-  <% can_bulk_ot    = current_user.can?(:manage_payroll_overrides) && @period.reviewable? %>
-  <% can_bulk_waive = current_user.can?(:manage_payroll_deduction_waivers) && @period.reviewable? %>
+  <% can_bulk_ot    = current_user.can?(:manage_payroll_overrides) && @period.editable? %>
+  <% can_bulk_waive = current_user.can?(:manage_payroll_deduction_waivers) && @period.editable? %>
   <% can_bulk       = can_bulk_ot || can_bulk_waive %>
   <div data-controller="payroll-overtime-bulk">
   <div class="table-wrap table-wrap--cards">
@@ -479,6 +498,14 @@
                   <% if entry.overtime_overridden? %>
                     <div class="payroll-entry-badges"><%= overtime_override_badge(entry) %></div>
                   <% end %>
+                  <% if entry.needs_review? %>
+                    <div class="payroll-entry-badges">
+                      <span class="payroll-entry-badge payroll-entry-badge--warning"
+                            title="<%= t('payroll.needs_review.badge_title') %>">
+                        <%= t("payroll.needs_review.badge") %>
+                      </span>
+                    </div>
+                  <% end %>
                 </div>
               </div>
             </td>
@@ -526,6 +553,13 @@
             </td>
             <td class="td-actions" data-label="">
               <%= link_to t("payroll.view"), payroll_period_payroll_entry_path(@period, entry), class: "link-muted" %>
+              <% if entry.needs_review? && policy(entry).mark_reviewed? %>
+                <%= button_to t("payroll.needs_review.mark_btn"),
+                      mark_reviewed_payroll_period_payroll_entry_path(@period, entry),
+                      method: :patch,
+                      class: "btn btn-secondary btn-sm",
+                      data: { turbo_confirm: t("payroll.needs_review.confirm_mark") } %>
+              <% end %>
             </td>
           </tr>
         <% end %>

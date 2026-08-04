@@ -155,6 +155,57 @@ RSpec.describe PayrollEntry, type: :model do
         expect(entry.reload.net_salary).to eq(8_800.0)
       end
     end
+
+    context "needs_review flagging" do
+      it "flags the entry when the recalculated result actually changes" do
+        expect(entry.needs_review?).to be false
+        create(:payroll_line_item, payroll_entry: entry, item_type: "cash_incentive",
+               amount: 500.0, review_status: "approved")
+        entry.recalculate_totals!
+        expect(entry.reload.needs_review?).to be true
+      end
+
+      it "does not flag the entry when the recalculated result is unchanged" do
+        entry.recalculate_totals!
+        expect(entry.reload.needs_review?).to be false
+      end
+
+      it "does not re-flag an entry that is already flagged" do
+        entry.update_column(:needs_review, true)
+        entry.recalculate_totals!
+        expect(entry.reload.needs_review?).to be true
+      end
+
+      it "never flags an entry once the period is locked" do
+        create(:payroll_line_item, payroll_entry: entry, item_type: "cash_incentive",
+               amount: 500.0, review_status: "approved")
+        entry.payroll_period.update_column(:status, "finalized")
+        entry.recalculate_totals!
+        expect(entry.reload.needs_review?).to be false
+      end
+    end
+  end
+
+  describe "#financial_snapshot / #mark_needs_review!" do
+    let(:entry) { create(:payroll_entry, base_salary: 8_800.0, net_salary: 8_800.0) }
+
+    it "is unaffected by fields outside the payroll-visible result" do
+      before = entry.financial_snapshot
+      entry.update!(notes: "internal note")
+      expect(entry.financial_snapshot).to eq(before)
+    end
+
+    it "flags needs_review when net_salary differs from the given snapshot" do
+      before = entry.financial_snapshot
+      entry.update!(net_salary: 9_000.0)
+      entry.mark_needs_review!(before)
+      expect(entry.reload.needs_review?).to be true
+    end
+
+    it "does nothing when the snapshot matches the current state" do
+      entry.mark_needs_review!(entry.financial_snapshot)
+      expect(entry.reload.needs_review?).to be false
+    end
   end
 
   describe ".employee_visible scope" do

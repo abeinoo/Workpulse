@@ -75,6 +75,35 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
     end
   end
 
+  describe "mark_all_reviewed?" do
+    it "permits branch_manager in same business" do
+      expect(subject.new(manager, period).mark_all_reviewed?).to be true
+    end
+
+    it "permits accountant" do
+      expect(subject.new(accountant, period).mark_all_reviewed?).to be true
+    end
+
+    it "denies employee" do
+      expect(subject.new(employee, period).mark_all_reviewed?).to be false
+    end
+
+    it "denies branch_manager from a different business" do
+      other_manager = create(:user, :branch_manager)
+      expect(subject.new(other_manager, period).mark_all_reviewed?).to be false
+    end
+
+    it "denies once the period is locked" do
+      finalized = create(:payroll_period, :finalized, business: business)
+      expect(subject.new(manager, finalized).mark_all_reviewed?).to be false
+    end
+
+    it "permits during branch_review_completed" do
+      brc = create(:payroll_period, :branch_review_completed, business: business)
+      expect(subject.new(manager, brc).mark_all_reviewed?).to be true
+    end
+  end
+
   describe "regenerate?" do
     it "permits super_admin"   do expect(subject.new(super_admin, period).regenerate?).to be true  end
     it "permits accountant"    do expect(subject.new(accountant,  period).regenerate?).to be true  end

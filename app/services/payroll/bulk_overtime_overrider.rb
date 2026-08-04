@@ -34,7 +34,7 @@ module Payroll
     def call
       return err(I18n.t("payroll.overtime_override.errors.invalid_mode")) unless BULK_MODES.include?(@bulk_mode)
       return err(I18n.t("payroll.overtime_override.errors.permission")) unless @actor.can?(:manage_payroll_overrides)
-      return err(I18n.t("payroll.overtime_override.errors.locked")) unless @period.reviewable?
+      return err(I18n.t("payroll.overtime_override.errors.locked")) unless @period.editable?
       return err(I18n.t("payroll.overtime_override.errors.none_selected")) if @entry_ids.empty?
 
       mode, value = translate_mode

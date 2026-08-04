@@ -710,7 +710,7 @@ en:
         bulk_skipped: "%{count} skipped (no overtime or not editable)."
       errors:
         permission: "You do not have permission to override overtime."
-        locked: "Overtime can only be overridden while the period is in review."
+        locked: "Overtime can only be overridden while the period is editable."
         reason_required: "A reason is required when the approved overtime differs from the calculated value."
         no_overtime: "This employee has no calculated overtime to override."
         invalid_mode: "Invalid overtime adjustment mode."
@@ -746,13 +746,30 @@ en:
         bulk_skipped: "%{count} skipped (already in that state or not waivable)."
       errors:
         permission: "You do not have permission to waive deductions."
-        locked: "Deductions can only be waived while the period is in review."
+        locked: "Deductions can only be waived while the period is editable."
         not_waivable: "Only manual deductions can be waived."
         reason_required: "A reason is required to waive a deduction."
         already_waived: "This deduction is already waived."
         not_waived: "This deduction is not waived."
         invalid_action: "Invalid waiver action."
         none_selected: "Select at least one employee."
+    needs_review:
+      badge: "Needs Review"
+      badge_title: "Changed after the last review"
+      mark_btn: "Mark Reviewed"
+      mark_all_btn: "Mark All Reviewed"
+      filter_link: "Show only employees needing review"
+      filter_clear: "Show all employees"
+      banner: "%{count} employee(s) have changes pending review."
+      confirm_mark: "Acknowledge these changes as reviewed?"
+      confirm_mark_all: "Mark all %{count} flagged employee(s) as reviewed?"
+      flash:
+        cleared: "Marked as reviewed."
+        bulk_cleared: "%{count} employee(s) marked as reviewed."
+      errors:
+        permission: "You do not have permission to review payroll changes."
+        locked: "This period is no longer editable."
+        not_flagged: "This entry does not need review."
     index:
       title: "Payroll Periods"
       page_title: "Payroll Periods — WorkPulse"

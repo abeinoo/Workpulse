@@ -12,6 +12,7 @@ class Admin::SalaryProfilesController < Admin::BaseController
     authorize @profile
 
     if @profile.save
+      recalculate_open_periods
       redirect_to admin_user_path(@employee), notice: t("flash.salary_profile_created")
     else
       render :new, status: :unprocessable_entity
@@ -26,6 +27,7 @@ class Admin::SalaryProfilesController < Admin::BaseController
     authorize @profile
 
     if @profile.update(profile_params)
+      recalculate_open_periods
       redirect_to admin_user_path(@employee), notice: t("flash.salary_profile_updated")
     else
       render :edit, status: :unprocessable_entity
@@ -33,6 +35,15 @@ class Admin::SalaryProfilesController < Admin::BaseController
   end
 
   private
+
+  # A salary profile change should be reflected in every currently editable
+  # period, not just the next full generation. Never allowed to fail the
+  # salary profile change itself.
+  def recalculate_open_periods
+    Payroll::EntryRecalculator.recalculate_all_open_periods_for(user: @employee, triggered_by: current_user)
+  rescue => e
+    Rails.logger.error("[Admin::SalaryProfilesController] payroll recalc failed user=#{@employee.id}: #{e.class}: #{e.message}")
+  end
 
   def set_employee
     @employee = current_user.business.users.find(params[:user_id])

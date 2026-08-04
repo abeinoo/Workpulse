@@ -12,9 +12,23 @@
         <p class="page-subtitle"><%= t("payroll.entry.payslip") %></p>
       <% end %>
     </div>
-    <span class="badge <%= period_status_badge_class(@period) %>">
-      <%= t("payroll.statuses.#{@period.status}") %>
-    </span>
+    <div class="page-header__actions">
+      <span class="badge <%= period_status_badge_class(@period) %>">
+        <%= t("payroll.statuses.#{@period.status}") %>
+      </span>
+      <% if @entry.needs_review? %>
+        <span class="badge badge-warning" title="<%= t('payroll.needs_review.badge_title') %>">
+          <%= t("payroll.needs_review.badge") %>
+        </span>
+        <% if policy(@entry).mark_reviewed? %>
+          <%= button_to t("payroll.needs_review.mark_btn"),
+                mark_reviewed_payroll_period_payroll_entry_path(@period, @entry),
+                method: :patch,
+                class: "btn btn-secondary btn-sm",
+                data: { turbo_confirm: t("payroll.needs_review.confirm_mark") } %>
+        <% end %>
+      <% end %>
+    </div>
   </div>
 
   <%# ── Period lock notice ─────────────────────────────────────────────────── %>
@@ -27,7 +41,7 @@
 
   <%# ── Mobile sticky action bar (approve/reject pending items) ───────────── %>
   <% can_manage = current_user.can?(:view_payroll) %>
-  <% if can_manage && @period.reviewable? %>
+  <% if can_manage && @period.editable? %>
     <div class="page-actions page-actions--sticky">
       <% if can_manage %>
         <%= link_to t("payroll.entry.add_btn") + " " + t("payroll.entry.additions_bonuses"),
@@ -232,11 +246,11 @@
 
   <%# ── Deductions (attendance penalties, manual deductions, advance/obligation
        repayments — every deduction that affected net salary, in one table) ── %>
-  <% show_deductions_section = @deductions.any? || (can_manage && @period.reviewable?) %>
+  <% show_deductions_section = @deductions.any? || (can_manage && @period.editable?) %>
   <% if show_deductions_section %>
     <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 0.6rem 0;">
       <h2 class="section-heading" style="margin: 0;"><%= t("payroll.deductions") %></h2>
-      <% if current_user.can?(:manage_adjustments) && @period.reviewable? %>
+      <% if current_user.can?(:manage_adjustments) && @period.editable? %>
         <%= link_to t("payroll.entry.add_btn"),
               new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :manual_deduction),
               class: "btn btn-sm btn-danger" %>
@@ -294,7 +308,7 @@
                 <% if show_actions_col %>
                   <td class="td-actions" data-label="<%= t('attendance.actions') %>">
                     <% if item.manual_deduction? %>
-                      <% if item.pending_review? && @period.reviewable? && policy(item).approve? %>
+                      <% if item.pending_review? && @period.editable? && policy(item).approve? %>
                         <%= button_to t("payroll.entry.approve"),
                               approve_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
                               method: :patch, class: "btn btn-sm btn-success" %>
@@ -322,7 +336,7 @@
                           </details>
                         <% end %>
                       <% end %>
-                    <% elsif @period.reviewable? %>
+                    <% elsif @period.editable? %>
                       <% if item.pending_review? && policy(item).approve? %>
                         <%= button_to t("payroll.entry.approve"),
                               approve_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
@@ -409,11 +423,11 @@
   <% end %>
 
   <%# ── Additions / bonuses ────────────────────────────────────────────────── %>
-  <% show_additions_section = @additions.any? || (can_manage && @period.reviewable?) %>
+  <% show_additions_section = @additions.any? || (can_manage && @period.editable?) %>
   <% if show_additions_section %>
     <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 1.75rem 0 0.6rem;">
       <h2 class="section-heading" style="margin: 0;"><%= t("payroll.entry.additions_bonuses") %></h2>
-      <% if can_manage && @period.reviewable? %>
+      <% if can_manage && @period.editable? %>
         <%= link_to t("payroll.entry.add_btn"),
               new_payroll_period_payroll_entry_payroll_adjustment_path(@period, @entry, adjustment_type: :cash_incentive),
               class: "btn btn-sm btn-success" %>
@@ -462,7 +476,7 @@
                 </td>
                 <% if current_user.can?(:approve_adjustments) %>
                   <td class="td-actions" data-label="<%= t('attendance.actions') %>">
-                    <% if item.pending_review? && @period.reviewable? %>
+                    <% if item.pending_review? && @period.editable? %>
                       <%= button_to t("payroll.entry.approve"),
                             approve_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
                             method: :patch, class: "btn btn-sm btn-success" %>

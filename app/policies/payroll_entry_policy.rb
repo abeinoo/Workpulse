@@ -6,11 +6,20 @@ class PayrollEntryPolicy < ApplicationPolicy
   def update? = can?(:regenerate_payroll)
 
   # Overriding payable overtime — dedicated permission, only while the period is
-  # still reviewable (draft / under_review). Locked periods are immutable.
+  # still editable (draft / under_review / branch_review_completed). Locked
+  # (finalized / paid) periods are immutable.
   def override_overtime?
     can?(:manage_payroll_overrides) &&
       record.payroll_period&.business_id == user.business_id &&
-      record.payroll_period&.reviewable?
+      record.payroll_period&.editable?
+  end
+
+  # Clearing the "Needs Review" flag — the same reviewer persona that
+  # completes Branch Review. Not an approval; just an acknowledgement.
+  def mark_reviewed?
+    can?(:complete_branch_review) &&
+      record.payroll_period&.business_id == user.business_id &&
+      record.payroll_period&.editable?
   end
 
   class Scope < ApplicationPolicy::Scope

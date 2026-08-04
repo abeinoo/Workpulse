@@ -32,6 +32,23 @@ module Payroll
       new(user: user, period: period, triggered_by: triggered_by).call
     end
 
+    # Recalculates every non-locked period that already has an entry for this
+    # user. Used when salary/insurance configuration changes outside the
+    # normal attendance-write path — see Salary::ProfileUpdater and
+    # Employee::InsuranceProfileUpdater — so the change is reflected in every
+    # currently editable period, not just the next full generation.
+    def self.recalculate_all_open_periods_for(user:, triggered_by:)
+      PayrollPeriod
+        .for_business(user.business)
+        .where.not(status: %w[finalized paid])
+        .joins(:payroll_entries)
+        .where(payroll_entries: { user_id: user.id })
+        .distinct
+        .find_each do |period|
+          call(user: user, period: period, triggered_by: triggered_by)
+        end
+    end
+
     def initialize(user:, period:, triggered_by:)
       @user         = user
       @period       = period
@@ -42,10 +59,11 @@ module Payroll
     def call
       return Result.new(ok: true, entry: nil) if @period.locked?
 
-      existing        = load_existing_entry
-      saved_override  = capture_overtime_override(existing)
-      saved_waivers   = capture_deduction_waivers(existing)
-      saved_penalties = capture_penalty_reviews(existing)
+      existing          = load_existing_entry
+      previous_snapshot = existing&.financial_snapshot
+      saved_override    = capture_overtime_override(existing)
+      saved_waivers     = capture_deduction_waivers(existing)
+      saved_penalties   = capture_penalty_reviews(existing)
 
       entry = ActiveRecord::Base.transaction do
         destroy_obligation_snapshots
@@ -56,6 +74,10 @@ module Payroll
         reapply_overtime_override(entry, saved_override) if saved_override
         reapply_deduction_waivers(entry, saved_waivers)  if saved_waivers.any?
         reapply_penalty_reviews(entry, saved_penalties)  if saved_penalties.any?
+        # EntryCalculator writes base_salary/insurance/salary_type directly
+        # (not via recalculate_totals!), so this is the only place that can
+        # catch those fields changing for an existing employee.
+        entry.mark_needs_review!(previous_snapshot) if previous_snapshot
       end
 
       Rails.logger.info(

@@ -6,8 +6,8 @@ class PayrollPeriodPolicy < ApplicationPolicy
   def create?               = can?(:create_payroll)
   def submit_for_review?    = can?(:submit_payroll_review)
   def approve_all_pending?  = can?(:approve_payroll_items)
-  def adjust_overtime?      = can?(:manage_payroll_overrides) && record.reviewable?
-  def waive_deductions?     = can?(:manage_payroll_deduction_waivers) && record.reviewable?
+  def adjust_overtime?      = can?(:manage_payroll_overrides) && record.editable?
+  def waive_deductions?     = can?(:manage_payroll_deduction_waivers) && record.editable?
   def finalize?             = can?(:finalize_payroll)
   def mark_paid?            = can?(:pay_payroll)
   def destroy?              = can?(:delete_payroll) && record.draft?
@@ -31,6 +31,12 @@ class PayrollPeriodPolicy < ApplicationPolicy
 
   def complete_branch_review?
     can?(:complete_branch_review) && same_business?
+  end
+
+  # Bulk-clearing the "Needs Review" flag — same reviewer persona as Branch
+  # Review, available for as long as the period stays editable.
+  def mark_all_reviewed?
+    can?(:complete_branch_review) && same_business? && record.editable?
   end
 
   # Branch managers may request changes from accounting during the review cycle.

@@ -79,6 +79,11 @@ RSpec.describe Payroll::EntryCalculator do
       expect { run }.to change(PayrollEntry, :count).by(1)
     end
 
+    it "starts flagged needs_review (never yet reviewed)" do
+      entry = run
+      expect(entry.needs_review?).to be true
+    end
+
     it "sets base_salary to 8800" do
       entry = run
       expect(entry.base_salary).to eq(8_800.0)
@@ -760,6 +765,17 @@ RSpec.describe Payroll::EntryCalculator do
       entry = run
       expect(entry.days_worked).to eq(22)
       expect(entry.base_salary).to eq(400.0 * 22)
+    end
+  end
+
+  describe "needs_review on rebuild of an existing entry" do
+    it "does not force needs_review back to true when updating an already-reviewed entry in place" do
+      entry = run
+      entry.update!(needs_review: false)
+
+      described_class.call(period: period, user: user, business: business, entry: entry)
+
+      expect(entry.reload.needs_review?).to be false
     end
   end
 

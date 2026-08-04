@@ -38,7 +38,7 @@ module Payroll
       return err(I18n.t("payroll.overtime_override.errors.permission")) unless @actor.can?(:manage_payroll_overrides)
 
       period = @entry.payroll_period
-      return err(I18n.t("payroll.overtime_override.errors.locked")) unless period&.reviewable?
+      return err(I18n.t("payroll.overtime_override.errors.locked")) unless period&.editable?
 
       attrs = resolved_attributes
       return attrs if attrs.is_a?(Result) # validation error short-circuit

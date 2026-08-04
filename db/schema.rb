@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_01_000300) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_04_053523) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1008,6 +1008,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_000300) do
     t.decimal "employer_insurance_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.string "insurance_number"
     t.boolean "insured", default: false, null: false
+    t.boolean "needs_review", default: false, null: false
     t.decimal "net_salary", precision: 12, scale: 2, null: false
     t.text "notes"
     t.decimal "obligations_deducted", precision: 12, scale: 2, default: "0.0", null: false

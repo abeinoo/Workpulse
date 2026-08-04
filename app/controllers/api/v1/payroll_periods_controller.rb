@@ -58,7 +58,7 @@ module Api
 
       def approve_all_pending
         authorize @period, :approve_all_pending?
-        return render_error("Period is not reviewable") unless @period.reviewable?
+        return render_error("Period is not reviewable") unless @period.editable?
 
         pending_items = PayrollLineItem
                           .joins(:payroll_entry)

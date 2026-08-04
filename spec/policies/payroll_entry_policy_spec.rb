@@ -73,6 +73,33 @@ RSpec.describe PayrollEntryPolicy, type: :model do
     it "denies even an accountant once the period is locked" do
       expect(subject.new(accountant, entry).override_overtime?).to be false # entry uses a :finalized period
     end
+
+    it "permits an accountant on a branch_review_completed period (widened editable? gate)" do
+      brc_period = create(:payroll_period, :branch_review_completed, business: business)
+      brc_entry  = create(:payroll_entry, payroll_period: brc_period, user: employee)
+      expect(subject.new(accountant, brc_entry).override_overtime?).to be true
+    end
+  end
+
+  describe "mark_reviewed?" do
+    let(:draft_period) { create(:payroll_period, business: business, status: :draft) }
+    let(:draft_entry)  { create(:payroll_entry, payroll_period: draft_period, user: employee) }
+
+    it "permits branch_manager (holds complete_branch_review)" do
+      expect(subject.new(manager, draft_entry).mark_reviewed?).to be true
+    end
+
+    it "permits accountant" do
+      expect(subject.new(accountant, draft_entry).mark_reviewed?).to be true
+    end
+
+    it "denies employee" do
+      expect(subject.new(employee, draft_entry).mark_reviewed?).to be false
+    end
+
+    it "denies once the period is locked" do
+      expect(subject.new(manager, entry).mark_reviewed?).to be false # entry uses a :finalized period
+    end
   end
 
   describe "Scope" do

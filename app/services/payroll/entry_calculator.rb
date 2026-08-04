@@ -110,7 +110,10 @@ module Payroll
           @existing_entry.update!(attrs)
           @existing_entry
         else
-          @period.payroll_entries.create!(attrs)
+          # A brand-new entry has never been reviewed — start flagged so the
+          # reviewer sees it, distinct from the dirty-tracking flip on
+          # subsequent recalculations (see PayrollEntry#mark_needs_review!).
+          @period.payroll_entries.create!(attrs.merge(needs_review: true))
         end
 
         # Obligation deductions: save snapshot first (triggers balance decrement),

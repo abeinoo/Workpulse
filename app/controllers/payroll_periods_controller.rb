@@ -67,6 +67,10 @@ class PayrollPeriodsController < ApplicationController
                  .includes(:user, :payroll_line_items)
                  .order("users.first_name, users.last_name")
 
+    @needs_review_count = @entries.count(&:needs_review?)
+    @filter_needs_review = params[:needs_review] == "1"
+    @entries = @entries.select(&:needs_review?) if @filter_needs_review
+
     @pending_counts = @entries.each_with_object({}) do |entry, h|
       h[entry.id] = entry.payroll_line_items.count(&:pending_review?)
     end
@@ -265,7 +269,7 @@ class PayrollPeriodsController < ApplicationController
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period, :approve_all_pending?
 
-    unless @period.reviewable?
+    unless @period.editable?
       return redirect_to payroll_period_path(@period),
                          alert: t("flash.period_not_reviewable")
     end
@@ -370,6 +374,24 @@ class PayrollPeriodsController < ApplicationController
       notice = t("payroll.deduction_waiver.flash.bulk_applied", count: result.applied)
       notice += " #{t('payroll.deduction_waiver.flash.bulk_skipped', count: result.skipped)}" if result.skipped.positive?
       redirect_to payroll_period_path(@period), notice: notice
+    else
+      redirect_to payroll_period_path(@period), alert: result.error
+    end
+  end
+
+  def mark_all_reviewed
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :mark_all_reviewed?
+
+    # entry_ids restricts to a specific set (e.g. a branch manager's own
+    # branch); absent, every flagged entry in the period is cleared.
+    entry_ids = params[:entry_ids].presence &&
+                policy_scope(PayrollEntry).where(payroll_period: @period, id: params[:entry_ids]).pluck(:id)
+
+    result = Payroll::BulkEntryReviewClearer.call(period: @period, actor: current_user, entry_ids: entry_ids)
+
+    if result.success?
+      redirect_to payroll_period_path(@period), notice: t("payroll.needs_review.flash.bulk_cleared", count: result.cleared)
     else
       redirect_to payroll_period_path(@period), alert: result.error
     end

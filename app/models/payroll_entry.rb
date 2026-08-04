@@ -68,6 +68,34 @@ class PayrollEntry < ApplicationRecord
     (calculated_pay.to_f * minutes.to_i / calculated_overtime_minutes.to_i).round(2)
   end
 
+  # ── Needs-review dirty tracking ─────────────────────────────────────────────
+  # The fields that make up "the payroll-visible result" for an employee. Used
+  # to detect whether a recalculation actually changed anything payable, so a
+  # no-op recompute (e.g. re-saving attendance with no effect on pay) never
+  # flips needs_review. Deliberately mirrors the set of fields EntryCalculator
+  # and recalculate_totals! write to.
+  FINANCIAL_SNAPSHOT_ATTRIBUTES = %w[
+    base_salary salary_type total_deductions total_overtime total_bonuses
+    already_paid_total advances_deducted obligations_deducted net_salary
+    insured employee_insurance_amount employer_insurance_amount insurance_number
+  ].freeze
+
+  def financial_snapshot
+    attributes.slice(*FINANCIAL_SNAPSHOT_ATTRIBUTES)
+  end
+
+  # Flags this entry for re-review when the payroll-visible result actually
+  # changed since `previous` was captured. This is only a visual aid for the
+  # existing Branch Review workflow — it is never itself a lock or an
+  # approval state, and it is never set once the period is locked (Finalize
+  # freezes the result, not the flag).
+  def mark_needs_review!(previous)
+    return if needs_review? || payroll_period.locked?
+    return if financial_snapshot == previous
+
+    update_column(:needs_review, true)
+  end
+
   BONUS_TYPES = %w[cash_incentive commission].freeze
 
   def total_adjustments
@@ -106,6 +134,8 @@ class PayrollEntry < ApplicationRecord
   # stored in already_paid_total and subtracted from net_salary so the employee
   # is not paid twice.
   def recalculate_totals!
+    previous_snapshot = financial_snapshot
+
     items  = payroll_line_items.reload
     active = items.select(&:approved?)
 
@@ -142,5 +172,7 @@ class PayrollEntry < ApplicationRecord
       obligations_deducted: obligations.round(2),
       net_salary:           net.round(2)
     )
+
+    mark_needs_review!(previous_snapshot)
   end
 end

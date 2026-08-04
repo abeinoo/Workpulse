@@ -225,12 +225,14 @@ Rails.application.routes.draw do
       patch :approve_all_pending
       patch :adjust_overtime
       patch :waive_deductions
+      patch :mark_all_reviewed
       patch :reopen
       get   :export_bank_transfer
     end
     resources :payroll_entries, only: [ :show ] do
       member do
         patch :override_overtime
+        patch :mark_reviewed
       end
       resources :payroll_line_items, only: [] do
         member do
