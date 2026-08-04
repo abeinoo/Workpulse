@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_04_071703) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_04_193004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1159,6 +1159,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_071703) do
 
   create_table "performance_reviews", force: :cascade do |t|
     t.decimal "average_score", precision: 4, scale: 2
+    t.bigint "branch_id"
     t.bigint "business_id", null: false
     t.datetime "created_at", null: false
     t.bigint "department_id", null: false
@@ -1171,6 +1172,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_071703) do
     t.bigint "reviewer_id", null: false
     t.string "status", default: "draft", null: false
     t.datetime "updated_at", null: false
+    t.index ["branch_id"], name: "index_performance_reviews_on_branch_id"
+    t.index ["business_id", "branch_id"], name: "index_performance_reviews_on_business_id_and_branch_id"
     t.index ["business_id", "review_year", "review_month"], name: "idx_on_business_id_review_year_review_month_fad3bf3d11"
     t.index ["business_id", "status"], name: "index_performance_reviews_on_business_id_and_status"
     t.index ["business_id"], name: "index_performance_reviews_on_business_id"
@@ -2370,6 +2373,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_071703) do
   add_foreign_key "performance_observations", "users", column: "observed_by_id"
   add_foreign_key "performance_review_scores", "evaluation_criteria"
   add_foreign_key "performance_review_scores", "performance_reviews"
+  add_foreign_key "performance_reviews", "branches"
   add_foreign_key "performance_reviews", "businesses"
   add_foreign_key "performance_reviews", "departments"
   add_foreign_key "performance_reviews", "users", column: "employee_id"

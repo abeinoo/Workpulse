@@ -1,0 +1,5 @@
+<%# Locals: delta (Numeric) — renders "↑ +0.21" / "↓ -0.15" / "→ 0.00" %>
+<% arrow = delta.positive? ? "↑" : (delta.negative? ? "↓" : "→") %>
+<span class="<%= delta.positive? ? "text-success" : (delta.negative? ? "text-danger" : "td-secondary") %>">
+  <%= arrow %> <%= format("%+.2f", delta) %> <%= t("performance.reviews.analytics.vs_previous_period") %>
+</span>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="<%= I18n.locale %>" dir="<%= I18n.locale.to_s == "ar" ? "rtl" : "ltr" %>">
+<head>
+  <meta charset="UTF-8">
+  <title><%= content_for?(:title) ? yield(:title) : t("app_name") %></title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111; padding: 16px 24px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    h2 { font-size: 14px; margin: 20px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+    .subtitle { font-size: 11px; color: #666; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11px; }
+    th, td { text-align: <%= I18n.locale.to_s == "ar" ? "right" : "left" %>; padding: 5px 8px; border-bottom: 1px solid #eee; }
+    th { color: #555; font-weight: 600; background: #f7f7f7; }
+    .stats-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+    .stat { border: 1px solid #eee; border-radius: 6px; padding: 8px 12px; min-width: 120px; }
+    .stat__label { font-size: 10px; color: #666; }
+    .stat__value { font-size: 16px; font-weight: 700; }
+    .text-end { text-align: end; }
+  </style>
+</head>
+<body>
+  <%= yield %>
+</body>
+</html>

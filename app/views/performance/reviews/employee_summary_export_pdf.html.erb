@@ -1,0 +1,52 @@
+<h1><%= t("performance.reviews.analytics.tab_employee_summary") %></h1>
+<p class="subtitle"><%= t("app_name") %> &middot; <%= I18n.l(Date.current) %></p>
+
+<div class="stats-row">
+  <div class="stat">
+    <p class="stat__label"><%= t("performance.reviews.analytics.employees_reviewed") %></p>
+    <p class="stat__value"><%= @overview.employees_reviewed %></p>
+  </div>
+  <div class="stat">
+    <p class="stat__label"><%= t("performance.reviews.analytics.average_employee_rating") %></p>
+    <p class="stat__value"><%= @overview.average_employee_rating || t("performance.reviews.analytics.no_data") %></p>
+  </div>
+  <div class="stat">
+    <p class="stat__label"><%= t("performance.reviews.analytics.highest_rated_employee") %></p>
+    <p class="stat__value"><%= @overview.highest_rated_employee_name %> (<%= @overview.highest_rated_employee_rating %>)</p>
+  </div>
+  <div class="stat">
+    <p class="stat__label"><%= t("performance.reviews.analytics.lowest_rated_employee") %></p>
+    <p class="stat__value"><%= @overview.lowest_rated_employee_name %> (<%= @overview.lowest_rated_employee_rating %>)</p>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><%= t("performance.reviews.analytics.column_employee") %></th>
+      <th><%= t("performance.reviews.analytics.column_branch") %></th>
+      <th><%= t("performance.reviews.analytics.column_department") %></th>
+      <th class="text-end"><%= t("performance.reviews.analytics.column_review_count") %></th>
+      <th class="text-end"><%= t("performance.reviews.analytics.column_average_rating") %></th>
+      <th class="text-end"><%= t("performance.reviews.analytics.column_highest_rating") %></th>
+      <th class="text-end"><%= t("performance.reviews.analytics.column_lowest_rating") %></th>
+      <th><%= t("performance.reviews.analytics.column_trend") %></th>
+      <th><%= t("performance.reviews.analytics.column_last_review_date") %></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @rows.each do |row| %>
+      <tr>
+        <td><%= row.employee_name %></td>
+        <td><%= row.branch_name || t("performance.reviews.analytics.unassigned") %></td>
+        <td><%= row.department_name || t("performance.reviews.analytics.unassigned") %></td>
+        <td class="text-end"><%= row.reviews_count %></td>
+        <td class="text-end"><%= row.average_rating %></td>
+        <td class="text-end"><%= row.highest_rating %></td>
+        <td class="text-end"><%= row.lowest_rating %></td>
+        <td><%= row.trend && t("performance.reviews.analytics.trend_#{row.trend}") %></td>
+        <td><%= row.last_review_at&.to_date&.then { |d| I18n.l(d) } %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

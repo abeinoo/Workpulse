@@ -574,6 +574,13 @@ Rails.application.routes.draw do
       collection { get :criteria_options }
     end
     resources :reviews do
+      collection do
+        get :employee_summary
+        get :export_xlsx
+        get :export_pdf
+        get "employee_summary/export_xlsx", action: :employee_summary_export_xlsx, as: :employee_summary_export_xlsx
+        get "employee_summary/export_pdf",  action: :employee_summary_export_pdf,  as: :employee_summary_export_pdf
+      end
       member do
         patch :submit
         patch :finalize

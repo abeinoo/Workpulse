@@ -27,6 +27,12 @@ gem "csv"
 gem "roo", "~> 2.10"
 gem "roo-xls"
 
+# Write .xlsx workbooks for report exports
+gem "caxlsx"
+
+# Render HTML views to PDF via headless Chrome, for report exports
+gem "grover"
+
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 # gem "bcrypt", "~> 3.1.7"
 

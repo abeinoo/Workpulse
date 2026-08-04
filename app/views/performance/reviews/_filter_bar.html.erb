@@ -1,0 +1,51 @@
+<%# Locals: url (path the filter form submits to) %>
+<%= form_with url: url, method: :get, class: "filter-bar", data: { controller: "auto-submit" } do %>
+  <div class="filter-bar__fields">
+    <div class="filter-bar__field">
+      <%= label_tag :from_date, t("performance.reviews.analytics.filter_from_date"), class: "filter-bar__label" %>
+      <%= date_field_tag :from_date, @filters[:from_date], class: "filter-bar__input",
+            data: { action: "change->auto-submit#submit" } %>
+    </div>
+    <div class="filter-bar__field">
+      <%= label_tag :to_date, t("performance.reviews.analytics.filter_to_date"), class: "filter-bar__label" %>
+      <%= date_field_tag :to_date, @filters[:to_date], class: "filter-bar__input",
+            data: { action: "change->auto-submit#submit" } %>
+    </div>
+    <div class="filter-bar__field">
+      <%= label_tag :branch_id, t("performance.reviews.analytics.filter_branch"), class: "filter-bar__label" %>
+      <%= select_tag :branch_id,
+            options_for_select([ [ t("performance.reviews.analytics.all_branches"), "" ] ] + @filter_branches.map { |b| [ b.name, b.id ] }, @filters[:branch_id]),
+            class: "filter-bar__select", data: { action: "change->auto-submit#submit" } %>
+    </div>
+    <div class="filter-bar__field">
+      <%= label_tag :department_id, t("performance.reviews.analytics.filter_department"), class: "filter-bar__label" %>
+      <%= select_tag :department_id,
+            options_for_select([ [ t("performance.reviews.analytics.all_departments"), "" ] ] + @filter_departments.map { |d| [ d.name, d.id ] }, @filters[:department_id]),
+            class: "filter-bar__select", data: { action: "change->auto-submit#submit" } %>
+    </div>
+    <div class="filter-bar__field">
+      <%= label_tag :employee_id, t("performance.reviews.analytics.filter_employee"), class: "filter-bar__label" %>
+      <%= select_tag :employee_id,
+            options_for_select([ [ t("performance.reviews.analytics.all_employees"), "" ] ] + @filter_employees.map { |e| [ e.full_name, e.id ] }, @filters[:employee_id]),
+            class: "filter-bar__select", data: { action: "change->auto-submit#submit" } %>
+    </div>
+    <div class="filter-bar__field">
+      <%= label_tag :status, t("performance.reviews.analytics.filter_status"), class: "filter-bar__label" %>
+      <%= select_tag :status,
+            options_for_select([ [ t("performance.reviews.analytics.all_statuses"), "" ] ] + PerformanceReview::STATUSES.map { |s| [ t("performance.statuses.#{s}"), s ] }, @filters[:status]),
+            class: "filter-bar__select", data: { action: "change->auto-submit#submit" } %>
+    </div>
+    <div class="filter-bar__field">
+      <%= label_tag :reviewer_id, t("performance.reviews.analytics.filter_reviewer"), class: "filter-bar__label" %>
+      <%= select_tag :reviewer_id,
+            options_for_select([ [ t("performance.reviews.analytics.all_reviewers"), "" ] ] + @filter_reviewers.map { |r| [ r.full_name, r.id ] }, @filters[:reviewer_id]),
+            class: "filter-bar__select", data: { action: "change->auto-submit#submit" } %>
+    </div>
+  </div>
+  <div class="filter-bar__actions">
+    <%= submit_tag t("performance.reviews.analytics.filter_apply"), class: "btn btn-primary btn-sm" %>
+    <% if @filters.values.any?(&:present?) %>
+      <%= link_to t("performance.reviews.analytics.filter_reset"), url, class: "btn btn-ghost btn-sm" %>
+    <% end %>
+  </div>
+<% end %>

@@ -1,18 +1,59 @@
 class Performance::ReviewsController < Performance::BaseController
   # Employees with no module permission may still view their OWN finalized
   # reviews. policy_scope restricts them to exactly that; every write action
-  # remains gated by Pundit (manage_reviews / finalize_reviews).
-  skip_before_action :require_performance_access!, only: [ :index, :show ]
+  # remains gated by Pundit (manage_reviews / finalize_reviews). The analytics/
+  # export actions are read-only views over the same policy_scope, so they
+  # share the same access as index.
+  ANALYTICS_ACTIONS = %i[index employee_summary export_xlsx export_pdf
+                          employee_summary_export_xlsx employee_summary_export_pdf].freeze
+  skip_before_action :require_performance_access!, only: ANALYTICS_ACTIONS + [ :show ]
 
   before_action :set_review, only: [ :show, :edit, :update, :submit, :finalize, :destroy ]
+  before_action :build_analytics, only: ANALYTICS_ACTIONS
 
   def index
-    authorize PerformanceReview
-    @reviews = policy_scope(PerformanceReview)
-                 .includes(:employee, :department, :reviewer)
-                 .recent_first
-    @reviews = @reviews.where(status: params[:status]) if params[:status].present?
-    @reviews = @reviews.where(employee_id: params[:employee_id]) if params[:employee_id].present?
+    @reviews = @analytics.relation.includes(:employee, :department, :reviewer).recent_first
+  end
+
+  def employee_summary
+    @sort      = params[:sort].presence_in(Performance::ReviewAnalytics::EMPLOYEE_SUMMARY_SORT_COLUMNS.keys) || "average_rating"
+    @direction = params[:direction].to_s.casecmp("asc").zero? ? "asc" : "desc"
+    @page      = [ params[:page].to_i, 1 ].max
+    @per_page  = 25
+    @rows      = @analytics.employee_summary_rows(sort: @sort, direction: @direction, page: @page, per_page: @per_page)
+    @overview  = @analytics.employee_summary_overview
+    @total_count = @analytics.employee_summary_total_count
+  end
+
+  def export_xlsx
+    stream = Performance::Exports::ReviewsWorkbook.new(@analytics).call
+    send_data stream.read, filename: "review_analytics_#{Date.current.iso8601}.xlsx",
+              type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  end
+
+  def export_pdf
+    html = render_to_string(template: "performance/reviews/export_pdf", layout: "pdf")
+    send_data Performance::Exports::PdfRenderer.render(html),
+              filename: "review_analytics_#{Date.current.iso8601}.pdf", type: "application/pdf"
+  end
+
+  def employee_summary_export_xlsx
+    sort      = params[:sort].presence_in(Performance::ReviewAnalytics::EMPLOYEE_SUMMARY_SORT_COLUMNS.keys) || "average_rating"
+    direction = params[:direction].to_s.casecmp("asc").zero? ? "asc" : "desc"
+    stream = Performance::Exports::EmployeeSummaryWorkbook.new(@analytics, sort: sort, direction: direction).call
+    send_data stream.read, filename: "employee_summary_#{Date.current.iso8601}.xlsx",
+              type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  end
+
+  def employee_summary_export_pdf
+    @sort      = params[:sort].presence_in(Performance::ReviewAnalytics::EMPLOYEE_SUMMARY_SORT_COLUMNS.keys) || "average_rating"
+    @direction = params[:direction].to_s.casecmp("asc").zero? ? "asc" : "desc"
+    @rows      = @analytics.employee_summary_rows(sort: @sort, direction: @direction, per_page: nil)
+    @overview  = @analytics.employee_summary_overview
+
+    html = render_to_string(template: "performance/reviews/employee_summary_export_pdf", layout: "pdf")
+    send_data Performance::Exports::PdfRenderer.render(html),
+              filename: "employee_summary_#{Date.current.iso8601}.pdf", type: "application/pdf"
   end
 
   def show
@@ -42,7 +83,6 @@ class Performance::ReviewsController < Performance::BaseController
   def create
     @review = current_user.business.performance_reviews.new(review_params)
     @review.reviewer = current_user
-    @review.department_id ||= @review.employee&.department_id
     authorize @review
 
     if @review.save
@@ -89,6 +129,24 @@ class Performance::ReviewsController < Performance::BaseController
   end
 
   private
+
+  def build_analytics
+    # All analytics/export actions share index?'s "scope handles isolation" gate.
+    authorize PerformanceReview, :index?
+    @filters   = filter_params
+    @analytics = Performance::ReviewAnalytics.new(policy_scope(PerformanceReview), @filters)
+
+    @filter_branches    = current_user.business.branches.active.order(:name)
+    @filter_departments = current_user.business.departments.active.ordered
+    @filter_employees   = selectable_employees
+    @filter_reviewers   = User.where(id: policy_scope(PerformanceReview).select(:reviewer_id).distinct)
+                               .order(:first_name, :last_name)
+  end
+
+  def filter_params
+    params.permit(:from_date, :to_date, :branch_id, :department_id, :employee_id, :status, :reviewer_id)
+          .to_h.symbolize_keys
+  end
 
   def set_review
     @review = policy_scope(PerformanceReview).find(params[:id])

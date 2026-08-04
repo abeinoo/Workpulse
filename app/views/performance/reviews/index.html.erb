@@ -3,19 +3,123 @@
 <div class="admin-page">
   <div class="page-header">
     <h1 class="page-title"><%= t("performance.reviews.title") %></h1>
-    <% if current_user.can?(:manage_reviews) %>
-      <%= link_to t("performance.reviews.add"), new_performance_review_path, class: "btn btn-primary btn-sm" %>
-    <% end %>
+    <div style="display: flex; gap: var(--space-2);">
+      <%= link_to t("performance.reviews.analytics.export_xlsx"), export_xlsx_performance_reviews_path(@filters), class: "btn btn-ghost btn-sm" %>
+      <%= link_to t("performance.reviews.analytics.export_pdf"), export_pdf_performance_reviews_path(@filters), class: "btn btn-ghost btn-sm" %>
+      <% if current_user.can?(:manage_reviews) %>
+        <%= link_to t("performance.reviews.add"), new_performance_review_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
   </div>
 
-  <div class="filter-bar" style="margin-bottom: var(--space-4);">
-    <%= link_to t("performance.reviews.filter_all"), performance_reviews_path,
-          class: "btn btn-sm #{params[:status].blank? ? 'btn-secondary' : 'btn-ghost'}" %>
-    <% PerformanceReview::STATUSES.each do |status| %>
-      <%= link_to t("performance.statuses.#{status}"), performance_reviews_path(status: status),
-            class: "btn btn-sm #{params[:status] == status ? 'btn-secondary' : 'btn-ghost'}" %>
+  <%= render "tabs", active: :reviews %>
+  <%= render "filter_bar", url: performance_reviews_path %>
+
+  <section style="margin: var(--space-5) 0;">
+    <h2 class="section-title"><%= t("performance.reviews.analytics.title") %></h2>
+    <div class="stats-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));">
+      <div class="stat-card">
+        <p class="stat-card__label"><%= t("performance.reviews.analytics.total_reviews") %></p>
+        <p class="stat-card__value"><%= @analytics.total_reviews %></p>
+      </div>
+      <div class="stat-card stat-card--accent">
+        <p class="stat-card__label"><%= t("performance.reviews.analytics.average_rating") %></p>
+        <p class="stat-card__value"><%= @analytics.average_rating || t("performance.reviews.analytics.no_data") %></p>
+        <% if (comparison = @analytics.previous_period_comparison) && comparison.rating_delta %>
+          <p class="stat-card__sub"><%= render "performance/reviews/delta", delta: comparison.rating_delta %></p>
+        <% end %>
+      </div>
+      <% @analytics.star_distribution_with_percentage.sort_by { |star, _| -star }.each do |star, data| %>
+        <div class="stat-card">
+          <p class="stat-card__label"><%= t("performance.reviews.analytics.star_label", star: star) %></p>
+          <p class="stat-card__value"><%= data[:count] %></p>
+          <p class="stat-card__sub"><%= data[:percentage] %>%</p>
+        </div>
+      <% end %>
+    </div>
+
+    <% if (comparison = @analytics.previous_period_comparison) %>
+      <div class="card" style="padding: var(--space-4); margin-top: var(--space-4);">
+        <h3 class="section-title"><%= t("performance.reviews.analytics.previous_period_title") %></h3>
+        <p class="td-secondary">
+          <%= t("performance.reviews.analytics.previous_average_rating") %>:
+          <strong><%= comparison.previous_average_rating || t("performance.reviews.analytics.no_data") %></strong>
+          &middot;
+          <%= t("performance.reviews.analytics.previous_review_count") %>:
+          <strong><%= comparison.previous_review_count %></strong>
+          (<%= comparison.review_count_delta.positive? ? "+" : "" %><%= comparison.review_count_delta %>)
+        </p>
+      </div>
     <% end %>
-  </div>
+
+    <% if @filters[:employee_id].present? %>
+      <% employee = @filter_employees.find { |e| e.id == @filters[:employee_id].to_i } %>
+      <% if employee %>
+        <% summary = @analytics.employee_summary(employee.id) %>
+        <h3 class="section-title" style="margin-top: var(--space-5);">
+          <%= t("performance.reviews.analytics.employee_summary_title", name: employee.full_name) %>
+        </h3>
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));">
+          <div class="stat-card">
+            <p class="stat-card__label"><%= t("performance.reviews.analytics.employee_average_rating") %></p>
+            <p class="stat-card__value"><%= summary.average || t("performance.reviews.analytics.no_data") %></p>
+          </div>
+          <div class="stat-card">
+            <p class="stat-card__label"><%= t("performance.reviews.analytics.employee_reviews_count") %></p>
+            <p class="stat-card__value"><%= summary.reviews_count %></p>
+          </div>
+          <div class="stat-card">
+            <p class="stat-card__label"><%= t("performance.reviews.analytics.employee_highest_rating") %></p>
+            <p class="stat-card__value"><%= summary.highest || t("performance.reviews.analytics.no_data") %></p>
+          </div>
+          <div class="stat-card">
+            <p class="stat-card__label"><%= t("performance.reviews.analytics.employee_lowest_rating") %></p>
+            <p class="stat-card__value"><%= summary.lowest || t("performance.reviews.analytics.no_data") %></p>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+
+    <% if @analytics.multiple_departments? %>
+      <%= render "performance/shared/ranking_table", title: t("performance.reviews.analytics.department_summary_title"),
+            rows: @analytics.department_summaries, name_method: :department_name %>
+    <% end %>
+
+    <% if @analytics.multiple_branches? %>
+      <%= render "performance/shared/ranking_table", title: t("performance.reviews.analytics.branch_summary_title"),
+            rows: @analytics.branch_summaries, name_method: :branch_name %>
+    <% end %>
+
+    <div class="grid-2" style="margin-top: var(--space-5); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+      <%= render "performance/shared/employee_ranking_table", title: t("performance.reviews.analytics.top_employees_title"),
+            rows: @analytics.top_employees, empty_text: t("performance.reviews.analytics.ranking_empty") %>
+      <%= render "performance/shared/employee_ranking_table", title: t("performance.reviews.analytics.bottom_employees_title"),
+            rows: @analytics.bottom_employees, empty_text: t("performance.reviews.analytics.ranking_empty") %>
+    </div>
+
+    <div class="card" style="padding: var(--space-5); margin-top: var(--space-5);">
+      <h3 class="section-title"><%= t("performance.reviews.analytics.trend_title") %></h3>
+      <% trend = @analytics.rating_trend %>
+      <% if trend.blank? %>
+        <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("performance.reviews.analytics.trend_empty") %></p></div>
+      <% else %>
+        <table style="width: 100%;">
+          <tbody>
+            <% trend.each do |point| %>
+              <tr>
+                <td class="td-secondary" style="width: 140px;"><%= point.label %></td>
+                <td style="width: 40%;">
+                  <div class="rank-bar"><div class="rank-bar__fill" style="width: <%= ((point.average || 0) / 5.0 * 100).round %>%;"></div></div>
+                </td>
+                <td style="width: 64px; text-align: end; font-weight: 600;"><%= point.average %></td>
+                <td class="td-secondary" style="width: 100px; text-align: end;"><%= t("performance.reviews.analytics.total_reviews") %>: <%= point.count %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+    </div>
+  </section>
 
   <% if @reviews.empty? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("performance.reviews.empty") %></p></div>

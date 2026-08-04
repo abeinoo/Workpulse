@@ -3,6 +3,7 @@ class PerformanceReview < ApplicationRecord
   belongs_to :department
   belongs_to :employee, class_name: "User"
   belongs_to :reviewer, class_name: "User"
+  belongs_to :branch, optional: true
 
   has_many :performance_review_scores, dependent: :destroy
   accepts_nested_attributes_for :performance_review_scores, allow_destroy: true,
@@ -18,6 +19,15 @@ class PerformanceReview < ApplicationRecord
 
   # Average is derived from the entered scores and stored for fast reporting.
   before_save :recalculate_average
+
+  # branch_id/department_id are historical snapshots, captured once at creation
+  # so a later employee transfer never rewrites past analytics. Only fills in
+  # blanks (||=) — a caller (e.g. the review form) may already have set
+  # department_id explicitly. branch_id comes from the employee's current
+  # ShiftAssignment at the moment the review is created (see BranchMembership)
+  # — nil when the employee has no active assignment, which read paths must
+  # handle nil-safely.
+  before_validation :snapshot_branch_and_department, on: :create
 
   scope :for_business, ->(business) { where(business: business) }
   scope :finalized_reviews, -> { where(status: "finalized") }
@@ -38,5 +48,14 @@ class PerformanceReview < ApplicationRecord
 
   def finalize!(at: Time.current)
     update!(status: "finalized", finalized_at: at)
+  end
+
+  private
+
+  def snapshot_branch_and_department
+    return unless employee
+
+    self.department_id ||= employee.department_id
+    self.branch_id     ||= BranchMembership.current_branch_ids(employee).first
   end
 end

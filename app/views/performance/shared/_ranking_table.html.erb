@@ -1,0 +1,25 @@
+<%#
+  Small summary table for department/branch analytics.
+  Locals: title, rows (Array<DepartmentSummary|BranchSummary>), name_method (:department_name or :branch_name)
+%>
+<div class="card" style="padding: var(--space-5); margin-top: var(--space-5);">
+  <h3 class="section-title"><%= title %></h3>
+  <table style="width: 100%;">
+    <thead>
+      <tr>
+        <th><%= t("performance.reviews.analytics.column_name") %></th>
+        <th><%= t("performance.reviews.analytics.column_review_count") %></th>
+        <th><%= t("performance.reviews.analytics.column_average_rating") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.each do |row| %>
+        <tr>
+          <td><%= row.public_send(name_method) || t("performance.reviews.analytics.unassigned") %></td>
+          <td class="td-secondary"><%= row.review_count %></td>
+          <td style="font-weight: 600;"><%= row.average_rating || t("performance.reviews.analytics.no_data") %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

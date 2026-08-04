@@ -1,0 +1,7 @@
+<%# Locals: active (:reviews or :employee_summary) — preserves the current filters when switching tabs %>
+<div class="filter-bar" style="margin-bottom: var(--space-4); padding: var(--space-2);">
+  <%= link_to t("performance.reviews.analytics.tab_reviews"), performance_reviews_path(@filters),
+        class: "btn btn-sm #{active == :reviews ? 'btn-secondary' : 'btn-ghost'}" %>
+  <%= link_to t("performance.reviews.analytics.tab_employee_summary"), employee_summary_performance_reviews_path(@filters),
+        class: "btn btn-sm #{active == :employee_summary ? 'btn-secondary' : 'btn-ghost'}" %>
+</div>

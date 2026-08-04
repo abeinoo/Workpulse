@@ -1,0 +1,97 @@
+<h1><%= t("performance.reviews.analytics.title") %></h1>
+<p class="subtitle"><%= t("app_name") %> &middot; <%= I18n.l(Date.current) %></p>
+
+<div class="stats-row">
+  <div class="stat">
+    <p class="stat__label"><%= t("performance.reviews.analytics.total_reviews") %></p>
+    <p class="stat__value"><%= @analytics.total_reviews %></p>
+  </div>
+  <div class="stat">
+    <p class="stat__label"><%= t("performance.reviews.analytics.average_rating") %></p>
+    <p class="stat__value"><%= @analytics.average_rating || t("performance.reviews.analytics.no_data") %></p>
+  </div>
+  <div class="stat">
+    <p class="stat__label"><%= t("performance.reviews.analytics.highest_rating") %></p>
+    <p class="stat__value"><%= @analytics.highest_rating || t("performance.reviews.analytics.no_data") %></p>
+  </div>
+  <div class="stat">
+    <p class="stat__label"><%= t("performance.reviews.analytics.lowest_rating") %></p>
+    <p class="stat__value"><%= @analytics.lowest_rating || t("performance.reviews.analytics.no_data") %></p>
+  </div>
+</div>
+
+<h2><%= t("performance.reviews.analytics.star_distribution_title") %></h2>
+<table>
+  <thead><tr><th><%= t("performance.reviews.analytics.column_stars") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_review_count") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_percentage") %></th></tr></thead>
+  <tbody>
+    <% @analytics.star_distribution_with_percentage.sort_by { |star, _| -star }.each do |star, data| %>
+      <tr><td><%= t("performance.reviews.analytics.star_label", star: star) %></td><td class="text-end"><%= data[:count] %></td><td class="text-end"><%= data[:percentage] %>%</td></tr>
+    <% end %>
+  </tbody>
+</table>
+
+<% if (comparison = @analytics.previous_period_comparison) %>
+  <h2><%= t("performance.reviews.analytics.previous_period_title") %></h2>
+  <table>
+    <tbody>
+      <tr><td><%= t("performance.reviews.analytics.previous_average_rating") %></td><td class="text-end"><%= comparison.previous_average_rating %></td></tr>
+      <tr><td><%= t("performance.reviews.analytics.rating_delta") %></td><td class="text-end"><%= comparison.rating_delta %></td></tr>
+      <tr><td><%= t("performance.reviews.analytics.previous_review_count") %></td><td class="text-end"><%= comparison.previous_review_count %></td></tr>
+      <tr><td><%= t("performance.reviews.analytics.review_count_delta") %></td><td class="text-end"><%= comparison.review_count_delta %></td></tr>
+    </tbody>
+  </table>
+<% end %>
+
+<% if @analytics.multiple_departments? %>
+  <h2><%= t("performance.reviews.analytics.department_summary_title") %></h2>
+  <table>
+    <thead><tr><th><%= t("performance.reviews.analytics.column_name") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_review_count") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_average_rating") %></th></tr></thead>
+    <tbody>
+      <% @analytics.department_summaries.each do |row| %>
+        <tr><td><%= row.department_name || t("performance.reviews.analytics.unassigned") %></td><td class="text-end"><%= row.review_count %></td><td class="text-end"><%= row.average_rating %></td></tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+
+<% if @analytics.multiple_branches? %>
+  <h2><%= t("performance.reviews.analytics.branch_summary_title") %></h2>
+  <table>
+    <thead><tr><th><%= t("performance.reviews.analytics.column_name") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_review_count") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_average_rating") %></th></tr></thead>
+    <tbody>
+      <% @analytics.branch_summaries.each do |row| %>
+        <tr><td><%= row.branch_name || t("performance.reviews.analytics.unassigned") %></td><td class="text-end"><%= row.review_count %></td><td class="text-end"><%= row.average_rating %></td></tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+
+<h2><%= t("performance.reviews.analytics.top_employees_title") %></h2>
+<table>
+  <thead><tr><th><%= t("performance.reviews.analytics.column_employee") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_average_rating") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_review_count") %></th></tr></thead>
+  <tbody>
+    <% @analytics.top_employees.each do |row| %>
+      <tr><td><%= row.employee_name %></td><td class="text-end"><%= row.average_rating %></td><td class="text-end"><%= row.review_count %></td></tr>
+    <% end %>
+  </tbody>
+</table>
+
+<h2><%= t("performance.reviews.analytics.bottom_employees_title") %></h2>
+<table>
+  <thead><tr><th><%= t("performance.reviews.analytics.column_employee") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_average_rating") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_review_count") %></th></tr></thead>
+  <tbody>
+    <% @analytics.bottom_employees.each do |row| %>
+      <tr><td><%= row.employee_name %></td><td class="text-end"><%= row.average_rating %></td><td class="text-end"><%= row.review_count %></td></tr>
+    <% end %>
+  </tbody>
+</table>
+
+<h2><%= t("performance.reviews.analytics.trend_title") %></h2>
+<table>
+  <thead><tr><th><%= t("performance.reviews.analytics.column_period") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_average_rating") %></th><th class="text-end"><%= t("performance.reviews.analytics.column_review_count") %></th></tr></thead>
+  <tbody>
+    <% @analytics.rating_trend.each do |point| %>
+      <tr><td><%= point.label %></td><td class="text-end"><%= point.average %></td><td class="text-end"><%= point.count %></td></tr>
+    <% end %>
+  </tbody>
+</table>

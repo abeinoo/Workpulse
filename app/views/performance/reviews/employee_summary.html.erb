@@ -1,0 +1,121 @@
+<% content_for :title, t("performance.reviews.analytics.tab_employee_summary") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("performance.reviews.analytics.tab_employee_summary") %></h1>
+    <div style="display: flex; gap: var(--space-2);">
+      <%= link_to t("performance.reviews.analytics.export_xlsx"),
+            employee_summary_export_xlsx_performance_reviews_path(@filters.merge(sort: @sort, direction: @direction)),
+            class: "btn btn-ghost btn-sm" %>
+      <%= link_to t("performance.reviews.analytics.export_pdf"),
+            employee_summary_export_pdf_performance_reviews_path(@filters.merge(sort: @sort, direction: @direction)),
+            class: "btn btn-ghost btn-sm" %>
+    </div>
+  </div>
+
+  <%= render "tabs", active: :employee_summary %>
+  <%= render "filter_bar", url: employee_summary_performance_reviews_path %>
+
+  <div class="stats-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); margin: var(--space-5) 0;">
+    <div class="stat-card">
+      <p class="stat-card__label"><%= t("performance.reviews.analytics.employees_reviewed") %></p>
+      <p class="stat-card__value"><%= @overview.employees_reviewed %></p>
+    </div>
+    <div class="stat-card stat-card--accent">
+      <p class="stat-card__label"><%= t("performance.reviews.analytics.average_employee_rating") %></p>
+      <p class="stat-card__value"><%= @overview.average_employee_rating || t("performance.reviews.analytics.no_data") %></p>
+    </div>
+    <div class="stat-card stat-card--success">
+      <p class="stat-card__label"><%= t("performance.reviews.analytics.highest_rated_employee") %></p>
+      <p class="stat-card__value" style="font-size: var(--text-base);"><%= @overview.highest_rated_employee_name || "—" %></p>
+      <p class="stat-card__sub"><%= @overview.highest_rated_employee_rating %></p>
+    </div>
+    <div class="stat-card stat-card--danger">
+      <p class="stat-card__label"><%= t("performance.reviews.analytics.lowest_rated_employee") %></p>
+      <p class="stat-card__value" style="font-size: var(--text-base);"><%= @overview.lowest_rated_employee_name || "—" %></p>
+      <p class="stat-card__sub"><%= @overview.lowest_rated_employee_rating %></p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-card__label"><%= t("performance.reviews.analytics.employees_below_threshold") %></p>
+      <p class="stat-card__value"><%= @overview.employees_below_threshold %></p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-card__label"><%= t("performance.reviews.analytics.employees_above_threshold") %></p>
+      <p class="stat-card__value"><%= @overview.employees_above_threshold %></p>
+    </div>
+  </div>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("performance.reviews.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <% [
+                 [ "employee_name", "column_employee" ],
+                 [ nil, "column_branch" ],
+                 [ nil, "column_department" ],
+                 [ "review_count", "column_review_count" ],
+                 [ "average_rating", "column_average_rating" ],
+                 [ nil, "column_highest_rating" ],
+                 [ nil, "column_lowest_rating" ],
+                 [ nil, "column_trend" ],
+                 [ "last_review_date", "column_last_review_date" ]
+               ].each do |sort_key, label_key| %>
+              <th>
+                <% if sort_key %>
+                  <% next_direction = (@sort == sort_key && @direction == "asc") ? "desc" : "asc" %>
+                  <%= link_to t("performance.reviews.analytics.#{label_key}"),
+                        employee_summary_performance_reviews_path(@filters.merge(sort: sort_key, direction: next_direction)),
+                        class: "link" %>
+                  <% if @sort == sort_key %><%= @direction == "asc" ? "▲" : "▼" %><% end %>
+                <% else %>
+                  <%= t("performance.reviews.analytics.#{label_key}") %>
+                <% end %>
+              </th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td><%= row.employee_name %></td>
+              <td class="td-secondary"><%= row.branch_name || t("performance.reviews.analytics.unassigned") %></td>
+              <td class="td-secondary"><%= row.department_name || t("performance.reviews.analytics.unassigned") %></td>
+              <td><%= row.reviews_count %></td>
+              <td style="font-weight: 600;"><%= row.average_rating || t("performance.reviews.analytics.no_data") %></td>
+              <td class="td-secondary"><%= row.highest_rating || t("performance.reviews.analytics.no_data") %></td>
+              <td class="td-secondary"><%= row.lowest_rating || t("performance.reviews.analytics.no_data") %></td>
+              <td>
+                <% if row.trend %>
+                  <span class="badge badge-<%= { "improving" => "success", "declining" => "danger", "stable" => "neutral" }[row.trend] %>">
+                    <%= t("performance.reviews.analytics.trend_#{row.trend}") %>
+                  </span>
+                <% else %>—<% end %>
+              </td>
+              <td class="td-secondary"><%= row.last_review_at&.to_date&.then { |d| I18n.l(d) } %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <% total_pages = (@total_count.to_f / @per_page).ceil %>
+    <% if total_pages > 1 %>
+      <div class="filter-bar__actions" style="margin-top: var(--space-4);">
+        <% if @page > 1 %>
+          <%= link_to t("performance.reviews.analytics.pagination_prev"),
+                employee_summary_performance_reviews_path(@filters.merge(sort: @sort, direction: @direction, page: @page - 1)),
+                class: "btn btn-ghost btn-sm" %>
+        <% end %>
+        <span class="td-secondary"><%= t("performance.reviews.analytics.pagination_page", page: @page, total: total_pages) %></span>
+        <% if @page < total_pages %>
+          <%= link_to t("performance.reviews.analytics.pagination_next"),
+                employee_summary_performance_reviews_path(@filters.merge(sort: @sort, direction: @direction, page: @page + 1)),
+                class: "btn btn-ghost btn-sm" %>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</div>
