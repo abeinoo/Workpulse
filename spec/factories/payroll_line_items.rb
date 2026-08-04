@@ -44,11 +44,6 @@ FactoryBot.define do
       review_status { :rejected }
     end
 
-    trait :waived do
-      review_status { :waived }
-      review_notes  { "Excused by manager" }
-    end
-
     # An approved manual deduction sourced from a PayrollAdjustment — the kind of
     # line item the payroll-level waiver layer operates on.
     trait :manual_deduction do

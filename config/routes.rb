@@ -238,7 +238,6 @@ Rails.application.routes.draw do
         member do
           patch :approve
           patch :reject
-          patch :waive
           patch :waive_deduction
           patch :restore_deduction
         end

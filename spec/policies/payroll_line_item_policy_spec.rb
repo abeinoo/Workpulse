@@ -68,42 +68,6 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
     end
   end
 
-  describe "waive?" do
-    it "permits super_admin" do
-      expect(subject.new(super_admin, line_item).waive?).to be true
-    end
-
-    it "permits accountant with approve_adjustments" do
-      expect(subject.new(accountant, line_item).waive?).to be true
-    end
-
-    it "permits branch_manager with approve_adjustments" do
-      expect(subject.new(manager, line_item).waive?).to be true
-    end
-
-    it "denies employee" do
-      expect(subject.new(employee, line_item).waive?).to be false
-    end
-
-    context "branch_manager from another branch still has approve_adjustments permission" do
-      let(:other_branch)  { create(:branch, business: business) }
-      let(:other_manager) { create(:user, :branch_manager, business: business) }
-
-
-      it "permits the manager — scope enforces employee boundary, not policy" do
-        expect(subject.new(other_manager, line_item).waive?).to be true
-      end
-    end
-
-    context "branch_manager from a different business" do
-      let(:other_manager) { create(:user, :branch_manager) }
-
-      it "denies the manager" do
-        expect(subject.new(other_manager, line_item).waive?).to be false
-      end
-    end
-  end
-
   describe "waive_deduction? / restore_deduction?" do
     let(:manual_deduction) { create(:payroll_line_item, :manual_deduction, payroll_entry: entry) }
 
@@ -124,8 +88,13 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
       expect(subject.new(employee, manual_deduction).waive_deduction?).to be false
     end
 
-    it "denies waiving a non-manual-deduction line item even for accountant" do
-      expect(subject.new(accountant, line_item).waive_deduction?).to be false
+    it "denies waiving a deduction type not on the waivable allowlist, even for accountant" do
+      advance = create(:payroll_line_item, :advance_deduction, payroll_entry: entry)
+      expect(subject.new(accountant, advance).waive_deduction?).to be false
+    end
+
+    it "permits waiving other allowlisted deduction types (e.g. late_penalty), not just manual_deduction" do
+      expect(subject.new(accountant, line_item).waive_deduction?).to be true
     end
 
     it "blocks waiving on a finalized period" do
@@ -241,8 +210,8 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
       expect(described_class.new(super_admin, locked_item).reject?).to be false
     end
 
-    it "blocks waive? on a finalized period" do
-      expect(described_class.new(super_admin, locked_item).waive?).to be false
+    it "blocks waive_deduction? on a finalized period" do
+      expect(described_class.new(accountant, locked_item).waive_deduction?).to be false
     end
 
     it "permits approve? on a draft period" do

@@ -72,21 +72,40 @@ class PayrollLineItem < ApplicationRecord
     source_adjustment&.created_by
   end
 
-  # ── Manual deduction waiver layer ───────────────────────────────────────────
+  # ── Deduction waiver layer ──────────────────────────────────────────────────
   # A payroll-level layer (distinct from the review_status workflow) that lets a
-  # payroll user excuse a manual deduction without touching the source adjustment.
-  # Only manual deductions are waivable. `deduction_waived` is the boolean column.
+  # payroll user excuse a deduction without touching its source record.
+  # `deduction_waived` is the boolean column, shared by every waivable type.
+  #
+  # Which deduction types are actually waivable is an explicit business-rule
+  # allowlist, not "every deduction" — insurance/advance/obligation deductions
+  # are deliberately excluded until a decision is made to support waiving them.
+  # This is the ONLY place that decision is made; the persistence layer
+  # (Payroll::DeductionWaiverPersistence) treats every allowlisted type
+  # identically and has no type-specific logic of its own.
+  WAIVABLE_DEDUCTION_TYPES = %w[
+    late_penalty early_leave_penalty manual_adjustment manual_deduction penalty
+  ].freeze
+
   scope :manual_deductions,        -> { where(item_type: "manual_deduction") }
   scope :waived_deductions,        -> { manual_deductions.where(deduction_waived: true) }
   scope :active_manual_deductions, -> { manual_deductions.where(deduction_waived: false) }
 
-  # Only manual deductions participate in the waiver layer.
   def deduction_waivable?
-    manual_deduction?
+    deduction? && WAIVABLE_DEDUCTION_TYPES.include?(item_type)
   end
 
   # Human-facing waiver state for display: "waived" or "active".
   def waiver_status
     deduction_waived? ? "waived" : "active"
+  end
+
+  # Stable identity for matching a waived line item across a rebuild that
+  # destroys and recreates it (and its id) from scratch. Prefers the source
+  # record's id, which is stable for every waivable type except the absence
+  # deduction (manual_adjustment), which has no source record at all — there
+  # is at most one per entry, so the item_type alone is a safe key there.
+  def waiver_identity
+    source_id.present? ? [ item_type, source_id ] : [ item_type ]
   end
 end

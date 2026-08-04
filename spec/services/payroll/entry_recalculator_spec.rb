@@ -651,6 +651,64 @@ RSpec.describe Payroll::EntryRecalculator do
     end
   end
 
+  # ── Manual penalty waiver preservation (previously lost — see bug report) ──
+
+  describe "manual penalty waiver preservation" do
+    let!(:penalty_adj) do
+      create(:payroll_adjustment, :penalty, :approved,
+             payroll_period: period, user: employee, business: business, amount: 150.0)
+    end
+    let(:all_days) { (period_start..period_end).reject { |d| d.saturday? || d.sunday? }.first(22) }
+
+    before do
+      all_days.each { |d| create_record(d, worked: 480) }
+      initial = build_initial_entry
+      li = initial.payroll_line_items.find_by(item_type: "penalty", source_id: penalty_adj.id)
+      Payroll::DeductionWaiver.call(line_item: li, action: "waive", actor: actor, reason: "Waived on appeal")
+    end
+
+    it "preserves the waiver on the recalculated entry" do
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "penalty", source_id: penalty_adj.id)
+      expect(li).to be_present
+      expect(li.deduction_waived?).to be true
+      expect(li.deduction_waiver_reason).to eq("Waived on appeal")
+    end
+
+    it "does not deduct the waived amount from net_salary" do
+      run
+      expect(current_entry.net_salary).to eq(8_800.0)
+    end
+  end
+
+  # ── Absence deduction waiver preservation (previously lost — see bug report) ─
+
+  describe "absence deduction waiver preservation" do
+    # No attendance records at all → full-month absence deduction (manual_adjustment,
+    # no source record — waiver_identity falls back to item_type alone).
+    before do
+      initial = build_initial_entry
+      li = initial.payroll_line_items.find_by(item_type: "manual_adjustment")
+      Payroll::DeductionWaiver.call(line_item: li, action: "waive", actor: actor, reason: "Approved unpaid leave")
+    end
+
+    it "preserves the waiver on the recalculated entry even as the absence amount changes" do
+      # Add one attendance day — absence deduction shrinks but the item persists.
+      create_record(Date.new(2026, 6, 1), worked: 480)
+      run
+
+      li = current_entry.payroll_line_items.find_by(item_type: "manual_adjustment")
+      expect(li).to be_present
+      expect(li.deduction_waived?).to be true
+      expect(li.deduction_waiver_reason).to eq("Approved unpaid leave")
+    end
+
+    it "does not deduct the waived absence amount from net_salary" do
+      run
+      expect(current_entry.net_salary).to eq(8_800.0)
+    end
+  end
+
   # ── Attendance penalty waiver preservation ─────────────────────────────────
 
   describe "attendance penalty waiver preservation" do
@@ -668,22 +726,22 @@ RSpec.describe Payroll::EntryRecalculator do
       end
       initial = build_initial_entry
       li = initial.payroll_line_items.find_by(item_type: "late_penalty")
-      Payroll::LineItemReviewer.call(line_item: li, action: "waive",
-                                     reviewed_by: actor, notes: "Traffic accident, excused")
+      Payroll::DeductionWaiver.call(line_item: li, action: "waive",
+                                    actor: actor, reason: "Traffic accident, excused")
     end
 
-    it "preserves the waived review_status on the recalculated entry" do
+    it "preserves the waived state on the recalculated entry" do
       run
       li = current_entry.payroll_line_items.find_by(item_type: "late_penalty")
       expect(li).to be_present
-      expect(li.waived?).to be true
+      expect(li.deduction_waived?).to be true
     end
 
-    it "preserves the review notes and reviewer" do
+    it "preserves the waiver reason and actor" do
       run
       li = current_entry.payroll_line_items.find_by(item_type: "late_penalty")
-      expect(li.review_notes).to eq("Traffic accident, excused")
-      expect(li.reviewed_by).to eq(actor)
+      expect(li.deduction_waiver_reason).to eq("Traffic accident, excused")
+      expect(li.deduction_waived_by).to eq(actor)
     end
 
     it "does not deduct the waived penalty from net_salary" do
@@ -696,7 +754,7 @@ RSpec.describe Payroll::EntryRecalculator do
                       .update_columns(check_in_at: Time.zone.local(2026, 6, 2, 9, 15))
       run
       li = current_entry.payroll_line_items.find_by(item_type: "late_penalty")
-      expect(li.waived?).to be true
+      expect(li.deduction_waived?).to be true
     end
   end
 

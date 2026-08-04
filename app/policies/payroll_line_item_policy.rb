@@ -1,7 +1,6 @@
 class PayrollLineItemPolicy < ApplicationPolicy
   def approve? = reviewable_action?
   def reject?  = reviewable_action?
-  def waive?   = reviewable_action?
 
   # ── Manual deduction waiver layer ───────────────────────────────────────────
   # Gated by its own dedicated permission (manage_payroll_deduction_waivers),

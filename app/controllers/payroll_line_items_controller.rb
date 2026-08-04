@@ -40,26 +40,7 @@ class PayrollLineItemsController < ApplicationController
     end
   end
 
-  def waive
-    authorize @line_item, :waive?
-
-    result = Payroll::LineItemReviewer.call(
-      line_item:   @line_item,
-      action:      "waive",
-      reviewed_by: current_user,
-      notes:       params[:notes]
-    )
-
-    if result.success?
-      redirect_to payroll_period_payroll_entry_path(@period, @entry),
-                  notice: t("flash.deduction_waived")
-    else
-      redirect_to payroll_period_payroll_entry_path(@period, @entry),
-                  alert: result.error
-    end
-  end
-
-  # ── Manual deduction waiver layer (dedicated permission) ───────────────────
+  # ── Deduction waiver layer (dedicated permission) ──────────────────────────
   def waive_deduction
     authorize @line_item, :waive_deduction?
 

@@ -29,10 +29,12 @@ module Payroll
       # Preserve management overtime overrides across the rebuild (entries are
       # destroyed and recreated by PeriodGenerator). Captured by user_id.
       saved_overrides = capture_overtime_overrides
-      # Preserve manual-deduction waivers the same way, keyed by (user_id, source).
-      saved_waivers   = capture_deduction_waivers
-      # Preserve attendance-penalty waivers the same way, keyed by (user_id, source).
-      saved_penalties = capture_penalty_reviews
+      # Preserve every waivable deduction's waiver the same way, keyed by
+      # (user_id, waiver_identity) — see Payroll::DeductionWaiverPersistence.
+      saved_waivers = Payroll::DeductionWaiverPersistence.capture(
+        PayrollLineItem.joins(:payroll_entry)
+                       .where(payroll_entries: { payroll_period_id: @period.id })
+      )
 
       regenerated = Payroll::PeriodGenerator.call(
         business:     @period.business,
@@ -43,7 +45,6 @@ module Payroll
 
       reapply_overtime_overrides(regenerated, saved_overrides)
       reapply_deduction_waivers(regenerated, saved_waivers)
-      reapply_penalty_reviews(regenerated, saved_penalties)
 
       PayrollAuditLog.create!(
         payroll_period: regenerated,
@@ -124,93 +125,16 @@ module Payroll
       end
     end
 
-    # Snapshot every waived manual deduction, keyed by [user_id, adjustment_id].
-    # The waiver lives at the payroll layer; the source PayrollAdjustment is stable
-    # across regeneration (it is never modified), so its id is a reliable join key.
-    def capture_deduction_waivers
-      PayrollLineItem
-        .joins(:payroll_entry)
-        .where(payroll_entries: { payroll_period_id: @period.id })
-        .where(item_type: "manual_deduction", deduction_waived: true)
-        .includes(:payroll_entry)
-        .each_with_object({}) do |li, memo|
-          next if li.source_id.blank?
-          memo[[ li.payroll_entry.user_id, li.source_id ]] = {
-            reason:     li.deduction_waiver_reason,
-            waived_by_id: li.deduction_waived_by_id,
-            waived_at:  li.deduction_waived_at
-          }
-        end
-    end
-
-    # Re-apply saved waivers to the freshly generated manual-deduction line items,
-    # matched by [user_id, source adjustment id], then recompute affected entries.
+    # Re-apply saved deduction waivers to the freshly generated line items,
+    # matched by [user_id, waiver_identity], then recompute each touched entry
+    # exactly once.
     def reapply_deduction_waivers(period, saved_waivers)
       return if saved_waivers.empty?
 
       touched_entry_ids = []
 
       period.payroll_entries.includes(:payroll_line_items).find_each do |entry|
-        entry.payroll_line_items.each do |li|
-          next unless li.manual_deduction? && li.source_id.present?
-          prev = saved_waivers[[ entry.user_id, li.source_id ]]
-          next unless prev
-
-          li.update!(
-            deduction_waived:        true,
-            deduction_waiver_reason: prev[:reason],
-            deduction_waived_by_id:  prev[:waived_by_id],
-            deduction_waived_at:     prev[:waived_at]
-          )
-          touched_entry_ids << entry.id
-        end
-      end
-
-      PayrollEntry.where(id: touched_entry_ids.uniq)
-                  .includes(:payroll_line_items)
-                  .each(&:recalculate_totals!)
-    end
-
-    # Snapshot every waived attendance-penalty item, keyed by [user_id, source_id].
-    # The source AttendanceRecord is stable across regeneration, so its id is a
-    # reliable join key (mirrors capture_deduction_waivers above).
-    def capture_penalty_reviews
-      PayrollLineItem
-        .joins(:payroll_entry)
-        .where(payroll_entries: { payroll_period_id: @period.id })
-        .where(item_type: Payroll::EntryRecalculator::ATTENDANCE_PENALTY_TYPES, review_status: "waived")
-        .includes(:payroll_entry)
-        .each_with_object({}) do |li, memo|
-          next if li.source_id.blank?
-          memo[[ li.payroll_entry.user_id, li.source_id ]] = {
-            reviewed_by_id: li.reviewed_by_id,
-            reviewed_at:    li.reviewed_at,
-            review_notes:   li.review_notes
-          }
-        end
-    end
-
-    # Re-apply saved attendance-penalty waivers to the freshly generated line
-    # items, matched by [user_id, source AttendanceRecord id].
-    def reapply_penalty_reviews(period, saved_reviews)
-      return if saved_reviews.empty?
-
-      touched_entry_ids = []
-
-      period.payroll_entries.includes(:payroll_line_items).find_each do |entry|
-        entry.payroll_line_items.each do |li|
-          next unless Payroll::EntryRecalculator::ATTENDANCE_PENALTY_TYPES.include?(li.item_type) && li.source_id.present?
-          prev = saved_reviews[[ entry.user_id, li.source_id ]]
-          next unless prev
-
-          li.update!(
-            review_status:  "waived",
-            reviewed_by_id: prev[:reviewed_by_id],
-            reviewed_at:    prev[:reviewed_at],
-            review_notes:   prev[:review_notes]
-          )
-          touched_entry_ids << entry.id
-        end
+        touched_entry_ids << entry.id if Payroll::DeductionWaiverPersistence.reapply_to_entry(entry, saved_waivers)
       end
 
       PayrollEntry.where(id: touched_entry_ids.uniq)

@@ -57,11 +57,21 @@ RSpec.describe Payroll::DeductionWaiver do
       expect(result.error).to eq(I18n.t("payroll.deduction_waiver.errors.already_waived"))
     end
 
-    it "rejects non-manual-deduction line items" do
-      penalty = create(:payroll_line_item, :late_penalty, payroll_entry: entry, review_status: "approved", amount: -50.0)
-      result = described_class.call(line_item: penalty, action: "waive", actor: manager, reason: "x")
+    it "rejects a deduction type not on the waivable allowlist" do
+      advance = create(:payroll_line_item, :advance_deduction, payroll_entry: entry, amount: -50.0)
+      result = described_class.call(line_item: advance, action: "waive", actor: manager, reason: "x")
       expect(result.success?).to be false
       expect(result.error).to eq(I18n.t("payroll.deduction_waiver.errors.not_waivable"))
+    end
+
+    %w[obligation_deduction insurance_deduction].each do |excluded_type|
+      it "rejects #{excluded_type} — deliberately excluded until explicitly supported" do
+        li = create(:payroll_line_item, payroll_entry: entry, item_type: excluded_type,
+                    amount: -50.0, review_status: "approved")
+        result = described_class.call(line_item: li, action: "waive", actor: manager, reason: "x")
+        expect(result.success?).to be false
+        expect(result.error).to eq(I18n.t("payroll.deduction_waiver.errors.not_waivable"))
+      end
     end
 
     it "is forbidden without the manage_payroll_deduction_waivers permission" do
