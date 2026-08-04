@@ -245,47 +245,60 @@
   <% end %>
 
   <%# ── Payroll overview (management only) ────────────────────────────────── %>
-  <% if @overview && @entries.any? %>
+  <%# Entirely line-item-driven — see Payroll::PeriodFinancialSummary. Any new
+       positive/negative PayrollLineItem type appears in the breakdown lists
+       automatically, with no changes needed here. %>
+  <% if @financial_summary && @entries.any? %>
     <div class="payroll-overview">
       <div class="payroll-overview__label"><%= t("payroll.show.overview_title") %></div>
-      <div class="payroll-overview__metrics">
-        <div class="payroll-overview__metric">
-          <span class="payroll-overview__metric-label"><%= t("payroll.show.overview_employees") %></span>
-          <span class="payroll-overview__metric-value"><%= @overview[:total_employees] %></span>
+      <div class="payroll-overview__employees">
+        <%= t("payroll.show.overview_employees") %>: <strong><%= @overview[:total_employees] %></strong>
+      </div>
+
+      <div class="payroll-summary-grid">
+        <div class="payroll-summary-card payroll-summary-card--gross">
+          <div class="payroll-summary-card__header">
+            <span class="payroll-summary-card__title"><%= t("payroll.show.gross_payroll_card") %></span>
+            <span class="payroll-summary-card__total payroll-summary-card__total--success">
+              <%= format_currency(@financial_summary.gross_payroll, precision: 0) %>
+            </span>
+          </div>
+          <ul class="payroll-summary-card__breakdown">
+            <% @financial_summary.gross_breakdown.each do |category| %>
+              <li>
+                <span class="payroll-summary-card__breakdown-label"><%= category.label %></span>
+                <span class="payroll-summary-card__breakdown-value"><%= format_currency(category.amount, precision: 0) %></span>
+              </li>
+            <% end %>
+          </ul>
         </div>
-        <div class="payroll-overview__metric">
-          <span class="payroll-overview__metric-label"><%= t("payroll.show.overview_base") %></span>
-          <span class="payroll-overview__metric-value"><%= format_currency(@overview[:total_base], precision: 0) %></span>
-        </div>
-        <div class="payroll-overview__metric">
-          <span class="payroll-overview__metric-label"><%= t("payroll.show.overview_overtime") %></span>
-          <span class="payroll-overview__metric-value <%= @overview[:total_overtime] > 0 ? 'payroll-overview__metric-value--success' : '' %>">
-            <%= @overview[:total_overtime] > 0 ? format_currency(@overview[:total_overtime], precision: 0) : "—" %>
-          </span>
-        </div>
-        <div class="payroll-overview__metric">
-          <span class="payroll-overview__metric-label"><%= t("payroll.show.overview_bonuses") %></span>
-          <span class="payroll-overview__metric-value <%= @overview[:total_bonuses] > 0 ? 'payroll-overview__metric-value--success' : '' %>">
-            <%= @overview[:total_bonuses] > 0 ? format_currency(@overview[:total_bonuses], precision: 0) : "—" %>
-          </span>
-        </div>
-        <div class="payroll-overview__metric">
-          <span class="payroll-overview__metric-label"><%= t("payroll.show.overview_deductions") %></span>
-          <span class="payroll-overview__metric-value <%= @overview[:total_deductions] > 0 ? 'payroll-overview__metric-value--danger' : '' %>">
-            <%= @overview[:total_deductions] > 0 ? "− #{format_currency(@overview[:total_deductions], precision: 0)}" : "—" %>
-          </span>
-        </div>
-        <div class="payroll-overview__metric">
-          <span class="payroll-overview__metric-label"><%= t("payroll.show.overview_advances") %></span>
-          <span class="payroll-overview__metric-value <%= @overview[:total_advances] > 0 ? 'payroll-overview__metric-value--danger' : '' %>">
-            <%= @overview[:total_advances] > 0 ? "− #{format_currency(@overview[:total_advances], precision: 0)}" : "—" %>
-          </span>
+
+        <div class="payroll-summary-card payroll-summary-card--deductions">
+          <div class="payroll-summary-card__header">
+            <span class="payroll-summary-card__title"><%= t("payroll.show.total_deductions_card") %></span>
+            <span class="payroll-summary-card__total payroll-summary-card__total--danger">
+              − <%= format_currency(@financial_summary.total_deductions, precision: 0) %>
+            </span>
+          </div>
+          <% if @financial_summary.deduction_breakdown.any? %>
+            <ul class="payroll-summary-card__breakdown">
+              <% @financial_summary.deduction_breakdown.each do |category| %>
+                <li>
+                  <span class="payroll-summary-card__breakdown-label"><%= category.label %></span>
+                  <span class="payroll-summary-card__breakdown-value">− <%= format_currency(category.amount, precision: 0) %></span>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="payroll-summary-card__empty"><%= t("payroll.show.no_deductions_summary") %></p>
+          <% end %>
         </div>
       </div>
+
       <div class="payroll-overview__divider"></div>
       <div class="payroll-overview__net-row">
         <span class="payroll-overview__net-label"><%= t("payroll.show.overview_net") %></span>
-        <span class="payroll-overview__net-value"><%= format_currency(@overview[:total_net], precision: 0) %></span>
+        <span class="payroll-overview__net-value"><%= format_currency(@financial_summary.net_payroll, precision: 0) %></span>
       </div>
     </div>
   <% end %>

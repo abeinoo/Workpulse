@@ -1,0 +1,100 @@
+module Payroll
+  # Answers the three questions the Payroll Period page needs to answer, computed
+  # entirely from PayrollLineItem — never from the cached aggregate columns on
+  # PayrollEntry (total_bonuses, total_deductions, advances_deducted, ...). Any
+  # new positive or negative PayrollLineItem type is picked up automatically by
+  # both the totals and the category breakdown; nothing here is keyed to a
+  # specific item_type.
+  #
+  #   Gross Payroll    = base_salary (the one component that is never a line
+  #                       item — see EntryCalculator#base) + every financially
+  #                       active line item with a positive amount.
+  #   Total Deductions = every financially active line item with a negative
+  #                       amount (abs), PLUS already-paid bonus amounts — an
+  #                       already_paid bonus is a positive line item (counted
+  #                       in Gross Payroll) that was disbursed outside this
+  #                       payroll cycle, so it must also reduce what's still
+  #                       payable. Folding it into Total Deductions here is
+  #                       what keeps Gross - Deductions == entry.net_salary
+  #                       exactly (see PayrollEntry#recalculate_totals!).
+  #   Net Payroll      = Gross Payroll - Total Deductions.
+  #
+  # "Financially active" (PayrollLineItem.financially_active) is the same
+  # approved-and-not-waived rule recalculate_totals! applies — a pending_review
+  # or rejected item is informational only and never contributes.
+  class PeriodFinancialSummary
+    Category = Struct.new(:item_type, :label, :amount, keyword_init: true)
+
+    def initialize(entries)
+      @entries = entries
+    end
+
+    def gross_payroll
+      (base_salary_total + gross_line_items_total).round(2)
+    end
+
+    def total_deductions
+      (deduction_line_items_total + already_paid_total).round(2)
+    end
+
+    def net_payroll
+      (gross_payroll - total_deductions).round(2)
+    end
+
+    # Positive-amount categories for display, largest first, with Base Salary
+    # pinned first since it is the foundation every other earning sits on top of.
+    def gross_breakdown
+      [ Category.new(item_type: "base_salary", label: I18n.t("payroll.base_salary"), amount: base_salary_total) ] +
+        grouped_totals(">").sort_by { |c| -c.amount }
+    end
+
+    # Negative-amount categories for display, largest first, with the
+    # already-paid offset (if any) shown as its own line.
+    def deduction_breakdown
+      breakdown = grouped_totals("<")
+      breakdown << Category.new(
+        item_type: "already_paid",
+        label:     I18n.t("payroll.show.already_paid_deduction_label"),
+        amount:    already_paid_total
+      ) if already_paid_total.positive?
+
+      breakdown.sort_by { |c| -c.amount }
+    end
+
+    private
+
+    def base_salary_total
+      @base_salary_total ||= (@entries.sum(:base_salary) || 0).round(2)
+    end
+
+    def financially_active_items
+      PayrollLineItem.financially_active.where(payroll_entry: @entries)
+    end
+
+    def gross_line_items_total
+      @gross_line_items_total ||= financially_active_items.where("amount > 0").sum(:amount).round(2)
+    end
+
+    def deduction_line_items_total
+      @deduction_line_items_total ||= financially_active_items.where("amount < 0").sum(:amount).abs.round(2)
+    end
+
+    def already_paid_total
+      @already_paid_total ||= financially_active_items.where(already_paid: true).where("amount > 0").sum(:amount).round(2)
+    end
+
+    def grouped_totals(comparator)
+      financially_active_items
+        .where("amount #{comparator} 0")
+        .group(:item_type)
+        .sum(:amount)
+        .map do |item_type, total|
+          Category.new(
+            item_type: item_type,
+            label:     I18n.t("payroll.entry.item_types.#{item_type}", default: item_type.humanize),
+            amount:    total.abs.round(2)
+          )
+        end
+    end
+  end
+end

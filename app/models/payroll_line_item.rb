@@ -91,6 +91,16 @@ class PayrollLineItem < ApplicationRecord
   scope :waived_deductions,        -> { manual_deductions.where(deduction_waived: true) }
   scope :active_manual_deductions, -> { manual_deductions.where(deduction_waived: false) }
 
+  # Whether a line item has any monetary effect right now — the single
+  # predicate every payroll total (per-entry or period-wide) is built on.
+  # Mirrors PayrollEntry#recalculate_totals!'s `active` selection exactly
+  # (approved, and not waived — deduction_waived is only ever true for a
+  # waivable deduction type, so this is a no-op filter for every other type).
+  # A pending_review or rejected item exists for display only and never
+  # contributes to a total. Used by Payroll::PeriodFinancialSummary for
+  # period-wide SQL aggregation without duplicating this rule.
+  scope :financially_active, -> { where(review_status: "approved", deduction_waived: false) }
+
   def deduction_waivable?
     deduction? && WAIVABLE_DEDUCTION_TYPES.include?(item_type)
   end

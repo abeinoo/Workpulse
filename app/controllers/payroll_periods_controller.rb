@@ -99,7 +99,8 @@ class PayrollPeriodsController < ApplicationController
     # Without `view_payroll_analytics` a viewer sees the per-employee rows
     # they're authorized to see, but no organization-wide aggregates.
     if current_user.can?(:view_payroll_analytics)
-      @overview  = build_period_overview(@entries)
+      @overview          = build_period_overview(@entries)
+      @financial_summary = Payroll::PeriodFinancialSummary.new(@entries)
       @insights  = Payroll::InsightsPresenter.new(period: @period, entries: @entries)
       @anomalies = Payroll::AnomalyDetector.new(
                      period:        @period,

@@ -8093,6 +8093,70 @@ details:not([open]) .permission-group__chevron {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+.payroll-overview__employees {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  margin-bottom: var(--space-4);
+}
+.payroll-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+@media (min-width: 700px) {
+  .payroll-summary-grid { grid-template-columns: 1fr 1fr; }
+}
+.payroll-summary-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+.payroll-summary-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.payroll-summary-card__title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-2);
+}
+.payroll-summary-card__total {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.payroll-summary-card__total--success { color: var(--success); }
+.payroll-summary-card__total--danger  { color: var(--danger); }
+.payroll-summary-card__breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.payroll-summary-card__breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.payroll-summary-card__breakdown-label {
+  color: var(--text-3);
+}
+.payroll-summary-card__breakdown-value {
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.payroll-summary-card__empty {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  margin: 0;
+}
 
 /* ── Payroll show: alerts section ────────────────────────── */
 .payroll-alerts {
