@@ -1,0 +1,22 @@
+<%
+  # locals: current, previous, invert: false (true when a *decrease* is good, e.g. Expenses),
+  #         is_percentage_points: false (true when `current`/`previous` are already % values)
+  invert = local_assigns.fetch(:invert, false)
+  is_pp  = local_assigns.fetch(:is_percentage_points, false)
+
+  delta = if is_pp
+    current.to_f - previous.to_f
+  elsif previous.to_f.zero?
+    nil
+  else
+    ((current.to_f - previous.to_f) / previous.to_f.abs) * 100
+  end
+%>
+<% if delta %>
+  <% good = invert ? delta <= 0 : delta >= 0 %>
+  <span class="kpi-card__delta <%= good ? 'kpi-card__delta--up' : 'kpi-card__delta--down' %>">
+    <%= delta >= 0 ? "▲" : "▼" %>
+    <%= number_with_precision(delta.abs, precision: 1) %><%= is_pp ? "pp" : "%" %>
+    <span class="kpi-card__delta-label"><%= t("finance.dashboard.kpi.vs_previous_period") %></span>
+  </span>
+<% end %>

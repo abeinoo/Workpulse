@@ -1,0 +1,16 @@
+<%# locals: total, previous_total, count %>
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <span class="kpi-card__label"><%= t("finance.reports.breakdown.kpi_total") %></span>
+    <span class="kpi-card__value"><%= format_currency(total) %></span>
+    <%= render "finance/dashboard/kpi_delta", current: total, previous: previous_total, invert: true %>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-card__label"><%= t("finance.reports.breakdown.kpi_previous") %></span>
+    <span class="kpi-card__value"><%= format_currency(previous_total) %></span>
+  </div>
+  <div class="kpi-card">
+    <span class="kpi-card__label"><%= t("finance.reports.breakdown.kpi_count") %></span>
+    <span class="kpi-card__value"><%= count %></span>
+  </div>
+</div>

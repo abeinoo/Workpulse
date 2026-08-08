@@ -1,0 +1,29 @@
+<div class="exec-card exec-span-6">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.dashboard.top_categories.title") %></h2>
+    <%= link_to t("finance.dashboard.view_full_report"), finance_expenses_by_category_report_path(from: @filters.from, to: @filters.to), class: "link" %>
+  </div>
+  <% if @top_categories.blank? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.dashboard.no_data_for_period") %></p></div>
+  <% else %>
+    <div class="top-list">
+      <% @top_categories.each do |row| %>
+        <%= link_to finance_expenses_path(expense_category_id: @category_ids_by_name[row[:name]], from: @filters.from, to: @filters.to, branch_id: params[:branch_id]), class: "top-list__row" do %>
+          <span class="top-list__name"><%= row[:name] %></span>
+          <div class="top-list__bar-track">
+            <div class="top-list__bar" style="width: <%= row[:pct].round(1) %>%;"></div>
+          </div>
+          <span class="top-list__amount"><%= format_currency(row[:amount]) %></span>
+          <span class="top-list__pct"><%= number_with_precision(row[:pct], precision: 1) %>%</span>
+          <% if row[:change] %>
+            <span class="top-list__trend <%= row[:change] >= 0 ? 'top-list__trend--up' : 'top-list__trend--down' %>">
+              <%= row[:change] >= 0 ? "▲" : "▼" %><%= number_with_precision(row[:change].abs * 100, precision: 0) %>%
+            </span>
+          <% else %>
+            <span class="top-list__trend">—</span>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

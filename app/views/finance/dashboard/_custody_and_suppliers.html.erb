@@ -1,0 +1,73 @@
+<% if @show_custody %>
+  <div class="exec-card exec-span-4">
+    <div class="exec-card__header">
+      <h2 class="section-title--exec"><%= t("finance.dashboard.custody_summary.title") %></h2>
+      <%= link_to t("finance.dashboard.view_full_report"), finance_custody_accounts_path, class: "link" %>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card stat-card--success">
+        <span class="stat-card__label"><%= t("finance.dashboard.custody_summary.positive") %></span>
+        <span class="stat-card__value"><%= @custody_positive_count %></span>
+      </div>
+      <div class="stat-card stat-card--danger">
+        <span class="stat-card__label"><%= t("finance.dashboard.custody_summary.negative") %></span>
+        <span class="stat-card__value"><%= @custody_negative_count %></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("finance.dashboard.custody_summary.outstanding") %></span>
+        <span class="stat-card__value"><%= @custody_top5.size %></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="exec-card exec-span-4">
+    <div class="exec-card__header">
+      <h2 class="section-title--exec"><%= t("finance.dashboard.negative_custody.title") %></h2>
+      <%= link_to t("finance.dashboard.view_full_report"), finance_custody_accounts_path, class: "link" %>
+    </div>
+    <% if @alert_negative_custody.present? %>
+      <div class="mini-list">
+        <% @alert_negative_custody.each do |row| %>
+          <div class="mini-list__row">
+            <div>
+              <div class="mini-list__primary"><%= row[:holder] %></div>
+              <div class="mini-list__secondary"><%= row[:name] %></div>
+            </div>
+            <span class="mini-list__value mini-list__value--danger"><%= format_currency(row[:balance]) %></span>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.dashboard.negative_custody.none") %></p></div>
+    <% end %>
+  </div>
+
+  <div class="exec-card exec-span-4">
+    <div class="exec-card__header">
+      <h2 class="section-title--exec"><%= t("finance.dashboard.recurring_widget.title") %></h2>
+      <%= link_to t("finance.dashboard.view_full_report"), finance_recurring_expenses_path, class: "link" %>
+    </div>
+    <% if @alert_recurring.present? %>
+      <div class="mini-list">
+        <% @alert_recurring.each do |rec| %>
+          <%= link_to finance_recurring_expense_path(rec), class: "mini-list__row" do %>
+            <div>
+              <div class="mini-list__primary"><%= rec.expense_category.name %></div>
+              <div class="mini-list__secondary"><%= l(rec.next_run_on, format: :long) %></div>
+            </div>
+            <span class="mini-list__value"><%= format_currency(rec.amount) %></span>
+          <% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.dashboard.recurring_widget.none") %></p></div>
+    <% end %>
+  </div>
+<% end %>
+
+<%# Supplier Summary renders here once Finance::Dashboard::Capabilities#supplier_financials_available?
+    can return true — add app/views/finance/dashboard/_supplier_summary.html.erb and its data-loading
+    controller method in the same change that introduces the supplier_invoices table. %>
+<% if @capabilities.supplier_financials_available? && lookup_context.exists?("finance/dashboard/supplier_summary", [], true) %>
+  <%= render "supplier_summary" %>
+<% end %>

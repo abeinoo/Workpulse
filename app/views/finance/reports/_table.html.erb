@@ -1,5 +1,9 @@
 <% if table.rows.empty? %>
-  <div class="empty-state"><p class="empty-state__title"><%= t("finance.reports.no_data") %></p></div>
+  <div class="empty-state">
+    <%= render "finance/shared/empty_icon" %>
+    <p class="empty-state__title"><%= t("finance.reports.no_data") %></p>
+    <p class="empty-state__text"><%= t("finance.reports.no_data_hint") %></p>
+  </div>
 <% else %>
   <div class="table-wrap table-wrap--cards">
     <table>
@@ -13,7 +17,11 @@
           <tr>
             <% table.columns.each do |col| %>
               <td style="<%= 'text-align: end;' if col.money %>">
-                <%= col.money ? format_currency(row[col.key]) : row[col.key] %>
+                <% if col.money %>
+                  <%= content_tag :span, format_currency(row[col.key]), class: (row[col.key].to_d.negative? ? "amount-negative" : "amount-positive") %>
+                <% else %>
+                  <%= row[col.key] %>
+                <% end %>
               </td>
             <% end %>
           </tr>
@@ -26,7 +34,11 @@
               <td style="<%= 'text-align: end;' if col.money %>">
                 <strong>
                   <% if table.totals.key?(col.key) %>
-                    <%= col.money ? format_currency(table.totals[col.key]) : table.totals[col.key] %>
+                    <% if col.money %>
+                      <%= content_tag :span, format_currency(table.totals[col.key]), class: (table.totals[col.key].to_d.negative? ? "amount-negative" : "amount-positive") %>
+                    <% else %>
+                      <%= table.totals[col.key] %>
+                    <% end %>
                   <% elsif i.zero? %>
                     <%= t("finance.reports.total") %>
                   <% end %>

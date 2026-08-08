@@ -1930,6 +1930,18 @@ tr.user-row--inactive:hover {
   margin-bottom: var(--space-4);
   opacity: 0.4;
 }
+
+.empty-state__icon--brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-muted);
+  color: var(--accent);
+  opacity: 1;
+}
 .empty-state__title {
   font-size: var(--text-lg);
   font-weight: 600;
@@ -1952,6 +1964,13 @@ tr.user-row--inactive:hover {
   transition: color var(--transition);
 }
 .back-link:hover { color: var(--accent); }
+/* When .back-link wraps a small breadcrumb trail (multiple segments) rather
+   than being the link itself, nested links inherit the same muted color and
+   only pick up accent on their own hover — same visual language as the
+   single-link case, just extended to more than one segment. */
+.back-link a { color: inherit; }
+.back-link a:hover { color: var(--accent); }
+.back-link span[aria-hidden] { color: var(--border-strong); }
 
 /* ============================================================
    16. APP SHELL & SIDEBAR
@@ -2638,12 +2657,18 @@ body.is-authenticated {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-4);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
   /* Stack every child (controls, fields grid, actions) with consistent gap */
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
+
+/* When the active-filter chips (.filter-chips) are nested inside a
+   .filter-bar — Finance Dashboard puts them at the bottom of the same card
+   instead of as a separate floating section — drop their own external
+   margin so it doesn't stack on top of the card's own bottom padding. */
+.filter-bar .filter-chips { margin-bottom: 0; }
 
 .filter-bar__fields {
   display: grid;
@@ -4590,6 +4615,44 @@ body.is-authenticated {
 /* Stats grid */
 [dir="rtl"] .stat-card {
   text-align: right;
+}
+
+/* Finance executive dashboard */
+[dir="rtl"] .kpi-card,
+[dir="rtl"] .cash-flow-stat,
+[dir="rtl"] .activity-row__body {
+  text-align: right;
+}
+
+[dir="rtl"] .top-list__row {
+  grid-template-columns: auto auto auto 3fr minmax(0, 1fr);
+  direction: rtl;
+}
+
+[dir="rtl"] .top-list__name {
+  text-align: right;
+}
+
+[dir="rtl"] .activity-row {
+  padding: 0 var(--space-5) var(--space-4) 0;
+}
+
+[dir="rtl"] .activity-row::before {
+  left: auto;
+  right: 3px;
+}
+
+[dir="rtl"] .activity-row::after {
+  left: auto;
+  right: 6px;
+}
+
+[dir="rtl"] .mini-list__row,
+[dir="rtl"] .exec-card__header,
+[dir="rtl"] .kpi-card__top,
+[dir="rtl"] .cash-flow-stats,
+[dir="rtl"] .quick-actions {
+  direction: rtl;
 }
 
 /* Auth card */
@@ -12116,4 +12179,839 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-2);
+}
+
+/* ============================================================
+   16. FINANCE EXECUTIVE DASHBOARD
+   ============================================================
+   A dense, modern analytics-product surface (Stripe/Power-BI style).
+   All widgets sit in .exec-grid, a 12-column responsive grid — each
+   partial declares its own span via a modifier class instead of the
+   page nesting fixed two-up rows, so the layout can breathe without
+   large blank areas. Every widget shares one visual language: the
+   same card shell (radius, shadow, hover-lift), the same empty-state
+   treatment, the same role-based color coding (revenue=success,
+   expenses=danger, net/profit=accent, warning=amber, negative=danger,
+   neutral=gray) defined once here and reused by every partial. */
+
+.exec-dashboard { --exec-gap: var(--space-4); }
+
+/* Baseline keyboard-focus ring for every interactive element in the
+   dashboard/reports — components with a more specific rule (kpi-card,
+   branch-card, leaderboard__row, filter-chip__clear, …) override this. */
+.exec-dashboard a:focus-visible,
+.exec-dashboard button:focus-visible,
+.exec-dashboard select:focus-visible,
+.exec-dashboard input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.exec-dashboard .page-header { margin-bottom: var(--space-4); }
+
+/* ── Executive header ─────────────────────────────────────── */
+
+.exec-header__eyebrow {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--space-1);
+}
+
+.exec-header__period {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  margin: var(--space-1) 0 0;
+}
+
+.exec-header__branch {
+  font-weight: 500;
+  color: var(--text-3);
+  font-size: 0.65em;
+}
+
+/* ── Executive summary ────────────────────────────────────── */
+
+.exec-summary__text {
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--text-2);
+  margin: 0;
+}
+
+.exec-summary__text strong { color: var(--text-1); }
+
+/* ── Financial health ──────────────────────────────────────── */
+
+.financial-health__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  width: fit-content;
+  margin-bottom: var(--space-3);
+}
+
+.financial-health__dot { width: 8px; height: 8px; border-radius: 50%; }
+
+.financial-health--healthy .financial-health__badge { background: var(--success-muted); color: var(--success); }
+.financial-health--healthy .financial-health__dot   { background: var(--success); }
+.financial-health--attention .financial-health__badge { background: rgba(var(--warning-rgb), 0.14); color: var(--warning); }
+.financial-health--attention .financial-health__dot   { background: var(--warning); }
+.financial-health--at_risk .financial-health__badge { background: var(--danger-muted); color: var(--danger); }
+.financial-health--at_risk .financial-health__dot   { background: var(--danger); }
+
+.financial-health__factors {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+/* Header placement of the exact same badge — just a little breathing room
+   above it since it's the last line in the header title block, not before a
+   factors list like the full card. */
+.financial-health--header { margin-top: var(--space-2); }
+.financial-health--header .financial-health__badge { margin-bottom: 0; }
+
+.financial-health__ok {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  margin: 0;
+}
+
+/* Purely additive to the shared .filter-bar__actions row — a thin visual
+   separator between the Filter/Reset controls and the quick-range/export
+   shortcuts. Doesn't alter .filter-bar__actions itself (shared with Daily
+   Reconciliation's filter bar). */
+.filter-bar__divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 var(--space-1);
+}
+
+@media (max-width: 640px) {
+  .filter-bar__divider { display: none; }
+}
+
+/* ── Page-level analytics grid ────────────────────────────────
+   12 columns on desktop; each widget opts into a span. Falls back
+   to a single column on narrow viewports (see breakpoints below) —
+   every widget always reads top-to-bottom in a sensible order. */
+.exec-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--exec-gap);
+  margin-top: var(--exec-gap);
+}
+
+.exec-span-12 { grid-column: span 12; }
+.exec-span-8  { grid-column: span 8; }
+.exec-span-6  { grid-column: span 6; }
+.exec-span-4  { grid-column: span 4; }
+
+@media (max-width: 1100px) {
+  .exec-span-8, .exec-span-6, .exec-span-4 { grid-column: span 12; }
+}
+
+/* Tablet: tighter gap/padding than desktop so stacked single-column widgets
+   don't read as oversized blank cards on a mid-size viewport. */
+@media (max-width: 1100px) and (min-width: 769px) {
+  .exec-dashboard { --exec-gap: var(--space-3); }
+  .exec-card, .chart-card, .kpi-card, .branch-card { padding: var(--space-4); }
+}
+
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── Shared widget shell ──────────────────────────────────────
+   Every card in the dashboard (KPI, chart, list, timeline) uses
+   this same shell so the whole page reads as one cohesive product:
+   soft shadow at rest, a slightly deeper one + 1px lift on hover. */
+.exec-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--space-5);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+
+.exec-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
+
+.exec-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.exec-card__title-group { display: flex; align-items: center; gap: var(--space-2); }
+
+.section-title--exec {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.exec-card__hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: help;
+}
+
+.exec-card__toggle { display: flex; gap: var(--space-1); background: var(--surface-2); padding: 3px; border-radius: var(--radius); }
+.exec-card__toggle .btn { border: none; background: transparent; }
+.exec-card__toggle .btn.is-active { background: var(--surface-1); color: var(--accent); box-shadow: var(--shadow-sm); }
+
+/* ── KPI cards ─────────────────────────────────────────────── */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+/* Dashboard-only: same 12-column track system as .exec-grid (same gap
+   token too) so the KPI row's card edges align with the Executive
+   Summary/Financial Health/Alerts/Insights grid directly below it, instead
+   of an independently-sized auto-fit row that happens to look similar.
+   Scoped to this modifier, not the base .kpi-grid, so the other pages that
+   reuse .kpi-grid/.kpi-card (report summary KPIs, Branch Profitability)
+   keep their existing auto-fit behavior untouched. */
+.kpi-grid--dashboard {
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--exec-gap, var(--space-4));
+}
+.kpi-grid--dashboard .kpi-card { grid-column: span 3; }
+
+@media (max-width: 1100px) {
+  .kpi-grid--dashboard .kpi-card { grid-column: span 6; }
+}
+@media (max-width: 600px) {
+  .kpi-grid--dashboard .kpi-card { grid-column: span 12; }
+}
+
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: 100%;
+  min-height: 152px;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.04);
+  text-decoration: none;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.kpi-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+.kpi-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kpi-card--success { border-color: rgba(var(--success-rgb), 0.35); }
+.kpi-card--danger  { border-color: rgba(var(--danger-rgb), 0.35); }
+
+.kpi-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+.kpi-card__label-group { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+.kpi-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.kpi-card__label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.kpi-card__value {
+  font-size: var(--text-4xl, 2.25rem);
+  font-weight: 800;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin-top: 2px;
+}
+
+/* Small trend sparkline rendered from an already-loaded historical series —
+   purely decorative context for the delta pill below it, never the only
+   indicator of direction (the delta pill's arrow + color remain primary). */
+.kpi-sparkline {
+  width: 100%;
+  height: 26px;
+  display: block;
+  margin: var(--space-1) 0;
+  opacity: 0.75;
+}
+
+.kpi-card__desc {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  margin: 0;
+}
+
+.kpi-card__delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  width: fit-content;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+}
+
+.kpi-card__delta--up   { color: var(--success); background: var(--success-muted); }
+.kpi-card__delta--down { color: var(--danger);  background: var(--danger-muted); }
+.kpi-card__delta-label { font-weight: 500; color: inherit; opacity: 0.75; }
+
+/* ── Chart cards ───────────────────────────────────────────── */
+
+.chart-card {
+  padding: var(--space-5);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  height: 100%;
+  transition: box-shadow 0.18s ease;
+}
+
+.chart-card:hover { box-shadow: var(--shadow); }
+.chart-card--wide { width: 100%; }
+.chart-card--primary { border-color: rgba(var(--accent-rgb), 0.25); }
+
+.chart-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.chart-card__toggle { display: flex; gap: var(--space-1); background: var(--surface-2); padding: 3px; border-radius: var(--radius); }
+.chart-card__toggle .btn { border: none; background: transparent; }
+.chart-card__toggle .btn.is-active { background: var(--surface-1); color: var(--accent); box-shadow: var(--shadow-sm); }
+
+/* Chart.js with maintainAspectRatio:false fills its parent's box exactly —
+   the parent must have an explicit height or the canvas collapses/misrenders. */
+.chart-card__body { position: relative; width: 100%; height: 300px; }
+.chart-card__body--doughnut { height: 260px; }
+.chart-card__body--primary { height: 360px; }
+.chart-card__body canvas { max-width: 100%; opacity: 0; transition: opacity 0.35s ease; }
+.chart-card.is-loaded .chart-card__body canvas { opacity: 1; }
+
+/* Loading skeleton shown until the async Chart.js import resolves and the
+   chart instance is created (see the `is-loaded` class toggle in every
+   chart Stimulus controller) — avoids a blank flash on first paint. */
+.chart-card:not(.is-loaded) .chart-card__body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  background: linear-gradient(100deg, var(--surface-2) 30%, var(--surface-3) 50%, var(--surface-2) 70%);
+  background-size: 200% 100%;
+  animation: chart-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes chart-skeleton-shimmer {
+  0%   { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-card__body canvas { transition: none; }
+  .chart-card:not(.is-loaded) .chart-card__body::before { animation: none; }
+}
+
+/* Keep card height stable when a chart area is replaced by an empty state —
+   the card must not visibly shrink just because there's no data yet. */
+.chart-card .empty-state { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+@media (max-width: 600px) {
+  .chart-card__body { height: 220px; }
+  .chart-card__body--doughnut { height: 200px; }
+  .chart-card__body--primary { height: 260px; }
+  .chart-card .empty-state { min-height: 200px; }
+}
+
+/* Deterministic per-branch color swatch — same colorForLabel() hash the
+   doughnut/pie charts use, so a branch reads as the same color everywhere. */
+.branch-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--swatch-color, var(--accent));
+  flex-shrink: 0;
+}
+
+.chart-card__note {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+/* ── Top list (ranked horizontal bars, e.g. top expense categories) ── */
+
+.top-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.top-list--compact .top-list__row { grid-template-columns: 1fr auto; padding: var(--space-2) 0; }
+
+.top-list__row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 3fr auto auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-sm);
+}
+
+.top-list__name { font-size: var(--text-sm); font-weight: 600; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-list__bar-track { height: 10px; background: var(--surface-3); border-radius: var(--radius-full); overflow: hidden; }
+.top-list__bar { height: 100%; background: linear-gradient(90deg, var(--accent), rgba(var(--accent-rgb), 0.65)); border-radius: var(--radius-full); transition: width 0.4s ease; }
+.top-list__amount { font-size: var(--text-sm); font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.top-list__amount--danger { color: var(--danger); }
+.top-list__pct { font-size: var(--text-xs); color: var(--text-3); white-space: nowrap; min-width: 3em; text-align: end; }
+.top-list__trend { font-size: var(--text-xs); font-weight: 700; white-space: nowrap; }
+.top-list__trend--up { color: var(--danger); }
+.top-list__trend--down { color: var(--success); }
+
+/* ── Financial Alerts — one compact bulleted widget, not colored boxes ── */
+
+.alert-list { display: flex; flex-direction: column; gap: 2px; }
+
+.alert-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-2);
+  transition: background 0.12s ease;
+}
+
+.alert-row:hover { background: var(--surface-2); }
+
+.alert-row__dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.alert-row--danger  .alert-row__dot { background: var(--danger); }
+.alert-row--warning .alert-row__dot { background: var(--warning); }
+.alert-row--info    .alert-row__dot { background: var(--accent); }
+.alert-row__text { flex: 1; }
+.alert-row__chevron { color: var(--text-3); font-size: var(--text-xs); }
+
+/* Priority-tier grouping within the same alert list/row markup — same
+   small-uppercase-label scale already used by .kpi-card__label and
+   .exec-header__eyebrow, just applied to a new spot. Not a new typography
+   scale or a new alert component, only a section divider within one. */
+.alert-group__label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: var(--space-3) 0 var(--space-1);
+}
+.alert-group__label:first-child { margin-top: 0; }
+
+.exec-card__footer { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
+
+/* ── Cash flow ─────────────────────────────────────────────── */
+
+.cash-flow-stats { display: flex; gap: var(--space-5); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.cash-flow-stat { display: flex; flex-direction: column; gap: var(--space-1); }
+.cash-flow-stat__label { font-size: var(--text-xs); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.03em; }
+.cash-flow-stat__value { font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
+.cash-flow-stat--in .cash-flow-stat__value  { color: var(--success); }
+.cash-flow-stat--out .cash-flow-stat__value { color: var(--danger); }
+
+/* ── Recent activity — timeline ───────────────────────────────── */
+
+.activity-list { display: flex; flex-direction: column; }
+
+.activity-row {
+  position: relative;
+  display: flex;
+  gap: var(--space-3);
+  padding: 0 0 var(--space-4) var(--space-5);
+}
+
+.activity-row::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.activity-row::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 14px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--border);
+}
+
+.activity-row:last-child { padding-bottom: 0; }
+.activity-row:last-child::after { display: none; }
+
+.activity-row__body { display: flex; flex-direction: column; gap: 2px; }
+.activity-row__title { font-size: var(--text-sm); color: var(--text-1); font-weight: 600; }
+.activity-row__title--link { color: var(--text-1); text-decoration: none; }
+.activity-row__title--link:hover { color: var(--accent); }
+.activity-row__meta { font-size: var(--text-xs); color: var(--text-3); }
+
+/* ── Smart insights ────────────────────────────────────────── */
+
+.insight-list { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.insight-row {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.insight-row--warning { border-color: rgba(var(--warning-rgb), 0.3); background: rgba(var(--warning-rgb), 0.06); }
+.insight-row--info    { border-color: rgba(var(--accent-rgb), 0.2); background: rgba(var(--accent-rgb), 0.04); }
+.insight-row__title { font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0; }
+.insight-row__text  { font-size: var(--text-sm); color: var(--text-2); margin: 2px 0 0; }
+
+/* ── Negative Custody / Recurring Expenses mini-lists ─────────── */
+
+.mini-list { display: flex; flex-direction: column; gap: 2px; }
+.mini-list__row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; }
+.mini-list__row:last-child { border-bottom: none; }
+.mini-list__primary { font-size: var(--text-sm); font-weight: 600; color: var(--text-1); }
+.mini-list__secondary { font-size: var(--text-xs); color: var(--text-3); }
+.mini-list__value { font-size: var(--text-sm); font-weight: 700; font-variant-numeric: tabular-nums; }
+.mini-list__value--danger { color: var(--danger); }
+
+@media (max-width: 768px) {
+  .top-list__row { grid-template-columns: 1fr auto; grid-template-areas: "name amount" "bar bar"; row-gap: var(--space-1); }
+  .top-list__bar-track { grid-column: 1 / -1; }
+  .top-list__pct, .top-list__trend { display: none; }
+}
+
+/* ── Finance report tables (scoped to .exec-dashboard only, so the rest
+   of the app's tables — payroll, admin, etc. — are untouched) ────── */
+
+.exec-dashboard .amount-negative { color: var(--danger); font-weight: 700; font-variant-numeric: tabular-nums; }
+.exec-dashboard .amount-positive { color: var(--text-1); font-variant-numeric: tabular-nums; }
+
+@media (min-width: 769px) {
+  .exec-dashboard .table-wrap { max-height: 480px; overflow-y: auto; }
+  .exec-dashboard .table-wrap thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-1); }
+  .exec-dashboard .table-wrap tbody tr:nth-child(even) { background: var(--surface-2); }
+  .exec-dashboard .table-wrap tbody tr:hover { background: rgba(var(--accent-rgb), 0.07); }
+  .exec-dashboard .table-wrap tbody td, .exec-dashboard .table-wrap thead th { padding: var(--space-3) var(--space-4); }
+}
+
+/* Active-filter chips reuse the app-wide .filter-chips/.filter-chip/
+   .filter-chip__remove component (see "Active filter chips" earlier in this
+   file, originally built for Employee Requests) — no second chip component. */
+.filter-chip .branch-swatch { margin-inline-end: 2px; }
+
+/* ── Branch Profitability: leaderboard ranking + branch cards ───
+   This is the flagship widget group of the Finance Dashboard (Phase 3) —
+   the leaderboard styling (rank medals, row emphasis) and the branch-card
+   hierarchy below are intentionally the most visually prominent pattern in
+   the whole dashboard, after the KPI row. */
+
+.leaderboard { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 380px; overflow-y: auto; }
+
+/* Two-line row (name on top, figures below) rather than a single cramped
+   row — the ranking card is only ~4/12 of the grid, too narrow to fit a
+   rank badge, full branch name, net profit, and margin on one line without
+   truncating real branch names. */
+.leaderboard__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.leaderboard__row:hover { background: var(--surface-2); transform: translateX(2px); }
+[dir="rtl"] .leaderboard__row:hover { transform: translateX(-2px); }
+.leaderboard__row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.leaderboard__row--selected { background: var(--accent-muted); box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb), 0.4); }
+
+.leaderboard__top { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+
+.leaderboard__rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+/* Leaderboard medal tiers for the top 3 — color is reinforced by rank
+   position and the numeral itself, never the only signal. */
+.leaderboard__rank--1 { background: linear-gradient(145deg, #F6D365, #C9A227); color: #4A3B00; }
+.leaderboard__rank--2 { background: linear-gradient(145deg, #E5E9F0, #B7BFCC); color: #33394A; }
+.leaderboard__rank--3 { background: linear-gradient(145deg, #E3A776, #B87333); color: #3D2410; }
+
+.leaderboard__name { font-size: var(--text-sm); font-weight: 700; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.leaderboard__stats {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-inline-start: calc(26px + var(--space-2));
+}
+.leaderboard__net { font-size: var(--text-base); font-weight: 800; color: var(--text-1); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.leaderboard__net--negative { color: var(--danger); }
+.leaderboard__margin { font-size: var(--text-xs); font-weight: 600; color: var(--text-3); white-space: nowrap; }
+
+/* ── Branch cards ─────────────────────────────────────────────── */
+
+.branch-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
+.branch-card {
+  display: block;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.branch-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: rgba(var(--accent-rgb), 0.3); }
+.branch-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.branch-card--selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.25); }
+
+.branch-card__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-4); }
+.branch-card__identity { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.branch-card__name { font-size: var(--text-base); font-weight: 700; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.branch-card__selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-muted);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+}
+.branch-card__trend { font-size: var(--text-xs); font-weight: 700; color: var(--text-3); white-space: nowrap; }
+.branch-card__trend--up { color: var(--success); }
+.branch-card__trend--down { color: var(--danger); }
+
+.branch-card__net {
+  font-size: var(--text-2xl, 1.5rem);
+  font-weight: 800;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+.branch-card__net--negative { color: var(--danger); }
+.branch-card__net-label { font-size: var(--text-xs); font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+
+.branch-card__margin-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-muted);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  margin: var(--space-2) 0 var(--space-3);
+}
+
+.branch-card__secondary { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.branch-card__metric { display: flex; flex-direction: column; gap: 2px; }
+.branch-card__metric-label { font-size: var(--text-xs); color: var(--text-3); }
+.branch-card__metric-value { font-size: var(--text-sm); font-weight: 600; color: var(--text-1); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 768px) {
+  .branch-card-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 480px) {
+  .branch-card-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Finance Reports Hub (finance/reports#index) ──────────────────
+   Same .exec-card shell + .section-title--exec typography the rest of the
+   Finance module already uses — this only adds the report-hub-specific grid
+   and the icon/description/CTA composition inside each card. Auto-fill grid
+   (same idiom as .kpi-grid/.branch-card-grid) naturally gives 3 columns on
+   desktop, 2 on tablet, 1 on mobile without hardcoded breakpoints, and never
+   leaves a lone card awkwardly stretched or stranded when a group has only
+   one report. */
+
+.report-hub-group { margin-top: var(--space-6); }
+.report-hub-group:first-child { margin-top: var(--space-5); }
+
+.report-hub-group__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.report-hub-group__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-muted);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.report-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+  /* auto-fill reserves the unused tracks' width instead of collapsing them
+     (deliberately — that's what stops a lone card in a small group from
+     stretching full width), but that means an RTL grid needs its own
+     direction set explicitly: otherwise the browser can place the single
+     real item in the first (leftmost) track while the reserved empty
+     tracks trail to the right — backwards from the rest of this
+     right-to-left page, and the direct cause of the "empty area on the
+     wrong side" look for the المتكررة/الربحية sections. */
+  direction: rtl;
+}
+[dir="ltr"] .report-hub-grid { direction: ltr; }
+
+.report-card {
+  /* display:flex/flex-direction:column/height:100% already come from the
+     shared .exec-card shell — only add what's new for this card variant. */
+  min-height: 190px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.report-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-3);
+  margin-bottom: var(--space-3);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.report-card:hover .report-card__icon { background: var(--accent-muted); color: var(--accent); }
+
+.report-card__title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 0 0 var(--space-1);
+}
+
+.report-card__desc {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  line-height: 1.5;
+  margin: 0;
+  flex: 1;
+}
+
+.report-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: var(--space-4);
+}
+.report-card__cta svg { transition: transform 0.15s ease; }
+.report-card:hover .report-card__cta svg { transform: translateX(3px); }
+[dir="rtl"] .report-card__cta svg { transform: scaleX(-1); }
+[dir="rtl"] .report-card:hover .report-card__cta svg { transform: scaleX(-1) translateX(3px); }
+
+@media (max-width: 480px) {
+  .report-hub-grid { grid-template-columns: 1fr; }
 }

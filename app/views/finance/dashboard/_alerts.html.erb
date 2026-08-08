@@ -1,0 +1,58 @@
+<%
+  # Same alert data/links as before, just grouped into priority tiers for
+  # scanability — pure reshaping of already-computed ivars into three small
+  # arrays, no new query or figure. Severity → tier mapping matches the
+  # existing --danger/--warning/--info row classes exactly (danger rows were
+  # already the most urgent, info rows were already the least).
+  high = []
+  (@rdb_threshold_alerts || []).each do |alert|
+    high << { url: finance_daily_reconciliations_path, severity: "danger",
+               text: t("finance.dashboard.rdb_threshold_alert", days: alert[:days], count: alert[:count]) }
+  end
+  high << { url: finance_daily_reconciliations_path, severity: "danger",
+             text: t("finance.dashboard.alerts.overdue_deposits", count: @rdb_overdue_count, days: @rdb_overdue_days) } if @rdb_overdue_count.to_i > 0
+  high << { url: finance_custody_accounts_path, severity: "danger",
+             text: t("finance.dashboard.alerts.negative_custody", count: @alert_negative_custody.size) } if @alert_negative_custody.present?
+
+  medium = []
+  medium << { url: finance_expenses_path(status: "pending_approval"), severity: "warning",
+               text: t("finance.dashboard.alerts.pending_approval", count: @alert_pending_count) } if @alert_pending_count > 0
+
+  info = []
+  info << { url: finance_recurring_expenses_path, severity: "info",
+             text: t("finance.dashboard.alerts.recurring_due", count: @alert_recurring.size) } if @alert_recurring.present?
+
+  tiers = [
+    [ t("finance.dashboard.alerts.priority_high"), high ],
+    [ t("finance.dashboard.alerts.priority_medium"), medium ],
+    [ t("finance.dashboard.alerts.priority_info"), info ]
+  ]
+  any_alerts = high.any? || medium.any? || info.any?
+%>
+<div class="exec-card exec-span-4">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.dashboard.alerts.title") %></h2>
+  </div>
+  <% if any_alerts %>
+    <div class="alert-list">
+      <% tiers.each do |label, rows| %>
+        <% next if rows.empty? %>
+        <p class="alert-group__label"><%= label %></p>
+        <% rows.each do |row| %>
+          <%= link_to row[:url], class: "alert-row alert-row--#{row[:severity]}" do %>
+            <span class="alert-row__dot"></span>
+            <span class="alert-row__text"><%= row[:text] %></span>
+            <span class="alert-row__chevron">›</span>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.dashboard.alerts.none") %></p></div>
+  <% end %>
+  <% if any_alerts %>
+    <div class="exec-card__footer">
+      <%= link_to t("finance.dashboard.alerts.view_all"), finance_reports_path, class: "link" %>
+    </div>
+  <% end %>
+</div>

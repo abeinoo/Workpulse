@@ -1,0 +1,25 @@
+<%# locals: trend (a Finance::Reports::Table from ExpenseTrend, same shape used
+    by the dedicated Expense Trend report) %>
+<div class="chart-card exec-span-12">
+  <div class="chart-card__header">
+    <h2 class="section-title--exec"><%= t("finance.reports.breakdown.trend_title") %></h2>
+  </div>
+  <% if trend.rows.present? %>
+    <div class="chart-card__body">
+      <canvas
+        data-controller="chart"
+        data-chart-type-value="line"
+        data-chart-data-value="<%= {
+          labels: trend.rows.map { |r| r[:label] },
+          datasets: [ { label: t('finance.reports.total_amount'), data: trend.rows.map { |r| r[:total].to_f }, tension: 0.3, fill: false } ]
+        }.to_json %>">
+      </canvas>
+    </div>
+  <% else %>
+    <div class="empty-state">
+      <%= render "finance/shared/empty_icon" %>
+      <p class="empty-state__title"><%= t("finance.reports.no_data") %></p>
+      <p class="empty-state__text"><%= t("finance.reports.no_data_hint") %></p>
+    </div>
+  <% end %>
+</div>

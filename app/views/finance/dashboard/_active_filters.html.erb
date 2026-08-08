@@ -1,0 +1,46 @@
+<%# locals: branches:, filter_cashiers:, filter_payment_methods: — all already
+    loaded once in index.html.erb. Reuses the app-wide .filter-chips/
+    .filter-chip/.filter-chip__remove component (originally built for
+    Employee Requests) — not a new chip style — and finance_dashboard_url
+    (FinanceHelper) so removing one filter always preserves every other. %>
+<%
+  chips = []
+  chips << { label: "#{l(@filters.from, format: :long)} – #{l(@filters.to, format: :long)}",
+             remove_url: finance_dashboard_url(from: nil, to: nil) }
+
+  if params[:branch_id].present?
+    branch = branches.find { |b| b.id == params[:branch_id].to_i }
+    chips << { label: "#{t('finance.dashboard.filters.branch')}: #{branch.name}", branch: branch,
+               remove_url: finance_dashboard_url(branch_id: nil) } if branch
+  end
+
+  if params[:cashier_id].present?
+    cashier = filter_cashiers.find { |c| c.id == params[:cashier_id].to_i }
+    chips << { label: "#{t('finance.dashboard.filters.cashier')}: #{cashier.full_name}",
+               remove_url: finance_dashboard_url(cashier_id: nil) } if cashier
+  end
+
+  if params[:payment_source].present? && Expense::PAYMENT_SOURCES.include?(params[:payment_source])
+    chips << { label: "#{t('finance.dashboard.filters.payment_source')}: #{t("finance.expenses.payment_sources.#{params[:payment_source]}")}",
+               remove_url: finance_dashboard_url(payment_source: nil) }
+  end
+
+  if params[:payment_method_id].present?
+    method = filter_payment_methods.find { |m| m.id == params[:payment_method_id].to_i }
+    chips << { label: "#{t('finance.dashboard.filters.payment_method')}: #{method.display_name}",
+               remove_url: finance_dashboard_url(payment_method_id: nil) } if method
+  end
+%>
+<% if chips.any? %>
+  <div class="filter-chips">
+    <% chips.each do |chip| %>
+      <span class="filter-chip">
+        <% if chip[:branch] %>
+          <span class="branch-swatch" data-controller="branch-color" data-branch-color-label-value="<%= chip[:branch].name %>"></span>
+        <% end %>
+        <%= chip[:label] %>
+        <%= link_to "×", chip[:remove_url], class: "filter-chip__remove", "aria-label": t("finance.dashboard.filters.remove_filter", filter: chip[:label]) %>
+      </span>
+    <% end %>
+  </div>
+<% end %>

@@ -1,0 +1,32 @@
+<div class="exec-card exec-span-6">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.dashboard.recent_activity.title") %></h2>
+  </div>
+  <% if @recent_activity.blank? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.dashboard.recent_activity.none") %></p></div>
+  <% else %>
+    <div class="activity-list">
+      <% @recent_activity.each do |log| %>
+        <%
+          path = case log.auditable_type
+                 when "Expense"                then log.auditable && finance_expense_path(log.auditable)
+                 when "RemainingDepositBalance" then log.auditable && finance_remaining_deposit_balance_path(log.auditable)
+                 when "TillDeposit"             then log.auditable && till_deposit_path(log.auditable)
+                 end
+          label = t("finance.dashboard.recent_activity.#{log.auditable_type.underscore}_#{log.action}",
+                    default: t("finance.dashboard.recent_activity.generic", type: log.auditable_type, action: log.action))
+        %>
+        <div class="activity-row">
+          <div class="activity-row__body">
+            <% if path %>
+              <%= link_to label, path, class: "activity-row__title activity-row__title--link" %>
+            <% else %>
+              <span class="activity-row__title"><%= label %></span>
+            <% end %>
+            <span class="activity-row__meta"><%= log.actor.full_name %> · <%= time_ago_in_words(log.created_at) %></span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,39 @@
+<% if @show_custody %>
+  <% cash_flow_has_data = @cash_in.to_f.abs + @cash_out.to_f.abs > 0 %>
+  <div class="chart-card exec-span-12">
+    <div class="chart-card__header">
+      <h2 class="section-title--exec"><%= t("finance.dashboard.cash_flow.title") %></h2>
+      <%= link_to t("finance.dashboard.view_full_report"), finance_custody_transactions_report_path(from: @filters.from, to: @filters.to), class: "link" %>
+    </div>
+    <div class="cash-flow-stats">
+      <div class="cash-flow-stat cash-flow-stat--in">
+        <span class="cash-flow-stat__label"><%= t("finance.dashboard.cash_flow.cash_in") %></span>
+        <span class="cash-flow-stat__value"><%= format_currency(@cash_in) %></span>
+      </div>
+      <div class="cash-flow-stat cash-flow-stat--out">
+        <span class="cash-flow-stat__label"><%= t("finance.dashboard.cash_flow.cash_out") %></span>
+        <span class="cash-flow-stat__value"><%= format_currency(@cash_out) %></span>
+      </div>
+      <div class="cash-flow-stat <%= @cash_net.negative? ? 'cash-flow-stat--out' : 'cash-flow-stat--in' %>">
+        <span class="cash-flow-stat__label"><%= t("finance.dashboard.cash_flow.net") %></span>
+        <span class="cash-flow-stat__value"><%= format_currency(@cash_net) %></span>
+      </div>
+    </div>
+    <% if cash_flow_has_data %>
+      <div class="chart-card__body">
+        <canvas
+          data-controller="chart"
+          data-chart-type-value="bar"
+          data-chart-data-value="<%= { labels: @cash_flow_labels, datasets: [ { label: t('finance.dashboard.cash_flow.net'), data: @cash_flow_net } ] }.to_json %>"
+          >
+        </canvas>
+      </div>
+    <% else %>
+      <div class="empty-state">
+        <%= render "finance/shared/empty_icon" %>
+        <p class="empty-state__title"><%= t("finance.dashboard.no_data_for_period") %></p>
+        <p class="empty-state__text"><%= t("finance.dashboard.no_data_hint") %></p>
+      </div>
+    <% end %>
+  </div>
+<% end %>

@@ -1,38 +1,69 @@
 <% content_for :title, t("finance.reports.title") %>
 
-<div class="admin-page">
-  <h1 class="page-title mb-6"><%= t("finance.reports.title") %></h1>
-
-  <% sections = {
-       "finance.reports.groups.expenses" => [
-         [ :expenses_by_branch_report,   "finance.reports.titles.expenses_by_branch" ],
-         [ :expenses_by_category_report, "finance.reports.titles.expenses_by_category" ],
-         [ :expenses_by_type_report,     "finance.reports.titles.expenses_by_type" ],
-         [ :expense_trend_report,        "finance.reports.titles.expense_trend" ],
-         [ :shared_allocation_report,    "finance.reports.titles.shared_allocation" ],
-         [ :approvals_report,            "finance.reports.titles.approvals" ]
-       ],
-       "finance.reports.groups.recurring" => [
-         [ :recurring_report, "finance.reports.titles.recurring" ]
-       ],
-       "finance.reports.groups.custody" => [
-         [ :custody_balances_report,     "finance.reports.titles.custody_balances" ],
-         [ :custody_transactions_report, "finance.reports.titles.custody_transactions" ],
-         [ :negative_balances_report,    "finance.reports.titles.negative_balances" ]
-       ],
-       "finance.reports.groups.profitability" => [
-         [ :branch_profitability_report, "finance.reports.titles.branch_profitability" ]
-       ]
-     } %>
-
-  <% sections.each do |group_key, links| %>
-    <h2 class="section-title" style="margin-top: var(--space-5);"><%= t(group_key) %></h2>
-    <div class="card-grid">
-      <% links.each do |route, title_key| %>
-        <%= link_to public_send("finance_#{route}_path"), class: "card card--link" do %>
-          <span class="card__title"><%= t(title_key) %></span>
-        <% end %>
-      <% end %>
+<%# Same header/card/grid language as the Finance Dashboard and the redesigned
+    report pages (.exec-header, .exec-card, .section-title--exec) — this page
+    only adds a report-hub-specific grid and card layout on top of them, it
+    does not introduce a new design system. Routes/params/permissions are
+    byte-identical to before: same `sections` data (group => [route, title
+    key] pairs already used by the previous version of this template), same
+    `public_send("finance_#{route}_path")` link targets, same single
+    controller-level `require_reports_access!` gate — this is a template
+    rewrite only. %>
+<div class="admin-page exec-dashboard">
+  <div class="page-header exec-header">
+    <div>
+      <p class="exec-header__eyebrow"><%= t("finance.dashboard.title") %></p>
+      <h1 class="page-title"><%= t("finance.reports.title") %></h1>
+      <p class="exec-header__period"><%= t("finance.reports.hub_subtitle") %></p>
     </div>
+  </div>
+
+  <%
+    # Group icon just reuses the first/most-representative report icon in
+    # that group (via the same _report_icon partial) rather than a second
+    # icon set — one icon vocabulary for the whole page.
+    sections = {
+      "finance.reports.groups.expenses" => { icon: :expenses_by_branch, links: [
+        [ :expenses_by_branch_report,   "finance.reports.titles.expenses_by_branch",   "finance.reports.descriptions.expenses_by_branch",   :expenses_by_branch ],
+        [ :expenses_by_category_report, "finance.reports.titles.expenses_by_category", "finance.reports.descriptions.expenses_by_category", :expenses_by_category ],
+        [ :expenses_by_type_report,     "finance.reports.titles.expenses_by_type",     "finance.reports.descriptions.expenses_by_type",     :expenses_by_type ],
+        [ :expense_trend_report,        "finance.reports.titles.expense_trend",        "finance.reports.descriptions.expense_trend",        :expense_trend ],
+        [ :shared_allocation_report,    "finance.reports.titles.shared_allocation",    "finance.reports.descriptions.shared_allocation",    :shared_allocation ],
+        [ :approvals_report,            "finance.reports.titles.approvals",            "finance.reports.descriptions.approvals",            :approvals ]
+      ] },
+      "finance.reports.groups.recurring" => { icon: :recurring, links: [
+        [ :recurring_report, "finance.reports.titles.recurring", "finance.reports.descriptions.recurring", :recurring ]
+      ] },
+      "finance.reports.groups.custody" => { icon: :custody_balances, links: [
+        [ :custody_balances_report,     "finance.reports.titles.custody_balances",     "finance.reports.descriptions.custody_balances",     :custody_balances ],
+        [ :custody_transactions_report, "finance.reports.titles.custody_transactions", "finance.reports.descriptions.custody_transactions", :custody_transactions ],
+        [ :negative_balances_report,    "finance.reports.titles.negative_balances",    "finance.reports.descriptions.negative_balances",    :negative_balances ]
+      ] },
+      "finance.reports.groups.profitability" => { icon: :branch_profitability, links: [
+        [ :branch_profitability_report, "finance.reports.titles.branch_profitability", "finance.reports.descriptions.branch_profitability", :branch_profitability ]
+      ] }
+    }
+  %>
+
+  <% sections.each do |group_key, group| %>
+    <section class="report-hub-group">
+      <h2 class="section-title--exec report-hub-group__title">
+        <span class="report-hub-group__icon"><%= render "report_icon", type: group[:icon] %></span>
+        <%= t(group_key) %>
+      </h2>
+      <div class="report-hub-grid">
+        <% group[:links].each do |route, title_key, desc_key, icon| %>
+          <%= link_to public_send("finance_#{route}_path"), class: "exec-card report-card" do %>
+            <span class="report-card__icon"><%= render "report_icon", type: icon %></span>
+            <h3 class="report-card__title"><%= t(title_key) %></h3>
+            <p class="report-card__desc"><%= t(desc_key) %></p>
+            <span class="report-card__cta">
+              <%= t("finance.reports.open_report") %>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </span>
+          <% end %>
+        <% end %>
+      </div>
+    </section>
   <% end %>
 </div>

@@ -1,28 +1,108 @@
 <% content_for :title, @table.title %>
 
-<div class="admin-page">
-  <%= link_to finance_reports_path, class: "back-link" do %>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-    <%= t("finance.reports.title") %>
-  <% end %>
-
-  <div class="page-header">
-    <h1 class="page-title"><%= @table.title %></h1>
-    <%= link_to t("finance.reports.export_csv"), url_for(format: :csv, year: @year, month: @month),
-          class: "btn btn-secondary btn-sm" %>
+<div class="admin-page exec-dashboard">
+  <%# Extends the standard single "back-link" into a small trail once a
+      branch drill-down adds real depth — same .back-link styling, no new
+      breadcrumb component. Collapses back to the plain single link when
+      there's nothing deeper than "Reports" to show. ── %>
+  <div class="back-link">
+    <%= link_to finance_reports_path do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= t("finance.reports.title") %>
+    <% end %>
+    <% if @selected_branch_id && @branch_rows.first %>
+      <span aria-hidden="true">/</span>
+      <%= link_to t("finance.reports.titles.branch_profitability"), finance_branch_profitability_report_path(year: @year, month: @month) %>
+      <span aria-hidden="true">/</span>
+      <span><%= @branch_rows.first[:branch] %></span>
+    <% end %>
   </div>
+
+  <div class="page-header exec-header">
+    <div>
+      <p class="exec-header__eyebrow"><%= t("finance.reports.title") %></p>
+      <h1 class="page-title"><%= @table.title %></h1>
+      <p class="exec-header__period">
+        <%= I18n.l(Date.new(@year, @month, 1), format: "%B %Y") %>
+      </p>
+    </div>
+    <div class="page-header__actions">
+      <%= link_to t("finance.reports.export_csv"), url_for(format: :csv, year: @year, month: @month, branch_id: nil), class: "btn btn-secondary btn-sm" %>
+    </div>
+  </div>
+
+  <% if @selected_branch_id && @branch_rows.first %>
+    <%# Same app-wide .filter-chips/.filter-chip/.filter-chip__remove
+        component used by Employee Requests and the Finance Dashboard's
+        active-filter chips — not a page-specific chip style. ── %>
+    <div class="filter-chips">
+      <span class="filter-chip">
+        <span class="branch-swatch" data-controller="branch-color" data-branch-color-label-value="<%= @branch_rows.first[:branch] %>"></span>
+        <%= t("finance.reports.profitability_dashboard.viewing_branch") %>: <strong><%= @branch_rows.first[:branch] %></strong>
+        <%= link_to "×", finance_branch_profitability_report_path(year: @year, month: @month), class: "filter-chip__remove", "aria-label": t("finance.reports.profitability_dashboard.clear_filter") %>
+      </span>
+    </div>
+  <% end %>
 
   <p class="form-hint mb-4"><%= t("finance.reports.profitability_formula") %></p>
 
-  <%= form_with url: finance_branch_profitability_report_path, method: :get, class: "filter-bar" do %>
-    <%= select_tag :month,
-          options_for_select((1..12).map { |m| [ I18n.l(Date.new(2000, m, 1), format: "%B"), m ] }, @month),
-          class: "form-control form-control--sm" %>
-    <%= select_tag :year,
-          options_for_select(((Date.current.year - 4)..Date.current.year).to_a.reverse, @year),
-          class: "form-control form-control--sm" %>
-    <%= submit_tag t("finance.common.filter"), class: "btn btn-secondary btn-sm" %>
+  <%= form_with url: finance_branch_profitability_report_path, method: :get, data: { controller: "auto-submit" }, class: "filter-bar" do %>
+    <div class="filter-bar__fields">
+      <%= select_tag :month,
+            options_for_select((1..12).map { |m| [ I18n.l(Date.new(2000, m, 1), format: "%B"), m ] }, @month),
+            class: "form-control form-control--sm" %>
+      <%= select_tag :year,
+            options_for_select(((Date.current.year - 4)..Date.current.year).to_a.reverse, @year),
+            class: "form-control form-control--sm" %>
+      <% if @accessible_branches.size > 1 %>
+        <%= select_tag :branch_id,
+              options_for_select(
+                [[ t("finance.reports.profitability_dashboard.all_branches"), "" ]] +
+                  @accessible_branches.map { |b| [ b.name, b.id ] },
+                @selected_branch_id
+              ),
+              data: { action: "change->auto-submit#submit" },
+              class: "form-control form-control--sm", style: "font-weight: 600;" %>
+      <% end %>
+    </div>
+    <div class="filter-bar__actions">
+      <%= submit_tag t("finance.common.filter"), class: "btn btn-secondary btn-sm" %>
+    </div>
   <% end %>
 
-  <%= render "table", table: @table %>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <span class="kpi-card__label"><%= t("finance.reports.revenue") %></span>
+      <span class="kpi-card__value"><%= format_currency(@table.totals[:revenue]) %></span>
+      <%= render "finance/dashboard/kpi_delta", current: @table.totals[:revenue], previous: @previous_table.totals[:revenue] %>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-card__label"><%= t("finance.reports.branch_expenses") %></span>
+      <span class="kpi-card__value"><%= format_currency(@table.totals[:expenses]) %></span>
+      <%= render "finance/dashboard/kpi_delta", current: @table.totals[:expenses], previous: @previous_table.totals[:expenses], invert: true %>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-card__label"><%= t("finance.reports.net_profit") %></span>
+      <span class="kpi-card__value"><%= format_currency(@table.totals[:net]) %></span>
+      <%= render "finance/dashboard/kpi_delta", current: @table.totals[:net], previous: @previous_table.totals[:net] %>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-card__label"><%= t("finance.reports.profitability_dashboard.margin") %></span>
+      <span class="kpi-card__value"><%= number_with_precision(@margin, precision: 1) %>%</span>
+      <%= render "finance/dashboard/kpi_delta", current: @margin, previous: @previous_margin, is_percentage_points: true %>
+    </div>
+  </div>
+
+  <div class="exec-grid">
+    <%= render "profitability_chart", rows: @branch_rows %>
+    <%= render "profitability_ranking", rows: @ranked_branch_rows %>
+    <%= render "profitability_cards", rows: @branch_rows %>
+
+    <div class="exec-card exec-span-12">
+      <div class="exec-card__header">
+        <h2 class="section-title--exec"><%= t("finance.reports.breakdown.table_title") %></h2>
+      </div>
+      <%= render "table", table: @table %>
+    </div>
+  </div>
 </div>

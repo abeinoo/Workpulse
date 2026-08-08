@@ -1,0 +1,73 @@
+<%
+  # locals: branches:, filter_cashiers:, filter_payment_methods: — loaded
+  # once in index.html.erb and shared with the active-filter chips rendered
+  # at the bottom of this same card, instead of this partial loading its own
+  # copy or the chips floating as a separate section.
+  # Branch is filtered via the shared header branch-selector (see index.html.erb),
+  # not a field in this form — kept as one control, not two competing ones.
+  any_filter_active = params[:cashier_id].present? ||
+                       params[:payment_source].present? || params[:payment_method_id].present?
+%>
+<%# Same .filter-bar component (fields/actions layout, primary row + optional
+    advanced row) used by the Daily Reconciliation index — reused verbatim,
+    not a new filter component. Branch selection lives in the shared header
+    branch-selector instead (see index.html.erb) — same precedent as Daily
+    Reconciliation's filter-bar, which also excludes branch_id from its own
+    "any filter active" check and carries it via a hidden field instead. ── %>
+<%= form_with url: finance_root_path, method: :get, local: true, class: "filter-bar" do |f| %>
+  <%= hidden_field_tag :branch_id, params[:branch_id] %>
+
+  <div class="filter-bar__fields">
+    <div class="filter-bar__field">
+      <%= f.label :from, t("finance.dashboard.filters.from"), class: "filter-bar__label" %>
+      <%= f.date_field :from, value: @filters.from, class: "filter-bar__input" %>
+    </div>
+    <div class="filter-bar__field">
+      <%= f.label :to, t("finance.dashboard.filters.to"), class: "filter-bar__label" %>
+      <%= f.date_field :to, value: @filters.to, class: "filter-bar__input" %>
+    </div>
+  </div>
+
+  <div class="filter-bar__fields">
+    <% if filter_cashiers.any? %>
+      <div class="filter-bar__field">
+        <%= f.label :cashier_id, t("finance.dashboard.filters.cashier"), class: "filter-bar__label" %>
+        <%= f.select :cashier_id, options_from_collection_for_select(filter_cashiers, :id, :full_name, params[:cashier_id]),
+              { include_blank: t("finance.dashboard.filters.all_cashiers") }, class: "filter-bar__select" %>
+      </div>
+    <% end %>
+    <div class="filter-bar__field">
+      <%= f.label :payment_source, t("finance.dashboard.filters.payment_source"), class: "filter-bar__label" %>
+      <%= f.select :payment_source, Expense::PAYMENT_SOURCES.map { |s| [ t("finance.expenses.payment_sources.#{s}"), s ] },
+            { include_blank: t("finance.dashboard.filters.all_payment_sources") }, class: "filter-bar__select" %>
+    </div>
+    <% if filter_payment_methods.any? %>
+      <div class="filter-bar__field">
+        <%= f.label :payment_method_id, t("finance.dashboard.filters.payment_method"), class: "filter-bar__label" %>
+        <%= f.select :payment_method_id, options_from_collection_for_select(filter_payment_methods, :id, :display_name, params[:payment_method_id]),
+              { include_blank: t("finance.dashboard.filters.all_payment_methods") }, class: "filter-bar__select" %>
+      </div>
+    <% end %>
+    <% if @capabilities.multi_business? %>
+      <div class="filter-bar__field">
+        <%= f.label :business_id, t("finance.dashboard.filters.business"), class: "filter-bar__label" %>
+        <%= f.select :business_id, [], {}, class: "filter-bar__select" %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="filter-bar__actions">
+    <%= f.submit t("forms.filter"), class: "btn btn-primary btn-sm" %>
+    <% if any_filter_active %>
+      <%= link_to t("finance.dashboard.filters.reset"), finance_root_path(from: params[:from], to: params[:to], branch_id: params[:branch_id]), class: "btn btn-ghost btn-sm" %>
+    <% end %>
+    <span class="filter-bar__divider" aria-hidden="true"></span>
+    <%= link_to t("finance.dashboard.filters.this_month"), finance_root_path(from: Date.current.beginning_of_month, to: Date.current.end_of_month, branch_id: params[:branch_id]), class: "btn btn-ghost btn-sm" %>
+    <%= link_to t("finance.dashboard.filters.previous_month"), finance_root_path(from: 1.month.ago.beginning_of_month, to: 1.month.ago.end_of_month, branch_id: params[:branch_id]), class: "btn btn-ghost btn-sm" %>
+    <%= link_to t("finance.dashboard.filters.this_year"), finance_root_path(from: Date.current.beginning_of_year, to: Date.current.end_of_year, branch_id: params[:branch_id]), class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <%# Active filter chips live at the bottom of this same card now — not a
+      separate floating section below it. Same partial/behavior as before. ── %>
+  <%= render "active_filters", branches: branches, filter_cashiers: filter_cashiers, filter_payment_methods: filter_payment_methods %>
+<% end %>

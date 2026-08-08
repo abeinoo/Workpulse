@@ -1,0 +1,34 @@
+<%# Same .exec-card shell + .quick-actions button row already used elsewhere
+    on this page — just given its own card (was previously loose buttons in
+    the header) so it reads as a clear "what can I do next" command center
+    instead of competing for space with the branch selector. No new routes,
+    permissions, or actions — same links as before. %>
+<div class="exec-card exec-span-12 action-center">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.dashboard.action_center.title") %></h2>
+  </div>
+  <div class="quick-actions">
+    <% if policy(Expense).new? %>
+      <%= link_to new_finance_expense_path, class: "btn btn-primary btn-sm" do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+        <%= t("finance.dashboard.quick_actions.create_expense") %>
+      <% end %>
+    <% end %>
+    <% if current_user.can?(:manage_recurring_expenses) %>
+      <%= link_to new_finance_recurring_expense_path, class: "btn btn-secondary btn-sm" do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <%= t("finance.dashboard.quick_actions.recurring_expense") %>
+      <% end %>
+    <% end %>
+    <% if current_user.can?(:view_expense_reports) %>
+      <%= link_to finance_reports_path, class: "btn btn-secondary btn-sm" do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>
+        <%= t("finance.dashboard.quick_actions.view_reports") %>
+      <% end %>
+    <% end %>
+    <%= link_to finance_dashboard_export_pdf_path(request.query_parameters), class: "btn btn-secondary btn-sm" do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+      <%= t("finance.dashboard.export_pdf") %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,16 @@
+<%# locals: rows (array of {label:, total:, ...}) %>
+<% if rows.present? %>
+  <div class="chart-card__body chart-card__body--doughnut">
+    <canvas
+      data-controller="chart"
+      data-chart-type-value="doughnut"
+      data-chart-data-value="<%= { labels: rows.map { |r| r[:label] }, datasets: [ { data: rows.map { |r| r[:total].to_f } } ] }.to_json %>">
+    </canvas>
+  </div>
+<% else %>
+  <div class="empty-state">
+    <%= render "finance/shared/empty_icon" %>
+    <p class="empty-state__title"><%= t("finance.reports.no_data") %></p>
+    <p class="empty-state__text"><%= t("finance.reports.no_data_hint") %></p>
+  </div>
+<% end %>

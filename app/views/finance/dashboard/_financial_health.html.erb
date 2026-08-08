@@ -1,0 +1,21 @@
+<%# locals: health_status:, health_factors: — computed once in index.html.erb via
+    finance_dashboard_health (FinanceHelper) and shared with the header badge,
+    so both read the exact same status from one place, not two. %>
+<div class="exec-card exec-span-4 financial-health financial-health--<%= health_status %>">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.dashboard.financial_health.title") %></h2>
+  </div>
+  <div class="financial-health__badge">
+    <span class="financial-health__dot"></span>
+    <span class="financial-health__label"><%= t("finance.dashboard.financial_health.status.#{health_status}") %></span>
+  </div>
+  <% if health_factors.any? %>
+    <ul class="financial-health__factors">
+      <% health_factors.each do |factor| %>
+        <li><%= factor %></li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="financial-health__ok"><%= t("finance.dashboard.financial_health.all_clear") %></p>
+  <% end %>
+</div>

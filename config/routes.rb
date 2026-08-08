@@ -378,6 +378,7 @@ Rails.application.routes.draw do
   # ── Financial Operations & Expense Management ─────────────────────────────
   namespace :finance do
     root to: "dashboard#index"
+    get "dashboard/export_pdf", to: "dashboard#export_pdf", as: :dashboard_export_pdf
 
     resources :expenses do
       member do

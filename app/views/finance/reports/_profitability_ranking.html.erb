@@ -1,0 +1,30 @@
+<%# locals: rows (array of branch_profitability_rows, sorted by net desc, already period-filtered) %>
+<div class="exec-card exec-span-4">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.reports.profitability_dashboard.ranking_title") %></h2>
+  </div>
+  <% if rows.present? %>
+    <ol class="leaderboard">
+      <% rows.each_with_index do |row, i| %>
+        <% branch_id = @branch_ids_by_name[row[:branch]] %>
+        <% selected = @selected_branch_id && @selected_branch_id == branch_id %>
+        <li>
+          <%= link_to finance_branch_profitability_report_path(year: @year, month: @month, branch_id: branch_id),
+                class: "leaderboard__row #{"leaderboard__row--selected" if selected}" do %>
+            <div class="leaderboard__top">
+              <span class="leaderboard__rank leaderboard__rank--<%= i + 1 if i < 3 %>"><%= i + 1 %></span>
+              <span class="branch-swatch" data-controller="branch-color" data-branch-color-label-value="<%= row[:branch] %>"></span>
+              <span class="leaderboard__name"><%= row[:branch] %></span>
+            </div>
+            <div class="leaderboard__stats">
+              <span class="leaderboard__net <%= "leaderboard__net--negative" if row[:net].negative? %>"><%= format_currency(row[:net]) %></span>
+              <span class="leaderboard__margin"><%= number_with_precision(row[:margin], precision: 1) %>% <%= t("finance.reports.profitability_dashboard.margin") %></span>
+            </div>
+          <% end %>
+        </li>
+      <% end %>
+    </ol>
+  <% else %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.reports.profitability_dashboard.no_branches") %></p></div>
+  <% end %>
+</div>

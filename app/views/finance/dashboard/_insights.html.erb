@@ -1,0 +1,20 @@
+<div class="exec-card exec-span-4">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.dashboard.insights.title") %></h2>
+  </div>
+  <% if @insights.present? %>
+    <div class="insight-list">
+      <% @insights.each do |insight| %>
+        <div class="insight-row insight-row--<%= insight.severity %>">
+          <span class="insight-row__icon"><%= insight.severity == :warning ? "⚠" : "ⓘ" %></span>
+          <div class="insight-row__body">
+            <p class="insight-row__title"><%= insight.title %></p>
+            <p class="insight-row__text"><%= insight.body %></p>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.dashboard.insights.none") %></p></div>
+  <% end %>
+</div>

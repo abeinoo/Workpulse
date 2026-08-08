@@ -58,11 +58,12 @@ class DailyReconciliation < ApplicationRecord
   validates :verified_at, presence: true, if: -> { verified_by.present? }
 
   # ── Scopes ───────────────────────────────────────────────────────────────────
-  scope :for_business, ->(business) { where(business: business) }
-  scope :for_branch,   ->(branch)   { where(branch: branch) }
-  scope :ordered,      ->           { order(opened_at: :desc) }
-  scope :verified,     ->           { where.not(verified_at: nil) }
-  scope :unverified,   ->           { where(verified_at: nil) }
+  scope :for_business, ->(business)  { where(business: business) }
+  scope :for_branch,   ->(branch)    { where(branch: branch) }
+  scope :in_period,    ->(from, to)  { where(business_date: from..to) }
+  scope :ordered,      ->            { order(opened_at: :desc) }
+  scope :verified,     ->            { where.not(verified_at: nil) }
+  scope :unverified,   ->            { where(verified_at: nil) }
 
   def verified?   = verified_at.present?
   def unverified? = !verified?

@@ -1,0 +1,38 @@
+<%# locals: title — shared header for every redesigned report page: back-link,
+    title + active period, CSV export, and the date filter (when @dated).
+    Same back-link/.filter-bar conventions as the original show.html.erb. %>
+<%= link_to finance_reports_path, class: "back-link" do %>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+  <%= t("finance.reports.title") %>
+<% end %>
+
+<div class="page-header exec-header">
+  <div>
+    <p class="exec-header__eyebrow"><%= t("finance.reports.title") %></p>
+    <h1 class="page-title"><%= title %></h1>
+    <% if @dated %>
+      <p class="exec-header__period"><%= l(@from, format: :long) %> – <%= l(@to, format: :long) %></p>
+    <% end %>
+  </div>
+  <div class="page-header__actions">
+    <%= link_to t("finance.reports.export_csv"), url_for(format: :csv, from: @from, to: @to), class: "btn btn-secondary btn-sm" %>
+  </div>
+</div>
+
+<% if @dated %>
+  <%= form_with url: request.path, method: :get, local: true, class: "filter-bar" do %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= label_tag :from, t("finance.dashboard.filters.from"), class: "filter-bar__label" %>
+        <%= date_field_tag :from, @from&.iso8601, class: "filter-bar__input" %>
+      </div>
+      <div class="filter-bar__field">
+        <%= label_tag :to, t("finance.dashboard.filters.to"), class: "filter-bar__label" %>
+        <%= date_field_tag :to, @to&.iso8601, class: "filter-bar__input" %>
+      </div>
+    </div>
+    <div class="filter-bar__actions">
+      <%= submit_tag t("finance.common.filter"), class: "btn btn-primary btn-sm" %>
+    </div>
+  <% end %>
+<% end %>

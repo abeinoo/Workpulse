@@ -1,0 +1,15 @@
+<%# locals: values (array of numbers, chronological), color (CSS var name, e.g. "--accent")
+    Pure presentational reshaping of an already-loaded numeric series into SVG
+    coordinates — no new financial figure, same idiom already used to reshape
+    rows into chart JSON elsewhere in these views. %>
+<% color = local_assigns.fetch(:color, "--accent") %>
+<% series = Array(values).last(8) %>
+<% if series.length > 1 %>
+  <% min = series.min; max = series.max; range = (max - min).nonzero? || 1 %>
+  <% points = series.each_with_index.map { |v, i| [ (i.to_f / (series.length - 1) * 100).round(2), (100 - ((v - min) / range * 100)).round(2) ] } %>
+  <svg class="kpi-sparkline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="<%= points.map { |x, y| "#{x},#{y}" }.join(' ') %>"
+              fill="none" stroke="var(<%= color %>)" stroke-width="6"
+              stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+  </svg>
+<% end %>

@@ -1,0 +1,70 @@
+<% content_for :title, t("finance.dashboard.title") %>
+
+<%
+  # Same filters the on-screen dashboard is already scoped to (@filters,
+  # @branch_names_by_id) — this export always reflects whatever was on
+  # screen when it was requested (export_pdf calls #index first). Cashier
+  # and payment-method NAMES aren't resolved here (only their raw ids are
+  # in params) since that would mean a lookup query this template doesn't
+  # already have; period/branch/payment-source are shown since they're
+  # already-loaded/known values.
+  export_branch_name = params[:branch_id].presence && @branch_names_by_id[params[:branch_id].to_i]
+%>
+<h1><%= t("finance.dashboard.title") %></h1>
+<p class="subtitle"><%= l(@filters.from, format: :long) %> — <%= l(@filters.to, format: :long) %></p>
+<p class="subtitle">
+  <% if export_branch_name %>
+    <%= t("finance.dashboard.filters.branch") %>: <%= export_branch_name %>
+  <% else %>
+    <%= t("finance.dashboard.filters.all_branches") %>
+  <% end %>
+  <% if params[:payment_source].present? && Expense::PAYMENT_SOURCES.include?(params[:payment_source]) %>
+    · <%= t("finance.dashboard.filters.payment_source") %>: <%= t("finance.expenses.payment_sources.#{params[:payment_source]}") %>
+  <% end %>
+</p>
+
+<div class="stats-row">
+  <% if @show_profitability %>
+    <% revenue, = @kpi_revenue %>
+    <div class="stat"><div class="stat__label"><%= t("finance.dashboard.kpi.revenue") %></div><div class="stat__value"><%= format_currency(revenue) %></div></div>
+  <% end %>
+  <% expenses, = @kpi_expenses %>
+  <div class="stat"><div class="stat__label"><%= t("finance.dashboard.kpi.expenses") %></div><div class="stat__value"><%= format_currency(expenses) %></div></div>
+  <% if @show_profitability %>
+    <div class="stat"><div class="stat__label"><%= t("finance.dashboard.kpi.net_profit") %></div><div class="stat__value"><%= format_currency(@kpi_profitability[:net]) %></div></div>
+  <% end %>
+</div>
+
+<h2><%= t("finance.dashboard.top_categories.title") %></h2>
+<table>
+  <thead><tr><th><%= t("finance.expenses.category") %></th><th class="text-end"><%= t("finance.expenses.amount") %></th></tr></thead>
+  <tbody>
+    <% @top_categories.each do |row| %>
+      <tr><td><%= row[:name] %></td><td class="text-end"><%= format_currency(row[:amount]) %></td></tr>
+    <% end %>
+  </tbody>
+</table>
+
+<% if @profitability.present? %>
+  <h2><%= t("finance.dashboard.profitability") %></h2>
+  <table>
+    <thead>
+      <tr>
+        <th><%= t("finance.expenses.branch") %></th>
+        <th class="text-end"><%= t("finance.reports.revenue") %></th>
+        <th class="text-end"><%= t("finance.reports.branch_expenses") %></th>
+        <th class="text-end"><%= t("finance.reports.net_profit") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @profitability.each do |row| %>
+        <tr>
+          <td><%= row[:branch] %></td>
+          <td class="text-end"><%= format_currency(row[:revenue]) %></td>
+          <td class="text-end"><%= format_currency(row[:expenses]) %></td>
+          <td class="text-end"><%= format_currency(row[:net]) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

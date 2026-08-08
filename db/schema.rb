@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_04_193004) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_06_082431) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -403,6 +403,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_193004) do
     t.index ["business_id", "txn_type"], name: "index_custody_transactions_on_business_id_and_txn_type"
     t.index ["business_id"], name: "index_custody_transactions_on_business_id"
     t.index ["created_by_id"], name: "index_custody_transactions_on_created_by_id"
+    t.index ["custody_account_id", "created_at"], name: "index_custody_transactions_on_account_and_created_at"
     t.index ["custody_account_id"], name: "index_custody_transactions_on_custody_account_id"
     t.index ["expense_id"], name: "index_custody_transactions_on_expense_id"
     t.index ["source_type", "source_id"], name: "index_custody_transactions_on_source"

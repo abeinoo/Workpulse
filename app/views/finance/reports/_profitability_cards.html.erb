@@ -1,0 +1,52 @@
+<%# locals: rows (array of branch_profitability_rows, already period-filtered) %>
+<div class="exec-card exec-span-12">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.reports.profitability_dashboard.cards_title") %></h2>
+  </div>
+  <% if rows.present? %>
+    <div class="branch-card-grid">
+      <% rows.each do |row| %>
+        <% branch_id = @branch_ids_by_name[row[:branch]] %>
+        <% selected = @selected_branch_id && @selected_branch_id == branch_id %>
+        <%= link_to finance_branch_profitability_report_path(year: @year, month: @month, branch_id: branch_id),
+              class: "branch-card #{"branch-card--selected" if selected}" do %>
+          <div class="branch-card__header">
+            <span class="branch-card__identity">
+              <span class="branch-swatch" data-controller="branch-color" data-branch-color-label-value="<%= row[:branch] %>"></span>
+              <span class="branch-card__name"><%= row[:branch] %></span>
+            </span>
+            <% if selected %>
+              <span class="branch-card__selected-badge">✓ <%= t("finance.reports.profitability_dashboard.viewing_branch") %></span>
+            <% else %>
+              <% change = row[:change][:net] %>
+              <% if change %>
+                <span class="branch-card__trend <%= change >= 0 ? 'branch-card__trend--up' : 'branch-card__trend--down' %>">
+                  <%= change >= 0 ? "▲" : "▼" %><%= number_with_precision(change.abs, precision: 0) %>%
+                </span>
+              <% else %>
+                <span class="branch-card__trend">—</span>
+              <% end %>
+            <% end %>
+          </div>
+
+          <div class="branch-card__net-label"><%= t("finance.reports.net_profit") %></div>
+          <div class="branch-card__net <%= "branch-card__net--negative" if row[:net].negative? %>"><%= format_currency(row[:net]) %></div>
+          <span class="branch-card__margin-pill"><%= number_with_precision(row[:margin], precision: 1) %>% <%= t("finance.reports.profitability_dashboard.margin") %></span>
+
+          <div class="branch-card__secondary">
+            <div class="branch-card__metric">
+              <span class="branch-card__metric-label"><%= t("finance.reports.revenue") %></span>
+              <span class="branch-card__metric-value"><%= format_currency(row[:revenue]) %></span>
+            </div>
+            <div class="branch-card__metric">
+              <span class="branch-card__metric-label"><%= t("finance.reports.branch_expenses") %></span>
+              <span class="branch-card__metric-value"><%= format_currency(row[:expenses]) %></span>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.reports.profitability_dashboard.no_branches") %></p></div>
+  <% end %>
+</div>

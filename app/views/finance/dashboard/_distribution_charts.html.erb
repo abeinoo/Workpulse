@@ -1,0 +1,47 @@
+<% if @show_profitability %>
+  <div class="chart-card exec-span-6">
+    <div class="chart-card__header">
+      <h2 class="section-title--exec"><%= t("finance.dashboard.by_branch_revenue") %></h2>
+      <%= link_to t("finance.dashboard.view_full_report"), finance_branch_profitability_report_path(year: @focus_month.year, month: @focus_month.month, branch_id: params[:branch_id]), class: "link" %>
+    </div>
+    <% if @has_period_revenue && @revenue_by_branch.present? %>
+      <div class="chart-card__body chart-card__body--doughnut">
+        <%# Clicking a slice narrows the DASHBOARD's own branch filter (cross-
+            filtering every widget), not a navigate-away to another report —
+            distinct on purpose from the Expense Distribution chart below,
+            which does link to a filtered report. ── %>
+        <canvas
+          data-controller="chart"
+          data-chart-type-value="doughnut"
+          data-chart-data-value="<%= { labels: @revenue_by_branch.map { |_, name, _| name }, datasets: [ { data: @revenue_by_branch.map { |_, _, total| total } } ] }.to_json %>"
+          data-chart-links-value="<%= @revenue_by_branch.map { |id, _, _| finance_dashboard_url(branch_id: id) }.to_json %>">
+        </canvas>
+      </div>
+    <% else %>
+      <%= render "no_revenue_data" %>
+    <% end %>
+  </div>
+<% end %>
+
+<div class="chart-card exec-span-6">
+  <div class="chart-card__header">
+    <h2 class="section-title--exec"><%= t("finance.dashboard.by_category") %></h2>
+    <%= link_to t("finance.dashboard.view_full_report"), finance_expenses_by_category_report_path(from: @filters.from, to: @filters.to), class: "link" %>
+  </div>
+  <% if @by_category.present? %>
+    <div class="chart-card__body chart-card__body--doughnut">
+      <canvas
+        data-controller="chart"
+        data-chart-type-value="doughnut"
+        data-chart-data-value="<%= { labels: @by_category.map(&:first), datasets: [ { data: @by_category.map(&:second) } ] }.to_json %>"
+        data-chart-links-value="<%= @by_category.map { |name, _| finance_expenses_path(expense_category_id: @category_ids_by_name[name], from: @filters.from, to: @filters.to, branch_id: params[:branch_id]) }.to_json %>">
+      </canvas>
+    </div>
+  <% else %>
+    <div class="empty-state">
+      <%= render "finance/shared/empty_icon" %>
+      <p class="empty-state__title"><%= t("finance.dashboard.no_data_for_period") %></p>
+      <p class="empty-state__text"><%= t("finance.dashboard.no_data_hint") %></p>
+    </div>
+  <% end %>
+</div>

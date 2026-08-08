@@ -1,0 +1,32 @@
+<%
+  # Pure presentation: turns numbers already computed by the controller
+  # (@kpi_revenue/@kpi_expenses/@kpi_profitability, same ivars the KPI cards
+  # use) into a plain-language sentence. Same period-over-period delta
+  # formula already used by _kpi_delta.html.erb, just phrased as text
+  # instead of a pill — no new calculation.
+  expenses, expenses_prev = @kpi_expenses
+  expenses_change = expenses_prev.to_f.zero? ? nil : ((expenses.to_f - expenses_prev.to_f) / expenses_prev.to_f.abs * 100)
+
+  if @show_profitability
+    revenue, revenue_prev = @kpi_revenue
+    revenue_change = revenue_prev.to_f.zero? ? nil : ((revenue.to_f - revenue_prev.to_f) / revenue_prev.to_f.abs * 100)
+    net = @kpi_profitability[:net]
+    margin = @kpi_profitability[:revenue].zero? ? 0 : (net / @kpi_profitability[:revenue] * 100)
+  end
+%>
+<div class="exec-card exec-span-12 exec-summary">
+  <div class="exec-card__header">
+    <h2 class="section-title--exec"><%= t("finance.dashboard.executive_summary.title") %></h2>
+  </div>
+  <p class="exec-summary__text">
+    <% if @show_profitability %>
+      <%= t("finance.dashboard.executive_summary.revenue_line",
+            amount: format_currency(revenue),
+            trend: revenue_change ? t("finance.dashboard.executive_summary.#{revenue_change >= 0 ? 'up' : 'down'}", pct: number_with_precision(revenue_change.abs, precision: 1)) : t("finance.dashboard.executive_summary.no_comparison")) %>
+      <%= t("finance.dashboard.executive_summary.net_line", amount: format_currency(net), margin: number_with_precision(margin, precision: 1)) %>
+    <% end %>
+    <%= t("finance.dashboard.executive_summary.expenses_line",
+          amount: format_currency(expenses),
+          trend: expenses_change ? t("finance.dashboard.executive_summary.#{expenses_change >= 0 ? 'up' : 'down'}", pct: number_with_precision(expenses_change.abs, precision: 1)) : t("finance.dashboard.executive_summary.no_comparison")) %>
+  </p>
+</div>

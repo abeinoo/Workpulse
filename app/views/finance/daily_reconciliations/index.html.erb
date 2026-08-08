@@ -14,34 +14,27 @@
       <p class="page-subtitle"><%= t("finance.daily_reconciliations.index.subtitle") %></p>
     </div>
     <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
-      <%# ── Branch selector — page-level context, not a search filter, so it
+      <%# Branch selector — page-level context, not a search filter, so it
           lives in the header next to the title rather than inside the filter
           card. Filters summary cards, the reconciliation list, all counters,
-          and all derived statuses (reuses the same @filter_branch / branch_id
-          param and accessible_branches_for_dr as always). Only sales branches
-          are offered; warehouse/laundry/other operational units never run
-          Daily Reconciliations. Hidden fields carry the rest of the current
-          filter state through so switching branch doesn't drop it. ── %>
-      <% if @accessible_branches.size > 1 %>
-        <%= form_with url: finance_daily_reconciliations_path, method: :get,
-              data: { controller: "auto-submit" }, style: "display: inline-flex;" do %>
-          <%= hidden_field_tag :status, @filter_status %>
-          <%= hidden_field_tag :from, @filter_date_from %>
-          <%= hidden_field_tag :to, @filter_date_to %>
-          <%= hidden_field_tag :verification_status, @filter_bank_status %>
-          <%= hidden_field_tag :depositor_id, @filter_depositor_id %>
-          <%= hidden_field_tag :bank_imported, (@filter_bank_imported ? "1" : nil) %>
-          <%= hidden_field_tag :outstanding_exists, (@filter_outstanding_exists ? "1" : nil) %>
-          <%= select_tag :branch_id,
-                options_for_select(
-                  [[ t("finance.daily_reconciliations.index.filter_all_sales_branches"), "" ]] +
-                    @accessible_branches.map { |b| [ b.name, b.id ] },
-                  @filter_branch
-                ),
-                data: { action: "change->auto-submit#submit" },
-                class: "form-control", style: "width: auto; font-weight: 600;" %>
-        <% end %>
-      <% end %>
+          and all derived statuses. Only sales branches are offered;
+          warehouse/laundry/other operational units never run Daily
+          Reconciliations (see accessible_branches_for_dr). Shared component
+          — also used by the Finance Dashboard; changes here affect both. ── %>
+      <%= render "finance/shared/branch_selector",
+            url: finance_daily_reconciliations_path,
+            branches: @accessible_branches,
+            selected: @filter_branch,
+            all_label: t("finance.daily_reconciliations.index.filter_all_sales_branches"),
+            hidden_params: {
+              status: @filter_status,
+              from: @filter_date_from,
+              to: @filter_date_to,
+              verification_status: @filter_bank_status,
+              depositor_id: @filter_depositor_id,
+              bank_imported: (@filter_bank_imported ? "1" : nil),
+              outstanding_exists: (@filter_outstanding_exists ? "1" : nil)
+            } %>
       <% if current_user.can?(:view_pos_import) %>
         <%= link_to t("finance.pos_imports.verification.title"),
               finance_pos_imports_path,

@@ -1,0 +1,94 @@
+<%
+  # Every KPI card drills into a report already filtered to the dashboard's
+  # current context — same @filters the widgets above already read, just
+  # reshaped into each target report's own param names (year/month for the
+  # BranchProfitability report, from/to for the Expenses list). No new query.
+  single_branch_id = @filters.branch_ids.size == 1 ? @filters.branch_ids.first : nil
+%>
+<div class="kpi-grid kpi-grid--dashboard">
+  <% if @show_profitability %>
+    <% revenue, revenue_prev = @kpi_revenue %>
+    <%= link_to finance_branch_profitability_report_path(year: @focus_month.year, month: @focus_month.month, branch_id: single_branch_id), class: "kpi-card" do %>
+      <div class="kpi-card__top">
+        <span class="kpi-card__label-group">
+          <%= render "kpi_icon", type: :revenue %>
+          <span class="kpi-card__label"><%= t("finance.dashboard.kpi.revenue") %></span>
+        </span>
+        <span class="kpi-card__hint" title="<%= t('finance.dashboard.kpi.revenue_hint') %>">i</span>
+      </div>
+      <span class="kpi-card__value" data-controller="count-up" data-count-up-target-value="<%= revenue.to_f %>"><%= format_currency(revenue) %></span>
+      <%= render "kpi_sparkline", values: @trend_revenue, color: "--success" %>
+      <%= render "kpi_delta", current: revenue, previous: revenue_prev %>
+    <% end %>
+  <% end %>
+
+  <% expenses, expenses_prev = @kpi_expenses %>
+  <%= link_to finance_expenses_path(from: @filters.from, to: @filters.to, branch_id: single_branch_id), class: "kpi-card" do %>
+    <div class="kpi-card__top">
+      <span class="kpi-card__label-group">
+        <%= render "kpi_icon", type: :expenses %>
+        <span class="kpi-card__label"><%= t("finance.dashboard.kpi.expenses") %></span>
+      </span>
+      <span class="kpi-card__hint" title="<%= t('finance.dashboard.kpi.expenses_hint') %>">i</span>
+    </div>
+    <span class="kpi-card__value" data-controller="count-up" data-count-up-target-value="<%= expenses.to_f %>"><%= format_currency(expenses) %></span>
+    <%= render "kpi_sparkline", values: @trend_expenses, color: "--danger" %>
+    <%= render "kpi_delta", current: expenses, previous: expenses_prev, invert: true %>
+  <% end %>
+
+  <% if @show_profitability %>
+    <% net = @kpi_profitability[:net]; net_prev = @kpi_profitability_previous[:net] %>
+    <%= link_to finance_branch_profitability_report_path(year: @focus_month.year, month: @focus_month.month, branch_id: single_branch_id), class: "kpi-card #{net.negative? ? 'kpi-card--danger' : 'kpi-card--success'}" do %>
+      <div class="kpi-card__top">
+        <span class="kpi-card__label-group">
+          <%= render "kpi_icon", type: :net_profit %>
+          <span class="kpi-card__label"><%= t("finance.dashboard.kpi.net_profit") %></span>
+        </span>
+        <span class="kpi-card__hint" title="<%= t('finance.dashboard.kpi.net_profit_hint') %>">i</span>
+      </div>
+      <span class="kpi-card__value" data-controller="count-up" data-count-up-target-value="<%= net.to_f %>"><%= format_currency(net) %></span>
+      <%= render "kpi_sparkline", values: @trend_net, color: "--accent" %>
+      <%= render "kpi_delta", current: net, previous: net_prev %>
+    <% end %>
+
+    <% margin = @kpi_profitability[:revenue].zero? ? 0 : (net / @kpi_profitability[:revenue] * 100)
+       margin_prev = @kpi_profitability_previous[:revenue].zero? ? 0 : (net_prev / @kpi_profitability_previous[:revenue] * 100) %>
+    <%= link_to finance_branch_profitability_report_path(year: @focus_month.year, month: @focus_month.month, branch_id: single_branch_id), class: "kpi-card" do %>
+      <div class="kpi-card__top">
+        <span class="kpi-card__label-group">
+          <%= render "kpi_icon", type: :margin %>
+          <span class="kpi-card__label"><%= t("finance.dashboard.kpi.profit_margin") %></span>
+        </span>
+        <span class="kpi-card__hint" title="<%= t('finance.dashboard.kpi.profit_margin_hint') %>">i</span>
+      </div>
+      <span class="kpi-card__value" data-controller="count-up" data-count-up-target-value="<%= margin.to_f %>"><%= number_to_percentage(margin, precision: 1) %></span>
+      <%= render "kpi_delta", current: margin, previous: margin_prev, is_percentage_points: true %>
+    <% end %>
+  <% end %>
+
+  <% if @show_cash_kpi %>
+    <div class="kpi-card"><span class="kpi-card__label"><%= t("finance.dashboard.kpi.cash_balance") %></span></div>
+  <% end %>
+  <% if @show_bank_kpi %>
+    <div class="kpi-card"><span class="kpi-card__label"><%= t("finance.dashboard.kpi.bank_balance") %></span></div>
+  <% end %>
+
+  <% if @show_custody && @kpi_custody_balance %>
+    <% custody, custody_prev = @kpi_custody_balance %>
+    <%= link_to finance_custody_accounts_path, class: "kpi-card #{custody.negative? ? 'kpi-card--danger' : ''}" do %>
+      <div class="kpi-card__top">
+        <span class="kpi-card__label-group">
+          <%= render "kpi_icon", type: :custody %>
+          <span class="kpi-card__label"><%= t("finance.dashboard.kpi.custody_balance") %></span>
+        </span>
+        <span class="kpi-card__hint" title="<%= t('finance.dashboard.kpi.custody_balance_hint') %>">i</span>
+      </div>
+      <span class="kpi-card__value" data-controller="count-up" data-count-up-target-value="<%= custody.to_f %>"><%= format_currency(custody) %></span>
+      <%= render "kpi_delta", current: custody, previous: custody_prev %>
+    <% end %>
+  <% end %>
+
+  <% if @show_supplier_kpi %>
+    <div class="kpi-card"><span class="kpi-card__label"><%= t("finance.dashboard.kpi.supplier_payables") %></span></div>
+  <% end %>
+</div>

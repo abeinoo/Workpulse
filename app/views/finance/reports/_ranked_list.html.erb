@@ -1,0 +1,22 @@
+<%# locals: rows (array of {label:, total:, count:, pct:, change:}), link_for (proc(row) -> url or nil).
+    Same .top-list component the Finance Dashboard's Top Expense Categories widget uses. %>
+<div class="top-list">
+  <% rows.each do |row| %>
+    <% url = link_for.call(row) || finance_expenses_path(from: @from, to: @to) %>
+    <%= link_to url, class: "top-list__row" do %>
+      <span class="top-list__name"><%= row[:label] %></span>
+      <div class="top-list__bar-track">
+        <div class="top-list__bar" style="width: <%= row[:pct].round(1) %>%;"></div>
+      </div>
+      <span class="top-list__amount"><%= format_currency(row[:total]) %></span>
+      <span class="top-list__pct"><%= number_with_precision(row[:pct], precision: 1) %>%</span>
+      <% if row[:change] %>
+        <span class="top-list__trend <%= row[:change] >= 0 ? 'top-list__trend--up' : 'top-list__trend--down' %>">
+          <%= row[:change] >= 0 ? "▲" : "▼" %><%= number_with_precision(row[:change].abs, precision: 0) %>%
+        </span>
+      <% else %>
+        <span class="top-list__trend">—</span>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>

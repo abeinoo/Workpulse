@@ -1,0 +1,34 @@
+<%
+  # @branch_names_by_id is already populated (memoized by the private
+  # branch_names_by_id method every widget above already called) — inverted
+  # here, in the view, to look up each row's id for the drill-down URL below.
+  # No new query.
+  branch_ids_by_name = (@branch_names_by_id || {}).invert
+%>
+<% if @profitability %>
+  <div class="chart-card exec-span-12" data-controller="sortable-bars"
+       data-sortable-bars-rows-value="<%= @profitability.map { |r| {
+         branch: r[:branch], revenue: r[:revenue].to_f, expenses: r[:expenses].to_f, net: r[:net].to_f,
+         url: finance_branch_profitability_report_path(year: @focus_month.year, month: @focus_month.month, branch_id: branch_ids_by_name[r[:branch]])
+       } }.to_json %>"
+       data-sortable-bars-labels-value="<%= {
+         revenue: t('finance.reports.revenue'), expenses: t('finance.reports.branch_expenses'), net: t('finance.reports.net_profit')
+       }.to_json %>">
+    <div class="chart-card__header">
+      <h2 class="section-title--exec"><%= t("finance.dashboard.profitability") %></h2>
+      <div class="chart-card__toggle">
+        <button type="button" class="btn btn-ghost btn-xs is-active" data-action="sortable-bars#sort" data-key="net"><%= t("finance.reports.net_profit") %></button>
+        <button type="button" class="btn btn-ghost btn-xs" data-action="sortable-bars#sort" data-key="revenue"><%= t("finance.reports.revenue") %></button>
+        <button type="button" class="btn btn-ghost btn-xs" data-action="sortable-bars#sort" data-key="expenses"><%= t("finance.reports.branch_expenses") %></button>
+      </div>
+      <%= link_to t("finance.dashboard.view_full_report"), finance_branch_profitability_report_path(year: @focus_month.year, month: @focus_month.month, branch_id: params[:branch_id]), class: "link" %>
+    </div>
+    <% if @has_focus_month_revenue && @profitability.present? %>
+      <div class="chart-card__body">
+        <canvas data-sortable-bars-target="canvas"></canvas>
+      </div>
+    <% else %>
+      <%= render "no_revenue_data" %>
+    <% end %>
+  </div>
+<% end %>

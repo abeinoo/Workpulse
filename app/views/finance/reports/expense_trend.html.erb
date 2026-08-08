@@ -1,0 +1,45 @@
+<% content_for :title, @table.title %>
+
+<div class="admin-page exec-dashboard">
+  <%= render "report_header", title: @table.title %>
+
+  <%= render "summary_kpis", total: @table.totals[:total], previous_total: @previous_table.totals[:total], count: @table.totals[:count] %>
+
+  <div class="exec-grid">
+    <div class="chart-card exec-span-12 chart-card--primary" data-controller="report-trend"
+         data-report-trend-labels-value="<%= @table.rows.map { |r| r[:label] }.to_json %>"
+         data-report-trend-actual-value="<%= @table.rows.map { |r| r[:total].to_f }.to_json %>"
+         data-report-trend-moving-average-value="<%= @moving_average.to_json %>"
+         data-report-trend-label-actual-value="<%= t('finance.reports.total_amount') %>"
+         data-report-trend-label-moving-average-value="<%= t('finance.reports.trend_dashboard.moving_average') %>">
+      <div class="chart-card__header">
+        <h2 class="section-title--exec"><%= t("finance.reports.trend_dashboard.chart_title") %></h2>
+        <% if @table.rows.present? %>
+          <div class="chart-card__toggle">
+            <button type="button" class="btn btn-ghost btn-xs is-active" data-report-trend-target="option" data-action="report-trend#group" data-group="month"><%= t("finance.reports.trend_dashboard.monthly") %></button>
+            <button type="button" class="btn btn-ghost btn-xs" data-report-trend-target="option" data-action="report-trend#group" data-group="quarter"><%= t("finance.reports.trend_dashboard.quarterly") %></button>
+            <button type="button" class="btn btn-ghost btn-xs" data-report-trend-target="option" data-action="report-trend#group" data-group="year"><%= t("finance.reports.trend_dashboard.yearly") %></button>
+          </div>
+        <% end %>
+      </div>
+      <% if @table.rows.present? %>
+        <div class="chart-card__body chart-card__body--primary">
+          <canvas data-report-trend-target="canvas"></canvas>
+        </div>
+      <% else %>
+        <div class="empty-state">
+          <%= render "finance/shared/empty_icon" %>
+          <p class="empty-state__title"><%= t("finance.reports.no_data") %></p>
+          <p class="empty-state__text"><%= t("finance.reports.no_data_hint") %></p>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="exec-card exec-span-12">
+      <div class="exec-card__header">
+        <h2 class="section-title--exec"><%= t("finance.reports.trend_dashboard.table_title") %></h2>
+      </div>
+      <%= render "table", table: @table %>
+    </div>
+  </div>
+</div>

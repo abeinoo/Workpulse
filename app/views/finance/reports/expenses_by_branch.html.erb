@@ -1,0 +1,36 @@
+<% content_for :title, @table.title %>
+
+<div class="admin-page exec-dashboard">
+  <%= render "report_header", title: @table.title %>
+
+  <%= render "summary_kpis", total: @table.totals[:total], previous_total: @previous_total, count: @table.totals[:count] %>
+
+  <div class="exec-grid">
+    <div class="exec-card exec-span-6">
+      <div class="exec-card__header">
+        <h2 class="section-title--exec"><%= t("finance.reports.breakdown.ranking_title") %> — <%= t("finance.expenses.branch") %></h2>
+      </div>
+      <% if @ranked_rows.present? %>
+        <%= render "ranked_list", rows: @ranked_rows, link_for: ->(row) { finance_expenses_path(branch_id: @drill_down_ids[row[:label]], from: @from, to: @to) } %>
+      <% else %>
+        <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.reports.no_data") %></p></div>
+      <% end %>
+    </div>
+
+    <div class="chart-card exec-span-6">
+      <div class="chart-card__header">
+        <h2 class="section-title--exec"><%= t("finance.reports.breakdown.distribution_title") %></h2>
+      </div>
+      <%= render "distribution_chart", rows: @table.rows %>
+    </div>
+
+    <%= render "overall_trend_chart", trend: @overall_trend %>
+
+    <div class="exec-card exec-span-12">
+      <div class="exec-card__header">
+        <h2 class="section-title--exec"><%= t("finance.reports.breakdown.table_title") %></h2>
+      </div>
+      <%= render "table", table: @table %>
+    </div>
+  </div>
+</div>

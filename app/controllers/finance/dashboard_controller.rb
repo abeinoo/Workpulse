@@ -1,90 +1,323 @@
 class Finance::DashboardController < Finance::BaseController
-  # Finance overview. Every figure is policy-scoped (a branch manager sees only
-  # their branches' data) and custody/recurring widgets are permission-gated.
+  # Executive finance overview. Every figure is policy-scoped (a branch manager
+  # sees only their branches' data) and further narrowed by the unified filter
+  # bar (Finance::DashboardFilters). Widgets that depend on data models this
+  # app doesn't have yet (multi-business, supplier financials, cash/bank
+  # ledgers) are gated by Finance::Dashboard::Capabilities and simply absent
+  # from @capabilities-driven sections — never shown as placeholders.
+  #
+  # Revenue/Net-Profit/Margin reuse Finance::Reports::BranchProfitability,
+  # which is monthly-granularity data (BranchRevenue is entered per branch per
+  # month) — those three cards always reflect the calendar month containing
+  # the filter bar's "to" date, compared against the prior calendar month,
+  # regardless of how wide a date range is otherwise selected. Every other
+  # widget honours the filter bar's date range directly.
   def index
-    expenses = policy_scope(Expense)
-    month    = Date.current.beginning_of_month..Date.current.end_of_month
-    committed = expenses.where(status: "approved").in_period(month.first, month.last)
+    @capabilities = Finance::Dashboard::Capabilities.new
+    @filters      = Finance::DashboardFilters.new(current_user, params).resolve
+    @focus_month  = @filters.to.beginning_of_month
+    # Revenue (BranchRevenue) and branch profitability (Finance::Reports::BranchProfitability)
+    # were only ever surfaced through the view_expense_reports-gated report before this
+    # redesign — every KPI/chart/insight derived from them must stay behind that same gate.
+    @show_profitability = current_user.can?(:view_expense_reports)
 
-    @pending_count = expenses.pending.count
-    @pending       = expenses.pending.recent.includes(:branch, :expense_category).limit(8)
-    @month_total   = committed.sum(:amount)
+    load_kpis
+    load_trend
+    load_distributions
+    load_branch_profitability
+    load_top_categories
+    load_alerts
+    load_cash_flow
+    load_custody_summary
+    load_recent_activity
+    load_insights
+  end
 
-    @by_category = committed.joins(:expense_category)
-                            .group("expense_categories.name").sum(:amount)
-                            .sort_by { |_, total| -total }.first(6)
-    @by_branch   = by_branch(committed)
-
-    @show_custody = current_user.can?(:view_employee_balances) || current_user.can?(:manage_employee_balances)
-    @outstanding  = outstanding_custody if @show_custody
-
-    @show_recurring    = current_user.can?(:view_expenses) || current_user.can?(:manage_recurring_expenses)
-    @upcoming_recurring = upcoming_recurring if @show_recurring
-
-    # Outstanding deposit balances — visible to anyone who can settle or view DRs.
-    @show_outstanding = current_user.can?(:settle_remaining_deposit_balance) ||
-                        current_user.can?(:view_daily_reconciliation)
-    if @show_outstanding
-      overdue_days           = current_user.business.finance_overdue_days
-      notify_thresholds      = current_user.business.finance_notify_thresholds
-      all_rdb                = policy_scope(RemainingDepositBalance)
-      @rdb_open_count        = all_rdb.open.count
-      @rdb_open_amount       = all_rdb.open.sum(:remaining_amount)
-      @rdb_overdue           = all_rdb.overdue(days: overdue_days)
-                                      .includes(:responsible_user, daily_reconciliation: :branch)
-                                      .order(:created_at).limit(10)
-      @rdb_overdue_days      = overdue_days
-      # Threshold alerts: count open balances that have passed each notification threshold
-      @rdb_threshold_alerts  = notify_thresholds.map do |days|
-        count = all_rdb.open.where("remaining_deposit_balances.created_at < ?", days.days.ago).count
-        { days: days, count: count } if count > 0
-      end.compact
-      today                  = Time.current.beginning_of_day..Time.current.end_of_day
-      business_rdb_ids       = all_rdb.pluck(:id)
-      @rdb_settled_today     = RemainingDepositBalanceTransaction
-                                 .where(remaining_deposit_balance_id: business_rdb_ids,
-                                        transaction_type: "settlement", created_at: today)
-                                 .sum(:amount)
-      @rdb_written_off_today = RemainingDepositBalanceTransaction
-                                 .where(remaining_deposit_balance_id: business_rdb_ids,
-                                        transaction_type: "write_off", created_at: today)
-                                 .sum(:amount)
-    end
-
-    # Branch profitability is business-wide reporting — same gate as the report.
-    if current_user.can?(:view_expense_reports)
-      @profitability = Finance::Reports::BranchProfitability.new(
-        current_user.business, year: Date.current.year, month: Date.current.month
-      ).call
-    end
+  def export_pdf
+    index
+    html = render_to_string(template: "finance/dashboard/export_pdf", layout: "pdf")
+    send_data Finance::Dashboard::PdfRenderer.render(html),
+              filename: "finance-dashboard-#{Date.current.iso8601}.pdf", type: "application/pdf", disposition: "attachment"
   end
 
   private
 
-  # Committed spend per branch this month; NULL-branch (shared/business-level)
-  # rolls into a single bucket. Shared allocations are summarised in the reports.
-  def by_branch(committed)
-    names = current_user.business.branches.pluck(:id, :name).to_h
-    committed.group(:branch_id).sum(:amount)
-             .map { |branch_id, total| [ branch_id ? names[branch_id] : t("finance.expenses.shared"), total ] }
-             .sort_by { |_, total| -total }.first(6)
+  # ── KPI cards ────────────────────────────────────────────────────────────
+
+  def load_kpis
+    @kpi_expenses = period_over_period(->(from, to) { expenses_scope(from, to).sum(:amount) })
+
+    if @show_profitability
+      @kpi_revenue                = period_over_period(->(from, to) { verified_revenue(from, to).total })
+      @kpi_profitability          = profitability_for(@focus_month)
+      @kpi_profitability_previous = profitability_for(@focus_month - 1.month)
+
+      # Shared "is there any verified-DR revenue at all" checks, reused by
+      # every revenue-dependent widget (Revenue by Branch, Branch
+      # Profitability chart) so none of them render a misleadingly-populated
+      # chart (e.g. an all-zero bar chart) when the answer is "no data yet" —
+      # and so none of them re-derive this from scratch. Two checks because
+      # the filter-bar date range and the profitability chart's calendar
+      # month (@focus_month) are intentionally different scopes (see class
+      # comment above).
+      @has_period_revenue      = verified_revenue(@filters.from, @filters.to).any?
+      @has_focus_month_revenue = verified_revenue(@focus_month.beginning_of_month, @focus_month.end_of_month).any?
+    end
+
+    @show_custody = current_user.can?(:view_employee_balances) || current_user.can?(:manage_employee_balances)
+    if @show_custody
+      @kpi_custody_balance = period_over_period(->(_from, to) { custody_balance_as_of(to) }, snapshot: true)
+    end
+
+    @show_supplier_kpi = @capabilities.supplier_financials_available?
+    @show_cash_kpi     = @capabilities.cash_ledger_available?
+    @show_bank_kpi     = @capabilities.bank_ledger_available?
   end
 
-  def outstanding_custody
-    accounts = policy_scope(CustodyAccount).active.includes(:user)
-    balances = CustodyTransaction.active.where(custody_account_id: accounts.map(&:id))
-                                 .group(:custody_account_id).sum(:amount)
-    accounts.filter_map do |account|
-      balance = balances[account.id] || 0
-      next if balance.zero?
+  # Runs `metric` for the current and previous period of equal length and
+  # returns [current, previous]. `snapshot: true` treats `metric` as an
+  # as-of-date balance rather than a period sum (previous = balance at the
+  # end of the previous period, not a delta over it).
+  def period_over_period(metric, snapshot: false)
+    previous_to   = @filters.from - 1.day
+    previous_from = previous_to - (@filters.to - @filters.from)
 
-      { name: account.name, holder: account.user.full_name, balance: balance }
-    end.sort_by { |row| -row[:balance] }.first(6)
+    current  = metric.call(@filters.from, @filters.to)
+    previous = snapshot ? metric.call(nil, previous_to) : metric.call(previous_from, previous_to)
+    [ current, previous ]
   end
 
-  def upcoming_recurring
-    policy_scope(RecurringExpense).active
-      .where(next_run_on: ..30.days.from_now.to_date)
-      .includes(:expense_category, :branch).ordered.limit(8)
+  def profitability_for(month)
+    rows = profitability_rows_for(month)
+    %i[revenue payroll inventory expenses net].index_with { |k| rows.sum { |r| r[k] } }
+  end
+
+  # Memoized per month so the KPI cards (revenue/net/margin) and the branch
+  # profitability chart — both scoped to @focus_month — share one
+  # Finance::Reports::BranchProfitability run instead of duplicating its
+  # five grouped queries.
+  def profitability_rows_for(month)
+    @profitability_rows_by_month ||= {}
+    @profitability_rows_by_month[month] ||= begin
+      table = Finance::Reports::BranchProfitability.new(current_user.business, year: month.year, month: month.month).call
+      table.rows.select { |r| branch_names_by_id.value?(r[:branch]) }
+    end
+  end
+
+  # id => name for every branch in scope, cached business-wide (branch lists
+  # rarely change) so every dashboard request for the same business shares
+  # one query, then narrowed in-memory to the current filter's branch_ids.
+  # Every section that needs a branch label (distribution charts, insights,
+  # profitability filtering) reads from this single memoized/cached map
+  # instead of re-querying per section.
+  def branch_names_by_id
+    @branch_names_by_id ||= all_branch_names_by_id.slice(*@filters.branch_ids)
+  end
+
+  def all_branch_names_by_id
+    Rails.cache.fetch("finance_dashboard/branch_names/#{current_user.business_id}", expires_in: 5.minutes) do
+      current_user.business.branches.pluck(:id, :name).to_h
+    end
+  end
+
+  def expenses_scope(from, to)
+    scope = policy_scope(Expense).where(status: "approved").in_period(from, to)
+                                  .where(branch_id: [ nil ] + @filters.branch_ids)
+    scope = scope.where(payment_source: @filters.payment_source) if @filters.payment_source
+    scope
+  end
+
+  # Finance::Reports::VerifiedRevenue is the single source of truth for
+  # revenue across the whole Finance module (dashboard + Branch Profitability
+  # report) — SUM(TillSessionAmount.net_amount) for verified Daily
+  # Reconciliations only. Never read BranchRevenue or SalesTransaction here.
+  def verified_revenue(from, to)
+    Finance::Reports::VerifiedRevenue.new(current_user.business, from: from, to: to, branch_ids: @filters.branch_ids)
+  end
+
+  def custody_balance_as_of(date)
+    accounts = policy_scope(CustodyAccount).where(branch_id: @filters.branch_ids)
+    accounts = accounts.where(user_id: @filters.cashier_id) if @filters.cashier_id
+    CustodyTransaction.active.where(custody_account_id: accounts.select(:id))
+                       .where(created_at: ..date.end_of_day).sum(:amount)
+  end
+
+  # ── Revenue / Expense / Net trend (monthly; client aggregates to quarter/year) ──
+
+  def load_trend
+    months = 11.downto(0).map { |n| @focus_month - n.months }
+    # Keys normalized to Date for the same reason as VerifiedRevenue#by_month —
+    # date_trunc() grouping keys come back as Time, which never #eql? the Date
+    # objects in `months`, so the lookups below would silently always miss.
+    expenses = expenses_scope(months.first.beginning_of_month, months.last.end_of_month)
+                 .group(Arel.sql("date_trunc('month', expense_date)")).sum(:amount)
+                 .transform_keys(&:to_date)
+
+    @trend_labels   = months.map { |m| I18n.l(m, format: "%b %Y") }
+    # .to_f so every element is a plain float (BigDecimal serializes to a JSON
+    # string, not a number, which the chart JS would receive as mixed types).
+    @trend_expenses = months.map { |m| (expenses[m] || 0).to_f }
+    # Reshaping of the same `months` array above — lets the trend chart turn a
+    # clicked point into "view the dashboard filtered to that month" without
+    # a second query or a new calculation.
+    @trend_month_bounds = months.map { |m| [ m.beginning_of_month, m.end_of_month ] }
+
+    return unless @show_profitability
+
+    revenue = verified_revenue(months.first.beginning_of_month, months.last.end_of_month).by_month
+    @trend_revenue = months.map { |m| (revenue[m] || 0).to_f }
+    @trend_net     = @trend_revenue.zip(@trend_expenses).map { |r, e| r - e }
+  end
+
+  # ── Distribution charts ─────────────────────────────────────────────────
+
+  def load_distributions
+    @by_category = expenses_scope(@filters.from, @filters.to).joins(:expense_category)
+                     .group("expense_categories.name").sum(:amount)
+                     .sort_by { |_, total| -total }.first(8)
+    @category_ids_by_name = Rails.cache.fetch("finance_dashboard/expense_categories/#{current_user.business_id}", expires_in: 5.minutes) do
+      current_user.business.expense_categories.pluck(:name, :id).to_h
+    end
+
+    return unless @show_profitability
+
+    # id kept alongside name/total (not just [name, total]) so the doughnut
+    # chart can turn a click into "filter the dashboard by this branch" —
+    # same values already fetched, just not discarded.
+    @revenue_by_branch = verified_revenue(@filters.from, @filters.to).by_branch
+                           .filter_map { |id, total| [ id, branch_names_by_id[id], total ] if branch_names_by_id[id] }
+                           .sort_by { |_, _, total| -total }.first(8)
+  end
+
+  # ── Branch profitability (bar chart) ────────────────────────────────────
+
+  def load_branch_profitability
+    return unless @show_profitability
+
+    @profitability = profitability_rows_for(@focus_month)
+  end
+
+  # ── Top expense categories with period-over-period trend ───────────────
+
+  def load_top_categories
+    previous_to   = @filters.from - 1.day
+    previous_from = previous_to - (@filters.to - @filters.from)
+    previous_by_category = expenses_scope(previous_from, previous_to).joins(:expense_category)
+                              .group("expense_categories.name").sum(:amount)
+
+    total = @by_category.sum { |_, amount| amount }
+    @top_categories = @by_category.first(10).map do |name, amount|
+      prev   = previous_by_category[name].to_f
+      change = prev.zero? ? nil : (amount.to_f - prev) / prev
+      { name: name, amount: amount, pct: total.zero? ? 0 : (amount / total * 100), change: change }
+    end
+    @by_category_previous = previous_by_category
+  end
+
+  # ── Alerts ───────────────────────────────────────────────────────────────
+
+  def load_alerts
+    expenses = policy_scope(Expense).where(branch_id: [ nil ] + @filters.branch_ids)
+    @alert_pending_count = expenses.pending.count
+    @alert_pending        = expenses.pending.recent.includes(:branch, :expense_category).limit(5)
+
+    @show_recurring = current_user.can?(:view_expenses) || current_user.can?(:manage_recurring_expenses)
+    if @show_recurring
+      @alert_recurring = policy_scope(RecurringExpense).active.where(branch_id: [ nil ] + @filters.branch_ids)
+                            .where(next_run_on: ..30.days.from_now.to_date)
+                            .includes(:expense_category, :branch).ordered.limit(5)
+    end
+
+    @show_outstanding = current_user.can?(:settle_remaining_deposit_balance) || current_user.can?(:view_daily_reconciliation)
+    if @show_outstanding
+      overdue_days      = current_user.business.finance_overdue_days
+      notify_thresholds = current_user.business.finance_notify_thresholds
+      all_rdb           = policy_scope(RemainingDepositBalance).where(branch_id: @filters.branch_ids)
+      @rdb_open_count   = all_rdb.open.count
+      @rdb_open_amount  = all_rdb.open.sum(:remaining_amount)
+      # The alerts panel only shows a count/link, never per-row detail — count
+      # directly rather than loading RemainingDepositBalance + associations.
+      @rdb_overdue_count = all_rdb.overdue(days: overdue_days).count
+      @rdb_overdue_days  = overdue_days
+      @rdb_threshold_alerts = notify_thresholds.filter_map do |days|
+        count = all_rdb.open.where("remaining_deposit_balances.created_at < ?", days.days.ago).count
+        { days: days, count: count } if count > 0
+      end
+    end
+
+    if @show_custody
+      @alert_negative_custody = custody_rows.select { |row| row[:balance].negative? }.sort_by { |row| row[:balance] }.first(5)
+    end
+  end
+
+  # ── Cash flow (Custody Top-ups vs Bank Deposits, custody spend as outflow) ──
+
+  def load_cash_flow
+    return unless @show_custody
+
+    accounts = policy_scope(CustodyAccount).where(branch_id: @filters.branch_ids)
+    accounts = accounts.where(user_id: @filters.cashier_id) if @filters.cashier_id
+
+    ledger = CustodyTransaction.active.where(custody_account_id: accounts.select(:id))
+                                .where(created_at: @filters.from.beginning_of_day..@filters.to.end_of_day)
+
+    by_day = ledger.group(Arel.sql("date_trunc('day', created_at)")).sum(:amount)
+    days   = (@filters.from..@filters.to).to_a
+
+    @cash_flow_labels = days.map { |d| I18n.l(d, format: :long) }
+    @cash_flow_net    = days.map { |d| by_day[d.to_time.beginning_of_day] || 0 }
+    @cash_in          = ledger.where("amount > 0").sum(:amount)
+    @cash_out          = ledger.where("amount < 0").sum(:amount).abs
+    @cash_net          = @cash_in - @cash_out
+  end
+
+  # ── Custody summary ──────────────────────────────────────────────────────
+
+  def load_custody_summary
+    return unless @show_custody
+
+    @custody_positive_count = custody_rows.count { |r| r[:balance].positive? }
+    @custody_negative_count = custody_rows.count { |r| r[:balance].negative? }
+    @custody_top5 = custody_rows.sort_by { |r| -r[:balance] }.first(5)
+  end
+
+  # Active custody accounts (+ current balances) in the filtered scope,
+  # memoized so the negative-balance alert (load_alerts) and the custody
+  # summary counts/top-5 (load_custody_summary) share one query pair instead
+  # of each independently loading accounts + summing their ledgers.
+  def custody_rows
+    @custody_rows ||= begin
+      accounts = policy_scope(CustodyAccount).active.where(branch_id: @filters.branch_ids).includes(:user)
+      accounts = accounts.where(user_id: @filters.cashier_id) if @filters.cashier_id
+      balances = CustodyTransaction.active.where(custody_account_id: accounts.map(&:id)).group(:custody_account_id).sum(:amount)
+      accounts.map { |a| { name: a.name, holder: a.user.full_name, balance: balances[a.id] || 0 } }
+    end
+  end
+
+  # ── Recent activity (AuditLog) ──────────────────────────────────────────
+
+  RECENT_ACTIVITY_TYPES = %w[Expense TillDeposit CustodyTransaction RemainingDepositBalance].freeze
+
+  def load_recent_activity
+    @recent_activity = AuditLog.for_business(current_user.business)
+                                .where(auditable_type: RECENT_ACTIVITY_TYPES)
+                                .includes(:actor, :auditable).recent.limit(10)
+  end
+
+  # ── Smart insights ───────────────────────────────────────────────────────
+
+  def load_insights
+    by_branch = expenses_scope(@filters.from, @filters.to).group(:branch_id).sum(:amount)
+                  .map { |id, total| [ id ? branch_names_by_id[id] : t("finance.expenses.shared"), total ] }.to_h
+
+    @insights = Finance::Dashboard::InsightsGenerator.new(
+      by_category: @by_category.to_h,
+      by_category_previous: @by_category_previous,
+      by_branch: by_branch,
+      total_expenses: @kpi_expenses.first,
+      payroll_cost: @show_profitability ? @kpi_profitability[:payroll] : nil,
+      operating_cost: @show_profitability ? @kpi_profitability.values_at(:payroll, :inventory, :expenses).sum : nil,
+      profitability_rows: @show_profitability ? @profitability : nil
+    ).insights
   end
 end

@@ -1,197 +1,101 @@
+<%
+  # Loaded once and reused everywhere a branch is needed on this page (header
+  # label + the branch-selector partial below) — a second call to
+  # assignable_branches would re-run its query for no reason.
+  branches        = assignable_branches.to_a
+  selected_branch = params[:branch_id].presence && branches.find { |b| b.id == params[:branch_id].to_i }
+
+  # Loaded once, reused by both the filter-bar's selects and the active-filter
+  # chips below (which need the cashier/payment-method *name*, not just the
+  # id already sitting in params) — same relations _filter_bar.html.erb used
+  # to load itself before this hoist.
+  filter_cashiers = (current_user.can?(:view_employee_balances) || current_user.can?(:manage_employee_balances)) ?
+                       EmployeeScope.new(current_user).relation.order(:first_name).to_a : []
+  filter_payment_methods = Rails.cache.fetch("finance_dashboard/payment_methods/#{current_user.business_id}", expires_in: 5.minutes) do
+                              PaymentMethod.for_business(current_user.business).active.ordered.to_a
+                            end
+
+  # Single source of truth for the health badge — shared by the compact
+  # header badge and the full Financial Health card (see FinanceHelper).
+  health_status, health_factors = finance_dashboard_health(
+    show_profitability:      @show_profitability,
+    net_profit:               @show_profitability ? @kpi_profitability[:net] : nil,
+    pending_count:            @alert_pending_count,
+    overdue_count:            @rdb_overdue_count,
+    negative_custody_count:   @alert_negative_custody&.size
+  )
+%>
 <% content_for :title, t("finance.dashboard.title") %>
 
-<div class="admin-page">
-  <div class="page-header">
-    <h1 class="page-title"><%= t("finance.dashboard.title") %></h1>
-    <% if policy(Expense).new? %>
-      <%= link_to t("finance.expenses.add"), new_finance_expense_path, class: "btn btn-primary btn-sm" %>
-    <% end %>
-  </div>
-
-  <div class="stats-grid">
-    <%= link_to finance_expenses_path(status: "pending_approval"), class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("finance.dashboard.pending_approvals") %></span>
-      <span class="stat-card__value"><%= @pending_count %></span>
-    <% end %>
-    <div class="stat-card">
-      <span class="stat-card__label"><%= t("finance.dashboard.month_total") %></span>
-      <span class="stat-card__value"><%= format_currency(@month_total) %></span>
-    </div>
-  </div>
-
-  <% if @profitability %>
-    <div class="page-header" style="margin-top: var(--space-5);">
-      <h2 class="section-title" style="margin: 0;"><%= t("finance.dashboard.profitability") %></h2>
-      <%= link_to t("finance.dashboard.view_full_report"), finance_branch_profitability_report_path, class: "link" %>
-    </div>
-    <%= render "finance/reports/table", table: @profitability %>
-  <% end %>
-
-  <div class="dashboard-cols" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-top: var(--space-5);">
-    <%= render "breakdown", title: t("finance.dashboard.by_category"), rows: @by_category %>
-    <%= render "breakdown", title: t("finance.dashboard.by_branch"), rows: @by_branch %>
-  </div>
-
-  <% if @show_custody %>
-    <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.dashboard.outstanding_custody") %></h2>
-    <% if @outstanding.blank? %>
-      <div class="empty-state"><p class="empty-state__title"><%= t("finance.dashboard.no_outstanding") %></p></div>
-    <% else %>
-      <div class="table-wrap table-wrap--cards">
-        <table>
-          <thead><tr>
-            <th><%= t("finance.custody.accounts.name") %></th>
-            <th><%= t("finance.custody.accounts.holder") %></th>
-            <th style="text-align: end;"><%= t("finance.custody.accounts.balance") %></th>
-          </tr></thead>
-          <tbody>
-            <% @outstanding.each do |row| %>
-              <tr>
-                <td><%= row[:name] %></td>
-                <td class="td-secondary"><%= row[:holder] %></td>
-                <td style="text-align: end;"><%= format_currency(row[:balance]) %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    <% end %>
-  <% end %>
-
-  <% if @show_recurring %>
-    <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.dashboard.upcoming_recurring") %></h2>
-    <% if @upcoming_recurring.blank? %>
-      <div class="empty-state"><p class="empty-state__title"><%= t("finance.dashboard.no_upcoming") %></p></div>
-    <% else %>
-      <div class="table-wrap table-wrap--cards">
-        <table>
-          <thead><tr>
-            <th><%= t("finance.expenses.category") %></th>
-            <th><%= t("finance.recurring.frequency") %></th>
-            <th><%= t("finance.recurring.next_run_on") %></th>
-            <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
-          </tr></thead>
-          <tbody>
-            <% @upcoming_recurring.each do |rec| %>
-              <tr>
-                <td><%= link_to rec.expense_category.name, finance_recurring_expense_path(rec), class: "link" %></td>
-                <td class="td-secondary"><%= t("finance.recurring.frequencies.#{rec.frequency}") %></td>
-                <td><%= l(rec.next_run_on, format: :long) %></td>
-                <td style="text-align: end;"><%= format_currency(rec.amount) %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    <% end %>
-  <% end %>
-
-  <%# ── Outstanding Deposit Balances ──────────────────────────────────────── %>
-  <% if @show_outstanding %>
-    <div style="margin-top: var(--space-5); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);">
-      <h2 class="section-title" style="margin: 0;"><%= t("finance.dashboard.outstanding_balances") %></h2>
-      <%= link_to t("finance.dashboard.view_all_balances"), finance_daily_reconciliations_path, class: "link" %>
-    </div>
-
-    <div class="stats-grid" style="margin-top: var(--space-3);">
-      <%= link_to finance_daily_reconciliations_path, class: "stat-card #{@rdb_open_count > 0 ? 'stat-card--warning' : ''}" do %>
-        <span class="stat-card__label"><%= t("finance.dashboard.rdb_open_count") %></span>
-        <span class="stat-card__value"><%= @rdb_open_count %></span>
-        <% if @rdb_open_amount > 0 %>
-          <span class="stat-card__sub" style="font-variant-numeric: tabular-nums;">
-            <%= number_to_currency(@rdb_open_amount, unit: "", separator: ".", delimiter: ",") %>
-          </span>
+<div class="admin-page exec-dashboard">
+  <div class="page-header exec-header">
+    <div>
+      <p class="exec-header__eyebrow"><%= t("finance.dashboard.title") %></p>
+      <h1 class="page-title">
+        <%= current_user.business.name %>
+        <% if selected_branch %>
+          <span class="exec-header__branch">• <%= selected_branch.name %></span>
         <% end %>
-      <% end %>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("finance.dashboard.rdb_settled_today") %></span>
-        <span class="stat-card__value" style="font-size: var(--text-lg); color: var(--success,#16a34a);">
-          <%= number_to_currency(@rdb_settled_today, unit: "", separator: ".", delimiter: ",") %>
-        </span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("finance.dashboard.rdb_written_off_today") %></span>
-        <span class="stat-card__value" style="font-size: var(--text-lg); color: var(--text-3);">
-          <%= number_to_currency(@rdb_written_off_today, unit: "", separator: ".", delimiter: ",") %>
-        </span>
-      </div>
-    </div>
-
-    <%# Notification threshold badges %>
-    <% if @rdb_threshold_alerts&.any? %>
-      <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3);">
-        <% @rdb_threshold_alerts.each do |alert| %>
-          <%= link_to finance_daily_reconciliations_path,
-                style: "display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.25); border-radius: 999px; text-decoration: none;" do %>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger,#dc2626)" stroke-width="2.5" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span style="font-size: var(--text-xs); font-weight: 700; color: var(--danger,#dc2626);">
-              <%= t("finance.dashboard.rdb_threshold_alert", days: alert[:days], count: alert[:count]) %>
-            </span>
-          <% end %>
-        <% end %>
-      </div>
-    <% end %>
-
-    <% if @rdb_overdue.any? %>
-      <div style="margin-top: var(--space-4); background: rgba(220,38,38,0.04); border: 1px solid rgba(220,38,38,0.2); border-radius: var(--radius-lg); overflow: hidden;">
-        <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid rgba(220,38,38,0.15); display: flex; align-items: center; gap: var(--space-2);">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger,#dc2626)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <p style="font-size: var(--text-sm); font-weight: 700; color: var(--danger,#dc2626); margin: 0;">
-            <%= t("finance.dashboard.overdue_heading", days: @rdb_overdue_days) %>
-          </p>
+      </h1>
+      <p class="exec-header__period"><%= l(@filters.from, format: :long) %> – <%= l(@filters.to, format: :long) %></p>
+      <%# Same .financial-health__badge component the full card below uses —
+          a compact glance-value in the header, not a new badge style. Same
+          wrapper-status/badge-child DOM shape as the full card so the exact
+          same CSS rule (`.financial-health--X .financial-health__badge`)
+          colors it, nothing new added. ── %>
+      <div class="financial-health financial-health--<%= health_status %> financial-health--header">
+        <div class="financial-health__badge">
+          <span class="financial-health__dot"></span>
+          <span class="financial-health__label"><%= t("finance.dashboard.financial_health.status.#{health_status}") %></span>
         </div>
-        <table style="width: 100%; border-collapse: collapse;">
-          <tbody>
-            <% @rdb_overdue.each do |rdb| %>
-              <tr style="border-bottom: 1px solid rgba(220,38,38,0.1);">
-                <td style="padding: var(--space-2) var(--space-4); font-size: var(--text-sm); color: var(--text-1);">
-                  <%= rdb.responsible_user.full_name %>
-                </td>
-                <td style="padding: var(--space-2) var(--space-4); font-size: var(--text-sm); color: var(--text-2);">
-                  <%= rdb.daily_reconciliation.branch.name %>
-                </td>
-                <td style="padding: var(--space-2) var(--space-4); text-align: end; font-size: var(--text-sm); font-weight: 700; color: var(--danger,#dc2626); font-variant-numeric: tabular-nums;">
-                  <%= number_to_currency(rdb.remaining_amount, unit: "", separator: ".", delimiter: ",") %>
-                </td>
-                <td style="padding: var(--space-2) var(--space-4); font-size: var(--text-xs); font-weight: 700; color: var(--danger,#dc2626); white-space: nowrap;">
-                  <%= rdb.age_display %>
-                </td>
-                <td style="padding: var(--space-2) var(--space-4); text-align: end;">
-                  <%= link_to t("remaining_deposit_balances.index.view"),
-                        finance_remaining_deposit_balance_path(rdb),
-                        style: "font-size: var(--text-sm); font-weight: 600; color: var(--accent); text-decoration: none;" %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
       </div>
-    <% end %>
-  <% end %>
-
-  <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.dashboard.pending_list") %></h2>
-  <% if @pending.blank? %>
-    <div class="empty-state"><p class="empty-state__title"><%= t("finance.dashboard.no_pending") %></p></div>
-  <% else %>
-    <div class="table-wrap table-wrap--cards">
-      <table>
-        <thead><tr>
-          <th><%= t("finance.expenses.reference") %></th>
-          <th><%= t("finance.expenses.date") %></th>
-          <th><%= t("finance.expenses.category") %></th>
-          <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
-        </tr></thead>
-        <tbody>
-          <% @pending.each do |expense| %>
-            <tr>
-              <td><%= link_to expense.reference_number, finance_expense_path(expense), class: "link" %></td>
-              <td><%= l(expense.expense_date, format: :long) %></td>
-              <td class="td-secondary"><%= expense.expense_category.name %></td>
-              <td style="text-align: end;"><%= format_currency(expense.amount) %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
     </div>
-  <% end %>
+    <%# Same clustered "selector + primary page actions" toolbar Daily
+        Reconciliation uses (branch selector followed by a flex row of
+        .btn-ghost navigation links) — the branch selector is no longer an
+        isolated control in its own column. ── %>
+    <div class="page-header__actions">
+      <%= render "finance/shared/branch_selector",
+            url: finance_root_path,
+            branches: branches,
+            selected: params[:branch_id],
+            all_label: t("finance.daily_reconciliations.index.filter_all_sales_branches"),
+            hidden_params: {
+              from: params[:from], to: params[:to],
+              cashier_id: params[:cashier_id],
+              payment_source: params[:payment_source],
+              payment_method_id: params[:payment_method_id]
+            } %>
+      <% if current_user.can?(:view_expense_reports) %>
+        <%= link_to t("finance.dashboard.quick_actions.view_reports"), finance_reports_path, class: "btn btn-ghost" %>
+      <% end %>
+      <%= link_to t("finance.dashboard.export_pdf"), finance_dashboard_export_pdf_path(request.query_parameters), class: "btn btn-ghost" %>
+    </div>
+  </div>
+
+  <%= render "filter_bar", branches: branches, filter_cashiers: filter_cashiers, filter_payment_methods: filter_payment_methods %>
+
+  <%= render "kpi_cards" %>
+
+  <div class="exec-grid">
+    <%= render "executive_summary" %>
+    <%= render "financial_health", health_status: health_status, health_factors: health_factors %>
+    <%= render "alerts" %>
+    <%= render "insights" %>
+
+    <%= render "action_center" %>
+
+    <%= render "trend_chart" %>
+
+    <%= render "distribution_charts" %>
+
+    <%= render "branch_profitability_chart" %>
+
+    <%= render "top_categories" %>
+    <%= render "recent_activity" %>
+
+    <%= render "cash_flow" %>
+
+    <%= render "custody_and_suppliers" %>
+  </div>
 </div>

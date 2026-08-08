@@ -1,0 +1,14 @@
+<%# @branch_names_by_id is already loaded (no query) — used here so a
+    drill-down into a specific branch that has no data keeps that context
+    visible ("No revenue for Nasr City during August") instead of a generic
+    "No data." %>
+<% branch_name = params[:branch_id].presence && @branch_names_by_id[params[:branch_id].to_i] %>
+<div class="empty-state">
+  <%= render "finance/shared/empty_icon" %>
+  <% if branch_name %>
+    <p class="empty-state__title"><%= t("finance.dashboard.no_revenue.title_branch", branch: branch_name, period: I18n.l(@filters.from, format: "%B %Y")) %></p>
+  <% else %>
+    <p class="empty-state__title"><%= t("finance.dashboard.no_revenue.title") %></p>
+  <% end %>
+  <p class="empty-state__text"><%= t("finance.dashboard.no_revenue.text") %></p>
+</div>

@@ -1,0 +1,35 @@
+<% trend_has_data = @trend_expenses.sum + (@trend_revenue || []).sum.to_f > 0 %>
+<div class="chart-card chart-card--wide chart-card--primary exec-span-12" data-controller="trend-chart"
+     data-trend-chart-labels-value="<%= @trend_labels.to_json %>"
+     data-trend-chart-revenue-value="<%= @show_profitability ? @trend_revenue.to_json : '[]' %>"
+     data-trend-chart-expenses-value="<%= @trend_expenses.to_json %>"
+     data-trend-chart-net-value="<%= @show_profitability ? @trend_net.to_json : '[]' %>"
+     data-trend-chart-labels-revenue-value="<%= @show_profitability ? t('finance.dashboard.kpi.revenue') : '' %>"
+     data-trend-chart-labels-expenses-value="<%= t('finance.dashboard.kpi.expenses') %>"
+     data-trend-chart-labels-net-value="<%= @show_profitability ? t('finance.dashboard.trend.net') : '' %>"
+     data-trend-chart-urls-value="<%= @trend_month_bounds.map { |from, to| finance_dashboard_url(from: from.iso8601, to: to.iso8601) }.to_json %>">
+  <div class="chart-card__header">
+    <div class="exec-card__title-group">
+      <h2 class="section-title--exec"><%= t("finance.dashboard.trend.title") %></h2>
+    </div>
+    <% if trend_has_data %>
+      <div class="chart-card__toggle">
+        <button type="button" class="btn btn-ghost btn-xs is-active" data-trend-chart-target="option" data-action="trend-chart#group" data-group="month"><%= t("finance.dashboard.trend.monthly") %></button>
+        <button type="button" class="btn btn-ghost btn-xs" data-trend-chart-target="option" data-action="trend-chart#group" data-group="quarter"><%= t("finance.dashboard.trend.quarterly") %></button>
+        <button type="button" class="btn btn-ghost btn-xs" data-trend-chart-target="option" data-action="trend-chart#group" data-group="year"><%= t("finance.dashboard.trend.yearly") %></button>
+      </div>
+    <% end %>
+  </div>
+  <% if trend_has_data %>
+    <div class="chart-card__body chart-card__body--primary">
+      <canvas data-trend-chart-target="canvas"></canvas>
+    </div>
+    <p class="chart-card__note"><%= t("finance.dashboard.trend.monthly_granularity_note") %></p>
+  <% else %>
+    <div class="empty-state">
+      <%= render "finance/shared/empty_icon" %>
+      <p class="empty-state__title"><%= t("finance.dashboard.no_data_for_period") %></p>
+      <p class="empty-state__text"><%= t("finance.dashboard.no_data_hint") %></p>
+    </div>
+  <% end %>
+</div>

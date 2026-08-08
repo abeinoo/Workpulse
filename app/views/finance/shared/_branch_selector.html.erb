@@ -1,0 +1,20 @@
+<%# locals: url:, branches:, selected:, all_label:, hidden_params: {}
+    The single shared Branch Filter component — page-level branch context,
+    not a search-form field, so it lives inline near the page title rather
+    than inside a filter card. Auto-submits a GET request on change via the
+    `auto-submit` Stimulus controller; hidden fields carry the rest of the
+    current filter state through so switching branch never drops it.
+    Used by Daily Reconciliation and the Finance Dashboard — this is the
+    only place this control is implemented; changes here affect both. %>
+<% branches = Array(branches) %>
+<% if branches.size > 1 %>
+  <%= form_with url: url, method: :get, data: { controller: "auto-submit" }, style: "display: inline-flex;" do %>
+    <% local_assigns.fetch(:hidden_params, {}).each do |name, value| %>
+      <%= hidden_field_tag name, value %>
+    <% end %>
+    <%= select_tag :branch_id,
+          options_for_select([ [ all_label, "" ] ] + branches.map { |b| [ b.name, b.id ] }, selected),
+          data: { action: "change->auto-submit#submit" },
+          class: "form-control", style: "width: auto; font-weight: 600;" %>
+  <% end %>
+<% end %>
