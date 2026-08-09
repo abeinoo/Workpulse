@@ -1381,7 +1381,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     # Financial headline figures (permission-gated).
     @total_sales     = @can_view_session_totals ? @amounts_by_method.sum(&:net_amount) : nil
     @expected_cash   = @can_view_session_totals ? @reconciliation.expected_cash_deposit : nil
-    @cash_difference = @expected_cash ? (@total_deposited - @expected_cash) : nil
+    # Open ATM Deposit Disputes (BankDispute kind: atm_deposit_failure) are cash
+    # the employee has already accounted for outside the ordinary Deposit flow —
+    # see DailyReconciliation#open_atm_dispute_amount/#pending_deposit_amount,
+    # the same figures the Record Deposit dialog uses. They must be added to the
+    # deposited side here too, or the difference wrongly shows the full expected
+    # amount as missing even though it has been explained by an open dispute.
+    @bank_dispute_amount = @expected_cash ? @reconciliation.open_atm_dispute_amount : nil
+    @cash_difference     = @expected_cash ? (@total_deposited + @bank_dispute_amount - @expected_cash) : nil
 
     # Sales comparison headline (only when Sales data is loaded and viewable).
     # Uses @electronic_total (electronic payment methods only) rather than summing

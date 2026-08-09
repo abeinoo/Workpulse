@@ -13,8 +13,9 @@
                  when "RemainingDepositBalance" then log.auditable && finance_remaining_deposit_balance_path(log.auditable)
                  when "TillDeposit"             then log.auditable && till_deposit_path(log.auditable)
                  end
-          label = t("finance.dashboard.recent_activity.#{log.auditable_type.underscore}_#{log.action}",
-                    default: t("finance.dashboard.recent_activity.generic", type: log.auditable_type, action: log.action))
+          label = Finance::Dashboard::ActivityPresenter.new(
+            log, currency_formatter: ->(amount) { format_currency(amount) }
+          ).label
         %>
         <div class="activity-row">
           <div class="activity-row__body">

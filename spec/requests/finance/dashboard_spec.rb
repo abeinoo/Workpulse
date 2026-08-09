@@ -163,6 +163,48 @@ RSpec.describe "Finance::Dashboard", type: :request do
     end
   end
 
+  describe "recent activity — human-readable labels, never raw Rails class/action names" do
+    def expense_record
+      category = create(:expense_category, business: business)
+      create(:expense, :approved, business: business, branch: branch, expense_category: category, amount: 500)
+    end
+
+    it "shows a translated business-facing label instead of the raw class/action name" do
+      AuditLog.create!(actor: owner, business: business, auditable: expense_record, action: "approve")
+
+      sign_in owner
+      get finance_root_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("finance.dashboard.recent_activity.expense_approve"))
+      # The raw "#{class} #{action}" fallback format is "Expense approve" (no
+      # trailing "d") — check the exact boundary so "Expense approved" (the
+      # correct translated text, which happens to start with the same
+      # substring) doesn't produce a false failure here.
+      expect(response.body).not_to match(/Expense approve[^d]/)
+    end
+
+    it "falls back to a safe generic label for an unmapped action, never the raw action name" do
+      AuditLog.create!(actor: owner, business: business, auditable: expense_record, action: "some_future_action")
+
+      sign_in owner
+      get finance_root_path
+
+      expect(response.body).to include(I18n.t("finance.dashboard.recent_activity.generic_fallback"))
+      expect(response.body).not_to include("some_future_action")
+    end
+
+    it "still shows the actor's name and a relative timestamp" do
+      AuditLog.create!(actor: owner, business: business, auditable: expense_record, action: "approve")
+
+      sign_in owner
+      get finance_root_path
+
+      expect(response.body).to include(owner.full_name)
+      expect(response.body).to match(/less than a minute|\d+ (second|minute|hour)s? ago/)
+    end
+  end
+
   describe "GET /finance/dashboard/export_pdf" do
     it "streams a PDF for an owner" do
       allow(Finance::Dashboard::PdfRenderer).to receive(:render).and_return("%PDF-1.4 stub")

@@ -31,6 +31,12 @@
             <span><%= t("finance.daily_reconciliations.show.sections.cash.expected_cash") %></span>
             <span class="recon-formula-row__value"><%= format_currency(@expected_cash) %></span>
           </div>
+          <% if @bank_dispute_amount.to_d.positive? %>
+            <div class="recon-formula-row">
+              <span><%= t("finance.daily_reconciliations.show.sections.cash.bank_disputes") %></span>
+              <span class="recon-formula-row__value" style="color: var(--warning);"><%= format_currency(@bank_dispute_amount) %></span>
+            </div>
+          <% end %>
           <div class="recon-formula-row">
             <span><%= t("finance.daily_reconciliations.show.sections.cash.actual_deposited") %></span>
             <span class="recon-formula-row__value" style="color: var(--success);"><%= format_currency(@total_deposited) %></span>
