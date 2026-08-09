@@ -1,0 +1,21 @@
+<%# locals: reconciliation — only rendered by the caller when no expense_type
+    filter is active (a type filter narrows Expense-backed sections only,
+    breaking correspondence to Branch Profitability by definition). Should
+    never actually render true given both reports share Finance::Reports::
+    ExpenseSources — this is a defensive, always-live cross-check, not a
+    display of a known discrepancy. %>
+<% unless reconciliation.matches? %>
+  <div class="alert alert-warning mb-4">
+    <p><strong><%= t("finance.reports.expense_details.reconciliation.warning_title") %></strong></p>
+    <p>
+      <%= t("finance.reports.expense_details.reconciliation.expected") %>:
+      <%= format_currency(reconciliation.branch_profitability_total) %>
+      &nbsp;·&nbsp;
+      <%= t("finance.reports.expense_details.reconciliation.detailed") %>:
+      <%= format_currency(reconciliation.report_total) %>
+      &nbsp;·&nbsp;
+      <%= t("finance.reports.expense_details.reconciliation.difference") %>:
+      <%= format_currency(reconciliation.report_total.to_f - reconciliation.branch_profitability_total.to_f) %>
+    </p>
+  </div>
+<% end %>

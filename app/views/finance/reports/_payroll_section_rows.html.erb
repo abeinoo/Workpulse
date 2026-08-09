@@ -1,0 +1,32 @@
+<%# locals: rows — array of payroll employee hashes (see Finance::Reports::ExpenseDetails#payroll_section) %>
+<p class="form-hint" style="padding: 0 var(--space-4);"><%= t("finance.reports.expense_details.payroll.gross_note") %></p>
+<div class="table-wrap table-wrap--cards">
+  <table>
+    <thead>
+      <tr>
+        <th><%= t("finance.reports.expense_details.payroll.employee") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.payroll.base_salary") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.payroll.overtime") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.payroll.bonuses") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.payroll.deductions") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.payroll.advances") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.payroll.obligations") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.payroll.net_salary") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.each do |row| %>
+        <tr>
+          <td><%= row[:employee_name] %></td>
+          <td style="text-align: end;"><%= format_currency(row[:base_salary]) %></td>
+          <td style="text-align: end;"><%= format_currency(row[:total_overtime]) %></td>
+          <td style="text-align: end;"><%= format_currency(row[:total_bonuses]) %></td>
+          <td style="text-align: end;"><%= format_currency(row[:total_deductions]) %></td>
+          <td style="text-align: end;"><%= format_currency(row[:advances_deducted]) %></td>
+          <td style="text-align: end;"><%= format_currency(row[:obligations_deducted]) %></td>
+          <td style="text-align: end;"><strong><%= format_currency(row[:net_salary]) %></strong></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

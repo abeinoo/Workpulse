@@ -1,0 +1,25 @@
+<%# locals: rows — array of towel-event hashes (see Finance::Reports::ExpenseDetails#laundry_section) %>
+<div class="table-wrap table-wrap--cards">
+  <table>
+    <thead>
+      <tr>
+        <th><%= t("finance.reports.expense_details.laundry.towel_type") %></th>
+        <th><%= t("finance.reports.expense_details.laundry.received_at") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.laundry.quantity") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.laundry.rate") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.laundry.line_total") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.each do |row| %>
+        <tr>
+          <td><%= row[:towel_type] %></td>
+          <td><%= row[:received_at] ? I18n.l(row[:received_at].to_date, format: :long) : "—" %></td>
+          <td style="text-align: end;"><%= row[:confirmed_quantity] %></td>
+          <td style="text-align: end;"><%= row[:rate] ? format_currency(row[:rate]) : "—" %></td>
+          <td style="text-align: end;"><strong><%= row[:line_total] ? format_currency(row[:line_total]) : "—" %></strong></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

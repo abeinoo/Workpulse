@@ -428,6 +428,7 @@ Rails.application.routes.draw do
     get "reports/negative_balances",    to: "reports#negative_balances",    as: :negative_balances_report
     get "reports/approvals",            to: "reports#approvals",            as: :approvals_report
     get "reports/branch_profitability", to: "reports#branch_profitability", as: :branch_profitability_report
+    get "reports/expense_details",      to: "reports#expense_details",      as: :expense_details_report
 
     resources :custody_accounts do
       resources :custody_transactions, only: [ :create ] do

@@ -1,0 +1,63 @@
+<%# locals: section — a Finance::Reports::ExpenseDetails::Section. Each
+    section is independently collapsible (no shared group value — multiple
+    sections/branches can stay open at once for cross-branch comparison). %>
+<div class="exec-card exec-span-12" data-controller="collapsible">
+  <div class="exec-card__header" style="cursor: pointer;"
+       data-collapsible-target="trigger"
+       data-action="click->collapsible#toggle">
+    <% grand_total = @result.sections.sum(&:total) %>
+    <h2 class="section-title--exec">
+      <%= section.title %>
+      <span class="form-hint" style="font-weight: 400;">
+        (<%= number_with_precision(grand_total.to_f.zero? ? 0 : (section.total.to_f / grand_total.to_f * 100), precision: 1) %>%)
+      </span>
+    </h2>
+    <div style="display: flex; align-items: center; gap: var(--space-3);">
+      <strong><%= format_currency(section.total) %></strong>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+  </div>
+
+  <div data-collapsible-target="content" hidden>
+    <% if !section.applies_type_filter && @expense_type_id.present? %>
+      <p class="form-hint" style="padding: 0 var(--space-4);"><%= t("finance.reports.expense_details.type_filter_not_applicable") %></p>
+    <% end %>
+    <% if section.key == :other %>
+      <p class="form-hint" style="padding: 0 var(--space-4);"><%= t("finance.reports.expense_details.other_excluded_note") %></p>
+    <% end %>
+
+    <% if section.groups.empty? %>
+      <div class="empty-state">
+        <p class="empty-state__text"><%= t("finance.reports.expense_details.no_data") %></p>
+      </div>
+    <% else %>
+      <% section.groups.each do |group| %>
+        <div data-controller="collapsible" style="border-top: 1px solid var(--border-1);">
+          <div class="card-header" style="cursor: pointer; padding: var(--space-3) var(--space-4);"
+               data-collapsible-target="trigger"
+               data-action="click->collapsible#toggle">
+            <span style="display: flex; align-items: center; gap: var(--space-2);">
+              <span class="branch-swatch" data-controller="branch-color" data-branch-color-label-value="<%= group.label %>"></span>
+              <strong><%= group.label %></strong>
+            </span>
+            <span><%= format_currency(group.subtotal) %></span>
+          </div>
+          <div data-collapsible-target="content" hidden>
+            <% case section.key
+               when :payroll %>
+              <%= render "payroll_section_rows", rows: group.rows %>
+            <% when :laundry %>
+              <%= render "laundry_rows", rows: group.rows %>
+            <% when :inventory %>
+              <%= render "inventory_rows", rows: group.rows %>
+            <% when :branch_expenses, :shared_expenses %>
+              <%= render "branch_expense_rows", rows: group.rows, shared: section.key == :shared_expenses %>
+            <% when :other %>
+              <%= render "branch_expense_rows", rows: group.rows, shared: false %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>

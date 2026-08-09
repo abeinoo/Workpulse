@@ -1,0 +1,191 @@
+<% content_for :title, t("finance.reports.expense_details.title") %>
+
+<%
+  csv_params = {
+    format: :csv, period_type: @period.type,
+    year: @period.from_year, month: @period.from_month,
+    from_year: @period.from_year, from_month: @period.from_month,
+    to_year: @period.to_year, to_month: @period.to_month,
+    branch_id: @selected_branch_id, expense_type_id: @expense_type_id, section: @selected_section
+  }
+  default_period = @period.type == "single_month" && @period.from_year == Date.current.year && @period.from_month == Date.current.month
+  selected_branch_name = @selected_branch_id && @accessible_branches.find { |b| b.id == @selected_branch_id }&.name
+  selected_section_title = @selected_section && t("finance.reports.expense_details.sections.#{@selected_section}")
+%>
+
+<div class="admin-page exec-dashboard">
+  <div class="back-link">
+    <%= link_to finance_reports_path do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= t("finance.reports.title") %>
+    <% end %>
+  </div>
+
+  <div class="page-header exec-header">
+    <div>
+      <p class="exec-header__eyebrow"><%= t("finance.reports.title") %></p>
+      <h1 class="page-title"><%= t("finance.reports.expense_details.title") %></h1>
+      <p class="exec-header__period">
+        <%= t("finance.reports.expense_details.period.summary_prefix") %>
+        <%= @period.label %>
+      </p>
+    </div>
+    <div class="page-header__actions">
+      <%= link_to t("finance.reports.export_csv"), url_for(csv_params), class: "btn btn-secondary btn-sm" %>
+    </div>
+  </div>
+
+  <% if @period_error.present? %>
+    <div class="alert alert-warning mb-4"><%= @period_error %></div>
+  <% end %>
+
+  <%# ── Filter panel: PERIOD + SCOPE groups, explicit Apply/Reset ──────────── %>
+  <%= form_with url: finance_expense_details_report_path, method: :get, class: "filter-bar", data: { controller: "period-filter" } do %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field" style="grid-column: 1 / -1;">
+        <span class="filter-bar__label"><%= t("finance.reports.expense_details.filters.period_group") %></span>
+      </div>
+
+      <div class="filter-bar__field">
+        <label class="filter-bar__label" for="period_type"><%= t("finance.reports.expense_details.filters.period_type") %></label>
+        <%= select_tag :period_type,
+              options_for_select([
+                [ t("finance.reports.expense_details.period.types.single_month"), "single_month" ],
+                [ t("finance.reports.expense_details.period.types.last_3_months"), "last_3_months" ],
+                [ t("finance.reports.expense_details.period.types.last_6_months"), "last_6_months" ],
+                [ t("finance.reports.expense_details.period.types.last_12_months"), "last_12_months" ],
+                [ t("finance.reports.expense_details.period.types.custom"), "custom" ]
+              ], @period.type),
+              class: "form-control form-control--sm",
+              data: { period_filter_target: "typeSelect", action: "change->period-filter#toggle" } %>
+      </div>
+
+      <div class="filter-bar__field" data-period-filter-target="anchorFields">
+        <label class="filter-bar__label" for="month"><%= t("finance.reports.expense_details.filters.month") %></label>
+        <%= select_tag :month,
+              options_for_select((1..12).map { |m| [ I18n.l(Date.new(2000, m, 1), format: "%B"), m ] }, @period.from_month),
+              class: "form-control form-control--sm" %>
+      </div>
+      <div class="filter-bar__field" data-period-filter-target="anchorFields">
+        <label class="filter-bar__label" for="year"><%= t("finance.reports.expense_details.filters.year") %></label>
+        <%= select_tag :year,
+              options_for_select(((Date.current.year - 4)..Date.current.year).to_a.reverse, @period.from_year),
+              class: "form-control form-control--sm" %>
+      </div>
+
+      <div class="filter-bar__field" data-period-filter-target="customFields" hidden>
+        <label class="filter-bar__label" for="from_month"><%= t("finance.reports.expense_details.filters.from") %></label>
+        <div style="display: flex; gap: var(--space-2);">
+          <%= select_tag :from_month,
+                options_for_select((1..12).map { |m| [ I18n.l(Date.new(2000, m, 1), format: "%B"), m ] }, @period.from_month),
+                class: "form-control form-control--sm" %>
+          <%= select_tag :from_year,
+                options_for_select(((Date.current.year - 4)..Date.current.year).to_a.reverse, @period.from_year),
+                class: "form-control form-control--sm" %>
+        </div>
+      </div>
+      <div class="filter-bar__field" data-period-filter-target="customFields" hidden>
+        <label class="filter-bar__label" for="to_month"><%= t("finance.reports.expense_details.filters.to") %></label>
+        <div style="display: flex; gap: var(--space-2);">
+          <%= select_tag :to_month,
+                options_for_select((1..12).map { |m| [ I18n.l(Date.new(2000, m, 1), format: "%B"), m ] }, @period.to_month),
+                class: "form-control form-control--sm" %>
+          <%= select_tag :to_year,
+                options_for_select(((Date.current.year - 4)..Date.current.year).to_a.reverse, @period.to_year),
+                class: "form-control form-control--sm" %>
+        </div>
+      </div>
+
+      <div class="filter-bar__field" style="grid-column: 1 / -1; border-top: 1px solid var(--border); margin-top: var(--space-2); padding-top: var(--space-3);">
+        <span class="filter-bar__label"><%= t("finance.reports.expense_details.filters.scope_group") %></span>
+      </div>
+
+      <div class="filter-bar__field">
+        <label class="filter-bar__label" for="branch_id"><%= t("finance.reports.expense_details.filters.branch") %></label>
+        <%= select_tag :branch_id,
+              options_for_select(
+                [[ t("finance.reports.profitability_dashboard.all_branches"), "" ]] +
+                  @accessible_branches.map { |b| [ b.name, b.id ] },
+                @selected_branch_id
+              ),
+              class: "form-control form-control--sm" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <label class="filter-bar__label" for="section"><%= t("finance.reports.expense_details.filters.expense_type") %></label>
+        <%= select_tag :section,
+              options_for_select(
+                [[ t("finance.reports.expense_details.filters.all_types"), "" ]] +
+                  Finance::ReportsController::SECTION_FILTER_KEYS.map { |k| [ t("finance.reports.expense_details.sections.#{k}"), k ] },
+                @selected_section
+              ),
+              class: "form-control form-control--sm" %>
+      </div>
+    </div>
+
+    <div class="filter-bar__actions">
+      <%= submit_tag t("finance.reports.expense_details.filters.apply"), class: "btn btn-primary btn-sm" %>
+      <%= link_to t("finance.reports.expense_details.filters.reset"), finance_expense_details_report_path, class: "btn btn-secondary btn-sm" %>
+    </div>
+  <% end %>
+
+  <% if !default_period || selected_branch_name || selected_section_title %>
+    <div class="filter-chips mb-4">
+      <span class="form-hint" style="font-weight: 600;"><%= t("finance.reports.expense_details.filters.active_summary") %></span>
+      <% unless default_period %>
+        <span class="filter-chip"><%= @period.label %></span>
+      <% end %>
+      <% if selected_branch_name %>
+        <span class="filter-chip">
+          <span class="branch-swatch" data-controller="branch-color" data-branch-color-label-value="<%= selected_branch_name %>"></span>
+          <%= selected_branch_name %>
+        </span>
+      <% end %>
+      <% if selected_section_title %>
+        <span class="filter-chip"><%= selected_section_title %></span>
+      <% end %>
+      <%= link_to t("finance.reports.expense_details.filters.clear_all"), finance_expense_details_report_path, class: "filter-chip filter-chip--clear" %>
+    </div>
+  <% end %>
+
+  <% if @expense_type_id.blank? && @selected_section.blank? %>
+    <%= render "reconciliation_banner", reconciliation: @result.reconciliation %>
+  <% end %>
+
+  <div class="kpi-grid">
+    <% @result.sections.each do |section| %>
+      <div class="kpi-card">
+        <span class="kpi-card__label"><%= section.title %></span>
+        <span class="kpi-card__value"><%= format_currency(section.total) %></span>
+      </div>
+    <% end %>
+    <% if @selected_section.blank? %>
+      <div class="kpi-card">
+        <span class="kpi-card__label"><%= t("finance.reports.expense_details.kpi.total") %></span>
+        <span class="kpi-card__value"><%= format_currency(@result.reconciliation.report_total) %></span>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @selected_section.blank? %>
+    <% other_total = @result.sections.find { |s| s.key == :other }&.total.to_f %>
+    <% if other_total.positive? %>
+      <p class="form-hint mb-4">
+        <%= t("finance.reports.expense_details.other_excluded_note") %>
+        (<%= format_currency(other_total) %>)
+      </p>
+    <% end %>
+
+    <% if @result.recurring_note.generated_this_period_amount.to_f.positive? %>
+      <p class="form-hint mb-4">
+        <%= t("finance.reports.expense_details.recurring_note", amount: format_currency(@result.recurring_note.generated_this_period_amount)) %>
+      </p>
+    <% end %>
+  <% end %>
+
+  <div class="exec-grid">
+    <% @result.sections.each do |section| %>
+      <%= render "expense_details_section", section: section %>
+    <% end %>
+  </div>
+</div>

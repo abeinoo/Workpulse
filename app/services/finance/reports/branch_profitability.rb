@@ -30,6 +30,12 @@ module Finance
     # all-zero rows. Same branch_type field and "sales" value Daily
     # Reconciliation's own branch scoping already uses (see
     # Finance::DailyReconciliationsController#sales_branches).
+    #
+    # The five cost sources themselves (payroll/inventory/direct/allocated/
+    # laundry) live in Finance::Reports::ExpenseSources — the single place
+    # that computes them, also consumed by Finance::Reports::ExpenseDetails
+    # for its per-employee/per-product/per-expense breakdown. See that class
+    # for the query-level reasoning behind each figure.
     class BranchProfitability
       def initialize(business, year:, month:)
         @business = business
@@ -77,84 +83,15 @@ module Finance
         @revenues ||= Finance::Reports::VerifiedRevenue.new(@business, from: @start, to: @end).by_branch
       end
 
-      # PayrollPeriod has been business-wide (no branch scoping) since the
-      # branch-membership refactor — `payroll_periods.branch_id` is retained
-      # only for pre-refactor historical rows and is always nil on every
-      # period created since (see PayrollPeriod#branch). Grouping by it (the
-      # previous implementation) therefore always produced a single {nil =>
-      # total} bucket, which a per-branch `payroll_costs[branch.id]` lookup
-      # never matches — this is why Salary Cost always rendered as 0.
-      #
-      # The correct source of "which branch was this salary earned at" is the
-      # same one Payroll::InsuranceExpenseGenerator already uses to attribute
-      # its own payroll-derived cost (employer insurance) back to a branch:
-      # ShiftAssignment.branch_ids_by_user, resolved over the period's own
-      # date range (historical, not the employee's current assignment). When
-      # an employee has more than one assignment in the period the
-      # latest-effective one wins — no splitting/prorating, matching every
-      # other consumer of this helper. Employees with no shift assignment
-      # during the period fall back to the business's first branch, same as
-      # InsuranceExpenseGenerator, so a real salary cost is never silently
-      # dropped from the business-wide total.
-      def payroll_costs
-        @payroll_costs ||= begin
-          rows = PayrollEntry
-            .joins(:payroll_period)
-            .where(payroll_periods: { business_id: @business.id, period_year: @year, period_month: @month })
-            .pluck(:user_id, Arel.sql("payroll_entries.base_salary + payroll_entries.total_overtime + payroll_entries.total_bonuses"))
-
-          branch_by_user  = ShiftAssignment.branch_ids_by_user(rows.map(&:first), from: @start, to: @end)
-          # Scoped to sales branches too — falling back to a non-sales branch
-          # id here would compute a real cost into this hash under a key
-          # #call never reads (its own `branches` loop is sales-only), which
-          # would silently drop that employee's salary from the report's
-          # totals instead of attributing it to a branch that's actually shown.
-          fallback_branch = @business.branches.where(branch_type: "sales").order(:id).pick(:id)
-
-          rows.each_with_object(Hash.new(0)) do |(user_id, amount), totals|
-            branch_id = branch_by_user[user_id] || fallback_branch
-            totals[branch_id] += amount if branch_id
-          end
-        end
+      def sources
+        @sources ||= Finance::Reports::ExpenseSources.new(@business, year: @year, month: @month)
       end
 
-      def inventory_costs
-        @inventory_costs ||= InventoryMovement.consumption
-          .where(business_id: @business.id)
-          .occurred_between(@start, @end)
-          .group(:branch_id)
-          .sum(Arel.sql("quantity * unit_cost"))
-      end
-
-      def direct_expenses
-        @direct_expenses ||= @business.expenses
-          .where(status: "approved").in_period(@start, @end)
-          .where.not(branch_id: nil).group(:branch_id).sum(:amount)
-      end
-
-      def allocated_expenses
-        shared_ids = @business.expenses.where(status: "approved", is_shared: true).in_period(@start, @end).select(:id)
-        @allocated_expenses ||= ExpenseAllocation.where(expense_id: shared_ids).group(:branch_id).sum(:allocated_amount)
-      end
-
-      # Standard laundry-service cost charged to each sales branch this month
-      # — confirmed_quantity × the LaundryStandardCostRate effective at receipt
-      # time, for towels the branch sent to be washed. Reuses
-      # Laundry::BranchTowelConsumptionReport (the existing, single source of
-      # this figure — also what the Laundry module's own reports display)
-      # rather than recomputing it, so there is exactly one place in the
-      # codebase that turns towel transfers into a cost. That report reads
-      # only TowelTransfer/TowelTransferItem/LaundryStandardCostRate — none of
-      # which direct_expenses/allocated_expenses/inventory_costs above ever
-      # touch, so this can never double-count against them. Keyed by the same
-      # branch.id the rest of #call groups by (the report itself groups by
-      # transfer.source_branch_id, i.e. the sales branch that sent the
-      # towels — never the laundry branch, which never appears in `branches`
-      # here anyway).
-      def laundry_costs
-        @laundry_costs ||= Laundry::BranchTowelConsumptionReport.new(@business, from: @start, to: @end).call
-          .rows.to_h { |row| [ row.branch.id, row.total_cost ] }
-      end
+      def payroll_costs   = sources.payroll_costs
+      def inventory_costs = sources.inventory_costs
+      def direct_expenses = sources.direct_expenses
+      def allocated_expenses = sources.allocated_expenses
+      def laundry_costs   = sources.laundry_costs
     end
   end
 end

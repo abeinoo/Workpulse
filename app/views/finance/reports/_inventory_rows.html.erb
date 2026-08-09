@@ -1,0 +1,25 @@
+<%# locals: rows — array of product-cost hashes (see Finance::Reports::ExpenseDetails#inventory_section) %>
+<div class="table-wrap table-wrap--cards">
+  <table>
+    <thead>
+      <tr>
+        <th><%= t("finance.reports.expense_details.inventory.product") %></th>
+        <th><%= t("finance.reports.expense_details.inventory.category") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.inventory.quantity") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.inventory.unit_cost") %></th>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.inventory.total") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.each do |row| %>
+        <tr>
+          <td><%= row[:product]&.name %></td>
+          <td><%= row[:category] || "—" %></td>
+          <td style="text-align: end;"><%= row[:quantity] %></td>
+          <td style="text-align: end;"><%= format_currency(row[:unit_cost]) %></td>
+          <td style="text-align: end;"><strong><%= format_currency(row[:total]) %></strong></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

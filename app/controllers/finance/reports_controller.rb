@@ -87,6 +87,58 @@ class Finance::ReportsController < Finance::BaseController
     end
   end
 
+  # Report section keys a user can narrow the page to via the "نوع المصروف"
+  # filter — the report's own six logical sections, not the ExpenseType
+  # model (see #expense_details). Purely a display filter: it never changes
+  # what Finance::Reports::ExpenseDetails computes, only which of its
+  # already-computed sections get rendered/exported, so it can never affect
+  # totals, reconciliation, or double-count anything.
+  SECTION_FILTER_KEYS = %w[payroll laundry inventory branch_expenses shared_expenses other].freeze
+
+  # تقرير تفاصيل المصروفات — hierarchical drill-down into the same cost
+  # sources Branch Profitability sums, via Finance::Reports::ExpenseDetails
+  # (which in turn shares Finance::Reports::ExpenseSources with
+  # BranchProfitability, so the two reports can never drift apart).
+  #
+  # Period resolution (single month / last N months / custom range) is
+  # entirely Finance::Reports::PeriodResolver's job — a request with only
+  # month=/year= (no period_type=) resolves to the exact same single-month
+  # range the report has always used, so existing bookmarked URLs keep
+  # working unchanged.
+  def expense_details
+    @period = Finance::Reports::PeriodResolver.call(params)
+    if @period.valid?
+      @period_error = nil
+    else
+      # Never run the report against an inverted/invalid range — fall back
+      # to a plain single month (the "to" side of what was submitted, or the
+      # current month) and surface the validation message instead.
+      @period_error = @period.error
+      @period = Finance::Reports::PeriodResolver.call(period_type: "single_month", year: @period.to_year.to_s, month: @period.to_month.to_s)
+    end
+    @year, @month = @period.to_year, @period.to_month
+
+    @accessible_branches = assignable_branches.where(branch_type: "sales")
+    @selected_branch_id  = params[:branch_id].presence&.to_i
+    @expense_type_id     = params[:expense_type_id].presence&.to_i
+    @selected_section     = params[:section].presence if SECTION_FILTER_KEYS.include?(params[:section])
+
+    @result = Finance::Reports::ExpenseDetails.new(
+      business, year: @period.from_year, month: @period.from_month,
+      to_year: @period.to_year, to_month: @period.to_month,
+      branch_id: @selected_branch_id, expense_type_id: @expense_type_id
+    ).call
+    @result.sections = @result.sections.select { |s| s.key == @selected_section.to_sym } if @selected_section
+
+    respond_to do |format|
+      format.html { render :expense_details }
+      format.csv do
+        send_data Finance::Reports::ExpenseDetailsCsvExporter.new(@result).to_csv,
+                  filename: "expense_details_#{Date.current.iso8601}.csv", type: "text/csv"
+      end
+    end
+  end
+
   private
 
   def business

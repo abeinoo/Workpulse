@@ -1,0 +1,47 @@
+<%# locals: rows — array of expense/allocation hashes, shared: true when
+    rendering shared_expenses (adds original amount / allocation columns) %>
+<div class="table-wrap table-wrap--cards">
+  <table>
+    <thead>
+      <tr>
+        <th><%= t("finance.reports.expense_details.expense_row.reference") %></th>
+        <th><%= t("finance.reports.expense_details.expense_row.date") %></th>
+        <th><%= t("finance.reports.expense_details.expense_row.category") %></th>
+        <th><%= t("finance.reports.expense_details.expense_row.type") %></th>
+        <% if shared %>
+          <th style="text-align: end;"><%= t("finance.reports.expense_details.expense_row.original_amount") %></th>
+          <th><%= t("finance.reports.expense_details.expense_row.allocation_percentage") %></th>
+        <% else %>
+          <th><%= t("finance.reports.expense_details.expense_row.payment_source") %></th>
+          <th><%= t("finance.reports.expense_details.expense_row.status") %></th>
+        <% end %>
+        <th style="text-align: end;"><%= t("finance.reports.expense_details.expense_row.amount") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.each do |row| %>
+        <tr>
+          <td>
+            <%= row[:reference] %>
+            <% if row[:system_generated] %>
+              <span class="badge badge-neutral" title="<%= t('finance.reports.expense_details.expense_row.system_generated') %>">
+                <%= t("finance.reports.expense_details.expense_row.system_generated") %>
+              </span>
+            <% end %>
+          </td>
+          <td><%= row[:date] ? I18n.l(row[:date], format: :long) : "—" %></td>
+          <td><%= row[:category] %></td>
+          <td><%= row[:type] || "—" %></td>
+          <% if shared %>
+            <td style="text-align: end;"><%= format_currency(row[:original_amount]) %></td>
+            <td><%= row[:allocation_percentage] %>%</td>
+          <% else %>
+            <td><%= row[:payment_source] %></td>
+            <td><%= row[:status] %></td>
+          <% end %>
+          <td style="text-align: end;"><strong><%= format_currency(row[:amount]) %></strong></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
