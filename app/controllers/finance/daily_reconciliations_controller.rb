@@ -403,7 +403,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                               @reconciliation.opening_float_source_handover_id.present? &&
                               policy(@reconciliation).update_opening_float_amounts?
     @deposits  = @reconciliation.active_deposits
-                               .includes(:payment_method, :deposited_by)
+                               .includes(:payment_method, :deposited_by, :bank_disputes)
                                .order(:deposited_at)
 
     # "Open Deposit Verification" should land on whichever day(s) the actual

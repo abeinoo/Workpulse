@@ -5112,6 +5112,7 @@ en:
             subtitle: "Expected cash versus what was actually deposited."
             expected_cash: "Expected Cash Deposit"
             bank_disputes: "Open Bank Disputes"
+            bank_dispute_origin: "Bank Dispute deposit"
             actual_deposited: "Actual Deposited"
             difference: "Difference"
             detail_toggle: "Per-employee cash breakdown"

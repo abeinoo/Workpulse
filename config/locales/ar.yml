@@ -5136,6 +5136,7 @@ ar:
             subtitle: "النقد المتوقع مقابل ما تم إيداعه فعلياً."
             expected_cash: "النقد المتوقع إيداعه"
             bank_disputes: "النزاعات البنكية المفتوحة"
+            bank_dispute_origin: "إيداع بنكي — نزاع بنكي"
             actual_deposited: "المُودَع فعلياً"
             difference: "الفرق"
             detail_toggle: "تفصيل النقد لكل موظف"

@@ -135,9 +135,16 @@
                         <%= t("finance.daily_reconciliations.show.sections.cash.not_deposited_yet") %>
                       <% else %>
                         <% pm_deposits.each do |dep| %>
+                          <% origin_dispute = dep.bank_disputes.find { |bd| bd.kind == "atm_deposit_failure" } %>
                           <div>
                             <%= t("finance.daily_reconciliations.show.sections.cash.deposited_at_prefix") %>
                             <%= l(dep.deposited_at.to_date, format: :long) %> - <%= l(dep.deposited_at, format: :time_only) %>
+                            <% if origin_dispute %>
+                              <span style="color: var(--warning); font-weight: 600;">
+                                — <%= t("finance.daily_reconciliations.show.sections.cash.bank_dispute_origin") %>
+                                (<%= link_to "##{origin_dispute.id}", finance_bank_dispute_path(origin_dispute) %>)
+                              </span>
+                            <% end %>
                           </div>
                         <% end %>
                       <% end %>
