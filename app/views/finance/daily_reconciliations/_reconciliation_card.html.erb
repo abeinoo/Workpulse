@@ -7,8 +7,24 @@
   session     = dr.till_session
   holder      = session&.current_holder
   depositor   = session&.depositor
-  outstanding = dr.remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
-  has_balance = outstanding > 0
+  open_balances = dr.remaining_deposit_balances.select(&:open?)
+  outstanding   = open_balances.sum(&:remaining_amount)
+  has_balance   = outstanding > 0
+
+  # Settling an open RemainingDepositBalance (whether it originated from an
+  # ordinary short deposit or from a confirmed bank dispute registered as a
+  # deposit via Finance::BankDisputes::DepositConfirmer — both go through the
+  # same Finance::TillDepositRecorder#reconcile_remaining_balance!, so there is
+  # nothing here to distinguish) is intentionally independent of the
+  # sequential workflow above — see the lifecycle_stage comment on why RDB
+  # state never blocks/gates that chain. Reuses the exact same route the DR
+  # show page's own outstanding-balance link uses; no new settlement path.
+  can_settle_balance = has_balance && current_user.can?(:settle_remaining_deposit_balance)
+  settle_balance_path = if open_balances.size == 1
+                          finance_remaining_deposit_balance_path(open_balances.first)
+                        else
+                          finance_daily_reconciliation_path(dr)
+                        end
 
   bank_status = show_verification ? @bank_statuses_by_dr[dr] : nil
   open_disputes = show_verification ?
@@ -273,16 +289,29 @@
           <% end %>
         </div>
 
-        <% if workflow_current_key.nil? %>
+        <% if workflow_current_key.nil? && !can_settle_balance %>
           <span style="font-size: var(--text-sm); font-weight: 600; color: var(--success,#16a34a); display: inline-flex; align-items: center; gap: 6px;">
             ✓ <%= t("finance.daily_reconciliations.index.workspace.workflow.completed") %>
           </span>
-        <% elsif workflow[:action] %>
-          <div>
-            <p style="font-size: 10px; color: var(--text-3); margin: 0 0 4px;">
-              <%= t("finance.daily_reconciliations.index.workspace.workflow.title") %>
-            </p>
-            <%= link_to workflow[:action][:label], workflow[:action][:path], class: workflow[:action][:style] %>
+        <% elsif workflow[:action] || can_settle_balance %>
+          <div style="display: flex; flex-wrap: wrap; gap: var(--space-3);">
+            <% if workflow[:action] %>
+              <div>
+                <p style="font-size: 10px; color: var(--text-3); margin: 0 0 4px;">
+                  <%= t("finance.daily_reconciliations.index.workspace.workflow.title") %>
+                </p>
+                <%= link_to workflow[:action][:label], workflow[:action][:path], class: workflow[:action][:style] %>
+              </div>
+            <% end %>
+            <% if can_settle_balance %>
+              <div>
+                <p style="font-size: 10px; color: var(--text-3); margin: 0 0 4px;">
+                  <%= t("finance.daily_reconciliations.index.workspace.workflow.outstanding_title") %>
+                </p>
+                <%= link_to t("finance.daily_reconciliations.index.workspace.workflow.settle_action"),
+                      settle_balance_path, class: "btn btn-warning btn-sm" %>
+              </div>
+            <% end %>
           </div>
         <% end %>
       </div>

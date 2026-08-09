@@ -5081,6 +5081,8 @@ ar:
           workflow:
             title: "الخطوة التالية"
             completed: "اكتملت جميع خطوات التسوية"
+            outstanding_title: "رصيد متبقٍّ"
+            settle_action: "تسوية المتبقي"
             steps:
               opening_float: "استلام الرصيد الافتتاحي"
               close_handover: "إغلاق / تسليم الكاشير"

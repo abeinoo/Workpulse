@@ -5057,6 +5057,8 @@ en:
           workflow:
             title: "Next Step"
             completed: "All reconciliation steps completed"
+            outstanding_title: "Outstanding Balance"
+            settle_action: "Settle Remaining"
             steps:
               opening_float: "Receive Opening Balance"
               close_handover: "Close / Handover Cashier"
