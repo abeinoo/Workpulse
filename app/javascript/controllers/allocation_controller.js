@@ -11,6 +11,7 @@ export default class extends Controller {
     "pctHeader",
     "pctCell",
     "pctInput",
+    "branchSelect",
     "equalMsg",
     "pctMsg",
     "summary",
@@ -44,7 +45,7 @@ export default class extends Controller {
   }
 
   pctInputTargetConnected(input) {
-    input.disabled = this.#isEqual
+    input.disabled = this.#isEqual || this.#sectionHidden
     this.#updateSummary()
   }
 
@@ -52,15 +53,31 @@ export default class extends Controller {
     this.#updateSummary()
   }
 
+  // Stimulus target lifecycle — fires for each row's branch <select>,
+  // including on initial connect and on rows inserted via the template clone.
+  branchSelectTargetConnected(select) {
+    select.disabled = this.#sectionHidden
+  }
+
   // ── private ──────────────────────────────────────────────────────────────
 
+  // A `required` field inside a `hidden` ancestor is still a candidate for
+  // native constraint validation in some browsers — the ancestor's `hidden`
+  // attribute alone does not exempt it. Whenever the whole distribution
+  // section is irrelevant (a specific branch is selected), every required
+  // control inside it must also be `disabled` so it can never silently block
+  // submission of the rest of the form.
   #apply() {
     const eq = this.#isEqual
+    const sectionHidden = this.#sectionHidden
+
+    if (this.hasModeSelectTarget) this.modeSelectTarget.disabled = sectionHidden
 
     if (this.hasPctHeaderTarget) this.pctHeaderTarget.hidden = eq
 
     this.pctCellTargets.forEach(c => { c.hidden = eq })
-    this.pctInputTargets.forEach(i => { i.disabled = eq })
+    this.pctInputTargets.forEach(i => { i.disabled = eq || sectionHidden })
+    this.branchSelectTargets.forEach(s => { s.disabled = sectionHidden })
 
     if (this.hasEqualMsgTarget) this.equalMsgTarget.hidden = !eq
     if (this.hasPctMsgTarget)   this.pctMsgTarget.hidden   =  eq
@@ -73,7 +90,7 @@ export default class extends Controller {
 
     // Section irrelevant (a specific branch is selected) — distribution is
     // ignored entirely, so it can never block the save button.
-    if (this.hasSectionTarget && this.sectionTarget.hidden) {
+    if (this.#sectionHidden) {
       this.#setSubmitDisabled(false)
       return
     }
@@ -143,6 +160,10 @@ export default class extends Controller {
 
   get #isEqual() {
     return this.hasModeSelectTarget && this.modeSelectTarget.value === "equal"
+  }
+
+  get #sectionHidden() {
+    return this.hasSectionTarget && this.sectionTarget.hidden
   }
 
   get #visibleRowCount() {

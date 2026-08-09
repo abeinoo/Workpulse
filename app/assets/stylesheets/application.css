@@ -2201,14 +2201,20 @@ body.is-authenticated {
   /* Compensate for fixed mobile-header height (including safe-area inset) */
   padding-top: var(--mobile-header-h);
   padding-top: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
-  padding-bottom: var(--bottom-nav-h);
+  /* The extra 100px, on top of the bottom-nav height already reserved,
+     keeps page content (e.g. a form's primary action button) clear of the
+     fixed PWA install banner, which floats just above the bottom nav. */
+  padding-bottom: calc(var(--bottom-nav-h) + 100px);
 }
 
 @media (min-width: 1024px) {
   .app-main {
     margin-left: var(--sidebar-w);
     padding-top: 0;
-    padding-bottom: 0;
+    /* No bottom nav on desktop, but the PWA install banner still floats
+       near the bottom of the viewport — reserve room so it never sits on
+       top of a page's primary action buttons (e.g. a form's Save button). */
+    padding-bottom: 140px;
   }
 }
 

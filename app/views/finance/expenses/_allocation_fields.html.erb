@@ -3,7 +3,8 @@
     <%= f.select :branch_id,
           options_from_collection_for_select(branches, :id, :name, f.object.branch_id),
           { include_blank: "— #{t('finance.expenses.select_branch')}" },
-          class: "form-control", required: true %>
+          class: "form-control", required: true,
+          data: { allocation_target: "branchSelect" } %>
   </td>
   <td data-allocation-target="pctCell">
     <%= f.number_field :allocation_percentage,
