@@ -153,6 +153,40 @@
 
   </div>
 
+  <%# ── Depositor mismatch warning — Confirm Deposit always attributes the
+      resulting TillDeposit to opened_by (see BankDispute#blocked_by_depositor_mismatch?),
+      so submitting the form below will fail with a generic error if the
+      till's depositor has since moved on to someone else. Surfaced here,
+      persistently, instead of only after a failed submit. ── %>
+  <% if @dispute.blocked_by_depositor_mismatch? %>
+    <%
+      dr = @dispute.daily_reconciliation_for
+      can_reassign = dr && policy(dr).assign_depositor?
+    %>
+    <div class="card" style="padding: var(--space-6); margin-bottom: var(--space-4); border: 2px solid var(--warning,#ca8a04); background: rgba(var(--warning-rgb,202,138,4), 0.06);">
+      <h3 style="font-size: var(--text-base); font-weight: 600; margin: 0 0 var(--space-2); color: var(--warning,#ca8a04); display: flex; align-items: center; gap: var(--space-2);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <%= t("finance.bank_disputes.show.depositor_mismatch_title") %>
+      </h3>
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 var(--space-4);">
+        <%= t("finance.bank_disputes.show.depositor_mismatch_body",
+              opened_by: @dispute.opened_by.full_name,
+              current_depositor: dr&.till_session&.depositor&.full_name || t("finance.bank_disputes.show.depositor_mismatch_none")) %>
+      </p>
+      <% if can_reassign %>
+        <%= form_with url: assign_depositor_finance_daily_reconciliation_path(dr), method: :patch, local: true do |f| %>
+          <%= f.hidden_field :depositor_id, value: @dispute.opened_by_id %>
+          <%= f.submit t("finance.bank_disputes.show.reassign_depositor_button", name: @dispute.opened_by.full_name),
+                class: "btn btn-warning btn-sm" %>
+        <% end %>
+      <% else %>
+        <p style="font-size: var(--text-xs); color: var(--text-3); margin: 0;">
+          <%= t("finance.bank_disputes.show.depositor_mismatch_no_permission", opened_by: @dispute.opened_by.full_name) %>
+        </p>
+      <% end %>
+    </div>
+  <% end %>
+
   <%# ── Confirm & Record Deposit — only when the bank has confirmed success
       and no TillDeposit has been created from this dispute yet. Deliberately
       a separate, explicit action rather than automatic on status change. ── %>

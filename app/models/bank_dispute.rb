@@ -63,6 +63,23 @@ class BankDispute < ApplicationRecord
 
   def atm_deposit_failure? = kind == "atm_deposit_failure"
 
+  # True once this dispute is ready to be registered as a deposit
+  # (confirmed_successful, no TillDeposit yet) but the resulting
+  # Finance::TillDepositRecorder call would actually be rejected — it always
+  # attributes the deposit to opened_by (whoever reported the case), never to
+  # the confirming accountant, and rejects unless that person is either the
+  # till's currently-assigned depositor or the business owner (see
+  # Finance::BankDisputes::DepositConfirmer's own comment on why). Surfaced on
+  # the show page so this is visible BEFORE the accountant clicks Confirm
+  # Deposit and hits a generic "not the depositor" error afterward.
+  def blocked_by_depositor_mismatch?
+    return false unless status == "confirmed_successful" && till_deposit.blank?
+    return false if opened_by.owner?
+
+    session = daily_reconciliation_for&.till_session
+    session.present? && session.depositor_id != opened_by_id
+  end
+
   private
 
   # At least one anchor must always be present — normally exactly one (which
