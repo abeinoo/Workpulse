@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_06_082431) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1491,6 +1491,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_082431) do
     t.date "transaction_date", null: false
     t.string "transaction_id"
     t.time "transaction_time"
+    t.string "transaction_type", default: "sale", null: false
     t.datetime "updated_at", null: false
     t.index ["branch_id"], name: "index_sales_transactions_on_branch_id"
     t.index ["branch_name"], name: "index_sales_transactions_on_branch_name"
@@ -2013,6 +2014,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_082431) do
     t.index ["superseded_by_id"], name: "index_till_handovers_on_superseded_by_id"
   end
 
+  create_table "till_refunds", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.bigint "daily_reconciliation_id", null: false
+    t.string "idempotency_key"
+    t.text "notes"
+    t.bigint "payment_method_id", null: false
+    t.bigint "processed_by_id", null: false
+    t.datetime "refunded_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["daily_reconciliation_id"], name: "index_till_refunds_on_dr_id"
+    t.index ["idempotency_key"], name: "index_till_refunds_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["payment_method_id"], name: "index_till_refunds_on_payment_method_id"
+    t.index ["processed_by_id"], name: "index_till_refunds_on_processed_by_id"
+  end
+
   create_table "till_session_amounts", force: :cascade do |t|
     t.decimal "collected_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.datetime "created_at", null: false
@@ -2502,6 +2519,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_082431) do
   add_foreign_key "till_handovers", "users", column: "reversed_by_id"
   add_foreign_key "till_handovers", "users", column: "superseded_by_id"
   add_foreign_key "till_handovers", "users", column: "to_user_id"
+  add_foreign_key "till_refunds", "daily_reconciliations"
+  add_foreign_key "till_refunds", "payment_methods"
+  add_foreign_key "till_refunds", "users", column: "processed_by_id"
   add_foreign_key "till_session_amounts", "daily_reconciliations"
   add_foreign_key "till_session_amounts", "payment_methods"
   add_foreign_key "till_sessions", "daily_reconciliations"

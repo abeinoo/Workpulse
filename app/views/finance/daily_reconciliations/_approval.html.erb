@@ -6,8 +6,8 @@
     events, and the single-step verify form / verified footer, presented as
     "Approve". No new reject/unverify flow and no new approval-history model. %>
 
-<section id="approval" class="recon-section" style="margin-bottom: var(--space-6);">
-  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+<section id="approval" class="recon-section">
+  <div class="dashboard-section__header" style="margin-bottom: var(--dr-header-gap);">
     <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.approval.title") %></h2>
   </div>
 
@@ -105,11 +105,11 @@
   <% approval_events = @timeline_events.select { |e| %i[review_completed review_cancelled review_auto_cancelled day_verified].include?(e[:type]) } %>
   <% if approval_events.any? %>
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--space-4);">
-      <div style="padding: var(--space-3) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+      <div style="padding: var(--dr-card-title-py) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
         <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0;"><%= t("finance.daily_reconciliations.show.sections.approval.history_title") %></h3>
       </div>
       <% approval_events.each do |ev| %>
-        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); padding: var(--dr-row-py) var(--space-5); border-bottom: 1px solid var(--border);">
           <span style="font-size: var(--text-sm); color: var(--text-1);">
             <% case ev[:type] %>
             <% when :review_completed %>

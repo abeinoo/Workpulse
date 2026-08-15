@@ -15,6 +15,24 @@ module Finance
     # existing reference numbers up front; no per-row EXISTS check is performed.
     # The DB unique index on (business_id, reference_number) enforces correctness
     # at the storage layer regardless of the in-memory filter.
+    #
+    # Auto-refund propagation: once SalesTransaction rows are durably persisted,
+    # every imported refund row (transaction_type: "refund") matched to a DR is
+    # used to auto-create a Finance::TillRefund via Finance::TillRefundCreator —
+    # the exact same service and calculation path a manager uses from the DR
+    # page, so the refund actually reduces Expected Cash / settlement, not just
+    # the Sales Verification comparison. This runs AFTER the import's own
+    # transaction commits (a refund that can't be applied — e.g. the DR is no
+    # longer open — must never fail the import itself; the SalesTransaction
+    # comparison record is always kept regardless).
+    #
+    # Applied only when the row carries a stable identity (reference_number or
+    # transaction_id) — that value becomes the TillRefund's idempotency_key
+    # ("pos_refund:<business_id>:<ref>"), so re-importing the same file (which
+    # replaces this sales_import's own SalesTransaction rows with fresh ones)
+    # finds the already-created TillRefund instead of duplicating it. A row
+    # with neither identifier has no safe way to dedupe on re-import, so it is
+    # imported as a comparison record only, never auto-applied.
     class Importer
       BATCH_SIZE = 500
 
@@ -98,6 +116,7 @@ module Finance
               reference_number:        ref_num,
               transaction_id:          row["transaction_id"],
               sale_number:             row["sale_number"],
+              transaction_type:        row["transaction_type"] || "sale",
               raw_data:                row["raw_data"].to_json,
               created_at:              now,
               updated_at:              now
@@ -138,6 +157,8 @@ module Finance
           )
         end
 
+        apply_auto_refunds!(sales_import)
+
         Result.new(ok: true, sales_import: sales_import, error: nil)
       rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
         sales_import&.update_columns(status: "failed")
@@ -147,6 +168,90 @@ module Finance
       private
 
       include AuditLoggable
+
+      # Auto-creates a TillRefund for every freshly-imported refund row that
+      # has a stable identity and resolves to exactly one PaymentMethod and
+      # one User. Never raises — a row that can't be resolved or applied
+      # (ambiguous name match, DR no longer open, etc.) is simply skipped and
+      # tallied; the SalesTransaction rows themselves are already committed
+      # and unaffected either way.
+      def apply_auto_refunds!(sales_import)
+        refund_rows = SalesTransaction
+                        .where(sales_import_id: sales_import.id, transaction_type: "refund")
+                        .where.not(daily_reconciliation_id: nil)
+                        .to_a
+        return if refund_rows.empty?
+
+        payment_method_lookup = PaymentMethod.for_business(@actor.business).active
+                                             .pluck(:id, :name)
+                                             .each_with_object({}) { |(id, name), h| h[normalize(name)] = id }
+        user_lookup = @actor.business.users
+                            .pluck(:id, :first_name, :last_name)
+                            .each_with_object(Hash.new { |h, k| h[k] = [] }) do |(id, first, last), h|
+                              h[normalize("#{first} #{last}")] << id
+                            end
+
+        created = 0
+        skipped = Hash.new(0)
+
+        refund_rows.each do |txn|
+          identity = txn.reference_number.presence || txn.transaction_id.presence
+          unless identity
+            skipped[:no_stable_identity] += 1
+            next
+          end
+
+          pm_id = payment_method_lookup[normalize(txn.payment_method_name)]
+          unless pm_id
+            skipped[:unresolved_payment_method] += 1
+            next
+          end
+
+          user_ids = user_lookup[normalize(txn.cashier_name)]
+          unless user_ids&.one?
+            skipped[user_ids.blank? ? :unresolved_employee : :ambiguous_employee] += 1
+            next
+          end
+
+          result = TillRefundCreator.new(
+            txn.daily_reconciliation_id,
+            actor:  User.find(user_ids.first),
+            params: {
+              payment_method_id: pm_id,
+              amount:            txn.amount,
+              refunded_at:       refunded_at_for(txn),
+              notes:             "Auto-created from POS/Sales import — Ref: #{identity}",
+              idempotency_key:   "pos_refund:#{@actor.business_id}:#{identity}"
+            }
+          ).call
+
+          if result.ok?
+            created += 1
+          else
+            skipped[:daily_reconciliation_not_open] += 1
+          end
+        end
+
+        return if created.zero? && skipped.empty?
+
+        log_audit(
+          actor:     @actor,
+          auditable: sales_import,
+          action:    :auto_refunds_applied,
+          metadata:  { created: created, skipped: skipped }
+        )
+      end
+
+      def refunded_at_for(txn)
+        return txn.transaction_date.to_time unless txn.transaction_time
+
+        Time.zone.parse("#{txn.transaction_date} #{txn.transaction_time.strftime('%H:%M:%S')}") ||
+          txn.transaction_date.to_time
+      end
+
+      def normalize(str)
+        str.to_s.downcase.strip
+      end
     end
   end
 end

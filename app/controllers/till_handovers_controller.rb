@@ -43,8 +43,12 @@ class TillHandoversController < ApplicationController
 
   # GET /till_handovers/new
   def new
-    @branch = current_user.shift_assignments.current.first&.branch
     authorize TillHandover.new, :create?
+
+    @branch = resolve_branch
+    return redirect_to finance_daily_reconciliations_path,
+                       alert: t("till_handovers.errors.no_branch") if @branch.nil?
+
     setup_handover_form
   end
 
@@ -52,7 +56,7 @@ class TillHandoversController < ApplicationController
   def create
     authorize TillHandover, :create?
 
-    @branch = current_user.shift_assignments.current.first&.branch
+    @branch = resolve_branch
     return redirect_to finance_daily_reconciliations_path,
                        alert: t("till_handovers.errors.no_branch") if @branch.nil?
 
@@ -269,6 +273,39 @@ class TillHandoversController < ApplicationController
 
   def business_wide_dr_access?
     current_user.owner? || current_user.scope_for(:view_daily_reconciliation) == "business"
+  end
+
+  # Ordinary cashiers act on the branch they're physically shift-assigned to —
+  # that path is unchanged. Administrative actors (Super Admin, Area Manager,
+  # or anyone else explicitly granted a business/area-wide
+  # view_daily_reconciliation scope) have no shift assignment of their own but
+  # are still permitted to close_till_session — for them the target branch
+  # comes from the Daily Reconciliation they're acting on (passed as
+  # daily_reconciliation_id from the DR show page), not from a fabricated
+  # "current branch". Permission (close_till_session, checked by the policy)
+  # is what authorizes the action; this only resolves *which* branch it acts on.
+  def resolve_branch
+    own_branch = current_user.shift_assignments.current.first&.branch
+    return own_branch if own_branch
+
+    return nil unless params[:daily_reconciliation_id].present?
+
+    target = DailyReconciliation
+               .where(business_id: current_user.business_id)
+               .includes(:branch)
+               .find_by(id: params[:daily_reconciliation_id])
+    return nil unless target && branch_authorized_for_dr_action?(target.branch)
+
+    target.branch
+  end
+
+  def branch_authorized_for_dr_action?(branch)
+    return false unless branch
+    return true if business_wide_dr_access?
+
+    BranchScope.new(current_user, include_shift_assignments: true)
+               .for_scope(current_user.scope_for(:view_daily_reconciliation))
+               .include?(branch.id)
   end
 
   def handover_params

@@ -34,6 +34,8 @@
                 "till-closing-depositor-required": t("till_handovers.errors.depositor_required"),
                 "till-closing-no-amounts": t("till_handovers.errors.no_amounts_entered") } do |f| %>
 
+    <%= hidden_field_tag :daily_reconciliation_id, @open_reconciliation&.id %>
+
     <%# ── Action selector: What would you like to do? ───────────────── %>
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;">
       <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); background: var(--surface-2);">

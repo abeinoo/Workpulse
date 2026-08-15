@@ -268,7 +268,7 @@ RSpec.describe "Finance::DailyReconciliations show — POS Transactions Verifica
       expect(rows.last.text).to include("REF-LATE")
     end
 
-    it "shows only Sale Number, Reference Number, Transaction Time, and Amount columns" do
+    it "shows Sale Number, Reference Number, Type, Transaction Time, and Amount columns" do
       visa_pm = PaymentMethod.create!(business: business, name: "Visa", settlement_type: "card", active: true)
       TillSessionAmount.create!(daily_reconciliation: dr, payment_method: visa_pm, payment_method_name: "Visa",
                                 collected_amount: 100, refund_amount: 0)
@@ -285,6 +285,7 @@ RSpec.describe "Finance::DailyReconciliations show — POS Transactions Verifica
       expect(headers).to eq([
         I18n.t("finance.daily_reconciliations.show.sections.electronic.col_sale_number"),
         I18n.t("finance.daily_reconciliations.show.sections.electronic.col_reference_number"),
+        I18n.t("finance.daily_reconciliations.show.sections.electronic.col_type"),
         I18n.t("finance.daily_reconciliations.show.sections.electronic.col_time"),
         I18n.t("finance.daily_reconciliations.show.sections.electronic.col_amount")
       ])

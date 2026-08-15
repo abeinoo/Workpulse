@@ -4,8 +4,8 @@
     accounting note column and no attachments association on the model. %>
 
 <% if @reconciliation.notes.present? %>
-  <section id="notes" class="recon-section" style="margin-bottom: var(--space-6);">
-    <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+  <section id="notes" class="recon-section">
+    <div class="dashboard-section__header" style="margin-bottom: var(--dr-header-gap);">
       <h2 class="dashboard-section__title"><%= t("common.notes") %></h2>
     </div>
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm);">

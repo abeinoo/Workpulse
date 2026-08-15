@@ -16,8 +16,13 @@ module Finance
     # Optional fields: reference_number, transaction_id, sale_number
     class CsvParser
       REQUIRED_FIELDS = %w[transaction_date branch_name cashier_name payment_method_name amount].freeze
-      OPTIONAL_FIELDS = %w[reference_number transaction_id sale_number].freeze
+      OPTIONAL_FIELDS = %w[reference_number transaction_id sale_number transaction_type].freeze
       ALL_FIELDS      = (REQUIRED_FIELDS + OPTIONAL_FIELDS).freeze
+
+      # A mapped transaction_type cell matching this is a refund/return row.
+      # Unmapped, blank, or anything else (e.g. "Sale") is an ordinary sale —
+      # amount itself is unaffected either way, still a positive magnitude.
+      REFUND_TYPE_PATTERN = /refund|return|مرتجع|استرجاع/i
 
       # Tried first, in order — the source column's exact time-of-day is
       # preserved whenever one of these matches (never stripped). Only when
@@ -151,6 +156,7 @@ module Finance
         reference_number = cell(row, "reference_number").presence
         transaction_id   = cell(row, "transaction_id").presence
         sale_number      = cell(row, "sale_number").presence
+        transaction_type = cell(row, "transaction_type").presence&.match?(REFUND_TYPE_PATTERN) ? "refund" : "sale"
 
         {
           "row"                  => row_number,
@@ -163,6 +169,7 @@ module Finance
           "reference_number"     => reference_number,
           "transaction_id"       => transaction_id,
           "sale_number"          => sale_number,
+          "transaction_type"     => transaction_type,
           "raw_data"             => raw,
           "valid"                => errors.empty?,
           "errors"               => errors

@@ -261,11 +261,14 @@
   <% end %>
 
   <%# ── Action bar (suppressed while waiting for opening float) ───────── %>
+  <% can_refund = @reconciliation.open? &&
+                  policy(TillRefund.new(daily_reconciliation: @reconciliation)).create? %>
   <% show_action_bar = !@waiting_for_opening_float && (
                        @pending_handover_for_me ||
                        @pending_deposit_transfer_for_me ||
                        @pending_deposit_transfer_from_me ||
                        (@reconciliation.open? && policy(TillHandover.new).create?) ||
+                       can_refund ||
                        (@i_am_depositor && (@reconciliation.closed? || @reconciliation.deposited?))) %>
   <% if show_action_bar %>
     <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4);">
@@ -322,13 +325,27 @@
             <% end %>
           <% end %>
         <% else %>
-          <%= link_to new_till_handover_path,
+          <%= link_to new_till_handover_path(daily_reconciliation_id: @reconciliation.id),
                 class: "btn btn-primary",
                 data: { turbo_frame: "modal" },
                 style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
             <%= t("finance.daily_reconciliations.show.action_handover") %>
           <% end %>
+        <% end %>
+      <% end %>
+
+      <%# Record refund — independent of Cashier Handover. The till stays
+          open and no handover is created or required. Gated by
+          process_till_refund + TillRefundPolicy's BranchScope check, not by
+          close_till_session or by having a shift assignment at this branch. %>
+      <% if can_refund %>
+        <%= link_to new_till_refund_path(daily_reconciliation_id: @reconciliation.id),
+              class: "btn btn-secondary",
+              data: { turbo_frame: "modal" },
+              style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14.25 4.5 9.75m0 0L9 5.25m-4.5 4.5H15a4.5 4.5 0 0 1 0 9h-3"/></svg>
+          <%= t("finance.daily_reconciliations.show.action_refund") %>
         <% end %>
       <% end %>
 
@@ -391,7 +408,7 @@
       plain grid's first child would otherwise render on the right in RTL,
       silently swapping the columns for Arabic. ── %>
   <div class="dashboard-cols dr-sales-timeline-grid" style="margin-bottom: var(--space-6);">
-    <div>
+    <div class="dr-sales-timeline-grid__main" style="min-width: 0;">
       <% if @can_view_sales_transactions_verification %>
         <%= render "electronic_payments",
                    sales_totals_by_method:       @sales_totals_by_method,
@@ -409,7 +426,7 @@
         <%= render "pos_transaction_verification" %>
       <% end %>
     </div>
-    <div>
+    <div class="dr-sales-timeline-grid__aside" style="min-width: 0;">
       <%= render "timeline" %>
     </div>
   </div>

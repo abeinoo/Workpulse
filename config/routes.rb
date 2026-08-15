@@ -287,6 +287,8 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :till_refunds, only: %i[new create]
+
   resources :till_deposits, only: %i[new create show] do
     member do
       patch :void

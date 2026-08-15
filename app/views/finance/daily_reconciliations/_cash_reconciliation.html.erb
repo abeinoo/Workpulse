@@ -4,8 +4,8 @@
     model/controller; this partial only formats and lays them out. %>
 
 <% if @can_view_session_totals || @employee_summaries&.any? %>
-  <section id="cash-reconciliation" class="recon-section" data-controller="accordion" data-accordion-key-value="cash-reconciliation" style="margin-bottom: var(--space-6);">
-    <div class="dashboard-section__header recon-accordion__header" style="margin-bottom: var(--space-4);">
+  <section id="cash-reconciliation" class="recon-section" data-controller="accordion" data-accordion-key-value="cash-reconciliation">
+    <div class="dashboard-section__header recon-accordion__header">
       <div class="recon-accordion__trigger" data-accordion-target="trigger" data-action="click->accordion#toggle keydown.enter->accordion#toggle keydown.space->accordion#toggle" role="button" tabindex="0" aria-expanded="false">
         <span class="recon-accordion__chevron" data-accordion-target="icon" aria-hidden="true">▶</span>
         <div>
@@ -26,7 +26,19 @@
     <div class="recon-accordion__panel-inner">
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
       <% if @can_view_session_totals %>
-        <div style="padding: var(--space-4) var(--space-5);">
+        <div style="padding: var(--dr-panel-py) var(--space-5);">
+          <%# Gross Cash Sales − Cash Refunds = Expected Cash — refunds are
+              always broken out, never folded silently into one figure. %>
+          <div class="recon-formula-row">
+            <span><%= t("finance.daily_reconciliations.show.sections.cash.gross_cash_sales") %></span>
+            <span class="recon-formula-row__value"><%= format_currency(@expected_cash_gross) %></span>
+          </div>
+          <% if @expected_cash_refunds.to_d.positive? %>
+            <div class="recon-formula-row">
+              <span><%= t("finance.daily_reconciliations.show.sections.cash.cash_refunds") %></span>
+              <span class="recon-formula-row__value" style="color: var(--danger,#dc2626);">− <%= format_currency(@expected_cash_refunds) %></span>
+            </div>
+          <% end %>
           <div class="recon-formula-row">
             <span><%= t("finance.daily_reconciliations.show.sections.cash.expected_cash") %></span>
             <span class="recon-formula-row__value"><%= format_currency(@expected_cash) %></span>
@@ -105,7 +117,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
             </svg>
           </button>
-          <div data-collapsible-target="content" hidden style="padding: var(--space-2) var(--space-5) var(--space-4);">
+          <div data-collapsible-target="content" hidden style="padding: var(--dr-formula-row-py) var(--space-5) var(--dr-panel-py);">
             <% @employee_summaries.each do |summary| %>
               <% cash_amounts = summary.amounts.select { |a| cash_ids.include?(a.payment_method_id) }
                                                 .reject { |a| a.collected_amount.zero? && a.refund_amount.zero? } %>

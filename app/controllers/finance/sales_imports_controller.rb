@@ -14,7 +14,8 @@ class Finance::SalesImportsController < Finance::BaseController
     [ "amount",              %w[payment\ amount amount total] ],
     [ "reference_number",    %w[payment\ no reference receipt ref voucher] ],
     [ "transaction_id",      %w[transaction\ id trans\ id] ],
-    [ "sale_number",         %w[sale\ no sale\ number sale\ id] ]
+    [ "sale_number",         %w[sale\ no sale\ number sale\ id] ],
+    [ "transaction_type",    %w[type transaction\ type sale\ type payment\ type kind] ]
   ].freeze
 
   # GET /finance/sales_imports

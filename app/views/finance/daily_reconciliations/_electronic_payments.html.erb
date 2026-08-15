@@ -7,12 +7,13 @@
         collapsible's trigger (data-controller="collapsible" wraps the row +
         its own expanded content, which sits directly beneath that row);
         clicking it reveals that payment method's own Sales Transactions
-        table in place, right under the row that was clicked. Every row
-        shares data-collapsible-group-value="session-totals-payment-methods"
-        (see collapsible_controller.js) so only one payment method is
-        expanded at a time — an accordion. The Grand Total row stays a
-        plain, non-collapsible row, unchanged. No separate cards exist below
-        the table anymore.
+        table (plus its WorkPulse refund records, for traceability) in place,
+        right under the row that was clicked. Every row shares
+        data-collapsible-group-value="session-totals-payment-methods" (see
+        collapsible_controller.js) so only one payment method is expanded at
+        a time — an accordion. The Grand Total row stays a plain,
+        non-collapsible row, unchanged. No separate cards exist below the
+        table anymore.
       - Employee Breakdown (below) — rendered via the "employee_summary"
         partial; replaces the old standalone "Cashier Custody Summary" card,
         which no longer exists as a separate section anywhere on the page.
@@ -25,12 +26,20 @@
     here and in _employee_summary.html.erb (which reads the remaining
     aggregates — @employee_summaries, @sales_totals_by_cashier,
     @all_payment_methods_for_cards, @electronic_payment_methods — directly as
-    ivars) — no recalculation. %>
+    ivars) — no recalculation.
+
+    Gross/Refund/Net — WorkPulse side comes straight off TillSessionAmount
+    (collected_amount / refund_amount / net_amount), which already folds
+    independent TillRefund records in exactly once (sync_session_amounts!).
+    Imported side comes from SalesTransaction#refund? (transaction_type) via
+    @sales_totals_by_method — never guessed, never defaulted to cash. Neither
+    figure is recalculated here; this partial only renders what the
+    controller already computed. %>
 
 <% has_sales_data = sales_totals_by_method.any? %>
 
-<section id="electronic-payments" class="recon-section" data-controller="accordion" data-accordion-key-value="sales-verification" style="margin-bottom: var(--space-6);">
-  <div class="dashboard-section__header recon-accordion__header" style="margin-bottom: var(--space-4);">
+<section id="electronic-payments" class="recon-section" data-controller="accordion" data-accordion-key-value="sales-verification">
+  <div class="dashboard-section__header recon-accordion__header">
     <div class="recon-accordion__trigger" data-accordion-target="trigger" data-action="click->accordion#toggle keydown.enter->accordion#toggle keydown.space->accordion#toggle" role="button" tabindex="0" aria-expanded="false">
       <span class="recon-accordion__chevron" data-accordion-target="icon" aria-hidden="true">▶</span>
       <div>
@@ -60,92 +69,175 @@
   <div class="recon-accordion__panel-inner">
 
   <%# ── Session Totals: daily sales overview, ALL payment methods (cash + electronic
-      when the viewer holds view_session_totals; electronic-only otherwise). ── %>
-  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--space-4);">
-    <div style="padding: var(--space-3) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
+      when the viewer holds view_session_totals; electronic-only otherwise).
+      Gross Sales − Refunds = Net Sales for every payment method (and grand
+      total) — refunds are always shown as their own column, never silently
+      subtracted out of a single figure. ── %>
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: var(--dr-header-gap);">
+    <div style="padding: var(--dr-card-title-py) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
       <h3 style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0;">
         <%= t("finance.daily_reconciliations.show.sections.electronic.session_totals_title") %>
       </h3>
     </div>
-    <div class="recon-table-scroll">
-      <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); padding: var(--space-2) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border); min-width: 520px;">
+    <div class="session-totals-table">
+      <div class="session-totals-table__row session-totals-table__row--header" style="padding: var(--dr-header-row-py) var(--space-5); background: var(--surface-2); border-bottom: 1px solid var(--border);">
         <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3);"><%= t("finance.daily_reconciliations.show.sections.electronic.col_payment_method") %></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_gross_sales") %></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_refunds") %></span>
         <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_workpulse_total") %></span>
         <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_sales_total") %></span>
         <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: end;"><%= t("finance.daily_reconciliations.show.sections.electronic.col_difference") %></span>
       </div>
 
       <%# ── Each payment-method row IS the disclosure trigger — clicking it
-          expands that payment method's Sales Transactions table directly
-          underneath, in place. data-collapsible-group-value ties every row
-          together into one accordion group (collapsible_controller.js) so
-          opening one closes whichever other row was open. Reuses
-          @sales_transactions_by_payment_method (already grouped in the
-          controller from the same sorted, already-loaded array — no query
-          here). ── %>
+          expands that payment method's Sales Transactions table (plus any
+          WorkPulse refund records) directly underneath, in place.
+          data-collapsible-group-value ties every row together into one
+          accordion group (collapsible_controller.js) so opening one closes
+          whichever other row was open. Reuses @sales_transactions_by_payment_method
+          and @till_refunds_by_payment_method (already grouped in the
+          controller from already-loaded arrays — no query here). ── %>
       <% session_totals_rows.each do |r| %>
-        <% pm_transactions = @sales_transactions_by_payment_method[r[:payment_method].id] || [] %>
+        <% pm_id = r[:payment_method].id %>
+        <% pm_transactions = @sales_transactions_by_payment_method[pm_id] || [] %>
+        <% pm_refunds       = @till_refunds_by_payment_method[pm_id] || [] %>
         <div data-controller="collapsible" data-collapsible-group-value="session-totals-payment-methods" class="recon-disclosure">
           <button type="button" data-collapsible-target="trigger" data-action="click->collapsible#toggle"
-                  class="recon-disclosure__trigger" aria-expanded="false"
-                  style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); align-items: center; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); min-width: 520px; color: inherit; font-weight: normal; text-align: start;">
+                  class="recon-disclosure__trigger session-totals-table__row" aria-expanded="false"
+                  style="align-items: center; padding: var(--dr-row-py) var(--space-5); border-bottom: 1px solid var(--border); color: inherit; font-weight: normal; text-align: start;">
             <span style="display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-2);">
               <svg class="recon-disclosure__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
               </svg>
               <%= r[:payment_method].display_name %>
+              <% if pm_refunds.any? %>
+                <span class="badge badge-neutral" style="font-size: 10px;" title="<%= t("finance.daily_reconciliations.show.sections.electronic.refunds_traceable_hint") %>">
+                  <%= pm_refunds.size %> <%= t("finance.daily_reconciliations.show.sections.electronic.refund_count_suffix") %>
+                </span>
+              <% end %>
             </span>
-            <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(r[:workpulse_total]) %></span>
-            <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+            <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_gross_sales") %>" style="font-size: var(--text-sm); color: var(--text-2); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(r[:workpulse_gross]) %></span>
+            <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_refunds") %>" style="font-size: var(--text-sm); text-align: end; font-variant-numeric: tabular-nums; color: <%= r[:workpulse_refund].zero? ? 'var(--text-3)' : 'var(--danger,#dc2626)' %>;">
+              <%= r[:workpulse_refund].zero? ? "—" : "− #{format_currency(r[:workpulse_refund])}" %>
+            </span>
+            <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_workpulse_total") %>" style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(r[:workpulse_total]) %></span>
+            <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_sales_total") %>" style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
               <%= r[:sales_total] ? format_currency(r[:sales_total]) : "—" %>
             </span>
-            <span style="font-size: var(--text-sm); font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; color: <%= (r[:difference].nil? || r[:difference].abs < 0.01) ? 'var(--text-3)' : (r[:difference] > 0 ? 'var(--warning)' : 'var(--danger)') %>;">
+            <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_difference") %>" style="font-size: var(--text-sm); font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; color: <%= (r[:difference].nil? || r[:difference].abs < 0.01) ? 'var(--text-3)' : (r[:difference] > 0 ? 'var(--warning)' : 'var(--danger)') %>;">
               <%= (r[:difference].nil? || r[:difference].abs < 0.01) ? "—" : format_currency(r[:difference]) %>
             </span>
           </button>
-          <div data-collapsible-target="content" hidden style="border-bottom: 1px solid var(--border); min-width: 520px;">
-            <div style="padding: var(--space-4) var(--space-5);">
+          <div data-collapsible-target="content" hidden style="border-bottom: 1px solid var(--border);">
+            <div style="padding: var(--dr-panel-py) var(--space-5);">
+
+              <%# ── Imported Sales Transactions — refund rows clearly marked,
+                  never rendered as an ordinary sale. Amount shown signed
+                  (negative for a refund) so the column can be summed
+                  directly: Gross − Refunds = Net. ── %>
               <% if pm_transactions.blank? %>
-                <p style="color: var(--text-3); margin: 0;">
+                <p style="color: var(--text-3); margin: 0 0 var(--space-3);">
                   <%= t("finance.daily_reconciliations.show.sections.electronic.no_sales_transactions") %>
                 </p>
               <% else %>
+                <% pm_sales_totals = sales_totals_by_method[pm_id] %>
+                <% if pm_sales_totals %>
+                  <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0 0 var(--space-2);">
+                    <%= t("finance.daily_reconciliations.show.sections.electronic.imported_summary_line",
+                          gross:  format_currency(pm_sales_totals[:gross]),
+                          refund: format_currency(pm_sales_totals[:refund]),
+                          net:    format_currency(pm_sales_totals[:net])) %>
+                  </p>
+                <% end %>
                 <div class="recon-table-scroll">
                   <table class="table">
                     <thead>
                       <tr>
                         <th><%= t("finance.daily_reconciliations.show.sections.electronic.col_sale_number") %></th>
                         <th><%= t("finance.daily_reconciliations.show.sections.electronic.col_reference_number") %></th>
+                        <th><%= t("finance.daily_reconciliations.show.sections.electronic.col_type") %></th>
                         <th><%= t("finance.daily_reconciliations.show.sections.electronic.col_time") %></th>
                         <th class="text-end"><%= t("finance.daily_reconciliations.show.sections.electronic.col_amount") %></th>
                       </tr>
                     </thead>
                     <tbody>
                       <% pm_transactions.each do |txn| %>
-                        <tr>
+                        <tr style="<%= 'background: rgba(220,38,38,0.04);' if txn.refund? %>">
                           <td><code style="font-size: var(--text-xs);"><%= txn.sale_number.presence || "—" %></code></td>
                           <td><code style="font-size: var(--text-xs);"><%= txn.reference_number.presence || "—" %></code></td>
+                          <td>
+                            <% if txn.refund? %>
+                              <span class="badge" style="font-size: 10px; background: rgba(220,38,38,0.10); border: 1px solid rgba(220,38,38,0.30); color: var(--danger,#dc2626); font-weight: 700;">
+                                <%= t("finance.daily_reconciliations.show.sections.electronic.type_refund") %>
+                              </span>
+                            <% else %>
+                              <span class="badge badge-neutral" style="font-size: 10px;">
+                                <%= t("finance.daily_reconciliations.show.sections.electronic.type_sale") %>
+                              </span>
+                            <% end %>
+                          </td>
                           <td><%= txn.transaction_time&.strftime("%H:%M:%S") || "—" %></td>
-                          <td class="text-end" style="font-variant-numeric: tabular-nums;"><%= format_currency(txn.amount) %></td>
+                          <td class="text-end" style="font-variant-numeric: tabular-nums; <%= 'color: var(--danger,#dc2626); font-weight: 600;' if txn.refund? %>">
+                            <%= format_currency(txn.signed_amount) %>
+                          </td>
                         </tr>
                       <% end %>
                     </tbody>
                   </table>
                 </div>
               <% end %>
+
+              <%# ── WorkPulse Refunds (TillRefund) — traceability back to the
+                  actual independent refund records behind this payment
+                  method's Refunds figure above. Only rendered when at least
+                  one exists; never invents a row. ── %>
+              <% if pm_refunds.any? %>
+                <p style="font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: var(--space-4) 0 var(--space-2);">
+                  <%= t("finance.daily_reconciliations.show.sections.electronic.workpulse_refunds_heading") %>
+                </p>
+                <div class="recon-table-scroll">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th><%= t("finance.daily_reconciliations.show.sections.electronic.col_time") %></th>
+                        <th><%= t("finance.daily_reconciliations.show.sections.electronic.col_processed_by") %></th>
+                        <th><%= t("finance.daily_reconciliations.show.sections.electronic.col_notes") %></th>
+                        <th class="text-end"><%= t("finance.daily_reconciliations.show.sections.electronic.col_amount") %></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% pm_refunds.each do |refund| %>
+                        <tr>
+                          <td><%= l(refund.refunded_at, format: :long) %></td>
+                          <td><%= refund.processed_by.full_name %></td>
+                          <td style="color: var(--text-2); font-style: italic;"><%= refund.notes.presence || "—" %></td>
+                          <td class="text-end" style="font-variant-numeric: tabular-nums; color: var(--danger,#dc2626); font-weight: 600;">
+                            − <%= format_currency(refund.amount) %>
+                          </td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              <% end %>
+
             </div>
           </div>
         </div>
       <% end %>
 
       <%# ── Grand Total — always a plain row, never collapsible. ── %>
-      <div style="display: grid; grid-template-columns: 1fr repeat(3, minmax(100px, 150px)); padding: var(--space-4) var(--space-5); background: var(--surface-2); align-items: center; min-width: 520px;">
+      <div class="session-totals-table__row" style="padding: var(--dr-total-row-py) var(--space-5); background: var(--surface-2); align-items: center;">
         <span style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1);"><%= t("finance.sales_imports.verification.grand_total") %></span>
-        <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(session_totals_grand_total[:workpulse_total]) %></span>
-        <span style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
+        <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_gross_sales") %>" style="font-size: var(--text-sm); color: var(--text-2); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(session_totals_grand_total[:workpulse_gross]) %></span>
+        <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_refunds") %>" style="font-size: var(--text-sm); text-align: end; font-variant-numeric: tabular-nums; color: <%= session_totals_grand_total[:workpulse_refund].zero? ? 'var(--text-3)' : 'var(--danger,#dc2626)' %>;">
+          <%= session_totals_grand_total[:workpulse_refund].zero? ? "—" : "− #{format_currency(session_totals_grand_total[:workpulse_refund])}" %>
+        </span>
+        <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_workpulse_total") %>" style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;"><%= format_currency(session_totals_grand_total[:workpulse_total]) %></span>
+        <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_sales_total") %>" style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); text-align: end; font-variant-numeric: tabular-nums;">
           <%= session_totals_grand_total[:sales_total] ? format_currency(session_totals_grand_total[:sales_total]) : "—" %>
         </span>
-        <span style="font-size: var(--text-base); font-weight: 700; text-align: end; font-variant-numeric: tabular-nums; color: <%= (session_totals_grand_total[:difference].nil? || session_totals_grand_total[:difference].abs < 0.01) ? 'var(--text-3)' : 'var(--warning)' %>;">
+        <span data-label="<%= t("finance.daily_reconciliations.show.sections.electronic.col_difference") %>" style="font-size: var(--text-sm); font-weight: 700; text-align: end; font-variant-numeric: tabular-nums; color: <%= (session_totals_grand_total[:difference].nil? || session_totals_grand_total[:difference].abs < 0.01) ? 'var(--text-3)' : 'var(--warning)' %>;">
           <%= (session_totals_grand_total[:difference].nil? || session_totals_grand_total[:difference].abs < 0.01) ? "—" : format_currency(session_totals_grand_total[:difference]) %>
         </span>
       </div>
@@ -157,7 +249,7 @@
 </section>
 
 <%# ── Employee Breakdown — its own independent accordion ("Sales Verification
-    Summary"), replacing the old standalone "Cashier Custody Summary" section.
+    Summary"), replacing the old standalone "Cashier Custody Summary" card.
     Rendered as a sibling of, not nested inside, the Sales Verification
     section above — see _employee_summary.html.erb for its own accordion
     wrapper (id="sales-verification-summary"). ── %>

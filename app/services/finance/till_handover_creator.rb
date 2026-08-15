@@ -83,11 +83,21 @@ module Finance
     # handover's operational amounts. Shared by close_day! and
     # Finance::DayCloseEditor so there is a single place that computes
     # Branch Totals from a closing handover.
+    #
+    # Independent TillRefund records (Finance::TillRefundCreator — refunds
+    # recorded without a handover, any time during the open day) are folded
+    # in here, additively, on top of whatever refund_amount the closing
+    # handover itself carries. This is the ONE place standalone refunds enter
+    # Branch Totals, and it always recomputes from scratch (never accumulates
+    # across calls), so re-running this — via a later DayCloseEditor edit, or
+    # a second self-deposit correction — never double-counts a refund.
     def self.sync_session_amounts!(daily_reconciliation, handover)
+      standalone_refunds = daily_reconciliation.refunds_by_payment_method
+
       handover.effective_operational_amounts.each do |ha|
         daily_reconciliation.session_amounts.upsert_by_payment_method(ha[:payment_method],
           collected_amount: ha[:collected_amount],
-          refund_amount:    ha[:refund_amount])
+          refund_amount:    ha[:refund_amount] + (standalone_refunds[ha[:payment_method_id]] || 0))
       end
     end
 

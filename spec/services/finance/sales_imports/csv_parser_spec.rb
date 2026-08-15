@@ -74,7 +74,7 @@ RSpec.describe Finance::SalesImports::CsvParser do
 
       expected_keys = %w[row transaction_date transaction_time branch_name cashier_name
                          payment_method_name amount reference_number
-                         transaction_id sale_number raw_data valid errors]
+                         transaction_id sale_number transaction_type raw_data valid errors]
       all_rows.each do |row|
         expect(row.keys).to match_array(expected_keys)
       end
@@ -119,6 +119,63 @@ RSpec.describe Finance::SalesImports::CsvParser do
       row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
 
       expect(row["errors"]).to be_empty
+    end
+  end
+
+  # ── transaction_type (refund identification) ─────────────────────────────── #
+
+  describe "transaction_type detection" do
+    let(:type_mapping) { required_mapping.merge("transaction_type" => "Type") }
+
+    def make_csv_with_type(rows)
+      require "csv"
+      headers = %w[Date Branch Cashier Method Amount Type]
+      CSV.generate do |csv|
+        csv << headers
+        rows.each { |r| csv << headers.map { |h| r[h] } }
+      end
+    end
+
+    it "defaults to sale when transaction_type is not mapped at all" do
+      csv = make_csv([ VALID_ROW ])
+      row = described_class.parse(csv, column_mapping: required_mapping).valid_rows.first
+
+      expect(row["transaction_type"]).to eq("sale")
+    end
+
+    it "defaults to sale when the mapped column is blank" do
+      csv = make_csv_with_type([ VALID_ROW.merge("Type" => "") ])
+      row = described_class.parse(csv, column_mapping: type_mapping).valid_rows.first
+
+      expect(row["transaction_type"]).to eq("sale")
+    end
+
+    it "is 'sale' for an explicit Sale value" do
+      csv = make_csv_with_type([ VALID_ROW.merge("Type" => "Sale") ])
+      row = described_class.parse(csv, column_mapping: type_mapping).valid_rows.first
+
+      expect(row["transaction_type"]).to eq("sale")
+    end
+
+    it "is 'refund' for a Refund value" do
+      csv = make_csv_with_type([ VALID_ROW.merge("Type" => "Refund") ])
+      row = described_class.parse(csv, column_mapping: type_mapping).valid_rows.first
+
+      expect(row["transaction_type"]).to eq("refund")
+    end
+
+    it "is 'refund' for a Return value (case-insensitive)" do
+      csv = make_csv_with_type([ VALID_ROW.merge("Type" => "return") ])
+      row = described_class.parse(csv, column_mapping: type_mapping).valid_rows.first
+
+      expect(row["transaction_type"]).to eq("refund")
+    end
+
+    it "amount is still validated as a positive magnitude for a refund row — refunds are not encoded as negative amounts" do
+      csv = make_csv_with_type([ VALID_ROW.merge("Type" => "Refund", "Amount" => "-181.00") ])
+      row = described_class.parse(csv, column_mapping: type_mapping).invalid_rows.first
+
+      expect(row["errors"]).to include(match(/greater than zero/))
     end
   end
 

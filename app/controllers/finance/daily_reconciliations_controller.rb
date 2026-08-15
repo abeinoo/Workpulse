@@ -431,6 +431,16 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                                         .order("payment_methods.position")
     @total_deposited   = @reconciliation.total_deposited
 
+    # Independent refunds — never tied to a TillHandover. Loaded here (not
+    # inside build_timeline_events) so the timeline builder stays query-free.
+    @till_refunds = @reconciliation.till_refunds
+                                   .includes(:payment_method, :processed_by)
+                                   .order(:refunded_at)
+    @total_refunds = @reconciliation.total_refunds
+    # Traceability: lets the Session Totals table link the refund figure for a
+    # payment method back to the individual TillRefund records behind it.
+    @till_refunds_by_payment_method = @till_refunds.group_by(&:payment_method_id)
+
     @i_am_depositor = @session&.depositor_id == current_user.id
     @pending_handover_for_me   = @reconciliation.till_handovers.pending.find_by(to_user_id: current_user.id)
     @pending_outgoing_handover = @reconciliation.till_handovers.pending
@@ -624,14 +634,34 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         @pos_verification_unmatched_sales_rows   = build_pos_verification_unmatched_sales_rows(@pos_verification)
       end
 
+      # Gross/Refund/Net per payment method — refund? (transaction_type) is the
+      # sole source of truth for which imported rows are refunds; amount itself
+      # always stays a positive magnitude (see SalesTransaction#signed_amount).
+      # Net (gross - refund) is what every downstream comparison against
+      # WorkPulse's own totals must use, so refunds are never double-counted.
       @sales_totals_by_method  = @sales_transactions
                                  .group_by(&sales_method_key)
-                                 .transform_values { |txns| txns.sum(&:amount) }
+                                 .transform_values { |txns|
+                                   sales, refunds = txns.partition(&:sale?)
+                                   gross  = sales.sum(&:amount)
+                                   refund = refunds.sum(&:amount)
+                                   { gross: gross, refund: refund, net: gross - refund }
+                                 }
+      # Same Gross/Refund/Net shape as @sales_totals_by_method, scoped per
+      # cashier — each SalesTransaction row (sale or refund) already carries
+      # its own cashier_name from the import, so a refund performed by a
+      # different employee than the original sale is naturally attributed to
+      # whoever the source data says processed it, with no extra lookup.
       @sales_totals_by_cashier = @sales_transactions
                                  .group_by(&:cashier_name)
                                  .transform_values { |txns|
                                    txns.group_by(&sales_method_key)
-                                       .transform_values { |t| t.sum(&:amount) }
+                                       .transform_values { |t|
+                                         sales, refunds = t.partition(&:sale?)
+                                         gross  = sales.sum(&:amount)
+                                         refund = refunds.sum(&:amount)
+                                         { gross: gross, refund: refund, net: gross - refund }
+                                       }
                                  }
       @latest_sales_import = current_user.business.sales_imports
                                        .where(id: @sales_transactions.map(&:sales_import_id).uniq)
@@ -645,10 +675,20 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                                        .select(&:active)
                                        .sort_by { |pm| [ pm.position, pm.name ] }
       amounts_by_pm_id = @amounts_by_method.index_by(&:payment_method_id)
+      # WorkPulse's own Gross/Refund/Net per payment method, straight off
+      # TillSessionAmount — the same record Finance::TillHandoverCreator.sync_session_amounts!
+      # writes, which already folds independent TillRefund amounts into
+      # refund_amount exactly once (see DailyReconciliation#refunds_by_payment_method).
+      # No second refund calculation — this only exposes the three components
+      # of a figure that was previously shown net-only.
+      workpulse_breakdown = ->(pm) {
+        sa = amounts_by_pm_id[pm.id]
+        { collected: sa&.collected_amount || 0, refund: sa&.refund_amount || 0, net: sa&.net_amount || 0 }
+      }
       @electronic_totals_by_method = @electronic_payment_methods.each_with_object({}) do |pm, h|
-        h[pm.id] = amounts_by_pm_id[pm.id]&.net_amount || 0
+        h[pm.id] = workpulse_breakdown.call(pm)
       end
-      @electronic_total = @electronic_totals_by_method.values.sum
+      @electronic_total = @electronic_totals_by_method.values.sum { |v| v[:net] }
 
       # Session Totals table: every configured payment method (cash included) as
       # a daily sales overview, distinct from the reconciliation table below
@@ -660,7 +700,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                                             .select(&:active)
                                             .sort_by { |pm| [ pm.position, pm.name ] }
         @all_payment_method_totals = @all_payment_methods_for_cards.each_with_object({}) do |pm, h|
-          h[pm.id] = amounts_by_pm_id[pm.id]&.net_amount || 0
+          h[pm.id] = workpulse_breakdown.call(pm)
         end
       end
 
@@ -1070,6 +1110,10 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       events << { type: :day_close_edited, time: log.created_at, actor: log.actor, data: log }
     end
 
+    (@till_refunds || []).each do |r|
+      events << { type: :till_refund_recorded, time: r.refunded_at, actor: r.processed_by, data: r }
+    end
+
     review_type_map = {
       "review_completed"      => :review_completed,
       "review_cancelled"      => :review_cancelled,
@@ -1166,22 +1210,45 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # fallback as the summary figures above) plus a Grand Total row. Reuses the
   # already-computed per-method totals and sales_totals_by_method — no new math,
   # just a join/sum over data built earlier in #show.
+  # Gross/Refund/Net rows for the Session Totals table, on both sides:
+  #   - workpulse_* comes from TillSessionAmount (via @all_payment_method_totals /
+  #     @electronic_totals_by_method), which already folds independent
+  #     TillRefund amounts in exactly once (sync_session_amounts!).
+  #   - sales_* comes from @sales_totals_by_method, itself built from each
+  #     SalesTransaction#refund? (transaction_type) — never guessed, never
+  #     defaulted to cash.
+  # difference/comparison always uses the two NET figures, per payment method,
+  # so refunds are represented (not hidden) but never double-subtracted.
   def build_session_totals_rows
-    methods    = @all_payment_methods_for_cards || @electronic_payment_methods
+    methods      = @all_payment_methods_for_cards || @electronic_payment_methods
     totals_by_id = @all_payment_method_totals || @electronic_totals_by_method
     has_sales_data = @sales_totals_by_method.any?
+    zero_breakdown = { gross: 0.to_d, refund: 0.to_d, net: 0.to_d }
 
     rows = methods.map do |pm|
-      workpulse_total = totals_by_id[pm.id]
-      sales_total       = has_sales_data ? @sales_totals_by_method[pm.id].to_d : nil
-      difference      = sales_total ? (workpulse_total.to_d - sales_total) : nil
-      { payment_method: pm, workpulse_total: workpulse_total, sales_total: sales_total, difference: difference }
+      workpulse = totals_by_id[pm.id] || { collected: 0.to_d, refund: 0.to_d, net: 0.to_d }
+      sales     = has_sales_data ? (@sales_totals_by_method[pm.id] || zero_breakdown) : nil
+      difference = sales ? (workpulse[:net].to_d - sales[:net].to_d) : nil
+      {
+        payment_method:   pm,
+        workpulse_gross:  workpulse[:collected],
+        workpulse_refund: workpulse[:refund],
+        workpulse_total:  workpulse[:net],
+        sales_gross:      sales&.[](:gross),
+        sales_refund:     sales&.[](:refund),
+        sales_total:      sales&.[](:net),
+        difference:       difference
+      }
     end
 
     grand_total = {
-      workpulse_total: rows.sum { |r| r[:workpulse_total] },
-      sales_total:       has_sales_data ? rows.sum { |r| r[:sales_total].to_d } : nil,
-      difference:      has_sales_data ? rows.sum { |r| r[:difference].to_d } : nil
+      workpulse_gross:  rows.sum { |r| r[:workpulse_gross] },
+      workpulse_refund: rows.sum { |r| r[:workpulse_refund] },
+      workpulse_total:  rows.sum { |r| r[:workpulse_total] },
+      sales_gross:      has_sales_data ? rows.sum { |r| r[:sales_gross].to_d } : nil,
+      sales_refund:     has_sales_data ? rows.sum { |r| r[:sales_refund].to_d } : nil,
+      sales_total:      has_sales_data ? rows.sum { |r| r[:sales_total].to_d } : nil,
+      difference:       has_sales_data ? rows.sum { |r| r[:difference].to_d } : nil
     }
 
     [ rows, grand_total ]
@@ -1381,6 +1448,16 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     # Financial headline figures (permission-gated).
     @total_sales     = @can_view_session_totals ? @amounts_by_method.sum(&:net_amount) : nil
     @expected_cash   = @can_view_session_totals ? @reconciliation.expected_cash_deposit : nil
+    # Gross/Refund decomposition of @expected_cash, for display only ("Gross
+    # Cash Sales" / "Cash Refunds" / "Expected Cash") — same @amounts_by_method
+    # rows already loaded above, not a second query or a second calculation.
+    # refund_amount here already includes any independent TillRefund, folded
+    # in by Finance::TillHandoverCreator.sync_session_amounts! at close.
+    if @can_view_session_totals
+      cash_amounts        = @amounts_by_method.select { |sa| @cash_payment_method_ids.include?(sa.payment_method_id) }
+      @expected_cash_gross   = cash_amounts.sum(&:collected_amount)
+      @expected_cash_refunds = cash_amounts.sum(&:refund_amount)
+    end
     # Open ATM Deposit Disputes (BankDispute kind: atm_deposit_failure) are cash
     # the employee has already accounted for outside the ordinary Deposit flow —
     # see DailyReconciliation#open_atm_dispute_amount/#pending_deposit_amount,
@@ -1396,7 +1473,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     # here would show a permanent false "difference" equal to the day's cash sales.
     if @can_view_sales_transactions_verification && @sales_totals_by_method&.any?
       @sales_entered_total  = @electronic_total
-      @sales_imported_total = @sales_totals_by_method.values.sum
+      @sales_imported_total = @sales_totals_by_method.values.sum { |v| v[:net] }
       @sales_difference     = @sales_entered_total - @sales_imported_total
     end
 

@@ -34,6 +34,14 @@ class DailyReconciliation < ApplicationRecord
                            inverse_of:  :daily_reconciliation,
                            dependent:   :restrict_with_error
 
+  # Independent refund/return events — never tied to a TillHandover. Recorded
+  # the moment a refund happens, regardless of custody state; the till stays
+  # open and no handover is created or required. Folded into session_amounts
+  # exactly once, at day close, by Finance::TillHandoverCreator.sync_session_amounts!.
+  has_many :till_refunds, foreign_key: :daily_reconciliation_id,
+                          inverse_of:  :daily_reconciliation,
+                          dependent:   :restrict_with_error
+
   # Official per-payment-method totals snapshot — written at day close.
   # Accounting data; owned by DR, not TillSession.
   has_many :session_amounts, class_name: "TillSessionAmount", dependent: :destroy
@@ -107,6 +115,12 @@ class DailyReconciliation < ApplicationRecord
 
   def active_deposits = till_deposits.active
   def total_deposited = till_deposits.active.sum(:amount)
+
+  # Live running total of independent refunds recorded against this day so
+  # far — available immediately, regardless of custody/handover state.
+  def total_refunds = till_refunds.sum(:amount)
+
+  def refunds_by_payment_method = till_refunds.group(:payment_method_id).sum(:amount)
 
   # Sum of cash-like session amounts — the target the depositor is responsible for.
   def expected_cash_deposit

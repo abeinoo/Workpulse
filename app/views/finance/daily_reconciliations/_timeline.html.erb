@@ -34,7 +34,8 @@
         stage_defs = [
           { key: :opening_float, types: %i[opening_float_received opening_float_superseded opening_float_corrected] },
           { key: :during_day,    types: %i[handover_created handover_accepted handover_cancelled handover_rejected
-                                           handover_reversed handover_reversal_applied handover_adjusted] },
+                                           handover_reversed handover_reversal_applied handover_adjusted
+                                           till_refund_recorded] },
           { key: :end_of_day,    types: %i[day_closed opening_float_prepared opening_float_left deposit_assigned deposit_cancelled
                                            review_completed review_cancelled review_auto_cancelled] },
           { key: :deposit,       types: %i[deposit_accepted deposit_recorded deposit_voided deposit_review_overridden
@@ -60,6 +61,11 @@
             dot: "var(--success,#16a34a)", lbl: "label_day_closed",
             lc: "var(--success,#16a34a)", lb: "rgba(var(--success-rgb,22,163,74),0.10)",
             icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25z"/>',
+          },
+          till_refund_recorded: {
+            dot: "var(--danger,#dc2626)", lbl: "label_till_refund",
+            lc: "var(--danger,#dc2626)", lb: "rgba(220,38,38,0.10)",
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25 4.5 9.75m0 0L9 5.25m-4.5 4.5H15a4.5 4.5 0 0 1 0 9h-3"/>',
           },
           deposit_assigned:  {
             dot: "var(--warning,#ca8a04)", lbl: "label_deposit_responsibility",
@@ -216,7 +222,7 @@
       %>
       <section id="audit-log" class="recon-section" data-controller="accordion" data-accordion-key-value="audit-log">
         <%# Section header with description %>
-        <div class="dashboard-section__header recon-accordion__header" style="margin-bottom: var(--space-4);">
+        <div class="dashboard-section__header recon-accordion__header">
           <div class="recon-accordion__trigger" data-accordion-target="trigger" data-action="click->accordion#toggle keydown.enter->accordion#toggle keydown.space->accordion#toggle" role="button" tabindex="0" aria-expanded="false">
             <span class="recon-accordion__chevron" data-accordion-target="icon" aria-hidden="true">▶</span>
             <div>
@@ -1360,6 +1366,40 @@
                               </div>
                             <% end %>
                           </div>
+                        </div>
+                      <% end %>
+                    </div>
+
+                  <% when :till_refund_recorded %>
+                    <% r = item[:data] %>
+                    <p style="font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0 0 var(--space-1);">
+                      <%= t("finance.daily_reconciliations.show.timeline.till_refund_recorded",
+                            actor: item[:actor]&.full_name || "—") %>
+                    </p>
+                    <span style="font-size: 11px; background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.20); border-radius: var(--radius-sm); padding: 2px 8px; color: var(--danger,#dc2626); font-weight: 600;">
+                      <%= number_to_currency(r.amount, **cur_fmt) %>
+                      <% if r.payment_method %>· <%= r.payment_method.display_name %><% end %>
+                    </span>
+
+                    <div data-timeline-event-target="detail" hidden
+                         style="margin-top: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border);">
+                      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-3);">
+                        <%= t("finance.daily_reconciliations.show.timeline.detail.ref_till_refund", id: r.id) %>
+                      </div>
+                      <div style="<%= dl_row %>">
+                        <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_amount") %></span>
+                        <span style="<%= dl_val %>; color: var(--danger,#dc2626);"><%= number_to_currency(r.amount, **cur_fmt) %></span>
+                      </div>
+                      <% if r.payment_method %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_payment_method") %></span>
+                          <span style="<%= dl_val %>"><%= r.payment_method.display_name %></span>
+                        </div>
+                      <% end %>
+                      <% if r.notes.present? %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_notes") %></span>
+                          <span style="<%= dl_val %>; font-style: italic;"><%= r.notes %></span>
                         </div>
                       <% end %>
                     </div>

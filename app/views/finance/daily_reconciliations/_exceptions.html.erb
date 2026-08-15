@@ -5,8 +5,8 @@
     (existing routes); calculated-difference rows link to the relevant section.
     Built in the controller (build_exceptions). %>
 
-<section id="exceptions" class="recon-section" style="margin-bottom: var(--space-6);">
-  <div class="dashboard-section__header" style="margin-bottom: var(--space-4);">
+<section id="exceptions" class="recon-section">
+  <div class="dashboard-section__header" style="margin-bottom: var(--dr-header-gap);">
     <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.exceptions.title") %></h2>
     <% if @exceptions.any? %>
       <span class="badge badge-warning"><%= @exceptions.size %></span>
