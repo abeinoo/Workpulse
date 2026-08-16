@@ -38,6 +38,19 @@ class ExpensePolicy < ApplicationPolicy
                  (user.owner? || !own_expense?)
   def reject?  = approve?
 
+  # Creators cancel their own draft/pending/approved expense. Approvers can
+  # also cancel an already-approved expense (e.g. to unwind a mistaken
+  # approval before it's reflected elsewhere). System-generated expenses
+  # (recurring / payroll-sourced) are never requester-cancellable — same
+  # restriction as update?/destroy?.
+  def cancel?
+    return false if record.system_generated?
+    return false unless same_business? && record.status.in?(%w[draft pending_approval approved])
+    return true  if own_expense? && !record.approved?
+
+    can?(:approve_expenses)
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.none unless user.can?(:view_expenses) || user.can?(:create_expenses)

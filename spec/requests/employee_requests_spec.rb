@@ -409,6 +409,59 @@ RSpec.describe "EmployeeRequests", type: :request do
   end
 
   # ──────────────────────────────────────────────────────────────
+  # Requester self-service cancel
+  # ──────────────────────────────────────────────────────────────
+  describe "PATCH /employee_requests/:id/cancel" do
+    it "lets the requester cancel their own pending request" do
+      request = create(:employee_request, :early_leave, user: employee, status: :pending)
+
+      patch cancel_employee_request_path(request), params: { cancellation_reason: "No longer needed" }
+
+      expect(response).to redirect_to(employee_request_path(request))
+      request.reload
+      expect(request.status).to eq("cancelled")
+      expect(request.cancelled_by).to eq(employee)
+      expect(request.cancellation_reason).to eq("No longer needed")
+    end
+
+    it "does NOT let a different employee cancel someone else's pending request" do
+      viewer_role = create(:permission_role, business: business, permissions: %w[view_requests],
+                           permission_scopes: { "view_requests" => "business_wide" })
+      other = create(:user, business: business, permission_role: viewer_role)
+      sign_in other
+      request = create(:employee_request, :early_leave, user: employee, status: :pending)
+
+      patch cancel_employee_request_path(request), params: { cancellation_reason: "x" }
+
+      expect(response).to redirect_to(root_path)
+      expect(request.reload.status).to eq("pending")
+    end
+
+    it "does NOT let the requester cancel their own rejected request" do
+      request = create(:employee_request, :early_leave, user: employee, status: :rejected,
+                       reviewed_at: Time.current)
+
+      patch cancel_employee_request_path(request), params: { cancellation_reason: "x" }
+
+      expect(response).to redirect_to(root_path)
+      expect(request.reload.status).to eq("rejected")
+    end
+
+    it "lets an approver cancel an already-approved request" do
+      role = create(:permission_role, business: business, permissions: %w[view_requests approve_requests],
+                    permission_scopes: { "view_requests" => "business_wide" })
+      manager = create(:user, business: business, permission_role: role)
+      sign_in manager
+      request = create(:employee_request, :early_leave, user: employee, status: :approved,
+                       reviewed_at: Time.current)
+
+      patch cancel_employee_request_path(request), params: { cancellation_reason: "Approved by mistake" }
+
+      expect(request.reload.status).to eq("cancelled")
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────
   # Bulk "Mark Selected as Paid"
   # ──────────────────────────────────────────────────────────────
   describe "PATCH /employee_requests/bulk_pay" do

@@ -1,4 +1,18 @@
-<%# locals: document, void_path, can_void %>
+<%#
+  locals: document, void_path, can_void
+  optional: panel_id, action_label, confirm_dialog, reason_label, reason_placeholder, param_name
+  (defaults render the manager-facing "Void" panel; the requester-facing
+  "Cancel Request" panel — same voided_at/voided_by/void_reason fields under
+  the hood, see GoodsReceiptPolicy#cancel? — overrides the wording only.)
+%>
+<%
+  panel_id           = local_assigns.fetch(:panel_id, "void-panel")
+  action_label       = local_assigns.fetch(:action_label, t("inventory.void.action"))
+  confirm_dialog     = local_assigns.fetch(:confirm_dialog, t("inventory.void.confirm_dialog"))
+  reason_label       = local_assigns.fetch(:reason_label, t("inventory.void.reason_label"))
+  reason_placeholder = local_assigns.fetch(:reason_placeholder, t("inventory.void.reason_placeholder"))
+  param_name         = local_assigns.fetch(:param_name, :void_reason)
+%>
 <% if document.voided? %>
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5); border-inline-start: 3px solid var(--color-danger, #dc2626);">
     <div class="flex items-center" style="gap: var(--space-2); margin-bottom: var(--space-3);">
@@ -20,20 +34,20 @@
     </dl>
   </div>
 <% elsif can_void %>
-  <details id="void-panel" class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
+  <details id="<%= panel_id %>" class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
     <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer;">
-      <%= t("inventory.void.action") %>
+      <%= action_label %>
     </summary>
     <%= form_with url: void_path, method: :patch, class: "mt-4" do |f| %>
       <div class="form-group">
-        <label class="form-label" for="void_reason"><%= t("inventory.void.reason_label") %></label>
-        <textarea id="void_reason" name="void_reason" rows="2" class="form-control"
-                  required placeholder="<%= t('inventory.void.reason_placeholder') %>"></textarea>
+        <label class="form-label" for="<%= param_name %>"><%= reason_label %></label>
+        <textarea id="<%= param_name %>" name="<%= param_name %>" rows="2" class="form-control"
+                  required placeholder="<%= reason_placeholder %>"></textarea>
         <p class="form-hint"><%= t("inventory.void.reason_hint") %></p>
       </div>
-      <%= f.submit t("inventory.void.confirm"),
+      <%= f.submit action_label,
             class: "btn btn-danger btn-sm",
-            data: { turbo_confirm: t("inventory.void.confirm_dialog") } %>
+            data: { turbo_confirm: confirm_dialog } %>
     <% end %>
   </details>
 <% end %>

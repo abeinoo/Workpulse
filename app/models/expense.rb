@@ -8,6 +8,7 @@ class Expense < ApplicationRecord
   belongs_to :expense_type,     optional: true
   belongs_to :created_by,  class_name: "User", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
+  belongs_to :cancelled_by, class_name: "User", optional: true
   belongs_to :source_recurring_expense, class_name: "RecurringExpense", optional: true
   belongs_to :source_pos_import, class_name: "PosImport", optional: true, inverse_of: :generated_expenses
   belongs_to :source_payroll_period, class_name: "PayrollPeriod", optional: true
@@ -24,9 +25,10 @@ class Expense < ApplicationRecord
                                 reject_if: ->(attrs) { attrs[:branch_id].blank? }
 
   # draft → pending_approval → approved  (or → rejected)
-  STATUSES = %w[draft pending_approval approved rejected].freeze
+  # draft | pending_approval | approved → cancelled (requester/manager cancel)
+  STATUSES = %w[draft pending_approval approved rejected cancelled].freeze
   enum :status, { draft: "draft", pending_approval: "pending_approval",
-                  approved: "approved", rejected: "rejected" },
+                  approved: "approved", rejected: "rejected", cancelled: "cancelled" },
        default: "draft"
 
   # A branch is always required: either a specific branch, or the "shared" option

@@ -84,6 +84,13 @@ class Finance::ExpensesController < Finance::BaseController
     transition_redirect(result, :rejected)
   end
 
+  def cancel
+    @expense = find_expense
+    authorize @expense, :cancel?
+    result = approval.cancel!(reason: params[:cancellation_reason])
+    transition_redirect(result, :cancelled)
+  end
+
   private
 
   def find_expense

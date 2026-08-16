@@ -22,6 +22,16 @@ class GoodsReceiptPolicy < ApplicationPolicy
   def void?    = (can?(:manage_inventory) || can?(:void_goods_receipts)) && not_voided? &&
                  (!record.is_a?(GoodsReceipt) || record.confirmed? || record.approval_approved?)
 
+  # Requester self-service cancel — only while nothing has been posted yet
+  # (no stock movement, no settlement/custody deduction: those only happen at
+  # approval/confirmation). Once approved or confirmed, only #void? applies —
+  # that path reverses real financial/inventory effects and is manager-gated.
+  # Same permission as create/edit, since this policy has no per-user
+  # ownership concept (draft receipts are editable by anyone with
+  # create_goods_receipts, not just their creator).
+  def cancel?  = (can?(:manage_inventory) || can?(:create_goods_receipts)) && not_voided? &&
+                 (!record.is_a?(GoodsReceipt) || %w[draft pending_approval].include?(record.approval_status))
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       for_accessible_warehouses(scope.for_business(user.business))

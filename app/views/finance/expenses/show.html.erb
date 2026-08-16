@@ -8,7 +8,7 @@
 
   <%# ── Summary card ────────────────────────────────────────────────────────── %>
   <div class="card" style="margin-bottom: var(--space-5);"
-       <%= "data-controller='collapsible'".html_safe if policy(@expense).reject? %>>
+       <%= "data-controller='collapsible'".html_safe if policy(@expense).reject? || policy(@expense).cancel? %>>
 
     <div class="card-header">
       <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
@@ -48,6 +48,14 @@
                 class: "btn btn-ghost btn-sm text-danger",
                 form: { style: "display:inline" },
                 data: { turbo_confirm: t("finance.expenses.confirm_delete") } %>
+        <% end %>
+        <% if policy(@expense).cancel? %>
+          <button type="button" class="btn btn-danger btn-sm"
+                  data-collapsible-target="trigger"
+                  data-action="click->collapsible#toggle"
+                  aria-expanded="false">
+            <%= t("finance.expenses.actions.cancel") %>
+          </button>
         <% end %>
       </div>
     </div>
@@ -111,6 +119,23 @@
           <dd style="color: var(--danger);"><%= @expense.rejection_reason %></dd>
         </div>
       <% end %>
+      <% if @expense.cancelled? %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.expenses.cancelled_at") %></dt>
+          <dd>
+            <%= l(@expense.cancelled_at, format: :short) if @expense.cancelled_at %>
+            <% if @expense.cancelled_by %>
+              <%= t("finance.expenses.by_actor", name: @expense.cancelled_by.full_name) %>
+            <% end %>
+          </dd>
+        </div>
+        <% if @expense.cancellation_reason.present? %>
+          <div class="detail-list__row">
+            <dt><%= t("finance.expenses.cancellation_reason") %></dt>
+            <dd style="color: var(--danger);"><%= @expense.cancellation_reason %></dd>
+          </div>
+        <% end %>
+      <% end %>
     </dl>
 
     <% if policy(@expense).reject? %>
@@ -124,6 +149,24 @@
                 style: "flex: 1; min-width: 200px;",
                 required: true %>
           <%= submit_tag t("finance.expenses.actions.reject"), class: "btn btn-danger btn-sm" %>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-action="click->collapsible#toggle">
+            <%= t("common.cancel") %>
+          </button>
+        <% end %>
+      </div>
+    <% end %>
+    <% if policy(@expense).cancel? %>
+      <div data-collapsible-target="content" hidden
+           style="padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); background: var(--navy-700);">
+        <%= form_with url: cancel_finance_expense_path(@expense), method: :patch,
+              style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+          <%= text_field_tag :cancellation_reason, nil,
+                placeholder: t("finance.expenses.cancellation_placeholder"),
+                class: "form-control form-control--sm",
+                style: "flex: 1; min-width: 200px;",
+                required: true %>
+          <%= submit_tag t("finance.expenses.actions.cancel"), class: "btn btn-danger btn-sm" %>
           <button type="button" class="btn btn-ghost btn-sm"
                   data-action="click->collapsible#toggle">
             <%= t("common.cancel") %>

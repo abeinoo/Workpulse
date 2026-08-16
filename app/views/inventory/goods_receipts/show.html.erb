@@ -77,6 +77,17 @@
           document: @goods_receipt,
           void_path: void_inventory_goods_receipt_path(@goods_receipt),
           can_void: policy(@goods_receipt).void? %>
+  <% elsif policy(@goods_receipt).cancel? %>
+    <%= render "inventory/shared/void_panel",
+          document: @goods_receipt,
+          void_path: cancel_inventory_goods_receipt_path(@goods_receipt),
+          can_void: true,
+          panel_id: "cancel-panel",
+          action_label: t("inventory.goods_receipts.cancel_action"),
+          confirm_dialog: t("inventory.goods_receipts.cancel_confirm_dialog"),
+          reason_label: t("inventory.goods_receipts.cancellation_reason"),
+          reason_placeholder: t("inventory.goods_receipts.cancellation_placeholder"),
+          param_name: :cancellation_reason %>
   <% end %>
 
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">

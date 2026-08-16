@@ -48,7 +48,78 @@ module Finance
       end
     end
 
+    # draft | pending_approval | approved → cancelled
+    #
+    # draft/pending_approval: nothing has been posted yet, so cancellation is a
+    # plain status flip. approved: the custody deduction already moved money
+    # (see #post_balance_deduction), so it must be unwound — a reversing
+    # FinancialSettlement (equal and opposite, original never touched) plus a
+    # reversing CustodyTransaction that restores the account balance, mirroring
+    # Inventory::GoodsReceiptVoider#reverse_settlements!.
+    # Row-locked so a concurrent approve!/cancel! on the same expense can
+    # never both succeed: whichever acquires the lock first commits, the
+    # other reloads fresh state and cleanly fails the status check.
+    def cancel!(reason:)
+      result = nil
+      ActiveRecord::Base.transaction do
+        @expense.lock!
+
+        unless @expense.status.in?(%w[draft pending_approval approved])
+          result = Result.new(ok: false, expense: @expense,
+                              error: I18n.t("finance.expenses.errors.cannot_cancel"))
+          raise ActiveRecord::Rollback
+        end
+
+        prior_status = @expense.status
+        reverse_balance_deduction! if prior_status == "approved"
+
+        @expense.status              = "cancelled"
+        @expense.cancelled_by        = @actor
+        @expense.cancelled_at        = Time.current
+        @expense.cancellation_reason = reason
+        @expense.save!
+
+        log_audit(actor: @actor, auditable: @expense, action: "cancel",
+                  changes: { status: [ prior_status, "cancelled" ] },
+                  metadata: { reason: reason }.compact)
+
+        result = Result.new(ok: true, expense: @expense)
+      end
+      result
+    rescue ActiveRecord::RecordInvalid => e
+      Result.new(ok: false, expense: @expense, error: e.record.errors.full_messages.to_sentence)
+    end
+
     private
+
+    def reverse_balance_deduction!
+      originals = @expense.financial_settlements.to_a
+      return if originals.empty?
+
+      results = FinancialSettlementService.reverse_all(
+        settleable: @expense, actor: @actor,
+        notes: I18n.t("finance.expenses.cancellation_reversal_note", reference: @expense.reference_number)
+      )
+      failed = results.find { |r| !r.ok? }
+      raise ActiveRecord::RecordInvalid, failed.settlement if failed
+
+      originals.each do |settlement|
+        next unless settlement.funding_source.is_a?(CustodyAccount)
+
+        account = settlement.funding_source
+        account.with_lock do
+          account.custody_transactions.create!(
+            business:   account.business,
+            txn_type:   "expense_deduction_reversal",
+            amount:     settlement.amount,
+            expense:    @expense,
+            created_by: @actor,
+            notes:      I18n.t("finance.expenses.cancellation_reversal_note", reference: @expense.reference_number)
+          )
+          account.refresh_balance!
+        end
+      end
+    end
 
     def post_balance_deduction
       return unless @expense.deduct_from_balance?
@@ -94,21 +165,29 @@ module Finance
       Result.new(ok: false, expense: @expense, error: Approvals::SelfApproval.error_message)
     end
 
+    # Row-locked for the same reason as #cancel! — closes the approve!-vs-
+    # cancel! race from this side too.
     def transition(from:, to:, action:, metadata: {})
-      unless @expense.status == from
-        return Result.new(ok: false, expense: @expense,
-                          error: I18n.t("finance.expenses.errors.invalid_transition",
-                                        default: "Invalid status transition."))
-      end
-
+      result = nil
       ActiveRecord::Base.transaction do
+        @expense.lock!
+
+        unless @expense.status == from
+          result = Result.new(ok: false, expense: @expense,
+                              error: I18n.t("finance.expenses.errors.invalid_transition",
+                                            default: "Invalid status transition."))
+          raise ActiveRecord::Rollback
+        end
+
         @expense.status = to
         yield if block_given?
         @expense.save!
         log_audit(actor: @actor, auditable: @expense, action: action,
                   changes: { status: [ from, to ] }, metadata: metadata)
+
+        result = Result.new(ok: true, expense: @expense)
       end
-      Result.new(ok: true, expense: @expense)
+      result
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, expense: @expense, error: e.record.errors.full_messages.to_sentence)
     end

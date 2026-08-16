@@ -23,11 +23,13 @@ class CustodyTransaction < ApplicationRecord
   # Amount stored SIGNED — balance = SUM(amount) over non-voided rows.
   # Positive: top_up, upward adjustment / transfer in.
   # Negative: expense_deduction, downward adjustment / transfer out.
-  TXN_TYPES = %w[top_up expense_deduction transfer adjustment inventory_purchase inventory_purchase_reversal].freeze
+  TXN_TYPES = %w[top_up expense_deduction transfer adjustment inventory_purchase
+                 inventory_purchase_reversal expense_deduction_reversal].freeze
   enum :txn_type, { top_up: "top_up", expense_deduction: "expense_deduction",
                     transfer: "transfer", adjustment: "adjustment",
                     inventory_purchase: "inventory_purchase",
-                    inventory_purchase_reversal: "inventory_purchase_reversal" }
+                    inventory_purchase_reversal: "inventory_purchase_reversal",
+                    expense_deduction_reversal: "expense_deduction_reversal" }
 
   validates :amount, presence: true, numericality: true
   validates :source_type, inclusion: { in: SOURCE_TYPES }, allow_nil: true
@@ -50,7 +52,7 @@ class CustodyTransaction < ApplicationRecord
       errors.add(:amount, :must_be_positive) unless amount.positive?
     when "expense_deduction", "inventory_purchase"
       errors.add(:amount, :must_be_negative) unless amount.negative?
-    when "inventory_purchase_reversal"
+    when "inventory_purchase_reversal", "expense_deduction_reversal"
       errors.add(:amount, :must_be_positive) unless amount.positive?
     when "transfer", "adjustment"
       errors.add(:amount, :must_not_be_zero) if amount.zero?

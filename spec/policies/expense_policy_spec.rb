@@ -92,6 +92,57 @@ RSpec.describe ExpensePolicy, type: :policy do
     end
   end
 
+  describe "#cancel?" do
+    it "lets the creator cancel their own draft or pending expense" do
+      draft = create(:expense, business: business, branch: br1, created_by: manager, deduct_from_balance: false)
+      pending = create(:expense, :pending, business: business, branch: br1, created_by: manager,
+                        deduct_from_balance: false)
+      expect(described_class.new(manager, draft).cancel?).to be true
+      expect(described_class.new(manager, pending).cancel?).to be true
+    end
+
+    it "does NOT let the creator cancel their own already-approved expense without approve_expenses" do
+      role = create(:permission_role, business: business, permissions: %w[view_expenses create_expenses])
+      employee = create(:user, business: business, permission_role: role)
+      approved = create(:expense, :approved, business: business, branch: br1, created_by: employee,
+                         deduct_from_balance: false)
+      expect(described_class.new(employee, approved).cancel?).to be false
+    end
+
+    it "lets a user with approve_expenses cancel an already-approved expense" do
+      approved = create(:expense, :approved, business: business, branch: br1, created_by: manager,
+                         deduct_from_balance: false)
+      expect(described_class.new(owner, approved).cancel?).to be true
+    end
+
+    it "does NOT let another employee cancel someone else's pending expense" do
+      other_role = create(:permission_role, business: business, permissions: %w[view_expenses create_expenses])
+      other = create(:user, business: business, permission_role: other_role)
+      pending = create(:expense, :pending, business: business, branch: br1, created_by: manager,
+                        deduct_from_balance: false)
+      expect(described_class.new(other, pending).cancel?).to be false
+    end
+
+    it "blocks cancellation once rejected or already cancelled" do
+      rejected  = create(:expense, :rejected,  business: business, branch: br1, created_by: manager,
+                          deduct_from_balance: false)
+      cancelled = create(:expense, :cancelled, business: business, branch: br1, created_by: manager,
+                          deduct_from_balance: false)
+      expect(described_class.new(manager, rejected).cancel?).to be false
+      expect(described_class.new(manager, cancelled).cancel?).to be false
+      expect(described_class.new(owner, rejected).cancel?).to be false
+      expect(described_class.new(owner, cancelled).cancel?).to be false
+    end
+
+    it "blocks cancellation of a system-generated expense even for the creator" do
+      recurring = create(:recurring_expense, business: business, branch: br1, expense_category: category)
+      generated = create(:expense, :pending, business: business, branch: br1,
+                          created_by: manager, source_recurring_expense: recurring, deduct_from_balance: false)
+      expect(described_class.new(manager, generated).cancel?).to be false
+      expect(described_class.new(owner, generated).cancel?).to be false
+    end
+  end
+
   describe "Scope (reporting/listing visibility)" do
     it "shows in-scope, own-created, and shared-allocated expenses but hides other branches" do
       in_scope   = create(:expense, business: business, branch: br1)

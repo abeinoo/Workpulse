@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_11_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_15_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -664,6 +664,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_100000) do
     t.bigint "approved_by_id"
     t.bigint "branch_id"
     t.bigint "business_id", null: false
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
     t.boolean "deduct_from_balance", default: true, null: false
@@ -692,6 +695,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_100000) do
     t.index ["business_id", "reference_number"], name: "index_expenses_on_business_id_and_reference_number", unique: true
     t.index ["business_id", "status"], name: "index_expenses_on_business_id_and_status"
     t.index ["business_id"], name: "index_expenses_on_business_id"
+    t.index ["cancelled_by_id"], name: "index_expenses_on_cancelled_by_id"
     t.index ["created_by_id"], name: "index_expenses_on_created_by_id"
     t.index ["expense_category_id"], name: "index_expenses_on_expense_category_id"
     t.index ["expense_type_id"], name: "index_expenses_on_expense_type_id"
@@ -2322,6 +2326,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_100000) do
   add_foreign_key "expenses", "pos_imports", column: "source_pos_import_id"
   add_foreign_key "expenses", "recurring_expenses", column: "source_recurring_expense_id"
   add_foreign_key "expenses", "users", column: "approved_by_id"
+  add_foreign_key "expenses", "users", column: "cancelled_by_id"
   add_foreign_key "expenses", "users", column: "created_by_id"
   add_foreign_key "expenses", "users", column: "voided_by_id"
   add_foreign_key "financial_adjustments", "businesses"

@@ -102,6 +102,22 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     end
   end
 
+  # Requester self-service cancel of a not-yet-approved receipt — nothing has
+  # been posted yet, so this reuses the exact same void machinery as #void
+  # (Inventory::GoodsReceiptVoider), just gated by :cancel? instead of :void?
+  # and labeled "Cancel Request" in the UI. See GoodsReceiptPolicy#cancel?.
+  def cancel
+    @goods_receipt = find_receipt
+    authorize @goods_receipt, :cancel?
+    result = Inventory::GoodsReceiptVoider.new(goods_receipt_id: @goods_receipt.id, actor: current_user, reason: params[:cancellation_reason]).call
+    if result.ok?
+      redirect_to inventory_goods_receipt_path(@goods_receipt), notice: t("inventory.goods_receipts.cancelled")
+    else
+      redirect_to inventory_goods_receipt_path(@goods_receipt),
+                  alert: result.error.presence || @goods_receipt.errors.full_messages.to_sentence.presence || t("inventory.void.failed")
+    end
+  end
+
   private
 
   def find_receipt(includes: [])

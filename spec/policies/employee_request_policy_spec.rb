@@ -132,6 +132,46 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
     end
   end
 
+  describe "cancel?" do
+    it "permits the owner to cancel their own PENDING request" do
+      expect(subject.new(employee, request).cancel?).to be true
+    end
+
+    it "does NOT permit another employee to cancel someone else's pending request" do
+      other = create(:user, business: business)
+      expect(subject.new(other, request).cancel?).to be false
+    end
+
+    it "does NOT permit the owner to cancel their own APPROVED request without approve_requests/pay_advances" do
+      approved = create(:employee_request, :approved, user: employee)
+      expect(subject.new(employee, approved).cancel?).to be false
+    end
+
+    it "permits an approver (approve_requests) to cancel an approved request business-wide" do
+      approved = create(:employee_request, :approved, user: employee)
+      expect(subject.new(manager, approved).cancel?).to be true
+    end
+
+    it "permits a pay_advances holder to cancel an approved request" do
+      accountant = create(:user, :accountant, business: business)
+      approved = create(:employee_request, :approved, user: employee)
+      expect(subject.new(accountant, approved).cancel?).to be true
+    end
+
+    it "does NOT permit cancelling a rejected request" do
+      rejected = create(:employee_request, :rejected, user: employee)
+      expect(subject.new(employee, rejected).cancel?).to be false
+      expect(subject.new(manager, rejected).cancel?).to be false
+    end
+
+    it "does NOT permit cancelling a paid request" do
+      paid = create(:employee_request, :salary_advance, :approved, user: employee)
+      Requests::Approver.pay(request: paid, paid_by: manager)
+      expect(subject.new(employee, paid.reload).cancel?).to be false
+      expect(subject.new(manager, paid.reload).cancel?).to be false
+    end
+  end
+
   describe "Scope" do
     let!(:my_request)    { create(:employee_request, user: employee) }
     let!(:other_request) { create(:employee_request) }

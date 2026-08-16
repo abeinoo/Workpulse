@@ -324,6 +324,7 @@ Rails.application.routes.draw do
     resources :goods_receipts,  only: [ :index, :show, :new, :create, :edit, :update ] do
       member do
         patch :void
+        patch :cancel
         post  :confirm
         post  :submit
         post  :approve
@@ -387,6 +388,7 @@ Rails.application.routes.draw do
         patch :submit
         patch :approve
         patch :reject
+        patch :cancel
       end
     end
 
