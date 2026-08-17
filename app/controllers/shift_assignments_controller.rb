@@ -355,7 +355,7 @@ class ShiftAssignmentsController < ApplicationController
   def assignment_params
     params.require(:shift_assignment)
           .permit(:user_id, :shift_id, :branch_id, :effective_from, :effective_to,
-                  :shift_rule_profile_id)
+                  :shift_rule_profile_id, :assignment_kind, :reason)
   end
 
   def update_params

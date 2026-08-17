@@ -577,6 +577,11 @@
 
             <td class="td-secondary" data-label="<%= t("shift_assignments.branch") %>">
               <%= a.branch_name || "—" %>
+              <% if a.temporary_coverage? %>
+                <span class="badge badge-accent badge--xs" title="<%= a.reason %>">
+                  <%= t("shift_assignments.coverage.badge") %>
+                </span>
+              <% end %>
             </td>
 
             <%# Status badge %>

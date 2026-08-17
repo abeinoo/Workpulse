@@ -1551,6 +1551,15 @@ en:
       rule_profile: "Scheduling Rule Profile"
       no_rule_profile: "Default (use shift rules)"
       rule_profile_hint: "Override work-hour and attendance rules for this assignment."
+      assignment_kind_label: "Assignment Kind"
+      assignment_kind_regular: "Regular"
+      assignment_kind_temporary_coverage: "Temporary Coverage"
+      assignment_kind_hint: "Temporary coverage does not change the employee's permanent branch — they automatically return to their regular assignment once the end date passes."
+      reason_label: "Reason"
+      reason_placeholder: "e.g. Covering another employee's absence"
+      reason_hint: "Required for Temporary Coverage."
+    coverage:
+      badge: "Coverage"
 
   # ── Shift Timeline (employee profile) ──────────────────────────────────────
   shift_timeline:

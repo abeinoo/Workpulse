@@ -7,7 +7,7 @@ class TillHandoversController < ApplicationController
   def my_shift
     authorize TillHandover, :my_shift?
 
-    branch = current_user.shift_assignments.current.first&.branch
+    branch = current_user.effective_branch_on(Date.current)
     unless branch
       @state = :no_branch
       return
@@ -285,7 +285,7 @@ class TillHandoversController < ApplicationController
   # "current branch". Permission (close_till_session, checked by the policy)
   # is what authorizes the action; this only resolves *which* branch it acts on.
   def resolve_branch
-    own_branch = current_user.shift_assignments.current.first&.branch
+    own_branch = current_user.effective_branch_on(Date.current)
     return own_branch if own_branch
 
     return nil unless params[:daily_reconciliation_id].present?

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_030515) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_145814) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1527,17 +1527,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_030515) do
   end
 
   create_table "shift_assignments", force: :cascade do |t|
+    t.string "assignment_kind", default: "regular", null: false
     t.integer "branch_id"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
     t.date "effective_from", null: false
     t.date "effective_to"
     t.bigint "ended_by_id"
+    t.text "reason"
     t.integer "shift_id", null: false
     t.bigint "shift_rule_profile_id"
     t.bigint "source_template_id"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.index ["assignment_kind"], name: "index_shift_assignments_on_assignment_kind"
     t.index ["branch_id"], name: "index_shift_assignments_on_branch_id"
     t.index ["created_by_id"], name: "index_shift_assignments_on_created_by_id"
     t.index ["ended_by_id"], name: "index_shift_assignments_on_ended_by_id"

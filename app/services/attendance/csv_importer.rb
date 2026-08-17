@@ -147,7 +147,7 @@ module Attendance
     # ── Phase 2: commit ───────────────────────────────────────────────────────
     #
     # Uses the same canonical pipeline as PunchService / AdjustmentService:
-    #   - Shifts::AssignmentFinder for shift lookup
+    #   - Shifts::AssignmentResolver for shift lookup
     #   - TimeCalculator.late_minutes / early_leave_minutes / derive_status
     #   - Payroll::PeriodGenerator for any draft payroll periods that are touched
     def execute(import_log)
@@ -165,8 +165,8 @@ module Attendance
           check_out = row["check_out_at"].present? ? parse_datetime(row["check_out_at"]) : nil
           work_date = Date.parse(row["work_date"])
 
-          # Use the canonical assignment finder (same as PunchService and CheckInService)
-          assignment = Shifts::AssignmentFinder.for(user: user, date: work_date)
+          # Use the canonical assignment resolver (same as PunchService and CheckInService)
+          assignment = Shifts::AssignmentResolver.for(user: user, date: work_date)
 
           record = AttendanceRecord.find_or_initialize_by(user_id: user.id, work_date: work_date)
           is_new  = record.new_record?

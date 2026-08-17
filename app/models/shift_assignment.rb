@@ -8,7 +8,18 @@ class ShiftAssignment < ApplicationRecord
   belongs_to :ended_by,        class_name: "User",          optional: true
   belongs_to :source_template, class_name: "ShiftTemplate", optional: true
 
+  # regular — the employee's normal, usually open-ended assignment.
+  # temporary_coverage — a date-bounded assignment at a DIFFERENT branch that
+  # temporarily supersedes the employee's regular branch for its window
+  # (e.g. covering another branch's absence). Never mutates or replaces the
+  # regular assignment row — see Shifts::AssignmentResolver, which prefers a
+  # temporary_coverage assignment over a concurrent regular one when both are
+  # active for the same date.
+  enum :assignment_kind, { regular: "regular", temporary_coverage: "temporary_coverage" }
+
   validates :effective_from, presence: true
+  validates :reason,       presence: true, if: :temporary_coverage?
+  validates :effective_to, presence: true, if: :temporary_coverage?
   validate  :effective_to_after_effective_from
   validate  :no_overlapping_assignment
   validate  :no_overlapping_shift_time
@@ -160,10 +171,15 @@ class ShiftAssignment < ApplicationRecord
 
   private
 
+  # effective_to is inclusive (see .active_on/.active_during, both use >=), so
+  # effective_from == effective_to is a valid single-day assignment — a
+  # one-day temporary_coverage assignment (the most common real-world case:
+  # "cover this one date") must be representable. Only a genuinely backwards
+  # range (effective_to before effective_from) is rejected.
   def effective_to_after_effective_from
     return unless effective_to.present? && effective_from.present?
 
-    errors.add(:effective_to, "must be after start date") if effective_to <= effective_from
+    errors.add(:effective_to, "must be on or after start date") if effective_to < effective_from
   end
 
   def no_overlapping_assignment
@@ -192,6 +208,15 @@ class ShiftAssignment < ApplicationRecord
   # concurrent day — regardless of branch. Only applies when both shifts are
   # fixed_time (hour_based shifts have no defined start/end time so cannot be
   # checked). Handles overnight shifts crossing midnight.
+  #
+  # Exception: a temporary_coverage assignment is exempt from this check
+  # against the SAME user's regular assignment(s) — coverage is meant to
+  # temporarily supersede the regular assignment for its window ("instead
+  # of", not "in addition to"), so a clashing clock-time is expected, not a
+  # conflict. Two assignments of the SAME kind (regular-vs-regular,
+  # temporary_coverage-vs-temporary_coverage) are still blocked exactly as
+  # before — an employee still can't be double-booked at the same clock
+  # hours in two regular shifts, or covering two branches at once.
   def no_overlapping_shift_time
     return unless user_id && effective_from && shift_id
     return unless shift&.fixed_time?
@@ -206,6 +231,7 @@ class ShiftAssignment < ApplicationRecord
 
     concurrent.each do |other|
       next unless other.shift&.fixed_time?
+      next if assignment_kind != other.assignment_kind
       next unless shift_times_overlap?(shift, other.shift)
 
       errors.add(:base, I18n.t("shift_assignments.errors.overlapping_time",

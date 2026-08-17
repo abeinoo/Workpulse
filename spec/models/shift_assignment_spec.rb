@@ -11,11 +11,13 @@ RSpec.describe ShiftAssignment, type: :model do
     it { is_expected.to validate_presence_of(:effective_from) }
 
     describe "effective_to_after_effective_from" do
-      it "is invalid when effective_to equals effective_from" do
+      # effective_to is inclusive (.active_on/.active_during both use >=), so
+      # a single-day assignment (effective_from == effective_to) is valid —
+      # this is the common "cover just this one date" case.
+      it "is valid when effective_to equals effective_from (a single-day assignment)" do
         date = Date.current
         assignment = build(:shift_assignment, effective_from: date, effective_to: date)
-        expect(assignment).not_to be_valid
-        expect(assignment.errors[:effective_to]).to be_present
+        expect(assignment).to be_valid
       end
 
       it "is invalid when effective_to is before effective_from" do
@@ -219,6 +221,163 @@ RSpec.describe ShiftAssignment, type: :model do
                             effective_from: Date.new(2025, 3, 1))
         expect(no_conflict).to be_valid
       end
+    end
+
+    describe "assignment_kind (temporary coverage)" do
+      it "defaults to regular" do
+        expect(build(:shift_assignment).assignment_kind).to eq("regular")
+      end
+
+      it "requires a reason when temporary_coverage" do
+        assignment = build(:shift_assignment, :temporary_coverage, reason: nil)
+        expect(assignment).not_to be_valid
+        expect(assignment.errors[:reason]).to be_present
+      end
+
+      it "requires an effective_to when temporary_coverage (coverage cannot be open-ended)" do
+        assignment = build(:shift_assignment, :temporary_coverage, effective_to: nil)
+        expect(assignment).not_to be_valid
+        expect(assignment.errors[:effective_to]).to be_present
+      end
+
+      it "does not require a reason for a regular assignment" do
+        assignment = build(:shift_assignment, reason: nil)
+        expect(assignment).to be_valid
+      end
+
+      it "is valid with a reason and effective_to" do
+        expect(build(:shift_assignment, :temporary_coverage)).to be_valid
+      end
+    end
+
+    describe "no_overlapping_shift_time exemption for temporary coverage" do
+      let(:business) { create(:business) }
+      let(:user)     { create(:user, business: business) }
+      let(:home)     { create(:branch, business: business) }
+      let(:covering) { create(:branch, business: business) }
+      # Same clock hours on purpose — coverage is meant to supersede, not
+      # avoid, the employee's regular shift for its window.
+      let(:shift_hours) {
+        { start_time: Time.zone.parse("15:00"), end_time: Time.zone.parse("23:00") }
+      }
+      let(:home_shift)     { create(:shift, :fixed_time, business: business, name: "Home Shift", **shift_hours) }
+      let(:covering_shift) { create(:shift, :fixed_time, business: business, name: "Covering Shift", **shift_hours) }
+
+      let!(:regular_assignment) do
+        create(:shift_assignment, user: user, shift: home_shift, branch: home,
+               effective_from: 3.months.ago.to_date, effective_to: nil)
+      end
+
+      it "allows a temporary_coverage assignment that clock-overlaps the employee's own regular assignment" do
+        coverage = build(:shift_assignment, :temporary_coverage,
+                         user: user, shift: covering_shift, branch: covering,
+                         effective_from: Date.current, effective_to: Date.current + 1.day)
+        expect(coverage).to be_valid
+      end
+
+      it "still rejects two overlapping REGULAR assignments for the same user (unchanged behavior)" do
+        other_branch = create(:branch, business: business)
+        conflict = build(:shift_assignment, user: user, shift: covering_shift, branch: other_branch,
+                         effective_from: Date.current, effective_to: nil)
+        expect(conflict).not_to be_valid
+      end
+
+      it "still rejects two overlapping TEMPORARY_COVERAGE assignments for the same user (can't cover two branches at once)" do
+        first_coverage_branch  = create(:branch, business: business)
+        second_coverage_branch = create(:branch, business: business)
+        create(:shift_assignment, :temporary_coverage, user: user, shift: covering_shift,
+               branch: first_coverage_branch, effective_from: Date.current, effective_to: Date.current + 1.day)
+
+        second_coverage = build(:shift_assignment, :temporary_coverage, user: user, shift: covering_shift,
+                                branch: second_coverage_branch,
+                                effective_from: Date.current, effective_to: Date.current + 1.day)
+        expect(second_coverage).not_to be_valid
+      end
+    end
+  end
+
+  # Scenario 8: payroll/branch-cost attribution for a period spanning a
+  # temporary coverage window. These class methods are unchanged by the
+  # coverage feature — this proves the existing period-based helpers
+  # (already documented as "the authoritative source of an employee's
+  # branch") correctly attribute the covered dates to the covering branch
+  # without any special-casing, since coverage is just another dated
+  # ShiftAssignment row.
+  describe "branch attribution across a temporary coverage period (Scenario 8)" do
+    let(:business) { create(:business) }
+    let(:user)     { create(:user, business: business) }
+    let(:home)     { create(:branch, business: business) }
+    let(:covering) { create(:branch, business: business) }
+    let(:shift)    { create(:shift, :fixed_time, business: business) }
+    let(:covering_shift) do
+      create(:shift, :fixed_time, business: business,
+             start_time: Time.zone.parse("15:00"), end_time: Time.zone.parse("23:00"))
+    end
+
+    let!(:regular) do
+      create(:shift_assignment, user: user, shift: shift, branch: home,
+             effective_from: Date.new(2026, 1, 1), effective_to: nil)
+    end
+    let!(:coverage) do
+      create(:shift_assignment, :temporary_coverage, user: user, shift: covering_shift, branch: covering,
+             effective_from: Date.new(2026, 8, 20), effective_to: Date.new(2026, 8, 21))
+    end
+
+    let(:period_from) { Date.new(2026, 8, 1) }
+    let(:period_to)   { Date.new(2026, 8, 31) }
+
+    it "attributes both the home and covering branch for a payroll period spanning the coverage window" do
+      expect(described_class.branch_ids_for_users([ user.id ], from: period_from, to: period_to))
+        .to contain_exactly(home.id, covering.id)
+    end
+
+    it "counts the user among the covering branch's workers for user_ids_for_branch_during" do
+      expect(described_class.user_ids_for_branch_during(covering.id, from: period_from, to: period_to))
+        .to include(user.id)
+      expect(described_class.user_ids_for_branch_during(home.id, from: period_from, to: period_to))
+        .to include(user.id)
+    end
+
+    it "still attributes only the home branch for a period entirely outside the coverage window" do
+      other_period_from = Date.new(2026, 9, 1)
+      other_period_to   = Date.new(2026, 9, 30)
+
+      expect(described_class.branch_ids_for_users([ user.id ], from: other_period_from, to: other_period_to))
+        .to contain_exactly(home.id)
+    end
+  end
+
+  # Scenario 10: overlapping/conflicting temporary coverage assignments are
+  # rejected — a second coverage assignment whose shift clock-hours conflict
+  # with an already-active coverage assignment for the same user.
+  describe "rejecting a conflicting second coverage assignment (Scenario 10)" do
+    let(:business) { create(:business) }
+    let(:user)     { create(:user, business: business) }
+    let(:nasr_city) { create(:branch, business: business) }
+    let(:other_branch) { create(:branch, business: business) }
+    let(:covering_shift) do
+      create(:shift, :fixed_time, business: business,
+             start_time: Time.zone.parse("15:00"), end_time: Time.zone.parse("23:00"))
+    end
+
+    before do
+      create(:shift_assignment, :temporary_coverage, user: user, shift: covering_shift, branch: nasr_city,
+             effective_from: Date.new(2026, 8, 20), effective_to: Date.new(2026, 8, 21),
+             reason: "Covering Nasr City")
+    end
+
+    it "rejects an overlapping-date, clock-overlapping coverage assignment at a different branch" do
+      conflicting = build(:shift_assignment, :temporary_coverage, user: user, shift: covering_shift,
+                          branch: other_branch, effective_from: Date.new(2026, 8, 21),
+                          effective_to: Date.new(2026, 8, 23), reason: "Covering another branch")
+      expect(conflicting).not_to be_valid
+    end
+
+    it "rejects an invalid date range (end before start)" do
+      backwards = build(:shift_assignment, :temporary_coverage, user: user, branch: other_branch,
+                        effective_from: Date.new(2026, 8, 25), effective_to: Date.new(2026, 8, 20))
+      expect(backwards).not_to be_valid
+      expect(backwards.errors[:effective_to]).to be_present
     end
   end
 

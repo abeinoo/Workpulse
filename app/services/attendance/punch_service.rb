@@ -36,7 +36,7 @@ module Attendance
       end
 
       @work_date  = BusinessDay.work_date_for(@punched_at, context: @business)
-      @assignment = Shifts::AssignmentFinder.for(user: @employee, date: @work_date)
+      @assignment = Shifts::AssignmentResolver.for(user: @employee, date: @work_date)
 
       unless @assignment
         log = record_punch!(action: "rejected_no_assignment")

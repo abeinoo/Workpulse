@@ -1538,6 +1538,15 @@ ar:
       rule_profile: "ملف قواعد الجدولة"
       no_rule_profile: "افتراضي (قواعد الوردية)"
       rule_profile_hint: "تجاوز قواعد ساعات العمل والحضور لهذا التعيين."
+      assignment_kind_label: "نوع التعيين"
+      assignment_kind_regular: "عادي"
+      assignment_kind_temporary_coverage: "تغطية مؤقتة"
+      assignment_kind_hint: "التغطية المؤقتة لا تغيّر الفرع الدائم للموظف — سيعود تلقائياً إلى تعيينه المعتاد بعد انتهاء تاريخ النهاية."
+      reason_label: "السبب"
+      reason_placeholder: "مثال: تغطية غياب موظف آخر"
+      reason_hint: "مطلوب عند اختيار التغطية المؤقتة."
+    coverage:
+      badge: "تغطية"
     temporary:
       badge: "مؤقت"
       expiring_badge: "ينتهي قريباً"

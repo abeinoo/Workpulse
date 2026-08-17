@@ -41,6 +41,22 @@
         <%= f.label :effective_from, t("shift_assignments.start_date"), class: "form-label form-label--required" %>
         <%= f.date_field :effective_from, class: "form-control", data: { controller: "datepicker" } %>
       </div>
+
+      <div class="form-group">
+        <%= f.label :assignment_kind, t("shift_assignments.form.assignment_kind_label"), class: "form-label form-label--required" %>
+        <%= f.select :assignment_kind,
+              ShiftAssignment.assignment_kinds.keys.map { |k| [t("shift_assignments.form.assignment_kind_#{k}"), k] },
+              {},
+              class: "form-control" %>
+        <p class="form-hint"><%= t("shift_assignments.form.assignment_kind_hint") %></p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :reason, t("shift_assignments.form.reason_label"), class: "form-label" %>
+        <%= f.text_area :reason, class: "form-control", rows: 2,
+              placeholder: t("shift_assignments.form.reason_placeholder") %>
+        <p class="form-hint"><%= t("shift_assignments.form.reason_hint") %></p>
+      </div>
     <% end %>
 
     <div class="form-group <%= editing ? 'form-group--full' : '' %>">

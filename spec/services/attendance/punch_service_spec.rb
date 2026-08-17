@@ -322,4 +322,44 @@ RSpec.describe Attendance::PunchService do
       end
     end
   end
+
+  # Scenario 2 from the temporary cross-branch coverage feature: an employee
+  # permanently assigned to `branch` also holds a temporary_coverage
+  # assignment at `covering_branch` for a specific date. A punch on that date
+  # must stamp the covering branch — not the employee's permanent one.
+  describe "temporary branch coverage (Scenario 2)" do
+    let(:covering_branch)  { create(:branch, business: business) }
+    let(:covering_shift) do
+      create(:shift, :fixed_time, business: business,
+             start_time: Time.zone.parse("15:00"), end_time: Time.zone.parse("23:00"))
+    end
+
+    before do
+      create(:shift_assignment, :temporary_coverage, user: employee, branch: covering_branch,
+             shift: covering_shift, effective_from: Date.new(2026, 5, 17), effective_to: Date.new(2026, 5, 18))
+    end
+
+    it "stamps the covering branch on a check-in during the coverage window" do
+      result = punch("2026-05-17 15:05:00 +03:00")
+      expect(result.success?).to be true
+      expect(result.record.branch).to eq(covering_branch)
+    end
+
+    it "stamps the covering branch on check-out during the coverage window too" do
+      punch("2026-05-17 15:05:00 +03:00")
+      result = punch("2026-05-17 23:05:00 +03:00")
+      expect(result.action).to eq("check_out")
+      expect(result.record.branch).to eq(covering_branch)
+    end
+
+    it "resolves back to the permanent branch outside the coverage window" do
+      result = punch("2026-05-20 09:05:00 +03:00")
+      expect(result.success?).to be true
+      expect(result.record.branch).to eq(branch)
+    end
+
+    it "does not modify the employee's permanent (regular) shift assignment" do
+      expect { punch("2026-05-17 15:05:00 +03:00") }.not_to change { assignment.reload.attributes }
+    end
+  end
 end

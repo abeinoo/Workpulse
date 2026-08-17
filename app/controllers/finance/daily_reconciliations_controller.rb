@@ -1647,7 +1647,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   def default_branch_filter
     return @accessible_branches.first.id.to_s if @accessible_branches.size == 1
 
-    shift_branch = current_user.shift_assignments.current.first&.branch
+    shift_branch = current_user.effective_branch_on(Date.current)
     return shift_branch.id.to_s if shift_branch && @accessible_branches.include?(shift_branch)
 
     nil
@@ -1667,7 +1667,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     ids = BranchScope.new(current_user).for_scope(scope_name)
     if ids.empty? && scope_name != "business"
-      shift_branch = current_user.shift_assignments.current.first&.branch
+      shift_branch = current_user.effective_branch_on(Date.current)
       return (shift_branch && shift_branch.branch_type == "sales") ? [ shift_branch ] : []
     end
     sales_branches.active.where(id: ids).order(:name).to_a

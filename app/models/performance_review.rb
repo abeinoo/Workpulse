@@ -56,6 +56,6 @@ class PerformanceReview < ApplicationRecord
     return unless employee
 
     self.department_id ||= employee.department_id
-    self.branch_id     ||= BranchMembership.current_branch_ids(employee).first
+    self.branch_id     ||= employee.effective_branch_on(Date.current)&.id
   end
 end

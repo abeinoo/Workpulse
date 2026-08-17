@@ -174,6 +174,22 @@ class User < ApplicationRecord
     Branch.where(area_manager_id: id).pluck(:id)
   end
 
+  # Single source of truth for "which ShiftAssignment applies to this user on
+  # this date" — see Shifts::AssignmentResolver for why this can't simply be
+  # `shift_assignments.current.first` once a user may hold a concurrent
+  # temporary_coverage assignment alongside their regular one.
+  def effective_shift_assignment_on(date = Date.current, time: nil)
+    Shifts::AssignmentResolver.for(user: self, date: date, time: time)
+  end
+
+  # The branch this user is effectively working at on `date` — a
+  # temporary_coverage assignment (if active) wins over the regular one,
+  # never mutating either. nil when the user has no active assignment at all
+  # (branchless/non-attendance-enabled employees).
+  def effective_branch_on(date = Date.current, time: nil)
+    effective_shift_assignment_on(date, time: time)&.branch
+  end
+
   # Returns true when this user should see the management sidebar layout.
   # Owners always get the management sidebar. All other users are routed by
   # the workspace field on their PermissionRole — "management" → grouped

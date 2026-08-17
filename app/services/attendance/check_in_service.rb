@@ -20,7 +20,7 @@ module Attendance
       return err("You are not assigned to this branch") if @branch && !assigned_to_branch?
       return err("You are outside the allowed check-in area") unless location_valid?
 
-      assignment = Shifts::AssignmentFinder.for(user: @user, branch: @branch)
+      assignment = Shifts::AssignmentResolver.for(user: @user, branch: @branch)
       # Branchless employees may have no shift assignment — that's allowed.
       return err("No active shift found for today") if @branch && !assignment
 

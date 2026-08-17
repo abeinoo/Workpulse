@@ -40,7 +40,7 @@ class OpeningFloatsController < ApplicationController
   private
 
   def set_branch_and_dr
-    @branch = current_user.shift_assignments.current.first&.branch
+    @branch = current_user.effective_branch_on(Date.current)
     @dr     = find_leavable_dr
   end
 
