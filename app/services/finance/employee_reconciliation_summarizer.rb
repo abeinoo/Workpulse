@@ -53,8 +53,18 @@ module Finance
       def net_amount = collected_amount - refund_amount
     end
 
-    def initialize(daily_reconciliation)
+    # preloaded_handovers lets a caller iterating many DRs (the index page's
+    # Employee Sales Reconciliation issue badges — see
+    # Finance::DailyReconciliationsController#build_employee_issue_badges)
+    # batch-fetch every DR's till_handovers (+ from_user/financial_adjustments/
+    # amounts:payment_method) in one query for the whole page and pass this
+    # DR's slice in, instead of #aggregate_by_employee re-querying per DR.
+    # Must already match the same predicate/order #aggregate_by_employee
+    # would otherwise apply itself (see below) and carry the same
+    # associations preloaded.
+    def initialize(daily_reconciliation, preloaded_handovers: nil)
       @dr = daily_reconciliation
+      @preloaded_handovers = preloaded_handovers
     end
 
     # Compute and persist to DB atomically.
@@ -120,7 +130,7 @@ module Finance
     # handovers are excluded entirely (not a custody event — see class comment).
 
     def aggregate_by_employee
-      handovers = @dr.till_handovers
+      handovers = @preloaded_handovers || @dr.till_handovers
                      .where("accepted_at IS NOT NULL OR self_deposit = TRUE")
                      .where(opening_float_declaration: false)
                      .includes(:from_user, :financial_adjustments, amounts: :payment_method)

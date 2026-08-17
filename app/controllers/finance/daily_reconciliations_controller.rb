@@ -481,34 +481,6 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       summarizer.summaries(for_user: current_user)
     end
 
-    # ── TRACE: three-section divergence audit ──────────────────────────────────
-    Rails.logger.debug do
-      lines = [ "[TRACE DR=#{@reconciliation.id}] Section data sources:" ]
-
-      # Section 1: Cashier Custody Summary (live algorithm)
-      lines << "  [1] Cashier Custody Summary (live via ERS#summaries):"
-      (@employee_summaries || []).each do |s|
-        amt_str = s.amounts.map { |a| "#{a.payment_method_name}: collected=#{a.collected_amount} refund=#{a.refund_amount} net=#{a.net_amount}" }.join(", ")
-        lines << "    #{s.user&.full_name}: #{amt_str.presence || "(no amounts)"} | grand_total=#{s.grand_total}"
-      end
-
-      # Section 2: Sales Per Cashier Breakdown (direct DB, stale persisted rows)
-      db_summaries = @reconciliation.employee_reconciliation_summaries.includes(:user, amounts: :payment_method)
-      lines << "  [2] Sales Per Cashier (DB employee_reconciliation_summaries, #{db_summaries.size} rows):"
-      db_summaries.each do |s|
-        amt_str = s.amounts.map { |a| "#{a.payment_method_name}: net=#{a.net_amount}" }.join(", ")
-        lines << "    #{s.user&.full_name}: #{amt_str.presence || "(no amounts)"} | computed_at=#{s.computed_at}"
-      end
-
-      # Section 3: Branch Totals (TillSessionAmount)
-      lines << "  [3] Branch Totals (session_amounts / TillSessionAmount):"
-      @reconciliation.session_amounts.includes(:payment_method).each do |sa|
-        lines << "    #{sa.payment_method&.name}: collected=#{sa.collected_amount} refund=#{sa.refund_amount} net=#{sa.net_amount}"
-      end
-
-      lines.join("\n")
-    end
-    # ──────────────────────────────────────────────────────────────────────────
 
     @session_amount_edits = AuditLog
                               .where(auditable: @reconciliation, action: "edit_session_totals")
@@ -1416,6 +1388,25 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     sales_by_dr = SalesTransaction.where(daily_reconciliation_id: dr_ids).group_by(&:daily_reconciliation_id)
 
+    # Finance::EmployeeReconciliationSummarizer re-walks the handover graph
+    # per DR (see its own class comment), but the query it runs to do so
+    # (till_handovers + from_user/financial_adjustments/amounts:payment_method)
+    # doesn't need to be per-DR — only the graph-walking algorithm does. One
+    # query for every DR-with-sales-data on this page, grouped in Ruby,
+    # instead of Finance::EmployeeReconciliationSummarizer#aggregate_by_employee
+    # re-issuing that same shape of query once per DR.
+    dr_ids_with_sales = sales_by_dr.keys
+    handovers_by_dr = if dr_ids_with_sales.any?
+      TillHandover.where(daily_reconciliation_id: dr_ids_with_sales)
+                  .where("accepted_at IS NOT NULL OR self_deposit = TRUE")
+                  .where(opening_float_declaration: false)
+                  .includes(:from_user, :financial_adjustments, amounts: :payment_method)
+                  .order(:created_at)
+                  .group_by(&:daily_reconciliation_id)
+    else
+      {}
+    end
+
     drs.each do |dr|
       sales_for_dr = sales_by_dr[dr.id]
       next if sales_for_dr.blank?
@@ -1424,7 +1415,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         .group_by { |txn| txn.cashier_name.to_s.downcase.strip }
         .transform_values { |txns| txns.sum(&:amount) }
 
-      Finance::EmployeeReconciliationSummarizer.new(dr).summaries.each do |summary|
+      summarizer = Finance::EmployeeReconciliationSummarizer.new(dr, preloaded_handovers: handovers_by_dr[dr.id] || [])
+      summarizer.summaries.each do |summary|
         next unless summary.user
 
         employee_sales_total = sales_total_by_cashier[summary.user.full_name.downcase.strip] || 0

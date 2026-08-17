@@ -229,13 +229,10 @@
       # Same definition as DailyReconciliation#total_remaining_balance (open
       # balances only — settled/written-off amounts are correctly excluded,
       # matching the show page's "Settled Later"/"Written Off" lines rather
-      # than a raw expected-vs-deposited difference). Filtered on the already
-      # preloaded association (not dr.total_remaining_balance) to avoid an
-      # N+1 — that method re-queries per record since it chains .open onto
-      # the association instead of using the loaded collection.
-      total_outstanding = @reconciliations.sum { |dr|
-        dr.remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
-      }
+      # than a raw expected-vs-deposited difference). total_remaining_balance
+      # itself reuses the already-preloaded remaining_deposit_balances
+      # association when loaded, so this is N+1-safe.
+      total_outstanding = @reconciliations.sum(&:total_remaining_balance)
       can_bulk_settle   = policy(:daily_reconciliation).bulk_settle?
       has_outstanding   = total_outstanding > 0
       payment_methods   = business_payment_methods

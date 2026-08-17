@@ -30,7 +30,14 @@ class TillDeposit < ApplicationRecord
   after_save :invalidate_bank_verification_if_critical_change
 
   # Sum of every matched bank transaction's contribution toward this deposit.
-  def matched_total = deposit_matches.sum(:matched_amount)
+  # Sums the loaded array in Ruby when deposit_matches is already
+  # eager-loaded (e.g. via till_deposits: :deposit_matches on the DR index
+  # page) instead of issuing a fresh SQL SUM per deposit — chaining .sum onto
+  # an association always hits the DB, even when the base association was
+  # preloaded across a whole list.
+  def matched_total
+    deposit_matches.loaded? ? deposit_matches.sum(&:matched_amount) : deposit_matches.sum(:matched_amount)
+  end
 
   # The active bank dispute case, if any — a resolved dispute (refunded,
   # confirmed successful, rejected, or closed) no longer counts, since the

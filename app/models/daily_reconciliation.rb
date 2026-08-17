@@ -114,7 +114,23 @@ class DailyReconciliation < ApplicationRecord
   end
 
   def active_deposits = till_deposits.active
-  def total_deposited = till_deposits.active.sum(:amount)
+
+  # Sums the active deposits' amounts. When till_deposits is already
+  # eager-loaded (e.g. the DR index page's .includes(:till_deposits)),
+  # filters/sums the loaded array in Ruby instead of issuing a fresh SQL
+  # query — `till_deposits.active.sum(...)` always hits the DB even when the
+  # base association is preloaded, since chaining a scope builds a new
+  # relation rather than reusing the loaded target array. Identical result
+  # either way. See #loaded_active_deposits below; the same pattern is
+  # applied throughout this section for every association commonly preloaded
+  # by the DR index page.
+  def total_deposited
+    if till_deposits.loaded?
+      loaded_active_deposits.sum(&:amount)
+    else
+      till_deposits.active.sum(:amount)
+    end
+  end
 
   # Live running total of independent refunds recorded against this day so
   # far — available immediately, regardless of custody/handover state.
@@ -124,9 +140,14 @@ class DailyReconciliation < ApplicationRecord
 
   # Sum of cash-like session amounts — the target the depositor is responsible for.
   def expected_cash_deposit
-    session_amounts.joins(:payment_method)
-                   .where(payment_methods: { settlement_type: "cash" })
-                   .sum("collected_amount - refund_amount")
+    if session_amounts.loaded?
+      session_amounts.select { |sa| sa.payment_method.settlement_type == "cash" }
+                     .sum { |sa| sa.collected_amount - sa.refund_amount }
+    else
+      session_amounts.joins(:payment_method)
+                     .where(payment_methods: { settlement_type: "cash" })
+                     .sum("collected_amount - refund_amount")
+    end
   end
 
   # Cash already accounted for by an OPEN "cash never reached the bank" ATM
@@ -137,7 +158,11 @@ class DailyReconciliation < ApplicationRecord
   # already-recorded TillDeposit, so their amount is already inside
   # total_deposited — counting those here too would double-subtract.
   def open_atm_dispute_amount
-    bank_disputes.atm_deposit_failure.open_cases.sum(:amount)
+    if bank_disputes.loaded?
+      bank_disputes.select { |d| d.kind == "atm_deposit_failure" && !d.resolved? }.sum(&:amount)
+    else
+      bank_disputes.atm_deposit_failure.open_cases.sum(:amount)
+    end
   end
 
   # How much is still outstanding before this deposit form is submitted.
@@ -187,7 +212,11 @@ class DailyReconciliation < ApplicationRecord
 
   # Sum of currently outstanding cash across all open remaining balances.
   def total_remaining_balance
-    remaining_deposit_balances.open.sum(:remaining_amount)
+    if remaining_deposit_balances.loaded?
+      remaining_deposit_balances.select(&:open?).sum(&:remaining_amount)
+    else
+      remaining_deposit_balances.open.sum(:remaining_amount)
+    end
   end
 
   # Cash that was outstanding at close but settled later via the ledger.
@@ -224,7 +253,7 @@ class DailyReconciliation < ApplicationRecord
   def bank_reconciliation_status(covering_statements: nil, review_transactions: nil)
     return "no_bank_transactions" if expected_cash_deposit.zero?
 
-    deposits = active_deposits.to_a
+    deposits = loaded_active_deposits
     return "waiting_for_deposit" if deposits.empty?
 
     # A deposit's match can come from a bank transaction whose own
@@ -284,18 +313,18 @@ class DailyReconciliation < ApplicationRecord
   end
 
   def bank_reconciliation_deposits_matched_count
-    active_deposits.to_a.count { |d| d.match_status == :fully_matched }
+    loaded_active_deposits.count { |d| d.match_status == :fully_matched }
   end
 
   def bank_reconciliation_deposits_total_count
-    active_deposits.to_a.size
+    loaded_active_deposits.size
   end
 
   # Sum of every active deposit's matched-in-bank contribution — the
   # "Matched in Bank" figure on the workspace card. Reuses
   # TillDeposit#matched_total; no new query beyond active_deposits itself.
   def total_matched_amount
-    active_deposits.to_a.sum(&:matched_total)
+    loaded_active_deposits.sum(&:matched_total)
   end
 
   # Every still-open BankDispute on this DR, regardless of which anchor it
@@ -306,7 +335,7 @@ class DailyReconciliation < ApplicationRecord
   # preloaded_till_deposits lets index-page callers reuse an already-loaded
   # array instead of a fresh query per DR.
   def open_bank_disputes(preloaded_till_deposits: nil)
-    from_deposits = (preloaded_till_deposits || active_deposits.to_a).flat_map(&:bank_disputes)
+    from_deposits = (preloaded_till_deposits || loaded_active_deposits).flat_map(&:bank_disputes)
     (from_deposits + bank_disputes).uniq.reject(&:resolved?)
   end
 
@@ -415,6 +444,19 @@ class DailyReconciliation < ApplicationRecord
 
   private
 
+  # A throwaway, unsaved TillDeposit for Pundit's create?/match? checks
+  # (which only read record.daily_reconciliation), built WITHOUT going
+  # through the daily_reconciliation= setter — that setter's inverse_of
+  # bookkeeping would splice this blank, unsaved record into this DR's own
+  # (possibly already eager-loaded, e.g. from the index page) till_deposits
+  # association, corrupting every aggregate below that reads it. Setting the
+  # belongs_to target directly avoids that while keeping
+  # record.daily_reconciliation pointing at this exact instance (no extra
+  # query, same object identity the policy needs).
+  def unsaved_till_deposit_for_policy
+    TillDeposit.new.tap { |d| d.association(:daily_reconciliation).target = self }
+  end
+
   def workflow_step_action(key, user, routes:, label:, primary_style:, bank_status:, open_disputes:)
     case key
     when :opening_float
@@ -427,7 +469,7 @@ class DailyReconciliation < ApplicationRecord
       { label: label.call(:close_handover), path: routes.finance_daily_reconciliation_path(self), style: primary_style }
 
     when :deposit
-      return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).create?
+      return nil unless TillDepositPolicy.new(user, unsaved_till_deposit_for_policy).create?
 
       { label: label.call(:deposit), path: routes.new_till_deposit_path(daily_reconciliation_id: id), style: primary_style }
 
@@ -450,7 +492,7 @@ class DailyReconciliation < ApplicationRecord
 
         { label: label.call(:bank_statement), path: routes.new_finance_bank_statement_path, style: primary_style }
       elsif %w[needs_review waiting_for_matching difference_found partially_matched].include?(bank_status)
-        return nil unless TillDepositPolicy.new(user, TillDeposit.new(daily_reconciliation: self)).match?
+        return nil unless TillDepositPolicy.new(user, unsaved_till_deposit_for_policy).match?
 
         { label: label.call(:bank_statement), path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: primary_style }
       elsif open_disputes.any?
@@ -475,7 +517,7 @@ class DailyReconciliation < ApplicationRecord
   # override as #bank_reconciliation_status above — see its comment — so
   # this can never say "not imported" while a deposit is already matched.
   def bank_statement_imported?(covering_statements: nil)
-    deposits = active_deposits.to_a
+    deposits = loaded_active_deposits
     return false if deposits.empty?
 
     deposits.any? { |d| d.match_status != :unmatched } ||
@@ -556,6 +598,16 @@ class DailyReconciliation < ApplicationRecord
   end
 
   private
+
+  # Active deposits as an Array, reusing the eager-loaded till_deposits
+  # association when present (see the DR index page's .includes) instead of
+  # issuing a fresh `till_deposits.active` query per call. Chaining a scope
+  # onto an association always hits the DB, even when the base association
+  # is already loaded — this is the one place that distinction is made, so
+  # every caller above gets the same array either way.
+  def loaded_active_deposits
+    till_deposits.loaded? ? till_deposits.select(&:active?) : till_deposits.active.to_a
+  end
 
   # Does any completed, non-voided BankStatement (this business, this branch
   # or a business-wide one) overlap the date range spanned by these deposits?

@@ -94,7 +94,19 @@ class TillHandover < ApplicationRecord
   # Returns an array of { payment_method_id:, payment_method_name:, payment_method:,
   # collected_amount:, refund_amount: }.
   def effective_operational_amounts
-    base = amounts.operational.includes(:payment_method).map do |ha|
+    # Chaining .operational/.includes (or, below, .order) onto `amounts`/
+    # `financial_adjustments` always issues a fresh query — even when the
+    # association was already eager-loaded (e.g. a caller iterating many
+    # handovers, such as EmployeeReconciliationSummarizer, preloading
+    # amounts: :payment_method and :financial_adjustments up front). Reuse
+    # the loaded array in that case instead of re-querying per handover.
+    operational_amounts = if amounts.loaded?
+      amounts.select { |ha| ha.kind == "operational" }
+    else
+      amounts.operational.includes(:payment_method).to_a
+    end
+
+    base = operational_amounts.map do |ha|
       {
         payment_method_id:   ha.payment_method_id,
         payment_method_name: ha.payment_method_name,
@@ -105,7 +117,10 @@ class TillHandover < ApplicationRecord
     end
 
     overrides = {}
-    financial_adjustments.order(:created_at).each do |adjustment|
+    ordered_adjustments = financial_adjustments.loaded? ?
+      financial_adjustments.sort_by(&:created_at) :
+      financial_adjustments.order(:created_at)
+    ordered_adjustments.each do |adjustment|
       Array(adjustment.after_data).each do |entry|
         pm_id = (entry["payment_method_id"] || entry[:payment_method_id]).to_i
         overrides[pm_id] = entry

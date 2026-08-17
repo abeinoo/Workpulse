@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_15_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_030515) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -432,6 +432,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_120000) do
     t.index ["branch_id"], name: "idx_dr_one_open_per_branch", unique: true, where: "((state)::text = 'open'::text)"
     t.index ["branch_id"], name: "idx_dr_one_waiting_per_branch", unique: true, where: "((state)::text = 'waiting_for_opening'::text)"
     t.index ["branch_id"], name: "index_dr_on_branch_id"
+    t.index ["business_id", "opened_at"], name: "index_dr_on_business_id_and_opened_at"
     t.index ["business_id"], name: "index_dr_on_business_id"
     t.index ["opening_float_source_handover_id"], name: "index_dr_on_opening_float_source_handover_id"
     t.index ["reviewed_by_id"], name: "index_dr_on_reviewed_by_id"
@@ -1271,6 +1272,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_120000) do
     t.string "transaction_id", null: false
     t.datetime "updated_at", null: false
     t.index ["branch_id"], name: "index_pos_transactions_on_branch_id"
+    t.index ["business_id", "branch_id", "transaction_date"], name: "index_pos_transactions_on_business_branch_date"
     t.index ["business_id", "transaction_id"], name: "index_pos_transactions_on_business_id_and_transaction_id", unique: true
     t.index ["business_id"], name: "index_pos_transactions_on_business_id"
     t.index ["pos_import_id"], name: "index_pos_transactions_on_pos_import_id"
