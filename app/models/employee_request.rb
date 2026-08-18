@@ -145,6 +145,11 @@ class EmployeeRequest < ApplicationRecord
     result = Salary::AdvanceEligibilityCalculator.for(user: user)
     return unless result  # no limit configured — unrestricted
 
+    if result.no_profile?
+      errors.add(:amount, I18n.t("requests.errors.no_salary_profile"))
+      return
+    end
+
     if amount.to_f > result.available
       errors.add(:amount,
                  I18n.t("requests.errors.exceeds_advance_limit",

@@ -67,7 +67,11 @@
               placeholder: t("requests.new.amount_placeholder") %>
         <p class="form-hint"><%= t("requests.new.amount_hint") %></p>
         <%# Advance eligibility hint — rendered server-side so it's visible on first load %>
-        <% if @advance_limit %>
+        <% if @advance_limit&.no_profile? %>
+          <p class="form-hint form-hint--warning" id="advance-limit-hint">
+            <%= t("requests.new.advance_no_salary_profile") %>
+          </p>
+        <% elsif @advance_limit %>
           <% adv_user    = @for_user || current_user %>
           <% adv_biz     = adv_user.business %>
           <% adv_pct     = adv_biz.max_salary_advance_percentage.to_f.round(2) %>

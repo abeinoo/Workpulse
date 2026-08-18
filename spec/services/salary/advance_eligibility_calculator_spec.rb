@@ -37,35 +37,95 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
     end
 
     context "when no active salary profile exists" do
-      it "returns nil" do
-        expect(described_class.for(user: user)).to be_nil
+      it "returns a no_profile result instead of nil or an unrestricted limit" do
+        result = described_class.for(user: user)
+        expect(result).not_to be_nil
+        expect(result.no_profile?).to eq(true)
+        expect(result.available).to eq(0.0)
+        expect(result.basis).to be_nil
       end
     end
 
     context "monthly employee" do
-      # base 6,600 / 22 working days = 300/day; 10 complete days → 3,000 earned.
+      # Monthly employees are entitled to their full configured base_amount
+      # regardless of worked days — worked days only matter for daily employees.
       before do
         business.update!(working_days_per_month: 22)
         create(:salary_profile, :monthly, user: user, base_amount: 6_600)
-        10.times { |i| complete_day_this_month(i) }
       end
 
       it "returns a result with monthly basis" do
         result = described_class.for(user: user)
         expect(result.basis).to eq(:monthly)
         expect(result.description_key).to eq("monthly_basis")
+        expect(result.no_profile?).to eq(false)
       end
 
-      it "uses salary earned so far this month, not the full contract salary" do
+      it "uses the full configured monthly salary, not worked days" do
         result = described_class.for(user: user)
-        expect(result.earned_basis).to eq(3_000.0)        # 300 × 10
-        expect(result.max_amount).to eq(900.0)            # 30% of 3,000
+        expect(result.earned_basis).to eq(6_600.0)
+        expect(result.max_amount).to eq(1_980.0)          # 30% of 6,600
+      end
+
+      it "is unaffected by the number of complete days worked this month" do
+        10.times { |i| complete_day_this_month(i) }
+
+        result = described_class.for(user: user)
+        expect(result.earned_basis).to eq(6_600.0)
+        expect(result.max_amount).to eq(1_980.0)
       end
 
       it "sets available equal to max_amount when no outstanding advances" do
         result = described_class.for(user: user)
         expect(result.outstanding).to eq(0.0)
-        expect(result.available).to eq(900.0)
+        expect(result.available).to eq(1_980.0)
+      end
+
+      # Scenario from the reported bug: 15,000 monthly salary, 50% limit,
+      # no attendance punches yet this month — must not show EGP 0.00.
+      context "with a 50% limit and 15,000 monthly salary" do
+        before do
+          business.update!(max_salary_advance_percentage: 50)
+          SalaryProfile.find_by(user: user).update_columns(base_amount: 15_000)
+        end
+
+        it "makes the full 7,500 available with no punches this month" do
+          result = described_class.for(user: user)
+          expect(result.available).to eq(7_500.0)
+        end
+
+        it "allows requesting 1,000 when there are no outstanding advances" do
+          expect(described_class.for(user: user).available).to be >= 1_000.0
+        end
+
+        context "with a 3,000 outstanding advance" do
+          before do
+            req = outstanding_request(amount: 3_000)
+            create(:advance, user: user, remaining_amount: 3_000, employee_request: req)
+            req.update!(status: "paid")
+          end
+
+          it "reduces the remaining available amount to 4,500" do
+            expect(described_class.for(user: user).available).to eq(4_500.0)
+          end
+        end
+      end
+
+      context "with a 100% limit" do
+        before { business.update!(max_salary_advance_percentage: 100) }
+
+        it "makes the full monthly salary available" do
+          expect(described_class.for(user: user).available).to eq(6_600.0)
+        end
+      end
+
+      context "with a 0% limit" do
+        before { business.update!(max_salary_advance_percentage: 0.01) }
+
+        it "makes only a tiny fraction available" do
+          result = described_class.for(user: user)
+          expect(result.max_amount).to eq(0.66)
+        end
       end
 
       context "with an active advance" do
@@ -78,7 +138,7 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
         it "deducts the remaining active advance balance" do
           result = described_class.for(user: user)
           expect(result.outstanding).to eq(800.0)
-          expect(result.available).to eq(100.0)           # 900 − 800
+          expect(result.available).to eq(1_180.0)         # 1,980 − 800
         end
       end
 
@@ -88,7 +148,7 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
         it "deducts pending request amounts from available" do
           result = described_class.for(user: user)
           expect(result.outstanding).to eq(500.0)
-          expect(result.available).to eq(400.0)           # 900 − 500
+          expect(result.available).to eq(1_480.0)         # 1,980 − 500
         end
       end
 
@@ -98,7 +158,7 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
         it "deducts approved-but-unpaid request amounts" do
           result = described_class.for(user: user)
           expect(result.outstanding).to eq(600.0)
-          expect(result.available).to eq(300.0)           # 900 − 600
+          expect(result.available).to eq(1_380.0)         # 1,980 − 600
         end
       end
 
@@ -115,13 +175,13 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
       end
 
       it "does not double-count a paid request that already created an advance" do
-        req = outstanding_request(amount: 1_000)
-        create(:advance, user: user, remaining_amount: 1_000, employee_request: req)
+        req = outstanding_request(amount: 1_800)
+        create(:advance, user: user, remaining_amount: 1_800, employee_request: req)
         req.update!(status: "paid")
 
         result = described_class.for(user: user)
-        expect(result.outstanding).to eq(1_000.0)
-        expect(result.available).to eq(0.0)               # max(900 − 1000, 0)
+        expect(result.outstanding).to eq(1_800.0)
+        expect(result.available).to eq(180.0)             # 1,980 − 1,800
       end
     end
 

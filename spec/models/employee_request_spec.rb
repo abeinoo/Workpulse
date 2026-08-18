@@ -340,56 +340,105 @@ RSpec.describe EmployeeRequest, type: :model do
   end
 
   describe "within_advance_limit" do
-    # Eligibility is a % of salary EARNED so far this cycle. With daily_rate 400
-    # (4_000 / 10 working days) and 10 complete days worked, earned = 4_000, so the
-    # 50% ceiling is 2_000 — matching the figures these examples assert against.
-    let(:business) { create(:business, max_salary_advance_percentage: 50, working_days_per_month: 10) }
-    let(:user)     { create(:user, business: business) }
-    let(:branch)   { create(:branch, business: business) }
+    context "monthly employee" do
+      # Monthly employees are entitled to their full base_amount regardless of
+      # worked days: 50% of 4_000 = 2_000 available.
+      let(:business) { create(:business, max_salary_advance_percentage: 50, working_days_per_month: 10) }
+      let(:user)     { create(:user, business: business) }
+      let(:branch)   { create(:branch, business: business) }
 
-    before do
-      create(:salary_profile, :monthly, user: user, base_amount: 4_000)
-      assignment = create(:shift_assignment, user: user, branch: branch,
-                          shift: create(:shift, :fixed_time, business: business),
-                          effective_from: 1.year.ago.to_date)
-      10.times do |i|
-        date = Date.current.beginning_of_month + i.days
-        create(:attendance_record, :checked_out, user: user, branch: branch,
-               shift_assignment: assignment, date: date, work_date: date)
+      before { create(:salary_profile, :monthly, user: user, base_amount: 4_000) }
+
+      it "is valid when amount is within the available limit" do
+        req = build(:employee_request, :salary_advance, user: user, amount: 1_000)
+        expect(req).to be_valid
+      end
+
+      it "is valid when amount exactly equals the available limit" do
+        req = build(:employee_request, :salary_advance, user: user, amount: 2_000)
+        expect(req).to be_valid
+      end
+
+      it "is invalid when amount exceeds the available limit" do
+        req = build(:employee_request, :salary_advance, user: user, amount: 2_500)
+        expect(req).not_to be_valid
+        expect(req.errors[:amount]).to be_present
+      end
+
+      it "does not require any worked days to be available" do
+        # No attendance records created at all this cycle.
+        req = build(:employee_request, :salary_advance, user: user, amount: 1_000)
+        expect(req).to be_valid
+      end
+
+      it "is valid when business has no advance percentage configured" do
+        business.update!(max_salary_advance_percentage: nil)
+        req = build(:employee_request, :salary_advance, user: user, amount: 99_999)
+        expect(req).to be_valid
+      end
+
+      it "is invalid with a clear error when user has no salary profile" do
+        SalaryProfile.where(user: user).delete_all
+        req = build(:employee_request, :salary_advance, user: user, amount: 100)
+        expect(req).not_to be_valid
+        expect(req.errors[:amount]).to be_present
+      end
+
+      it "makes the full salary available at a 100% limit" do
+        business.update!(max_salary_advance_percentage: 100)
+        req = build(:employee_request, :salary_advance, user: user, amount: 4_000)
+        expect(req).to be_valid
+      end
+
+      it "allows no advance at all at a 0% limit" do
+        business.update!(max_salary_advance_percentage: 0.01)
+        req = build(:employee_request, :salary_advance, user: user, amount: 1)
+        expect(req).not_to be_valid
+      end
+
+      it "deducts outstanding advances before checking limit" do
+        existing = create(:employee_request, :salary_advance, :approved, user: user, amount: 1_500)
+        create(:advance, user: user, remaining_amount: 1_500, employee_request: existing)
+        existing.update!(status: "paid")
+        # max = 2_000; outstanding = 1_500; available = 500 → 600 should fail
+        req = build(:employee_request, :salary_advance, user: user, amount: 600)
+        expect(req).not_to be_valid
+        expect(req.errors[:amount]).to be_present
+
+        # ...but the remaining 500 should still be requestable.
+        req2 = build(:employee_request, :salary_advance, user: user, amount: 500)
+        expect(req2).to be_valid
       end
     end
 
-    it "is valid when amount is within the available limit" do
-      req = build(:employee_request, :salary_advance, user: user, amount: 1_000)
-      expect(req).to be_valid
-    end
+    context "daily employee" do
+      # 500 EGP/day rate, 10 eligible (complete) days worked, 50% limit → 2_500 available.
+      let(:business) { create(:business, max_salary_advance_percentage: 50) }
+      let(:user)     { create(:user, business: business) }
+      let(:branch)   { create(:branch, business: business) }
 
-    it "is invalid when amount exceeds the available limit" do
-      req = build(:employee_request, :salary_advance, user: user, amount: 2_500)
-      expect(req).not_to be_valid
-      expect(req.errors[:amount]).to be_present
-    end
+      before do
+        create(:salary_profile, :daily, user: user, base_amount: 500)
+        assignment = create(:shift_assignment, user: user, branch: branch,
+                            shift: create(:shift, :fixed_time, business: business),
+                            effective_from: 1.year.ago.to_date)
+        10.times do |i|
+          date = Date.current.beginning_of_month + i.days
+          create(:attendance_record, :checked_out, user: user, branch: branch,
+                 shift_assignment: assignment, date: date, work_date: date)
+        end
+      end
 
-    it "is valid when business has no advance percentage configured" do
-      business.update!(max_salary_advance_percentage: nil)
-      req = build(:employee_request, :salary_advance, user: user, amount: 99_999)
-      expect(req).to be_valid
-    end
+      it "is valid when amount is within the available limit" do
+        req = build(:employee_request, :salary_advance, user: user, amount: 2_500)
+        expect(req).to be_valid
+      end
 
-    it "is valid when user has no salary profile" do
-      SalaryProfile.where(user: user).delete_all
-      req = build(:employee_request, :salary_advance, user: user, amount: 99_999)
-      expect(req).to be_valid
-    end
-
-    it "deducts outstanding advances before checking limit" do
-      existing = create(:employee_request, :salary_advance, :approved, user: user, amount: 1_500)
-      advance  = create(:advance, user: user, remaining_amount: 1_500, employee_request: existing)
-      existing.update!(status: "paid")
-      # max = 2_000; outstanding = 1_500; available = 500 → 600 should fail
-      req = build(:employee_request, :salary_advance, user: user, amount: 600)
-      expect(req).not_to be_valid
-      expect(req.errors[:amount]).to be_present
+      it "is invalid when amount exceeds the available limit" do
+        req = build(:employee_request, :salary_advance, user: user, amount: 2_501)
+        expect(req).not_to be_valid
+        expect(req.errors[:amount]).to be_present
+      end
     end
   end
 
