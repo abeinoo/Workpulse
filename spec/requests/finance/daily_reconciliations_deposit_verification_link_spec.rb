@@ -18,11 +18,10 @@ RSpec.describe "Daily Reconciliation — Open Deposit Verification link uses the
 
   let(:dr) do
     DailyReconciliation.create!(
-      branch: branch, business: business, state: "closed",
+      branch: branch, business: business, state: "deposited",
       opened_at: Time.zone.local(2026, 7, 16, 10, 0, 0),
       closed_at: Time.zone.local(2026, 7, 16, 23, 0, 0),
-      business_date: Date.new(2026, 7, 16),
-      reviewed_by: actor, reviewed_at: Time.zone.local(2026, 7, 16, 23, 0, 0)
+      business_date: Date.new(2026, 7, 16)
     )
   end
   let!(:till_session) { TillSession.create!(daily_reconciliation: dr, depositor_id: actor.id) }

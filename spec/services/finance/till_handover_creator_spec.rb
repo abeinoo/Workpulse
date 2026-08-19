@@ -160,37 +160,6 @@ RSpec.describe Finance::TillHandoverCreator, type: :model do
     end
   end
 
-  describe "Branch Review invalidation" do
-    before do
-      role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}",
-                                                permissions: %w[view_daily_reconciliation accept_till_handover])
-      receiver.update_column(:permission_role_id, role.id)
-    end
-
-    it "clears an existing review when a new peer handover is created" do
-      dr.update_columns(reviewed_at: 1.minute.ago, reviewed_by_id: sender.id)
-
-      result = described_class.new(
-        actor: sender, daily_reconciliation_id: dr.id,
-        params: { to_user_id: receiver.id, amounts: { cash_pm.id.to_s => { collected_amount: "100", refund_amount: "0" } } }
-      ).call
-
-      expect(result.ok?).to be true
-      expect(dr.reload.reviewed?).to be false
-      expect(AuditLog.where(auditable: dr, action: "review_auto_cancelled")).to be_present
-    end
-
-    it "is a no-op when the DR was never reviewed" do
-      result = described_class.new(
-        actor: sender, daily_reconciliation_id: dr.id,
-        params: { to_user_id: receiver.id, amounts: { cash_pm.id.to_s => { collected_amount: "100", refund_amount: "0" } } }
-      ).call
-
-      expect(result.ok?).to be true
-      expect(AuditLog.where(auditable: dr, action: "review_auto_cancelled")).to be_empty
-    end
-  end
-
   describe ".sync_session_amounts!" do
     it "writes the effective (adjusted) amount into session_amounts, not the original" do
       handover = TillHandover.create!(daily_reconciliation: dr, from_user: sender, self_deposit: true,

@@ -6,9 +6,6 @@ RSpec.describe "Finance::DailyReconciliations — status after voiding a deposit
   let(:actor)    { create(:user, :owner, business: business) }
   let(:cash_pm)  { PaymentMethod.create!(business: business, name: "Cash", settlement_type: "cash", active: true) }
 
-  # NOT reviewed — under the current workflow the depositor records the
-  # deposit BEFORE Branch Review, so voiding/re-depositing here needs to
-  # stay unlocked.
   let(:dr) do
     DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",
@@ -55,16 +52,16 @@ RSpec.describe "Finance::DailyReconciliations — status after voiding a deposit
       expect(dr.reload.total_deposited).to eq(0)
     end
 
-    it "index page no longer counts this DR as deposited or shows it as Waiting for Branch Deposit Review" do
+    it "index page no longer counts this DR as deposited or shows it as Waiting for Accounting Approval" do
       result = record_deposit(5_000)
 
       get finance_daily_reconciliations_path
-      expect(response.body).to include("Waiting for Branch Deposit Review")
+      expect(response.body).to include("Waiting for Accounting Approval")
 
       patch void_till_deposit_path(result.deposit), params: { void_reason: "Wrong amount" }
 
       get finance_daily_reconciliations_path
-      expect(response.body).not_to include("Waiting for Branch Deposit Review")
+      expect(response.body).not_to include("Waiting for Accounting Approval")
     end
 
     it "keeps the DR deposited when a second active deposit still exists" do

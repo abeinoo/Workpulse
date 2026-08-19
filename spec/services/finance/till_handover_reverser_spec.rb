@@ -79,14 +79,5 @@ RSpec.describe Finance::TillHandoverReverser, type: :model do
       expect(result.ok?).to be false
       expect(result.error).to eq(I18n.t("till_handovers.errors.receiver_started_working"))
     end
-
-    it "clears an existing review and logs it on a successful reversal" do
-      dr.update_columns(reviewed_at: 1.minute.ago, reviewed_by_id: sender.id)
-
-      reverse
-
-      expect(dr.reload.reviewed?).to be false
-      expect(AuditLog.where(auditable: dr, action: "review_auto_cancelled")).to be_present
-    end
   end
 end

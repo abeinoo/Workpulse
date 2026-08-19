@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Record Deposit / Report ATM Deposit Issue happen BEFORE Branch Review", type: :request do
+RSpec.describe "Record Deposit / Report ATM Deposit Issue — no Deposit Review approval gate", type: :request do
   let(:business) { create(:business) }
   let(:branch)   { create(:branch, business: business) }
   let(:cash_pm)  { PaymentMethod.create!(business: business, name: "Cash", settlement_type: "cash", active: true) }
@@ -32,10 +32,8 @@ RSpec.describe "Record Deposit / Report ATM Deposit Issue happen BEFORE Branch R
 
   def record_deposit_text = I18n.t("finance.daily_reconciliations.show.action_deposit")
 
-  describe "immediately after the cashier closes the session (no review needed yet)" do
+  describe "immediately after the cashier closes the session" do
     it "shows the Record Deposit action on the DR show page" do
-      expect(dr.reviewed?).to be false
-
       get finance_daily_reconciliation_path(dr)
 
       expect(response.body).to include(record_deposit_text)
@@ -71,38 +69,39 @@ RSpec.describe "Record Deposit / Report ATM Deposit Issue happen BEFORE Branch R
     end
   end
 
-  describe "once the Branch Manager has approved the recorded deposit (locked)" do
+  describe "once the deposit is recorded (deposited state) — still no approval step in the way" do
     before do
       dr.till_deposits.create!(payment_method: cash_pm, deposited_by: employee, amount: 300, deposited_at: Time.current)
       dr.update_columns(state: "deposited")
-      dr.update!(reviewed_by: employee, reviewed_at: Time.current)
     end
 
-    it "hides Record Deposit on the DR show page for an ordinary depositor" do
+    it "still shows Record Deposit on the DR show page — a Daily Reconciliation may accumulate multiple deposits" do
       get finance_daily_reconciliation_path(dr)
 
-      expect(response.body).not_to include(record_deposit_text)
+      expect(response.body).to include(record_deposit_text)
     end
 
-    it "the ATM dispute endpoint is never locked by deposit approval" do
+    it "the ATM dispute endpoint remains reachable" do
       get new_finance_bank_dispute_path(daily_reconciliation_id: dr.id)
 
       expect(response).to have_http_status(:ok)
     end
 
+    it "allows recording a further deposit via the policy gate" do
+      get new_till_deposit_path(daily_reconciliation_id: dr.id)
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  describe "once the DR is verified — deposits are locked" do
+    before do
+      dr.till_deposits.create!(payment_method: cash_pm, deposited_by: employee, amount: 300, deposited_at: Time.current)
+      dr.update!(state: "verified", verified_by: employee, verified_at: Time.current)
+    end
+
     it "blocks recording a further deposit via the policy gate (not just hidden UI)" do
       get new_till_deposit_path(daily_reconciliation_id: dr.id)
       expect(response).to redirect_to(root_path)
-    end
-
-    it "allows a further/corrected deposit for a user holding override_review_requirement" do
-      overrider = user_with("view_daily_reconciliation", "close_till_session", "create_till_deposit", "override_review_requirement")
-      till_session.update!(depositor_id: overrider.id)
-      sign_in overrider
-
-      get new_till_deposit_path(daily_reconciliation_id: dr.id)
-      expect(response).to have_http_status(:ok)
-      expect(response.body).to include(I18n.t("till_deposits.new.deposit_locked_title"))
     end
   end
 end

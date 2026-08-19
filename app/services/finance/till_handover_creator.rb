@@ -61,12 +61,6 @@ module Finance
 
         close_day!(session, handover) if self_deposit?
 
-        # No-op for a self-deposit close — review can only exist once the DR
-        # is already closed, so there's nothing to invalidate on the handover
-        # that performs the closing itself. Matters for a new peer handover
-        # created against an already-reviewed DR.
-        @daily_reconciliation.clear_review!(actor: @actor)
-
         log_audit(actor: @actor, auditable: handover, action: "create",
                   metadata: { daily_reconciliation_id: @daily_reconciliation.id,
                                self_deposit: self_deposit? })

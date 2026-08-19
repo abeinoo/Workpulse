@@ -135,34 +135,5 @@ RSpec.describe Finance::DayCloseEditor, type: :model do
         expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.day_close_not_closed"))
       end
     end
-
-    context "Branch Review invalidation" do
-      it "clears an existing review and logs it when amounts actually change" do
-        dr.update_columns(reviewed_at: 1.minute.ago, reviewed_by_id: actor.id)
-
-        edit
-
-        expect(dr.reload.reviewed?).to be false
-        expect(AuditLog.where(auditable: dr, action: "review_auto_cancelled")).to be_present
-      end
-
-      it "does not touch review when nothing changed" do
-        dr.update_columns(reviewed_at: 1.minute.ago, reviewed_by_id: actor.id)
-        unchanged = {
-          cash_pm.id => { collected_amount: "7225", refund_amount: "0" },
-          visa_pm.id => { collected_amount: "4801", refund_amount: "0" }
-        }
-
-        edit(amounts: unchanged)
-
-        expect(dr.reload.reviewed?).to be true
-        expect(AuditLog.where(auditable: dr, action: "review_auto_cancelled")).to be_empty
-      end
-
-      it "is a no-op when the DR was never reviewed" do
-        edit
-        expect(AuditLog.where(auditable: dr, action: "review_auto_cancelled")).to be_empty
-      end
-    end
   end
 end

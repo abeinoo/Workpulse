@@ -7,9 +7,6 @@ RSpec.describe Finance::BankDisputes::DepositConfirmer do
   let(:accountant)  { create(:user, business: business) }
   let(:cash_pm)     { PaymentMethod.create!(business: business, name: "Cash", settlement_type: "cash", active: true) }
 
-  # NOT reviewed — confirming a resolved ATM dispute records the deposit
-  # BEFORE Branch Review, same as any other deposit under the current
-  # workflow.
   let(:dr) do
     DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",

@@ -32,9 +32,8 @@ RSpec.describe Finance::PosImports::Importer, "invalidating stale bank verificat
   let(:dr) do
     DailyReconciliation.create!(
       branch: branch, business: business, state: "deposited",
-      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.new(2026, 7, 16),
-      reviewed_by: actor, reviewed_at: 1.minute.ago
-    )
+      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.new(2026, 7, 16)
+      )
   end
   let!(:till_session) { TillSession.create!(daily_reconciliation: dr, depositor_id: actor.id) }
 
@@ -113,9 +112,8 @@ RSpec.describe Finance::PosImports::Importer, "invalidating stale bank verificat
     other_branch = create(:branch, business: business)
     other_dr = DailyReconciliation.create!(
       branch: other_branch, business: business, state: "deposited",
-      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.new(2026, 7, 16),
-      reviewed_by: actor, reviewed_at: 1.minute.ago
-    )
+      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.new(2026, 7, 16)
+      )
     TillSession.create!(daily_reconciliation: other_dr, depositor_id: actor.id)
     matched_txn = fully_match_dr!
 

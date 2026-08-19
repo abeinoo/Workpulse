@@ -97,8 +97,6 @@ module Finance
         # Revert custody.
         session.update!(current_holder: @handover.from_user)
 
-        dr.clear_review!(actor: @actor)
-
         log_audit(
           actor:     @actor,
           auditable: @handover,

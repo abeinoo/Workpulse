@@ -22,7 +22,7 @@ RSpec.describe "Daily Reconciliations index — bank reconciliation status filte
     dr = DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",
       opened_at: business_date.to_time + 10.hours, closed_at: business_date.to_time + 23.hours,
-      business_date: business_date, reviewed_by: actor, reviewed_at: business_date.to_time + 23.hours
+      business_date: business_date
     )
     TillSession.create!(daily_reconciliation: dr, depositor_id: actor.id)
     dr

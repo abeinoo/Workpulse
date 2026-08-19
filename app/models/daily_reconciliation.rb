@@ -14,7 +14,6 @@ class DailyReconciliation < ApplicationRecord
   belongs_to :branch
   belongs_to :business
   belongs_to :verified_by, class_name: "User", optional: true
-  belongs_to :reviewed_by, class_name: "User", optional: true
 
   # Set when a previous-day self-deposit handover carried next_day_amounts.
   # Cleared (set to nil) once the opening float has been received.
@@ -76,21 +75,7 @@ class DailyReconciliation < ApplicationRecord
   def verified?   = verified_at.present?
   def unverified? = !verified?
 
-  def reviewed? = reviewed_at.present?
-
-  # Called by any service that mutates financial data or custody after a
-  # review was already completed. No-ops (and logs nothing) if not currently
-  # reviewed, matching the "only log if something actually changed"
-  # convention used by DayCloseEditor/SessionAmountsEditor.
-  def clear_review!(actor:)
-    return unless reviewed?
-
-    update!(reviewed_at: nil, reviewed_by_id: nil)
-    log_audit(actor: actor, auditable: self, action: "review_auto_cancelled",
-              metadata: { reason: "Financial data changed after review." })
-  end
-
-  # Symmetric counterpart to #clear_review! for the later, separate
+  # Counterpart to the later, separate
   # "Verified" milestone (Finance::DailyReconciliationVerifier) — called when
   # data the verification depended on changes after the fact. Reverts state
   # to whatever the data shape says it should be (deposited if an active
@@ -367,40 +352,39 @@ class DailyReconciliation < ApplicationRecord
   # already authorized the equivalent action under the old next_action_for /
   # required_actions — no new authorization logic, only re-sequenced
   # presentation.
-  WORKFLOW_STEPS = %i[opening_float close_handover deposit deposit_review
+  WORKFLOW_STEPS = %i[opening_float close_handover deposit
                        sales_import pos_import bank_statement documentation].freeze
 
   # ── Single source of truth for "which stage of the core DR lifecycle is
   # this" — opening float → open (cashier working) → awaiting deposit →
-  # deposited-but-unreviewed → deposited-and-reviewed → verified. Both the
-  # index card's status badge (view) and #workflow_progress's steps 1-4
-  # (below) derive from this SAME ordered list via #lifecycle_stage_index,
-  # so they can never disagree about which of these states a DR is actually
-  # in — only the presentation (badge text vs. step name/checkmark) differs,
-  # never the underlying boolean logic.
+  # awaiting verification → verified. Both the index card's status badge
+  # (view) and #workflow_progress's steps (below) derive from this SAME
+  # ordered list via #lifecycle_stage_index, so they can never disagree
+  # about which of these states a DR is actually in — only the presentation
+  # (badge text vs. step name/checkmark) differs, never the underlying
+  # boolean logic.
   #
   # Deliberately excludes RemainingDepositBalance/RDB state. A still-open
   # cash shortfall is a separate, independently-tracked, append-only-ledger
   # concern (see RDB's own status lifecycle: open → settled | written_off)
-  # and must never block progression through review/verification — a DR is
-  # routinely reviewed and verified while a shortfall is still being chased
-  # down. Gating "deposit recorded" on the shortfall being fully resolved
-  # was the bug behind an "impossible" card state: a DR already reviewed
-  # (badge correctly showing "Waiting for Accounting Approval") could still
-  # have its Next Step button stuck on "Record Deposit" merely because an
+  # and must never block progression through verification — a DR is
+  # routinely verified while a shortfall is still being chased down. Gating
+  # "deposit recorded" on the shortfall being fully resolved was the bug
+  # behind an "impossible" card state: a DR already deposited (badge
+  # correctly showing "Waiting for Accounting Approval") could still have
+  # its Next Step button stuck on "Record Deposit" merely because an
   # unrelated, independently-tracked shortfall remained open. An open
   # shortfall is still surfaced — via the Outstanding Bank Deposits issue
   # badge and the card's own Outstanding amount field — just never as a
   # blocker on this sequential workflow.
   LIFECYCLE_STAGES = %i[awaiting_opening open awaiting_deposit
-                        awaiting_branch_review awaiting_accounting_approval verified].freeze
+                        awaiting_verification verified].freeze
 
   def lifecycle_stage
     return :awaiting_opening if waiting_for_opening?
     return :open if open?
     return :awaiting_deposit if closed?
-    return :awaiting_branch_review if deposited? && !reviewed?
-    return :awaiting_accounting_approval if deposited? && reviewed? && !verified?
+    return :awaiting_verification if deposited? && !verified?
 
     :verified
   end
@@ -416,8 +400,7 @@ class DailyReconciliation < ApplicationRecord
     opening_complete = stage_index >= 1
     close_complete   = stage_index >= 2
     deposit_complete = stage_index >= 3
-    review_complete  = stage_index >= 4
-    sales_complete   = review_complete && sales_imported
+    sales_complete   = deposit_complete && sales_imported
     pos_complete     = sales_complete && pos_imported
     bank_complete    = pos_complete &&
                         %w[completed no_bank_transactions].include?(bank_status) && open_disputes.empty?
@@ -427,7 +410,6 @@ class DailyReconciliation < ApplicationRecord
       { key: :opening_float,  complete: opening_complete },
       { key: :close_handover, complete: close_complete },
       { key: :deposit,        complete: deposit_complete },
-      { key: :deposit_review, complete: review_complete },
       { key: :sales_import,   complete: sales_complete },
       { key: :pos_import,     complete: pos_complete },
       { key: :bank_statement, complete: bank_complete },
@@ -472,11 +454,6 @@ class DailyReconciliation < ApplicationRecord
       return nil unless TillDepositPolicy.new(user, unsaved_till_deposit_for_policy).create?
 
       { label: label.call(:deposit), path: routes.new_till_deposit_path(daily_reconciliation_id: id), style: primary_style }
-
-    when :deposit_review
-      return nil unless DailyReconciliationPolicy.new(user, self).mark_reviewed?
-
-      { label: label.call(:deposit_review), path: routes.finance_daily_reconciliation_path(self, anchor: "approval"), style: primary_style }
 
     when :sales_import
       { label: label.call(:sales_import), path: routes.finance_sales_imports_path, style: primary_style }

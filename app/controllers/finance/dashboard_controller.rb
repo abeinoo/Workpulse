@@ -13,6 +13,8 @@ class Finance::DashboardController < Finance::BaseController
   # regardless of how wide a date range is otherwise selected. Every other
   # widget honours the filter bar's date range directly.
   def index
+    authorize :"finance/dashboard", :index?
+
     @capabilities = Finance::Dashboard::Capabilities.new
     @filters      = Finance::DashboardFilters.new(current_user, params).resolve
     @focus_month  = @filters.to.beginning_of_month

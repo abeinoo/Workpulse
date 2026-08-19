@@ -14,8 +14,6 @@ RSpec.describe Finance::TillDepositVoider, type: :model do
     )
   end
 
-  # NOT reviewed — voiding/correcting a deposit happens BEFORE Branch Review
-  # under the current workflow.
   let(:dr) do
     DailyReconciliation.create!(
       branch:        branch,
@@ -148,73 +146,6 @@ RSpec.describe Finance::TillDepositVoider, type: :model do
       expect(AuditLog.where(auditable: replacement, action: "create").count).to eq(1)
       expect(TillDeposit.count).to eq(2)
       expect(original.id).not_to eq(replacement.id)
-    end
-  end
-
-  describe "voiding a deposit invalidates an existing Branch Review (never leaves an orphaned approval)" do
-    let(:manager) { create(:user, business: business) }
-
-    def review!
-      dr.update!(reviewed_by_id: manager.id, reviewed_at: Time.current)
-    end
-
-    it "clears reviewed_at/reviewed_by_id when the sole deposit backing the review is voided" do
-      d = deposit(amount: 17_900)
-      review!
-      expect(dr.reload.reviewed?).to be true
-
-      void(d)
-
-      expect(dr.reload.reviewed?).to be false
-      expect(dr.reviewed_by_id).to be_nil
-      expect(dr.reviewed_at).to be_nil
-    end
-
-    it "reverts state to closed AND clears the review together — never closed-with-reviewed_at-set" do
-      d = deposit(amount: 17_900)
-      review!
-
-      void(d)
-      dr.reload
-
-      expect(dr.state).to eq("closed")
-      expect(dr.reviewed?).to be false
-    end
-
-    it "logs a review_auto_cancelled audit entry, distinct from an explicit Cancel Review" do
-      d = deposit(amount: 17_900)
-      review!
-
-      void(d)
-
-      log = AuditLog.where(auditable: dr, action: "review_auto_cancelled").sole
-      expect(log.metadata["reason"]).to be_present
-    end
-
-    it "also invalidates the review when another active deposit still keeps the DR deposited" do
-      other_pm = PaymentMethod.create!(business: business, name: "Cash USD", settlement_type: "cash", active: true)
-      TillSessionAmount.create!(daily_reconciliation: dr, payment_method: other_pm,
-                                 payment_method_name: other_pm.name, collected_amount: 100, refund_amount: 0)
-      Finance::TillDepositRecorder.new(
-        dr.id, actor: actor,
-        params: { payment_method_id: other_pm.id, amount: "100.00", deposited_at: Time.current.to_s }
-      ).call
-
-      d = deposit(amount: 17_900)
-      review!
-
-      void(d)
-      dr.reload
-
-      expect(dr.state).to eq("deposited")
-      expect(dr.reviewed?).to be false
-    end
-
-    it "does not touch reviewed_at when the deposit was never reviewed (no-op guard in clear_review!)" do
-      d = deposit(amount: 17_900)
-      expect(dr.reload.reviewed?).to be false
-
-      expect { void(d) }.not_to change { AuditLog.where(auditable: dr, action: "review_auto_cancelled").count }
     end
   end
 end

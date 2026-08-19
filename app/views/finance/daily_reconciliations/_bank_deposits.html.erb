@@ -14,7 +14,7 @@
         </p>
       </div>
     </div>
-    <% if @can_view_deposit_verification && (@reconciliation.reviewed? || @reconciliation.verified?) %>
+    <% if @can_view_deposit_verification && (@reconciliation.deposited? || @reconciliation.verified?) %>
       <%# Uses the actual deposit date(s) (@deposit_verification_from/_to,
           derived in the controller from active deposits) rather than the
           DR's own business date, so a deposit recorded on a different day
@@ -32,10 +32,10 @@
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
 
     <%# ── Bank statement comparison ─────────────────────────────────────── %>
-    <%# The verification workflow only becomes active once the Branch Manager
-        has approved the recorded deposit — before that the accountant has
-        nothing settled yet to reconcile against an imported bank statement. ── %>
-    <% if @can_view_deposit_verification && (@reconciliation.reviewed? || @reconciliation.verified?) %>
+    <%# The verification workflow only becomes active once at least one
+        deposit is recorded — before that the accountant has nothing settled
+        yet to reconcile against an imported bank statement. ── %>
+    <% if @can_view_deposit_verification && (@reconciliation.deposited? || @reconciliation.verified?) %>
       <div style="padding: var(--dr-panel-py) var(--space-5); border-bottom: 1px solid var(--border);">
         <div class="recon-formula-row">
           <span><%= t("finance.daily_reconciliations.show.sections.bank.expected") %></span>

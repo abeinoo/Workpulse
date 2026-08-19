@@ -19,16 +19,6 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def view_sales_transactions_verification?         = can?(:view_sales_transactions_verification)
   def view_pos_transaction_verification?            = can?(:view_sales_transactions_verification) && can?(:view_pos_import)
 
-  def mark_reviewed?
-    can?(:review_daily_reconciliation) && !record.is_a?(Class) &&
-      record.deposited? && !record.reviewed?
-  end
-
-  def cancel_review?
-    can?(:review_daily_reconciliation) && !record.is_a?(Class) &&
-      record.deposited? && record.reviewed? && !record.verified?
-  end
-
   def show?
     return true if can?(:view_daily_reconciliation)
 

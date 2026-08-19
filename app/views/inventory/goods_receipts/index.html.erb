@@ -8,6 +8,103 @@
     <% end %>
   </div>
 
+  <%# ── Filter bar (GET form → filters live in the URL query string) ────────── %>
+  <%= form_with url: inventory_goods_receipts_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= f.label :warehouse_id, t("inventory.goods_receipts.warehouse"), class: "filter-bar__label" %>
+        <%= f.select :warehouse_id,
+              options_from_collection_for_select(@filter_warehouses, :id, :name, @filters[:warehouse_id]),
+              { include_blank: t("inventory.goods_receipts.all_warehouses") }, class: "filter-bar__select" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :approval_status, t("inventory.goods_receipts.approval_status"), class: "filter-bar__label" %>
+        <%= f.select :approval_status,
+              options_for_select(
+                [[ t("inventory.goods_receipts.all_approval_statuses"), "" ]] +
+                  GoodsReceipt.approval_statuses.keys.map { |s| [ t("inventory.goods_receipts.approval_statuses.#{s}"), s ] },
+                @filters[:approval_status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :receiving_status, t("inventory.goods_receipts.receipt_status"), class: "filter-bar__label" %>
+        <%= f.select :receiving_status,
+              options_for_select(
+                [[ t("inventory.goods_receipts.all_receiving_statuses"), "" ]] +
+                  %w[not_received received voided].map { |s| [ t("inventory.goods_receipts.receipt_statuses.#{s}"), s ] },
+                @filters[:receiving_status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+
+      <%# Supplier — searchable dropdown when the list is large enough to warrant it %>
+      <div class="filter-bar__field" data-controller="searchable-select">
+        <%= f.label :supplier_id, t("inventory.goods_receipts.supplier"), class: "filter-bar__label" %>
+        <%= f.select :supplier_id,
+              options_from_collection_for_select(@filter_suppliers, :id, :name, @filters[:supplier_id]),
+              { include_blank: t("inventory.goods_receipts.all_suppliers") }, class: "filter-bar__select",
+              data: { searchable_select_target: "select", search_placeholder: t("inventory.goods_receipts.search_supplier") } %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :date_from, t("inventory.goods_receipts.date_from"), class: "filter-bar__label" %>
+        <%= f.date_field :date_from, value: @filters[:date_from], class: "filter-bar__input" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :date_to, t("inventory.goods_receipts.date_to"), class: "filter-bar__label" %>
+        <%= f.date_field :date_to, value: @filters[:date_to], class: "filter-bar__input" %>
+      </div>
+    </div>
+
+    <div class="filter-bar__actions">
+      <%= f.submit t("common.search"), class: "btn btn-sm btn-primary" %>
+      <% if @active_filters %>
+        <%= link_to t("inventory.goods_receipts.reset_filters"), inventory_goods_receipts_path, class: "btn btn-sm btn-ghost" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Active filter chips ────────────────────────────────────────────────── %>
+  <% if @active_filters %>
+    <%
+      chips = []
+      if @filters[:warehouse_id].present?
+        wh = @filter_warehouses.find { |w| w.id.to_s == @filters[:warehouse_id].to_s }
+        chips << [ :warehouse_id, "#{t('inventory.goods_receipts.warehouse')}: #{wh&.name || @filters[:warehouse_id]}" ]
+      end
+      if @filters[:approval_status].present?
+        chips << [ :approval_status,
+                   "#{t('inventory.goods_receipts.approval_status')}: #{t("inventory.goods_receipts.approval_statuses.#{@filters[:approval_status]}", default: @filters[:approval_status])}" ]
+      end
+      if @filters[:receiving_status].present?
+        chips << [ :receiving_status,
+                   "#{t('inventory.goods_receipts.receipt_status')}: #{t("inventory.goods_receipts.receipt_statuses.#{@filters[:receiving_status]}", default: @filters[:receiving_status])}" ]
+      end
+      if @filters[:supplier_id].present?
+        sup = @filter_suppliers.find { |s| s.id.to_s == @filters[:supplier_id].to_s }
+        chips << [ :supplier_id, "#{t('inventory.goods_receipts.supplier')}: #{sup&.name || @filters[:supplier_id]}" ]
+      end
+      chips << [ :date_from, "#{t('inventory.goods_receipts.date_from')}: #{@filters[:date_from]}" ] if @filters[:date_from].present?
+      chips << [ :date_to,   "#{t('inventory.goods_receipts.date_to')}: #{@filters[:date_to]}" ]     if @filters[:date_to].present?
+    %>
+    <div class="filter-chips" aria-label="<%= t('inventory.goods_receipts.active_filters') %>">
+      <% chips.each do |key, text| %>
+        <span class="filter-chip">
+          <%= text %>
+          <%= link_to "×", inventory_goods_receipts_path(@filters.except(key).to_h),
+                class: "filter-chip__remove",
+                "aria-label": t("inventory.goods_receipts.remove_filter", filter: text) %>
+        </span>
+      <% end %>
+      <%= link_to t("inventory.goods_receipts.reset_filters"), inventory_goods_receipts_path, class: "filter-chip filter-chip--clear" %>
+    </div>
+  <% end %>
+
+  <%# ── Results count ────────────────────────────────────────────────────────── %>
+  <p class="table-meta"><%= t("inventory.goods_receipts.results_count", count: @filtered_count) %></p>
+
   <% if @goods_receipts.empty? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("inventory.goods_receipts.empty") %></p></div>
   <% else %>

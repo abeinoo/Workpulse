@@ -213,7 +213,6 @@
     %>
     <%
       waiting_count     = @reconciliations.count(&:waiting_for_opening?)
-      waiting_review_count = @reconciliations.count { |dr| dr.closed? && !dr.reviewed? }
       # "Waiting for Deposit" — workflow-stage pipeline card, same population
       # as the index's status=waiting_deposit filter (query.closed): day
       # closed, no deposit recorded yet. Distinct from the Outstanding
@@ -271,12 +270,6 @@
           <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_waiting_deposit") %></p>
           <p class="stat-card__value" style="color: var(--warning);"><%= closed_count %></p>
           <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_deposit_sub") %></p>
-        </div>
-
-        <div class="stat-card" style="border-top: 3px solid var(--warning);">
-          <p class="stat-card__label"><%= t("finance.daily_reconciliations.index.stat_waiting_review") %></p>
-          <p class="stat-card__value" style="color: var(--warning);"><%= waiting_review_count %></p>
-          <p class="stat-card__sub"><%= t("finance.daily_reconciliations.index.stat_waiting_review_sub") %></p>
         </div>
 
         <div class="stat-card" style="border-top: 3px solid var(--accent);">

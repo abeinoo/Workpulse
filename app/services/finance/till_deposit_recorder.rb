@@ -51,21 +51,6 @@ module Finance
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.not_depositor"))
       end
 
-      # Once the Branch Manager has approved the recorded deposit, it's
-      # locked — only override_review_requirement can still record/correct
-      # one after that point (the reverse of the old pre-review gate: the
-      # deposit now happens BEFORE Branch Review, not after).
-      review_overridden = false
-      if @daily_reconciliation.reviewed?
-        unless @actor.can?(:override_review_requirement)
-          return Result.new(ok: false, error: I18n.t("till_deposits.errors.deposit_locked"))
-        end
-        if @params[:override_review_reason].blank?
-          return Result.new(ok: false, error: I18n.t("till_deposits.errors.override_reason_required"))
-        end
-        review_overridden = true
-      end
-
       unless PaymentMethod.for_business(@daily_reconciliation.business).active.exists?(@params[:payment_method_id])
         return Result.new(ok: false, error: I18n.t("till_deposits.errors.invalid_payment_method"))
       end
@@ -115,11 +100,6 @@ module Finance
         log_audit(actor: @actor, auditable: deposit, action: "create",
                   metadata: { amount: deposit.amount.to_s,
                                daily_reconciliation_id: @daily_reconciliation.id })
-
-        if review_overridden
-          log_audit(actor: @actor, auditable: deposit, action: "deposit_review_overridden",
-                    metadata: { reason: @params[:override_review_reason] })
-        end
 
         # Advance DR to "deposited" state on first deposit so downstream logic
         # (verifier guard, index stat card, view conditions) can distinguish

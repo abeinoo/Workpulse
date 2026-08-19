@@ -17,17 +17,16 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
   let(:actor) do
     user_with("view_daily_reconciliation", "view_deposit_verification", "close_till_session",
               "create_till_deposit", "verify_deposits", "manual_match_deposits",
-              "review_daily_reconciliation", "verify_daily_reconciliation")
+              "verify_daily_reconciliation")
   end
 
   before { sign_in actor }
 
-  def make_dr(depositor: actor, business_date: Date.current, reviewed: true)
+  def make_dr(depositor: actor, business_date: Date.current)
     dr = DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",
       opened_at: business_date.to_time + 10.hours, closed_at: business_date.to_time + 23.hours,
-      business_date: business_date,
-      reviewed_by: (depositor if reviewed), reviewed_at: (business_date.to_time + 23.hours if reviewed)
+      business_date: business_date
     )
     TillSession.create!(daily_reconciliation: dr, depositor_id: depositor.id)
     dr

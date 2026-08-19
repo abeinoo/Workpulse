@@ -9,9 +9,8 @@ RSpec.describe TillDeposit, type: :model do
   let(:dr) do
     DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",
-      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current,
-      reviewed_by: actor, reviewed_at: 1.minute.ago
-    )
+      opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current
+      )
   end
   let!(:till_session) { TillSession.create!(daily_reconciliation: dr, depositor_id: actor.id) }
   let(:statement)     { create(:bank_statement, business: business, branch: branch) }

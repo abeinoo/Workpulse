@@ -23,20 +23,6 @@ module Finance
   # active deposits was never actually deposited. This never blocks a
   # replacement deposit either way: TillDepositRecorder accepts both "closed"
   # and "deposited" DRs.
-  #
-  # Voiding is financial data changing after the fact, exactly like editing
-  # session amounts or day-close amounts — so it must invalidate an existing
-  # Branch Review the same way SessionAmountsEditor/DayCloseEditor/
-  # TillHandoverCreator/TillHandoverAdjuster/TillHandoverReverser/
-  # DepositResponsibilityTransferAcceptor already do, via
-  # DailyReconciliation#clear_review!. Without this, TillDepositPolicy#void?
-  # explicitly permits voiding the sole deposit on an already-reviewed DR
-  # (for override_review_requirement holders) — revert_deposited_state! below
-  # would then flip the DR back to "closed" while reviewed_at/reviewed_by_id
-  # stayed set, orphaning the review: the Approval section renders "Deposit
-  # Approved" forever, TillDepositPolicy#create? stays locked, and — since
-  # DailyReconciliationPolicy#cancel_review? requires deposited? (now false)
-  # — there is no UI path left to clear it.
   class TillDepositVoider
     include AuditLoggable
 
@@ -67,7 +53,6 @@ module Finance
                   metadata: { void_reason: @void_reason, amount: deposit.amount.to_s,
                                daily_reconciliation_id: deposit.daily_reconciliation_id })
 
-        deposit.daily_reconciliation.clear_review!(actor: @actor)
         revert_deposited_state!(deposit.daily_reconciliation)
 
         result = Result.new(ok: true, deposit: deposit)

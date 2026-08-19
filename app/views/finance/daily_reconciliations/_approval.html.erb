@@ -1,27 +1,24 @@
 <%# ── Approval ──────────────────────────────────────────────────────────────
-    Branch review of the RECORDED DEPOSIT (not the closed session) — the
-    depositor records first, then the Branch Manager approves the deposit
-    itself, then the accountant verifies against the imported bank statement.
+    Deposit summary for the day (not the closed session), followed by the
+    single-step verify form / verified footer, presented as "Approve".
     Approval history sourced from existing verification-related timeline
-    events, and the single-step verify form / verified footer, presented as
-    "Approve". No new reject/unverify flow and no new approval-history model. %>
+    events (including any historical Deposit Review entries from before that
+    stage was removed). No reject/unverify flow and no new approval-history
+    model. %>
 
 <section id="approval" class="recon-section">
   <div class="dashboard-section__header" style="margin-bottom: var(--dr-header-gap);">
     <h2 class="dashboard-section__title"><%= t("finance.daily_reconciliations.show.sections.approval.title") %></h2>
   </div>
 
-  <%# ── Branch Deposit Review ─────────────────────────────────────────────── %>
-  <div class="stat-card <%= @reconciliation.reviewed? ? 'stat-card--success' : ((@review_invalidated && @reconciliation.deposited?) ? 'stat-card--danger' : (@reconciliation.deposited? ? 'stat-card--warning' : '')) %>"
+  <%# ── Deposit summary ───────────────────────────────────────────────────── %>
+  <div class="stat-card <%= @reconciliation.deposited? ? 'stat-card--success' : '' %>"
        style="margin-bottom: var(--space-4);">
-    <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.q_review_status") %></p>
+    <p class="stat-card__label"><%= t("finance.daily_reconciliations.show.q_deposited") %></p>
 
-    <%# Deposit summary — what the Branch Manager is approving (or already
-        approved). Shown whenever at least one deposit exists, regardless of
-        review sub-state. Reuses @deposits (already loaded, active only) —
-        no new query. %>
+    <%# Reuses @deposits (already loaded, active only) — no new query. %>
     <% if @reconciliation.deposited? && @deposits.present? %>
-      <div style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); padding: var(--space-3); background: var(--surface-2); border-radius: var(--radius);">
+      <div style="display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); background: var(--surface-2); border-radius: var(--radius);">
         <% @deposits.each do |deposit| %>
           <div style="font-size: var(--text-xs); display: flex; flex-direction: column; gap: 2px; <%= 'border-top: 1px solid var(--border); padding-top: var(--space-2);' unless deposit == @deposits.first %>">
             <div style="display: flex; justify-content: space-between; gap: var(--space-2);">
@@ -40,56 +37,6 @@
           </div>
         <% end %>
       </div>
-    <% end %>
-
-    <% if @reconciliation.reviewed? %>
-      <p style="display: flex; align-items: center; gap: 5px; font-size: var(--text-base); font-weight: 700; color: var(--success,#16a34a); margin: 0 0 var(--space-2);">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-        <%= t("finance.daily_reconciliations.show.review_status_reviewed") %>
-      </p>
-      <p style="font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin: 0;">
-        <%= t("finance.daily_reconciliations.show.reviewed_by_label") %>
-      </p>
-      <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 var(--space-2);">
-        <%= @reconciliation.reviewed_by&.full_name || "—" %>
-      </p>
-      <p style="font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin: 0;">
-        <%= t("finance.daily_reconciliations.show.reviewed_at_label") %>
-      </p>
-      <p class="stat-card__sub" style="margin: 0;">
-        <%= l(@reconciliation.reviewed_at, format: :default) %> — <%= l(@reconciliation.reviewed_at, format: :time_only) %>
-      </p>
-      <% if policy(@reconciliation).cancel_review? %>
-        <%= button_to cancel_review_finance_daily_reconciliation_path(@reconciliation),
-              method: :patch, class: "btn btn-ghost btn-sm", style: "margin-top: var(--space-2);",
-              data: { turbo_confirm: t("finance.daily_reconciliations.show.confirm_cancel_review") } do %>
-          <%= t("finance.daily_reconciliations.show.cancel_review_button") %>
-        <% end %>
-      <% end %>
-    <% elsif @review_invalidated && @reconciliation.deposited? %>
-      <p style="display: flex; align-items: center; gap: 5px; font-size: var(--text-base); font-weight: 700; color: var(--danger,#dc2626); margin: 0 0 var(--space-1);">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <%= t("finance.daily_reconciliations.show.review_status_invalidated") %>
-      </p>
-      <p class="stat-card__sub" style="margin-bottom: var(--space-2);">
-        <%= t("finance.daily_reconciliations.show.review_status_invalidated_hint") %>
-      </p>
-      <% if policy(@reconciliation).mark_reviewed? %>
-        <%= button_to mark_reviewed_finance_daily_reconciliation_path(@reconciliation),
-              method: :patch, class: "btn btn-primary btn-sm" do %>
-          <%= t("finance.daily_reconciliations.show.mark_reviewed_button") %>
-        <% end %>
-      <% end %>
-    <% elsif @reconciliation.deposited? %>
-      <p class="stat-card__value" style="font-size: var(--text-base); color: var(--warning,#ca8a04); font-weight: 700; margin-bottom: var(--space-1);">
-        <%= t("finance.daily_reconciliations.show.review_status_pending") %>
-      </p>
-      <% if policy(@reconciliation).mark_reviewed? %>
-        <%= button_to mark_reviewed_finance_daily_reconciliation_path(@reconciliation),
-              method: :patch, class: "btn btn-primary btn-sm", style: "margin-top: var(--space-1);" do %>
-          <%= t("finance.daily_reconciliations.show.mark_reviewed_button") %>
-        <% end %>
-      <% end %>
     <% elsif @reconciliation.closed? %>
       <p class="stat-card__value" style="font-size: var(--text-base); color: var(--text-2);">
         <%= t("finance.daily_reconciliations.show.waiting_for_deposit_placeholder") %>
@@ -132,7 +79,7 @@
 
   <%# ── Approve form / approved footer ─────────────────────────────────────── %>
   <% if policy(@reconciliation).verify? && !@reconciliation.verified? &&
-        (@reconciliation.reviewed? || @reconciliation.expected_cash_deposit.zero?) %>
+        (@reconciliation.deposited? || @reconciliation.closed?) %>
     <div style="background: var(--surface); border: 2px solid rgba(var(--accent-rgb), 0.35); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-sm);">
       <div style="display: flex; align-items: flex-start; gap: var(--space-4);">
         <div style="flex-shrink: 0; width: 40px; height: 40px; border-radius: var(--radius); background: rgba(var(--accent-rgb), 0.10); display: flex; align-items: center; justify-content: center; color: var(--accent);">

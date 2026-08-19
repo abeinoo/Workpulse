@@ -18,12 +18,11 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
 
   let(:no_perms_user) { create(:user, business: business) }
 
-  def make_dr(state:, business_date: Date.current, reviewed: false, verified: false, depositor: nil)
+  def make_dr(state:, business_date: Date.current, verified: false, depositor: nil)
     dr = DailyReconciliation.create!(
       branch: branch, business: business, state: state,
       opened_at: 1.hour.ago, closed_at: (Time.current if state != "open" && state != "waiting_for_opening"),
       business_date: business_date,
-      reviewed_by: (depositor if reviewed), reviewed_at: (1.minute.ago if reviewed),
       verified_by: (depositor if verified), verified_at: (1.minute.ago if verified)
     )
     TillSession.create!(daily_reconciliation: dr, depositor_id: depositor&.id) if depositor || state != "waiting_for_opening"
@@ -43,11 +42,11 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
   def keys_of(result) = result[:steps].map { |s| s[:key] }
   def current_key(result) = result[:steps].find { |s| !s[:complete] }&.dig(:key)
 
-  it "returns all 8 steps in the fixed order" do
+  it "returns all 7 steps in the fixed order — no separate Deposit Review step" do
     dr = make_dr(state: "waiting_for_opening", business_date: Date.yesterday)
 
     expect(keys_of(dr.workflow_progress(no_perms_user))).to eq(
-      %i[opening_float close_handover deposit deposit_review sales_import pos_import bank_statement documentation]
+      %i[opening_float close_handover deposit sales_import pos_import bank_statement documentation]
     )
   end
 
@@ -86,7 +85,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     it "marks every later step incomplete too, even though their own individual conditions might coincidentally hold" do
       result = dr.workflow_progress(no_perms_user)
 
-      expect(result[:steps].map { |s| s[:complete] }).to eq([ false, false, false, false, false, false, false, false ])
+      expect(result[:steps].map { |s| s[:complete] }).to eq([ false, false, false, false, false, false, false ])
     end
   end
 
@@ -147,56 +146,30 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
 
   # ── Regression: reported "impossible" card state ────────────────────────
   describe "regression — status badge and Next Step must never disagree" do
-    it "never shows the Deposit action once the DR is already deposited and reviewed (badge = awaiting accounting approval), even with an open RDB shortfall" do
+    it "never shows the Deposit action once the DR is already deposited (badge = awaiting accounting approval), even with an open RDB shortfall" do
       depositor = create(:user, business: business)
-      dr = make_dr(state: "deposited", depositor: depositor, reviewed: true)
+      dr = make_dr(state: "deposited", depositor: depositor)
       dep = deposit!(dr, amount: 60, depositor: depositor)
       RemainingDepositBalance.create!(
         daily_reconciliation: dr, till_deposit: dep, responsible_user: depositor, created_by: depositor,
         business: business, branch: branch, amount: 40, remaining_amount: 40, status: "open"
       )
 
-      expect(dr.lifecycle_stage).to eq(:awaiting_accounting_approval)
+      expect(dr.lifecycle_stage).to eq(:awaiting_verification)
 
       result = dr.workflow_progress(no_perms_user, sales_imported: false)
 
       expect(result[:steps].find { |s| s[:key] == :deposit }[:complete]).to be true
-      expect(result[:steps].find { |s| s[:key] == :deposit_review }[:complete]).to be true
       expect(current_key(result)).to eq(:sales_import)
       expect(result[:action][:label]).to eq("Verify Sales Transactions")
     end
   end
 
-  # ── Step 4: Deposit Review ──────────────────────────────────────────────
-  describe "step 4 — deposit_review" do
+  # ── Step 4: Sales Import — reachable directly after Deposit, no Deposit
+  #    Review approval step in between ─────────────────────────────────────
+  describe "step 4 — sales_import" do
     let(:depositor) { create(:user, business: business) }
-    let(:dr) { make_dr(state: "deposited", depositor: depositor, reviewed: false) }
-
-    before { deposit!(dr, amount: 100, depositor: depositor) }
-
-    it "returns Review Deposit for a user with review_daily_reconciliation" do
-      user = user_with("review_daily_reconciliation", "view_daily_reconciliation")
-
-      result = dr.workflow_progress(user)
-
-      expect(current_key(result)).to eq(:deposit_review)
-      expect(result[:action]).to eq(
-        label: "Review Deposit", path: finance_daily_reconciliation_path(dr, anchor: "approval"), style: "btn btn-primary btn-sm"
-      )
-    end
-
-    it "returns no action for a user without review_daily_reconciliation" do
-      result = dr.workflow_progress(no_perms_user)
-
-      expect(current_key(result)).to eq(:deposit_review)
-      expect(result[:action]).to be_nil
-    end
-  end
-
-  # ── Step 5: Sales Import ────────────────────────────────────────────────
-  describe "step 5 — sales_import" do
-    let(:depositor) { create(:user, business: business) }
-    let(:dr) { make_dr(state: "deposited", depositor: depositor, reviewed: true) }
+    let(:dr) { make_dr(state: "deposited", depositor: depositor) }
 
     before { deposit!(dr, amount: 100, depositor: depositor) }
 
@@ -217,10 +190,10 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     end
   end
 
-  # ── Step 6: POS Import ──────────────────────────────────────────────────
+  # ── Step 5: POS Import ──────────────────────────────────────────────────
   describe "step 6 — pos_import" do
     let(:depositor) { create(:user, business: business) }
-    let(:dr) { make_dr(state: "deposited", depositor: depositor, reviewed: true) }
+    let(:dr) { make_dr(state: "deposited", depositor: depositor) }
 
     before { deposit!(dr, amount: 100, depositor: depositor) }
 
@@ -250,10 +223,10 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     end
   end
 
-  # ── Step 7: Bank Statement (import + matching + dispute resolution) ─────
+  # ── Step 6: Bank Statement (import + matching + dispute resolution) ─────
   describe "step 7 — bank_statement" do
     let(:depositor) { create(:user, business: business) }
-    let(:dr) { make_dr(state: "deposited", depositor: depositor, reviewed: true) }
+    let(:dr) { make_dr(state: "deposited", depositor: depositor) }
 
     before { deposit!(dr, amount: 100, depositor: depositor) }
 
@@ -312,10 +285,10 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     end
   end
 
-  # ── Step 8: Documentation (Verify) ──────────────────────────────────────
+  # ── Step 7: Documentation (Verify) ──────────────────────────────────────
   describe "step 8 — documentation" do
     let(:depositor) { create(:user, business: business) }
-    let(:dr) { make_dr(state: "deposited", depositor: depositor, reviewed: true) }
+    let(:dr) { make_dr(state: "deposited", depositor: depositor) }
 
     before { deposit!(dr, amount: 100, depositor: depositor) }
 
@@ -342,7 +315,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
 
   describe "fully completed" do
     let(:depositor) { create(:user, business: business) }
-    let(:dr) { make_dr(state: "verified", depositor: depositor, reviewed: true, verified: true) }
+    let(:dr) { make_dr(state: "verified", depositor: depositor, verified: true) }
 
     it "returns nil for current step and nil action once every step is complete" do
       result = dr.workflow_progress(no_perms_user, bank_status: "completed", sales_imported: true, pos_imported: true)

@@ -56,8 +56,6 @@ class PermissionRole < ApplicationRecord
                                correct_opening_float
                                view_sales_transactions_verification
                                manage_sales_import
-                               review_daily_reconciliation
-                               override_review_requirement
                                manage_bank_disputes
                                process_till_refund],
     finance_overview:      %w[view_finance_dashboard],
@@ -112,7 +110,7 @@ class PermissionRole < ApplicationRecord
       view_requests view_payroll complete_branch_review
       view_adjustments
       view_performance_dashboard view_notes view_monthly_reviews
-      view_daily_reconciliation review_daily_reconciliation
+      view_daily_reconciliation
     ],
     "area_manager" => %w[
       view_dashboard view_reports export_reports
@@ -192,7 +190,6 @@ class PermissionRole < ApplicationRecord
     view_all_employee_reconciliation_summary
     view_sales_transactions_verification
     manage_sales_import
-    review_daily_reconciliation
     manage_bank_disputes
     process_till_refund
   ].freeze
@@ -298,8 +295,6 @@ class PermissionRole < ApplicationRecord
     "view_all_employee_reconciliation_summary"    => %w[view_daily_reconciliation],
     "view_sales_transactions_verification" => %w[view_daily_reconciliation],
     "manage_sales_import"      => %w[view_sales_transactions_verification],
-    "review_daily_reconciliation"       => %w[view_daily_reconciliation],
-    "override_review_requirement"       => %w[view_daily_reconciliation],
     "manage_bank_disputes"              => %w[view_daily_reconciliation],
     "process_till_refund"               => %w[view_daily_reconciliation],
     "manage_obligations"               => %w[view_employees],

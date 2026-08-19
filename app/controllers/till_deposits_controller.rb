@@ -145,7 +145,7 @@ class TillDepositsController < ApplicationController
   def deposit_params
     params.require(:till_deposit).permit(
       :daily_reconciliation_id, :payment_method_id, :amount, :deposited_at, :reference, :notes,
-      :override_review_reason, :idempotency_key
+      :idempotency_key
     )
   end
 

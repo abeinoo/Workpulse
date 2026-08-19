@@ -51,8 +51,27 @@ class GoodsReceipt < ApplicationRecord
   validate  :funding_source_matches_kind
   validate  :funding_source_type_whitelisted
 
-  scope :for_business, ->(business) { where(business: business) }
-  scope :recent,       -> { order(received_on: :desc, id: :desc) }
+  scope :for_business,  ->(business)     { where(business: business) }
+  scope :recent,        -> { order(received_on: :desc, id: :desc) }
+  scope :for_warehouse, ->(warehouse_id) { where(warehouse_id: warehouse_id) if warehouse_id.present? }
+  scope :for_supplier,  ->(supplier_id)  { where(supplier_id: supplier_id) if supplier_id.present? }
+  scope :on_or_after,   ->(date)         { where(received_on: date..) if date.present? }
+  scope :on_or_before,  ->(date)         { where(received_on: ..date) if date.present? }
+
+  # Guarded against unknown values (e.g. a stale/tampered query param) —
+  # falls through to no-op rather than raising on an invalid enum value.
+  scope :for_approval_status, ->(status) { where(approval_status: status) if status.present? && approval_statuses.key?(status) }
+
+  # Receiving status is derived (see InventoryHelper#goods_receipt_receipt_status),
+  # not a stored column — mirror that same derivation at the query level so the
+  # filter matches exactly what the "Receiving Status" badge shows.
+  scope :for_receiving_status, ->(status) {
+    case status
+    when "received"     then confirmed.active
+    when "not_received" then draft.active
+    when "voided"       then voided
+    end
+  }
 
   def total_value
     items.sum(&:total_cost)

@@ -10,6 +10,13 @@ RSpec.describe "Finance::Dashboard", type: :request do
     create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
   end
 
+  # Every dashboard-access spec below needs view_finance_dashboard just to
+  # reach the page — mix it in alongside whatever permission the example is
+  # actually testing.
+  def user_with_dashboard(*perms)
+    user_with("view_finance_dashboard", *perms)
+  end
+
   describe "GET /finance (executive dashboard)" do
     it "renders successfully for an owner with no data" do
       sign_in owner
@@ -45,8 +52,15 @@ RSpec.describe "Finance::Dashboard", type: :request do
       expect(response).to redirect_to(root_path)
     end
 
+    it "redirects a user who has other Finance permissions but not view_finance_dashboard" do
+      viewer = user_with("view_expenses", "view_expense_reports", "view_daily_reconciliation")
+      sign_in viewer
+      get finance_root_path
+      expect(response).to redirect_to(root_path)
+    end
+
     it "hides revenue, net profit, margin, and branch profitability from a user without view_expense_reports" do
-      viewer = user_with("view_expenses")
+      viewer = user_with_dashboard("view_expenses")
       sign_in viewer
       get finance_root_path
       expect(response).to have_http_status(:ok)
@@ -60,7 +74,7 @@ RSpec.describe "Finance::Dashboard", type: :request do
     end
 
     it "shows revenue, net profit, and branch profitability to a user with view_expense_reports" do
-      viewer = user_with("view_expenses", "view_expense_reports")
+      viewer = user_with_dashboard("view_expenses", "view_expense_reports")
       sign_in viewer
       get finance_root_path
       expect(response).to have_http_status(:ok)
@@ -156,7 +170,7 @@ RSpec.describe "Finance::Dashboard", type: :request do
     end
 
     it "does not show the revenue empty state to a user without view_expense_reports (the whole card is hidden instead)" do
-      viewer = user_with("view_expenses")
+      viewer = user_with_dashboard("view_expenses")
       sign_in viewer
       get finance_root_path
       expect(response.body).not_to include(I18n.t("finance.dashboard.no_revenue.title"))
@@ -213,6 +227,50 @@ RSpec.describe "Finance::Dashboard", type: :request do
       get finance_dashboard_export_pdf_path
       expect(response).to have_http_status(:ok)
       expect(response.media_type).to eq("application/pdf")
+    end
+
+    it "redirects a user who lacks view_finance_dashboard, even with other finance permissions" do
+      viewer = user_with("view_expenses", "view_expense_reports")
+      sign_in viewer
+      get finance_dashboard_export_pdf_path
+      expect(response).to redirect_to(root_path)
+    end
+  end
+
+  describe "view_finance_dashboard is independent from every other Finance:: permission" do
+    it "does not grant access to Expenses" do
+      viewer = user_with_dashboard
+      sign_in viewer
+      get finance_expenses_path
+      expect(response).to redirect_to(root_path)
+    end
+
+    it "does not grant access to Custody" do
+      viewer = user_with_dashboard
+      sign_in viewer
+      get finance_custody_accounts_path
+      expect(response).to redirect_to(root_path)
+    end
+
+    it "does not grant access to Reports" do
+      viewer = user_with_dashboard
+      sign_in viewer
+      get finance_reports_path
+      expect(response).to redirect_to(finance_root_path)
+    end
+
+    it "does not grant access to Daily Reconciliation" do
+      viewer = user_with_dashboard
+      sign_in viewer
+      get finance_daily_reconciliations_path
+      expect(response).to redirect_to(root_path)
+    end
+
+    it "grants dashboard access without any other Finance:: permission" do
+      viewer = user_with_dashboard
+      sign_in viewer
+      get finance_root_path
+      expect(response).to have_http_status(:ok)
     end
   end
 end

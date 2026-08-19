@@ -6,9 +6,6 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
   let(:actor)    { create(:user, business: business) }
   let(:cash_pm)  { PaymentMethod.create!(business: business, name: "Cash", settlement_type: "cash", active: true) }
 
-  # NOT reviewed by default — Branch Review approves the recorded deposit
-  # BEFORE bank verification, per the current three-stage order. Tests that
-  # need to reach the verify step set reviewed_by/_at explicitly via review!.
   let(:dr) do
     DailyReconciliation.create!(
       branch: branch, business: business, state: "closed",
@@ -26,28 +23,25 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
     described_class.new(dr.id, actor: actor).call
   end
 
-  def review!
-    dr.update_columns(reviewed_by_id: actor.id, reviewed_at: Time.current)
-  end
-
   describe "#call" do
     it "verifies successfully once fully deposited with no other blockers" do
       dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 5_000, deposited_at: Time.current)
       dr.update_columns(state: "deposited")
-      review!
 
       result = verify
       expect(result.ok?).to be true
       expect(dr.reload.verified?).to be true
     end
 
-    it "rejects a recorded deposit that hasn't been reviewed/approved yet" do
-      dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 5_000, deposited_at: Time.current)
-      dr.update_columns(state: "deposited")
+    it "verifies immediately once the deposit is recorded — no Deposit Review approval step to wait on" do
+      Finance::TillDepositRecorder.new(
+        dr.id, actor: actor,
+        params: { payment_method_id: cash_pm.id, amount: "5000.00", deposited_at: Time.current.to_s }
+      ).call
 
       result = verify
-      expect(result.ok?).to be false
-      expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.verify_requires_deposit_review"))
+      expect(result.ok?).to be true
+      expect(dr.reload.verified?).to be true
     end
 
     it "rejects when already verified" do
@@ -85,7 +79,6 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
           dr.id, actor: actor,
           params: { payment_method_id: cash_pm.id, amount: "4000.00", deposited_at: Time.current.to_s }
         ).call
-        review!
 
         result = verify
         expect(result.ok?).to be true
@@ -96,7 +89,6 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
       it "allows verification when the deposited amount does not cover the full expected amount" do
         dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 4_000, deposited_at: Time.current)
         dr.update_columns(state: "deposited")
-        review!
         expect(dr.pending_deposit_amount).to eq(1_000)
 
         result = verify
@@ -112,7 +104,6 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
           dr.id, actor: actor,
           params: { payment_method_id: cash_pm.id, amount: "1000.00", deposited_at: Time.current.to_s }
         ).call
-        review!
 
         result = verify
         expect(result.ok?).to be true
@@ -130,7 +121,6 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
 
       it "allows verification when the full expected amount is covered by an open dispute, even with zero deposits" do
         atm_dispute(amount: 5_000)
-        review!
 
         result = verify
         expect(result.ok?).to be true
@@ -138,7 +128,6 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
 
       it "still blocks verification via verify_no_deposit_recorded once the only dispute is resolved" do
         atm_dispute(amount: 5_000, status: "closed")
-        review!
 
         result = verify
         expect(result.ok?).to be false
@@ -149,7 +138,6 @@ RSpec.describe Finance::DailyReconciliationVerifier, type: :model do
         dr.till_deposits.create!(payment_method: cash_pm, deposited_by: actor, amount: 2_000, deposited_at: Time.current)
         atm_dispute(amount: 3_000)
         dr.update_columns(state: "deposited")
-        review!
 
         result = verify
         expect(result.ok?).to be true

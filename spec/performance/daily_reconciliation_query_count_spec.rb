@@ -23,7 +23,7 @@ RSpec.describe "Daily Reconciliation index — query count scaling", type: :requ
   let(:actor) do
     perms = %w[view_daily_reconciliation view_deposit_verification close_till_session
                create_till_deposit verify_deposits manual_match_deposits
-               review_daily_reconciliation verify_daily_reconciliation
+               verify_daily_reconciliation
                view_all_employee_reconciliation_summary view_sales_transactions_verification
                view_pos_import manage_pos_import]
     role = business.permission_roles.create!(

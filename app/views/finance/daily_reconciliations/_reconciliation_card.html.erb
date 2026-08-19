@@ -36,7 +36,7 @@
   status_color =
     case dr.lifecycle_stage
     when :verified                                        then 'var(--success-rgb)'
-    when :awaiting_branch_review, :awaiting_accounting_approval then 'var(--accent-rgb)'
+    when :awaiting_verification                           then 'var(--accent-rgb)'
     when :awaiting_opening                                then 'var(--warning-rgb)'
     when :open                                            then 'var(--accent-rgb)'
     when :awaiting_deposit
@@ -155,10 +155,7 @@
               </p>
             <% end %>
 
-          <% when :awaiting_branch_review %>
-            <span class="badge badge-warning"><%= t("finance.daily_reconciliations.index.status_waiting_branch_deposit_review") %></span>
-
-          <% when :awaiting_accounting_approval %>
+          <% when :awaiting_verification %>
             <span class="badge badge-accent"><%= t("finance.daily_reconciliations.index.status_waiting_accounting_approval") %></span>
 
           <% when :verified %>

@@ -31,20 +31,6 @@ RSpec.describe Finance::DepositResponsibilityTransferAcceptor, type: :model do
       expect(till_session.reload.depositor).to eq(to_user)
     end
 
-    it "clears an existing review and logs it" do
-      dr.update_columns(reviewed_at: 1.minute.ago, reviewed_by_id: from_user.id)
-
-      accept
-
-      expect(dr.reload.reviewed?).to be false
-      expect(AuditLog.where(auditable: dr, action: "review_auto_cancelled")).to be_present
-    end
-
-    it "is a no-op when the DR was never reviewed" do
-      accept
-      expect(AuditLog.where(auditable: dr, action: "review_auto_cancelled")).to be_empty
-    end
-
     it "rejects the wrong recipient" do
       other = create(:user, business: business)
       result = accept(actor: other)

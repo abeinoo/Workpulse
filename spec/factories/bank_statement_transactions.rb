@@ -47,8 +47,7 @@ FactoryBot.define do
                                        settlement_type: "cash", active: true)
         dr = DailyReconciliation.create!(
           branch: branch, business: txn.business, state: "closed",
-          opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current,
-          reviewed_by: actor, reviewed_at: 1.minute.ago
+          opened_at: 1.hour.ago, closed_at: Time.current, business_date: Date.current
         )
         TillSession.create!(daily_reconciliation: dr, depositor_id: actor.id)
         deposit = TillDeposit.create!(

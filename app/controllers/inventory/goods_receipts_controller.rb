@@ -1,7 +1,22 @@
 class Inventory::GoodsReceiptsController < Inventory::BaseController
   def index
     authorize GoodsReceipt
-    @goods_receipts = policy_scope(GoodsReceipt).recent.includes(:supplier, :warehouse)
+    @filters = filter_params
+
+    @goods_receipts = policy_scope(GoodsReceipt)
+                       .for_warehouse(@filters[:warehouse_id])
+                       .for_supplier(@filters[:supplier_id])
+                       .for_approval_status(@filters[:approval_status])
+                       .for_receiving_status(@filters[:receiving_status])
+                       .on_or_after(parsed_date(@filters[:date_from]))
+                       .on_or_before(parsed_date(@filters[:date_to]))
+                       .recent
+                       .includes(:supplier, :warehouse)
+
+    @filter_warehouses = accessible_warehouses
+    @filter_suppliers  = current_user.business.suppliers.ordered
+    @active_filters    = @filters.values.any?(&:present?)
+    @filtered_count    = @goods_receipts.count
   end
 
   def show
@@ -119,6 +134,18 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   end
 
   private
+
+  def filter_params
+    params.permit(:warehouse_id, :supplier_id, :approval_status, :receiving_status, :date_from, :date_to)
+  end
+
+  def parsed_date(value)
+    return nil if value.blank?
+
+    Date.parse(value.to_s)
+  rescue ArgumentError
+    nil
+  end
 
   def find_receipt(includes: [])
     policy_scope(GoodsReceipt).includes(includes).find(params[:id])

@@ -66,11 +66,7 @@
         <span class="badge badge-warning" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3);">
           <%= t("finance.daily_reconciliations.show.state_open") %>
         </span>
-      <% elsif @reconciliation.deposited? && !@reconciliation.reviewed? %>
-        <span class="badge badge-warning" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3);">
-          <%= t("finance.daily_reconciliations.show.state_waiting_for_branch_deposit_review") %>
-        </span>
-      <% elsif @reconciliation.deposited? && @reconciliation.reviewed? %>
+      <% elsif @reconciliation.deposited? && !@reconciliation.verified? %>
         <span class="badge" style="font-size: var(--text-xs); padding: var(--space-2) var(--space-3); background: rgba(var(--accent-rgb,99,102,241),0.12); color: var(--accent);">
           <%= t("finance.daily_reconciliations.show.state_waiting_for_accounting_approval") %>
         </span>
