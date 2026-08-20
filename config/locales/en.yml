@@ -4915,11 +4915,15 @@ en:
         correction_not_found: "Record not found."
         invalid_branch: "You don't have access to create a session for the selected branch."
         pending_transfer_exists: "Cannot reassign the depositor while a deposit responsibility transfer is pending. Cancel the transfer first."
+        dr_exists_for_date: "A Daily Reconciliation already exists for this branch on this date."
+        future_date_not_allowed: "You cannot create a reconciliation for a future date."
       new:
-        title: "Start Today's Session"
-        subtitle: "Select a branch to open the till session for today."
+        title: "Create Daily Reconciliation"
+        subtitle: "Select a branch and business date to open a till session."
         branch_label: "Branch"
         branch_placeholder: "Select a branch…"
+        date_label: "Business Date"
+        date_hint: "Defaults to today — pick an earlier date if that day was never opened."
         submit: "Open Session"
         cancel: "Cancel"
       index:

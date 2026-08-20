@@ -32,18 +32,33 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     query = query.includes(till_deposits: [ :deposit_matches, :bank_statement_transactions, :bank_disputes ]) if @show_verification
     query = query.includes(:till_deposits) unless @show_verification
 
-    unless current_user.owner?
-      scope_name = current_user.scope_for(:view_daily_reconciliation)
-      if scope_name
-        branch_ids = BranchScope.new(current_user).for_scope(scope_name)
-        if branch_ids.empty? && scope_name != "business"
-          branch_ids = current_user.shift_assignments.current.pluck(:branch_id).uniq
-        end
-        query = query.where(branch_id: branch_ids) unless branch_ids.empty?
-      end
-    end
+    # Delegates entirely to DailyReconciliationPolicy::Scope — the single
+    # source of truth for "which DRs can this user see," so this index can
+    # never drift from what set_reconciliation's policy_scope(...).find(id)
+    # (used by #show and every other member action) already enforces.
+    query = policy_scope(query)
 
-    @accessible_branches = accessible_branches_for_dr
+    # The branch picker/filter for THIS index must offer every branch the
+    # (already date-correlated) policy scope actually contains a visible DR
+    # for — not accessible_branches_for_dr's "today's effective branch"
+    # (that method also drives resolve_branch/new — starting a BRAND NEW
+    # session — which must stay "today only" and never widen to a branch an
+    # employee merely has historical records at). Without this, a non-
+    # manager's expired temporary ShiftAssignment (e.g. a two-day coverage
+    # assignment) left its branch permanently missing from the picker/sticky
+    # default even after Scope#resolve was fixed to grant the underlying
+    # per-record access: the records existed but there was no way to select
+    # that branch to filter down to them, and the sticky default silently
+    # kept the employee's current-day branch selected instead.
+    #
+    # Deliberately re-derives from a fresh, unfiltered/unlimited policy_scope
+    # call rather than reusing `query` above — `query` already carries
+    # .order(opened_at: :desc).limit(200), so deriving the branch list from
+    # it would silently drop a branch whose only visible DRs happen to have
+    # aged out of the most-recent 200, which has nothing to do with this fix.
+    @accessible_branches = index_filter_branches(
+      policy_scope(DailyReconciliation.where(business_id: current_user.business_id))
+    )
 
     # ── Optional filters ─────────────────────────────────────────────────────
     @filter_status       = params[:status].presence
@@ -327,7 +342,20 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # GET /finance/daily_reconciliations/new
   def new
     authorize DailyReconciliation, :create?
-    @branches = accessible_branches_for_dr
+
+    # Pre-fills the date picker for convenience; the user may still pick an
+    # earlier business_date (e.g. an earlier day was never opened). A future
+    # date (whether tampered via URL or a stale param) is never honored here —
+    # it silently falls back to today rather than erroring on a GET.
+    @default_business_date  = BusinessDay.current(context: current_user.business)
+    parsed                  = parse_business_date(params[:business_date])
+    @selected_business_date = (parsed && parsed <= @default_business_date) ? parsed : @default_business_date
+
+    # The branch picker is a function of (user, selected date) — never just
+    # (user, today). Changing the date on the form reloads this action (see
+    # the view) so the branch list is always recalculated for whichever date
+    # is actually selected, not silently left over from today's list.
+    @branches = accessible_branches_for_dr(@selected_business_date)
     redirect_to finance_daily_reconciliations_path,
                 alert: t("finance.daily_reconciliations.errors.no_branch") if @branches.empty?
   end
@@ -684,39 +712,80 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   def create
     authorize DailyReconciliation, :create?
 
-    branch = resolve_branch
+    # The user may explicitly pick a business_date (e.g. an earlier day that
+    # was never opened) instead of always defaulting to today — see the
+    # "New Daily Reconciliation" form's date field. Falls back to today's
+    # business day when blank or unparseable, never worse than not passing
+    # one. This ONE normalized value drives every guard/creation call below,
+    # AND branch resolution itself (#resolve_branch) — computed FIRST,
+    # before resolving the branch, so branch authorization is evaluated
+    # against the date the user actually selected, not today's. Using
+    # today's branches to validate a historical-date request would wrongly
+    # reject a branch a non-manager IS authorized for on that date (e.g. via
+    # a temporary ShiftAssignment that doesn't cover today).
+    today = BusinessDay.current(context: current_user.business)
+    selected_date = parse_business_date(params[:business_date]) || today
+
+    if selected_date > today
+      return redirect_to new_finance_daily_reconciliation_path,
+                         alert: t("finance.daily_reconciliations.errors.future_date_not_allowed")
+    end
+
+    branch = resolve_branch(selected_date)
     return unless branch
 
-    today = BusinessDay.current(context: branch.business)
-
-    open_recon = DailyReconciliation.open_for(branch)
-    if open_recon
-      return redirect_to finance_daily_reconciliation_path(open_recon),
-                         notice: t("finance.daily_reconciliations.errors.already_exists")
+    # (branch_id, business_date) is unique across every state — see
+    # idx_dr_unique_branch_business_date and the model's uniqueness
+    # validation. Checked FIRST, against the SELECTED date — never today's —
+    # so an existing record on a different date (e.g. today's open session)
+    # can never be mistaken for "this branch/date combination already exists."
+    existing_for_date = DailyReconciliation.where(branch: branch, business_date: selected_date).first
+    if existing_for_date
+      return redirect_to finance_daily_reconciliation_path(existing_for_date),
+                         notice: t("finance.daily_reconciliations.errors.dr_exists_for_date")
     end
 
-    waiting_recon = DailyReconciliation.waiting_for(branch)
-    if waiting_recon
-      return redirect_to finance_daily_reconciliation_path(waiting_recon),
-                         notice: t("finance.daily_reconciliations.errors.already_waiting")
+    if selected_date == today
+      # Brand-new TODAY session — the original flow, unchanged: only one
+      # open/waiting DR may exist per branch (idx_dr_one_open_per_branch /
+      # idx_dr_one_waiting_per_branch), so today's creation is blocked while
+      # either exists, exactly as before.
+      open_recon = DailyReconciliation.open_for(branch)
+      if open_recon
+        return redirect_to finance_daily_reconciliation_path(open_recon),
+                           notice: t("finance.daily_reconciliations.errors.already_exists")
+      end
+
+      waiting_recon = DailyReconciliation.waiting_for(branch)
+      if waiting_recon
+        return redirect_to finance_daily_reconciliation_path(waiting_recon),
+                           notice: t("finance.daily_reconciliations.errors.already_waiting")
+      end
+
+      recon = DailyReconciliation.create_for!(branch: branch, created_by: current_user, business_date: selected_date)
+    else
+      # Historical backfill for a past date — never competes with today's
+      # open/waiting session (different state, different invariant); see
+      # Finance::HistoricalDailyReconciliationCreator.
+      result = Finance::HistoricalDailyReconciliationCreator.new(
+        branch: branch, business_date: selected_date, actor: current_user
+      ).call
+      unless result.ok?
+        return redirect_to finance_daily_reconciliations_path,
+                           alert: result.error
+      end
+      recon = result.reconciliation
     end
 
-    closed_today = DailyReconciliation.where(branch: branch, business_date: today).first
-    if closed_today
-      return redirect_to finance_daily_reconciliation_path(closed_today),
-                         notice: t("finance.daily_reconciliations.errors.already_exists")
-    end
-
-    recon = DailyReconciliation.create_for!(branch: branch, created_by: current_user)
     redirect_to finance_daily_reconciliation_path(recon),
                 notice: t("finance.daily_reconciliations.created")
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
-    existing = DailyReconciliation.open_for(branch) ||
-               DailyReconciliation.waiting_for(branch) ||
-               DailyReconciliation.where(branch: branch, business_date: today).first
+    existing = DailyReconciliation.where(branch: branch, business_date: selected_date).first ||
+               DailyReconciliation.open_for(branch) ||
+               DailyReconciliation.waiting_for(branch)
     if existing
       redirect_to finance_daily_reconciliation_path(existing),
-                  notice: t("finance.daily_reconciliations.errors.already_exists")
+                  notice: t("finance.daily_reconciliations.errors.dr_exists_for_date")
     else
       redirect_to finance_daily_reconciliations_path,
                   alert: t("finance.daily_reconciliations.errors.create_failed")
@@ -1561,9 +1630,11 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                         .find(params[:id])
   end
 
-  def resolve_branch
+  # date: the normalized selected business_date (see #create/#new) — branch
+  # authorization is always evaluated against THIS date, never today's.
+  def resolve_branch(date)
     if params[:branch_id].present?
-      accessible = accessible_branches_for_dr
+      accessible = accessible_branches_for_dr(date)
       branch = accessible.find { |b| b.id == params[:branch_id].to_i }
       unless branch
         redirect_to new_finance_daily_reconciliation_path,
@@ -1572,7 +1643,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       end
       branch
     else
-      branches = accessible_branches_for_dr
+      branches = accessible_branches_for_dr(date)
       case branches.size
       when 0
         redirect_to finance_daily_reconciliations_path,
@@ -1623,7 +1694,16 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # Only "sales" branches actually run Daily Reconciliations — warehouse,
   # laundry, headquarters, maintenance, and other operational units never
   # appear in this picker (see Branch#branch_type).
-  def accessible_branches_for_dr
+  #
+  # date: the branch list is a function of (user, date) — never (user,
+  # today) — so a non-manager's authorized branches are resolved from EVERY
+  # ShiftAssignment covering that specific date (permanent or temporary),
+  # not just today's. This is what lets Anton create/access a branch he was
+  # only TEMPORARILY assigned to on a past date (e.g. Nasr City on Aug 18)
+  # without granting him that branch on dates the assignment never covered
+  # (Aug 19, or Aug 20 once it's expired) — selecting a date is an input to
+  # authorization, never a bypass of it.
+  def accessible_branches_for_dr(date)
     return sales_branches.active.order(:name).to_a if current_user.owner?
 
     scope_name = current_user.scope_for(:view_daily_reconciliation)
@@ -1634,14 +1714,35 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     ids = BranchScope.new(current_user).for_scope(scope_name)
     if ids.empty? && scope_name != "business"
-      shift_branch = current_user.effective_branch_on(Date.current)
-      return (shift_branch && shift_branch.branch_type == "sales") ? [ shift_branch ] : []
+      ids = current_user.shift_assignments.active_on(date).distinct.pluck(:branch_id)
     end
     sales_branches.active.where(id: ids).order(:name).to_a
   end
 
+  # Index-only branch picker/filter list: every sales branch the ALREADY
+  # policy-scoped `scoped_query` (see #index) contains at least one visible
+  # DR for. Deliberately NOT accessible_branches_for_dr — that method (used
+  # by #new/#create/#resolve_branch to pick where to open a BRAND NEW
+  # session) intentionally stays "today's effective branch only," and must
+  # never widen to include a branch an employee merely has historical
+  # records at. This method is the browsing-side counterpart: it can never
+  # over-grant beyond what Scope#resolve already permits, since it's derived
+  # directly from that same scoped relation, not a separate re-derivation of
+  # "the employee's branch."
+  def index_filter_branches(scoped_query)
+    sales_branches.active.where(id: scoped_query.distinct.select(:branch_id)).order(:name).to_a
+  end
+
   def sales_branches
     current_user.business.branches.where(branch_type: "sales")
+  end
+
+  def parse_business_date(value)
+    return nil if value.blank?
+
+    Date.parse(value.to_s)
+  rescue ArgumentError, TypeError
+    nil
   end
 
   def apply_dr_filters(query)

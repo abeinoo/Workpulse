@@ -60,7 +60,7 @@ class TillHandoversController < ApplicationController
     return redirect_to finance_daily_reconciliations_path,
                        alert: t("till_handovers.errors.no_branch") if @branch.nil?
 
-    reconciliation = DailyReconciliation.open_for(@branch)
+    reconciliation = target_reconciliation
     return redirect_to finance_daily_reconciliations_path,
                        alert: t("till_handovers.errors.no_open_session") unless reconciliation
 
@@ -209,7 +209,7 @@ class TillHandoversController < ApplicationController
   end
 
   def setup_handover_form
-    @open_reconciliation = DailyReconciliation.open_for(@branch)
+    @open_reconciliation = target_reconciliation
     @payment_methods     = business_payment_methods
     @colleagues          = branch_colleagues
 
@@ -246,10 +246,22 @@ class TillHandoversController < ApplicationController
                               .select { |u| u.can?(:create_till_deposit) }
   end
 
+  # Historical-context colleague list: when acting on a specific target
+  # reconciliation, candidates are resolved from ITS OWN business_date (via
+  # ShiftAssignment#active_on), never Date.current/today. A historical DR at
+  # a branch the actor was only temporarily assigned to (now expired) must
+  # still list the employees who were actually shift-assigned there ON THAT
+  # DATE — not the actor's own today's colleagues, and not "everyone who has
+  # ever worked there" either. Falls back to today when there is no specific
+  # target DR to anchor on (e.g. no open session yet at all) — the same
+  # "who's here right now" semantics the old ShiftAssignment.current scope
+  # provided.
   def branch_colleagues
     return [] unless @branch
 
-    ids = ShiftAssignment.current
+    colleague_date = target_reconciliation&.business_date || Date.current
+
+    ids = ShiftAssignment.active_on(colleague_date)
                          .where(branch: @branch)
                          .where.not(user_id: current_user.id)
                          .pluck(:user_id)
@@ -275,37 +287,79 @@ class TillHandoversController < ApplicationController
     current_user.owner? || current_user.scope_for(:view_daily_reconciliation) == "business"
   end
 
-  # Ordinary cashiers act on the branch they're physically shift-assigned to —
-  # that path is unchanged. Administrative actors (Super Admin, Area Manager,
-  # or anyone else explicitly granted a business/area-wide
-  # view_daily_reconciliation scope) have no shift assignment of their own but
-  # are still permitted to close_till_session — for them the target branch
-  # comes from the Daily Reconciliation they're acting on (passed as
-  # daily_reconciliation_id from the DR show page), not from a fabricated
-  # "current branch". Permission (close_till_session, checked by the policy)
-  # is what authorizes the action; this only resolves *which* branch it acts on.
-  def resolve_branch
-    own_branch = current_user.effective_branch_on(Date.current)
-    return own_branch if own_branch
-
-    return nil unless params[:daily_reconciliation_id].present?
+  # ── Resolving the target DailyReconciliation/branch for this action ──────
+  #
+  # An explicit daily_reconciliation_id (the DR show page always passes one
+  # when opening this modal) takes priority over the actor's own today's
+  # branch — it may be a HISTORICAL reconciliation whose branch differs from
+  # current_user.effective_branch_on(Date.current) (e.g. finishing an
+  # existing session at a branch covered only by a now-expired temporary
+  # ShiftAssignment). Falling back to "my current branch" there would
+  # silently substitute a completely different DR — today's own, at the
+  # actor's own branch — corrupting both the colleague list
+  # (#branch_colleagues) and the current-holder check (#setup_handover_form).
+  #
+  # If the given id doesn't resolve to a real, authorized DailyReconciliation
+  # (missing, wrong business, or genuinely out of the actor's access), this
+  # falls back to the actor's own current-day branch instead of failing
+  # outright — the same graceful behavior as when no id is given at all (a
+  # stray/garbage param must never be worse than not passing one).
+  #
+  # Authorization combines BOTH halves of how the DR show page itself
+  # authorizes a single record: policy_scope (branch/area/business scope, or
+  # — for a non-manager holding the permission but no management scope —
+  # the ShiftAssignment#active_on(business_date) correlation) AND
+  # DailyReconciliationPolicy#show? (which additionally covers a plain
+  # cashier with NO view_daily_reconciliation permission at all, via being
+  # the historical holder/depositor/pending-recipient on the DR's own
+  # TillSession/TillHandover records). Neither check alone is enough: show?
+  # alone ignores branch/area scope entirely (it assumes the record was
+  # already scope-filtered upstream, as the DR show page does via
+  # policy_scope(...).find(id)); policy_scope alone would return every DR
+  # unrestricted for a permission-less user (Scope#resolve's own "no scope
+  # configured" bailout), bypassing the real custody check.
+  def find_authorized_target_dr
+    return @find_authorized_target_dr if defined?(@find_authorized_target_dr)
 
     target = DailyReconciliation
                .where(business_id: current_user.business_id)
-               .includes(:branch)
+               .includes(:branch, :till_session)
                .find_by(id: params[:daily_reconciliation_id])
-    return nil unless target && branch_authorized_for_dr_action?(target.branch)
 
-    target.branch
+    @find_authorized_target_dr =
+      if target && policy_scope(DailyReconciliation).exists?(id: target.id) &&
+         DailyReconciliationPolicy.new(current_user, target).show?
+        target
+      end
   end
 
-  def branch_authorized_for_dr_action?(branch)
-    return false unless branch
-    return true if business_wide_dr_access?
+  def resolve_branch
+    if params[:daily_reconciliation_id].present?
+      explicit = find_authorized_target_dr
+      return explicit.branch if explicit
+    end
 
-    BranchScope.new(current_user, include_shift_assignments: true)
-               .for_scope(current_user.scope_for(:view_daily_reconciliation))
-               .include?(branch.id)
+    current_user.effective_branch_on(Date.current)
+  end
+
+  # The SPECIFIC DailyReconciliation this handover action targets — same
+  # explicit-id-first priority as #resolve_branch (see its comment), reused
+  # here so the colleague list and the current-holder check both operate on
+  # the exact DR the actor came here to act on, not merely "whatever's open
+  # at @branch" (which could theoretically diverge if more than one DR was
+  # ever open at once). Requires the target to still be `open?` — mirrors
+  # the previous DailyReconciliation.open_for(@branch) precondition.
+  def target_reconciliation
+    return @target_reconciliation if defined?(@target_reconciliation)
+
+    explicit = params[:daily_reconciliation_id].present? ? find_authorized_target_dr : nil
+
+    @target_reconciliation =
+      if explicit
+        explicit.open? ? explicit : nil
+      else
+        DailyReconciliation.open_for(@branch)
+      end
   end
 
   def handover_params

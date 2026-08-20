@@ -14,7 +14,32 @@
 
   <div style="max-width: 480px;">
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-6); box-shadow: var(--shadow-sm);">
+
+      <%# ── Business date — a SEPARATE GET form that reloads this page on
+          change, so the branch list below (accessible_branches_for_dr) is
+          always recalculated for whichever date is actually selected.
+          Authorized branches are a function of (user, selected date), never
+          (user, today) — changing the date must never silently leave
+          today's branch list in place. Available to every authorized user,
+          not just managers/admins. ── %>
+      <%= form_with url: new_finance_daily_reconciliation_path, method: :get,
+            style: "margin-bottom: var(--space-5);" do |df| %>
+        <div class="form-group">
+          <%= df.label :business_date, t("finance.daily_reconciliations.new.date_label"), class: "form-label" %>
+          <%= df.date_field :business_date,
+                value: @selected_business_date&.iso8601,
+                max:   @default_business_date&.iso8601,
+                class: "form-control",
+                required: true,
+                onchange: "this.form.requestSubmit()" %>
+          <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+            <%= t("finance.daily_reconciliations.new.date_hint") %>
+          </p>
+        </div>
+      <% end %>
+
       <%= form_with url: finance_daily_reconciliations_path, method: :post do |f| %>
+        <%= f.hidden_field :business_date, value: @selected_business_date&.iso8601 %>
 
         <% if @branches.one? %>
           <%# Single accessible branch — just confirm %>

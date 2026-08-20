@@ -34,14 +34,27 @@ class DailyReconciliationPolicy < ApplicationPolicy
       return base unless scope_name
 
       branch_ids = BranchScope.new(user).for_scope(scope_name)
+      return base.where(branch_id: branch_ids) if branch_ids.any?
+      return base if scope_name == "business"
 
-      if branch_ids.empty? && scope_name != "business"
-        branch_ids = user.shift_assignments.current.pluck(:branch_id).uniq
-      end
-
-      return base if branch_ids.empty?
-
-      base.where(branch_id: branch_ids)
+      # No managed/area branches — this is a non-manager (a plain cashier),
+      # so fall back to their OWN ShiftAssignment history instead of
+      # excluding them entirely. Resolved PER RECORD, against that record's
+      # own business_date — never "today" — via an EXISTS correlated to the
+      # same effective_from/effective_to bounds ShiftAssignment#active_on
+      # uses. A DR index spans many historical business_dates at once, so a
+      # single "current branch" can't answer "which of these dates were
+      # mine": a temporary/date-bounded ShiftAssignment (e.g. a one-day
+      # coverage assignment) that has since expired must still grant access
+      # to the DR(s) on the date(s) it actually covered, at the branch it
+      # actually covered — nothing more, nothing less.
+      base.where(
+        "EXISTS (SELECT 1 FROM shift_assignments sa " \
+        "WHERE sa.user_id = :user_id AND sa.branch_id = daily_reconciliations.branch_id " \
+        "AND sa.effective_from <= daily_reconciliations.business_date " \
+        "AND (sa.effective_to IS NULL OR sa.effective_to >= daily_reconciliations.business_date))",
+        user_id: user.id
+      )
     end
   end
 
@@ -63,7 +76,10 @@ class DailyReconciliationPolicy < ApplicationPolicy
       record.till_handovers.pending.exists?(to_user_id: user.id)
   end
 
+  # Uses record.business_date, not today — record here is the (possibly
+  # next-day/prepared) DR being checked, and the assignment that matters is
+  # whichever one covers ITS date, not necessarily today's.
   def cashier_at_branch?
-    user.shift_assignments.current.exists?(branch_id: record.branch_id)
+    user.shift_assignments.active_on(record.business_date).exists?(branch_id: record.branch_id)
   end
 end

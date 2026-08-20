@@ -63,6 +63,10 @@ class DailyReconciliation < ApplicationRecord
   validates :state,     inclusion: { in: STATES }
   validates :opened_at, presence: true
   validates :verified_at, presence: true, if: -> { verified_by.present? }
+  # Friendly-message counterpart to the DB-level unique index
+  # (idx_dr_unique_branch_business_date) — one DailyReconciliation per
+  # branch per business date, in any state.
+  validates :business_date, uniqueness: { scope: :branch_id }, allow_nil: true
 
   # ── Scopes ───────────────────────────────────────────────────────────────────
   scope :for_business, ->(business)  { where(business: business) }
@@ -532,21 +536,25 @@ class DailyReconciliation < ApplicationRecord
   # This is the only place a TillSession may be created.
   # If either record fails, the entire transaction rolls back.
   #
-  # business_date is stamped at creation using BusinessDay so the DR carries
-  # the correct accounting date even if it is closed after the day rolls over.
+  # business_date defaults to BusinessDay.current (today's accounting date)
+  # but callers may pass an explicit one — e.g. the "New Daily Reconciliation"
+  # form lets the user pick a past business date explicitly, rather than
+  # always forcing today, for the case where an earlier day was never opened.
+  # The (branch_id, business_date) uniqueness validation/DB index is what
+  # actually prevents a duplicate for whatever date is passed here.
   #
   # current_holder is intentionally NOT pre-set.  Custody is established the
   # moment the first handover is accepted; until then no one "holds" the till,
   # and the closing validation ("block only if someone else holds it") correctly
   # allows the acting cashier to proceed.
-  def self.create_for!(branch:, created_by: nil) # created_by kept for call-site compatibility
+  def self.create_for!(branch:, created_by: nil, business_date: nil) # created_by kept for call-site compatibility
     transaction do
       reconciliation = create!(
         branch:        branch,
         business:      branch.business,
         state:         "open",
         opened_at:     Time.current,
-        business_date: BusinessDay.current(context: branch.business)
+        business_date: business_date || BusinessDay.current(context: branch.business)
       )
 
       reconciliation.create_till_session!
