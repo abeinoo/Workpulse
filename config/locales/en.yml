@@ -2007,8 +2007,12 @@ en:
         punched_at_header: "Punch Time"
         work_date_header: "Work Date"
         action_header: "Result"
+        filter_branch: "Branch"
+        filter_employee: "Employee"
         filter_device: "Device"
         filter_action: "Result"
+        all_branches: "All Branches"
+        all_employees: "All Employees"
         all_devices: "All Devices"
         all_actions: "All Results"
       show:

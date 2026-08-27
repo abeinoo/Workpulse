@@ -1996,8 +1996,12 @@ ar:
         punched_at_header: "وقت البصمة"
         work_date_header: "تاريخ العمل"
         action_header: "النتيجة"
+        filter_branch: "الفرع"
+        filter_employee: "الموظف"
         filter_device: "الجهاز"
         filter_action: "النتيجة"
+        all_branches: "كل الفروع"
+        all_employees: "كل الموظفين"
         all_devices: "جميع الأجهزة"
         all_actions: "جميع النتائج"
       show:

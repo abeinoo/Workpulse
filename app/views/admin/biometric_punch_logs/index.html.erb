@@ -8,7 +8,24 @@
 
   <%# Filters %>
   <div class="card" style="margin-bottom: var(--space-4);">
-    <%= form_with url: admin_biometric_punch_logs_path, method: :get, class: "form-grid", data: { turbo: false } do |f| %>
+    <%= form_with url: admin_biometric_punch_logs_path, method: :get, class: "form-grid",
+          data: { turbo: false, controller: "auto-submit" } do |f| %>
+      <div class="form-group">
+        <%= f.label :branch_id, t("admin.biometric_punch_logs.index.filter_branch"), class: "form-label" %>
+        <%= f.select :branch_id,
+              options_for_select(@branches.map { |b| [b.name, b.id] }, params[:branch_id]),
+              { include_blank: t("admin.biometric_punch_logs.index.all_branches") },
+              class: "form-control", data: { action: "change->auto-submit#submit" } %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :employee_id, t("admin.biometric_punch_logs.index.filter_employee"), class: "form-label" %>
+        <%= f.select :employee_id,
+              options_for_select(@employees.map { |e| [e.full_name, e.id] }, params[:employee_id]),
+              { include_blank: t("admin.biometric_punch_logs.index.all_employees") },
+              class: "form-control" %>
+      </div>
+
       <div class="form-group">
         <%= f.label :device_id, t("admin.biometric_punch_logs.index.filter_device"), class: "form-label" %>
         <%= f.select :device_id,
