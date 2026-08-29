@@ -13,6 +13,8 @@ class Finance::PosImportsController < Finance::BaseController
                           .includes(:imported_by)
                           .ordered
                           .limit(50)
+
+    @back_to_daily_reconciliations_path = daily_reconciliations_return_path
   end
 
   # GET /finance/pos_imports/:id
@@ -170,6 +172,18 @@ class Finance::PosImportsController < Finance::BaseController
     Date.iso8601(value)
   rescue ArgumentError, TypeError
     Date.current
+  end
+
+  # Preserves the branch/date context the Daily Reconciliation index page
+  # (the only current entry point into POS Imports) was filtered to, so the
+  # back button returns to the same filtered view rather than the unfiltered
+  # index.
+  def daily_reconciliations_return_path
+    finance_daily_reconciliations_path(
+      branch_id: params[:branch_id].presence,
+      from:      params[:from].presence,
+      to:        params[:to].presence
+    )
   end
 
   # Batch-resolves the DailyReconciliation each transaction's (branch,

@@ -37,7 +37,7 @@
             } %>
       <% if current_user.can?(:view_pos_import) %>
         <%= link_to t("finance.pos_imports.verification.title"),
-              finance_pos_imports_path,
+              finance_pos_imports_path(branch_id: @filter_branch, from: @filter_date_from, to: @filter_date_to),
               class: "btn btn-ghost" %>
       <% end %>
       <% if current_user.can?(:view_deposit_verification) %>

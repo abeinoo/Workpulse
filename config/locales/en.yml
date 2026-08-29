@@ -6528,6 +6528,7 @@ en:
       index:
         title: "POS Import History"
         subtitle: "All payment provider transaction imports for this business."
+        back_to_daily_reconciliation: "Back to Daily Reconciliation"
         import_button: "Import Transactions"
         empty: "No imports yet"
         empty_hint: "Import an XLSX file to start reconciling payment provider transactions."
