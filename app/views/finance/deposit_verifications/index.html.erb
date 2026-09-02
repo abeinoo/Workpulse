@@ -36,6 +36,9 @@
           value: @stats[:missing],
           modifier: @stats[:missing] > 0 ? "danger" : nil %>
     <%= render "finance/bank_statements/stat_card",
+          label: t("finance.deposit_verifications.stats.ignored"),
+          value: @stats[:ignored] %>
+    <%= render "finance/bank_statements/stat_card",
           label: t("finance.deposit_verifications.stats.unexpected"),
           value: @stats[:unexpected],
           modifier: @stats[:unexpected] > 0 ? "danger" : nil %>
@@ -89,6 +92,7 @@
     <% [
          ["all",          t("finance.deposit_verifications.tabs.all")],
          ["missing",      t("finance.deposit_verifications.tabs.missing")],
+         ["ignored",      t("finance.deposit_verifications.tabs.ignored")],
          ["unexpected",   t("finance.deposit_verifications.tabs.unexpected")],
          ["needs_review", t("finance.deposit_verifications.tabs.needs_review")],
          ["mismatches",   t("finance.deposit_verifications.tabs.mismatches")]
@@ -106,6 +110,10 @@
     <%= render "finance/deposit_verifications/deposits_table",
           deposits: @deposits,
           empty_key: "finance.deposit_verifications.empty.missing" %>
+  <% when "ignored" %>
+    <%= render "finance/deposit_verifications/deposits_table",
+          deposits: @deposits,
+          empty_key: "finance.deposit_verifications.empty.ignored" %>
   <% when "unexpected", "needs_review", "mismatches" %>
     <%= render "finance/deposit_verifications/transactions_table",
           transactions: @transactions,

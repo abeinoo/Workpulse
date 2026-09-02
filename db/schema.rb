@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_20_122202) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_043000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1954,6 +1954,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_122202) do
     t.datetime "deposited_at", null: false
     t.bigint "deposited_by_id", null: false
     t.string "idempotency_key"
+    t.text "ignore_reason"
+    t.datetime "ignored_at"
+    t.bigint "ignored_by_id"
     t.text "notes"
     t.bigint "payment_method_id", null: false
     t.string "reference"
@@ -1964,6 +1967,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_122202) do
     t.index ["daily_reconciliation_id"], name: "index_till_deposits_on_dr_id"
     t.index ["deposited_by_id"], name: "index_till_deposits_on_deposited_by_id"
     t.index ["idempotency_key"], name: "index_till_deposits_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["ignored_by_id"], name: "index_till_deposits_on_ignored_by_id"
     t.index ["payment_method_id"], name: "index_till_deposits_on_payment_method_id"
     t.index ["voided_by_id"], name: "index_till_deposits_on_voided_by_id"
   end
@@ -2513,6 +2517,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_122202) do
   add_foreign_key "till_deposits", "daily_reconciliations"
   add_foreign_key "till_deposits", "payment_methods"
   add_foreign_key "till_deposits", "users", column: "deposited_by_id"
+  add_foreign_key "till_deposits", "users", column: "ignored_by_id"
   add_foreign_key "till_deposits", "users", column: "voided_by_id"
   add_foreign_key "till_handover_amounts", "payment_methods"
   add_foreign_key "till_handover_amounts", "till_handovers"

@@ -144,13 +144,16 @@ RSpec.describe Attendance::TimeCalculator do
     let(:shift) { build(:shift, :fixed_time, start_time: Time.zone.parse("09:00"), end_time: Time.zone.parse("17:00")) }
     # 09:00–17:00 → 480 scheduled minutes
 
-    it "returns 0 when worked does not exceed scheduled + grace" do
+    it "returns 0 when raw overtime does not reach the grace threshold" do
       expect(described_class.overtime_minutes(shift, 480, overtime_grace_minutes: 30)).to eq(0)
       expect(described_class.overtime_minutes(shift, 500, overtime_grace_minutes: 30)).to eq(0) # 20 over, < 30 grace
+      expect(described_class.overtime_minutes(shift, 509, overtime_grace_minutes: 30)).to eq(0) # 29 over, < 30 grace
     end
 
-    it "counts minutes beyond scheduled + grace" do
-      expect(described_class.overtime_minutes(shift, 525, overtime_grace_minutes: 30)).to eq(15) # 45 over - 30 grace
+    it "counts ALL raw minutes once the grace threshold is reached (threshold included, not subtracted)" do
+      expect(described_class.overtime_minutes(shift, 510, overtime_grace_minutes: 30)).to eq(30) # exactly 30 over → full 30 counted
+      expect(described_class.overtime_minutes(shift, 525, overtime_grace_minutes: 30)).to eq(45) # 45 over, all counted
+      expect(described_class.overtime_minutes(shift, 511, overtime_grace_minutes: 30)).to eq(31) # 31 over, all counted
     end
 
     it "returns 0 when the rule profile disables overtime" do

@@ -63,15 +63,21 @@ module Attendance
       end
     end
 
-    # Minutes worked beyond the scheduled shift duration plus the business-wide
-    # overtime grace threshold. This is the SINGLE source of truth shared with
-    # Salary::OvertimeCalculator so attendance status and payroll never diverge.
+    # Minutes worked beyond the scheduled shift duration, gated by the
+    # business-wide overtime eligibility threshold. This is the SINGLE source
+    # of truth shared with Salary::OvertimeCalculator so attendance status and
+    # payroll never diverge.
+    #
+    # overtime_grace_minutes is an ELIGIBILITY GATE, not a deduction: once the
+    # raw minutes worked past the scheduled end reach the threshold, ALL of
+    # those minutes count as overtime (the threshold itself is included, not
+    # subtracted). Below the threshold, overtime is zero.
     #
     # Returns 0 when:
     #   - the rule profile disables overtime
     #   - the shift has a blank overtime_rate_multiplier (overtime disabled)
     #   - the shift has no schedulable duration
-    #   - worked time does not exceed scheduled + grace
+    #   - raw overtime does not reach the eligibility threshold
     #
     # break_minutes from the rule profile are deducted from worked first.
     # overtime_grace_minutes is the business-level threshold (business.overtime_grace_minutes).
@@ -87,7 +93,11 @@ module Attendance
       return 0 if worked <= 0
 
       effective_worked = worked - rule_profile&.effective_break_minutes.to_i
-      [ effective_worked - scheduled - overtime_grace_minutes.to_i, 0 ].max
+      raw_overtime      = effective_worked - scheduled
+      return 0 if raw_overtime <= 0
+      return 0 if raw_overtime < overtime_grace_minutes.to_i
+
+      raw_overtime
     end
 
     # Final attendance outcome after grace periods, penalty thresholds, and overtime.

@@ -1,6 +1,6 @@
 class TillDepositsController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_deposit, only: %i[void show manual_match_modal manual_match]
+  before_action :set_deposit, only: %i[void show manual_match_modal manual_match ignore_modal ignore unignore]
 
   # GET /till_deposits/new?daily_reconciliation_id=:id
   #
@@ -94,6 +94,37 @@ class TillDepositsController < ApplicationController
       redirect_to till_deposit_path(@deposit), notice: t("finance.bank_statement_transactions.matched")
     else
       redirect_to till_deposit_path(@deposit), alert: result.error
+    end
+  end
+
+  # GET /till_deposits/:id/ignore_modal
+  def ignore_modal
+    authorize @deposit, :ignore?
+  end
+
+  # PATCH /till_deposits/:id/ignore
+  def ignore
+    authorize @deposit, :ignore?
+
+    result = Finance::TillDeposits::Ignorer.call(@deposit.id, actor: current_user, reason: params[:ignore_reason].presence)
+
+    if result.ok?
+      redirect_to finance_deposit_verifications_path(tab: "missing"), notice: t("till_deposits.ignored")
+    else
+      redirect_to finance_deposit_verifications_path(tab: "missing"), alert: result.error
+    end
+  end
+
+  # PATCH /till_deposits/:id/unignore
+  def unignore
+    authorize @deposit, :unignore?
+
+    result = Finance::TillDeposits::Unignorer.call(@deposit.id, actor: current_user)
+
+    if result.ok?
+      redirect_to finance_deposit_verifications_path(tab: "ignored"), notice: t("till_deposits.unignored")
+    else
+      redirect_to finance_deposit_verifications_path(tab: "ignored"), alert: result.error
     end
   end
 

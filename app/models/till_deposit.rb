@@ -5,6 +5,7 @@ class TillDeposit < ApplicationRecord
   belongs_to :daily_reconciliation, inverse_of: :till_deposits
   belongs_to :payment_method
   belongs_to :deposited_by, class_name: "User"
+  belongs_to :ignored_by, class_name: "User", optional: true
 
   has_many :deposit_matches, dependent: :destroy
   has_many :bank_statement_transactions, through: :deposit_matches
@@ -58,6 +59,14 @@ class TillDeposit < ApplicationRecord
     return :fully_matched if diff.zero?
 
     diff.positive? ? :over_matched : :partially_matched
+  end
+
+  # A deposit deliberately marked as never expected to appear on the bank
+  # statement (e.g. a cash deposit reconciled outside the bank entirely) —
+  # excluded from "Missing from Bank" once set. Only meaningful while
+  # :unmatched; ignoring a matched deposit is rejected at the service layer.
+  def ignored?
+    ignored_at.present?
   end
 
   private

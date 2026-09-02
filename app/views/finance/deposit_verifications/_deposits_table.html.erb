@@ -32,7 +32,11 @@
           <tr>
             <td>
               <% dispute = dep.open_bank_dispute %>
-              <% if dispute %>
+              <% if dep.ignored? %>
+                <span class="badge badge-neutral">
+                  <%= t("finance.deposit_verifications.statuses.ignored") %>
+                </span>
+              <% elsif dispute %>
                 <%= render "finance/bank_disputes/badge", deposit: dep %>
               <% elsif txns.empty? %>
                 <span class="badge badge-danger">
@@ -93,11 +97,30 @@
                         till_deposit_path(dep),
                         class: "btn btn-ghost btn-sm" %>
 
-                  <% if policy(dep).match? && dep.match_status != :fully_matched %>
-                    <%= link_to t("finance.bank_statement_transactions.show.manual_match_button"),
-                          manual_match_modal_till_deposit_path(dep),
-                          class: "btn btn-primary btn-sm",
-                          data: { turbo_frame: "modal" } %>
+                  <% if dep.ignored? %>
+                    <% if policy(dep).unignore? %>
+                      <%= button_to unignore_till_deposit_path(dep),
+                            method: :patch,
+                            class: "btn btn-secondary btn-sm",
+                            data: { turbo_confirm: t("till_deposits.show.unignore_confirm") },
+                            form_class: "inline" do %>
+                        <%= t("till_deposits.show.unignore_button") %>
+                      <% end %>
+                    <% end %>
+                  <% else %>
+                    <% if policy(dep).match? && dep.match_status != :fully_matched %>
+                      <%= link_to t("finance.bank_statement_transactions.show.manual_match_button"),
+                            manual_match_modal_till_deposit_path(dep),
+                            class: "btn btn-primary btn-sm",
+                            data: { turbo_frame: "modal" } %>
+                    <% end %>
+
+                    <% if policy(dep).ignore? && dep.match_status == :unmatched %>
+                      <%= link_to t("till_deposits.show.ignore_button"),
+                            ignore_modal_till_deposit_path(dep),
+                            class: "btn btn-secondary btn-sm",
+                            data: { turbo_frame: "modal" } %>
+                    <% end %>
                   <% end %>
                 <% end %>
               </div>

@@ -1,8 +1,10 @@
 module Salary
   # Computes overtime minutes and the corresponding pay for one attendance record.
   #
-  # Overtime = minutes worked beyond (scheduled_duration + grace_minutes).
-  # grace_minutes is the business-level threshold before overtime begins counting.
+  # grace_minutes is an ELIGIBILITY GATE, not a deduction: raw overtime (minutes
+  # worked beyond scheduled_duration) must reach grace_minutes before any overtime
+  # counts. Once it does, ALL raw overtime minutes count — the threshold itself
+  # is included, never subtracted.
   #
   # A blank shift.overtime_rate_multiplier disables overtime entirely (zero).
   #
@@ -54,7 +56,11 @@ module Salary
       return 0 if scheduled.zero?
 
       effective_worked = worked - @rule_profile&.effective_break_minutes.to_i
-      [ effective_worked - scheduled - @grace_minutes, 0 ].max
+      raw_overtime      = effective_worked - scheduled
+      return 0 if raw_overtime <= 0
+      return 0 if raw_overtime < @grace_minutes
+
+      raw_overtime
     end
 
     def overtime_pay(shift, overtime_mins)

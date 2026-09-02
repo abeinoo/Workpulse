@@ -176,6 +176,24 @@
                 <% end %>
               <% end %>
 
+              <%# "مطابقة يدوية" (Manual Match) — links this deposit directly to
+                  one or more unmatched bank transactions, reusing the exact
+                  same TillDepositsController#manual_match_modal/#manual_match
+                  flow and Finance::BankStatements::ManualMatcher already used
+                  from the deposit's own show page. Gated by TillDepositPolicy
+                  #match? (manual_match_deposits permission) — same backend
+                  authorization enforced regardless of entry point. Hidden
+                  once the deposit is already fully/over matched, since there
+                  is nothing left to match. ── %>
+              <% if deposit.active? && deposit.open_bank_dispute.blank? &&
+                    ![ :fully_matched, :over_matched ].include?(deposit.match_status) &&
+                    policy(deposit).match? %>
+                <%= link_to t("finance.bank_statement_transactions.show.manual_match_button"),
+                      manual_match_modal_till_deposit_path(deposit),
+                      class: "btn btn-primary btn-sm",
+                      data: { turbo_frame: "modal" } %>
+              <% end %>
+
               <% if deposit.active? && deposit.bank_statement_transactions.empty? && deposit.open_bank_dispute.blank? &&
                     policy(BankDispute.new(till_deposit: deposit)).create? %>
                 <%= link_to t("finance.bank_disputes.report_button"),

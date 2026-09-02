@@ -17,6 +17,8 @@ class Finance::DepositVerificationsController < Finance::BaseController
     case @active_tab
     when "missing"
       load_missing_deposits
+    when "ignored"
+      load_ignored_deposits
     when "unexpected"
       load_unexpected_transactions
     when "needs_review"
@@ -94,11 +96,13 @@ class Finance::DepositVerificationsController < Finance::BaseController
     verified    = txn_counts["verified"].to_i
 
     missing_count = missing_deposits_scope.count
+    ignored_count = ignored_deposits_scope.count
 
     {
       total_imported:  total_txns,
       verified:        verified,
       missing:         missing_count,
+      ignored:         ignored_count,
       unexpected:      txn_counts["unexpected"].to_i,
       amount_mismatch: txn_counts["amount_mismatch"].to_i,
       date_mismatch:   txn_counts["date_mismatch"].to_i,
@@ -109,7 +113,9 @@ class Finance::DepositVerificationsController < Finance::BaseController
 
   def missing_deposits_scope
     # Deposits that fall within any imported bank statement's date range but
-    # have no matching bank statement transaction.
+    # have no matching bank statement transaction. Deposits marked ignored are
+    # deliberately excluded — they're no longer "unresolved missing", they
+    # have their own "ignored" tab/status.
     covered_dates = BankStatement
                       .where(business: current_user.business)
                       .active
@@ -118,7 +124,7 @@ class Finance::DepositVerificationsController < Finance::BaseController
 
     return TillDeposit.none if covered_dates.empty?
 
-    base = base_deposit_scope.where.missing(:deposit_matches)
+    base = base_deposit_scope.where.missing(:deposit_matches).where(ignored_at: nil)
 
     # Filter to deposits within at least one statement's date range
     date_conditions = covered_dates.map { |from, to| "(DATE(till_deposits.deposited_at) BETWEEN ? AND ?)" }
@@ -126,6 +132,10 @@ class Finance::DepositVerificationsController < Finance::BaseController
     flat_dates = covered_dates.flatten
 
     base.where(date_conditions, *flat_dates)
+  end
+
+  def ignored_deposits_scope
+    base_deposit_scope.where.not(ignored_at: nil)
   end
 
   def load_all_deposits
@@ -147,6 +157,17 @@ class Finance::DepositVerificationsController < Finance::BaseController
                  .includes(:payment_method, :deposited_by, :bank_disputes,
                            daily_reconciliation: :branch)
                  .order(deposited_at: :desc)
+
+    @total_count = deposits.count
+    @total_pages = [ (@total_count.to_f / DEFAULT_PER_PAGE).ceil, 1 ].max
+    @deposits    = deposits.offset((@page - 1) * DEFAULT_PER_PAGE).limit(DEFAULT_PER_PAGE)
+  end
+
+  def load_ignored_deposits
+    deposits = ignored_deposits_scope
+                 .includes(:payment_method, :deposited_by, :ignored_by, :bank_disputes,
+                           daily_reconciliation: :branch)
+                 .order(ignored_at: :desc)
 
     @total_count = deposits.count
     @total_pages = [ (@total_count.to_f / DEFAULT_PER_PAGE).ceil, 1 ].max

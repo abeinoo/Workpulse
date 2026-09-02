@@ -71,6 +71,7 @@ class PermissionRole < ApplicationRecord
                                import_bank_statement
                                verify_deposits
                                manual_match_deposits
+                               ignore_deposits
                                delete_import],
     settings:              %w[manage_settings manage_branches],
     obligations:           %w[manage_obligations],
@@ -165,7 +166,7 @@ class PermissionRole < ApplicationRecord
   BRANCH_SCOPABLE_PERMISSIONS = %w[
     view_expenses create_expenses edit_expenses approve_expenses
     view_employee_balances
-    view_deposit_verification import_bank_statement verify_deposits manual_match_deposits delete_import
+    view_deposit_verification import_bank_statement verify_deposits manual_match_deposits ignore_deposits delete_import
     view_towel_balances create_towel_transfers confirm_towel_receipt
     view_laundry_consumption_reports
     view_pos_import manage_pos_import
@@ -328,6 +329,7 @@ class PermissionRole < ApplicationRecord
     "import_bank_statement"       => %w[view_deposit_verification],
     "verify_deposits"             => %w[view_deposit_verification],
     "manual_match_deposits"       => %w[verify_deposits],
+    "ignore_deposits"              => %w[verify_deposits],
     "delete_import"               => %w[import_bank_statement],
     "create_towel_transfers"      => %w[view_towel_balances],
     "confirm_towel_receipt"       => %w[view_towel_balances],

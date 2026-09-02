@@ -90,7 +90,11 @@ RSpec.describe Salary::OvertimeCalculator do
     end
   end
 
-  # ── Grace threshold: 30 minutes ───────────────────────────────────────────
+  # ── Grace threshold: 30 minutes (eligibility gate, not a deduction) ───────
+  #
+  # Shift ends 17:00 (480 scheduled min). grace_minutes is the minimum raw
+  # overtime required before ANY overtime counts. Once reached, ALL raw
+  # minutes past shift end count — the threshold itself is included.
 
   describe ".calculate with grace_minutes: 30" do
     let(:grace) { 30 }
@@ -105,57 +109,66 @@ RSpec.describe Salary::OvertimeCalculator do
       end
     end
 
-    context "when employee leaves 20 minutes past shift end (within grace)" do
-      it "returns zero overtime — does not count partial grace time" do
+    context "when employee leaves 10 minutes past shift end (well below threshold)" do
+      it "returns zero overtime" do
         result = described_class.calculate(
-          record: build_record(worked_minutes: 500), daily_rate: daily_rate, grace_minutes: grace
+          record: build_record(worked_minutes: 490), daily_rate: daily_rate, grace_minutes: grace
         )
         expect(result.overtime_minutes).to eq(0)
         expect(result.overtime_pay).to eq(0.0)
       end
     end
 
-    context "when employee leaves exactly at the grace boundary (30 min past end)" do
-      it "returns zero overtime — boundary is inclusive (must EXCEED grace)" do
+    context "when employee leaves 29 minutes past shift end (1 min below threshold)" do
+      it "returns zero overtime" do
+        result = described_class.calculate(
+          record: build_record(worked_minutes: 509), daily_rate: daily_rate, grace_minutes: grace
+        )
+        expect(result.overtime_minutes).to eq(0)
+        expect(result.overtime_pay).to eq(0.0)
+      end
+    end
+
+    context "when employee leaves exactly at the threshold (30 min past end)" do
+      it "counts the full 30 minutes — the threshold is included, not subtracted" do
         result = described_class.calculate(
           record: build_record(worked_minutes: 510), daily_rate: daily_rate, grace_minutes: grace
         )
-        expect(result.overtime_minutes).to eq(0)
-        expect(result.overtime_pay).to eq(0.0)
+        expect(result.overtime_minutes).to eq(30)
+        # hourly = 400 / 8 = 50; pay = 50 * (30/60) * 1.5 = 37.5
+        expect(result.overtime_pay).to eq(37.5)
       end
     end
 
-    context "when employee leaves 31 minutes past shift end (1 min beyond grace)" do
-      it "returns 1 minute of overtime" do
-        # worked = 480 + 31 = 511 min; overtime = 511 - 480 - 30 = 1
+    context "when employee leaves 31 minutes past shift end (1 min beyond threshold)" do
+      it "counts the full 31 minutes" do
         result = described_class.calculate(
           record: build_record(worked_minutes: 511), daily_rate: daily_rate, grace_minutes: grace
         )
-        expect(result.overtime_minutes).to eq(1)
+        expect(result.overtime_minutes).to eq(31)
       end
     end
 
-    context "when employee leaves 45 minutes past shift end (15 min beyond grace)" do
-      it "returns 15 minutes of overtime with correct pay" do
-        # worked = 480 + 45 = 525; overtime = 525 - 480 - 30 = 15 min
-        # hourly = 400 / 8 = 50; pay = 50 * (15/60) * 1.5 = 18.75
+    context "when employee leaves 45 minutes past shift end" do
+      it "counts the full 45 minutes with correct pay" do
+        # hourly = 400 / 8 = 50; pay = 50 * (45/60) * 1.5 = 56.25
         result = described_class.calculate(
           record: build_record(worked_minutes: 525), daily_rate: daily_rate, grace_minutes: grace
         )
-        expect(result.overtime_minutes).to eq(15)
-        expect(result.overtime_pay).to eq(18.75)
+        expect(result.overtime_minutes).to eq(45)
+        expect(result.overtime_pay).to eq(56.25)
       end
     end
 
-    context "when employee works 2 hours of overtime beyond grace" do
-      it "counts only minutes beyond grace, not the grace itself" do
-        # worked = 480 + 30 + 120 = 630; overtime = 630 - 480 - 30 = 120 min
-        # pay = 50 * 2.0 * 1.5 = 150
+    context "when employee works 2.5 hours past shift end" do
+      it "counts the full raw overtime, not just the amount beyond the threshold" do
+        # worked = 480 + 150 = 630; overtime = 150 (NOT 630 - 480 - 30 = 120)
+        # pay = 50 * 2.5 * 1.5 = 187.5
         result = described_class.calculate(
           record: build_record(worked_minutes: 630), daily_rate: daily_rate, grace_minutes: grace
         )
-        expect(result.overtime_minutes).to eq(120)
-        expect(result.overtime_pay).to eq(150.0)
+        expect(result.overtime_minutes).to eq(150)
+        expect(result.overtime_pay).to eq(187.5)
       end
     end
   end
@@ -165,7 +178,7 @@ RSpec.describe Salary::OvertimeCalculator do
   describe ".calculate with grace_minutes: 15" do
     let(:grace) { 15 }
 
-    context "when 14 minutes past shift end (within grace)" do
+    context "when 14 minutes past shift end (below threshold)" do
       it "returns zero overtime" do
         result = described_class.calculate(
           record: build_record(worked_minutes: 494), daily_rate: daily_rate, grace_minutes: grace
@@ -174,12 +187,21 @@ RSpec.describe Salary::OvertimeCalculator do
       end
     end
 
-    context "when 16 minutes past shift end (1 min beyond grace)" do
-      it "returns 1 minute overtime" do
+    context "when exactly 15 minutes past shift end (at threshold)" do
+      it "counts the full 15 minutes" do
+        result = described_class.calculate(
+          record: build_record(worked_minutes: 495), daily_rate: daily_rate, grace_minutes: grace
+        )
+        expect(result.overtime_minutes).to eq(15)
+      end
+    end
+
+    context "when 16 minutes past shift end (1 min beyond threshold)" do
+      it "counts the full 16 minutes" do
         result = described_class.calculate(
           record: build_record(worked_minutes: 496), daily_rate: daily_rate, grace_minutes: grace
         )
-        expect(result.overtime_minutes).to eq(1)
+        expect(result.overtime_minutes).to eq(16)
       end
     end
   end
@@ -189,7 +211,7 @@ RSpec.describe Salary::OvertimeCalculator do
   describe ".calculate with grace_minutes: 60" do
     let(:grace) { 60 }
 
-    context "when 59 minutes past shift end" do
+    context "when 59 minutes past shift end (below threshold)" do
       it "returns zero overtime" do
         result = described_class.calculate(
           record: build_record(worked_minutes: 539), daily_rate: daily_rate, grace_minutes: grace
@@ -198,12 +220,21 @@ RSpec.describe Salary::OvertimeCalculator do
       end
     end
 
+    context "when exactly 60 minutes past shift end (at threshold)" do
+      it "counts the full 60 minutes" do
+        result = described_class.calculate(
+          record: build_record(worked_minutes: 540), daily_rate: daily_rate, grace_minutes: grace
+        )
+        expect(result.overtime_minutes).to eq(60)
+      end
+    end
+
     context "when 61 minutes past shift end" do
-      it "returns 1 minute overtime" do
+      it "counts the full 61 minutes" do
         result = described_class.calculate(
           record: build_record(worked_minutes: 541), daily_rate: daily_rate, grace_minutes: grace
         )
-        expect(result.overtime_minutes).to eq(1)
+        expect(result.overtime_minutes).to eq(61)
       end
     end
   end
@@ -257,18 +288,25 @@ RSpec.describe Salary::OvertimeCalculator do
     end
 
     context "with grace_minutes: 30" do
-      it "applies grace to flexible shifts the same way as fixed shifts" do
-        # worked = 520 (40 min past required); overtime = 520 - 480 - 30 = 10
+      it "applies the eligibility threshold to flexible shifts the same way as fixed shifts" do
+        # worked = 520 (40 min past required, >= 30 threshold); full 40 min counted
         record = build_flex_record(worked_minutes: 520)
         result = described_class.calculate(record: record, daily_rate: daily_rate, grace_minutes: 30)
-        expect(result.overtime_minutes).to eq(10)
+        expect(result.overtime_minutes).to eq(40)
       end
 
-      it "returns zero when within grace on a flex shift" do
-        # worked = 509 (29 min past required); 509 - 480 - 30 = -1 → 0
+      it "returns zero when below the threshold on a flex shift" do
+        # worked = 509 (29 min past required, < 30 threshold) → 0
         record = build_flex_record(worked_minutes: 509)
         result = described_class.calculate(record: record, daily_rate: daily_rate, grace_minutes: 30)
         expect(result.overtime_minutes).to eq(0)
+      end
+
+      it "counts the full amount at exactly the threshold on a flex shift" do
+        # worked = 510 (30 min past required, at threshold) → 30
+        record = build_flex_record(worked_minutes: 510)
+        result = described_class.calculate(record: record, daily_rate: daily_rate, grace_minutes: 30)
+        expect(result.overtime_minutes).to eq(30)
       end
     end
   end

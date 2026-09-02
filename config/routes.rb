@@ -294,6 +294,9 @@ Rails.application.routes.draw do
       patch :void
       get   :manual_match_modal
       patch :manual_match
+      get   :ignore_modal
+      patch :ignore
+      patch :unignore
     end
   end
 

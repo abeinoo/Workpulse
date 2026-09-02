@@ -17,6 +17,12 @@ class TillDepositPolicy < ApplicationPolicy
   # the deposit-side mirror of BankStatementTransactionPolicy#match?.
   def match? = can?(:manual_match_deposits) && same_business?
 
+  # Mark this deposit as ignored (excluded from "Missing from Bank"), or
+  # reverse that — same permission gates both directions, mirroring how
+  # BankStatements::Ignorer/Unmatcher share no separate policy split either.
+  def ignore?   = can?(:ignore_deposits) && same_business?
+  def unignore? = ignore?
+
   private
 
   def same_business?
