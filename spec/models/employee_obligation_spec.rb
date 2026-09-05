@@ -9,6 +9,7 @@ RSpec.describe EmployeeObligation, type: :model do
     it { is_expected.to belong_to(:business) }
     it { is_expected.to belong_to(:created_by).class_name("User") }
     it { is_expected.to have_many(:obligation_deductions).dependent(:destroy) }
+    it { is_expected.to have_many(:obligation_postponements).dependent(:destroy) }
   end
 
   # ── Validations ───────────────────────────────────────────────────────────
@@ -262,6 +263,243 @@ RSpec.describe EmployeeObligation, type: :model do
                           start_month: 1, start_year: 2025,
                           end_month: 6, end_year: 2025)
       expect(EmployeeObligation.covering_period(period)).to include(obligation)
+    end
+  end
+
+  # ── Installment postponement ─────────────────────────────────────────────
+  describe "#installment_schedule with postponements" do
+    let!(:obligation) do
+      create(:employee_obligation, :open_ended,
+             total_amount: 12_000, remaining_amount: 12_000, installment_amount: 2_000,
+             installments_count: 6, start_month: 8, start_year: 2026, status: "active")
+    end
+
+    it "shows the un-postponed schedule by default" do
+      schedule = obligation.installment_schedule
+      expect(schedule.size).to eq(6)
+      expect(schedule.map { |e| e[:amount] }).to all(eq(2_000.0))
+      expect(schedule).to all(include(status: :scheduled))
+    end
+
+    context "next_month postponement" do
+      before do
+        create(:obligation_postponement, employee_obligation: obligation,
+               postponement_type: "next_month",
+               original_year: 2026, original_month: 8, original_amount: 2_000,
+               target_year: 2026, target_month: 9, amount: 2_000)
+      end
+
+      it "zeroes the original installment and marks it postponed" do
+        entry = obligation.installment_schedule.find { |e| e[:year] == 2026 && e[:month] == 8 }
+        expect(entry[:amount]).to eq(0.0)
+        expect(entry[:status]).to eq(:postponed)
+      end
+
+      it "adds the postponed amount onto the next installment" do
+        entry = obligation.installment_schedule.find { |e| e[:year] == 2026 && e[:month] == 9 }
+        expect(entry[:amount]).to eq(4_000.0)
+        expect(entry[:status]).to eq(:scheduled)
+      end
+
+      it "leaves the schedule length and total unchanged" do
+        schedule = obligation.installment_schedule
+        expect(schedule.size).to eq(6)
+        expect(schedule.sum { |e| e[:amount] }).to eq(12_000.0)
+      end
+
+      it "does not touch other installments" do
+        entry = obligation.installment_schedule.find { |e| e[:year] == 2026 && e[:month] == 10 }
+        expect(entry[:amount]).to eq(2_000.0)
+      end
+    end
+
+    context "extend_loan postponement" do
+      before do
+        create(:obligation_postponement, :extend_loan, employee_obligation: obligation,
+               original_year: 2026, original_month: 8, original_amount: 2_000,
+               target_year: 2027, target_month: 2, amount: 2_000)
+      end
+
+      it "zeroes the original installment and marks it postponed" do
+        entry = obligation.installment_schedule.find { |e| e[:year] == 2026 && e[:month] == 8 }
+        expect(entry[:amount]).to eq(0.0)
+        expect(entry[:status]).to eq(:postponed)
+      end
+
+      it "leaves the middle installments untouched" do
+        entry = obligation.installment_schedule.find { |e| e[:year] == 2026 && e[:month] == 9 }
+        expect(entry[:amount]).to eq(2_000.0)
+      end
+
+      it "appends a new installment after the schedule, marked postponed" do
+        schedule = obligation.installment_schedule
+        expect(schedule.size).to eq(7)
+        appended = schedule.last
+        expect(appended[:year]).to eq(2027)
+        expect(appended[:month]).to eq(2)
+        expect(appended[:amount]).to eq(2_000.0)
+        expect(appended[:status]).to eq(:postponed)
+      end
+
+      it "keeps the total scheduled amount equal to the obligation total" do
+        expect(obligation.installment_schedule.sum { |e| e[:amount] }).to eq(12_000.0)
+      end
+    end
+  end
+
+  describe "#postponable?" do
+    let!(:obligation) do
+      create(:employee_obligation, :open_ended,
+             total_amount: 12_000, remaining_amount: 12_000, installment_amount: 2_000,
+             installments_count: 6, start_month: 8, start_year: 2026, status: "active")
+    end
+
+    it "is true for a future, unpaid, unpostponed installment" do
+      expect(obligation.postponable?(2026, 8)).to be true
+    end
+
+    it "is false outside the schedule window" do
+      expect(obligation.postponable?(2030, 1)).to be false
+    end
+
+    it "is false once the obligation is cancelled" do
+      obligation.update!(status: "cancelled")
+      expect(obligation.postponable?(2026, 8)).to be false
+    end
+
+    it "is false once the obligation is completed" do
+      obligation.update!(status: "completed", remaining_amount: 0)
+      expect(obligation.postponable?(2026, 8)).to be false
+    end
+
+    it "is false for an installment already postponed" do
+      create(:obligation_postponement, employee_obligation: obligation,
+             original_year: 2026, original_month: 8)
+      expect(obligation.postponable?(2026, 8)).to be false
+    end
+
+    it "is false once that period's payroll is finalized" do
+      business = obligation.business
+      period   = create(:payroll_period, business: business, period_year: 2026, period_month: 8, status: "finalized")
+      create(:obligation_deduction, employee_obligation: obligation, payroll_period: period,
+             deducted_amount: 2_000, remaining_before: 12_000, remaining_after: 10_000)
+      expect(obligation.postponable?(2026, 8)).to be false
+    end
+
+    it "is true even when a draft deduction snapshot already exists for that period" do
+      # Draft/under_review/branch_review_completed periods are still fully
+      # mutable in this codebase (see Payroll::ObligationEditor) — a preview
+      # snapshot is not the same as a processed installment.
+      business = obligation.business
+      period   = create(:payroll_period, business: business, period_year: 2026, period_month: 8, status: "draft")
+      create(:obligation_deduction, employee_obligation: obligation, payroll_period: period,
+             deducted_amount: 2_000, remaining_before: 12_000, remaining_after: 10_000)
+      expect(obligation.postponable?(2026, 8)).to be true
+    end
+
+    it "is true while paused" do
+      obligation.update!(status: "paused")
+      expect(obligation.postponable?(2026, 8)).to be true
+    end
+
+    it "is false for a period whose payroll is finalized, even with no deduction on this obligation" do
+      create(:payroll_period, business: obligation.business, period_year: 2026, period_month: 8, status: "finalized")
+      expect(obligation.postponable?(2026, 8)).to be false
+    end
+
+    it "is still true for a later untouched installment even though an earlier period is finalized/paid" do
+      # Regression: payroll_locked? is obligation-wide and must NOT be used
+      # here — a paid June/July shouldn't freeze postponement of November.
+      period = create(:payroll_period, business: obligation.business, period_year: 2026, period_month: 8, status: "paid")
+      create(:obligation_deduction, employee_obligation: obligation, payroll_period: period,
+             deducted_amount: 2_000, remaining_before: 12_000, remaining_after: 10_000)
+      expect(obligation.payroll_locked?).to be true
+      expect(obligation.postponable?(2026, 10)).to be true
+    end
+  end
+
+  describe "#period_finalized?" do
+    let!(:obligation) do
+      create(:employee_obligation, :open_ended,
+             total_amount: 12_000, remaining_amount: 12_000, installment_amount: 2_000,
+             installments_count: 6, start_month: 8, start_year: 2026, status: "active")
+    end
+
+    it "is false for a period with no payroll period at all" do
+      expect(obligation.period_finalized?(2026, 8)).to be false
+    end
+
+    it "is false when a deduction exists but its period is still draft" do
+      period = create(:payroll_period, business: obligation.business, period_year: 2026, period_month: 8, status: "draft")
+      create(:obligation_deduction, employee_obligation: obligation, payroll_period: period,
+             deducted_amount: 2_000, remaining_before: 12_000, remaining_after: 10_000)
+      expect(obligation.period_finalized?(2026, 8)).to be false
+    end
+
+    it "is true when the business's payroll period for that month is finalized, even without a deduction" do
+      create(:payroll_period, business: obligation.business, period_year: 2026, period_month: 9, status: "finalized")
+      expect(obligation.period_finalized?(2026, 9)).to be true
+    end
+
+    it "is true when the period is paid" do
+      period = create(:payroll_period, business: obligation.business, period_year: 2026, period_month: 8, status: "paid")
+      create(:obligation_deduction, employee_obligation: obligation, payroll_period: period,
+             deducted_amount: 2_000, remaining_before: 12_000, remaining_after: 10_000)
+      expect(obligation.period_finalized?(2026, 8)).to be true
+    end
+  end
+
+  describe "#next_month_postponable?" do
+    it "is false when the next installment falls outside a closed end window" do
+      obligation = create(:employee_obligation, :with_end_date,
+                          total_amount: 2_000, remaining_amount: 2_000, installment_amount: 2_000,
+                          installments_count: 1, start_month: 1, start_year: 2026,
+                          end_month: 1, end_year: 2026, status: "active")
+      expect(obligation.next_month_postponable?(2026, 1)).to be false
+      expect(obligation.extend_loan_postponable?(2026, 1)).to be true
+    end
+
+    it "is false when the next installment's period is already finalized" do
+      obligation = create(:employee_obligation, :open_ended,
+                          total_amount: 6_000, remaining_amount: 6_000, installment_amount: 2_000,
+                          installments_count: 3, start_month: 8, start_year: 2026, status: "active")
+      period = create(:payroll_period, business: obligation.business, period_year: 2026, period_month: 9, status: "finalized")
+      create(:obligation_deduction, employee_obligation: obligation, payroll_period: period,
+             deducted_amount: 2_000, remaining_before: 6_000, remaining_after: 4_000)
+      expect(obligation.next_month_postponable?(2026, 8)).to be false
+    end
+
+    it "is true when the next installment only has a draft (non-finalized) deduction" do
+      obligation = create(:employee_obligation, :open_ended,
+                          total_amount: 6_000, remaining_amount: 6_000, installment_amount: 2_000,
+                          installments_count: 3, start_month: 8, start_year: 2026, status: "active")
+      period = create(:payroll_period, business: obligation.business, period_year: 2026, period_month: 9, status: "draft")
+      create(:obligation_deduction, employee_obligation: obligation, payroll_period: period,
+             deducted_amount: 2_000, remaining_before: 6_000, remaining_after: 4_000)
+      expect(obligation.next_month_postponable?(2026, 8)).to be true
+    end
+  end
+
+  describe "#installment_for_period" do
+    let(:obligation) do
+      create(:employee_obligation, :open_ended,
+             total_amount: 12_000, remaining_amount: 12_000, installment_amount: 2_000,
+             installments_count: 6, start_month: 8, start_year: 2026, status: "active")
+    end
+    let(:business) { obligation.business }
+
+    it "returns 0 for a period whose installment was postponed away" do
+      create(:obligation_postponement, employee_obligation: obligation,
+             original_year: 2026, original_month: 8, target_year: 2026, target_month: 9)
+      august = create(:payroll_period, business: business, period_year: 2026, period_month: 8)
+      expect(obligation.installment_for_period(august)).to eq(0.0)
+    end
+
+    it "returns the increased amount for a period that absorbed a postponement" do
+      create(:obligation_postponement, employee_obligation: obligation,
+             original_year: 2026, original_month: 8, target_year: 2026, target_month: 9)
+      september = create(:payroll_period, business: business, period_year: 2026, period_month: 9)
+      expect(obligation.installment_for_period(september)).to eq(4_000.0)
     end
   end
 end

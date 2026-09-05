@@ -125,6 +125,7 @@ Rails.application.routes.draw do
         patch :pause
         patch :resume
         patch :cancel
+        patch :postpone
       end
     end
 

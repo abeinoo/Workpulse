@@ -40,7 +40,7 @@ module Payroll
           payroll_period:      @period
         )
 
-        amount = obligation.installment_for_period
+        amount = obligation.installment_for_period(@period)
         next if amount <= 0
 
         remaining_before = obligation.remaining_amount.to_f

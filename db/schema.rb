@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_043000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -905,6 +905,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_043000) do
     t.index ["employee_obligation_id", "payroll_period_id"], name: "idx_obligation_deductions_unique", unique: true
     t.index ["employee_obligation_id"], name: "index_obligation_deductions_on_employee_obligation_id"
     t.index ["payroll_period_id"], name: "index_obligation_deductions_on_payroll_period_id"
+  end
+
+  create_table "obligation_postponements", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.bigint "employee_obligation_id", null: false
+    t.decimal "original_amount", precision: 12, scale: 2, null: false
+    t.integer "original_month", null: false
+    t.integer "original_year", null: false
+    t.bigint "performed_by_id", null: false
+    t.string "postponement_type", null: false
+    t.text "reason"
+    t.integer "target_month", null: false
+    t.integer "target_year", null: false
+    t.datetime "updated_at", null: false
+    t.index ["employee_obligation_id", "original_year", "original_month"], name: "idx_obligation_postponements_unique_original", unique: true
+    t.index ["employee_obligation_id"], name: "index_obligation_postponements_on_employee_obligation_id"
+    t.index ["performed_by_id"], name: "index_obligation_postponements_on_performed_by_id"
   end
 
   create_table "payment_methods", force: :cascade do |t|
@@ -2368,6 +2386,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_043000) do
   add_foreign_key "notifications", "users"
   add_foreign_key "obligation_deductions", "employee_obligations"
   add_foreign_key "obligation_deductions", "payroll_periods"
+  add_foreign_key "obligation_postponements", "employee_obligations"
+  add_foreign_key "obligation_postponements", "users", column: "performed_by_id"
   add_foreign_key "payment_methods", "businesses"
   add_foreign_key "payroll_adjustment_edits", "businesses"
   add_foreign_key "payroll_adjustment_edits", "payroll_adjustments"

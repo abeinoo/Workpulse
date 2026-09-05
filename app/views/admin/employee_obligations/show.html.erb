@@ -103,12 +103,16 @@
         <h3 style="font-size:var(--text-sm);font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:var(--space-3);">
           <%= t("admin.employee_obligations.payment_schedule") %>
         </h3>
-        <div class="table-wrap table-wrap--cards" style="max-height:260px;overflow-y:auto;">
+        <% can_postpone = policy(@obligation).postpone? %>
+        <div class="table-wrap table-wrap--cards" style="max-height:320px;overflow-y:auto;">
           <table>
             <thead>
               <tr>
                 <th><%= t("admin.employee_obligations.schedule_month") %></th>
                 <th><%= t("admin.employee_obligations.schedule_amount") %></th>
+                <% if can_postpone %>
+                  <th><%= t("admin.employee_obligations.postponement.actions") %></th>
+                <% end %>
               </tr>
             </thead>
             <tbody>
@@ -117,10 +121,48 @@
                   <td><%= I18n.t("date.month_names")[entry[:month]] %> <%= entry[:year] %></td>
                   <td>
                     <%= number_with_precision(entry[:amount], precision: 2, delimiter: ",") %>
-                    <% if i == schedule.size - 1 && !@obligation.even_installments? %>
+                    <% if entry[:status] == :postponed %>
+                      &nbsp;<span class="badge badge-warning" style="font-size:10px;"><%= t("admin.employee_obligations.postponement.postponed_badge") %></span>
+                    <% elsif i == schedule.size - 1 && !@obligation.even_installments? %>
                       &nbsp;<span class="badge badge-neutral" style="font-size:10px;"><%= t("admin.employee_obligations.final_installment") %></span>
                     <% end %>
                   </td>
+                  <% if can_postpone %>
+                    <td>
+                      <% next_ok = @obligation.next_month_postponable?(entry[:year], entry[:month]) %>
+                      <% extend_ok = @obligation.extend_loan_postponable?(entry[:year], entry[:month]) %>
+                      <% if next_ok || extend_ok %>
+                        <details class="waive-details">
+                          <summary class="btn btn-sm btn-secondary" style="cursor:pointer;list-style:none;"><%= t("admin.employee_obligations.postponement.actions") %></summary>
+                          <div class="waive-popover">
+                            <% if next_ok %>
+                              <% target = @obligation.next_month_target_amount(entry[:year], entry[:month]) %>
+                              <%= button_to t("admin.employee_obligations.postponement.next_month_action"),
+                                    postpone_admin_employee_obligation_path(@obligation),
+                                    method: :patch,
+                                    params: { year: entry[:year], month: entry[:month], postponement_type: "next_month" },
+                                    data: { turbo_confirm: t("admin.employee_obligations.postponement.confirm_next_month",
+                                              month: "#{I18n.t('date.month_names')[entry[:month]]} #{entry[:year]}",
+                                              amount: number_with_precision(entry[:amount], precision: 2, delimiter: ","),
+                                              target_month: "#{I18n.t('date.month_names')[target[:month]]} #{target[:year]}",
+                                              new_amount: number_with_precision(target[:new_amount], precision: 2, delimiter: ",")) },
+                                    class: "btn btn-sm btn-warning", style: "width:100%;margin-bottom:.4rem;" %>
+                            <% end %>
+                            <% if extend_ok %>
+                              <%= button_to t("admin.employee_obligations.postponement.extend_loan_action"),
+                                    postpone_admin_employee_obligation_path(@obligation),
+                                    method: :patch,
+                                    params: { year: entry[:year], month: entry[:month], postponement_type: "extend_loan" },
+                                    data: { turbo_confirm: t("admin.employee_obligations.postponement.confirm_extend_loan",
+                                              month: "#{I18n.t('date.month_names')[entry[:month]]} #{entry[:year]}",
+                                              amount: number_with_precision(entry[:amount], precision: 2, delimiter: ",")) },
+                                    class: "btn btn-sm btn-accent", style: "width:100%;" %>
+                            <% end %>
+                          </div>
+                        </details>
+                      <% end %>
+                    </td>
+                  <% end %>
                 </tr>
               <% end %>
             </tbody>
@@ -187,3 +229,17 @@
   <% end %>
 
 </div>
+
+<style>
+  .waive-popover {
+    position: absolute;
+    z-index: 10;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    min-width: 14rem;
+    margin-top: 0.25rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+</style>

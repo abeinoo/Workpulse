@@ -6,6 +6,7 @@ class EmployeeObligationPolicy < ApplicationPolicy
   def pause?  = can?(:manage_obligations)
   def resume? = can?(:manage_obligations)
   def cancel? = can?(:manage_obligations)
+  def postpone? = can?(:manage_obligations)
 
   class Scope < ApplicationPolicy::Scope
     def resolve

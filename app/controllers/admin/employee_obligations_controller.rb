@@ -1,5 +1,5 @@
 class Admin::EmployeeObligationsController < Admin::BaseController
-  before_action :set_obligation, only: [ :show, :edit, :update, :pause, :resume, :cancel ]
+  before_action :set_obligation, only: [ :show, :edit, :update, :pause, :resume, :cancel, :postpone ]
 
   def index
     authorize EmployeeObligation
@@ -105,6 +105,26 @@ class Admin::EmployeeObligationsController < Admin::BaseController
     else
       redirect_to admin_employee_obligation_path(@obligation),
                   alert: t("admin.employee_obligations.cannot_cancel")
+    end
+  end
+
+  def postpone
+    authorize @obligation
+    result = Payroll::ObligationInstallmentPostponer.call(
+      obligation_id:      @obligation.id,
+      business:           current_user.business,
+      actor:              current_user,
+      year:               params[:year],
+      month:              params[:month],
+      postponement_type:  params[:postponement_type],
+      reason:             params[:reason]
+    )
+
+    if result.ok?
+      redirect_to admin_employee_obligation_path(@obligation),
+                  notice: t("admin.employee_obligations.postponement.success")
+    else
+      redirect_to admin_employee_obligation_path(@obligation), alert: result.error
     end
   end
 
