@@ -278,5 +278,267 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
         expect(after_regen).to eq(2_030.40)
       end
     end
+
+    # Explicit August-vs-September coverage: "every calendar month is an
+    # independent earning cycle for NEW advance eligibility." Pins the exact
+    # worked example from the business-rule clarification (200 EGP/day, 5
+    # September days, 50% → 500 available) and proves August activity — worked
+    # days, earned wages, and payroll payment status — has zero effect on
+    # September's calculation. This is the *new-advance-eligibility* concept;
+    # Payroll::AdvanceDeductor and payroll-period ownership are a separate,
+    # already-covered concern (see advance_period_isolation_spec.rb).
+    context "monthly isolation for a daily employee (August vs September 2026)" do
+      around { |ex| travel_to(Time.zone.local(2026, 9, 14, 12, 0, 0)) { ex.run } }
+
+      before do
+        business.update!(max_salary_advance_percentage: 50)
+        create(:salary_profile, :daily, user: user, base_amount: 200, effective_from: Date.new(2026, 1, 1))
+      end
+
+      def complete_day(date)
+        create(:attendance_record, :checked_out, user: user, branch: branch,
+               shift_assignment: shift_assignment, date: date, work_date: date)
+      end
+
+      it "at the start of September with zero September attendance, available is 0 even with 20 complete August days" do
+        20.times { |i| complete_day(Date.new(2026, 8, 1) + i.days) }
+
+        result = described_class.for(user: user)
+        expect(result.earned_basis).to eq(0.0)
+        expect(result.available).to eq(0.0)
+      end
+
+      it "5 completed September days produce eligibility based only on those 5 days (500 EGP, per the worked example)" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+
+        result = described_class.for(user: user)
+        expect(result.earned_basis).to eq(1_000.0)   # 5 × 200
+        expect(result.max_amount).to eq(500.0)        # 1,000 × 50%
+        expect(result.available).to eq(500.0)
+      end
+
+      it "August days mixed with September days: only the September days count" do
+        20.times { |i| complete_day(Date.new(2026, 8, 1) + i.days) }
+        5.times  { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+
+        result = described_class.for(user: user)
+        expect(result.earned_basis).to eq(1_000.0)   # August's 20 days excluded entirely
+        expect(result.available).to eq(500.0)
+      end
+
+      it "August payroll being paid or unpaid has no effect on September eligibility" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+
+        unpaid_result = described_class.for(user: user).available
+
+        august_period = create(:payroll_period, :paid, business: business,
+               period_year: 2026, period_month: 8, working_days: 22)
+        create(:payroll_entry, user: user, payroll_period: august_period,
+               salary_type: "daily", base_salary: 4_000, net_salary: 4_000)
+
+        paid_result = described_class.for(user: user).available
+
+        expect(paid_result).to eq(unpaid_result)
+        expect(paid_result).to eq(500.0)
+      end
+
+      it "still correctly subtracts an existing outstanding advance balance within the September-only basis" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+        req = outstanding_request(amount: 200)
+        create(:advance, user: user, remaining_amount: 200, employee_request: req)
+        req.update!(status: "paid")
+
+        result = described_class.for(user: user)
+        expect(result.max_amount).to eq(500.0)
+        expect(result.outstanding).to eq(200.0)
+        expect(result.available).to eq(300.0)         # 500 − 200
+      end
+    end
+
+    # Business-rule correction: a PRIOR month's outstanding advance balance
+    # must NEVER reduce the CURRENT month's new-advance allowance, no matter
+    # whether that prior debt is repaid, unpaid, or its holding payroll period
+    # is paid/unpaid. Only an advance/pending request belonging to THIS month
+    # counts against THIS month's cap (guards same-month double-requesting).
+    # Existing advance repayment (Payroll::AdvanceDeductor) is untouched and
+    # keeps collecting prior-month debt via payroll deductions — this is a
+    # separate "how much NEW money right now" question. See
+    # advance_period_isolation_spec.rb for payroll-side coverage.
+    context "monthly-independent new-advance eligibility (business rule correction)" do
+      around { |ex| travel_to(Time.zone.local(2026, 9, 14, 12, 0, 0)) { ex.run } }
+
+      before do
+        business.update!(max_salary_advance_percentage: 50)
+        create(:salary_profile, :daily, user: user, base_amount: 200, effective_from: Date.new(2026, 1, 1))
+      end
+
+      def complete_day(date)
+        create(:attendance_record, :checked_out, user: user, branch: branch,
+               shift_assignment: shift_assignment, date: date, work_date: date)
+      end
+
+      def issue_advance(amount:, issued_at:)
+        req = build(:employee_request, :salary_advance, user: user, amount: amount,
+                    requested_for_date: issued_at.to_date)
+        req.save!(validate: false)
+        advance = create(:advance, user: user, employee_request: req,
+               total_amount: amount, remaining_amount: amount, issued_at: issued_at)
+        req.update_column(:status, "paid")
+        advance
+      end
+
+      # 1. No August advance, 5 September days → 500 available.
+      it "with 5 September days and no prior advance, available is 500" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+
+        result = described_class.for(user: user)
+        expect(result.earned_basis).to eq(1_000.0)
+        expect(result.max_amount).to eq(500.0)
+        expect(result.available).to eq(500.0)
+      end
+
+      # 2. 5 September days AND 2,000 outstanding from August → still 500.
+      it "with 5 September days and a 2,000 outstanding August advance, available is still 500" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+        issue_advance(amount: 2_000, issued_at: Date.new(2026, 8, 16))
+
+        result = described_class.for(user: user)
+        expect(result.max_amount).to eq(500.0)
+        expect(result.available).to eq(500.0)
+      end
+
+      # 3 & 4. August payroll unpaid vs. paid — no effect either way.
+      it "is unchanged whether August's payroll is unpaid or paid" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+        issue_advance(amount: 2_000, issued_at: Date.new(2026, 8, 16))
+
+        unpaid_period = create(:payroll_period, :finalized, business: business,
+               period_year: 2026, period_month: 8, working_days: 22)
+        create(:payroll_entry, user: user, payroll_period: unpaid_period,
+               salary_type: "daily", base_salary: 4_000, net_salary: 4_000)
+        unpaid_available = described_class.for(user: user).available
+        expect(unpaid_available).to eq(500.0)
+
+        unpaid_period.update!(status: "paid")
+        paid_available = described_class.for(user: user).available
+
+        expect(paid_available).to eq(unpaid_available)
+        expect(paid_available).to eq(500.0)
+      end
+
+      # 5. Outstanding advances spread across MULTIPLE previous months don't
+      # reduce this month's allowance either.
+      it "outstanding advances from multiple previous months do not reduce this month's allowance" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+        issue_advance(amount: 1_000, issued_at: Date.new(2026, 6, 10))
+        issue_advance(amount: 1_500, issued_at: Date.new(2026, 7, 20))
+        issue_advance(amount: 2_000, issued_at: Date.new(2026, 8, 16))
+
+        result = described_class.for(user: user)
+        expect(result.outstanding).to eq(0.0)
+        expect(result.available).to eq(500.0)
+      end
+
+      # 6 & 7. August attendance never contributes; September attendance does.
+      it "counts only September attendance toward earned_basis, never August's" do
+        20.times { |i| complete_day(Date.new(2026, 8, 1) + i.days) }
+        5.times  { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+
+        result = described_class.for(user: user)
+        expect(result.earned_basis).to eq(1_000.0) # 5 × 200 only
+      end
+
+      # 8. A same-month advance/request still correctly reduces THIS month's
+      # allowance — existing repayment/limit-guard behavior is unchanged.
+      it "still subtracts an advance issued THIS month from this month's allowance" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+        issue_advance(amount: 150, issued_at: Date.new(2026, 9, 10))
+
+        result = described_class.for(user: user)
+        expect(result.outstanding).to eq(150.0)
+        expect(result.available).to eq(350.0) # 500 − 150
+      end
+
+      # 9. Requesting a new September advance must not touch August's Advance
+      # records at all — repayment/remaining_amount stays exactly as it was.
+      it "does not modify or repay the prior month's Advance record" do
+        august_advance = issue_advance(amount: 2_000, issued_at: Date.new(2026, 8, 16))
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+
+        expect { described_class.for(user: user) }.not_to change { august_advance.reload.attributes }
+      end
+    end
+
+    # 10. Eligibility resets independently every calendar month — August's own
+    # eligibility is unaffected by September's attendance/requests, and vice
+    # versa. A standalone context (no `around`-level travel_to) so the two
+    # months can be visited sequentially without nesting travel_to blocks.
+    context "eligibility resets independently per calendar month" do
+      before do
+        business.update!(max_salary_advance_percentage: 50)
+        create(:salary_profile, :daily, user: user, base_amount: 200, effective_from: Date.new(2026, 1, 1))
+      end
+
+      def complete_day(date)
+        create(:attendance_record, :checked_out, user: user, branch: branch,
+               shift_assignment: shift_assignment, date: date, work_date: date)
+      end
+
+      it "August's own eligibility is unaffected by September's later activity" do
+        travel_to(Time.zone.local(2026, 8, 20, 12, 0, 0)) do
+          10.times { |i| complete_day(Date.new(2026, 8, 1) + i.days) }
+
+          august_result = described_class.for(user: user)
+          expect(august_result.earned_basis).to eq(2_000.0) # 10 × 200
+          expect(august_result.available).to eq(1_000.0)    # 50%
+        end
+
+        travel_to(Time.zone.local(2026, 9, 14, 12, 0, 0)) do
+          5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+
+          september_result = described_class.for(user: user)
+          expect(september_result.earned_basis).to eq(1_000.0) # 5 × 200, September only
+        end
+      end
+    end
+
+    # Critical acceptance scenario reported in production: user #53,
+    # 2026-09-14 — 5 completed September days, daily_rate 461.53, 50% limit,
+    # 5,407 EGP outstanding entirely from August advances (#134/#155/#165).
+    # Expected: available = 1,153.83, NOT 0.
+    context "critical acceptance test: real affected employee (#53-shaped scenario)" do
+      around { |ex| travel_to(Time.zone.local(2026, 9, 14, 12, 0, 0)) { ex.run } }
+
+      before do
+        business.update!(max_salary_advance_percentage: 50)
+        create(:salary_profile, :daily, user: user, base_amount: 461.53, effective_from: Date.new(2026, 6, 1))
+      end
+
+      def complete_day(date)
+        create(:attendance_record, :checked_out, user: user, branch: branch,
+               shift_assignment: shift_assignment, date: date, work_date: date)
+      end
+
+      it "returns 1,153.83 available, not 0, despite 5,407 in unpaid August advances" do
+        5.times { |i| complete_day(Date.new(2026, 9, 1) + i.days) }
+
+        [ [ 2_307.0, Date.new(2026, 8, 16) ],
+          [ 1_600.0, Date.new(2026, 8, 25) ],
+          [ 1_500.0, Date.new(2026, 8, 31) ] ].each do |amount, issued_at|
+          req = build(:employee_request, :salary_advance, user: user, amount: amount,
+                      requested_for_date: issued_at.to_date)
+          req.save!(validate: false)
+          create(:advance, user: user, employee_request: req,
+                 total_amount: amount, remaining_amount: amount, issued_at: issued_at)
+          req.update_column(:status, "paid")
+        end
+
+        result = described_class.for(user: user)
+        expect(result.earned_basis).to eq(2_307.65)
+        expect(result.max_amount).to eq(1_153.83)
+        expect(result.outstanding).to eq(0.0)     # August advances excluded
+        expect(result.available).to eq(1_153.83)
+      end
+    end
   end
 end

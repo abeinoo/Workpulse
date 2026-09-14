@@ -314,6 +314,38 @@ RSpec.describe Payroll::EntryCalculator do
       entry = run
       expect(entry.advances_deducted).to eq(1000.0)
     end
+
+    it "does not deduct it again for a later period while the entry that already deducted it is unpaid" do
+      run # generates the current `period`'s entry, which reserves the advance
+
+      next_period = create(:payroll_period, business: business,
+             period_year: period.period_start.next_month.year,
+             period_month: period.period_start.next_month.month, working_days: 22)
+
+      later_entry = described_class.call(period: next_period, user: user, business: business)
+
+      expect(later_entry.payroll_line_items.where(item_type: "advance_deduction")).to be_empty
+      expect(later_entry.advances_deducted).to eq(0.0)
+    end
+
+    # Regression test for the production incident: August claimed advance #134/155/165
+    # for user 53, August was finalized (not yet paid), and generating September
+    # re-deducted the same advances because remaining_amount was still untouched.
+    it "regression: a finalized-but-unpaid August entry keeps its advance out of September" do
+      august = create(:payroll_period, :finalized, business: business, period_year: 2026, period_month: 8, working_days: 22)
+      september = create(:payroll_period, business: business, period_year: 2026, period_month: 9, working_days: 22)
+
+      august_entry = described_class.call(period: august, user: user, business: business)
+      expect(august_entry.payroll_line_items.where(item_type: "advance_deduction").count).to eq(1)
+      expect(august_entry.advances_deducted).to eq(1000.0)
+
+      september_entry = described_class.call(period: september, user: user, business: business)
+
+      expect(september_entry.payroll_line_items.where(item_type: "advance_deduction")).to be_empty
+      expect(september_entry.advances_deducted).to eq(0.0)
+      # August's claim is untouched by generating September.
+      expect(august_entry.payroll_line_items.reload.where(item_type: "advance_deduction").count).to eq(1)
+    end
   end
 
   describe "already_paid cash incentive — financial integrity" do

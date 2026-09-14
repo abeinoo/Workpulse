@@ -35,6 +35,11 @@ module Payroll
         PayrollLineItem.joins(:payroll_entry)
                        .where(payroll_entries: { payroll_period_id: @period.id })
       )
+      # Preserve addition/bonus cancellations the same way.
+      saved_cancellations = Payroll::AdditionCancellationPersistence.capture(
+        PayrollLineItem.joins(:payroll_entry)
+                       .where(payroll_entries: { payroll_period_id: @period.id })
+      )
 
       regenerated = Payroll::PeriodGenerator.call(
         business:     @period.business,
@@ -45,6 +50,7 @@ module Payroll
 
       reapply_overtime_overrides(regenerated, saved_overrides)
       reapply_deduction_waivers(regenerated, saved_waivers)
+      reapply_addition_cancellations(regenerated, saved_cancellations)
 
       PayrollAuditLog.create!(
         payroll_period: regenerated,
@@ -135,6 +141,23 @@ module Payroll
 
       period.payroll_entries.includes(:payroll_line_items).find_each do |entry|
         touched_entry_ids << entry.id if Payroll::DeductionWaiverPersistence.reapply_to_entry(entry, saved_waivers)
+      end
+
+      PayrollEntry.where(id: touched_entry_ids.uniq)
+                  .includes(:payroll_line_items)
+                  .each(&:recalculate_totals!)
+    end
+
+    # Re-apply saved addition/bonus cancellations to the freshly generated line
+    # items, matched by [user_id, waiver_identity], then recompute each touched
+    # entry exactly once. Mirrors reapply_deduction_waivers.
+    def reapply_addition_cancellations(period, saved_cancellations)
+      return if saved_cancellations.empty?
+
+      touched_entry_ids = []
+
+      period.payroll_entries.includes(:payroll_line_items).find_each do |entry|
+        touched_entry_ids << entry.id if Payroll::AdditionCancellationPersistence.reapply_to_entry(entry, saved_cancellations)
       end
 
       PayrollEntry.where(id: touched_entry_ids.uniq)

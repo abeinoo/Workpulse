@@ -753,6 +753,19 @@ en:
         not_waived: "This deduction is not waived."
         invalid_action: "Invalid waiver action."
         none_selected: "Select at least one employee."
+    addition_cancellation:
+      status_cancelled: "Cancelled"
+      cancel_btn: "Cancel"
+      confirm_message: "Are you sure you want to cancel this addition?\n\nDescription: %{description}\nAmount: %{amount}"
+      cancelled_by: "Cancelled by %{name}"
+      cancelled_on: "on %{date}"
+      flash:
+        cancelled: "Addition cancelled successfully"
+      errors:
+        permission: "You do not have permission to cancel additions."
+        locked: "Additions can only be cancelled while the period is editable."
+        not_cancellable: "This item type cannot be cancelled."
+        already_cancelled: "This addition has already been cancelled."
     needs_review:
       badge: "Needs Review"
       badge_title: "Changed after the last review"
@@ -2537,6 +2550,7 @@ en:
         approve_payroll_items: "Approve Payroll Items"
         manage_payroll_overrides: "Override Payroll Overtime"
         manage_payroll_deduction_waivers: "Waive Manual Deductions"
+        manage_payroll_addition_cancellations: "Cancel Additions & Bonuses"
         finalize_payroll: "Finalize Payroll"
         pay_payroll: "Mark Payroll As Paid"
         reopen_payroll: "Reopen Payroll"
@@ -2659,6 +2673,7 @@ en:
         approve_payroll_items: "Bulk-approve all pending payroll line items"
         manage_payroll_overrides: "Adjust or zero out payable overtime without changing attendance"
         manage_payroll_deduction_waivers: "Waive or restore manual deductions during payroll review without changing the deduction record"
+        manage_payroll_addition_cancellations: "Cancel an addition or bonus during payroll review without changing its original record"
         finalize_payroll: "Finalize payroll periods for payment"
         pay_payroll: "Mark a finalized payroll period as paid (settles advances)"
         reopen_payroll: "Roll a payroll period back one step (requires a reason)"

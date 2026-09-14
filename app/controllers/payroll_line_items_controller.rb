@@ -71,6 +71,21 @@ class PayrollLineItemsController < ApplicationController
                                    : { alert: result.error })
   end
 
+  # ── Addition/bonus cancellation layer (dedicated permission) ───────────────
+  def cancel_addition
+    authorize @line_item, :cancel_addition?
+
+    result = Payroll::AdditionCanceller.call(
+      line_item: @line_item,
+      actor:     current_user,
+      reason:    params[:reason]
+    )
+
+    redirect_to payroll_period_payroll_entry_path(@period, @entry),
+                **(result.success? ? { notice: t("payroll.addition_cancellation.flash.cancelled") }
+                                   : { alert: result.error })
+  end
+
   private
 
   def set_context

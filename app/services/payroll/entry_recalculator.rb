@@ -58,6 +58,9 @@ module Payroll
       saved_waivers      = Payroll::DeductionWaiverPersistence.capture(
         existing&.payroll_line_items || PayrollLineItem.none
       )
+      saved_cancellations = Payroll::AdditionCancellationPersistence.capture(
+        existing&.payroll_line_items || PayrollLineItem.none
+      )
 
       entry = ActiveRecord::Base.transaction do
         destroy_obligation_snapshots
@@ -66,7 +69,9 @@ module Payroll
 
       if entry
         reapply_overtime_override(entry, saved_override) if saved_override
-        entry.recalculate_totals! if Payroll::DeductionWaiverPersistence.reapply_to_entry(entry, saved_waivers)
+        waivers_touched      = Payroll::DeductionWaiverPersistence.reapply_to_entry(entry, saved_waivers)
+        cancellations_touched = Payroll::AdditionCancellationPersistence.reapply_to_entry(entry, saved_cancellations)
+        entry.recalculate_totals! if waivers_touched || cancellations_touched
         # EntryCalculator writes base_salary/insurance/salary_type directly
         # (not via recalculate_totals!), so this is the only place that can
         # catch those fields changing for an existing employee.

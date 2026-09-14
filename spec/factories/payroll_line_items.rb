@@ -60,5 +60,18 @@ FactoryBot.define do
       deduction_waiver_reason { "Waived during review" }
       deduction_waived_at     { Time.current }
     end
+
+    trait :commission do
+      item_type     { :commission }
+      amount        { 400.0 }
+      review_status { :approved }
+    end
+
+    # An approved bonus that has been cancelled at the payroll layer.
+    trait :addition_cancelled do
+      addition_cancelled           { true }
+      addition_cancellation_reason { "Cancelled during review" }
+      addition_cancelled_at        { Time.current }
+    end
   end
 end

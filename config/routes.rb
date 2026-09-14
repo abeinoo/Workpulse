@@ -241,6 +241,7 @@ Rails.application.routes.draw do
           patch :reject
           patch :waive_deduction
           patch :restore_deduction
+          patch :cancel_addition
         end
       end
       resources :payroll_adjustments, only: [ :new, :create ]

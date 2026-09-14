@@ -144,7 +144,21 @@ class PayrollEntry < ApplicationRecord
     # from the payable figure, so net salary rises by the waived amount automatically.
     deductions    = active.reject(&non_financial).reject(&:deduction_waived?).select(&:deduction?).sum { |li| li.amount.abs }
     # Raw system overtime from attendance line items (the source of truth).
-    calculated_ot = active.select(&:overtime?).sum(&:amount).round(2)
+    # A cancelled overtime item is excluded here just like a cancelled bonus —
+    # cancellation means "this addition never contributes to pay," so it drops
+    # out of the source-of-truth figure the override math is built on.
+    calculated_ot = active.reject(&:addition_cancelled?).select(&:overtime?).sum(&:amount).round(2)
+    # An "amount" override is a fixed payable figure chosen by management, but
+    # it can never exceed what's actually calculated. If calculated_ot shrinks
+    # below it (e.g. an overtime item gets cancelled), clamp the override down
+    # to match — mirrors the same `[approved, new_calculated].min` reconciliation
+    # Regenerator/EntryRecalculator apply when calculated overtime changes from
+    # attendance edits (see #reapply_overtime_override), just triggered here too
+    # so every recalculate_totals! caller (including Payroll::AdditionCanceller)
+    # gets it for free instead of duplicating the clamp per caller.
+    if overtime_overridden? && overtime_override_mode == "amount" && approved_overtime_pay.to_f > calculated_ot
+      self.approved_overtime_pay = calculated_ot
+    end
     # Payable overtime applies the management override (no-op when not overridden).
     # For "minutes" overrides we re-derive approved_overtime_pay so it stays consistent
     # if the underlying calculated overtime changed.
@@ -152,9 +166,12 @@ class PayrollEntry < ApplicationRecord
     if overtime_overridden? && overtime_override_mode == "minutes"
       self.approved_overtime_pay = overtime
     end
-    # ALL bonuses go into total_bonuses — already_paid ones are then separately subtracted
-    bonuses       = active.select { |li| BONUS_TYPES.include?(li.item_type) }.sum(&:amount)
-    already_paid  = active.select { |li| BONUS_TYPES.include?(li.item_type) && li.already_paid? }.sum(&:amount)
+    # ALL non-cancelled bonuses go into total_bonuses — already_paid ones are then
+    # separately subtracted. A cancelled addition stays on the entry (visible +
+    # audited) but drops out of every total, exactly like a waived deduction.
+    non_cancelled_bonuses = active.reject(&:addition_cancelled?).select { |li| BONUS_TYPES.include?(li.item_type) }
+    bonuses       = non_cancelled_bonuses.sum(&:amount)
+    already_paid  = non_cancelled_bonuses.select(&:already_paid?).sum(&:amount)
     advances      = active.select(&:advance_deduction?).sum { |li| li.amount.abs }
     obligations   = active.select(&:obligation_deduction?).sum { |li| li.amount.abs }
 

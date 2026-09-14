@@ -110,6 +110,52 @@ RSpec.describe PayrollLineItemPolicy, type: :model do
     end
   end
 
+  describe "cancel_addition?" do
+    let(:bonus) { create(:payroll_line_item, :commission, payroll_entry: entry) }
+
+    it "permits super_admin" do
+      expect(subject.new(super_admin, bonus).cancel_addition?).to be true
+    end
+
+    it "permits accountant (has manage_payroll_addition_cancellations)" do
+      expect(subject.new(accountant, bonus).cancel_addition?).to be true
+    end
+
+    it "denies branch_manager (approve_adjustments but no cancellation permission)" do
+      expect(subject.new(manager, bonus).cancel_addition?).to be false
+    end
+
+    it "denies employee" do
+      expect(subject.new(employee, bonus).cancel_addition?).to be false
+    end
+
+    it "permits cancelling overtime (system-generated addition, not just manager-submitted bonuses)" do
+      overtime_item = create(:payroll_line_item, :overtime, payroll_entry: entry)
+      expect(subject.new(accountant, overtime_item).cancel_addition?).to be true
+    end
+
+    it "denies cancelling a deduction, even for accountant" do
+      expect(subject.new(accountant, line_item).cancel_addition?).to be false
+    end
+
+    it "denies cancelling an addition that is already cancelled" do
+      bonus.update!(addition_cancelled: true)
+      expect(subject.new(accountant, bonus).cancel_addition?).to be false
+    end
+
+    it "blocks cancelling on a finalized period" do
+      finalized = create(:payroll_period, :finalized, business: business)
+      f_entry   = create(:payroll_entry, payroll_period: finalized, user: create(:user, business: business))
+      f_bonus   = create(:payroll_line_item, :commission, payroll_entry: f_entry)
+      expect(subject.new(accountant, f_bonus).cancel_addition?).to be false
+    end
+
+    it "denies an accountant from a different business" do
+      other_accountant = create(:user, :accountant)
+      expect(subject.new(other_accountant, bonus).cancel_addition?).to be false
+    end
+  end
+
   describe "Scope" do
     let!(:line_item)       { create(:payroll_line_item, :late_penalty, payroll_entry: entry) }
     let!(:other_line_item) { create(:payroll_line_item, :late_penalty) }

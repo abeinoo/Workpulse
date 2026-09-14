@@ -17,8 +17,20 @@ module Salary
   # independent of whether or when a PayrollEntry was generated/regenerated.
   #
   # Outstanding advances (reduces available amount):
-  #   - Active Advance records still being repaid (remaining_amount)
-  #   - Pending / approved salary advance requests not yet disbursed
+  #   - Advance records issued THIS calendar month, still active (remaining_amount)
+  #   - Pending / approved salary advance requests requested-for THIS calendar
+  #     month, not yet disbursed
+  #
+  # Every calendar month is an independent earning cycle for NEW-advance
+  # eligibility: a prior month's outstanding advance balance must never reduce
+  # the current month's allowance, no matter whether that prior debt is repaid,
+  # unpaid, or its holding payroll period is paid/unpaid. Only an advance (or
+  # pending request) belonging to THIS month counts against THIS month's cap —
+  # that guards against requesting twice within the same month, without
+  # reaching back into history. Prior-month debts remain fully tracked and
+  # collected by Payroll::AdvanceDeductor/the payroll repayment chain; this
+  # calculator answers a different question ("how much NEW money right now")
+  # and must not be conflated with that repayment concern.
   #
   # Returns nil when no percentage limit is configured for the business (i.e.
   # advances are unrestricted). When a percentage IS configured but the
@@ -116,21 +128,31 @@ module Salary
         .count(&:complete?)
     end
 
-    # Sum of:
-    #   1. Remaining balance on active advances (already disbursed, still repaying)
-    #   2. Amounts in pending / approved salary advance requests (committed but
-    #      not yet disbursed, so no Advance record exists yet)
+    # Sum of, scoped to THIS calendar month only (see class comment — prior
+    # months' debts are a separate repayment concern, not part of this
+    # calculation):
+    #   1. Remaining balance on active advances issued this month
+    #   2. Amounts in pending / approved salary advance requests requested-for
+    #      this month (committed but not yet disbursed, so no Advance record
+    #      exists yet)
     def outstanding_advance_balance
-      active_balance = Advance.active.for_user(@user).sum(:remaining_amount).to_f
+      active_balance = Advance.active.for_user(@user)
+        .where(issued_at: current_month_range)
+        .sum(:remaining_amount).to_f
 
       # EmployeeRequests that are pending/approved but have NOT been paid out yet
       # (once paid, their status becomes "paid" and an Advance record is created,
       # so they are captured by active_balance above — not double-counted).
       pending_balance = EmployeeRequest
         .where(user: @user, request_type: "salary_advance", status: %w[pending approved])
+        .where(requested_for_date: current_month_range)
         .sum(:amount).to_f
 
       (active_balance + pending_balance).round(2)
+    end
+
+    def current_month_range
+      Date.current.beginning_of_month..Date.current.end_of_month
     end
   end
 end

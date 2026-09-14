@@ -68,6 +68,7 @@ FactoryBot.define do
                                    create_payroll regenerate_payroll submit_payroll_review
                                    complete_branch_review approve_payroll_items
                                    manage_payroll_overrides manage_payroll_deduction_waivers
+                                   manage_payroll_addition_cancellations
                                    finalize_payroll pay_payroll reopen_payroll delete_payroll
                                    view_adjustments manage_adjustments approve_adjustments
                                    view_requests pay_advances]

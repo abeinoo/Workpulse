@@ -651,6 +651,104 @@ RSpec.describe Payroll::EntryRecalculator do
     end
   end
 
+  # ── Overtime cancellation preservation (system-generated addition) ──────────
+  # There is no type allowlist for cancellation — a system-generated overtime
+  # line item must survive a recalculation the same way a manager-submitted
+  # bonus does. Uses real attendance-driven overtime generation, like the
+  # "overtime override preservation" block below.
+
+  describe "overtime cancellation preservation" do
+    let(:ot_day)   { Date.new(2026, 6, 1) }
+    # Fill all 22 days (no absence deduction), then add overtime on top of day 1.
+    let(:all_days) { (period_start..period_end).reject { |d| d.saturday? || d.sunday? }.first(22) }
+
+    before do
+      all_days.each { |d| create_record(d, worked: 480) }
+      rec = AttendanceRecord.find_by(user: employee, work_date: ot_day)
+      rec.update_columns(worked_minutes: 540, overtime_minutes: 60,
+                         check_out_at: Time.zone.local(2026, 6, 1, 18, 0))
+      initial = build_initial_entry
+      li = initial.payroll_line_items.find_by(item_type: "overtime")
+      Payroll::AdditionCanceller.call(line_item: li, actor: actor, reason: "Not authorised")
+    end
+
+    it "preserves the cancellation on the recalculated entry" do
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "overtime")
+      expect(li).to be_present
+      expect(li.addition_cancelled).to be true
+    end
+
+    it "excludes the cancelled overtime from total_overtime and net_salary" do
+      run
+      # base 8800, attendance complete, overtime (SAR 75) cancelled → net = 8800
+      expect(current_entry.total_overtime).to eq(0.0)
+      expect(current_entry.net_salary).to eq(8_800.0)
+    end
+
+    # "المحتسب" (calculated_overtime_pay) and "المعتمد" (payable_overtime_pay) on
+    # the Payroll Entry page must both reflect the cancellation after a
+    # recalculation triggered by an attendance edit, not just right after the
+    # cancel action itself.
+    it "recalculates المحتسب and المعتمد to zero after a recalculation" do
+      run
+      expect(current_entry.calculated_overtime_pay).to eq(0.0)
+      expect(current_entry.payable_overtime_pay).to eq(0.0)
+    end
+
+    it "re-applies the cancellation even when an unrelated attendance record is updated" do
+      AttendanceRecord.find_by(user: employee, work_date: Date.new(2026, 6, 2))
+                      &.update_columns(check_in_at: Time.zone.local(2026, 6, 2, 9, 15))
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "overtime")
+      expect(li.addition_cancelled).to be true
+    end
+  end
+
+  # ── Addition/bonus cancellation preservation ────────────────────────────────
+
+  describe "addition cancellation preservation" do
+    let!(:commission_adj) do
+      create(:payroll_adjustment, :commission, :approved,
+             payroll_period: period, user: employee, business: business, amount: 300.0)
+    end
+    let(:all_days) { (period_start..period_end).reject { |d| d.saturday? || d.sunday? }.first(22) }
+
+    before do
+      all_days.each { |d| create_record(d, worked: 480) }
+      initial = build_initial_entry
+      li = initial.payroll_line_items.find_by(item_type: "commission", source_id: commission_adj.id)
+      Payroll::AdditionCanceller.call(line_item: li, actor: actor, reason: "Entered in error")
+    end
+
+    it "preserves the cancellation on the recalculated entry" do
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "commission", source_id: commission_adj.id)
+      expect(li).to be_present
+      expect(li.addition_cancelled).to be true
+    end
+
+    it "preserves the cancellation reason" do
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "commission", source_id: commission_adj.id)
+      expect(li.addition_cancellation_reason).to eq("Entered in error")
+    end
+
+    it "does not add the cancelled bonus to net_salary" do
+      run
+      # base 8800, attendance complete (no absence), bonus 300 but cancelled → net = 8800
+      expect(current_entry.net_salary).to eq(8_800.0)
+    end
+
+    it "re-applies the cancellation even when an attendance record is updated" do
+      AttendanceRecord.find_by(user: employee, work_date: Date.new(2026, 6, 2))
+                      .update_columns(check_in_at: Time.zone.local(2026, 6, 2, 9, 15))
+      run
+      li = current_entry.payroll_line_items.find_by(item_type: "commission", source_id: commission_adj.id)
+      expect(li.addition_cancelled).to be true
+    end
+  end
+
   # ── Manual penalty waiver preservation (previously lost — see bug report) ──
 
   describe "manual penalty waiver preservation" do

@@ -22,6 +22,7 @@ class PermissionRole < ApplicationRecord
                                create_payroll regenerate_payroll submit_payroll_review
                                complete_branch_review approve_payroll_items
                                manage_payroll_overrides manage_payroll_deduction_waivers
+                               manage_payroll_addition_cancellations
                                finalize_payroll pay_payroll reopen_payroll delete_payroll
                                pay_advances],
     adjustments:           %w[view_adjustments manage_adjustments approve_adjustments edit_approved_adjustments],
@@ -273,6 +274,7 @@ class PermissionRole < ApplicationRecord
     "approve_payroll_items"  => %w[view_payroll],
     "manage_payroll_overrides" => %w[view_payroll],
     "manage_payroll_deduction_waivers" => %w[view_payroll],
+    "manage_payroll_addition_cancellations" => %w[view_payroll],
     "pay_payroll"            => %w[view_payroll],
     "reopen_payroll"         => %w[view_payroll],
     "delete_payroll"         => %w[view_payroll],

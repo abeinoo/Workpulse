@@ -405,6 +405,7 @@
               class: "btn btn-sm btn-success" %>
       <% end %>
     </div>
+    <% show_addition_actions_col = current_user.can?(:approve_adjustments) || current_user.can?(:manage_payroll_addition_cancellations) %>
     <% if @additions.any? %>
       <div class="table-wrap table-wrap--cards" style="margin-bottom: 1.5rem;">
         <table>
@@ -414,11 +415,12 @@
               <th><%= t("payroll.entry.description_col") %></th>
               <th class="text-right"><%= t("requests.amount") %></th>
               <th><%= t("payroll.entry.review_status") %></th>
-              <% if current_user.can?(:approve_adjustments) %><th><%= t("attendance.actions") %></th><% end %>
+              <% if show_addition_actions_col %><th><%= t("attendance.actions") %></th><% end %>
             </tr>
           </thead>
           <tbody>
             <% @additions.each do |item| %>
+              <% addition_struck = item.rejected? || item.addition_cancelled? %>
               <tr>
                 <td data-label="<%= t('payroll.entry.type_col') %>">
                   <%= t("payroll.entry.item_types.#{item.item_type}") %>
@@ -432,7 +434,7 @@
                   <%= item.description.presence || "—" %>
                 </td>
                 <td class="text-right <%= item.pending_review? ? 'text-muted' : (item.already_paid? ? 'text-warning' : 'text-success') %>"
-                    style="<%= 'text-decoration: line-through;' if item.rejected? %>"
+                    style="<%= 'text-decoration: line-through;' if addition_struck %>"
                     data-label="<%= t('requests.amount') %>">
                   + <%= format_currency(item.amount) %>
                   <% if item.already_paid? %>
@@ -442,25 +444,51 @@
                   <% end %>
                 </td>
                 <td data-label="<%= t('payroll.entry.review_status') %>">
-                  <span class="badge <%= line_item_review_badge_class(item) %>">
-                    <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
-                  </span>
+                  <% if item.addition_cancelled? %>
+                    <span class="badge badge-neutral"><%= t("payroll.addition_cancellation.status_cancelled") %></span>
+                  <% else %>
+                    <span class="badge <%= line_item_review_badge_class(item) %>">
+                      <%= t("payroll.entry.review_statuses.#{item.review_status}") %>
+                    </span>
+                  <% end %>
                 </td>
-                <% if current_user.can?(:approve_adjustments) %>
+                <% if show_addition_actions_col %>
                   <td class="td-actions" data-label="<%= t('attendance.actions') %>">
-                    <% if item.pending_review? && @period.editable? %>
+                    <% if item.pending_review? && @period.editable? && current_user.can?(:approve_adjustments) %>
                       <%= button_to t("payroll.entry.approve"),
                             approve_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
                             method: :patch, class: "btn btn-sm btn-success" %>
                       <%= button_to t("payroll.entry.reject"),
                             reject_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
                             method: :patch, class: "btn btn-sm btn-danger" %>
+                    <% elsif item.addition_cancelled? %>
+                      —
+                    <% elsif policy(item).cancel_addition? %>
+                      <%= button_to t("payroll.addition_cancellation.cancel_btn"),
+                            cancel_addition_payroll_period_payroll_entry_payroll_line_item_path(@period, @entry, item),
+                            method: :patch, class: "btn btn-sm btn-danger",
+                            data: { turbo_confirm: t("payroll.addition_cancellation.confirm_message",
+                                                      description: item.description.presence || t("payroll.entry.item_types.#{item.item_type}"),
+                                                      amount: format_currency(item.amount)) } %>
                     <% elsif item.reviewed_at %>
                       <span class="td-secondary" style="font-size: 0.75rem;"><%= local_short_date(item.reviewed_at) %></span>
                     <% end %>
                   </td>
                 <% end %>
               </tr>
+
+              <%# Cancellation note (manager-only detail) %>
+              <% if can_manage && item.addition_cancelled? %>
+                <tr class="deduction-note-row">
+                  <td colspan="<%= show_addition_actions_col ? 5 : 4 %>">
+                    <span class="deduction-note">
+                      <%= t("payroll.addition_cancellation.cancelled_by", name: item.addition_cancelled_by&.full_name || t("forms.none")) %>
+                      <% if item.addition_cancelled_at %><%= t("payroll.addition_cancellation.cancelled_on", date: l(item.addition_cancelled_at.to_date)) %><% end %>
+                      <% if item.addition_cancellation_reason.present? %> — <%= item.addition_cancellation_reason %><% end %>
+                    </span>
+                  </td>
+                </tr>
+              <% end %>
             <% end %>
           </tbody>
         </table>

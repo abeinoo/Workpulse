@@ -53,7 +53,7 @@ module Payroll
       line_items         = attendance_line_items(records, daily_rate, profile.overtime_multiplier)
       line_items        += absence_line_items(profile, days_worked, daily_rate, effective_working_days, effective_start)
       line_items        += insurance_line_items(insurance)
-      advance_result     = AdvanceDeductor.call(user: @user)
+      advance_result     = AdvanceDeductor.call(user: @user, period: @period)
       obligation_result  = ObligationDeductor.call(user: @user, period: @period)
       adj_items          = adjustment_line_items
 

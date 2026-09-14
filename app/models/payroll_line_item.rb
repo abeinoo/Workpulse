@@ -2,6 +2,7 @@ class PayrollLineItem < ApplicationRecord
   belongs_to :payroll_entry
   belongs_to :reviewed_by, class_name: "User", optional: true
   belongs_to :deduction_waived_by, class_name: "User", optional: true
+  belongs_to :addition_cancelled_by, class_name: "User", optional: true
 
   ITEM_TYPES = %w[
     late_penalty early_leave_penalty overtime advance_deduction obligation_deduction
@@ -94,12 +95,13 @@ class PayrollLineItem < ApplicationRecord
   # Whether a line item has any monetary effect right now — the single
   # predicate every payroll total (per-entry or period-wide) is built on.
   # Mirrors PayrollEntry#recalculate_totals!'s `active` selection exactly
-  # (approved, and not waived — deduction_waived is only ever true for a
-  # waivable deduction type, so this is a no-op filter for every other type).
-  # A pending_review or rejected item exists for display only and never
-  # contributes to a total. Used by Payroll::PeriodFinancialSummary for
-  # period-wide SQL aggregation without duplicating this rule.
-  scope :financially_active, -> { where(review_status: "approved", deduction_waived: false) }
+  # (approved, not waived, and not cancelled — deduction_waived/addition_cancelled
+  # are only ever true for their respective eligible types, so each is a no-op
+  # filter for every other type). A pending_review or rejected item exists for
+  # display only and never contributes to a total. Used by
+  # Payroll::PeriodFinancialSummary for period-wide SQL aggregation without
+  # duplicating this rule.
+  scope :financially_active, -> { where(review_status: "approved", deduction_waived: false, addition_cancelled: false) }
 
   def deduction_waivable?
     deduction? && WAIVABLE_DEDUCTION_TYPES.include?(item_type)
@@ -108,6 +110,31 @@ class PayrollLineItem < ApplicationRecord
   # Human-facing waiver state for display: "waived" or "active".
   def waiver_status
     deduction_waived? ? "waived" : "active"
+  end
+
+  # ── Addition/bonus cancellation layer ───────────────────────────────────────
+  # Mirrors the deduction waiver layer above, for the "الإضافات والمكافآت"
+  # section: a payroll-level layer that lets a payroll user cancel an addition
+  # without touching its source record. Unlike a waiver, cancellation is
+  # terminal — there is no restore action, per the audit requirement that a
+  # cancelled addition never re-enters the calculation.
+  #
+  # Unlike the deduction waiver layer, there is no type allowlist here: every
+  # item shown in the "الإضافات والمكافآت" section must be cancellable,
+  # including system-generated ones (overtime), not just manager-submitted
+  # bonuses (cash_incentive, commission). That section is built from exactly
+  # `addition?` (PayrollEntriesController#show's `@additions` selection), so
+  # cancellability mirrors that same predicate — never a hardcoded type list.
+  # Every deduction-shaped type (penalties, manual_deduction, advance/obligation/
+  # insurance deductions) is `amount < 0` and therefore never `addition?`, so
+  # this can never make a deduction cancellable through this layer.
+  def addition_cancellable?
+    addition?
+  end
+
+  # Human-facing cancellation state for display: "cancelled" or "active".
+  def addition_status
+    addition_cancelled? ? "cancelled" : "active"
   end
 
   # Stable identity for matching a waived line item across a rebuild that

@@ -752,6 +752,19 @@ ar:
         not_waived: "هذا الخصم غير معفى."
         invalid_action: "إجراء إعفاء غير صالح."
         none_selected: "اختر موظفًا واحدًا على الأقل."
+    addition_cancellation:
+      status_cancelled: "ملغي"
+      cancel_btn: "إلغاء"
+      confirm_message: "هل أنت متأكد من إلغاء هذه الإضافة؟\n\nالوصف: %{description}\nالمبلغ: %{amount}"
+      cancelled_by: "ألغاها %{name}"
+      cancelled_on: "في %{date}"
+      flash:
+        cancelled: "تم إلغاء الإضافة بنجاح"
+      errors:
+        permission: "ليس لديك صلاحية لإلغاء الإضافات."
+        locked: "لا يمكن إلغاء الإضافات إلا أثناء إمكانية تعديل الفترة."
+        not_cancellable: "لا يمكن إلغاء هذا النوع من العناصر."
+        already_cancelled: "تم إلغاء هذه الإضافة بالفعل."
     needs_review:
       badge: "بحاجة إلى مراجعة"
       badge_title: "تم التعديل بعد آخر مراجعة"
@@ -2527,6 +2540,7 @@ ar:
         approve_payroll_items: "اعتماد عناصر الرواتب"
         manage_payroll_overrides: "تعديل العمل الإضافي في الرواتب"
         manage_payroll_deduction_waivers: "إعفاء الخصومات اليدوية"
+        manage_payroll_addition_cancellations: "إلغاء الإضافات والمكافآت"
         finalize_payroll: "اعتماد الرواتب"
         pay_payroll: "تحديد الرواتب كمدفوعة"
         reopen_payroll: "إعادة فتح الرواتب"
@@ -2649,6 +2663,7 @@ ar:
         approve_payroll_items: "اعتماد جميع بنود الرواتب المعلّقة دفعة واحدة"
         manage_payroll_overrides: "تعديل أو تصفير العمل الإضافي المدفوع دون تغيير الحضور"
         manage_payroll_deduction_waivers: "إعفاء أو استرجاع الخصومات اليدوية أثناء مراجعة الرواتب دون تغيير سجل الخصم"
+        manage_payroll_addition_cancellations: "إلغاء إضافة أو مكافأة أثناء مراجعة الرواتب دون تغيير سجلها الأصلي"
         finalize_payroll: "اعتماد فترات الرواتب للصرف"
         pay_payroll: "تحديد فترة الرواتب المعتمدة كمدفوعة (تسوية السلف)"
         reopen_payroll: "إعادة فترة الرواتب خطوة واحدة للخلف (يتطلب سببًا)"
