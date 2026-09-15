@@ -1,4 +1,6 @@
 class Finance::ExpensesController < Finance::BaseController
+  helper_method :index_filter_params
+
   def index
     authorize Expense
     @expenses = policy_scope(Expense)
@@ -93,6 +95,8 @@ class Finance::ExpensesController < Finance::BaseController
 
   private
 
+  INDEX_FILTER_PARAMS = %i[status branch_id expense_category_id expense_type_id created_by_id from to].freeze
+
   def find_expense
     policy_scope(Expense).find(params[:id])
   end
@@ -109,11 +113,17 @@ class Finance::ExpensesController < Finance::BaseController
   end
 
   def transition_redirect(result, flash_key)
+    target = params[:from_index].present? ? finance_expenses_path(index_filter_params) : finance_expense_path(@expense)
+
     if result.ok?
-      redirect_to finance_expense_path(@expense), notice: t("finance.expenses.#{flash_key}")
+      redirect_to target, notice: t("finance.expenses.#{flash_key}")
     else
-      redirect_to finance_expense_path(@expense), alert: result.error
+      redirect_to target, alert: result.error
     end
+  end
+
+  def index_filter_params
+    params.permit(*INDEX_FILTER_PARAMS).to_h.compact_blank
   end
 
   def save_expense

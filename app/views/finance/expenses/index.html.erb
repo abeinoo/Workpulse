@@ -157,6 +157,7 @@
                     <%= button_to t("finance.expenses.actions.approve"),
                           approve_finance_expense_path(expense),
                           method: :patch,
+                          params: { from_index: 1 }.merge(index_filter_params),
                           class: "btn btn-success btn-sm",
                           form: { style: "display:inline" } %>
                   <% end %>
@@ -181,6 +182,10 @@
                 <td colspan="10" style="background: var(--navy-700); padding: var(--space-3) var(--space-4);">
                   <%= form_with url: reject_finance_expense_path(expense), method: :patch,
                         style: "display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;" do %>
+                    <%= hidden_field_tag :from_index, 1 %>
+                    <% index_filter_params.each do |key, value| %>
+                      <%= hidden_field_tag key, value %>
+                    <% end %>
                     <%= text_field_tag :rejection_reason, nil,
                           placeholder: t("finance.expenses.rejection_placeholder"),
                           class: "form-control form-control--sm",
