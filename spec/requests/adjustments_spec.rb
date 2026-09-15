@@ -147,6 +147,35 @@ RSpec.describe "Adjustments workflow", type: :request do
 
       expect(response.body).to include(I18n.t("adjustments.errors.period_processed"))
     end
+
+    it "persists the already-paid flag and payment details when marked paid during the month" do
+      sign_in manager
+
+      post adjustments_path, params: create_params(
+        already_paid:   "1",
+        payment_method: "cash",
+        paid_at:        "2026-09-15T19:56"
+      )
+
+      adj = PayrollAdjustment.last
+      expect(adj.already_paid?).to be true
+      expect(adj.payment_method).to eq("cash")
+      expect(adj.paid_at).to be_present
+      expect(adj.paid_at.year).to eq(2026)
+      expect(adj.paid_at.month).to eq(9)
+      expect(adj.paid_at.day).to eq(15)
+      expect(adj.paid_at.min).to eq(56)
+    end
+
+    it "does not set already-paid fields for a normal adjustment that leaves them unset" do
+      sign_in manager
+      post adjustments_path, params: create_params
+
+      adj = PayrollAdjustment.last
+      expect(adj.already_paid?).to be false
+      expect(adj.payment_method).to be_nil
+      expect(adj.paid_at).to be_nil
+    end
   end
 
   describe "PATCH /adjustments/:id/approve" do
@@ -456,6 +485,33 @@ RSpec.describe "Adjustments workflow", type: :request do
         expect(response.body).not_to include(approve_adjustment_path(adjustment))
         expect(response.body).not_to include(I18n.t("adjustments.remove"))
       end
+    end
+
+    context "when the adjustment was paid during the month" do
+      let!(:paid_adjustment) do
+        create(:payroll_adjustment, :cash_incentive, :already_paid,
+               payroll_period: draft_period, business: business,
+               user: employee, created_by: manager,
+               reason: "Ramadan support")
+      end
+
+      it "shows the payment status, method, and date" do
+        sign_in manager
+        get adjustment_path(paid_adjustment)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include(I18n.t("adjustments.show.payment_heading"))
+        expect(response.body).to include(I18n.t("adjustments.show.paid_during_month"))
+        expect(response.body).to include(I18n.t("payroll_adjustments.payment_methods.cash"))
+        expect(response.body).to include(paid_adjustment.paid_at.year.to_s)
+      end
+    end
+
+    it "does not show the payment section for a normal (not already-paid) adjustment" do
+      sign_in manager
+      get adjustment_path(adjustment)
+
+      expect(response.body).not_to include(I18n.t("adjustments.show.paid_during_month"))
     end
   end
 

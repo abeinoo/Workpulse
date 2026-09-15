@@ -176,6 +176,37 @@
         </dl>
       </section>
 
+      <%# ── Payment details — only when the incentive was already paid out ──── %>
+      <% if @adjustment.already_paid? %>
+        <section class="card adj-show__paid-card" style="margin-bottom: var(--space-5);">
+          <div class="card-header">
+            <h2 class="card-title"><%= t("adjustments.show.payment_heading") %></h2>
+            <span class="badge badge-success"><%= t("adjustments.show.paid_during_month") %></span>
+          </div>
+          <dl class="adj-show__meta">
+            <div class="adj-show__meta-cell">
+              <dt><%= t("adjustments.show.payment_status") %></dt>
+              <dd><%= t("adjustments.show.paid_during_month") %></dd>
+            </div>
+            <div class="adj-show__meta-cell">
+              <dt><%= t("adjustments.show.payment_method") %></dt>
+              <dd>
+                <%= @adjustment.payment_method.present? ?
+                      t("payroll_adjustments.payment_methods.#{@adjustment.payment_method}") :
+                      t("adjustments.show.none") %>
+              </dd>
+            </div>
+            <div class="adj-show__meta-cell adj-show__meta-cell--full">
+              <dt><%= t("adjustments.show.payment_date") %></dt>
+              <dd><%= @adjustment.paid_at ? l(@adjustment.paid_at, format: :long) : t("adjustments.show.none") %></dd>
+            </div>
+          </dl>
+          <p class="already-paid-accounting-note" style="margin: var(--space-3) 0 0;">
+            <%= t("payroll_adjustments.new.already_paid_accounting_note") %>
+          </p>
+        </section>
+      <% end %>
+
       <%# ── Reason / notes ──────────────────────────────────────────────────── %>
       <section class="card" style="margin-bottom: var(--space-5);">
         <div class="card-header">
