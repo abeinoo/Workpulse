@@ -181,26 +181,18 @@
     <div class="card-header">
       <h2 class="card-title"><%= t("finance.expenses.financial_information") %></h2>
     </div>
-    <dl class="detail-list">
+    <dl class="detail-list" style="margin-bottom: 0;">
       <div class="detail-list__row">
-        <dt><%= t("finance.expenses.payment_source") %></dt>
-        <dd><%= render "finance/expenses/payment_source_badge", source: @expense.payment_source %></dd>
-      </div>
-      <div class="detail-list__row">
-        <dt><%= t("finance.expenses.financial_status") %></dt>
+        <dt><%= t("finance.expenses.section_payment") %></dt>
         <dd>
-          <span class="badge <%= { "pending_settlement" => "badge-warning", "partially_settled" => "badge-accent", "settled" => "badge-success" }.fetch(@expense.financial_status) %>">
-            <%= t("finance.expenses.financial_statuses.#{@expense.financial_status}") %>
+          <span class="badge <%= @expense.direct? ? 'badge-accent' : 'badge-neutral' %>">
+            <%= t("finance.expenses.payment_types.#{@expense.payment_type}") %>
           </span>
         </dd>
       </div>
       <div class="detail-list__row">
-        <dt><%= t("finance.expenses.paid_amount") %></dt>
-        <dd><%= format_currency(@expense.total_settled_amount) %></dd>
-      </div>
-      <div class="detail-list__row">
-        <dt><%= t("finance.expenses.remaining_amount") %></dt>
-        <dd><%= format_currency(@expense.remaining_settlement_amount) %></dd>
+        <dt><%= t("finance.expenses.payment_source") %></dt>
+        <dd><%= render "finance/expenses/payment_source_badge", source: @expense.payment_source %></dd>
       </div>
       <% if @expense.employee_custody_funded? && @settlements.any? %>
         <div class="detail-list__row">
@@ -214,6 +206,100 @@
       <% end %>
     </dl>
   </div>
+
+  <%# ── Payment Summary card ───────────────────────────────────────────────── %>
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title"><%= t("finance.expenses.payment_summary") %></h2>
+      <% if policy(@expense).record_payment? %>
+        <%= link_to t("finance.expenses.actions.add_payment"), new_finance_expense_payment_path(@expense),
+              class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.agreed_amount") %></dt>
+        <dd><strong style="font-size: var(--text-lg);"><%= format_currency(@expense.amount) %></strong></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.paid_amount") %></dt>
+        <dd>
+          <strong style="font-size: var(--text-lg); color: var(--success);">
+            <%= format_currency(@expense.total_settled_amount) %>
+          </strong>
+        </dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.remaining_amount") %></dt>
+        <dd>
+          <strong style="font-size: var(--text-lg); <%= 'color: var(--warning);' if @expense.remaining_settlement_amount.positive? %>">
+            <%= format_currency(@expense.remaining_settlement_amount) %>
+          </strong>
+        </dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.payment_status") %></dt>
+        <dd>
+          <span class="badge badge--md <%= expense_financial_status_badge_class(@expense.financial_status) %>">
+            <%= t("finance.expenses.financial_statuses.#{@expense.financial_status}") %>
+          </span>
+        </dd>
+      </div>
+    </dl>
+    <%# The Register Payment workflow (and its hints) only apply to
+         Installment expenses — a Direct expense never shows either. %>
+    <% if @expense.installment? && !policy(@expense).record_payment? %>
+      <% if !@expense.approved? %>
+        <p class="form-hint" style="padding: 0 var(--space-5) var(--space-4);">
+          <%= t("finance.expenses.payment_requires_approved_hint") %>
+        </p>
+      <% elsif @expense.remaining_settlement_amount.zero? %>
+        <p class="form-hint" style="padding: 0 var(--space-5) var(--space-4);">
+          <%= t("finance.expenses.fully_paid_hint") %>
+        </p>
+      <% end %>
+    <% end %>
+  </div>
+
+  <%# ── Payment History card ───────────────────────────────────────────────── %>
+  <% if @settlements.any? %>
+    <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card-header">
+        <h2 class="card-title"><%= t("finance.expenses.payment_history") %></h2>
+      </div>
+      <div class="table-wrap" style="margin-bottom: 0;">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("finance.expenses.payment_date") %></th>
+              <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
+              <th><%= t("finance.expenses.payment_source") %></th>
+              <th><%= t("finance.common.notes") %></th>
+              <th><%= t("finance.expenses.created_by") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @settlements.each do |settlement| %>
+              <tr>
+                <td><%= l(settlement.settled_at.to_date, format: :long) %></td>
+                <td style="text-align: end;"><%= format_currency(settlement.amount) %></td>
+                <td>
+                  <% if settlement.funding_source.is_a?(CustodyAccount) %>
+                    <%= link_to settlement.funding_source.name,
+                          finance_custody_account_path(settlement.funding_source), class: "link" %>
+                  <% else %>
+                    —
+                  <% end %>
+                </td>
+                <td class="td-secondary"><%= settlement.notes.presence || "—" %></td>
+                <td class="td-secondary"><%= settlement.created_by&.full_name || "—" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
 
   <%# ── Allocations card ───────────────────────────────────────────────────── %>
   <% if @allocations.any? %>

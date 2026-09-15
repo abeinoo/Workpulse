@@ -18,16 +18,22 @@ class FinancialSettlement < ApplicationRecord
   # Funding sources allowed to settle a document. Only CustodyAccount is
   # functional today; the rest are added as they're implemented (CompanyCash,
   # BankAccount, SupplierCredit).
+  #
+  # funding_source may also be NIL: money paid through a means this system
+  # doesn't model as a trackable account (company cash, a bank transfer,
+  # someone else entirely). The payment itself is still real — a normal
+  # immutable ledger row that Total Paid / Remaining include exactly like any
+  # other — it simply moves no internal balance and has nothing to link to.
   FUNDING_SOURCE_TYPES = %w[CustodyAccount].freeze
 
   belongs_to :settleable, polymorphic: true
-  belongs_to :funding_source, polymorphic: true
+  belongs_to :funding_source, polymorphic: true, optional: true
   belongs_to :created_by, class_name: "User", optional: true
 
   validates :amount, presence: true, numericality: { other_than: 0 }
   validates :settled_at, presence: true
   validates :settleable_type, inclusion: { in: SETTLEABLE_TYPES }
-  validates :funding_source_type, inclusion: { in: FUNDING_SOURCE_TYPES }
+  validates :funding_source_type, inclusion: { in: FUNDING_SOURCE_TYPES }, allow_nil: true
   validate  :funding_source_in_same_business
 
   scope :chronological, -> { order(:settled_at, :id) }

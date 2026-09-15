@@ -18,7 +18,7 @@ RSpec.describe "Finance::Expenses#create", type: :request do
           amount: "324",
           expense_date: "2026-08-09",
           branch_id: branch.id.to_s,
-          deduct_from_balance: "0"
+          payment_type: "installment"
         }
       }
     }.to change(Expense, :count).by(1)

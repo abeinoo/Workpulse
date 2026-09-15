@@ -1,0 +1,79 @@
+<% content_for :title, t("finance.expenses.add_payment_title") %>
+<div class="form-page">
+  <h1 class="page-title mb-6"><%= t("finance.expenses.add_payment_title") %></h1>
+
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.reference") %></dt>
+        <dd><%= @expense.reference_number %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.agreed_amount") %></dt>
+        <dd><strong><%= format_currency(@expense.amount) %></strong></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.paid_amount") %></dt>
+        <dd><%= format_currency(@expense.total_settled_amount) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.remaining_amount") %></dt>
+        <dd><strong><%= format_currency(@expense.remaining_settlement_amount) %></strong></dd>
+      </div>
+    </dl>
+  </div>
+
+  <%= form_with url: finance_expense_payments_path(@expense), method: :post, scope: :payment, class: "form-card" do |f| %>
+    <h2 class="section-title"><%= t("finance.expenses.section_payment_details") %></h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :amount, t("finance.expenses.amount"), class: "form-label" %>
+        <%= f.number_field :amount, step: "0.01", min: 0.01,
+              max: @expense.remaining_settlement_amount,
+              class: "form-control", required: true %>
+        <p class="form-hint">
+          <%= t("finance.expenses.amount_max_hint", remaining: format_currency(@expense.remaining_settlement_amount)) %>
+        </p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :payment_date, t("finance.expenses.payment_date"), class: "form-label" %>
+        <%= f.date_field :payment_date, value: Date.current, class: "form-control", required: true %>
+      </div>
+
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <%= f.label :notes, t("finance.common.notes"), class: "form-label" %>
+        <%= f.text_area :notes, rows: 3, class: "form-control",
+              placeholder: t("finance.expenses.payment_notes_placeholder") %>
+      </div>
+    </div>
+
+    <%# ── Payment Source: optional, independent of everything else on this
+         form, and specific to THIS payment — never inferred from the
+         expense's own settings or from who created it. Only ever shown when
+         the CURRENT user (whoever is recording THIS specific payment)
+         actually has an eligible custody account — otherwise it stays out
+         of the form entirely. %>
+    <% if @eligible_custody_account %>
+      <div class="form-group" style="max-width: 360px;">
+        <p class="form-label"><%= t("finance.expenses.payment_source") %></p>
+        <label class="form-check">
+          <%= f.check_box :paid_from_balance, class: "form-check-input" %>
+          <span class="form-check-label"><%= t("finance.expenses.paid_this_payment_from_balance") %></span>
+        </label>
+        <p class="form-hint"><%= t("finance.expenses.paid_this_payment_from_balance_hint") %></p>
+        <p class="form-hint">
+          <%= t("finance.expenses.paid_from_balance_account_preview",
+                name: @eligible_custody_account.name, balance: format_currency(@eligible_custody_account.current_balance)) %>
+        </p>
+      </div>
+    <% else %>
+      <%= f.hidden_field :paid_from_balance, value: "0" %>
+    <% end %>
+
+    <div class="form-actions">
+      <%= f.submit t("finance.expenses.actions.record_payment"), class: "btn btn-primary" %>
+      <%= link_to t("common.cancel"), finance_expense_path(@expense), class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>

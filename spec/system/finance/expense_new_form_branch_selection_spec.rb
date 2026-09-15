@@ -32,7 +32,7 @@ RSpec.describe "Finance::Expenses new form — branch selection", type: :system 
       el.dispatchEvent(new Event("change", { bubbles: true }));
     JS
 
-    uncheck "expense_deduct_from_balance"
+    choose "expense_payment_type_installment"
     select branch.name, from: "expense_branch_id"
 
     distribution_select = find("#expense_distribution_method", visible: false)

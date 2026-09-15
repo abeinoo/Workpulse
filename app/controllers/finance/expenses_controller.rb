@@ -13,6 +13,8 @@ class Finance::ExpensesController < Finance::BaseController
                 .recent
                 .includes(:branch, :expense_category, :expense_type, :created_by)
     @expenses = @expenses.where(created_by_id: params[:created_by_id]) if params[:created_by_id].present?
+    @paid_amounts = FinancialSettlement.where(settleable_type: "Expense", settleable_id: @expenses.map(&:id))
+                                        .group(:settleable_id).sum(:amount)
     @filter_branches    = assignable_branches
     @filter_categories  = current_user.business.expense_categories.active.ordered
     @filter_types       = current_user.business.expense_types.active.ordered
@@ -149,6 +151,17 @@ class Finance::ExpensesController < Finance::BaseController
     @hide_branch         = hide_expense_branch_selector?
     @branches            = @hide_branch ? [] : assignable_expense_branches
     @show_shared_section = expense_branch_scope == "business"
+    # "Paid from my balance/custody" is an OPTIONAL, independent choice — see
+    # Expense model comment. It's only ever shown when an eligible account
+    # actually exists; otherwise the whole control is hidden (never a
+    # disabled checkbox or a validation nag). Checking it auto-settles from
+    # the CREATOR's own custody account at approval (unchanged
+    # Finance::ExpenseApproval mechanism) — not necessarily current_user's,
+    # since a manager may be editing someone else's draft — so the preview
+    # must reflect whichever account will actually be debited.
+    account_owner = @expense.created_by || current_user
+    @eligible_custody_account =
+      CustodyAccount.where(business: current_user.business, user: account_owner, active: true).first
   end
 
   # The branch <select> submits the literal string "shared" for the
@@ -157,7 +170,7 @@ class Finance::ExpensesController < Finance::BaseController
   def expense_params
     permitted = params.require(:expense).permit(
       :branch_id, :expense_category_id, :expense_type_id, :amount, :expense_date, :notes,
-      :deduct_from_balance, :distribution_method,
+      :payment_type, :deduct_from_balance, :distribution_method,
       expense_tag_ids: [], documents: [],
       expense_allocations_attributes: [ :id, :branch_id, :allocation_percentage, :allocated_amount, :_destroy ]
     )

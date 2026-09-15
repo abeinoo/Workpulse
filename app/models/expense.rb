@@ -35,11 +35,54 @@ class Expense < ApplicationRecord
   # (branch_id blank), split across branches via expense_allocations.
   DISTRIBUTION_METHODS = %w[equal percentage manual].freeze
 
-  # How the expense is funded. Only "employee_custody" (deduct_from_balance checked)
-  # and "unpaid" (unchecked) are reachable today — the others are reserved on the
-  # selector so display logic doesn't need to change shape once they're wired up,
-  # mirroring GoodsReceipt::FUNDING_SOURCE_KINDS.
-  PAYMENT_SOURCES = %w[employee_custody company_cash bank_account supplier_credit unpaid].freeze
+  # How the expense is funded. "employee_custody" (deduct_from_balance checked),
+  # "not_linked_to_balance" (a Direct expense paid through a means this system
+  # doesn't track as an account), and "unpaid" (an Installment expense, whose
+  # payments each carry their own independent source) are reachable today — the
+  # rest are reserved on the selector so display logic doesn't need to change
+  # shape once they're wired up, mirroring GoodsReceipt::FUNDING_SOURCE_KINDS.
+  #
+  # IMPORTANT: payment_source answers "where did the money come from?" — never
+  # "was the expense paid?". "not_linked_to_balance" and "unpaid" both mean no
+  # CustodyAccount is involved, but only "unpaid" means no money has actually
+  # been paid yet. See #sync_payment_source and Settleable#financial_status,
+  # which is the actual (and only) source of paid/unpaid truth.
+  PAYMENT_SOURCES = %w[employee_custody not_linked_to_balance company_cash bank_account supplier_credit unpaid].freeze
+
+  # Payment Type ("direct" — the amount entered IS the actual payment — vs
+  # "installment" — the amount entered is only the total agreed, paid off
+  # later) is INDEPENDENT of deduct_from_balance ("paid from my custody
+  # account or not"). They answer two different questions and must never be
+  # conflated:
+  #   - direct   + deduct_from_balance: true  → auto-settled in full from the
+  #                                             creator's custody account at
+  #                                             approval (unchanged
+  #                                             Finance::ExpenseApproval
+  #                                             mechanism)
+  #   - direct   + deduct_from_balance: false → at approval, the full amount is
+  #                                             posted as a FinancialSettlement
+  #                                             with a NIL funding_source — the
+  #                                             amount is understood as already
+  #                                             paid through a means this
+  #                                             system doesn't track as an
+  #                                             account (see
+  #                                             Finance::ExpenseApproval
+  #                                             #post_unlinked_settlement).
+  #                                             No CustodyTransaction is
+  #                                             created; the expense still
+  #                                             shows as fully paid
+  #   - installment (regardless)             → nothing posted at approval;
+  #                                             every actual payment is
+  #                                             recorded afterward through
+  #                                             Finance::ExpensePaymentRecorder,
+  #                                             each with its OWN independent
+  #                                             "paid from balance?" choice
+  # "Paid from my balance" is always an explicit, opt-in choice made by
+  # whoever is performing the action — never inferred from who created the
+  # expense (a painter can be paid from MY custody, company cash, or someone
+  # else's account entirely).
+  PAYMENT_TYPES = %w[direct installment].freeze
+  enum :payment_type, { direct: "direct", installment: "installment" }, default: "direct"
 
   # Once system_generated? (see #system_generated?), only these columns may
   # still change — the void path. Everything else is locked at the model
@@ -62,6 +105,7 @@ class Expense < ApplicationRecord
   validate  :creator_has_balance_account_if_deducting
 
   before_validation :normalize_branch_mode
+  before_validation :force_no_balance_deduction_for_installment
   before_validation :sync_payment_source
   before_update  :prevent_system_generated_mutation
   before_destroy :prevent_system_generated_destruction
@@ -145,7 +189,28 @@ class Expense < ApplicationRecord
   end
 
   def sync_payment_source
-    self.payment_source = deduct_from_balance? ? "employee_custody" : "unpaid"
+    self.payment_source =
+      if deduct_from_balance?
+        "employee_custody"
+      elsif direct?
+        "not_linked_to_balance"
+      else
+        "unpaid"
+      end
+  end
+
+  # The payment-source decision belongs to each individual payment for an
+  # installment expense (see Finance::ExpensePaymentRecorder's own
+  # paid_from_balance choice, made per payment by whoever records it) — never
+  # to the expense as a whole. This is enforced here, at the data-model
+  # level, not just hidden in the UI: no matter how a request is built (a
+  # tampered form submission, a console call, a future bug), an installment
+  # expense can never carry deduct_from_balance: true, so
+  # Finance::ExpenseApproval#post_balance_deduction can never auto-settle
+  # the full agreed amount for one. Only Direct expenses may opt into the
+  # single full-amount custody deduction at approval.
+  def force_no_balance_deduction_for_installment
+    self.deduct_from_balance = false if installment?
   end
 
   def creator_has_balance_account_if_deducting

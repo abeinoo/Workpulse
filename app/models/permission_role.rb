@@ -61,7 +61,8 @@ class PermissionRole < ApplicationRecord
                                process_till_refund],
     finance_overview:      %w[view_finance_dashboard],
     pos_import:            %w[view_pos_import manage_pos_import],
-    expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses],
+    expenses:              %w[view_expenses create_expenses edit_expenses approve_expenses
+                               record_expense_payments],
     expense_administration: %w[manage_expense_categories manage_expense_types
                                 manage_expense_tags manage_recurring_expenses
                                 manage_payment_methods],
@@ -116,7 +117,7 @@ class PermissionRole < ApplicationRecord
     ],
     "area_manager" => %w[
       view_dashboard view_reports export_reports
-      view_expenses create_expenses edit_expenses approve_expenses
+      view_expenses create_expenses edit_expenses approve_expenses record_expense_payments
       view_employee_balances create_balance_requests
       view_employees manage_employees view_attendance
       view_shifts assign_shifts
@@ -128,7 +129,7 @@ class PermissionRole < ApplicationRecord
     "accountant" => %w[
       view_dashboard view_reports export_reports
       view_finance_dashboard
-      view_expenses create_expenses edit_expenses approve_expenses
+      view_expenses create_expenses edit_expenses approve_expenses record_expense_payments
       manage_expense_categories manage_expense_types manage_expense_tags manage_recurring_expenses
       view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
       view_expense_reports
@@ -165,7 +166,7 @@ class PermissionRole < ApplicationRecord
   # SCOPABLE_PERMISSIONS so the role editor still renders one scope dropdown per
   # scopable permission.
   BRANCH_SCOPABLE_PERMISSIONS = %w[
-    view_expenses create_expenses edit_expenses approve_expenses
+    view_expenses create_expenses edit_expenses approve_expenses record_expense_payments
     view_employee_balances
     view_deposit_verification import_bank_statement verify_deposits manual_match_deposits ignore_deposits delete_import
     view_towel_balances create_towel_transfers confirm_towel_receipt
@@ -320,6 +321,7 @@ class PermissionRole < ApplicationRecord
     "create_expenses"             => %w[view_expenses],
     "edit_expenses"               => %w[view_expenses],
     "approve_expenses"            => %w[view_expenses],
+    "record_expense_payments"     => %w[view_expenses],
     "manage_expense_categories"   => %w[view_expenses],
     "manage_expense_types"        => %w[view_expenses],
     "manage_expense_tags"         => %w[view_expenses],

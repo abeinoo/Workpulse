@@ -395,6 +395,7 @@ Rails.application.routes.draw do
         patch :reject
         patch :cancel
       end
+      resources :payments, only: [ :new, :create ], controller: "expense_payments"
     end
 
     resources :balance_requests do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_095025) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_085510) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -667,7 +667,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_095025) do
     t.bigint "cancelled_by_id"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
-    t.boolean "deduct_from_balance", default: true, null: false
+    t.boolean "deduct_from_balance", default: false, null: false
     t.text "description"
     t.string "distribution_method"
     t.bigint "expense_category_id", null: false
@@ -676,6 +676,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_095025) do
     t.boolean "is_shared", default: false, null: false
     t.text "notes"
     t.string "payment_source", default: "unpaid", null: false
+    t.string "payment_type", default: "direct", null: false
     t.string "reference_number", null: false
     t.datetime "rejected_at"
     t.text "rejection_reason"
@@ -729,8 +730,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_095025) do
     t.decimal "amount", precision: 12, scale: 2, null: false
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
-    t.bigint "funding_source_id", null: false
-    t.string "funding_source_type", null: false
+    t.bigint "funding_source_id"
+    t.string "funding_source_type"
     t.text "notes"
     t.bigint "settleable_id", null: false
     t.string "settleable_type", null: false

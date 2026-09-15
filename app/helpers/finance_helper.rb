@@ -11,6 +11,32 @@ module FinanceHelper
     SETTLEMENT_TYPE_BADGES.fetch(type.to_s, "")
   end
 
+  # Shared by the Expense show page's Financial Information card and the
+  # Expenses Index payment-status column, so both read the exact same
+  # pending_settlement/partially_settled/settled classification (Settleable's
+  # #financial_status) with one badge/label mapping.
+  EXPENSE_FINANCIAL_STATUS_BADGES = {
+    "pending_settlement" => "badge-warning",
+    "partially_settled"  => "badge-accent",
+    "settled"            => "badge-success"
+  }.freeze
+
+  def expense_financial_status_badge_class(financial_status)
+    EXPENSE_FINANCIAL_STATUS_BADGES.fetch(financial_status.to_s, "badge-neutral")
+  end
+
+  # Classifies a (paid, total) pair using the same three states as
+  # Settleable#financial_status, for callers (the Expenses Index) that
+  # preload paid sums in bulk instead of calling the per-record association
+  # method — avoids an N+1 SUM query per row while staying data-shape-derived,
+  # never a stored flag.
+  def expense_payment_status(paid, total)
+    return "settled" if paid >= total
+    return "pending_settlement" if paid <= 0
+
+    "partially_settled"
+  end
+
   # A qualitative status badge derived from numbers the dashboard controller
   # already computed (net profit sign, pending approvals, overdue deposits,
   # negative custody) — the same kind of view-level categorization

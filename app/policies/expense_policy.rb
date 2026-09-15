@@ -38,6 +38,16 @@ class ExpensePolicy < ApplicationPolicy
                  (user.owner? || !own_expense?)
   def reject?  = approve?
 
+  # The "Register Payment" workflow is specific to Installment expenses — a
+  # Direct expense's amount IS the payment (optionally already settled from
+  # custody at approval, see Finance::ExpenseApproval); it never goes through
+  # this manual recording flow. Only meaningful once approved (the expense's
+  # amount is locked) and while some balance remains unpaid.
+  def record_payment?
+    can?(:record_expense_payments) && same_business? && record.installment? &&
+      record.approved? && record.remaining_settlement_amount > 0
+  end
+
   # Creators cancel their own draft/pending/approved expense. Approvers can
   # also cancel an already-approved expense (e.g. to unwind a mistaken
   # approval before it's reflected elsewhere). System-generated expenses

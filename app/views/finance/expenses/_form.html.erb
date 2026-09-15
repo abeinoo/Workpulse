@@ -1,6 +1,6 @@
 <%= form_with model: [ :finance, expense ], class: "form-card",
       data: {
-        controller: "line-items allocation expense-type-select expense-scope",
+        controller: "line-items allocation expense-type-select expense-scope payment-type",
         expense_type_select_url_value: options_finance_expense_types_path,
         expense_type_select_placeholder_value: "— #{t('finance.expenses.select_type')}",
         expense_type_select_initial_type_id_value: expense.expense_type_id
@@ -30,6 +30,7 @@
     <div class="form-group">
       <%= f.label :amount, t("finance.expenses.amount"), class: "form-label" %>
       <%= f.number_field :amount, step: "0.01", min: 0, class: "form-control #{'is-error' if expense.errors[:amount].any?}" %>
+      <p class="form-hint"><%= t("finance.expenses.amount_hint") %></p>
     </div>
     <div class="form-group">
       <%= f.label :expense_date, t("finance.expenses.date"), class: "form-label" %>
@@ -141,13 +142,53 @@
   <% end %>
 
   <div class="divider"></div>
-  <div class="form-group">
-    <label class="form-check">
-      <%= f.check_box :deduct_from_balance, class: "form-check-input" %>
-      <span class="form-check-label"><%= t("finance.expenses.deduct_from_balance") %></span>
-    </label>
-    <p class="form-hint"><%= t("finance.expenses.deduct_from_balance_hint") %></p>
+  <h2 class="section-title"><%= t("finance.expenses.section_payment") %></h2>
+  <p class="form-hint"><%= t("finance.expenses.section_payment_hint") %></p>
+  <div class="form-grid">
+    <% Expense::PAYMENT_TYPES.each do |type| %>
+      <div class="form-group">
+        <label class="form-check" style="align-items: flex-start;">
+          <%= f.radio_button :payment_type, type,
+                checked: expense.payment_type == type,
+                class: "form-check-input",
+                data: { "payment-type-target": "typeRadio", action: "payment-type#toggle" } %>
+          <span>
+            <span class="form-check-label" style="font-weight: 600;">
+              <%= t("finance.expenses.payment_types.#{type}") %>
+            </span>
+            <p class="form-hint" style="margin-top: 2px;">
+              <%= t("finance.expenses.payment_type_hints.#{type}") %>
+            </p>
+          </span>
+        </label>
+      </div>
+    <% end %>
   </div>
+
+  <%# ── Payment Source: ONLY meaningful for a Direct expense (an Installment
+       expense's payment source is decided per-payment, later, on the Show
+       page — never here) — and even then only ever shown to a user who
+       actually has an eligible custody account. Hidden by JS the moment
+       "Installment" is selected (data-payment-type-target="panel"); Expense
+       also forces deduct_from_balance: false server-side whenever
+       payment_type is installment, so this can never leak through even if
+       JS is bypassed. %>
+  <% if @eligible_custody_account %>
+    <div data-payment-type-target="panel" class="form-group <%= 'hidden' unless expense.direct? %>"
+         style="max-width: 360px;" <%= "hidden" unless expense.direct? %>>
+      <label class="form-check">
+        <%= f.check_box :deduct_from_balance, class: "form-check-input" %>
+        <span class="form-check-label"><%= t("finance.expenses.deduct_from_balance") %></span>
+      </label>
+      <p class="form-hint"><%= t("finance.expenses.deduct_from_balance_hint") %></p>
+      <p class="form-hint">
+        <%= t("finance.expenses.paid_from_balance_account_preview",
+              name: @eligible_custody_account.name, balance: format_currency(@eligible_custody_account.current_balance)) %>
+      </p>
+    </div>
+  <% else %>
+    <%= f.hidden_field :deduct_from_balance, value: "0" %>
+  <% end %>
 
   <div class="form-actions">
     <%= f.submit t("common.save"), class: "btn btn-primary",

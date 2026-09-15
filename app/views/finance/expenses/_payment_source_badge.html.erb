@@ -1,10 +1,11 @@
 <%
   color_class = {
-    "employee_custody" => "badge badge-accent",
-    "company_cash"     => "badge badge-neutral",
-    "bank_account"     => "badge badge-neutral",
-    "supplier_credit"  => "badge badge-neutral",
-    "unpaid"           => "badge badge-warning"
+    "employee_custody"      => "badge badge-accent",
+    "not_linked_to_balance" => "badge badge-neutral",
+    "company_cash"          => "badge badge-neutral",
+    "bank_account"          => "badge badge-neutral",
+    "supplier_credit"       => "badge badge-neutral",
+    "unpaid"                => "badge badge-warning"
   }.fetch(source, "badge badge-neutral")
   size_class = local_assigns[:size] == "md" ? " badge--md" : ""
 %>

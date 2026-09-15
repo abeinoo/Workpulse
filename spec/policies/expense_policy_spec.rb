@@ -143,6 +143,48 @@ RSpec.describe ExpensePolicy, type: :policy do
     end
   end
 
+  describe "#record_payment?" do
+    let(:payer_role) do
+      create(:permission_role, business: business,
+             permissions: %w[view_expenses create_expenses approve_expenses record_expense_payments])
+    end
+    let(:payer) { create(:user, business: business, permission_role: payer_role) }
+
+    it "allows a user with record_expense_payments on an approved installment expense with a remaining balance" do
+      approved = create(:expense, :approved, business: business, branch: br1, created_by: manager,
+                         payment_type: "installment")
+      expect(described_class.new(payer, approved).record_payment?).to be true
+    end
+
+    it "denies without the permission" do
+      approved = create(:expense, :approved, business: business, branch: br1, created_by: manager,
+                         payment_type: "installment")
+      expect(described_class.new(manager, approved).record_payment?).to be false
+    end
+
+    it "denies on a non-approved expense" do
+      pending = create(:expense, :pending, business: business, branch: br1, created_by: manager,
+                        payment_type: "installment")
+      expect(described_class.new(payer, pending).record_payment?).to be false
+    end
+
+    it "denies once nothing remains unpaid (e.g. employee_custody-funded, settled at approval)" do
+      account = create(:custody_account, business: business, user: manager)
+      approved = create(:expense, :pending, business: business, branch: br1, created_by: manager,
+                         payment_type: "direct", deduct_from_balance: true)
+      Finance::ExpenseApproval.new(approved, actor: owner).approve!
+      expect(account).to be_present
+      expect(described_class.new(payer, approved.reload).record_payment?).to be false
+    end
+
+    it "denies on a Direct expense even when approved with a remaining balance — the Register Payment workflow is installment-only" do
+      direct = create(:expense, :approved, business: business, branch: br1, created_by: manager,
+                       payment_type: "direct")
+      expect(direct.remaining_settlement_amount).to be > 0
+      expect(described_class.new(payer, direct).record_payment?).to be false
+    end
+  end
+
   describe "Scope (reporting/listing visibility)" do
     it "shows in-scope, own-created, and shared-allocated expenses but hides other branches" do
       in_scope   = create(:expense, business: business, branch: br1)

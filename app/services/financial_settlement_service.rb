@@ -15,7 +15,7 @@ class FinancialSettlementService
     def ok? = ok
   end
 
-  def self.create(settleable:, funding_source:, amount:, actor:, notes: nil, settled_at: Time.current)
+  def self.create(settleable:, amount:, actor:, funding_source: nil, notes: nil, settled_at: Time.current)
     new(settleable: settleable, actor: actor).create(
       funding_source: funding_source, amount: amount, notes: notes, settled_at: settled_at
     )
@@ -34,7 +34,7 @@ class FinancialSettlementService
     @actor      = actor
   end
 
-  def create(funding_source:, amount:, notes: nil, settled_at: Time.current)
+  def create(amount:, funding_source: nil, notes: nil, settled_at: Time.current)
     settlement = @settleable.financial_settlements.new(
       funding_source: funding_source,
       amount:         amount,

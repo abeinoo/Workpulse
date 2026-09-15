@@ -121,9 +121,22 @@ module Finance
       end
     end
 
+    # Only Direct expenses settle at approval — an Installment expense's agreed
+    # amount is paid off later, one FinancialSettlement per actual payment, via
+    # Finance::ExpensePaymentRecorder (see Expense::PAYMENT_TYPES doc comment).
     def post_balance_deduction
-      return unless @expense.deduct_from_balance?
+      return unless @expense.direct?
 
+      if @expense.deduct_from_balance?
+        post_custody_settlement
+      else
+        post_unlinked_settlement
+      end
+    end
+
+    # "Paid from my balance" checked: the full amount is settled from the
+    # creator's custody account, exactly as before.
+    def post_custody_settlement
       creator = @expense.created_by
       return unless creator
 
@@ -153,6 +166,27 @@ module Finance
 
       log_audit(actor: @actor, auditable: @expense, action: "settle_from_custody",
                 metadata: { custody_account_id: account.id, amount: @expense.amount })
+    end
+
+    # "Paid from my balance" unchecked (or no custody account at all): the
+    # amount was still actually paid, just through a means this system doesn't
+    # track as an account — post a FinancialSettlement with a NIL
+    # funding_source so Total Paid / Remaining / financial_status reflect that,
+    # mirroring Finance::ExpensePaymentRecorder's own non-custody branch. No
+    # CustodyTransaction is created — no balance moves.
+    def post_unlinked_settlement
+      settlement_result = FinancialSettlementService.create(
+        settleable:     @expense,
+        funding_source: nil,
+        amount:         @expense.amount,
+        actor:          @actor,
+        notes:          I18n.t("finance.expenses.direct_payment_note",
+                               reference: @expense.reference_number)
+      )
+      raise ActiveRecord::RecordInvalid, settlement_result.settlement unless settlement_result.ok?
+
+      log_audit(actor: @actor, auditable: @expense, action: "settle_direct",
+                metadata: { amount: @expense.amount })
     end
 
     def self_approval?

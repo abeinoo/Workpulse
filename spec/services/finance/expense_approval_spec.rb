@@ -38,41 +38,60 @@ RSpec.describe Finance::ExpenseApproval, type: :model do
       account = create(:custody_account, business: business, user: creator)
       Finance::CustodyTransactionCreator.new(account, actor: approver,
         params: { txn_type: "top_up", magnitude: 1_000 }).call
+      paid_expense = create(:expense, :pending, business: business, created_by: creator,
+                             deduct_from_balance: true)
 
-      described_class.new(expense, actor: approver).approve!
+      described_class.new(paid_expense, actor: approver).approve!
 
-      txn = account.custody_transactions.find_by(txn_type: "expense_deduction", expense_id: expense.id)
+      txn = account.custody_transactions.find_by(txn_type: "expense_deduction", expense_id: paid_expense.id)
       expect(txn).to be_present
-      expect(txn.amount).to eq(-expense.amount)
-      expect(Finance::CustodyBalance.new(account).current).to eq(1_000 - expense.amount)
+      expect(txn.amount).to eq(-paid_expense.amount)
+      expect(Finance::CustodyBalance.new(account).current).to eq(1_000 - paid_expense.amount)
     end
 
     it "creates a FinancialSettlement and audits it as settle_from_custody" do
       account = create(:custody_account, business: business, user: creator)
+      paid_expense = create(:expense, :pending, business: business, created_by: creator,
+                             deduct_from_balance: true)
 
-      described_class.new(expense, actor: approver).approve!
+      described_class.new(paid_expense, actor: approver).approve!
 
-      settlement = expense.financial_settlements.sole
+      settlement = paid_expense.financial_settlements.sole
       expect(settlement.funding_source).to eq(account)
-      expect(settlement.amount).to eq(expense.amount)
-      expect(expense.reload).to be_settled
-      expect(AuditLog.where(auditable: expense, action: "settle_from_custody").count).to eq(1)
+      expect(settlement.amount).to eq(paid_expense.amount)
+      expect(paid_expense.reload).to be_settled
+      expect(AuditLog.where(auditable: paid_expense, action: "settle_from_custody").count).to eq(1)
     end
 
-    it "creates neither a settlement nor an audit entry when not paid from balance" do
+    it "settles fully with a NIL-funding-source settlement, no custody transaction, when not paid from balance" do
       account = create(:custody_account, business: business, user: creator)
       unpaid  = create(:expense, :pending, business: business, created_by: creator, deduct_from_balance: false)
 
       described_class.new(unpaid, actor: approver).approve!
 
-      expect(unpaid.financial_settlements).to be_empty
+      settlement = unpaid.financial_settlements.sole
+      expect(settlement.funding_source).to be_nil
+      expect(settlement.amount).to eq(unpaid.amount)
+      expect(unpaid.reload).to be_settled
       expect(AuditLog.where(auditable: unpaid, action: "settle_from_custody")).to be_empty
+      expect(AuditLog.where(auditable: unpaid, action: "settle_direct").count).to eq(1)
       expect(account.custody_transactions.where(expense_id: unpaid.id)).to be_empty
+    end
+
+    it "does not settle at all for an installment expense — payments are recorded later" do
+      installment = create(:expense, :pending, business: business, created_by: creator,
+                            payment_type: "installment")
+
+      described_class.new(installment, actor: approver).approve!
+
+      expect(installment.financial_settlements).to be_empty
+      expect(installment.reload).to be_pending_settlement
     end
 
     it "allows negative balance — approves even when deduction exceeds balance" do
       account = create(:custody_account, business: business, user: creator)
-      big     = create(:expense, :pending, business: business, created_by: creator, amount: 5_000)
+      big     = create(:expense, :pending, business: business, created_by: creator, amount: 5_000,
+                        deduct_from_balance: true)
 
       result = described_class.new(big, actor: approver).approve!
       expect(result.ok?).to be true
@@ -80,10 +99,12 @@ RSpec.describe Finance::ExpenseApproval, type: :model do
       expect(Finance::CustodyBalance.new(account).current).to eq(-5_000)
     end
 
-    it "approves successfully even when creator has no balance account" do
+    it "approves successfully and settles in full even when creator has no balance account" do
       result = described_class.new(expense, actor: approver).approve!
       expect(result.ok?).to be true
       expect(expense.reload.status).to eq("approved")
+      expect(expense).to be_settled
+      expect(expense.financial_settlements.sole.funding_source).to be_nil
     end
   end
 
@@ -162,13 +183,16 @@ RSpec.describe Finance::ExpenseApproval, type: :model do
       expect(AuditLog.where(auditable: approved, action: "cancel").count).to eq(1)
     end
 
-    it "does not attempt a reversal for an approved expense with no custody deduction" do
+    it "reverses the NIL-funding-source settlement (no custody side-effect) for an expense with no custody deduction" do
       approved = create(:expense, :pending, business: business, created_by: creator, deduct_from_balance: false)
       described_class.new(approved, actor: approver).approve!
+      expect(approved.reload).to be_settled
 
       result = described_class.new(approved, actor: approver).cancel!(reason: "Not needed")
       expect(result.ok?).to be true
       expect(approved.reload.status).to eq("cancelled")
+      expect(approved.financial_settlements.sum(:amount)).to eq(0)
+      expect(CustodyTransaction.where(expense_id: approved.id)).to be_empty
     end
 
     it "refuses to cancel a rejected expense" do
