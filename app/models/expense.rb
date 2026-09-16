@@ -85,10 +85,18 @@ class Expense < ApplicationRecord
   enum :payment_type, { direct: "direct", installment: "installment" }, default: "direct"
 
   # Once system_generated? (see #system_generated?), only these columns may
-  # still change — the void path. Everything else is locked at the model
-  # layer, not just the policy layer, so a system-generated expense can never
-  # be edited even from the console or a future service bug.
-  SYSTEM_GENERATED_MUTABLE_ATTRIBUTES = %w[voided_at voided_by_id void_reason updated_at].freeze
+  # still change: the void path, plus the approve/reject lifecycle transition
+  # (ExpensePolicy#approve?/#reject? deliberately allow those on system-generated
+  # expenses — a recurring/payroll-sourced expense still needs a human decision
+  # on it — while #update?/#destroy?/#cancel? block everything else). Business
+  # data columns (amount, category, branch, allocations, ...) are never in this
+  # list, so a system-generated expense can never be edited even from the
+  # console or a future service bug — only its status may move forward.
+  SYSTEM_GENERATED_MUTABLE_ATTRIBUTES = %w[
+    voided_at voided_by_id void_reason
+    status approved_by_id approved_at rejected_at rejection_reason
+    updated_at
+  ].freeze
 
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :expense_date, presence: true

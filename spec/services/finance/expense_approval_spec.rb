@@ -121,6 +121,36 @@ RSpec.describe Finance::ExpenseApproval, type: :model do
     end
   end
 
+  describe "system-generated expenses (recurring/payroll-sourced) still go through approve/reject" do
+    let(:system_expense) do
+      create(:expense, :system_generated, business: business, created_by: creator,
+             status: "pending_approval", deduct_from_balance: false)
+    end
+
+    it "approves without raising ActiveRecord::ReadOnlyRecord" do
+      result = nil
+      expect {
+        result = described_class.new(system_expense, actor: approver).approve!
+      }.not_to raise_error
+
+      expect(result.ok?).to be true
+      expect(system_expense.reload.status).to eq("approved")
+      expect(system_expense.approved_by_id).to eq(approver.id)
+      expect(system_expense.approved_at).to be_present
+    end
+
+    it "rejects without raising ActiveRecord::ReadOnlyRecord" do
+      result = nil
+      expect {
+        result = described_class.new(system_expense, actor: approver).reject!(reason: "Duplicate recurring charge")
+      }.not_to raise_error
+
+      expect(result.ok?).to be true
+      expect(system_expense.reload.status).to eq("rejected")
+      expect(system_expense.rejection_reason).to eq("Duplicate recurring charge")
+    end
+  end
+
   describe "invalid transitions" do
     let(:status) { "draft" }
     it "refuses to approve a draft" do

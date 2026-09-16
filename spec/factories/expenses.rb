@@ -24,5 +24,9 @@ FactoryBot.define do
     trait :cancelled do
       status { "cancelled" }
     end
+
+    trait :system_generated do
+      source_recurring_expense { association :recurring_expense, business: business }
+    end
   end
 end

@@ -52,4 +52,51 @@ RSpec.describe Expense, type: :model do
       expect(expense.settlement_total).to eq(250)
     end
   end
+
+  describe "system-generated mutation protection" do
+    it "blocks a normal business-data edit (e.g. amount) on a system-generated expense" do
+      expense = create(:expense, :system_generated, :pending, amount: 100)
+
+      expect {
+        expense.update(amount: 999)
+      }.to raise_error(ActiveRecord::ReadOnlyRecord, /can only be voided/)
+    end
+
+    it "allows voiding a system-generated expense" do
+      expense = create(:expense, :system_generated, :approved)
+      voider  = create(:user, business: expense.business)
+
+      expect {
+        expense.update!(voided_at: Time.current, voided_by_id: voider.id, void_reason: "duplicate")
+      }.not_to raise_error
+      expect(expense.reload.voided_at).to be_present
+    end
+
+    it "allows the approve transition (status + approved_by/approved_at) on a system-generated expense" do
+      expense = create(:expense, :system_generated, :pending)
+      approver = create(:user, business: expense.business)
+
+      expect {
+        expense.update!(status: "approved", approved_by: approver, approved_at: Time.current)
+      }.not_to raise_error
+      expect(expense.reload).to be_approved
+    end
+
+    it "allows the reject transition (status + rejected_at/rejection_reason) on a system-generated expense" do
+      expense = create(:expense, :system_generated, :pending)
+
+      expect {
+        expense.update!(status: "rejected", rejected_at: Time.current, rejection_reason: "duplicate entry")
+      }.not_to raise_error
+      expect(expense.reload).to be_rejected
+    end
+
+    it "still blocks unrelated business-data changes bundled alongside a status change" do
+      expense = create(:expense, :system_generated, :pending, amount: 100)
+
+      expect {
+        expense.update(status: "approved", amount: 500)
+      }.to raise_error(ActiveRecord::ReadOnlyRecord, /can only be voided/)
+    end
+  end
 end
