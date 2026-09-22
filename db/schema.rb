@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_15_085510) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_22_071719) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1902,24 +1902,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_085510) do
   end
 
   create_table "stock_issues", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
     t.bigint "branch_id"
     t.bigint "business_id", null: false
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
     t.string "issue_number", null: false
+    t.datetime "issued_at"
+    t.bigint "issued_by_id"
     t.date "issued_on", null: false
     t.text "notes"
-    t.string "status", default: "posted", null: false
+    t.datetime "rejected_at"
+    t.bigint "rejected_by_id"
+    t.text "rejection_reason"
+    t.string "status", default: "draft", null: false
+    t.datetime "submitted_at"
+    t.bigint "submitted_by_id"
     t.datetime "updated_at", null: false
     t.text "void_reason"
     t.datetime "voided_at"
     t.bigint "voided_by_id"
     t.bigint "warehouse_id", null: false
+    t.index ["approved_by_id"], name: "index_stock_issues_on_approved_by_id"
     t.index ["branch_id"], name: "index_stock_issues_on_branch_id"
     t.index ["business_id", "issue_number"], name: "index_stock_issues_on_business_id_and_issue_number", unique: true
     t.index ["business_id"], name: "index_stock_issues_on_business_id"
+    t.index ["cancelled_by_id"], name: "index_stock_issues_on_cancelled_by_id"
     t.index ["created_by_id"], name: "index_stock_issues_on_created_by_id"
+    t.index ["issued_by_id"], name: "index_stock_issues_on_issued_by_id"
+    t.index ["rejected_by_id"], name: "index_stock_issues_on_rejected_by_id"
     t.index ["status"], name: "index_stock_issues_on_status"
+    t.index ["submitted_by_id"], name: "index_stock_issues_on_submitted_by_id"
     t.index ["voided_by_id"], name: "index_stock_issues_on_voided_by_id"
     t.index ["warehouse_id"], name: "index_stock_issues_on_warehouse_id"
   end
@@ -2530,7 +2547,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_15_085510) do
   add_foreign_key "stock_issue_items", "stock_issues"
   add_foreign_key "stock_issues", "branches"
   add_foreign_key "stock_issues", "businesses"
+  add_foreign_key "stock_issues", "users", column: "approved_by_id"
+  add_foreign_key "stock_issues", "users", column: "cancelled_by_id"
   add_foreign_key "stock_issues", "users", column: "created_by_id"
+  add_foreign_key "stock_issues", "users", column: "issued_by_id"
+  add_foreign_key "stock_issues", "users", column: "rejected_by_id"
+  add_foreign_key "stock_issues", "users", column: "submitted_by_id"
   add_foreign_key "stock_issues", "users", column: "voided_by_id"
   add_foreign_key "stock_issues", "warehouses"
   add_foreign_key "stock_transfer_items", "products"

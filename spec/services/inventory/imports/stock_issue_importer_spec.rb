@@ -73,7 +73,7 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
 
       expect(result.ok?).to be true
       expect(result.issue).to be_present
-      expect(result.issue).to be_posted
+      expect(result.issue).to be_issued
       expect(result.issue.items.count).to eq(1)
       expect(result.batch).to be_nil
     end

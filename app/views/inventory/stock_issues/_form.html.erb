@@ -63,7 +63,9 @@
   </template>
 
   <div class="form-actions">
-    <%= f.submit t("inventory.stock_issues.post"), class: "btn btn-primary" %>
-    <%= link_to t("common.cancel"), inventory_stock_issues_path, class: "btn btn-ghost" %>
+    <%= f.submit t("inventory.stock_issues.save_draft"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"),
+          stock_issue.persisted? ? inventory_stock_issue_path(stock_issue) : inventory_stock_issues_path,
+          class: "btn btn-ghost" %>
   </div>
 <% end %>

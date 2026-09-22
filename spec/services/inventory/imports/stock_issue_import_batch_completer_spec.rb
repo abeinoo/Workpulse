@@ -46,7 +46,7 @@ RSpec.describe Inventory::Imports::StockIssueImportBatchCompleter do
 
     expect(result.ok?).to be true
     expect(batch.reload).to be_completed
-    expect(stock_issue.reload).to be_posted
+    expect(stock_issue.reload).to be_issued
     expect(stock_issue.items.sum(:quantity)).to eq(3)
     expect(product.stock_in(warehouse)).to eq(7)
   end

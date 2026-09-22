@@ -1,10 +1,18 @@
 module Inventory
   # Posts a stock issue: validates that every product has enough on-hand in the
   # issue's warehouse (blocking over-issue), values each line at the product's
-  # current average cost, then records an OUT movement per line. All-or-nothing
-  # in one transaction. Idempotent by construction — an already-posted issue is
-  # refused outright, so calling this twice (e.g. a double form submission on
-  # the stock-issue import's "Complete Import" step) can never double-post.
+  # current average cost, then records an OUT movement per line, and marks the
+  # issue "issued". All-or-nothing in one transaction. Idempotent by
+  # construction — an already-issued issue is refused outright, so calling this
+  # twice (e.g. a double form submission) can never double-post.
+  #
+  # This is the single place inventory actually moves for a stock issue,
+  # called from exactly two entry points: the stock-issue import's "Complete
+  # Import" step (draft -> issued directly, bypassing approval by design — see
+  # Inventory::Imports::StockIssueImportBatchCompleter) and
+  # Inventory::StockIssueConfirmationService (approved -> issued, the manual
+  # "Confirm Issue" workflow step). It doesn't care what the prior status was,
+  # only that the issue isn't already issued.
   class StockIssuePoster
     Result = Struct.new(:ok, :issue, keyword_init: true) do
       def ok? = ok
@@ -15,7 +23,7 @@ module Inventory
     end
 
     def call
-      return Result.new(ok: false, issue: @issue) if @issue.persisted? && @issue.posted?
+      return Result.new(ok: false, issue: @issue) if @issue.persisted? && @issue.issued?
 
       value_items
       unless availability_ok?
@@ -23,7 +31,7 @@ module Inventory
       end
 
       ActiveRecord::Base.transaction do
-        @issue.status = :posted
+        @issue.status = :issued
 
         raise ActiveRecord::Rollback unless @issue.save
 

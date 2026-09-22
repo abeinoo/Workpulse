@@ -336,8 +336,15 @@ Rails.application.routes.draw do
         post  :reject
       end
     end
-    resources :stock_issues,    only: [ :index, :show, :new, :create ] do
-      member { patch :void }
+    resources :stock_issues,    only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
+      member do
+        patch :void
+        patch :cancel
+        post  :submit
+        post  :approve
+        post  :reject
+        post  :confirm
+      end
       collection do
         get  :import
         post :run_import, path: "import"

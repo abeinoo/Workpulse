@@ -101,11 +101,11 @@ module Laundry
     # recording screen, and NOT a warehouse->warehouse stock transfer (a
     # transfer only relocates stock; it never posts a StockIssue). A Stock
     # Issue counts when:
-    #   - it's financially effective: status "posted" and not voided
-    #     (StockIssue.posted.active — voiding is the app's only "cancel" path
-    #     for a posted issue; ImmutableDocument means a posted issue is never
-    #     hard-deleted, so "active" is the correct exclusion, not a status
-    #     check alone);
+    #   - it's financially effective: status "issued" (physically posted, not
+    #     merely approved) and not voided (StockIssue.issued.active — voiding
+    #     is the app's only "cancel" path for an issued issue; ImmutableDocument
+    #     means an issued issue is never hard-deleted, so "active" is the
+    #     correct exclusion, not a status check alone);
     #   - its consuming branch (StockIssue#branch) has branch_type: "laundry";
     #   - its effective date (StockIssue#issued_on) falls in [from, to].
     # Cost is the existing, immutable StockIssueItem#unit_cost/#total_cost
@@ -113,7 +113,7 @@ module Laundry
     # duplicated with any other laundry-specific cost record.
     def laundry_material_cost_and_lines
       issues = StockIssue.for_business(@business)
-                         .posted.active
+                         .issued.active
                          .joins(:branch)
                          .where(branches: { branch_type: "laundry" })
                          .where(issued_on: @from.to_date..@to.to_date)

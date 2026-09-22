@@ -2,13 +2,21 @@ class StockIssue < ApplicationRecord
   include ImmutableDocument
   include Voidable
 
-  # "posted" is the historical, default behavior — created and posted in one
-  # atomic step (see StockIssuePoster). "draft" exists only for the stock-issue
-  # import flow: a single issue is created up front, items are appended to it
-  # as each import row resolves (possibly over several requests), and it's only
-  # transitioned to "posted" — generating movements — once, when the whole
-  # import is complete. There is never more than one issue per import.
-  enum :status, { draft: "draft", posted: "posted" }
+  # The approval + physical-issuance workflow. "draft" is the entry state for
+  # both a normal manually-created issue (awaiting submission) AND the
+  # stock-issue import flow (a single issue created up front, items appended
+  # to it as each import row resolves over possibly several requests) — the
+  # import flow deliberately bypasses approval and posts straight from draft
+  # (see Inventory::Imports::StockIssueImportBatchCompleter), exactly as it
+  # always has. For a human-submitted issue: draft -> pending_approval ->
+  # approved -> issued, with pending_approval -> rejected and
+  # draft/approved -> cancelled as the alternate paths. "issued" is the only
+  # state where inventory has actually moved (see
+  # Inventory::StockIssueConfirmationService / StockIssuePoster) — approval
+  # alone never deducts stock. rejected/cancelled are terminal; there is no
+  # transition back out of them.
+  enum :status, { draft: "draft", pending_approval: "pending_approval", approved: "approved",
+                  rejected: "rejected", issued: "issued", cancelled: "cancelled" }
 
   belongs_to :business
   belongs_to :warehouse
@@ -16,10 +24,19 @@ class StockIssue < ApplicationRecord
   # Required for NEW issues (on :create) so every consumption is attributable;
   # the DB column stays nullable so pre-existing rows remain valid and voidable.
   belongs_to :branch, optional: true
-  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :created_by,   class_name: "User", optional: true
+  belongs_to :submitted_by, class_name: "User", optional: true
+  belongs_to :approved_by,  class_name: "User", optional: true
+  belongs_to :rejected_by,  class_name: "User", optional: true
+  belongs_to :issued_by,    class_name: "User", optional: true
+  belongs_to :cancelled_by, class_name: "User", optional: true
 
   has_many :items, class_name: "StockIssueItem", dependent: :destroy
   has_many :inventory_movements, as: :source, dependent: :destroy
+  # The in-progress CSV import this draft belongs to, if any — used only to
+  # keep an import-in-progress draft out of the normal index (see
+  # .excluding_incomplete_imports). nil for every normal, human-workflow issue.
+  has_one :import_batch, class_name: "StockIssueImportBatch", dependent: nil
 
   accepts_nested_attributes_for :items,
                                 allow_destroy: true,
@@ -32,8 +49,12 @@ class StockIssue < ApplicationRecord
   validates :issued_on, presence: true
   validates :branch_id, presence: true, on: :create
   # A draft may sit with zero items while the user resolves import errors —
-  # the item requirement only applies once it's actually being posted.
-  validate  :has_at_least_one_item, unless: :draft?
+  # the item requirement only applies once it's actually being submitted or
+  # posted. A cancelled issue is exempt too: cancellation is only ever reached
+  # from draft or approved (see Inventory::StockIssueCancellation), and a
+  # draft cancelled before any item was ever added must still be a valid,
+  # terminal record — nothing was going to be issued anyway.
+  validate  :has_at_least_one_item, unless: -> { draft? || cancelled? }
   validate  :branch_in_same_business
 
   before_create :assign_issue_number
@@ -44,6 +65,19 @@ class StockIssue < ApplicationRecord
   scope :for_branch,    ->(branch_id)    { where(branch_id: branch_id) if branch_id.present? }
   scope :on_or_after,   ->(date)         { where(issued_on: date..) if date.present? }
   scope :on_or_before,  ->(date)         { where(issued_on: ..date) if date.present? }
+
+  # Guarded against unknown values, same as GoodsReceipt's for_approval_status.
+  scope :for_status,      ->(status)         { where(status: status) if status.present? && statuses.key?(status) }
+  scope :for_creator,     ->(user_id)        { where(created_by_id: user_id) if user_id.present? }
+  scope :for_approver,    ->(user_id)        { where(approved_by_id: user_id) if user_id.present? }
+  scope :for_issuer,      ->(user_id)        { where(issued_by_id: user_id) if user_id.present? }
+
+  # A draft still tied to an in-progress CSV import isn't a real document yet
+  # (see StockIssueImportBatch) — it's reachable only from its batch page,
+  # never from the normal stock-issues list.
+  scope :excluding_incomplete_imports, -> {
+    where.not(id: StockIssueImportBatch.draft.select(:stock_issue_id))
+  }
 
   # Issue #, consumer branch, warehouse, or a product's SKU/name on any line.
   scope :search, ->(term) {
@@ -60,6 +94,15 @@ class StockIssue < ApplicationRecord
 
   def total_value
     items.sum(&:total_cost)
+  end
+
+  # ImmutableDocument's before_destroy is unconditional by default (it applies
+  # to every other posted inventory document, which is exactly right for
+  # them); a stock issue is the one document type with a genuine pre-workflow
+  # draft state that's safe to delete outright — nothing has been submitted,
+  # approved, or posted yet.
+  def destroyable_as_draft?
+    draft?
   end
 
   # Compensating movements that undo this issue: return the issued quantity to

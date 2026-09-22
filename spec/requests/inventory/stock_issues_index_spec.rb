@@ -31,7 +31,7 @@ RSpec.describe "Inventory::StockIssues#index", type: :request do
 
   before { sign_in owner }
 
-  it "lists posted issues, newest first, and excludes drafts" do
+  it "lists issued issues, newest first, and includes a real (non-import) draft" do
     receive(50)
     old_issue = post_issue(warehouse: warehouse_a, branch: branch_a, qty: 1, issued_on: 3.days.ago.to_date)
     new_issue = post_issue(warehouse: warehouse_a, branch: branch_a, qty: 1, issued_on: Date.current)
@@ -40,7 +40,18 @@ RSpec.describe "Inventory::StockIssues#index", type: :request do
     get inventory_stock_issues_path
 
     expect(response.body.index(new_issue.issue_number)).to be < response.body.index(old_issue.issue_number)
-    expect(response.body).not_to include(draft.issue_number)
+    expect(response.body).to include(draft.issue_number)
+  end
+
+  it "excludes a draft still tied to an in-progress CSV import" do
+    receive(50)
+    import_draft = business.stock_issues.create!(warehouse: warehouse_a, branch: branch_a, issued_on: Date.current, status: :draft)
+    StockIssueImportBatch.create!(business: business, warehouse: warehouse_a, branch: branch_a,
+                                  stock_issue: import_draft, status: :draft)
+
+    get inventory_stock_issues_path
+
+    expect(response.body).not_to include(import_draft.issue_number)
   end
 
   it "shows the consumer branch, warehouse, item count, and total for each row" do

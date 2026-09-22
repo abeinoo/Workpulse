@@ -53,7 +53,7 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
 
     expect(business.stock_issues.count).to eq(1)
     issue = business.stock_issues.sole
-    expect(issue).to be_posted
+    expect(issue).to be_issued
     expect(issue.items.sum(:quantity)).to eq(5)
   end
 
@@ -74,7 +74,7 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
       batch.reload
       expect(batch).to be_completed
       expect(batch.stock_issue_id).to eq(draft_issue_id)
-      expect(batch.stock_issue).to be_posted
+      expect(batch.stock_issue).to be_issued
       expect(batch.stock_issue.items.sum(:quantity)).to eq(2)
       expect(product.stock_in(warehouse)).to eq(10 - 2)
     end

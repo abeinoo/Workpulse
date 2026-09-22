@@ -9,24 +9,116 @@
   <div class="page-header">
     <h1 class="page-title">
       <%= @stock_issue.issue_number %>
-      <% if @stock_issue.draft? %>
-        <span class="badge badge-warning"><%= t("inventory.imports.draft_issue") %></span>
-      <% else %>
-        <span class="badge <%= @stock_issue.voided? ? 'badge-danger' : 'badge-success' %>">
-          <%= @stock_issue.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
-        </span>
-      <% end %>
+      <span class="badge <%= @stock_issue.voided? ? 'badge-danger' : stock_issue_status_class(@stock_issue.status) %>">
+        <%= @stock_issue.voided? ? t("inventory.void.status_voided") : t("inventory.stock_issues.statuses.#{@stock_issue.status}") %>
+      </span>
     </h1>
+    <div class="flex" style="gap: var(--space-2);">
+      <% if policy(@stock_issue).update? %>
+        <%= link_to t("inventory.stock_issues.edit_action"), edit_inventory_stock_issue_path(@stock_issue), class: "btn btn-ghost btn-sm" %>
+      <% end %>
+      <% if policy(@stock_issue).submit? %>
+        <%= button_to t("inventory.stock_issues.submit_for_approval"), submit_inventory_stock_issue_path(@stock_issue),
+              method: :post, class: "btn btn-primary btn-sm",
+              data: { turbo_confirm: t("inventory.stock_issues.submit_confirm") } %>
+      <% end %>
+    </div>
   </div>
 
-  <%= render "inventory/shared/void_panel",
-        document: @stock_issue,
-        void_path: void_inventory_stock_issue_path(@stock_issue),
-        can_void: policy(@stock_issue).void? %>
+  <% if @stock_issue.pending_approval? && policy(@stock_issue).approve? %>
+    <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+      <%= button_to t("inventory.stock_issues.approve"), approve_inventory_stock_issue_path(@stock_issue),
+            method: :post, class: "btn btn-primary btn-sm",
+            data: { turbo_confirm: t("inventory.stock_issues.approve_hint") } %>
+      <details style="flex: 1;">
+        <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
+          <%= t("inventory.stock_issues.reject") %>
+        </summary>
+        <%= form_with url: reject_inventory_stock_issue_path(@stock_issue), method: :post, class: "mt-4" do %>
+          <div class="form-group">
+            <label class="form-label" for="rejection_reason"><%= t("inventory.stock_issues.rejection_reason") %></label>
+            <textarea id="rejection_reason" name="rejection_reason" rows="2" class="form-control" required
+                      placeholder="<%= t('inventory.stock_issues.rejection_reason_placeholder') %>"></textarea>
+          </div>
+          <button type="submit" class="btn btn-danger btn-sm"
+                  data-turbo-confirm="<%= t('inventory.stock_issues.reject_confirm') %>">
+            <%= t("inventory.stock_issues.reject_submit") %>
+          </button>
+        <% end %>
+      </details>
+    </div>
+  <% end %>
+
+  <% if @stock_issue.rejected? && @stock_issue.rejection_reason.present? %>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5); border-inline-start: 3px solid var(--color-danger, #dc2626);">
+      <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.stock_issues.rejection_reason") %></p>
+      <p style="margin: 0;"><%= @stock_issue.rejection_reason %></p>
+      <p class="td-secondary" style="margin-top: var(--space-2); font-size: var(--text-xs);">
+        <%= @stock_issue.rejected_by&.full_name || t("inventory.stock_issues.timeline.unknown_actor") %>
+        · <%= @stock_issue.rejected_at ? l(@stock_issue.rejected_at, format: :short) : "—" %>
+      </p>
+    </div>
+  <% end %>
+
+  <% if @stock_issue.approved? && policy(@stock_issue).confirm? %>
+    <details id="confirm-issue-panel" class="card" style="padding: var(--space-5); margin-bottom: var(--space-5); border-inline-start: 3px solid var(--success, #16a34a);">
+      <summary class="btn btn-primary" style="cursor: pointer; display: inline-flex;">
+        <%= t("inventory.stock_issues.confirm_issue") %>
+      </summary>
+      <div style="margin-top: var(--space-4);">
+        <p style="margin: 0 0 var(--space-4);"><%= t("inventory.stock_issues.confirm_issue_question") %></p>
+        <dl class="detail-list">
+          <div class="detail-list__row"><dt><%= t("inventory.stock_issues.number") %></dt><dd><%= @stock_issue.issue_number %></dd></div>
+          <div class="detail-list__row"><dt><%= t("inventory.stock_issues.branch") %></dt><dd><%= @stock_issue.branch&.name || "—" %></dd></div>
+          <div class="detail-list__row"><dt><%= t("inventory.stock_issues.warehouse") %></dt><dd><%= @stock_issue.warehouse.name %></dd></div>
+          <div class="detail-list__row"><dt><%= t("inventory.stock_issues.items_count") %></dt><dd><%= @items.size %></dd></div>
+          <div class="detail-list__row"><dt><%= t("inventory.stock_issues.total_quantity") %></dt><dd><%= @items.sum { |i| i.quantity.to_i } %></dd></div>
+          <div class="detail-list__row"><dt><%= t("inventory.stock_issues.total") %></dt><dd><%= format_currency(@stock_issue.total_value) %></dd></div>
+        </dl>
+        <%= button_to t("inventory.stock_issues.confirm_issue"), confirm_inventory_stock_issue_path(@stock_issue),
+              method: :post, class: "btn btn-primary", style: "margin-top: var(--space-4);",
+              data: { turbo_confirm: t("inventory.stock_issues.confirm_issue_warning") } %>
+      </div>
+    </details>
+  <% end %>
+
+  <% if @stock_issue.issued? %>
+    <%= render "inventory/shared/void_panel",
+          document: @stock_issue,
+          void_path: void_inventory_stock_issue_path(@stock_issue),
+          can_void: policy(@stock_issue).void? %>
+  <% elsif @stock_issue.cancelled? %>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5); border-inline-start: 3px solid var(--text-2);">
+      <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.stock_issues.cancellation_reason") %></p>
+      <p style="margin: 0;"><%= @stock_issue.cancellation_reason %></p>
+      <p class="td-secondary" style="margin-top: var(--space-2); font-size: var(--text-xs);">
+        <%= @stock_issue.cancelled_by&.full_name || t("inventory.stock_issues.timeline.unknown_actor") %>
+        · <%= @stock_issue.cancelled_at ? l(@stock_issue.cancelled_at, format: :short) : "—" %>
+      </p>
+    </div>
+  <% elsif policy(@stock_issue).cancel? %>
+    <details id="cancel-panel" class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
+      <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer;">
+        <%= t("inventory.stock_issues.cancel_action") %>
+      </summary>
+      <%= form_with url: cancel_inventory_stock_issue_path(@stock_issue), method: :patch, class: "mt-4" do %>
+        <div class="form-group">
+          <label class="form-label" for="cancellation_reason"><%= t("inventory.stock_issues.cancellation_reason") %></label>
+          <textarea id="cancellation_reason" name="cancellation_reason" rows="2" class="form-control" required
+                    placeholder="<%= t('inventory.stock_issues.cancellation_placeholder') %>"></textarea>
+        </div>
+        <button type="submit" class="btn btn-danger btn-sm"
+                data-turbo-confirm="<%= t('inventory.stock_issues.cancel_confirm_dialog') %>">
+          <%= t("inventory.stock_issues.cancel_action") %>
+        </button>
+      <% end %>
+    </details>
+  <% end %>
 
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <dl class="detail-list">
       <div class="detail-list__row"><dt><%= t("inventory.stock_issues.date") %></dt><dd><%= local_date(@stock_issue.issued_on) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_issues.branch") %></dt><dd><%= @stock_issue.branch&.name || "—" %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.stock_issues.warehouse") %></dt><dd><%= @stock_issue.warehouse.name %></dd></div>
       <% if @stock_issue.notes.present? %>
         <div class="detail-list__row"><dt><%= t("inventory.stock_issues.notes") %></dt><dd><%= simple_format(@stock_issue.notes) %></dd></div>
@@ -62,6 +154,40 @@
       </tfoot>
     </table>
   </div>
+
+  <div class="card" style="margin-top: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.stock_issues.activity_timeline") %></h2>
+    </div>
+    <% if @timeline_events.any? %>
+      <ul class="activity-timeline" style="padding: var(--space-5);">
+        <% @timeline_events.each do |event| %>
+          <li class="activity-timeline__item">
+            <div class="activity-timeline__marker-col">
+              <span class="activity-timeline__marker <%= stock_issue_timeline_marker_class(event[:type]) %>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="<%= stock_issue_timeline_icon(event[:type]) %>" />
+                </svg>
+              </span>
+              <span class="activity-timeline__line"></span>
+            </div>
+            <div class="activity-timeline__content">
+              <p class="activity-timeline__title"><%= t("inventory.stock_issues.timeline.#{event[:type]}") %></p>
+              <p class="activity-timeline__meta">
+                <%= event[:actor]&.full_name || t("inventory.stock_issues.timeline.unknown_actor") %>
+                · <%= event[:time] ? l(event[:time], format: :short) : "—" %>
+              </p>
+              <% if event[:data].present? %>
+                <p class="activity-timeline__meta"><%= t("inventory.stock_issues.timeline.reason", reason: event[:data]) %></p>
+              <% end %>
+            </div>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.stock_issues.no_history") %></p>
+    <% end %>
+  </div>
 </div>
 
 <% if params[:print] == "1" %>
@@ -69,4 +195,3 @@
     window.addEventListener("load", () => window.print(), { once: true })
   </script>
 <% end %>
-

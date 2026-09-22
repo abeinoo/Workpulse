@@ -80,11 +80,21 @@
           </div>
 
           <div class="filter-bar__field">
+            <%= f.label :workflow_status, t("inventory.stock_issues.workflow_status"), class: "filter-bar__label" %>
+            <%= f.select :workflow_status,
+                  options_for_select(
+                    [[ t("inventory.stock_issues.all_statuses"), "" ]] +
+                      StockIssue.statuses.keys.map { |s| [ t("inventory.stock_issues.statuses.#{s}"), s ] },
+                    params[:workflow_status]),
+                  {}, class: "filter-bar__select" %>
+          </div>
+
+          <div class="filter-bar__field">
             <%= f.label :status, t("inventory.void.status"), class: "filter-bar__label" %>
             <%= f.select :status,
                   options_for_select(
-                    [[ t("inventory.stock_issues.all_statuses"), "" ],
-                     [ t("inventory.stock_issues.status_posted"), "active" ],
+                    [[ t("inventory.stock_issues.all_void_states"), "" ],
+                     [ t("inventory.void.status_active"), "active" ],
                      [ t("inventory.void.status_voided"), "voided" ]],
                     params[:status]),
                   {}, class: "filter-bar__select" %>
@@ -97,6 +107,28 @@
                     options_for_select(
                       [[ t("inventory.stock_issues.all_creators"), "" ]] + @filter_creators.map { |u| [ u.full_name, u.id ] },
                       params[:created_by_id]),
+                    {}, class: "filter-bar__select" %>
+            </div>
+          <% end %>
+
+          <% if @filter_approvers.any? %>
+            <div class="filter-bar__field">
+              <%= f.label :approved_by_id, t("inventory.stock_issues.approved_by"), class: "filter-bar__label" %>
+              <%= f.select :approved_by_id,
+                    options_for_select(
+                      [[ t("inventory.stock_issues.all_approvers"), "" ]] + @filter_approvers.map { |u| [ u.full_name, u.id ] },
+                      params[:approved_by_id]),
+                    {}, class: "filter-bar__select" %>
+            </div>
+          <% end %>
+
+          <% if @filter_issuers.any? %>
+            <div class="filter-bar__field">
+              <%= f.label :issued_by_id, t("inventory.stock_issues.issued_by"), class: "filter-bar__label" %>
+              <%= f.select :issued_by_id,
+                    options_for_select(
+                      [[ t("inventory.stock_issues.all_issuers"), "" ]] + @filter_issuers.map { |u| [ u.full_name, u.id ] },
+                      params[:issued_by_id]),
                     {}, class: "filter-bar__select" %>
             </div>
           <% end %>
@@ -177,10 +209,10 @@
                 <% end %>
               </td>
               <td>
-                <span class="badge <%= issue.voided? ? 'badge-danger' : 'badge-success' %>"
+                <span class="badge <%= issue.voided? ? 'badge-danger' : stock_issue_status_class(issue.status) %>"
                       style="display: inline-flex; align-items: center; gap: 5px;">
                   <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0;"></span>
-                  <%= issue.voided? ? t("inventory.void.status_voided") : t("inventory.stock_issues.status_posted") %>
+                  <%= issue.voided? ? t("inventory.void.status_voided") : t("inventory.stock_issues.statuses.#{issue.status}") %>
                 </span>
               </td>
               <% symbol, amount = format_currency_parts(issue.items.sum(&:total_cost)) %>
@@ -212,7 +244,46 @@
                       <%= t("inventory.stock_issues.actions.print") %>
                     <% end %>
 
-                    <% if !issue.voided? && policy(issue).void? %>
+                    <% if issue.draft? && policy(issue).update? %>
+                      <%= link_to edit_inventory_stock_issue_path(issue), class: "row-actions__item" do %>
+                        <%= t("inventory.stock_issues.actions.edit") %>
+                      <% end %>
+                    <% end %>
+
+                    <% if issue.draft? && policy(issue).submit? %>
+                      <%= link_to submit_inventory_stock_issue_path(issue), class: "row-actions__item",
+                            data: { turbo_method: :post, turbo_confirm: t("inventory.stock_issues.submit_confirm") } do %>
+                        <%= t("inventory.stock_issues.actions.submit") %>
+                      <% end %>
+                    <% end %>
+
+                    <% if issue.pending_approval? && policy(issue).approve? %>
+                      <%= link_to inventory_stock_issue_path(issue, anchor: "confirm-issue-panel"), class: "row-actions__item" do %>
+                        <%= t("inventory.stock_issues.actions.approve") %>
+                      <% end %>
+                    <% end %>
+
+                    <% if issue.approved? && policy(issue).confirm? %>
+                      <%= link_to inventory_stock_issue_path(issue, anchor: "confirm-issue-panel"), class: "row-actions__item" do %>
+                        <%= t("inventory.stock_issues.actions.confirm") %>
+                      <% end %>
+                    <% end %>
+
+                    <% if %w[draft approved].include?(issue.status) && policy(issue).cancel? %>
+                      <%= link_to inventory_stock_issue_path(issue, anchor: "cancel-panel"),
+                            class: "row-actions__item row-actions__item--danger" do %>
+                        <%= t("inventory.stock_issues.actions.cancel") %>
+                      <% end %>
+                    <% end %>
+
+                    <% if issue.draft? && policy(issue).destroy? %>
+                      <%= link_to inventory_stock_issue_path(issue), class: "row-actions__item row-actions__item--danger",
+                            data: { turbo_method: :delete, turbo_confirm: t("inventory.stock_issues.delete_confirm") } do %>
+                        <%= t("inventory.stock_issues.actions.delete") %>
+                      <% end %>
+                    <% end %>
+
+                    <% if issue.issued? && !issue.voided? && policy(issue).void? %>
                       <%= link_to inventory_stock_issue_path(issue, anchor: "void-panel"),
                             class: "row-actions__item row-actions__item--danger" do %>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"

@@ -98,23 +98,45 @@ RSpec.describe "Inventory", type: :request do
         }
       }
       expect(business.stock_issues.count).to eq(1)
+      issue = business.stock_issues.last
+      expect(issue).to be_draft
+      expect(product.reload.current_stock).to eq(10) # draft issues never touch stock
+
+      post submit_inventory_stock_issue_path(issue)
+      expect(issue.reload).to be_pending_approval
+
+      post approve_inventory_stock_issue_path(issue)
+      expect(issue.reload).to be_approved
+      expect(product.reload.current_stock).to eq(10) # approval alone never deducts stock
+
+      post confirm_inventory_stock_issue_path(issue)
+      expect(issue.reload).to be_issued
       expect(product.reload.current_stock).to eq(7)
     end
 
-    it "rejects an over-issue and creates no stock issue" do
+    it "creates the stock issue draft regardless of on-hand stock, but refuses to confirm an over-issue" do
       post inventory_warehouses_path, params: { warehouse: { name: "Main", status: "active" } }
       warehouse = business.warehouses.find_by!(name: "Main")
       post inventory_products_path, params: { product: { name: "Mask", sku: "MK-1", initial_cost_price: 5 } }
       product = business.products.find_by!(sku: "MK-1")
+      branch = business.branches.create!(name: "Main Branch", active: true)
 
       post inventory_stock_issues_path, params: {
         stock_issue: {
-          warehouse_id: warehouse.id, issued_on: Date.current,
+          warehouse_id: warehouse.id, branch_id: branch.id, issued_on: Date.current,
           items_attributes: { "0" => { product_id: product.id, quantity: 5 } }
         }
       }
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(business.stock_issues.count).to eq(0)
+      expect(business.stock_issues.count).to eq(1)
+      issue = business.stock_issues.last
+
+      post submit_inventory_stock_issue_path(issue)
+      post approve_inventory_stock_issue_path(issue)
+      post confirm_inventory_stock_issue_path(issue)
+
+      expect(issue.reload).to be_approved # confirm refused — stays approved, never issued
+      expect(product.reload.current_stock).to eq(0)
+      expect(issue.inventory_movements.count).to eq(0)
     end
   end
 

@@ -76,6 +76,52 @@ module InventoryHelper
     GOODS_RECEIPT_TIMELINE_ICONS.fetch(type, GOODS_RECEIPT_TIMELINE_ICONS[:created])
   end
 
+  # Badge colour for a stock issue's workflow status. Voided is a separate,
+  # terminal axis (Voidable#voided_at) checked first by the view, exactly like
+  # goods receipts' receiving_status — a voided issue never shows its
+  # underlying workflow-status badge.
+  STOCK_ISSUE_STATUS_BADGES = {
+    "draft" => "badge-neutral", "pending_approval" => "badge-warning",
+    "approved" => "badge-accent", "rejected" => "badge-danger",
+    "issued" => "badge-success", "cancelled" => "badge-neutral"
+  }.freeze
+
+  def stock_issue_status_class(status)
+    STOCK_ISSUE_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
+  end
+
+  # Marker colour + icon for one Activity Timeline entry (built by
+  # Inventory::StockIssuesController#build_timeline_events). Reuses the exact
+  # same icon set as goods receipts for the events they share.
+  STOCK_ISSUE_TIMELINE_MARKER_CLASSES = {
+    created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
+    approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
+    issued: "activity-timeline__marker--success", issued_legacy: "activity-timeline__marker--success",
+    cancelled: "activity-timeline__marker--neutral", voided: "activity-timeline__marker--danger"
+  }.freeze
+
+  def stock_issue_timeline_marker_class(type)
+    STOCK_ISSUE_TIMELINE_MARKER_CLASSES.fetch(type, "activity-timeline__marker--neutral")
+  end
+
+  STOCK_ISSUE_TIMELINE_ICONS = {
+    created:   "M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+    submitted: "M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5",
+    approved:  "M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+    rejected:  "m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+    issued:    "M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z",
+    cancelled: "M6 18 18 6M6 6l12 12",
+    voided:    "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.02-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+  }
+  # issued_legacy reuses the exact same icon as issued (see #stock_issue_timeline_icon) —
+  # only the label differs (see the timeline.issued_legacy locale key).
+  STOCK_ISSUE_TIMELINE_ICONS[:issued_legacy] = STOCK_ISSUE_TIMELINE_ICONS[:issued]
+  STOCK_ISSUE_TIMELINE_ICONS.freeze
+
+  def stock_issue_timeline_icon(type)
+    STOCK_ISSUE_TIMELINE_ICONS.fetch(type, STOCK_ISSUE_TIMELINE_ICONS[:created])
+  end
+
   # Product <option>s for document line-item selects. Embeds barcode/SKU as data
   # attributes so the barcode-scanner Stimulus controller can resolve a scan
   # client-side without a server round-trip; default supplier is carried for the
