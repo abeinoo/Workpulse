@@ -1,0 +1,75 @@
+<%
+  cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
+  cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
+  cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
+%>
+<%= form_with model: purchase_request, url: inventory_purchase_request_path(purchase_request), method: :patch,
+              class: "form-card",
+              data: {
+                controller: "line-items purchase-request-form",
+                "purchase-request-form-currency-prefix-value": cur_prefix,
+                "purchase-request-form-currency-suffix-value": cur_suffix
+              } do |f| %>
+  <%= render "shared/error_messages", object: purchase_request %>
+
+  <h2 class="section-title"><%= t("inventory.purchase_requests.form.section_details") %></h2>
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :supplier_id, t("inventory.purchase_requests.form.supplier_label"), class: "form-label" %>
+      <%= f.select :supplier_id,
+            options_from_collection_for_select(@suppliers, :id, :name, purchase_request.supplier_id),
+            { include_blank: "— #{t('inventory.purchase_requests.form.select_supplier')}" },
+            class: "form-control #{'is-error' if purchase_request.errors[:supplier].any?}" %>
+    </div>
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :notes, t("inventory.purchase_requests.form.notes_label"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 2, class: "form-control" %>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2 class="section-title"><%= t("inventory.purchase_requests.form.section_items") %></h2>
+  <div class="table-wrap table-wrap--form-cards">
+    <table class="line-items-table">
+      <thead><tr>
+        <th style="width: 35%;"><%= t("inventory.purchase_requests.form.product_label") %></th>
+        <th><%= t("inventory.purchase_requests.form.warehouse_label") %></th>
+        <th><%= t("inventory.purchase_requests.form.quantity_label") %></th>
+        <th><%= t("inventory.purchase_requests.form.unit_price_label") %></th>
+        <th style="text-align: end;"><%= t("inventory.purchase_requests.form.line_total_label") %></th>
+        <th></th>
+      </tr></thead>
+      <tbody data-line-items-target="rows">
+        <%= f.fields_for :items do |item_f| %>
+          <%= render "item_fields", f: item_f, products: @products, warehouses: @warehouses %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if purchase_request.items.any? %>>
+    <%= t("inventory.purchase_requests.form.no_items_hint") %>
+  </p>
+
+  <button type="button" class="btn btn-ghost btn-sm" data-action="click->line-items#add click->purchase-request-form#recalculate" style="margin-top: var(--space-3);">
+    + <%= t("inventory.purchase_requests.form.add_item") %>
+  </button>
+
+  <%# Template for new rows (index replaced by JS) %>
+  <template data-line-items-target="template">
+    <%= f.fields_for :items, PurchaseRequestItem.new, child_index: "NEW_INDEX" do |item_f| %>
+      <%= render "item_fields", f: item_f, products: @products, warehouses: @warehouses %>
+    <% end %>
+  </template>
+
+  <div class="flex items-center justify-between" style="margin-top: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-color, #e0e0e0);">
+    <strong><%= t("inventory.purchase_requests.form.grand_total_label") %></strong>
+    <strong data-purchase-request-form-target="grandTotal">—</strong>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), inventory_purchase_request_path(purchase_request), class: "btn btn-ghost" %>
+  </div>
+<% end %>

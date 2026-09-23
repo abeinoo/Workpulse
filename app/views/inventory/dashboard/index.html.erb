@@ -32,8 +32,21 @@
     </div>
   </div>
 
-  <%# ── Low stock alerts ─────────────────────────────────────── %>
-  <section class="card" style="margin-bottom: var(--space-6);">
+  <%# ── Low stock alerts / purchasing selection ─────────────────────────── %>
+  <%
+    cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
+    cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
+    cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
+    can_create_purchase_requests = current_user.can?(:manage_inventory) || current_user.can?(:create_purchase_requests)
+    suppliers_json = @suppliers.map { |s| { id: s.id, name: s.name } }.to_json
+  %>
+  <section class="card" style="margin-bottom: var(--space-6);" id="low-stock-alerts"
+           data-controller="low-stock-selection"
+           data-low-stock-selection-currency-prefix-value="<%= cur_prefix %>"
+           data-low-stock-selection-currency-suffix-value="<%= cur_suffix %>"
+           data-low-stock-selection-suppliers-value="<%= suppliers_json %>"
+           data-low-stock-selection-create-url-value="<%= inventory_purchase_requests_path %>"
+           data-low-stock-selection-no-supplier-label-value="<%= t("inventory.dashboard.review_no_supplier") %>">
     <div class="card__header flex items-center justify-between">
       <h2 class="card__title" style="margin: 0;">
         <%= t("inventory.dashboard.low_stock_title") %>
@@ -46,20 +59,73 @@
     <% if @low_stock_alerts.empty? %>
       <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.dashboard.low_stock_empty") %></p>
     <% else %>
+      <div class="flex items-center justify-between" style="padding: 0 var(--space-4) var(--space-3); flex-wrap: wrap; gap: var(--space-3);">
+        <div class="flex items-center" style="gap: var(--space-5);">
+          <span class="td-secondary">
+            <%= t("inventory.dashboard.selected_count") %>:
+            <strong data-low-stock-selection-target="countBadge">0</strong>
+          </span>
+          <span class="td-secondary">
+            <%= t("inventory.dashboard.selected_total") %>:
+            <strong data-low-stock-selection-target="totalBadge"><%= format_currency(0) %></strong>
+          </span>
+        </div>
+        <% if can_create_purchase_requests %>
+          <button type="button"
+                  class="btn btn-primary btn-sm"
+                  data-low-stock-selection-target="createBtn"
+                  data-action="click->low-stock-selection#openReview"
+                  disabled>
+            <%= t("inventory.dashboard.create_purchase_request") %>
+          </button>
+        <% end %>
+      </div>
+
       <div class="table-wrap table-wrap--cards">
         <table>
           <thead>
             <tr>
+              <th class="td-check">
+                <input type="checkbox"
+                       class="low-stock-check-all"
+                       data-action="change->low-stock-selection#toggleAll"
+                       aria-label="<%= t("inventory.dashboard.select_all") %>">
+              </th>
               <th><%= t("inventory.products.name") %></th>
               <th><%= t("inventory.products.sku") %></th>
               <th><%= t("inventory.dashboard.warehouse") %></th>
               <th style="text-align: end;"><%= t("inventory.products.current_stock") %></th>
               <th style="text-align: end;"><%= t("inventory.products.reorder_quantity") %></th>
+              <th style="text-align: end;"><%= t("inventory.dashboard.unit_price") %></th>
+              <th style="text-align: end;"><%= t("inventory.dashboard.row_total") %></th>
             </tr>
           </thead>
           <tbody>
             <% @low_stock_alerts.each do |alert| %>
+              <%
+                price    = alert.product.average_cost_price
+                has_price = price.present? && price.positive?
+                row_amount = has_price ? (alert.reorder_quantity.to_d * price) : 0
+                supplier = alert.product.default_supplier
+              %>
               <tr>
+                <td class="td-check">
+                  <input type="checkbox"
+                         class="low-stock-check-row"
+                         value="<%= alert.product.id %>-<%= alert.warehouse_id || "all" %>"
+                         data-amount="<%= row_amount %>"
+                         data-action="change->low-stock-selection#rowChanged"
+                         data-product-id="<%= alert.product.id %>"
+                         data-product-name="<%= alert.product.name %>"
+                         data-sku="<%= alert.product.sku %>"
+                         data-current-stock="<%= alert.on_hand.to_i %>"
+                         data-reorder-qty="<%= alert.reorder_quantity.to_d %>"
+                         data-unit-price="<%= has_price ? price.to_d : "" %>"
+                         data-supplier-id="<%= supplier&.id %>"
+                         data-supplier-name="<%= supplier&.name %>"
+                         data-warehouse-id="<%= alert.warehouse_id %>"
+                         aria-label="<%= alert.product.name %>">
+                </td>
                 <td><%= link_to alert.product.name, inventory_product_path(alert.product), class: "link" %></td>
                 <td class="td-secondary"><%= alert.product.sku %></td>
                 <td class="td-secondary">
@@ -67,10 +133,72 @@
                 </td>
                 <td style="text-align: end;"><span class="badge badge-warning"><%= alert.on_hand.to_i %></span></td>
                 <td style="text-align: end;"><%= alert.reorder_quantity.to_i %></td>
+                <td style="text-align: end;">
+                  <% if has_price %>
+                    <%= format_currency(price) %>
+                  <% else %>
+                    <span class="td-secondary" title="<%= t("inventory.dashboard.price_not_set_warning") %>">
+                      <%= t("inventory.dashboard.price_not_set") %>
+                    </span>
+                  <% end %>
+                </td>
+                <td style="text-align: end;">
+                  <%= has_price ? format_currency(row_amount) : "—" %>
+                </td>
               </tr>
             <% end %>
           </tbody>
         </table>
+      </div>
+
+      <%# ── Review modal: filled entirely by JS from the checked rows above ── %>
+      <div class="modal-overlay"
+           style="display:none"
+           data-low-stock-selection-target="modal"
+           data-action="click->low-stock-selection#overlayClick">
+        <div class="modal-card" role="dialog" aria-labelledby="purchase-request-review-title" aria-modal="true" style="max-width: 720px;">
+          <h3 class="modal-card__title" id="purchase-request-review-title">
+            <%= t("inventory.dashboard.review_title") %>
+          </h3>
+          <p class="td-secondary"><%= t("inventory.dashboard.review_intro") %></p>
+
+          <div data-low-stock-selection-target="reviewMissing" style="display:none; margin-bottom: var(--space-3);">
+            <p style="color: var(--color-danger, #c62828); font-weight: 600; margin-bottom: 2px;">
+              <%= t("inventory.dashboard.review_missing_supplier") %>
+            </p>
+            <p class="td-secondary" style="margin: 0;"><%= t("inventory.dashboard.review_missing_supplier_hint") %></p>
+          </div>
+
+          <div data-low-stock-selection-target="reviewGroups"></div>
+
+          <div class="bulk-pay-summary" style="margin-top: var(--space-4);">
+            <div class="bulk-pay-summary__item">
+              <span class="bulk-pay-summary__label"><%= t("inventory.dashboard.review_summary_requests") %></span>
+              <span class="bulk-pay-summary__value" data-low-stock-selection-target="reviewRequestCount">0</span>
+            </div>
+            <div class="bulk-pay-summary__item">
+              <span class="bulk-pay-summary__label"><%= t("inventory.dashboard.review_summary_items") %></span>
+              <span class="bulk-pay-summary__value" data-low-stock-selection-target="reviewItemCount">0</span>
+            </div>
+            <div class="bulk-pay-summary__item">
+              <span class="bulk-pay-summary__label"><%= t("inventory.dashboard.review_summary_total") %></span>
+              <span class="bulk-pay-summary__value" data-low-stock-selection-target="reviewGrandTotal">—</span>
+            </div>
+          </div>
+
+          <%= form_with url: inventory_purchase_requests_path, method: :post, local: true,
+                        data: { low_stock_selection_target: "reviewForm", action: "submit->low-stock-selection#submitReview" } do %>
+            <div data-low-stock-selection-target="formFields"></div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" data-low-stock-selection-target="confirmBtn">
+                <%= t("inventory.dashboard.review_confirm") %>
+              </button>
+              <button type="button" class="btn btn-ghost" data-action="click->low-stock-selection#closeModal">
+                <%= t("inventory.dashboard.review_back") %>
+              </button>
+            </div>
+          <% end %>
+        </div>
       </div>
     <% end %>
   </section>

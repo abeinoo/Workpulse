@@ -28,6 +28,11 @@ class GoodsReceipt < ApplicationRecord
   belongs_to :confirmed_by, class_name: "User", optional: true
   belongs_to :decided_by, class_name: "User", optional: true
   belongs_to :funding_source, polymorphic: true, optional: true
+  # Optional: set only when this receipt was created from an approved
+  # Purchase Request (see Inventory::PurchaseRequestsController#new via
+  # GoodsReceiptsController#new). nil for every manually-created and every
+  # historical receipt — never required.
+  belongs_to :purchase_request, optional: true
 
   has_many :items, class_name: "GoodsReceiptItem", dependent: :destroy
   has_many :inventory_movements, as: :source, dependent: :destroy
@@ -50,6 +55,7 @@ class GoodsReceipt < ApplicationRecord
   validate  :invoices_acceptable
   validate  :funding_source_matches_kind
   validate  :funding_source_type_whitelisted
+  validate  :purchase_request_supplier_matches
 
   scope :for_business,  ->(business)     { where(business: business) }
   scope :recent,        -> { order(received_on: :desc, id: :desc) }
@@ -115,6 +121,16 @@ class GoodsReceipt < ApplicationRecord
     return if funding_source_type.nil?
 
     errors.add(:funding_source_type, :invalid) unless FUNDING_SOURCE_TYPES.include?(funding_source_type)
+  end
+
+  # A receipt created from a Purchase Request must buy from that same
+  # supplier ("one supplier = one purchase request" — see PurchaseRequest) —
+  # never a different one, however the form was tampered with.
+  def purchase_request_supplier_matches
+    return if purchase_request.nil?
+
+    errors.add(:supplier, :must_match_purchase_request) if supplier_id != purchase_request.supplier_id
+    errors.add(:purchase_request, :invalid) if purchase_request.business_id != business_id
   end
 
   # has_many_attached can't use the Attachable.validates_attachment helper

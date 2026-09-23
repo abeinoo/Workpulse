@@ -1,0 +1,12 @@
+<% content_for :title, t("inventory.purchase_requests.edit_title") %>
+
+<div class="admin-page">
+  <div class="back-link">
+    <%= link_to inventory_purchase_request_path(@purchase_request) do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= @purchase_request.request_number %>
+    <% end %>
+  </div>
+  <h1 class="page-title mb-6"><%= t("inventory.purchase_requests.edit_title") %> — <%= @purchase_request.request_number %></h1>
+  <%= render "form", purchase_request: @purchase_request %>
+</div>

@@ -21,7 +21,8 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
 
   def show
     @goods_receipt = find_receipt(
-      includes: [ :funding_source, :custody_transactions, :created_by, :decided_by, :confirmed_by, :voided_by ]
+      includes: [ :funding_source, :custody_transactions, :created_by, :decided_by, :confirmed_by, :voided_by,
+                 purchase_request: :supplier ]
     )
     authorize @goods_receipt
     @items           = @goods_receipt.items.includes(:product)
@@ -32,7 +33,19 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
 
   def new
     @goods_receipt = current_user.business.goods_receipts.build(received_on: Date.current, funding_source_kind: "employee_custody")
-    @goods_receipt.items.build
+
+    if params[:purchase_request_id].present?
+      @purchase_request = find_receivable_purchase_request(params[:purchase_request_id])
+      prefill_from_purchase_request(@purchase_request)
+
+      if @goods_receipt.items.empty?
+        redirect_to inventory_purchase_request_path(@purchase_request),
+                    alert: t("inventory.purchase_requests.errors.nothing_remaining") and return
+      end
+    else
+      @goods_receipt.items.build
+    end
+
     authorize @goods_receipt
     load_options
   end
@@ -43,6 +56,14 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     assign_funding_source
     authorize @goods_receipt
     ensure_warehouses_accessible!(@goods_receipt.warehouse_id)
+
+    # Re-derive from the DB rather than trusting the submitted id alone — the
+    # GoodsReceipt model validation (purchase_request_supplier_matches) is the
+    # hard guard, this just makes sure @purchase_request is set for re-rendering
+    # the "from Purchase Request" banner on a validation failure.
+    if @goods_receipt.purchase_request_id.present?
+      @purchase_request = policy_scope(PurchaseRequest).find_by(id: @goods_receipt.purchase_request_id)
+    end
 
     result = Inventory::GoodsReceiptDraftService.new(@goods_receipt, actor: current_user).call
     if result.ok?
@@ -177,9 +198,39 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
 
   def receipt_params
     params.require(:goods_receipt).permit(
-      :warehouse_id, :supplier_id, :received_on, :notes, :funding_source_kind, invoices: [],
-      items_attributes: [ :id, :product_id, :quantity, :unit_cost, :_destroy ]
+      :warehouse_id, :supplier_id, :received_on, :notes, :funding_source_kind, :purchase_request_id, invoices: [],
+      items_attributes: [ :id, :product_id, :quantity, :unit_cost, :purchase_request_item_id, :_destroy ]
     )
+  end
+
+  # Loads the Purchase Request a new receipt is being created from, enforcing
+  # both authorization (create_goods_receipts, same as any other receipt) and
+  # the business rule that it must still have something outstanding
+  # (PurchaseRequestPolicy#create_goods_receipt?).
+  def find_receivable_purchase_request(id)
+    purchase_request = policy_scope(PurchaseRequest).includes(items: :product).find(id)
+    authorize purchase_request, :create_goods_receipt?
+    purchase_request
+  end
+
+  # Inherits supplier, products, unit prices, and remaining quantities from
+  # the Purchase Request — the user never re-enters them. The warehouse is
+  # ONLY preselected when every line already points at the exact same
+  # warehouse; otherwise it is left blank and the form requires an explicit
+  # choice — never a guess (see PurchaseRequestItem#source_warehouse).
+  def prefill_from_purchase_request(purchase_request)
+    @goods_receipt.purchase_request = purchase_request
+    @goods_receipt.supplier_id      = purchase_request.supplier_id
+
+    warehouse_ids = purchase_request.items.filter_map(&:source_warehouse_id).uniq
+    @goods_receipt.warehouse_id = warehouse_ids.first if warehouse_ids.size == 1
+
+    purchase_request.items.each do |item|
+      next unless item.remaining_quantity.positive?
+
+      @goods_receipt.items.build(product_id: item.product_id, quantity: item.remaining_quantity,
+                                 unit_cost: item.unit_price, purchase_request_item: item)
+    end
   end
 
   # Builds the show page's Activity Timeline: one entry per event that

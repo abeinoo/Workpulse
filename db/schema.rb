@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_22_071719) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_23_111414) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -746,12 +746,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_071719) do
     t.datetime "created_at", null: false
     t.bigint "goods_receipt_id", null: false
     t.bigint "product_id", null: false
+    t.bigint "purchase_request_item_id"
     t.decimal "quantity", precision: 12, scale: 3, null: false
     t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
     t.decimal "unit_cost", precision: 12, scale: 4, null: false
     t.datetime "updated_at", null: false
     t.index ["goods_receipt_id"], name: "index_goods_receipt_items_on_goods_receipt_id"
     t.index ["product_id"], name: "index_goods_receipt_items_on_product_id"
+    t.index ["purchase_request_item_id"], name: "index_goods_receipt_items_on_purchase_request_item_id"
   end
 
   create_table "goods_receipts", force: :cascade do |t|
@@ -767,6 +769,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_071719) do
     t.string "funding_source_kind", default: "supplier_credit", null: false
     t.string "funding_source_type"
     t.text "notes"
+    t.bigint "purchase_request_id"
     t.string "receipt_number", null: false
     t.date "received_on", null: false
     t.text "rejection_reason"
@@ -783,6 +786,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_071719) do
     t.index ["created_by_id"], name: "index_goods_receipts_on_created_by_id"
     t.index ["decided_by_id"], name: "index_goods_receipts_on_decided_by_id"
     t.index ["funding_source_type", "funding_source_id"], name: "index_goods_receipts_on_funding_source"
+    t.index ["purchase_request_id"], name: "index_goods_receipts_on_purchase_request_id"
     t.index ["supplier_id"], name: "index_goods_receipts_on_supplier_id"
     t.index ["voided_by_id"], name: "index_goods_receipts_on_voided_by_id"
     t.index ["warehouse_id"], name: "index_goods_receipts_on_warehouse_id"
@@ -1383,6 +1387,57 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_071719) do
     t.index ["default_supplier_id"], name: "index_products_on_default_supplier_id"
     t.index ["parent_product_id"], name: "index_products_on_parent_product_id"
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
+  end
+
+  create_table "purchase_request_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "notes"
+    t.bigint "product_id", null: false
+    t.bigint "purchase_request_id", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.bigint "source_warehouse_id"
+    t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
+    t.decimal "unit_price", precision: 12, scale: 4, null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id"], name: "index_purchase_request_items_on_product_id"
+    t.index ["purchase_request_id"], name: "index_purchase_request_items_on_purchase_request_id"
+    t.index ["source_warehouse_id"], name: "index_purchase_request_items_on_source_warehouse_id"
+  end
+
+  create_table "purchase_requests", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.bigint "business_id", null: false
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
+    t.text "close_remaining_reason"
+    t.datetime "closed_remaining_at"
+    t.bigint "closed_remaining_by_id"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.string "idempotency_key"
+    t.text "notes"
+    t.datetime "rejected_at"
+    t.bigint "rejected_by_id"
+    t.text "rejection_reason"
+    t.string "request_number", null: false
+    t.string "source"
+    t.string "status", default: "draft", null: false
+    t.datetime "submitted_at"
+    t.bigint "submitted_by_id"
+    t.bigint "supplier_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_purchase_requests_on_approved_by_id"
+    t.index ["business_id", "request_number"], name: "index_purchase_requests_on_business_id_and_request_number", unique: true
+    t.index ["business_id"], name: "index_purchase_requests_on_business_id"
+    t.index ["cancelled_by_id"], name: "index_purchase_requests_on_cancelled_by_id"
+    t.index ["closed_remaining_by_id"], name: "index_purchase_requests_on_closed_remaining_by_id"
+    t.index ["created_by_id"], name: "index_purchase_requests_on_created_by_id"
+    t.index ["idempotency_key", "supplier_id"], name: "index_purchase_requests_on_idem_key_and_supplier", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["rejected_by_id"], name: "index_purchase_requests_on_rejected_by_id"
+    t.index ["submitted_by_id"], name: "index_purchase_requests_on_submitted_by_id"
+    t.index ["supplier_id"], name: "index_purchase_requests_on_supplier_id"
   end
 
   create_table "recurring_expense_allocations", force: :cascade do |t|
@@ -2382,7 +2437,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_071719) do
   add_foreign_key "financial_settlements", "users", column: "created_by_id"
   add_foreign_key "goods_receipt_items", "goods_receipts"
   add_foreign_key "goods_receipt_items", "products"
+  add_foreign_key "goods_receipt_items", "purchase_request_items"
   add_foreign_key "goods_receipts", "businesses"
+  add_foreign_key "goods_receipts", "purchase_requests"
   add_foreign_key "goods_receipts", "suppliers"
   add_foreign_key "goods_receipts", "users", column: "confirmed_by_id"
   add_foreign_key "goods_receipts", "users", column: "created_by_id"
@@ -2473,6 +2530,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_071719) do
   add_foreign_key "products", "product_categories"
   add_foreign_key "products", "products", column: "parent_product_id", on_delete: :nullify
   add_foreign_key "products", "suppliers", column: "default_supplier_id"
+  add_foreign_key "purchase_request_items", "products"
+  add_foreign_key "purchase_request_items", "purchase_requests"
+  add_foreign_key "purchase_request_items", "warehouses", column: "source_warehouse_id"
+  add_foreign_key "purchase_requests", "businesses"
+  add_foreign_key "purchase_requests", "suppliers"
+  add_foreign_key "purchase_requests", "users", column: "approved_by_id"
+  add_foreign_key "purchase_requests", "users", column: "cancelled_by_id"
+  add_foreign_key "purchase_requests", "users", column: "closed_remaining_by_id"
+  add_foreign_key "purchase_requests", "users", column: "created_by_id"
+  add_foreign_key "purchase_requests", "users", column: "rejected_by_id"
+  add_foreign_key "purchase_requests", "users", column: "submitted_by_id"
   add_foreign_key "recurring_expense_allocations", "branches"
   add_foreign_key "recurring_expense_allocations", "recurring_expenses"
   add_foreign_key "recurring_expenses", "branches"

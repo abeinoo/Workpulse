@@ -1,0 +1,284 @@
+<% content_for :title, t("inventory.purchase_requests.title") %>
+
+<div class="admin-page">
+  <div class="back-link">
+    <%= link_to inventory_root_path do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= t("inventory.dashboard.title") %>
+    <% end %>
+    <span aria-hidden="true">/</span>
+    <span><%= t("inventory.purchase_requests.title") %></span>
+  </div>
+
+  <div class="page-header">
+    <h1 class="page-title"><%= t("inventory.purchase_requests.title") %></h1>
+    <div class="flex" style="gap: var(--space-2);">
+      <%= link_to t("inventory.purchase_requests.filters.needs_action"), inventory_purchase_requests_path(needs_action: "1"),
+            class: "btn btn-sm #{@filters[:needs_action] == '1' ? 'btn-primary' : 'btn-secondary'}" %>
+      <% if current_user.can?(:manage_inventory) || current_user.can?(:create_purchase_requests) %>
+        <%= link_to t("inventory.purchase_requests.new_action"), inventory_root_path(anchor: "low-stock-alerts"), class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Summary cards — business-wide scope, independent of the filters below ── %>
+  <div class="stats-grid" style="margin-bottom: var(--space-6);">
+    <%= link_to inventory_purchase_requests_path, class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.active") %></span>
+      <span class="stat-card__value"><%= @active_count %></span>
+    <% end %>
+    <%= link_to inventory_purchase_requests_path(status: "draft"), class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.draft") %></span>
+      <span class="stat-card__value"><%= @status_counts["draft"] %></span>
+    <% end %>
+    <%= link_to inventory_purchase_requests_path(status: "pending_approval"), class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.pending_approval") %></span>
+      <span class="stat-card__value"><%= @status_counts["pending_approval"] %></span>
+    <% end %>
+    <%= link_to inventory_purchase_requests_path(status: "approved"), class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.approved") %></span>
+      <span class="stat-card__value"><%= @status_counts["approved"] %></span>
+    <% end %>
+    <%= link_to inventory_purchase_requests_path(status: "partially_received"), class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.partially_received") %></span>
+      <span class="stat-card__value"><%= @status_counts["partially_received"] %></span>
+    <% end %>
+    <%= link_to inventory_purchase_requests_path(status: "partially_closed"), class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.partially_closed") %></span>
+      <span class="stat-card__value"><%= @status_counts["partially_closed"] %></span>
+    <% end %>
+    <%= link_to inventory_purchase_requests_path(status: "fully_received"), class: "stat-card" do %>
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.fully_received") %></span>
+      <span class="stat-card__value"><%= @status_counts["fully_received"] %></span>
+    <% end %>
+  </div>
+
+  <% if @just_created.present? %>
+    <section class="card" style="margin-bottom: var(--space-6); border-color: var(--color-success, #2e7d32);">
+      <div class="card__header">
+        <h2 class="card__title" style="margin: 0;">
+          <%= t("inventory.purchase_requests.just_created_title") %>
+        </h2>
+      </div>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("inventory.purchase_requests.request_number") %></th>
+              <th><%= t("inventory.purchase_requests.supplier") %></th>
+              <th style="text-align: end;"><%= t("inventory.purchase_requests.items_count") %></th>
+              <th style="text-align: end;"><%= t("inventory.purchase_requests.total") %></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @just_created.each do |pr| %>
+              <tr>
+                <td><strong><%= pr.request_number %></strong></td>
+                <td><%= pr.supplier.name %></td>
+                <td style="text-align: end;"><%= pr.items.size %></td>
+                <td style="text-align: end;"><%= format_currency(pr.total_amount) %></td>
+                <td><%= link_to t("inventory.purchase_requests.view"), inventory_purchase_request_path(pr), class: "link" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
+
+  <%# ── Filter bar (GET form → filters live in the URL query string) ────────── %>
+  <%= form_with url: inventory_purchase_requests_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= f.label :q, t("inventory.purchase_requests.filters.search_placeholder"), class: "filter-bar__label" %>
+        <%= f.text_field :q, value: @filters[:q], class: "filter-bar__input",
+              placeholder: t("inventory.purchase_requests.filters.search_placeholder") %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :status, t("inventory.purchase_requests.filters.status_label"), class: "filter-bar__label" %>
+        <%= f.select :status,
+              options_for_select(
+                [[ t("inventory.purchase_requests.filters.all_statuses"), "" ]] +
+                  PurchaseRequest.statuses.keys.map { |s| [ t("inventory.purchase_requests.statuses.#{s}"), s ] },
+                @filters[:status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :receiving_status, t("inventory.purchase_requests.filters.receiving_status_label"), class: "filter-bar__label" %>
+        <%= f.select :receiving_status,
+              options_for_select(
+                [[ t("inventory.purchase_requests.receiving_statuses.all"), "" ]] +
+                  %w[not_started partial closed full].map { |s| [ t("inventory.purchase_requests.receiving_statuses.#{s}"), s ] },
+                @filters[:receiving_status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+
+      <div class="filter-bar__field" data-controller="searchable-select">
+        <%= f.label :supplier_id, t("inventory.purchase_requests.filters.supplier_label"), class: "filter-bar__label" %>
+        <%= f.select :supplier_id,
+              options_from_collection_for_select(@filter_suppliers, :id, :name, @filters[:supplier_id]),
+              { include_blank: t("inventory.purchase_requests.filters.all_suppliers") }, class: "filter-bar__select",
+              data: { searchable_select_target: "select" } %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :created_by_id, t("inventory.purchase_requests.filters.created_by_label"), class: "filter-bar__label" %>
+        <%= f.select :created_by_id,
+              options_from_collection_for_select(@filter_creators, :id, :full_name, @filters[:created_by_id]),
+              { include_blank: t("inventory.purchase_requests.filters.all_creators") }, class: "filter-bar__select" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :date_from, t("inventory.purchase_requests.filters.date_from"), class: "filter-bar__label" %>
+        <%= f.date_field :date_from, value: @filters[:date_from], class: "filter-bar__input" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :date_to, t("inventory.purchase_requests.filters.date_to"), class: "filter-bar__label" %>
+        <%= f.date_field :date_to, value: @filters[:date_to], class: "filter-bar__input" %>
+      </div>
+    </div>
+
+    <div class="filter-bar__actions">
+      <%= f.submit t("common.search"), class: "btn btn-sm btn-primary" %>
+      <% if @active_filters %>
+        <%= link_to t("inventory.purchase_requests.filters.clear"), inventory_purchase_requests_path, class: "btn btn-sm btn-ghost" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <section class="card" style="margin-top: var(--space-5);">
+    <% if @purchase_requests.empty? %>
+      <div class="empty-state" style="padding: var(--space-6); text-align: center;">
+        <% if @filters[:needs_action] == "1" %>
+          <p class="empty-state__title"><%= t("inventory.purchase_requests.empty_state_needs_action") %></p>
+        <% else %>
+          <p class="empty-state__title"><%= t("inventory.purchase_requests.empty_state_title") %></p>
+          <p class="td-secondary"><%= t("inventory.purchase_requests.empty_state_hint") %></p>
+        <% end %>
+        <% if !@active_filters && (current_user.can?(:manage_inventory) || current_user.can?(:create_purchase_requests)) %>
+          <%= link_to t("inventory.purchase_requests.new_action"), inventory_root_path(anchor: "low-stock-alerts"), class: "btn btn-primary btn-sm", style: "margin-top: var(--space-3);" %>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("inventory.purchase_requests.request_number") %></th>
+              <th><%= t("inventory.purchase_requests.supplier") %></th>
+              <th style="text-align: end;"><%= t("inventory.purchase_requests.items_count") %></th>
+              <th style="text-align: end;"><%= t("inventory.purchase_requests.total") %></th>
+              <th><%= t("inventory.purchase_requests.status") %></th>
+              <th><%= t("inventory.purchase_requests.receiving_status") %></th>
+              <th><%= t("inventory.purchase_requests.receiving_progress") %></th>
+              <th><%= t("inventory.purchase_requests.created_by") %></th>
+              <th><%= t("inventory.purchase_requests.created_at") %></th>
+              <th><%= t("inventory.purchase_requests.next_action_column") %></th>
+              <th><%= t("inventory.purchase_requests.table_actions") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @purchase_requests.each do |pr| %>
+              <% requested = pr.total_requested_quantity; received = pr.total_received_quantity %>
+              <% receiving_key = purchase_request_receiving_status(pr) %>
+              <tr>
+                <td><%= link_to pr.request_number, inventory_purchase_request_path(pr), class: "link" %></td>
+                <td class="td-secondary"><%= pr.supplier.name %></td>
+                <td style="text-align: end;"><%= pr.items.size %></td>
+                <td style="text-align: end;"><%= format_currency(pr.total_amount) %></td>
+                <td>
+                  <span class="badge <%= purchase_request_status_class(pr.status) %>">
+                    <%= t("inventory.purchase_requests.statuses.#{pr.status}") %>
+                  </span>
+                </td>
+                <td>
+                  <% if receiving_key %>
+                    <span class="badge <%= purchase_request_receiving_status_class(pr) %>">
+                      <%= t("inventory.purchase_requests.receiving_statuses.#{receiving_key}") %>
+                    </span>
+                  <% else %>
+                    <span class="td-secondary">—</span>
+                  <% end %>
+                </td>
+                <td class="td-secondary">
+                  <%= receiving_key ? "#{received.to_i} / #{requested.to_i}" : "—" %>
+                </td>
+                <td class="td-secondary"><%= pr.created_by&.full_name || "—" %></td>
+                <td class="td-secondary"><%= l pr.created_at, format: :short %></td>
+                <td>
+                  <% next_action = purchase_request_next_action(pr) %>
+                  <% if next_action %>
+                    <% if next_action[:url] %>
+                      <% if next_action[:http_method] == :post %>
+                        <%= button_to next_action[:label], next_action[:url], method: :post, class: "btn btn-primary btn-sm" %>
+                      <% else %>
+                        <%= link_to next_action[:label], next_action[:url], class: "btn btn-primary btn-sm" %>
+                      <% end %>
+                    <% else %>
+                      <span class="td-secondary"><%= next_action[:label] %></span>
+                    <% end %>
+                  <% end %>
+                </td>
+                <td>
+                  <div class="flex" style="gap: var(--space-2); flex-wrap: wrap;">
+                    <%= link_to t("inventory.purchase_requests.view"), inventory_purchase_request_path(pr), class: "link" %>
+
+                    <% if policy(pr).update? %>
+                      <%= link_to t("inventory.purchase_requests.actions.edit"), edit_inventory_purchase_request_path(pr), class: "btn btn-ghost btn-sm" %>
+                    <% end %>
+
+                    <% if policy(pr).submit_for_approval? %>
+                      <%= button_to t("inventory.purchase_requests.actions.submit"), submit_inventory_purchase_request_path(pr),
+                            method: :post, class: "btn btn-ghost btn-sm" %>
+                    <% end %>
+
+                    <% if policy(pr).approve? %>
+                      <%= button_to t("inventory.purchase_requests.actions.approve"), approve_inventory_purchase_request_path(pr),
+                            method: :post, class: "btn btn-ghost btn-sm" %>
+                    <% end %>
+
+                    <% if policy(pr).destroy? %>
+                      <%= button_to t("inventory.purchase_requests.actions.delete"), inventory_purchase_request_path(pr),
+                            method: :delete, class: "btn btn-ghost btn-sm text-danger",
+                            data: { turbo_confirm: t("inventory.purchase_requests.delete_confirm") } %>
+                    <% end %>
+
+                    <% if policy(pr).create_goods_receipt? %>
+                      <%= link_to (pr.partially_received? ? t("inventory.purchase_requests.actions.create_goods_receipt_remaining") : t("inventory.purchase_requests.actions.create_goods_receipt")),
+                            new_inventory_goods_receipt_path(purchase_request_id: pr.id), class: "btn btn-ghost btn-sm" %>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <%# ── Pagination ──────────────────────────────────────────────────────── %>
+      <% if @total_pages > 1 %>
+        <div class="flex items-center justify-between" style="padding: var(--space-4);">
+          <span class="td-secondary">
+            <%= t("inventory.purchase_requests.showing_count",
+                  from: (@page - 1) * Inventory::PurchaseRequestsController::PER_PAGE + 1,
+                  to: [ @page * Inventory::PurchaseRequestsController::PER_PAGE, @total_filtered ].min,
+                  total: @total_filtered) %>
+          </span>
+          <div class="flex" style="gap: var(--space-2);">
+            <% if @page > 1 %>
+              <%= link_to t("common.prev"), inventory_purchase_requests_path(@filters.to_h.merge(page: @page - 1)), class: "btn btn-sm btn-ghost" %>
+            <% end %>
+            <span class="td-secondary"><%= t("common.page_of", page: @page, total: @total_pages) %></span>
+            <% if @page < @total_pages %>
+              <%= link_to t("common.next"), inventory_purchase_requests_path(@filters.to_h.merge(page: @page + 1)), class: "btn btn-sm btn-ghost" %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </section>
+</div>

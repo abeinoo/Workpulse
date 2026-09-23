@@ -10,6 +10,7 @@ class Inventory::DashboardController < Inventory::BaseController
 
     @totals = Inventory::StockLevels.totals_for(business, warehouse_ids: wh_ids)
     @low_stock_alerts = Inventory::LowStockQuery.new(business, warehouse_ids: wh_ids).alerts
+    @suppliers = business.suppliers.ordered
 
     # Stock value: only non-parent tracked products (parents have no movements).
     tracked_products = business.products.active.inventory_tracked.non_parent

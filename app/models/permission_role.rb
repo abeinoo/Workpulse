@@ -35,7 +35,8 @@ class PermissionRole < ApplicationRecord
                                confirm_goods_receipts void_goods_receipts
                                manage_stock_issues approve_stock_issues confirm_stock_issues
                                manage_stock_transfers
-                               manage_stock_counts post_stock_counts view_stock_count_reports],
+                               manage_stock_counts post_stock_counts view_stock_count_reports
+                               create_purchase_requests approve_purchase_requests],
     performance:           %w[view_performance_dashboard view_notes view_monthly_reviews
                                view_performance_reports manage_evaluation_templates
                                create_observations manage_reviews finalize_reviews],
@@ -315,6 +316,8 @@ class PermissionRole < ApplicationRecord
     "approve_stock_issues"   => %w[view_inventory],
     "confirm_stock_issues"   => %w[view_inventory],
     "manage_stock_transfers" => %w[view_inventory],
+    "create_purchase_requests" => %w[view_inventory],
+    "approve_purchase_requests" => %w[view_inventory],
     "manage_stock_counts"    => %w[view_inventory],
     "post_stock_counts"      => %w[view_inventory],
     "manage_evaluation_templates" => %w[view_performance_dashboard],

@@ -27,6 +27,10 @@ module Inventory
           raise ActiveRecord::Rollback
         end
 
+        unless purchase_request_quantities_valid?
+          raise ActiveRecord::Rollback
+        end
+
         @receipt.items.each { |item| post_item(item) }
         @receipt.update_column(:status, "confirmed") if @receipt.draft?
         return Result.new(ok: true, receipt: @receipt)
@@ -36,6 +40,31 @@ module Inventory
     end
 
     private
+
+    # Race-safe "don't over-receive" guard — the one place in the app that
+    # actually posts stock, so it's the one place this can be enforced
+    # correctly. Locks each referenced PurchaseRequestItem row (SELECT FOR
+    # UPDATE, held until this transaction commits) so two receipts confirmed
+    # concurrently for the same Purchase Request line serialize instead of
+    # both reading the same stale "already received" total. A soft,
+    # non-locking version of the same check also runs at draft save time
+    # (GoodsReceiptItem#within_remaining_quantity) purely for early UI
+    # feedback — this is the only check that's actually race-safe.
+    def purchase_request_quantities_valid?
+      @receipt.items.all? do |item|
+        pri = item.purchase_request_item
+        next true unless pri
+
+        pri.lock!
+        remaining = pri.remaining_quantity
+        if item.quantity > remaining
+          @receipt.errors.add(:base, :exceeds_remaining_quantity,
+                              product: item.product.name, remaining: remaining)
+          next false
+        end
+        true
+      end
+    end
 
     def post_item(item)
       product = item.product

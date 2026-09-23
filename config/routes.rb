@@ -326,6 +326,15 @@ Rails.application.routes.draw do
       end
     end
     resources :barcode_labels, only: [ :index, :show ]
+    resources :purchase_requests, only: [ :index, :show, :create, :edit, :update, :destroy ] do
+      member do
+        post :submit
+        post :approve
+        post :reject
+        post :cancel
+        post :close_remaining
+      end
+    end
     resources :goods_receipts,  only: [ :index, :show, :new, :create, :edit, :update ] do
       member do
         patch :void

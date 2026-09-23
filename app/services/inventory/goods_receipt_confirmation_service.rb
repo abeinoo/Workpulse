@@ -35,6 +35,11 @@ module Inventory
 
         log_audit(actor: @actor, auditable: @receipt, action: "confirm",
                   changes: { status: %w[draft confirmed] })
+
+        # Reflect the newly-posted quantities on the originating Purchase
+        # Request, if any — never the other way around (PurchaseRequest never
+        # posts inventory itself). No-op when this receipt isn't linked to one.
+        @receipt.purchase_request&.sync_receiving_status!
       end
 
       Result.new(ok: true, receipt: @receipt)

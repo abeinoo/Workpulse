@@ -1,6 +1,16 @@
 <%= form_with model: [:inventory, goods_receipt], class: "form-card", data: { controller: "line-items receipt-supplier funding-source" } do |f| %>
   <%= render "shared/error_messages", object: goods_receipt %>
 
+  <% from_purchase_request = defined?(@purchase_request) && @purchase_request.present? %>
+  <% if from_purchase_request %>
+    <div class="alert alert-info" style="margin-bottom: var(--space-4);">
+      <%= t("inventory.goods_receipts.from_purchase_request") %>:
+      <%= link_to @purchase_request.request_number, inventory_purchase_request_path(@purchase_request), class: "link", target: "_blank", rel: "noopener" %>
+      — <%= @purchase_request.supplier.name %>
+    </div>
+    <%= f.hidden_field :purchase_request_id %>
+  <% end %>
+
   <h2 class="section-title"><%= t("inventory.goods_receipts.section_header") %></h2>
   <div class="form-grid">
     <div class="form-group">
@@ -9,13 +19,24 @@
             options_from_collection_for_select(@warehouses, :id, :name, goods_receipt.warehouse_id),
             { include_blank: "— #{t('inventory.goods_receipts.select_warehouse')}" },
             class: "form-control #{'is-error' if goods_receipt.errors[:warehouse].any?}" %>
+      <% if from_purchase_request && goods_receipt.warehouse_id.blank? %>
+        <p class="form-hint"><%= t("inventory.goods_receipts.select_warehouse") %></p>
+      <% end %>
     </div>
     <div class="form-group">
       <%= f.label :supplier_id, t("inventory.goods_receipts.supplier"), class: "form-label" %>
-      <%= f.select :supplier_id,
-            options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
-            { include_blank: "— #{t('inventory.goods_receipts.no_supplier')}" },
-            class: "form-control", data: { "receipt-supplier-target": "supplier" } %>
+      <% if from_purchase_request %>
+        <%= f.select :supplier_id,
+              options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
+              {}, class: "form-control", disabled: true %>
+        <%= f.hidden_field :supplier_id %>
+        <p class="form-hint"><%= t("inventory.goods_receipts.supplier_locked_hint") %></p>
+      <% else %>
+        <%= f.select :supplier_id,
+              options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
+              { include_blank: "— #{t('inventory.goods_receipts.no_supplier')}" },
+              class: "form-control", data: { "receipt-supplier-target": "supplier" } %>
+      <% end %>
     </div>
     <div class="form-group">
       <%= f.label :received_on, t("inventory.goods_receipts.date"), class: "form-label" %>

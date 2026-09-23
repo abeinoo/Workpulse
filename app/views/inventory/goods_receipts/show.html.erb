@@ -48,6 +48,14 @@
     </div>
   </div>
 
+  <% if @goods_receipt.purchase_request.present? %>
+    <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
+      <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.goods_receipts.original_purchase_request") %></p>
+      <%= link_to @goods_receipt.purchase_request.request_number, inventory_purchase_request_path(@goods_receipt.purchase_request), class: "link" %>
+      <span class="td-secondary">— <%= @goods_receipt.purchase_request.supplier.name %></span>
+    </div>
+  <% end %>
+
   <% if @goods_receipt.approval_pending_approval? && policy(@goods_receipt).approve? %>
     <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
       <%= button_to t("inventory.goods_receipts.approve"), approve_inventory_goods_receipt_path(@goods_receipt),

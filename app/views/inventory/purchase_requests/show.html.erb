@@ -1,0 +1,293 @@
+<% content_for :title, @purchase_request.request_number %>
+
+<div class="admin-page">
+  <div class="back-link">
+    <%= link_to inventory_root_path do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= t("inventory.dashboard.title") %>
+    <% end %>
+    <span aria-hidden="true">/</span>
+    <%= link_to t("inventory.purchase_requests.title"), inventory_purchase_requests_path %>
+    <span aria-hidden="true">/</span>
+    <span><%= @purchase_request.request_number %></span>
+  </div>
+
+  <div class="page-header">
+    <h1 class="page-title">
+      <%= @purchase_request.request_number %>
+      <span class="badge <%= purchase_request_status_class(@purchase_request.status) %>">
+        <%= t("inventory.purchase_requests.statuses.#{@purchase_request.status}") %>
+      </span>
+    </h1>
+    <div class="flex" style="gap: var(--space-2); flex-wrap: wrap;">
+      <% if policy(@purchase_request).update? %>
+        <%= link_to t("inventory.purchase_requests.actions.edit"), edit_inventory_purchase_request_path(@purchase_request), class: "btn btn-ghost btn-sm" %>
+      <% end %>
+      <% if policy(@purchase_request).submit_for_approval? %>
+        <%= button_to t("inventory.purchase_requests.actions.submit"), submit_inventory_purchase_request_path(@purchase_request),
+              method: :post, class: "btn btn-primary btn-sm" %>
+      <% end %>
+      <% if policy(@purchase_request).destroy? %>
+        <%= button_to t("inventory.purchase_requests.actions.delete"), inventory_purchase_request_path(@purchase_request),
+              method: :delete, class: "btn btn-ghost btn-sm text-danger",
+              data: { turbo_confirm: t("inventory.purchase_requests.delete_confirm") } %>
+      <% end %>
+      <% if policy(@purchase_request).create_goods_receipt? %>
+        <%= link_to (@purchase_request.partially_received? ? t("inventory.purchase_requests.actions.create_goods_receipt_remaining") : t("inventory.purchase_requests.actions.create_goods_receipt")),
+              new_inventory_goods_receipt_path(purchase_request_id: @purchase_request.id), class: "btn btn-primary btn-sm" %>
+      <% end %>
+      <% if policy(@purchase_request).cancel? %>
+        <details>
+          <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
+            <%= t("inventory.purchase_requests.actions.cancel") %>
+          </summary>
+          <%= form_with url: cancel_inventory_purchase_request_path(@purchase_request), method: :post, class: "mt-4" do %>
+            <div class="form-group">
+              <label class="form-label"><%= t("inventory.purchase_requests.cancellation_reason") %></label>
+              <textarea name="cancellation_reason" class="form-control" rows="2"
+                        placeholder="<%= t('inventory.purchase_requests.cancellation_reason_placeholder') %>" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-sm btn-danger"><%= t("inventory.purchase_requests.actions.cancel") %></button>
+          <% end %>
+        </details>
+      <% end %>
+      <% if policy(@purchase_request).close_remaining? %>
+        <details>
+          <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
+            <%= t("inventory.purchase_requests.actions.close_remaining") %>
+          </summary>
+          <%
+            requested = @purchase_request.total_requested_quantity
+            received  = @purchase_request.total_received_quantity
+            remaining = [ requested - received, 0 ].max
+          %>
+          <%= form_with url: close_remaining_inventory_purchase_request_path(@purchase_request), method: :post, class: "mt-4", style: "max-width: 360px;" do %>
+            <p><%= t("inventory.purchase_requests.close_remaining_confirm") %></p>
+            <ul style="margin: 0 0 var(--space-3);">
+              <li><%= t("inventory.purchase_requests.total_requested") %>: <strong><%= requested.to_i %></strong></li>
+              <li><%= t("inventory.purchase_requests.total_received") %>: <strong><%= received.to_i %></strong></li>
+              <li><%= t("inventory.purchase_requests.total_remaining") %>: <strong><%= remaining.to_i %></strong></li>
+            </ul>
+            <p class="td-secondary" style="color: var(--color-danger, #c62828);"><%= t("inventory.purchase_requests.close_remaining_warning") %></p>
+            <div class="form-group">
+              <label class="form-label"><%= t("inventory.purchase_requests.close_remaining_reason") %></label>
+              <select name="close_remaining_reason" class="form-control" required>
+                <option value=""></option>
+                <% t("inventory.purchase_requests.close_remaining_reason_options").each_value do |text| %>
+                  <option value="<%= text %>"><%= text %></option>
+                <% end %>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-sm btn-danger"><%= t("inventory.purchase_requests.actions.close_remaining") %></button>
+          <% end %>
+        </details>
+      <% end %>
+      <%= link_to t("inventory.purchase_requests.view_all"), inventory_purchase_requests_path, class: "btn btn-secondary btn-sm" %>
+    </div>
+  </div>
+
+  <% if policy(@purchase_request).approve? %>
+    <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+      <%= button_to t("inventory.purchase_requests.actions.approve"), approve_inventory_purchase_request_path(@purchase_request),
+            method: :post, class: "btn btn-primary btn-sm" %>
+      <details style="flex: 1;">
+        <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
+          <%= t("inventory.purchase_requests.actions.reject") %>
+        </summary>
+        <%= form_with url: reject_inventory_purchase_request_path(@purchase_request), method: :post, class: "mt-4" do %>
+          <div class="form-group">
+            <label class="form-label"><%= t("inventory.purchase_requests.rejection_reason") %></label>
+            <textarea name="rejection_reason" class="form-control" rows="2"
+                      placeholder="<%= t('inventory.purchase_requests.rejection_reason_placeholder') %>" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-sm btn-danger"><%= t("inventory.purchase_requests.actions.reject") %></button>
+        <% end %>
+      </details>
+    </div>
+  <% end %>
+
+  <% if @purchase_request.rejected? && @purchase_request.rejection_reason.present? %>
+    <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
+      <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.purchase_requests.rejection_reason") %></p>
+      <p style="margin: 0;"><%= @purchase_request.rejection_reason %></p>
+    </div>
+  <% end %>
+
+  <% if @purchase_request.cancelled? && @purchase_request.cancellation_reason.present? %>
+    <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
+      <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.purchase_requests.cancellation_reason") %></p>
+      <p style="margin: 0;"><%= @purchase_request.cancellation_reason %></p>
+    </div>
+  <% end %>
+
+  <% if @purchase_request.partially_closed? && @purchase_request.close_remaining_reason.present? %>
+    <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
+      <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.purchase_requests.close_remaining_reason") %></p>
+      <p style="margin: 0;"><%= @purchase_request.close_remaining_reason %></p>
+      <p class="td-secondary" style="margin: var(--space-2) 0 0;">
+        <%= @purchase_request.closed_remaining_by&.full_name || "—" %>
+        · <%= l @purchase_request.closed_remaining_at, format: :short %>
+      </p>
+    </div>
+  <% end %>
+
+  <div class="stats-grid" style="margin-bottom: var(--space-6);">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.supplier") %></span>
+      <span class="stat-card__value"><%= @purchase_request.supplier.name %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.created_by") %></span>
+      <span class="stat-card__value"><%= @purchase_request.created_by&.full_name || "—" %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.created_at") %></span>
+      <span class="stat-card__value"><%= l @purchase_request.created_at, format: :short %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.total") %></span>
+      <span class="stat-card__value"><%= format_currency(@purchase_request.total_amount) %></span>
+    </div>
+    <% if @purchase_request.source.present? %>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("inventory.purchase_requests.source") %></span>
+        <span class="stat-card__value">
+          <%= @purchase_request.source == PurchaseRequest::SOURCE_LOW_STOCK_ALERT ? t("inventory.purchase_requests.source_low_stock_alert") : @purchase_request.source %>
+        </span>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ── Receiving summary — only meaningful once authorized to buy ─────────── %>
+  <% if %w[approved partially_received partially_closed fully_received].include?(@purchase_request.status) %>
+    <% requested = @purchase_request.total_requested_quantity; received = @purchase_request.total_received_quantity %>
+    <section class="card" style="margin-bottom: var(--space-6);">
+      <div class="card__header">
+        <h2 class="card__title" style="margin: 0;"><%= t("inventory.purchase_requests.receiving_summary") %></h2>
+      </div>
+      <div class="stats-grid" style="padding: var(--space-4);">
+        <div class="stat-card">
+          <span class="stat-card__label"><%= t("inventory.purchase_requests.total_requested") %></span>
+          <span class="stat-card__value"><%= requested.to_i %></span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__label"><%= t("inventory.purchase_requests.total_received") %></span>
+          <span class="stat-card__value"><%= received.to_i %></span>
+        </div>
+        <% if @purchase_request.partially_closed? %>
+          <div class="stat-card">
+            <span class="stat-card__label"><%= t("inventory.purchase_requests.total_closed") %></span>
+            <span class="stat-card__value"><%= @purchase_request.closed_remaining_quantity.to_i %></span>
+          </div>
+        <% else %>
+          <div class="stat-card">
+            <span class="stat-card__label"><%= t("inventory.purchase_requests.total_remaining") %></span>
+            <span class="stat-card__value"><%= [ requested - received, 0 ].max.to_i %></span>
+          </div>
+        <% end %>
+        <div class="stat-card">
+          <span class="stat-card__label"><%= t("inventory.purchase_requests.statuses.#{@purchase_request.status}") %></span>
+          <span class="stat-card__value">
+            <%= received.to_i %> / <%= requested.to_i %>
+            <% if @purchase_request.fully_received? %>
+              — <%= t("inventory.purchase_requests.next_actions.fully_received") %>
+            <% end %>
+          </span>
+        </div>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="card" style="margin-bottom: var(--space-6);">
+    <div class="card__header">
+      <h2 class="card__title" style="margin: 0;"><%= t("inventory.purchase_requests.items_count") %></h2>
+    </div>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("inventory.products.name") %></th>
+            <th><%= t("inventory.products.sku") %></th>
+            <th style="text-align: end;"><%= t("inventory.purchase_requests.requested") %></th>
+            <th style="text-align: end;"><%= t("inventory.purchase_requests.received") %></th>
+            <th style="text-align: end;"><%= t("inventory.purchase_requests.remaining") %></th>
+            <th style="text-align: end;"><%= t("inventory.purchase_requests.unit_price") %></th>
+            <th style="text-align: end;"><%= t("inventory.purchase_requests.line_total") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @purchase_request.items.each do |item| %>
+            <tr>
+              <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+              <td class="td-secondary"><%= item.product.sku %></td>
+              <td style="text-align: end;"><%= item.quantity.to_i %></td>
+              <td style="text-align: end;"><%= item.received_quantity.to_i %></td>
+              <td style="text-align: end;"><%= item.remaining_quantity.to_i %></td>
+              <td style="text-align: end;"><%= format_currency(item.unit_price) %></td>
+              <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <%# ── أذونات الاستلام — every Goods Receipt created from this request ──────── %>
+  <section class="card" style="margin-bottom: var(--space-6);" id="goods-receipts">
+    <div class="card__header">
+      <h2 class="card__title" style="margin: 0;"><%= t("inventory.purchase_requests.goods_receipts_section") %></h2>
+    </div>
+    <% if @purchase_request.goods_receipts.empty? %>
+      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.purchase_requests.no_goods_receipts_yet") %></p>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("inventory.purchase_requests.goods_receipt_number") %></th>
+              <th><%= t("inventory.purchase_requests.goods_receipt_date") %></th>
+              <th style="text-align: end;"><%= t("inventory.purchase_requests.goods_receipt_quantity") %></th>
+              <th style="text-align: end;"><%= t("inventory.purchase_requests.total") %></th>
+              <th><%= t("inventory.purchase_requests.goods_receipt_status") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @purchase_request.goods_receipts.each do |receipt| %>
+              <tr>
+                <td><%= link_to receipt.receipt_number, inventory_goods_receipt_path(receipt), class: "link" %></td>
+                <td class="td-secondary"><%= local_date(receipt.received_on) %></td>
+                <td style="text-align: end;"><%= receipt.items.sum(&:quantity).to_i %></td>
+                <td style="text-align: end;"><%= format_currency(receipt.total_value) %></td>
+                <td>
+                  <span class="badge <%= goods_receipt_receipt_status_class(receipt) %>">
+                    <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(receipt)}") %>
+                  </span>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+
+    <% if @purchase_request.partially_closed? %>
+      <div class="flex items-center" style="gap: var(--space-5); padding: var(--space-4); border-top: 1px solid var(--border-color, #e0e0e0);">
+        <span class="td-secondary">
+          <%= t("inventory.purchase_requests.total_remaining") %>:
+          <strong><%= @purchase_request.closed_remaining_quantity.to_i %></strong>
+        </span>
+        <span class="td-secondary">
+          <%= t("inventory.purchase_requests.actions.close_remaining") %>:
+          <strong><%= @purchase_request.closed_remaining_quantity.to_i %></strong>
+        </span>
+      </div>
+    <% end %>
+  </section>
+
+  <% if @purchase_request.notes.present? %>
+    <section class="card">
+      <div class="card__header"><h2 class="card__title" style="margin: 0;"><%= t("inventory.products.notes") %></h2></div>
+      <p style="padding: var(--space-4);"><%= @purchase_request.notes %></p>
+    </section>
+  <% end %>
+</div>

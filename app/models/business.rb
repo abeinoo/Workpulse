@@ -43,6 +43,7 @@ class Business < ApplicationRecord
   has_many :product_categories,   dependent: :destroy
   has_many :products,             dependent: :destroy
   has_many :goods_receipts,       dependent: :destroy
+  has_many :purchase_requests,    dependent: :destroy
   has_many :stock_issues,         dependent: :destroy
   has_many :stock_transfers,      dependent: :destroy
   has_many :stock_adjustments,    dependent: :destroy

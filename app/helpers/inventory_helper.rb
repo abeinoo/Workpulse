@@ -90,6 +90,65 @@ module InventoryHelper
     STOCK_ISSUE_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
   end
 
+  # Badge colour for a purchase request's status.
+  PURCHASE_REQUEST_STATUS_BADGES = {
+    "draft" => "badge-neutral", "pending_approval" => "badge-warning",
+    "approved" => "badge-accent", "partially_closed" => "badge-neutral",
+    "rejected" => "badge-danger", "cancelled" => "badge-neutral"
+  }.freeze
+
+  def purchase_request_status_class(status)
+    PURCHASE_REQUEST_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
+  end
+
+  # Receiving state is derived from the same status column (see
+  # PurchaseRequest#status) rather than stored separately — this just gives
+  # the list/show pages a distinct label+badge for it, so approval status and
+  # receiving status never read as the same concept even though they share a
+  # column today.
+  PURCHASE_REQUEST_RECEIVING_BADGES = {
+    "not_started" => "badge-neutral", "partial" => "badge-warning",
+    "closed" => "badge-neutral", "full" => "badge-success"
+  }.freeze
+
+  def purchase_request_receiving_status(pr)
+    case pr.status
+    when "partially_received" then "partial"
+    when "partially_closed"   then "closed"
+    when "fully_received"     then "full"
+    when "approved"           then "not_started"
+    end
+  end
+
+  def purchase_request_receiving_status_class(pr)
+    key = purchase_request_receiving_status(pr)
+    key ? PURCHASE_REQUEST_RECEIVING_BADGES.fetch(key, "badge-neutral") : "badge-neutral"
+  end
+
+  # "الإجراء التالي" — a pure presentation mapping from the request's current
+  # status to what a user should do next, reusing the exact same policy
+  # checks and routes as the full action set elsewhere on this page (see
+  # PurchaseRequestPolicy). No business logic lives here: a nil/false policy
+  # check just means the label renders without a link.
+  def purchase_request_next_action(pr)
+    label = t("inventory.purchase_requests.next_actions.#{pr.status}", default: nil)
+    return nil unless label
+
+    url, http_method =
+      case pr.status
+      when "draft"
+        [ (edit_inventory_purchase_request_path(pr) if policy(pr).update?), :get ]
+      when "pending_approval"
+        [ (approve_inventory_purchase_request_path(pr) if policy(pr).approve?), :post ]
+      when "approved", "partially_received"
+        [ (new_inventory_goods_receipt_path(purchase_request_id: pr.id) if policy(pr).create_goods_receipt?), :get ]
+      else
+        [ nil, :get ]
+      end
+
+    { label: label, url: url, http_method: http_method }
+  end
+
   # Marker colour + icon for one Activity Timeline entry (built by
   # Inventory::StockIssuesController#build_timeline_events). Reuses the exact
   # same icon set as goods receipts for the events they share.

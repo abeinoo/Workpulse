@@ -1,0 +1,30 @@
+<tr data-line-row data-purchase-request-form-target="row">
+  <td>
+    <%= f.select :product_id,
+          inventory_product_options(products, f.object.product_id),
+          { include_blank: "— #{t('inventory.purchase_requests.form.select_product')}" },
+          class: "form-control" %>
+  </td>
+  <td>
+    <%= f.select :source_warehouse_id,
+          options_from_collection_for_select(warehouses, :id, :name, f.object.source_warehouse_id),
+          { include_blank: t("inventory.purchase_requests.form.no_warehouse") },
+          class: "form-control" %>
+  </td>
+  <td>
+    <%= f.number_field :quantity, step: "0.001", min: 0.001, class: "form-control", placeholder: "0",
+          data: { quantity_field: true, action: "input->purchase-request-form#recalculate" } %>
+  </td>
+  <td>
+    <%= f.number_field :unit_price, step: "0.0001", min: 0.0001, class: "form-control", placeholder: "0.00",
+          data: { price_field: true, action: "input->purchase-request-form#recalculate" } %>
+  </td>
+  <td style="text-align: end;" data-purchase-request-form-target="lineTotal">—</td>
+  <td class="td-actions">
+    <% if f.object.persisted? %>
+      <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
+    <% end %>
+    <button type="button" class="btn btn-ghost btn-sm text-danger"
+            data-action="click->line-items#remove click->purchase-request-form#recalculate" aria-label="<%= t('common.delete') %>">×</button>
+  </td>
+</tr>

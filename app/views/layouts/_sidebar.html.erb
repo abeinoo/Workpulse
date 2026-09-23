@@ -152,6 +152,7 @@
              (controller_name.in?(%w[products brands product_categories]) && controller_path.start_with?('inventory')) ||
              controller_name == 'warehouses' ||
              controller_name == 'suppliers' ||
+             controller_name == 'purchase_requests' ||
              controller_name == 'goods_receipts' ||
              controller_name == 'stock_issues' ||
              controller_name == 'stock_transfers' ||
@@ -187,6 +188,15 @@
               data: { action: "click->sidebar#close" } do %>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <%= t("nav.inventory_suppliers") %>
+        <% end %>
+
+        <% if current_user.can?(:view_inventory) || current_user.can?(:manage_inventory) %>
+          <%= link_to inventory_purchase_requests_path,
+                class: "sidebar__nav-item sidebar__nav-item--sub #{controller_name == 'purchase_requests' ? 'is-active' : ''}",
+                data: { action: "click->sidebar#close" } do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            <%= t("nav.inventory_purchase_requests") %>
+          <% end %>
         <% end %>
 
         <%= link_to inventory_goods_receipts_path,

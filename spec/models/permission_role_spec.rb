@@ -117,8 +117,8 @@ RSpec.describe PermissionRole, type: :model do
       expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(23)
     end
 
-    it "has 120 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(120)
+    it "has 122 total permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(122)
     end
 
     it "includes view_payroll_analytics as a separate permission from view_payroll" do

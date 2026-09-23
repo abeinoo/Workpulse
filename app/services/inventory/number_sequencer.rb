@@ -13,7 +13,7 @@ module Inventory
     # never serialize against each other.
     LOCK_NAMESPACES = {
       goods_receipt: 4101, stock_issue: 4102, stock_transfer: 4103,
-      stock_adjustment: 4104, stock_count: 4105
+      stock_adjustment: 4104, stock_count: 4105, purchase_request: 4106
     }.freeze
 
     CONFIG = {
@@ -21,7 +21,8 @@ module Inventory
       stock_issue:      { model: "StockIssue",      column: :issue_number,      prefix: "ISS" },
       stock_transfer:   { model: "StockTransfer",   column: :transfer_number,   prefix: "TRF" },
       stock_adjustment: { model: "StockAdjustment", column: :adjustment_number, prefix: "ADJ" },
-      stock_count:      { model: "StockCount",      column: :count_number,      prefix: "SC" }
+      stock_count:      { model: "StockCount",      column: :count_number,      prefix: "SC" },
+      purchase_request: { model: "PurchaseRequest", column: :request_number,    prefix: "PR" }
     }.freeze
 
     PAD = 6
