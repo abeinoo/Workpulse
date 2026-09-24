@@ -389,6 +389,9 @@ Rails.application.routes.draw do
       end
     end
 
+    # Workspace landing page for configuration screens (categories, brands).
+    get "settings", to: "settings#show", as: :settings
+
     # Shared barcode → product lookup for scanner-enabled document forms.
     get "barcode_lookup", to: "barcode_lookups#show", as: :barcode_lookup
 

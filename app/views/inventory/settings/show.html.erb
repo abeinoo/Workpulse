@@ -1,0 +1,25 @@
+<% content_for :title, t("inventory.settings.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("inventory.settings.title") %></h1>
+      <p class="page-subtitle"><%= t("inventory.settings.subtitle") %></p>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <% if policy(ProductCategory).index? %>
+      <%= link_to inventory_product_categories_path, class: "stat-card" do %>
+        <span class="stat-card__label"><%= t("inventory.product_categories.title") %></span>
+        <span class="stat-card__sub"><%= t("inventory.settings.categories_desc") %></span>
+      <% end %>
+    <% end %>
+    <% if policy(Brand).index? %>
+      <%= link_to inventory_brands_path, class: "stat-card" do %>
+        <span class="stat-card__label"><%= t("inventory.brands.title") %></span>
+        <span class="stat-card__sub"><%= t("inventory.settings.brands_desc") %></span>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -34,7 +34,8 @@ RSpec.describe "Daily Reconciliation — Open Deposit Verification link uses the
   end
 
   def verification_link_href(body)
-    Nokogiri::HTML(body).at_css("a[href*='deposit_verifications']")&.[]("href")
+    # Scoped to the page content — the Finance workspace nav also links to deposit_verifications.
+    Nokogiri::HTML(body).at_css(".ws__content a[href*='deposit_verifications']")&.[]("href")
   end
 
   before { sign_in actor }

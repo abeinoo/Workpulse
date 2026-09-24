@@ -7,7 +7,7 @@ import { Controller } from "@hotwired/stimulus"
 //     <div data-dropdown-target="menu" hidden>...items...</div>
 //   </div>
 export default class extends Controller {
-  static targets = ["menu"]
+  static targets = ["menu", "button"]
 
   toggle(event) {
     event.stopPropagation()
@@ -16,6 +16,7 @@ export default class extends Controller {
 
   open() {
     this.menuTarget.hidden = false
+    if (this.hasButtonTarget) this.buttonTarget.setAttribute("aria-expanded", "true")
     this._onOutside = (e) => { if (!this.element.contains(e.target)) this.close() }
     this._onEscape  = (e) => { if (e.key === "Escape") this.close() }
     document.addEventListener("click", this._onOutside)
@@ -24,6 +25,7 @@ export default class extends Controller {
 
   close() {
     this.menuTarget.hidden = true
+    if (this.hasButtonTarget) this.buttonTarget.setAttribute("aria-expanded", "false")
     if (this._onOutside) document.removeEventListener("click", this._onOutside)
     if (this._onEscape)  document.removeEventListener("keydown", this._onEscape)
   }

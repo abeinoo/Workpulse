@@ -26,8 +26,9 @@ RSpec.describe "Finance::DailyReconciliations POS Transaction Verification entry
     doc = Nokogiri::HTML(response.body)
     expect(doc.css("details").none? { |d| d.text.include?("POS Transaction Verification") }).to be(true)
 
-    pos_link = doc.css("a").find { |a| a.text.strip == "POS Transaction Verification" }
-    deposit_link = doc.css("a").find { |a| a.text.strip == "Deposit Verification" }
+    # Scoped to the page content — the Finance workspace nav has its own Deposit Verification link.
+    pos_link = doc.css(".ws__content a").find { |a| a.text.strip == "POS Transaction Verification" }
+    deposit_link = doc.css(".ws__content a").find { |a| a.text.strip == "Deposit Verification" }
 
     expect(pos_link).to be_present
     expect(deposit_link).to be_present

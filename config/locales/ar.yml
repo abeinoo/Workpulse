@@ -1,4 +1,8 @@
 ar:
+  workspace:
+    breadcrumb: "مسار التنقل"
+    nav_label: "أقسام %{name}"
+    more: "المزيد"
   app_name: "ووركبلس"
   app_tagline: "إدارة الحضور والموارد البشرية"
 
@@ -38,12 +42,14 @@ ar:
     section_dashboard: "لوحة التحكم"
     section_workforce: "القوى العاملة"
     section_attendance: "الحضور"
+    section_attendance_shifts: "الحضور والورديات"
+    section_employees: "الموظفون"
     section_payroll: "الرواتب"
     section_adjustments: "التسويات"
     section_requests: "الطلبات"
     section_administration: "الإدارة"
     section_inventory: "المخزون"
-    inventory_dashboard: "لوحة المخزون"
+    inventory_dashboard: "نظرة عامة"
     inventory_products: "المنتجات"
     inventory_warehouses: "المستودعات"
     inventory_suppliers: "الموردون"
@@ -54,6 +60,12 @@ ar:
     inventory_stock_adjustments: "تسويات المخزون"
     inventory_stock_counts: "جرد المخزون"
     inventory_reports: "التقارير"
+    inventory_workspace: "المخزن"
+    inventory_movements: "حركة المخزون"
+    inventory_settings: "الإعدادات"
+    section_workspaces: "مساحات العمل"
+    finance_deposit_verification: "التحقق من الإيداعات"
+    finance_sales_import: "استيراد المبيعات"
     section_performance: "تقييم الأداء"
     performance_dashboard: "لوحة الأداء"
     performance_observations: "الملاحظات"
@@ -3058,6 +3070,12 @@ ar:
       time_only: "%-H:%M"
 
   laundry:
+    workspace:
+      subtitle: "حركة المناشف والأرصدة وتكاليف المغسلة"
+      groups:
+        operations: "العمليات"
+        monitoring: "المتابعة"
+        settings: "الإعدادات"
     common:
       towel_type: "نوع الفوط"
       branch: "الفرع"
@@ -3530,7 +3548,23 @@ ar:
         other: "%{count} سلبية"
 
   inventory:
+    workspace:
+      subtitle: "إدارة المخزون وعمليات المستودعات"
+      groups:
+        catalog: "الكتالوج"
+        purchasing: "المشتريات"
+        operations: "عمليات المخزون"
+        insights: "التحليلات"
+    settings:
+      title: "إعدادات المخزن"
+      subtitle: "تهيئة طريقة تنظيم الكتالوج"
+      categories_desc: "تجميع المنتجات في فئات للتصفية والتقارير"
+      brands_desc: "إدارة العلامات التجارية المرتبطة بالمنتجات"
     dashboard:
+      needs_action: "بحاجة إلى إجراء"
+      pending_approval: "بانتظار الاعتماد"
+      recent_movements: "آخر حركات المخزون"
+      view_all: "عرض الكل"
       title: "المخزون"
       products: "المنتجات"
       warehouses: "المستودعات"
@@ -4959,6 +4993,14 @@ ar:
       in_use: "هذا الملف مرتبط بتعيينات أو سجلات قوالب موجودة ولا يمكن حذفه."
 
   finance:
+    workspace:
+      subtitle: "المصروفات والأرصدة والنقدية والتسويات"
+      groups:
+        expenses: "المصروفات"
+        balances: "أرصدة الموظفين"
+        cash: "النقدية والإيداعات"
+        insights: "التحليلات"
+        settings: "الإعدادات"
     common:
       status: "الحالة"
       active: "نشط"

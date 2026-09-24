@@ -1,0 +1,117 @@
+<%#
+  Workspace chrome — wraps every page of a workspace module (Inventory,
+  Finance, Laundry), rendered as a layout from layouts/application.
+  Header + breadcrumb + contextual navigation + content.
+
+  One section list (WorkspaceHelper#workspace), two presentations:
+    • ≥1280px — a vertical rail beside the content, all sections, grouped.
+    • <1280px — a horizontally scrolling tab strip with the primary sections,
+      plus a "More" menu for the rest. CSS decides which one is shown.
+
+  Locals:
+    ws - the WorkspaceHelper::Workspace for the current page.
+%>
+<% sections    = ws.sections %>
+<% current     = sections.find(&:active) %>
+<% primary     = sections.select(&:primary) %>
+<% more        = sections.reject(&:primary) %>
+<% active_more = more.find(&:active) %>
+<% overview    = sections.first if sections.first.key == :overview %>
+
+<div class="ws ws--<%= ws.key %>">
+  <header class="ws__header">
+    <nav class="ws__crumbs" aria-label="<%= t("workspace.breadcrumb") %>">
+      <ol>
+        <li><%= link_to "WorkPulse", root_path %></li>
+        <li>
+          <% if overview && current == overview && current_page?(overview.path) %>
+            <span aria-current="page"><%= ws.title %></span>
+          <% else %>
+            <%= link_to ws.title, ws.root_path %>
+          <% end %>
+        </li>
+        <% if current && current != overview %>
+          <li>
+            <% if current_page?(current.path) %>
+              <span aria-current="page"><%= current.label %></span>
+            <% else %>
+              <%# Deep page (show/new/edit…) — the section crumb doubles as "back". %>
+              <%= link_to current.label, current.path %>
+            <% end %>
+          </li>
+        <% end %>
+      </ol>
+    </nav>
+
+    <div class="ws__identity">
+      <span class="ws__icon"><%= workspace_icon(ws.icon, size: 20) %></span>
+      <div class="ws__identity-text">
+        <p class="ws__title"><%= ws.title %></p>
+        <p class="ws__subtitle"><%= ws.subtitle %></p>
+      </div>
+    </div>
+  </header>
+
+  <%# ── Tab strip (mobile / tablet / small desktop) ───────────────────── %>
+  <div class="ws__tabbar">
+    <nav class="ws__tabs"
+         aria-label="<%= t("workspace.nav_label", name: ws.title) %>"
+         data-controller="workspace-tabs">
+      <% primary.each do |section| %>
+        <%= link_to section.label, section.path,
+              class: "ws__tab #{'is-active' if section.active}",
+              aria: { current: (section.active ? "page" : nil) } %>
+      <% end %>
+    </nav>
+
+    <% if more.any? %>
+      <div class="ws__more" data-controller="dropdown">
+        <button type="button"
+                class="ws__tab ws__more-btn <%= 'is-active' if active_more %>"
+                data-action="click->dropdown#toggle"
+                data-dropdown-target="button"
+                aria-haspopup="true"
+                aria-expanded="false">
+          <span class="ws__more-label"><%= active_more ? active_more.label : t("workspace.more") %></span>
+          <svg class="ws__more-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="ws__more-menu" data-dropdown-target="menu" hidden>
+          <% more.each do |section| %>
+            <%= link_to section.path,
+                  class: "ws__more-item #{'is-active' if section.active}",
+                  aria: { current: (section.active ? "page" : nil) } do %>
+              <%= workspace_icon(section.key) %>
+              <span><%= section.label %></span>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="ws__body">
+    <%# ── Rail (wide desktop) ─────────────────────────────────────────── %>
+    <nav class="ws__rail" aria-label="<%= t("workspace.nav_label", name: ws.title) %>">
+      <% sections.group_by(&:group).each do |group, group_sections| %>
+        <% label_key = ws.groups[group] if group %>
+        <div class="ws__rail-group <%= 'ws__rail-group--footer' if group == :settings %>">
+          <% if label_key %>
+            <span class="ws__rail-label"><%= t(label_key) %></span>
+          <% end %>
+          <% group_sections.each do |section| %>
+            <%= link_to section.path,
+                  class: "ws__rail-item #{'is-active' if section.active}",
+                  aria: { current: (section.active ? "page" : nil) } do %>
+              <%= workspace_icon(section.key) %>
+              <span><%= section.label %></span>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </nav>
+
+    <div class="ws__content">
+      <%= yield %>
+    </div>
+  </div>
+</div>

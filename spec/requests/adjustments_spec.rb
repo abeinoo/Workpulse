@@ -704,10 +704,13 @@ RSpec.describe "Adjustments workflow", type: :request do
         expect(response).to have_http_status(:not_found)
       end
 
-      it "sidebar shows the Adjustments section and not the Payroll section" do
+      it "sidebar shows the Adjustments link and not the Payroll link" do
         get adjustments_path
-        expect(response.body).to     include(I18n.t("nav.section_adjustments"))
-        expect(response.body).not_to include(I18n.t("nav.section_payroll"))
+        # Both live in the "Payroll & Employee Affairs" sidebar group; each link
+        # keeps its own permission, so only Adjustments renders here.
+        sidebar_hrefs = Nokogiri::HTML(response.body).css(".sidebar a.sidebar__nav-item").map { |a| a["href"] }
+        expect(sidebar_hrefs).to     include(adjustments_path)
+        expect(sidebar_hrefs).not_to include(payroll_periods_path)
       end
     end
 
@@ -763,10 +766,11 @@ RSpec.describe "Adjustments workflow", type: :request do
         expect(response).to redirect_to(root_path).or(have_http_status(:forbidden))
       end
 
-      it "sidebar shows the Payroll section and not the Adjustments section" do
+      it "sidebar shows the Payroll link and not the Adjustments link" do
         get payroll_periods_path
-        expect(response.body).to     include(I18n.t("nav.section_payroll"))
-        expect(response.body).not_to include(I18n.t("nav.section_adjustments"))
+        sidebar_hrefs = Nokogiri::HTML(response.body).css(".sidebar a.sidebar__nav-item").map { |a| a["href"] }
+        expect(sidebar_hrefs).to     include(payroll_periods_path)
+        expect(sidebar_hrefs).not_to include(adjustments_path)
       end
     end
 
@@ -794,26 +798,29 @@ RSpec.describe "Adjustments workflow", type: :request do
         expect(response).to have_http_status(:ok)
       end
 
-      it "sidebar shows both the Payroll section and the Adjustments section" do
+      # Payroll and Adjustments share the "Payroll & Employee Affairs" sidebar
+      # group; each link keeps its own permission, so assert on the links.
+      def sidebar_hrefs = Nokogiri::HTML(response.body).css(".sidebar a.sidebar__nav-item").map { |a| a["href"] }
+
+      it "sidebar shows both the Payroll link and the Adjustments link" do
         get adjustments_path
-        expect(response.body).to include(I18n.t("nav.section_payroll"))
-        expect(response.body).to include(I18n.t("nav.section_adjustments"))
+        expect(sidebar_hrefs).to include(payroll_periods_path, adjustments_path)
       end
 
       it "revoking view_payroll does not affect Adjustment access" do
         full_role.update!(permissions: %w[view_adjustments manage_adjustments])
         get adjustments_path
         expect(response).to have_http_status(:ok)
-        expect(response.body).not_to include(I18n.t("nav.section_payroll"))
-        expect(response.body).to     include(I18n.t("nav.section_adjustments"))
+        expect(sidebar_hrefs).not_to include(payroll_periods_path)
+        expect(sidebar_hrefs).to     include(adjustments_path)
       end
 
       it "revoking view_adjustments does not affect Payroll access" do
         full_role.update!(permissions: %w[view_payroll])
         get payroll_periods_path
         expect(response).to have_http_status(:ok)
-        expect(response.body).to     include(I18n.t("nav.section_payroll"))
-        expect(response.body).not_to include(I18n.t("nav.section_adjustments"))
+        expect(sidebar_hrefs).to     include(payroll_periods_path)
+        expect(sidebar_hrefs).not_to include(adjustments_path)
       end
     end
   end

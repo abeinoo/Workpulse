@@ -1,4 +1,8 @@
 en:
+  workspace:
+    breadcrumb: "Breadcrumb"
+    nav_label: "%{name} sections"
+    more: "More"
   app_name: "WorkPulse"
   app_tagline: "Employee attendance & HR management"
 
@@ -38,12 +42,14 @@ en:
     section_dashboard: "Dashboard"
     section_workforce: "Workforce"
     section_attendance: "Attendance"
+    section_attendance_shifts: "Attendance & Shifts"
+    section_employees: "Employees"
     section_payroll: "Payroll"
     section_adjustments: "Adjustments"
     section_requests: "Requests"
     section_administration: "Administration"
     section_inventory: "Inventory"
-    inventory_dashboard: "Inventory Dashboard"
+    inventory_dashboard: "Overview"
     inventory_products: "Products"
     inventory_warehouses: "Warehouses"
     inventory_suppliers: "Suppliers"
@@ -54,6 +60,12 @@ en:
     inventory_stock_adjustments: "Stock Adjustments"
     inventory_stock_counts: "Stock Counts"
     inventory_reports: "Reports"
+    inventory_workspace: "Inventory"
+    inventory_movements: "Stock Movements"
+    inventory_settings: "Settings"
+    section_workspaces: "Workspaces"
+    finance_deposit_verification: "Deposit Verification"
+    finance_sales_import: "Sales Import"
     section_performance: "Performance"
     performance_dashboard: "Performance Dashboard"
     performance_observations: "Observations"
@@ -3024,6 +3036,12 @@ en:
     dismiss: "Dismiss"
 
   laundry:
+    workspace:
+      subtitle: "Towel movements, balances and laundry costs"
+      groups:
+        operations: "Operations"
+        monitoring: "Monitoring"
+        settings: "Settings"
     common:
       towel_type: "Towel Type"
       branch: "Branch"
@@ -3492,7 +3510,23 @@ en:
         other: "%{count} negative"
 
   inventory:
+    workspace:
+      subtitle: "Manage your stock and warehouse operations"
+      groups:
+        catalog: "Catalog"
+        purchasing: "Purchasing"
+        operations: "Stock Operations"
+        insights: "Insights"
+    settings:
+      title: "Inventory Settings"
+      subtitle: "Configure how your catalog is organized"
+      categories_desc: "Group products into categories for filtering and reports"
+      brands_desc: "Manage the brands assigned to products"
     dashboard:
+      needs_action: "Need action"
+      pending_approval: "Pending approval"
+      recent_movements: "Latest Stock Movements"
+      view_all: "View all"
       title: "Inventory"
       products: "Products"
       warehouses: "Warehouses"
@@ -4935,6 +4969,14 @@ en:
       in_use: "This profile is linked to existing assignments or template entries and cannot be deleted."
 
   finance:
+    workspace:
+      subtitle: "Expenses, balances, cash and reconciliation"
+      groups:
+        expenses: "Expenses"
+        balances: "Employee Balances"
+        cash: "Cash & Deposits"
+        insights: "Insights"
+        settings: "Settings"
     common:
       status: "Status"
       active: "Active"

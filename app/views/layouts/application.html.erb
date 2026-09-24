@@ -96,7 +96,12 @@
             </div>
           <% end %>
 
-          <%= yield %>
+          <% if current_workspace %>
+            <%# Workspace modules (Inventory, Finance, Laundry): header + contextual nav around the page. %>
+            <%= render layout: "layouts/workspace", locals: { ws: current_workspace } do %><%= yield %><% end %>
+          <% else %>
+            <%= yield %>
+          <% end %>
         </main>
 
         <%# Bottom navigation (mobile) %>

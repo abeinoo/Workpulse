@@ -2,7 +2,7 @@
 
 <div class="admin-page">
   <div class="page-header">
-    <h1 class="page-title"><%= t("inventory.dashboard.title") %></h1>
+    <h1 class="page-title"><%= t("nav.inventory_dashboard") %></h1>
     <div class="flex items-center" style="gap: var(--space-2);">
       <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_stock_receipts) %>
         <%= link_to t("inventory.goods_receipts.new_action"), new_inventory_goods_receipt_path, class: "btn btn-primary btn-sm" %>
@@ -13,24 +13,86 @@
     </div>
   </div>
 
-  <div class="stats-grid" style="margin-bottom: var(--space-6);">
-    <%= link_to inventory_products_path, class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.dashboard.products") %></span>
-      <span class="stat-card__value"><%= @product_count %></span>
+  <%# ── Key figures. Each card is shown only when its list page is accessible;
+        warehouses/suppliers are secondary (hidden on phones — they're in "More"). %>
+  <div class="stats-grid inv-overview__stats">
+    <% if policy(Product).index? %>
+      <%= link_to inventory_products_path, class: "stat-card" do %>
+        <span class="stat-card__label"><%= t("inventory.dashboard.products") %></span>
+        <span class="stat-card__value"><%= @product_count %></span>
+      <% end %>
     <% end %>
-    <%= link_to inventory_warehouses_path, class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.dashboard.warehouses") %></span>
-      <span class="stat-card__value"><%= @warehouse_count %></span>
+    <% if policy(PurchaseRequest).index? %>
+      <%= link_to inventory_purchase_requests_path(needs_action: "1"),
+            class: "stat-card #{'stat-card--accent' if @purchase_requests_needing_action.positive?}" do %>
+        <span class="stat-card__label"><%= t("nav.inventory_purchase_requests") %></span>
+        <span class="stat-card__value"><%= @purchase_requests_needing_action %></span>
+        <span class="stat-card__sub"><%= t("inventory.dashboard.needs_action") %></span>
+      <% end %>
     <% end %>
-    <%= link_to inventory_suppliers_path, class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.dashboard.suppliers") %></span>
-      <span class="stat-card__value"><%= @supplier_count %></span>
+    <% if policy(GoodsReceipt).index? %>
+      <%= link_to inventory_goods_receipts_path(approval_status: "pending_approval"),
+            class: "stat-card #{'stat-card--warning' if @receipts_pending_approval.positive?}" do %>
+        <span class="stat-card__label"><%= t("nav.inventory_goods_receipts") %></span>
+        <span class="stat-card__value"><%= @receipts_pending_approval %></span>
+        <span class="stat-card__sub"><%= t("inventory.dashboard.pending_approval") %></span>
+      <% end %>
     <% end %>
-    <div class="stat-card <%= 'stat-card--warning' if @low_stock_alerts.any? %>">
+    <% if policy(StockIssue).index? %>
+      <%= link_to inventory_stock_issues_path(workflow_status: "pending_approval"),
+            class: "stat-card #{'stat-card--warning' if @issues_pending_approval.positive?}" do %>
+        <span class="stat-card__label"><%= t("nav.inventory_stock_issues") %></span>
+        <span class="stat-card__value"><%= @issues_pending_approval %></span>
+        <span class="stat-card__sub"><%= t("inventory.dashboard.pending_approval") %></span>
+      <% end %>
+    <% end %>
+    <div class="stat-card inv-overview__stat--wide <%= 'stat-card--warning' if @low_stock_alerts.any? %>">
       <span class="stat-card__label"><%= t("inventory.dashboard.stock_value") %></span>
       <span class="stat-card__value"><%= format_currency(@stock_value) %></span>
     </div>
+    <% if policy(Warehouse).index? %>
+      <%= link_to inventory_warehouses_path, class: "stat-card inv-overview__stat--secondary" do %>
+        <span class="stat-card__label"><%= t("inventory.dashboard.warehouses") %></span>
+        <span class="stat-card__value"><%= @warehouse_count %></span>
+      <% end %>
+    <% end %>
+    <% if policy(Supplier).index? %>
+      <%= link_to inventory_suppliers_path, class: "stat-card inv-overview__stat--secondary" do %>
+        <span class="stat-card__label"><%= t("inventory.dashboard.suppliers") %></span>
+        <span class="stat-card__value"><%= @supplier_count %></span>
+      <% end %>
+    <% end %>
   </div>
+
+  <%# ── Latest stock movements (compact, mobile-friendly list) ─────────── %>
+  <section class="card" style="margin-bottom: var(--space-6);">
+    <div class="card__header flex items-center justify-between">
+      <h2 class="card__title" style="margin: 0;"><%= t("inventory.dashboard.recent_movements") %></h2>
+      <%= link_to t("inventory.dashboard.view_all"), inventory_movements_report_path, class: "link" %>
+    </div>
+    <% if @recent_movements.empty? %>
+      <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.dashboard.none_yet") %></p>
+    <% else %>
+      <ul class="inv-movement-list">
+        <% @recent_movements.each do |movement| %>
+          <li class="inv-movement">
+            <span class="inv-movement__dir inv-movement__dir--<%= movement.direction %>" aria-hidden="true">
+              <%= workspace_icon(movement.direction_in? ? :receipts : :issues, size: 14) %>
+            </span>
+            <div class="inv-movement__body">
+              <span class="inv-movement__title"><%= movement.product.name %></span>
+              <span class="inv-movement__meta">
+                <%= t("inventory.movements.reasons.#{movement.reason}") %> · <%= movement.warehouse.name %> · <%= local_date(movement.occurred_on) %>
+              </span>
+            </div>
+            <span class="inv-movement__qty inv-movement__qty--<%= movement.direction %>">
+              <%= movement.direction_in? ? "+" : "−" %><%= movement.quantity.to_i %>
+            </span>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  </section>
 
   <%# ── Low stock alerts / purchasing selection ─────────────────────────── %>
   <%
@@ -235,7 +297,7 @@
     </section>
   <% end %>
 
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5);">
+  <div class="inv-overview__recent">
     <section class="card">
       <div class="card__header"><h2 class="card__title" style="margin: 0;"><%= t("inventory.dashboard.recent_receipts") %></h2></div>
       <div class="table-wrap table-wrap--cards">

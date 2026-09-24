@@ -42,15 +42,11 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
     body
   end
 
-  # The sidebar section-header markup uniquely identifies a sidebar section
+  # The sidebar group-heading markup uniquely identifies a sidebar section
   # (the link text appears in multiple places — quick actions, bottom nav, etc).
+  # Every management-sidebar section is a collapsible group (_sidebar_group).
   def section_header(key)
-    %(sidebar__section-label">#{I18n.t(key)}<)
-  end
-
-  # Inner section toggle is used by the collapsible Administration group.
-  def section_toggle(key)
-    %(sidebar__group-toggle">\n              #{I18n.t(key)})
+    %(sidebar__group-label">#{ERB::Util.html_escape(I18n.t(key))}<)
   end
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -222,10 +218,10 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
 
     it "sidebar shows the employee/self-service view — none of the management section headers" do
       body = sidebar_html(user)
-      expect(body).not_to include(section_header("nav.section_workforce"))
+      expect(body).not_to include(section_header("nav.section_employees"))
       expect(body).not_to include(section_header("nav.section_administration"))
       expect(body).not_to include(section_header("nav.section_payroll"))
-      expect(body).not_to include(section_header("nav.section_attendance"))
+      expect(body).not_to include(section_header("nav.section_attendance_shifts"))
       expect(body).not_to include(section_header("nav.section_requests"))
     end
   end
@@ -293,8 +289,7 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       expect(body).to include(I18n.t("nav.payroll"))
       expect(body).to include(I18n.t("nav.employees"))
       expect(body).to include(section_header("nav.section_requests"))
-      # Administration uses a collapsible <details> group, so test by section_toggle.
-      expect(body).to include(I18n.t("nav.section_administration"))
+      expect(body).to include(section_header("nav.section_administration"))
     end
 
     it "owner can access every gated route" do

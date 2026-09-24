@@ -26,5 +26,17 @@ class Inventory::DashboardController < Inventory::BaseController
     # Recent activity is warehouse-scoped through the policies.
     @recent_receipts = policy_scope(GoodsReceipt).recent.includes(:supplier, :warehouse).limit(5)
     @recent_issues   = policy_scope(StockIssue).recent.includes(:warehouse).limit(5)
+
+    # Workspace overview cards — each count uses the same scope + filter as the
+    # list page its card links to, so the number always matches what opens.
+    @purchase_requests_needing_action = policy_scope(PurchaseRequest).needs_action.count
+    @receipts_pending_approval = policy_scope(GoodsReceipt).for_approval_status("pending_approval").count
+    @issues_pending_approval   = policy_scope(StockIssue).excluding_incomplete_imports
+                                                         .for_status("pending_approval").count
+
+    # Latest ledger entries (newest first) for the compact movements list.
+    movements = business.inventory_movements
+    movements = movements.where(warehouse_id: wh_ids) if wh_ids
+    @recent_movements = movements.includes(:product, :warehouse).order(created_at: :desc, id: :desc).limit(6)
   end
 end
