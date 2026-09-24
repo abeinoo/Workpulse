@@ -46,6 +46,47 @@ class EmployeeObligation < ApplicationRecord
   scope :for_business,   ->(business) { where(business: business) }
   scope :auto_deductible, ->          { where(auto_deduct: true) }
 
+  # ── Index filters ──────────────────────────────────────────────────────────
+  # Read-only query scopes for the admin index. Each is a no-op on a blank or
+  # unknown value, so a stale/tampered query param never errors or leaks.
+
+  # Employee name, employee code or obligation title (case-insensitive).
+  scope :search, ->(term) {
+    if term.present?
+      q = "%#{sanitize_sql_like(term.to_s.strip)}%"
+      joins(:user).where(
+        "employee_obligations.title ILIKE :q OR " \
+        "CONCAT_WS(' ', users.first_name, users.last_name) ILIKE :q OR " \
+        "users.employee_code ILIKE :q", q: q
+      )
+    end
+  }
+  scope :for_employee,   ->(user_id) { where(user_id: user_id) if user_id.present? }
+  scope :of_type,        ->(type)    { where(obligation_type: type) if type.in?(obligation_types.keys) }
+  scope :with_status,    ->(status)  { where(status: status) if status.in?(statuses.keys) }
+
+  # Obligations do not carry a branch — the employee's branch is derived from
+  # their active ShiftAssignment (BranchMembership is the single source).
+  scope :for_branch, ->(branch_id) {
+    where(user_id: BranchMembership.current_member_ids([ branch_id ])) if branch_id.present?
+  }
+
+  # Start period (month granularity) within an inclusive range of dates.
+  scope :starting_on_or_after, ->(date) {
+    where("employee_obligations.start_year * 12 + employee_obligations.start_month >= ?",
+          (date.year * 12) + date.month) if date
+  }
+  scope :starting_on_or_before, ->(date) {
+    where("employee_obligations.start_year * 12 + employee_obligations.start_month <= ?",
+          (date.year * 12) + date.month) if date
+  }
+
+  # Still being collected: a live (active/paused) obligation with a stored
+  # remaining_amount above zero. Cancelled obligations are excluded — their
+  # leftover remaining_amount is no longer owed or deducted.
+  scope :with_outstanding_balance, -> { where(status: %w[active paused]).where("employee_obligations.remaining_amount > 0") }
+  scope :fully_repaid,             -> { where(remaining_amount: 0) }
+
   # Obligations that cover a given payroll period (started on or before, not yet ended).
   scope :covering_period, ->(period) {
     y = period.period_year

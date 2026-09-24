@@ -13562,3 +13562,259 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
 }
 .inv-movement__qty--in  { color: var(--success); }
 .inv-movement__qty--out { color: var(--danger); }
+
+/* ============================================================
+   EMPLOYEE OBLIGATIONS INDEX (admin/employee_obligations)
+   Composes existing primitives: stat-card, search-input-wrap,
+   filter-bar__*, filter-chips, table-wrap--cards, pagination.
+   ============================================================ */
+
+/* ── Summary cards ─────────────────────────────────────────────────────────── */
+.obl-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.obl-summary__card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.obl-summary__card:hover { border-color: var(--accent); }
+.obl-summary__card .stat-card__value {
+  font-size: var(--text-2xl);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.obl-summary__card .stat-card__sub { margin-top: auto; padding-top: var(--space-2); }
+
+@media (max-width: 1023px) {
+  .obl-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Phones: one swipeable row instead of a tall stack above the list. */
+@media (max-width: 640px) {
+  .obl-summary {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    margin-inline: calc(-1 * var(--space-4));
+    padding-inline: var(--space-4);
+    padding-bottom: var(--space-1);
+  }
+  .obl-summary::-webkit-scrollbar { display: none; }
+  .obl-summary__card { flex: 0 0 44%; scroll-snap-align: start; padding: var(--space-3); }
+  .obl-summary__card--money { flex-basis: 62%; }
+  .obl-summary__card .stat-card__value { font-size: var(--text-xl); }
+}
+
+/* ── Search + filters ──────────────────────────────────────────────────────── */
+.obl-filters { margin-bottom: var(--space-4); }
+
+.obl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.obl-toolbar__search { flex: 1 1 auto; min-width: 0; }
+.obl-toolbar__submit,
+.obl-toolbar__filters { height: 44px; flex-shrink: 0; }
+.obl-toolbar__filters { border: 1px solid var(--border); }
+.obl-toolbar__filters.is-active,
+.obl-toolbar__filters[aria-expanded="true"] { border-color: var(--accent); color: var(--text-1); }
+
+.obl-filter-panel {
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.obl-filter-panel[hidden] { display: none; }
+.obl-filter-panel__head { display: none; }
+
+.obl-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-4);
+}
+
+.obl-chips { margin-top: calc(-1 * var(--space-1)); }
+.obl-chips .filter-chip { white-space: normal; }
+
+/* Phones: the panel becomes a bottom sheet over a dimmed page. */
+@media (max-width: 640px) {
+  .obl-toolbar__submit { display: none; }  /* keyboard "search" key submits */
+
+  .obl-filter-panel {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 450;              /* above bottom-nav (200), mobile header (100), PWA banner (400) */
+    margin: 0;
+    max-height: 85dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
+  }
+  .obl-filter-panel__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) 0;
+    margin-bottom: var(--space-2);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .obl-filter-grid { grid-template-columns: 1fr; gap: var(--space-3); }
+  .obl-filter-panel__actions {
+    position: sticky;
+    bottom: calc(-1 * (var(--space-4) + env(safe-area-inset-bottom)));
+    padding-block: var(--space-3);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .obl-filter-panel__actions > * { flex: 1 1 0; justify-content: center; }
+}
+
+/* ── Results bar ───────────────────────────────────────────────────────────── */
+.obl-results-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.obl-results-bar__count { margin: 0; }
+.obl-results-bar__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.obl-results-bar__control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.obl-results-bar__control .filter-bar__select { height: 36px; width: auto; }
+.obl-results-bar__label {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+/* Desktop sorts from the column headers; the selects are the phone fallback. */
+.obl-results-bar__control--sort { display: none; }
+
+/* ── Table ─────────────────────────────────────────────────────────────────── */
+.obl-row { cursor: pointer; }
+.obl-table .obl-num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.obl-table th.obl-num .th-sort-link { justify-content: flex-end; }
+.obl-table .th-sort-link { display: inline-flex; align-items: center; gap: 2px; }
+.obl-table .th-sort-link.is-sorted { color: var(--text-1); }
+.obl-table .th-sort-link.is-sorted::after { color: var(--accent); }
+.obl-table .th-sort-link.is-sorted--asc::after  { content: "↑"; }
+.obl-table .th-sort-link.is-sorted--desc::after { content: "↓"; }
+
+.obl-title {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.obl-remaining {
+  font-weight: 700;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.obl-remaining--zero { font-weight: 500; color: var(--text-3); }
+.obl-remaining__pct {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-weight: 400;
+}
+.obl-mobile-only { display: none; }
+
+.obl-table thead th { white-space: normal; }
+.obl-table .th-sort-link { white-space: normal; }
+.obl-title__type { display: none; }
+
+/* Laptop widths (sidebar open): fold Type under Title and tighten cells so
+   the full table fits without horizontal scrolling. */
+@media (max-width: 1279px) {
+  .obl-table .obl-col-type { display: none; }
+  .obl-title__type {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--text-3);
+  }
+  .obl-remaining__pct { white-space: nowrap; }
+}
+/* Desktop: the page container caps at --container (1100px), so every desktop
+   width needs the tighter cells to fit all nine columns. */
+@media (min-width: 769px) {
+  .obl-table thead th,
+  .obl-table tbody td { padding-inline: var(--space-2); }
+  .obl-table thead th:first-child,
+  .obl-table tbody td:first-child { padding-inline-start: var(--space-4); }
+  .obl-table tbody td.td-actions { padding-inline-end: var(--space-3); }
+  .obl-table td.td-actions .btn { padding-inline: var(--space-2); }
+}
+@media (min-width: 769px) and (max-width: 1279px) {
+  .obl-title { max-width: 90px; }
+  .obl-table .employee-cell > .avatar { display: none; }
+}
+
+@media (max-width: 768px) {
+  .obl-results-bar__control--sort { display: flex; }
+  .obl-results-bar__label { display: none; }
+
+  /* Cards are blocks: stop the (nowrap) title line from inflating the
+     table's intrinsic width past the viewport. */
+  .obl-table table { display: block; }
+  .obl-table tbody tr,
+  .obl-table tbody td { min-width: 0; max-width: 100%; }
+
+  .obl-mobile-only { display: block; }
+  .obl-desktop-only,
+  .obl-table tbody td.obl-desktop-cell { display: none; }
+
+  /* Card header: employee on the start side, remaining balance on the end. */
+  .obl-table tbody td.obl-cell-employee {
+    align-items: flex-start;
+    padding-bottom: var(--space-3);
+  }
+  .obl-table tbody td.obl-cell-employee::before { display: none; }
+  .obl-table .employee-cell { min-width: 0; }
+  .obl-table .employee-cell__info { min-width: 0; }
+  .obl-table .employee-cell__sub.obl-mobile-only {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .obl-cell-employee__remaining { flex-shrink: 0; text-align: end; }
+  .obl-cell-employee__remaining .obl-remaining { display: block; font-size: var(--text-base); }
+  .obl-remaining__label { font-size: var(--text-xs); color: var(--text-3); }
+  .obl-table tbody td.obl-num { text-align: end; }
+}
+
+@media (max-width: 480px) {
+  .obl-results-bar { align-items: stretch; }
+  .obl-results-bar__controls { width: 100%; }
+  .obl-results-bar__control { flex: 1 1 0; min-width: 0; }
+  .obl-results-bar__control .filter-bar__select { width: 100%; }
+}

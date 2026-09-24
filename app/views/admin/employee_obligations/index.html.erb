@@ -1,84 +1,333 @@
 <% content_for :title, t("admin.employee_obligations.index.page_title") %>
+<%
+  scope_t = "admin.employee_obligations.index"
+  # Everything that defines the current list view — filters plus non-default
+  # sort/page size — so every link on the page keeps it in the URL.
+  list_params = @filters.merge(sort: @sort, dir: (@dir if @sort), per: (@per_page if @per_page != Admin::EmployeeObligationsController::PER_PAGE_OPTIONS.first)).compact
+  list_path   = ->(overrides = {}) { admin_employee_obligations_path(list_params.merge(overrides).compact) }
+  panel_filter_count = @filters.except(:q).size
+  can_create  = policy(EmployeeObligation).create?
+  month_label = ->(year, month) { "#{t("date.month_names")[month]} #{year}" }
+  month_value = ->(year, month) { format("%04d-%02d", year, month) }
+  month_text  = ->(value) {
+    y, m = value.to_s.split("-").map(&:to_i)
+    (1..12).cover?(m) ? month_label.call(y, m) : value
+  }
+%>
 
 <div class="admin-page">
 
   <div class="page-header">
-    <h1 class="page-title"><%= t("admin.employee_obligations.index.title") %></h1>
-    <%= link_to new_admin_employee_obligation_path, class: "btn btn-primary" do %>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <%= t("admin.employee_obligations.index.add") %>
-    <% end %>
-  </div>
-
-  <%# Filters %>
-  <div class="filters-bar">
-    <%= form_with url: admin_employee_obligations_path, method: :get, local: true, class: "filters-form" do |f| %>
-      <%= f.select :status,
-            [["", ""]] + EmployeeObligation::STATUSES.map { |s| [t("admin.employee_obligations.statuses.#{s}"), s] },
-            { selected: params[:status] },
-            class: "form-control form-control--sm" %>
-      <%= f.submit t("forms.filter"), class: "btn btn-secondary btn-sm" %>
-      <% if params[:status].present? %>
-        <%= link_to t("forms.clear"), admin_employee_obligations_path, class: "btn btn-ghost btn-sm" %>
+    <h1 class="page-title"><%= t("#{scope_t}.title") %></h1>
+    <% if can_create %>
+      <%= link_to new_admin_employee_obligation_path, class: "btn btn-primary" do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <%= t("#{scope_t}.add") %>
       <% end %>
     <% end %>
   </div>
 
-  <% if @obligations.any? %>
-    <div class="table-wrap table-wrap--cards">
-      <table>
-        <thead>
-          <tr>
-            <th><%= t("admin.employee_obligations.employee") %></th>
-            <th><%= t("admin.employee_obligations.type") %></th>
-            <th><%= t("admin.employee_obligations.title_col") %></th>
-            <th><%= t("admin.employee_obligations.total") %></th>
-            <th><%= t("admin.employee_obligations.remaining") %></th>
-            <th><%= t("admin.employee_obligations.installment") %></th>
-            <th><%= t("admin.employee_obligations.status_col") %></th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @obligations.each do |obligation| %>
-            <tr>
-              <td>
-                <div class="employee-cell">
-                  <%= user_avatar_tag(obligation.user, size: :thumb) %>
-                  <div>
-                    <div class="employee-cell__name"><%= obligation.user.full_name %></div>
-                    <div class="employee-cell__sub"><%= t("admin.employee_obligations.start_period") %>: <%= obligation.start_label %></div>
-                  </div>
-                </div>
-              </td>
-              <td class="td-secondary"><%= t("admin.employee_obligations.obligation_types.#{obligation.obligation_type}") %></td>
-              <td><%= obligation.title %></td>
-              <td class="td-secondary"><%= number_with_precision(obligation.total_amount, precision: 2) %></td>
-              <td>
-                <span class="<%= obligation.remaining_amount.to_f > 0 ? 'text-warning' : 'text-success' %>">
-                  <%= number_with_precision(obligation.remaining_amount, precision: 2) %>
-                </span>
-              </td>
-              <td class="td-secondary"><%= number_with_precision(obligation.installment_amount, precision: 2) %></td>
-              <td>
-                <span class="badge <%= obligation_status_badge(obligation.status) %>">
-                  <%= t("admin.employee_obligations.statuses.#{obligation.status}") %>
-                </span>
-              </td>
-              <td>
-                <div class="td-actions">
-                  <%= link_to t("forms.view"), admin_employee_obligation_path(obligation), class: "btn btn-ghost btn-sm" %>
-                </div>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
+  <% unless @any_obligations %>
+    <%# ── No data at all (distinct from "no results for these filters") ───── %>
+    <div class="empty-state">
+      <div class="empty-state__icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      </div>
+      <p class="empty-state__title"><%= t("#{scope_t}.empty_title") %></p>
+      <p class="empty-state__text"><%= t("#{scope_t}.empty_text") %></p>
+      <% if can_create %>
+        <%= link_to "+ #{t("#{scope_t}.add")}", new_admin_employee_obligation_path, class: "btn btn-primary" %>
+      <% end %>
     </div>
   <% else %>
-    <div class="empty-state">
-      <p class="empty-state__title"><%= t("admin.employee_obligations.index.none") %></p>
+
+    <%# ── Summary of the current filtered result set. Each card narrows the
+          current filters further (status / balance), keeping sort + page size. ── %>
+    <div class="obl-summary">
+      <%= link_to list_path.call(status: nil, balance: nil),
+            class: "stat-card obl-summary__card #{'stat-card--accent' if @filters[:status].blank? && @filters[:balance].blank?}" do %>
+        <span class="stat-card__label"><%= t("#{scope_t}.summary.total") %></span>
+        <span class="stat-card__value"><%= @summary[:total] %></span>
+        <span class="stat-card__sub"><%= t(@filters.any? ? "#{scope_t}.summary.filtered" : "#{scope_t}.summary.all_statuses") %></span>
+      <% end %>
+      <%= link_to list_path.call(status: "active"),
+            class: "stat-card obl-summary__card #{'stat-card--accent' if @filters[:status] == 'active'}" do %>
+        <span class="stat-card__label"><%= t("#{scope_t}.summary.active") %></span>
+        <span class="stat-card__value"><%= @summary[:active] %></span>
+        <span class="stat-card__sub"><span class="badge badge-success"><%= t("admin.employee_obligations.statuses.active") %></span></span>
+      <% end %>
+      <%= link_to list_path.call(status: "completed"),
+            class: "stat-card obl-summary__card #{'stat-card--accent' if @filters[:status] == 'completed'}" do %>
+        <span class="stat-card__label"><%= t("#{scope_t}.summary.completed") %></span>
+        <span class="stat-card__value"><%= @summary[:completed] %></span>
+        <span class="stat-card__sub"><span class="badge badge-accent"><%= t("admin.employee_obligations.statuses.completed") %></span></span>
+      <% end %>
+      <%= link_to list_path.call(balance: "outstanding"),
+            class: "stat-card obl-summary__card obl-summary__card--money #{'stat-card--accent' if @filters[:balance] == 'outstanding'}" do %>
+        <span class="stat-card__label"><%= t("#{scope_t}.summary.outstanding_total") %></span>
+        <span class="stat-card__value"><%= format_currency(@summary[:outstanding_total]) %></span>
+        <span class="stat-card__sub"><%= t("#{scope_t}.summary.outstanding_sub", count: @summary[:outstanding_count]) %></span>
+      <% end %>
     </div>
+
+    <%# ── Search + filter panel (one GET form → state lives in the URL) ───── %>
+    <%= form_with url: admin_employee_obligations_path, method: :get, local: true,
+          class: "obl-filters", data: { controller: "collapsible" } do |f| %>
+      <%= hidden_field_tag :sort, @sort if @sort %>
+      <%= hidden_field_tag :dir,  @dir  if @sort %>
+      <%= hidden_field_tag :per,  list_params[:per] if list_params[:per] %>
+
+      <div class="obl-toolbar">
+        <div class="search-input-wrap obl-toolbar__search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-input-wrap__icon" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <%= f.label :q, t("#{scope_t}.search_label"), class: "sr-only" %>
+          <%= f.search_field :q, value: @filters[:q],
+                placeholder: t("#{scope_t}.search_placeholder"),
+                enterkeyhint: "search", autocomplete: "off",
+                class: "filter-bar__input search-input-wrap__input" %>
+        </div>
+        <%= f.button t("#{scope_t}.search_submit"), type: "submit", name: nil, class: "btn btn-secondary obl-toolbar__submit" %>
+        <button type="button" class="btn btn-ghost obl-toolbar__filters <%= 'is-active' if panel_filter_count.positive? %>"
+                aria-controls="obl-filter-panel" aria-expanded="false"
+                data-collapsible-target="trigger" data-action="click->collapsible#toggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <%= t("#{scope_t}.filters") %>
+          <% if panel_filter_count.positive? %>
+            <span class="attn-filter-count"><%= panel_filter_count %></span>
+          <% end %>
+        </button>
+      </div>
+
+      <div id="obl-filter-panel" class="obl-filter-panel" data-collapsible-target="content" hidden
+           role="region" aria-label="<%= t("#{scope_t}.filters") %>">
+        <div class="obl-filter-panel__head">
+          <span class="adj-filter-header__title"><%= t("#{scope_t}.filters") %></span>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="click->collapsible#toggle"
+                  aria-label="<%= t("#{scope_t}.close") %>">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="obl-filter-grid">
+          <div class="filter-bar__field" data-controller="searchable-select">
+            <%= f.label :user_id, t("admin.employee_obligations.employee"), class: "filter-bar__label" %>
+            <%= f.select :user_id,
+                  options_from_collection_for_select(@filter_employees, :id, :full_name, @filters[:user_id]),
+                  { include_blank: t("#{scope_t}.all_employees") },
+                  class: "filter-bar__select",
+                  data: { searchable_select_target: "select", search_placeholder: t("#{scope_t}.search_employee") } %>
+          </div>
+
+          <% if @filter_branches.any? %>
+            <div class="filter-bar__field">
+              <%= f.label :branch_id, t("#{scope_t}.branch"), class: "filter-bar__label" %>
+              <%= f.select :branch_id,
+                    options_from_collection_for_select(@filter_branches, :id, :name, @filters[:branch_id]),
+                    { include_blank: t("#{scope_t}.all_branches") }, class: "filter-bar__select" %>
+            </div>
+          <% end %>
+
+          <div class="filter-bar__field">
+            <%= f.label :obligation_type, t("admin.employee_obligations.type"), class: "filter-bar__label" %>
+            <%= f.select :obligation_type,
+                  options_for_select(EmployeeObligation::OBLIGATION_TYPES.map { |ty| [ t("admin.employee_obligations.obligation_types.#{ty}"), ty ] }, @filters[:obligation_type]),
+                  { include_blank: t("#{scope_t}.all_types") }, class: "filter-bar__select" %>
+          </div>
+
+          <div class="filter-bar__field">
+            <%= f.label :status, t("admin.employee_obligations.status_col"), class: "filter-bar__label" %>
+            <%= f.select :status,
+                  options_for_select(EmployeeObligation::STATUSES.map { |s| [ t("admin.employee_obligations.statuses.#{s}"), s ] }, @filters[:status]),
+                  { include_blank: t("#{scope_t}.all_statuses") }, class: "filter-bar__select" %>
+          </div>
+
+          <div class="filter-bar__field">
+            <%= f.label :start_from, t("#{scope_t}.start_from"), class: "filter-bar__label" %>
+            <%= f.select :start_from,
+                  options_for_select(@filter_months.map { |y, m| [ month_label.call(y, m), month_value.call(y, m) ] }, @filters[:start_from]),
+                  { include_blank: t("#{scope_t}.any_month") }, class: "filter-bar__select" %>
+          </div>
+
+          <div class="filter-bar__field">
+            <%= f.label :start_to, t("#{scope_t}.start_to"), class: "filter-bar__label" %>
+            <%= f.select :start_to,
+                  options_for_select(@filter_months.map { |y, m| [ month_label.call(y, m), month_value.call(y, m) ] }, @filters[:start_to]),
+                  { include_blank: t("#{scope_t}.any_month") }, class: "filter-bar__select" %>
+          </div>
+
+          <div class="filter-bar__field">
+            <%= f.label :balance, t("#{scope_t}.balance"), class: "filter-bar__label" %>
+            <%= f.select :balance,
+                  options_for_select(
+                    [ [ t("#{scope_t}.balance_options.all"), "" ] ] +
+                      Admin::EmployeeObligationsController::BALANCE_FILTERS.map { |b| [ t("#{scope_t}.balance_options.#{b}"), b ] },
+                    @filters[:balance]),
+                  {}, class: "filter-bar__select" %>
+          </div>
+        </div>
+
+        <div class="adj-filter-actions obl-filter-panel__actions">
+          <%= f.button t("#{scope_t}.apply"), type: "submit", name: nil, class: "btn btn-primary btn-sm" %>
+          <%= link_to t("#{scope_t}.reset"), admin_employee_obligations_path, class: "btn btn-ghost btn-sm" %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# ── Active filter chips ──────────────────────────────────────────────── %>
+    <% if @filters.any? %>
+      <%
+        chips = @filters.map do |key, value|
+          label = case key
+                  when :q               then "#{t("#{scope_t}.search_label")}: #{value}"
+                  when :user_id         then "#{t("admin.employee_obligations.employee")}: #{@filter_employees.find { |u| u.id.to_s == value }&.full_name || value}"
+                  when :branch_id       then "#{t("#{scope_t}.branch")}: #{@filter_branches.find { |b| b.id.to_s == value }&.name || value}"
+                  when :obligation_type then "#{t("admin.employee_obligations.type")}: #{t("admin.employee_obligations.obligation_types.#{value}", default: value)}"
+                  when :status          then "#{t("admin.employee_obligations.status_col")}: #{t("admin.employee_obligations.statuses.#{value}", default: value)}"
+                  when :start_from      then "#{t("#{scope_t}.start_from")}: #{month_text.call(value)}"
+                  when :start_to        then "#{t("#{scope_t}.start_to")}: #{month_text.call(value)}"
+                  when :balance         then "#{t("#{scope_t}.balance")}: #{t("#{scope_t}.balance_options.#{value}")}"
+                  end
+          [ key, label ]
+        end
+      %>
+      <div class="filter-chips obl-chips" aria-label="<%= t("#{scope_t}.filters") %>">
+        <% chips.each do |key, text| %>
+          <span class="filter-chip">
+            <bdi><%= text %></bdi>
+            <%= link_to "×", admin_employee_obligations_path(list_params.except(key)),
+                  class: "filter-chip__remove",
+                  "aria-label": t("#{scope_t}.remove_filter", filter: text) %>
+          </span>
+        <% end %>
+        <%= link_to t("#{scope_t}.reset"), admin_employee_obligations_path, class: "filter-chip filter-chip--clear" %>
+      </div>
+    <% end %>
+
+    <% if @obligations.empty? %>
+      <%# ── Filters/search matched nothing ────────────────────────────────── %>
+      <div class="empty-state">
+        <p class="empty-state__title"><%= t("#{scope_t}.no_results_title") %></p>
+        <p class="empty-state__text"><%= t("#{scope_t}.no_results_text") %></p>
+        <%= link_to t("#{scope_t}.reset"), admin_employee_obligations_path, class: "btn btn-secondary" %>
+      </div>
+    <% else %>
+
+      <%# ── Results meta: count, (mobile) sort, page size ─────────────────── %>
+      <%= form_with url: admin_employee_obligations_path, method: :get, local: true, class: "obl-results-bar" do |f| %>
+        <% @filters.each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+        <p class="table-meta obl-results-bar__count">
+          <%= t("#{scope_t}.results_count",
+                from:  ((@page - 1) * @per_page) + 1,
+                to:    [ @page * @per_page, @total_count ].min,
+                total: @total_count) %>
+        </p>
+        <div class="obl-results-bar__controls">
+          <label class="obl-results-bar__control obl-results-bar__control--sort">
+            <span class="sr-only"><%= t("#{scope_t}.sort_by") %></span>
+            <%= select_tag :sort,
+                  options_for_select(
+                    [ [ t("#{scope_t}.sort_default"), "" ] ] +
+                      Admin::EmployeeObligationsController::SORTS.keys.map { |k| [ t("#{scope_t}.sort_options.#{k}"), k ] },
+                    @sort),
+                  class: "filter-bar__select", "aria-label": t("#{scope_t}.sort_by"),
+                  data: { controller: "auto-submit", action: "change->auto-submit#submit" } %>
+          </label>
+          <label class="obl-results-bar__control obl-results-bar__control--sort">
+            <%= select_tag :dir,
+                  options_for_select([ [ t("#{scope_t}.dir_desc"), "desc" ], [ t("#{scope_t}.dir_asc"), "asc" ] ], @dir),
+                  class: "filter-bar__select", "aria-label": t("#{scope_t}.sort_by"),
+                  disabled: @sort.nil?,
+                  data: { controller: "auto-submit", action: "change->auto-submit#submit" } %>
+          </label>
+          <label class="obl-results-bar__control">
+            <span class="obl-results-bar__label"><%= t("#{scope_t}.per_page") %></span>
+            <%= select_tag :per,
+                  options_for_select(Admin::EmployeeObligationsController::PER_PAGE_OPTIONS, @per_page),
+                  class: "filter-bar__select obl-results-bar__per", "aria-label": t("#{scope_t}.per_page"),
+                  data: { controller: "auto-submit", action: "change->auto-submit#submit" } %>
+          </label>
+        </div>
+      <% end %>
+
+      <%
+        # Sortable header: first click on amounts sorts high→low; text columns A→Z.
+        sort_header = ->(col, label) {
+          active   = @sort == col
+          default  = %w[employee status start].include?(col) ? "asc" : "desc"
+          next_dir = active ? (@dir == "asc" ? "desc" : "asc") : default
+          # The arrow is drawn in CSS so th.textContent (used for mobile card labels) stays clean.
+          link_to label, list_path.call(sort: col, dir: next_dir, page: nil),
+                  class: "th-sort-link #{"is-sorted is-sorted--#{@dir}" if active}"
+        }
+        aria_sort = ->(col) { @sort == col ? (@dir == "asc" ? "ascending" : "descending") : nil }
+      %>
+
+      <div class="table-wrap table-wrap--cards obl-table">
+        <table>
+          <thead>
+            <tr>
+              <th aria-sort="<%= aria_sort.call("employee") %>"><%= sort_header.call("employee", t("admin.employee_obligations.employee")) %></th>
+              <th class="obl-col-type"><%= t("admin.employee_obligations.type") %></th>
+              <th><%= t("admin.employee_obligations.title_col") %></th>
+              <th class="obl-num" aria-sort="<%= aria_sort.call("total") %>"><%= sort_header.call("total", t("admin.employee_obligations.total")) %></th>
+              <th class="obl-num" aria-sort="<%= aria_sort.call("remaining") %>"><%= sort_header.call("remaining", t("admin.employee_obligations.remaining")) %></th>
+              <th class="obl-num" aria-sort="<%= aria_sort.call("installment") %>"><%= sort_header.call("installment", t("admin.employee_obligations.installment")) %></th>
+              <th aria-sort="<%= aria_sort.call("start") %>"><%= sort_header.call("start", t("admin.employee_obligations.start_period")) %></th>
+              <th aria-sort="<%= aria_sort.call("status") %>"><%= sort_header.call("status", t("admin.employee_obligations.status_col")) %></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @obligations.each do |obligation| %>
+              <% type_label = t("admin.employee_obligations.obligation_types.#{obligation.obligation_type}") %>
+              <tr class="obl-row" data-controller="clickable-row" data-action="click->clickable-row#navigate"
+                  data-clickable-row-url-value="<%= admin_employee_obligation_path(obligation) %>">
+                <td class="obl-cell-employee">
+                  <div class="employee-cell">
+                    <%= user_avatar_tag(obligation.user, size: :thumb) %>
+                    <div class="employee-cell__info">
+                      <div class="employee-cell__name"><%= obligation.user.full_name %></div>
+                      <% if obligation.user.employee_code.present? %>
+                        <div class="employee-cell__sub obl-desktop-only">#<%= obligation.user.employee_code %></div>
+                      <% end %>
+                      <div class="employee-cell__sub obl-mobile-only"><%= type_label %> · <%= obligation.title %></div>
+                    </div>
+                  </div>
+                  <span class="obl-cell-employee__remaining obl-mobile-only">
+                    <span class="obl-remaining <%= 'obl-remaining--zero' if obligation.remaining_amount.zero? %>"><%= format_currency(obligation.remaining_amount) %></span>
+                    <span class="obl-remaining__label"><%= t("admin.employee_obligations.remaining") %></span>
+                  </span>
+                </td>
+                <td class="td-secondary obl-desktop-cell obl-col-type"><%= type_label %></td>
+                <td class="obl-desktop-cell">
+                  <span class="obl-title" title="<%= obligation.title %>"><%= obligation.title %></span>
+                  <span class="obl-title__type"><%= type_label %></span>
+                </td>
+                <td class="td-secondary obl-num"><%= format_currency(obligation.total_amount) %></td>
+                <td class="obl-num obl-desktop-cell">
+                  <span class="obl-remaining <%= 'obl-remaining--zero' if obligation.remaining_amount.zero? %>"><%= format_currency(obligation.remaining_amount) %></span>
+                  <span class="obl-remaining__pct"><%= obligation.percent_repaid %>% <%= t("admin.employee_obligations.repaid") %></span>
+                </td>
+                <td class="td-secondary obl-num"><%= format_currency(obligation.installment_amount) %></td>
+                <td class="td-secondary"><%= obligation.start_label %></td>
+                <td>
+                  <span class="badge <%= obligation_status_badge(obligation.status) %>">
+                    <%= t("admin.employee_obligations.statuses.#{obligation.status}") %>
+                  </span>
+                </td>
+                <td class="td-actions">
+                  <%= link_to t("forms.view"), admin_employee_obligation_path(obligation), class: "btn btn-ghost btn-sm" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <%= render "shared/pagination",
+            page: @page, total_pages: @total_pages,
+            path_proc: ->(p) { list_path.call(page: (p if p > 1)) } %>
+    <% end %>
   <% end %>
 
 </div>
