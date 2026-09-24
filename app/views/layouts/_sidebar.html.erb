@@ -13,8 +13,9 @@
       <%# Main sidebar — collapsible groups in workflow order (sidebar_group).
           A group renders only when at least one of its links is visible to the
           user; each link keeps its own permission check and is-active condition.
-          Finance / Inventory / Laundry are workspaces: one entry each here, their
-          pages live in the workspace's own navigation (WorkspaceHelper). %>
+          Finance / Inventory / Laundry, Attendance & Shifts and Performance are
+          workspaces: one entry each here, their pages live in the workspace's
+          own navigation (WorkspaceHelper). %>
 
       <%# ── 1. HOME ─────────────────────────────────────────────────────── %>
       <% home_active = current_page?(root_path) || controller_name == "operations_dashboard" %>
@@ -38,31 +39,32 @@
         <% end %>
       <% end %>
 
-      <%# ── 2. EMPLOYEES (people, branches, employee obligations) ────────── %>
+      <%# ── 2. EMPLOYEES (people + payroll + requests, then the employee
+          workspaces: Attendance & Shifts and Performance) ─────────────── %>
       <% show_employees   = current_user.can?(:view_employees) %>
-      <% show_branches    = current_user.can?(:manage_branches) %>
       <% show_obligations = current_user.can?(:manage_obligations) %>
-      <% if show_employees || show_branches || show_obligations %>
-        <% employees_active = request.path.start_with?("/admin/users") || request.path.start_with?("/admin/branches") ||
-                              request.path.start_with?("/admin/employee_obligations") %>
+      <% show_payroll     = current_user.can?(:view_payroll) %>
+      <% show_adjustments = current_user.can?(:view_adjustments) || current_user.can?(:manage_adjustments) || current_user.can?(:approve_adjustments) %>
+      <% show_requests    = current_user.can?(:approve_requests) || current_user.can?(:view_requests) %>
+      <% payroll_active   = controller_name.in?(%w[payroll_periods payroll_entries payroll_adjustments payroll_line_items]) %>
+      <% requests_active  = controller_name == "employee_requests" && !request.path.start_with?("/admin") %>
+      <%# One entry each, linking to the first section the user can open; hidden
+          when there is none (WorkspaceHelper). %>
+      <% employee_workspaces = WorkspaceHelper::EMPLOYEE_WORKSPACE_KEYS.filter_map { |key| workspace(key) } %>
+      <% employee_links = [ show_employees, show_obligations, show_payroll, show_adjustments, show_requests ].count(true) %>
+      <% if employee_links.positive? || employee_workspaces.any? %>
+        <% employees_active = request.path.start_with?("/admin/users") || request.path.start_with?("/admin/employee_obligations") ||
+                              payroll_active || controller_name == "adjustments" || requests_active ||
+                              employee_workspaces.any? { |ws| ws.key == current_workspace&.key } %>
         <%= render layout: "layouts/sidebar_group",
               locals: { key: "employees", label: t("nav.section_employees"), active: employees_active, default_open: true,
-                        items: [ show_employees, show_branches, show_obligations ].count(true) } do %>
+                        items: employee_links + employee_workspaces.size } do %>
           <% if show_employees %>
             <%= link_to admin_users_path,
                   class: "sidebar__nav-item #{request.path.start_with?('/admin/users') ? 'is-active' : ''}",
                   data: { action: "click->sidebar#close" } do %>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <%= t("nav.employees") %>
-            <% end %>
-          <% end %>
-
-          <% if show_branches %>
-            <%= link_to admin_branches_path,
-                  class: "sidebar__nav-item #{request.path.start_with?('/admin/branches') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-              <%= t("nav.branches") %>
             <% end %>
           <% end %>
 
@@ -74,83 +76,10 @@
               <%= t("nav.employee_obligations") %>
             <% end %>
           <% end %>
-        <% end %>
-      <% end %>
 
-      <%# ── 3. ATTENDANCE & SHIFTS (shifts + scheduling + attendance records) %>
-      <% show_shift_types    = current_user.can?(:manage_shifts) %>
-      <% show_shift_assign   = current_user.can?(:assign_shifts) %>
-      <% show_attendance_rec = current_user.can?(:view_attendance) %>
-      <% show_punch_logs     = current_user.can?(:manage_devices) %>
-      <% if show_shift_types || show_shift_assign || show_attendance_rec || show_punch_logs %>
-        <% attendance_active =
-             request.path.start_with?("/admin/shifts") ||
-             controller_name.in?(%w[shift_assignments shift_rule_profiles]) ||
-             (controller_name == "attendance_records" && !request.path.start_with?("/admin")) ||
-             request.path.start_with?("/admin/biometric_punch_logs") %>
-        <%= render layout: "layouts/sidebar_group",
-              locals: { key: "attendance", label: t("nav.section_attendance_shifts"), active: attendance_active, default_open: true,
-                      items: [ show_shift_types, show_shift_assign, show_shift_types, show_attendance_rec, show_punch_logs ].count(true) } do %>
-          <% if show_shift_types %>
-            <%= link_to admin_shifts_path,
-                  class: "sidebar__nav-item #{request.path.start_with?('/admin/shifts') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              <%= t("nav.shift_types") %>
-            <% end %>
-          <% end %>
-
-          <% if show_shift_assign %>
-            <%= link_to shift_assignments_path,
-                  class: "sidebar__nav-item #{controller_name == 'shift_assignments' ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
-              <%= t("nav.shift_assignments") %>
-            <% end %>
-          <% end %>
-
-          <% if show_shift_types %>
-            <%= link_to admin_shift_rule_profiles_path,
-                  class: "sidebar__nav-item #{controller_name == 'shift_rule_profiles' ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-              <%= t("nav.shift_rule_profiles") %>
-            <% end %>
-          <% end %>
-
-          <% if show_attendance_rec %>
-            <%= link_to attendance_records_path,
-                  class: "sidebar__nav-item #{controller_name == 'attendance_records' && !request.path.start_with?('/admin') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 01-2 2H5a2 2 01-2-2V5a2 2 012-2h11"/></svg>
-              <%= t("nav.attendance_logs") %>
-            <% end %>
-          <% end %>
-
-          <% if show_punch_logs %>
-            <%= link_to admin_biometric_punch_logs_path,
-                  class: "sidebar__nav-item #{request.path.start_with?('/admin/biometric_punch_logs') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              <%= t("nav.punch_logs") %>
-            <% end %>
-          <% end %>
-        <% end %>
-      <% end %>
-
-      <%# ── 4. PAYROLL (payroll + adjustments) ───────────────────────────── %>
-      <% show_payroll     = current_user.can?(:view_payroll) %>
-      <% show_adjustments = current_user.can?(:view_adjustments) || current_user.can?(:manage_adjustments) || current_user.can?(:approve_adjustments) %>
-      <% if show_payroll || show_adjustments %>
-        <% payroll_active =
-             controller_name.in?(%w[payroll_periods payroll_entries payroll_adjustments payroll_line_items]) ||
-             controller_name == "adjustments" %>
-        <%= render layout: "layouts/sidebar_group",
-              locals: { key: "payroll", label: t("nav.section_payroll"), active: payroll_active,
-                        default_open: true, items: [ show_payroll, show_adjustments ].count(true) } do %>
           <% if show_payroll %>
             <%= link_to payroll_periods_path,
-                  class: "sidebar__nav-item #{controller_name.in?(%w[payroll_periods payroll_entries payroll_adjustments payroll_line_items]) ? 'is-active' : ''}",
+                  class: "sidebar__nav-item #{payroll_active ? 'is-active' : ''}",
                   data: { action: "click->sidebar#close" } do %>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
               <%= t("nav.payroll") %>
@@ -165,36 +94,35 @@
               <%= t("nav.adjustments") %>
             <% end %>
           <% end %>
-        <% end %>
-      <% end %>
 
-      <%# ── 5. REQUESTS ──────────────────────────────────────────────────── %>
-      <% if current_user.can?(:approve_requests) || current_user.can?(:view_requests) %>
-        <% requests_active = controller_name == "employee_requests" && !request.path.start_with?("/admin") %>
-        <%= render layout: "layouts/sidebar_group",
-              locals: { key: "requests", label: t("nav.section_requests"), active: requests_active, default_open: true, items: 1 } do %>
-          <%= link_to employee_requests_path,
-                class: "sidebar__nav-item #{controller_name == 'employee_requests' && !request.path.start_with?('/admin') ? 'is-active' : ''}",
-                data: { action: "click->sidebar#close" } do %>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            <%= t("nav.requests") %>
+          <% if show_requests %>
+            <%= link_to employee_requests_path,
+                  class: "sidebar__nav-item #{requests_active ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <%= t("nav.requests") %>
+            <% end %>
+          <% end %>
+
+          <% employee_workspaces.each_with_index do |ws, i| %>
+            <%= render "layouts/sidebar_workspace_entry", ws: ws, first: i.zero? && employee_links.positive? %>
           <% end %>
         <% end %>
       <% end %>
 
-      <%# ── 6. WORKSPACES ────────────────────────────────────────────────── %>
+      <%# ── 3. WORKSPACES ────────────────────────────────────────────────── %>
       <%# One entry per workspace module, linking to the first section the user
           can open (hidden when there is none). The active entry marks the current
           workspace; its detailed navigation lives inside the workspace. %>
-      <% sidebar_workspaces = WorkspaceHelper::WORKSPACE_KEYS.filter_map { |key| workspace(key) } %>
+      <% sidebar_workspaces = WorkspaceHelper::GENERAL_WORKSPACE_KEYS.filter_map { |key| workspace(key) } %>
       <% if sidebar_workspaces.any? %>
-        <% workspaces_active = sidebar_workspaces.any? { |ws| controller_path.start_with?("#{ws.key}/") } %>
+        <% workspaces_active = sidebar_workspaces.any? { |ws| ws.key == current_workspace&.key } %>
         <%= render layout: "layouts/sidebar_group",
               locals: { key: "workspaces", label: t("nav.section_workspaces"), active: workspaces_active, default_open: true,
                       items: sidebar_workspaces.size } do %>
           <% sidebar_workspaces.each do |ws| %>
             <%= link_to ws.root_path,
-                  class: "sidebar__nav-item #{controller_path.start_with?("#{ws.key}/") ? 'is-active' : ''}",
+                  class: "sidebar__nav-item #{ws.key == current_workspace&.key ? 'is-active' : ''}",
                   data: { action: "click->sidebar#close" } do %>
               <%= workspace_icon(ws.icon) %>
               <%= ws.title %>
@@ -203,69 +131,27 @@
         <% end %>
       <% end %>
 
-      <%# ── 7. PERFORMANCE ───────────────────────────────────────────────── %>
-      <% show_perf_dashboard    = current_user.can?(:view_performance_dashboard) %>
-      <% show_perf_observations = current_user.can?(:view_notes) || current_user.can?(:create_observations) %>
-      <% show_perf_reviews      = current_user.can?(:view_monthly_reviews) || current_user.can?(:manage_reviews) || current_user.can?(:finalize_reviews) %>
-      <% show_perf_reports      = current_user.can?(:view_performance_reports) %>
-      <% if show_perf_dashboard || show_perf_observations || show_perf_reviews || show_perf_reports %>
-        <% performance_active =
-             (controller_name == "dashboard" && controller_path.start_with?("performance")) ||
-             controller_name == "observations" ||
-             (controller_name == "reviews" && controller_path.start_with?("performance")) ||
-             (controller_name == "reports" && controller_path.start_with?("performance")) %>
-        <%= render layout: "layouts/sidebar_group",
-              locals: { key: "performance", label: t("nav.section_performance"), active: performance_active, default_open: false,
-                      items: [ show_perf_dashboard, show_perf_observations, show_perf_reviews, show_perf_reports ].count(true) } do %>
-          <% if show_perf_dashboard %>
-            <%= link_to performance_root_path,
-                  class: "sidebar__nav-item #{controller_name == 'dashboard' && controller_path.start_with?('performance') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-              <%= t("nav.performance_dashboard") %>
-            <% end %>
-          <% end %>
-
-          <% if show_perf_observations %>
-            <%= link_to performance_observations_path,
-                  class: "sidebar__nav-item #{controller_name == 'observations' ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              <%= t("nav.performance_observations") %>
-            <% end %>
-          <% end %>
-
-          <% if show_perf_reviews %>
-            <%= link_to performance_reviews_path,
-                  class: "sidebar__nav-item #{controller_name == 'reviews' && controller_path.start_with?('performance') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/></svg>
-              <%= t("nav.performance_reviews") %>
-            <% end %>
-          <% end %>
-
-          <% if show_perf_reports %>
-            <%= link_to performance_reports_path,
-                  class: "sidebar__nav-item #{controller_name == 'reports' && controller_path.start_with?('performance') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="14" y="6" width="3" height="11"/></svg>
-              <%= t("nav.performance_reports") %>
-            <% end %>
-          <% end %>
-        <% end %>
-      <% end %>
-
-      <%# ── 8. ADMINISTRATION (system configuration — kept last) ─────────── %>
-      <% show_devices        = current_user.can?(:manage_devices) %>
-      <% show_roles          = current_user.can?(:manage_roles) %>
-      <% show_settings       = current_user.can?(:manage_settings) %>
-      <% show_eval_templates = current_user.can?(:manage_evaluation_templates) %>
-      <% if show_devices || show_roles || show_settings || show_eval_templates %>
-        <% admin_paths = %w[/admin/biometric_devices /admin/permission_roles /admin/settings /admin/departments /admin/evaluation_templates] %>
+      <%# ── 4. ADMINISTRATION (system configuration — kept last) ─────────── %>
+      <% show_branches    = current_user.can?(:manage_branches) %>
+      <% show_devices     = current_user.can?(:manage_devices) %>
+      <% show_roles       = current_user.can?(:manage_roles) %>
+      <% show_settings    = current_user.can?(:manage_settings) %>
+      <% show_departments = current_user.can?(:manage_evaluation_templates) %>
+      <% if show_branches || show_devices || show_roles || show_settings || show_departments %>
+        <% admin_paths = %w[/admin/branches /admin/biometric_devices /admin/permission_roles /admin/settings /admin/departments] %>
         <% admin_active = admin_paths.any? { |p| request.path.start_with?(p) } %>
         <%= render layout: "layouts/sidebar_group",
               locals: { key: "administration", label: t("nav.section_administration"), active: admin_active, default_open: false,
-                      items: [ show_devices, show_roles, show_settings, show_eval_templates, show_eval_templates ].count(true) } do %>
+                      items: [ show_branches, show_devices, show_roles, show_settings, show_departments ].count(true) } do %>
+          <% if show_branches %>
+            <%= link_to admin_branches_path,
+                  class: "sidebar__nav-item #{request.path.start_with?('/admin/branches') ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <%= t("nav.branches") %>
+            <% end %>
+          <% end %>
+
           <% if show_devices %>
             <%= link_to admin_biometric_devices_path,
                   class: "sidebar__nav-item #{request.path.start_with?('/admin/biometric_devices') ? 'is-active' : ''}",
@@ -293,19 +179,12 @@
             <% end %>
           <% end %>
 
-          <% if show_eval_templates %>
+          <% if show_departments %>
             <%= link_to admin_departments_path,
                   class: "sidebar__nav-item #{request.path.start_with?('/admin/departments') ? 'is-active' : ''}",
                   data: { action: "click->sidebar#close" } do %>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               <%= t("nav.departments") %>
-            <% end %>
-
-            <%= link_to admin_evaluation_templates_path,
-                  class: "sidebar__nav-item #{request.path.start_with?('/admin/evaluation_templates') ? 'is-active' : ''}",
-                  data: { action: "click->sidebar#close" } do %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-              <%= t("nav.evaluation_templates") %>
             <% end %>
           <% end %>
         <% end %>

@@ -2098,6 +2098,31 @@ body.is-authenticated {
   padding-inline-start: calc(var(--space-3) + var(--space-2));
 }
 
+/* Workspace entry among ordinary links (Employees group): opens a workspace
+   rather than a page — divider above the first one, trailing arrow. */
+.sidebar__nav-item--workspace-first {
+  margin-top: var(--space-2);
+}
+.sidebar__nav-item--workspace-first::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--space-3);
+  top: calc(-1 * var(--space-1) - 1px);
+  border-top: 1px solid var(--border);
+}
+.sidebar__nav-item--workspace .sidebar__nav-item-label {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar__nav-item--workspace > .sidebar__workspace-arrow {
+  width: 12px;
+  height: 12px;
+  opacity: 0.45;
+}
+.sidebar__nav-item--workspace:hover > .sidebar__workspace-arrow,
+.sidebar__nav-item--workspace.is-active > .sidebar__workspace-arrow { opacity: 0.9; }
+[dir="rtl"] .sidebar__workspace-arrow { transform: scaleX(-1); }
+
 /* Every nav icon: same size, never squeezed, same icon-to-text gap. */
 .sidebar__nav-item > svg {
   width: 16px;

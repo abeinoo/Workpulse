@@ -1,0 +1,18 @@
+<%#
+  A workspace entry point placed among ordinary links (the Employees group):
+  one link into the workspace, no chevron, no children. The trailing arrow and
+  the divider above the first entry set it apart from plain page links.
+
+  Locals:
+    ws    - a WorkspaceHelper::Workspace visible to the user.
+    first - true for the first entry after ordinary links (draws the divider).
+%>
+<% active = ws.key == current_workspace&.key %>
+<%= link_to ws.root_path,
+      class: "sidebar__nav-item sidebar__nav-item--workspace #{'sidebar__nav-item--workspace-first' if first} #{'is-active' if active}",
+      aria: { current: (active ? "page" : nil) },
+      data: { action: "click->sidebar#close" } do %>
+  <%= workspace_icon(ws.icon) %>
+  <span class="sidebar__nav-item-label"><%= ws.title %></span>
+  <svg class="sidebar__workspace-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+<% end %>

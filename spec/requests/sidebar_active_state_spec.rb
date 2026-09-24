@@ -17,13 +17,14 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
   # and to derive the unique aria-controls/content id — see
   # _sidebar_group.html.erb.
   GROUPS = {
-    "performance"    => { path: :performance_root_path, label_key: "nav.section_performance" },
-    "administration" => { path: :admin_settings_path,   label_key: "nav.section_administration" }
+    "administration" => { path: :admin_settings_path, label_key: "nav.section_administration" }
   }.freeze
-  # Finance, Inventory and Laundry are no longer collapsible groups: each is a
-  # single entry point into a workspace whose sections live in the workspace's
-  # own nav (see spec/requests/inventory/workspace_navigation_spec.rb and
-  # spec/requests/finance_laundry_workspace_navigation_spec.rb).
+  # Finance, Inventory, Laundry, Attendance & Shifts and Performance are not
+  # collapsible groups: each is a single entry point into a workspace whose
+  # sections live in the workspace's own nav (see
+  # spec/requests/inventory/workspace_navigation_spec.rb,
+  # spec/requests/finance_laundry_workspace_navigation_spec.rb and
+  # spec/requests/attendance_performance_workspace_navigation_spec.rb).
 
   def group_details_regex(key, open:)
     open_attr = open ? "\\s+open" : ""
@@ -68,24 +69,31 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
   end
 
   it "expands multiple groups independently without collapsing others (not an accordion)" do
-    get performance_root_path
+    get admin_settings_path
     body = response.body
-    expect(body).to match(group_details_regex("performance", open: true))
-    # Administration's <details> (closed) is still present in the same
-    # document — independent groups, not an accordion.
-    expect(body).to match(group_details_regex("administration", open: false))
+    expect(body).to match(group_details_regex("administration", open: true))
+    # The other open groups stay open in the same document — independent
+    # groups, not an accordion.
+    expect(body).to match(group_details_regex("employees", open: true))
+    expect(body).to match(group_details_regex("workspaces", open: true))
   end
 
   it "keeps all previously existing navigation links present under their groups" do
     get root_path
     body = response.body
 
-    # Performance
-    expect(body).to include(performance_root_path, performance_observations_path,
-                            performance_reviews_path, performance_reports_path)
-    # Finance, Inventory, Laundry — one entry each in the main sidebar; every
-    # former link is still one click away in the workspace navigation.
-    expect(body).to include(finance_root_path, inventory_root_path, laundry_root_path)
+    # Finance, Inventory, Laundry, Attendance, Performance — one entry each in
+    # the main sidebar; every former link is still one click away in the
+    # workspace navigation.
+    expect(body).to include(finance_root_path, inventory_root_path, laundry_root_path,
+                            attendance_records_path, performance_root_path)
+
+    get performance_root_path
+    expect(response.body).to include(performance_observations_path, performance_reviews_path,
+                                     performance_reports_path, admin_evaluation_templates_path)
+    get attendance_records_path
+    expect(response.body).to include(shift_assignments_path, admin_shifts_path, admin_shift_rule_profiles_path,
+                                     admin_biometric_punch_logs_path)
 
     get laundry_root_path
     expect(response.body).to include(laundry_towel_balances_path, laundry_towel_transfers_path,
@@ -137,11 +145,12 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
     expect(active.text).to include(I18n.t("nav.inventory_workspace"))
   end
 
-  it "expands the Performance group on a performance page" do
-    get performance_root_path
-    html = response.body
-    expect(html).to match(group_details_regex("performance", open: true))
-    expect(html).to include("is-active")
+  it "shows Performance as a single highlighted entry (not a group) on a performance page" do
+    get performance_reviews_path
+    html = Nokogiri::HTML(response.body)
+    expect(response.body).not_to include(%(data-sidebar-group-key-value="performance"))
+    active = html.css(".sidebar a.sidebar__nav-item.is-active")
+    expect(active.map { |a| a["href"] }).to eq([ performance_root_path ])
   end
 
   it "works the same under the Arabic locale (RTL)" do
@@ -150,9 +159,10 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
     body = response.body
 
     expect(body).to include('dir="rtl"')
-    expect(body).to match(group_details_regex("performance", open: true))
-    expect(Nokogiri::HTML(body).css(%(details[data-sidebar-group-key-value="performance"] a.sidebar__nav-item.is-active)).size).to eq(1)
-    expect(body).to include(I18n.t("nav.section_performance", locale: :ar))
+    html = Nokogiri::HTML(body)
+    active = html.css(%(.sidebar [data-sidebar-group-key-value="employees"] a.sidebar__nav-item--workspace.is-active))
+    expect(active.size).to eq(1)
+    expect(active.text).to include(I18n.t("nav.section_performance", locale: :ar))
   end
 
   it "renders correctly under English (LTR) with the same component, no duplicated markup" do
@@ -161,9 +171,9 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
     body = response.body
 
     expect(body).to include('dir="ltr"')
-    expect(body).to match(group_details_regex("performance", open: true))
+    expect(body).to match(group_details_regex("employees", open: true))
     # The group markup for a given key appears exactly once per render.
-    expect(body.scan(%(data-sidebar-group-key-value="performance")).length).to eq(1)
+    expect(body.scan(%(data-sidebar-group-key-value="employees")).length).to eq(1)
   end
 
   describe "main sidebar structure" do
@@ -184,41 +194,51 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
 
     it "orders the sections by workflow with the expected headings" do
       get root_path
-      expect(section_keys).to eq(%w[home employees attendance payroll requests workspaces performance administration])
+      expect(section_keys).to eq(%w[home employees workspaces administration])
       expect(html.css(".sidebar .sidebar__group-label").map(&:text))
-        .to eq(%w[nav.home nav.section_employees nav.section_attendance_shifts nav.section_payroll nav.section_requests
-                  nav.section_workspaces nav.section_performance nav.section_administration].map { |k| I18n.t(k) })
+        .to eq(%w[nav.home nav.section_employees nav.section_workspaces nav.section_administration].map { |k| I18n.t(k) })
     end
 
-    it "makes only multi-item sections collapsible; Requests is a plain heading + link with no chevron" do
+    it "makes multi-item sections collapsible; a one-item section is a plain heading + link with no chevron" do
       get root_path
-      expect(collapsible_keys).to eq(%w[home employees attendance payroll workspaces performance administration])
-      expect(plain_keys).to eq(%w[requests])
-      requests = html.at_css('.sidebar [data-sidebar-section-key="requests"]')
-      expect(requests.css(".sidebar__group-chevron, summary")).to be_empty
-      expect(requests["data-controller"]).to be_nil # no remembered expand/collapse state
+      expect(collapsible_keys).to eq(%w[home employees workspaces administration])
+      expect(plain_keys).to be_empty
+
+      sign_in user_with(:view_requests)
+      get root_path
+      expect(plain_keys).to include("employees")
+      employees = html.at_css('.sidebar [data-sidebar-section-key="employees"]')
+      expect(employees.css(".sidebar__group-chevron, summary")).to be_empty
+      expect(employees["data-controller"]).to be_nil # no remembered expand/collapse state
     end
 
     it "puts each page in its section, in order, with workspaces as single entries" do
       get root_path
       expect(section_hrefs("home")).to eq([ root_path, operations_dashboard_path ])
-      expect(section_hrefs("employees")).to eq([ admin_users_path, admin_branches_path, admin_employee_obligations_path ])
-      expect(section_hrefs("attendance")).to eq([ admin_shifts_path, shift_assignments_path, admin_shift_rule_profiles_path,
-                                                  attendance_records_path, admin_biometric_punch_logs_path ])
-      expect(section_hrefs("payroll")).to eq([ payroll_periods_path, adjustments_path ])
-      expect(section_hrefs("requests")).to eq([ employee_requests_path ])
+      # Employee pages, then the two employee workspaces (Attendance & Shifts
+      # opens on its first section, attendance logs; Performance on its dashboard).
+      expect(section_hrefs("employees")).to eq([ admin_users_path, admin_employee_obligations_path, payroll_periods_path,
+                                                 adjustments_path, employee_requests_path,
+                                                 attendance_records_path, performance_root_path ])
+      workspace_entries = html.css('.sidebar [data-sidebar-group-key-value="employees"] a.sidebar__nav-item--workspace')
+      expect(workspace_entries.map { |a| a["href"] }).to eq([ attendance_records_path, performance_root_path ])
+      expect(workspace_entries.map { |a| a.text.strip }).to eq([ I18n.t("nav.section_attendance_shifts"), I18n.t("nav.section_performance") ])
       expect(section_hrefs("workspaces")).to eq([ finance_root_path, inventory_root_path, laundry_root_path ])
-      expect(section_hrefs("performance")).to eq([ performance_root_path, performance_observations_path,
-                                                   performance_reviews_path, performance_reports_path ])
-      # Administration holds system configuration only — no employee obligations.
-      expect(section_hrefs("administration")).to eq([ admin_biometric_devices_path, admin_permission_roles_path,
-                                                      admin_settings_path, admin_departments_path,
-                                                      admin_evaluation_templates_path ])
+      # Administration holds system configuration only — no employee workflows,
+      # and evaluation templates moved into the Performance workspace.
+      expect(section_hrefs("administration")).to eq([ admin_branches_path, admin_biometric_devices_path,
+                                                      admin_permission_roles_path, admin_settings_path,
+                                                      admin_departments_path ])
+      # No attendance/shift or performance child page is linked from the main sidebar.
+      sidebar = html.css(".sidebar a").map { |a| a["href"] }
+      expect(sidebar).not_to include(admin_shifts_path, shift_assignments_path, admin_shift_rule_profiles_path,
+                                     admin_biometric_punch_logs_path, performance_observations_path,
+                                     performance_reviews_path, performance_reports_path, admin_evaluation_templates_path)
     end
 
-    it "starts the everyday groups open and Performance / Administration closed" do
+    it "starts the everyday groups open and Administration closed" do
       get root_path
-      expect(open_keys).to eq(%w[home employees attendance payroll workspaces])
+      expect(open_keys).to eq(%w[home employees workspaces])
     end
 
     {
@@ -231,6 +251,20 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
         active = html.css(".sidebar a.sidebar__nav-item.is-active").map { |a| a["href"] }
         expect(active).to eq([ send(entry) ])
         expect(open_keys).to include("workspaces")
+      end
+    end
+
+    {
+      admin_shifts_path:                :attendance_records_path,
+      admin_biometric_punch_logs_path:  :attendance_records_path,
+      performance_observations_path:    :performance_root_path,
+      admin_evaluation_templates_path:  :performance_root_path
+    }.each do |page, entry|
+      it "on #{page} highlights only the employee workspace entry, inside the open Employees group" do
+        get send(page)
+        active = html.css(".sidebar a.sidebar__nav-item.is-active").map { |a| a["href"] }
+        expect(active).to eq([ send(entry) ])
+        expect(open_keys).to include("employees")
       end
     end
 
@@ -247,24 +281,23 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
     end
 
     it "after permission filtering: hides empty sections and renders one-item sections without a collapse control" do
-      sign_in user_with(:view_shifts, :assign_shifts, :view_payroll)
+      sign_in user_with(:view_payroll)
       get root_path
-      expect(section_keys).to eq(%w[home attendance payroll])
+      expect(section_keys).to eq(%w[home employees])
       expect(collapsible_keys).to be_empty
       expect(html.css(".sidebar .sidebar__group-chevron")).to be_empty
-      expect(section_hrefs("attendance")).to eq([ shift_assignments_path ])
-      expect(section_hrefs("payroll")).to eq([ payroll_periods_path ])
+      expect(section_hrefs("employees")).to eq([ payroll_periods_path ])
       expect(section_hrefs("home")).to eq([ root_path ])
     end
 
     it "keeps a filtered group collapsible while two or more of its pages remain" do
-      sign_in user_with(:view_employees, :view_payroll, :manage_obligations)
+      sign_in user_with(:view_employees, :manage_obligations, :manage_settings)
       get root_path
       expect(collapsible_keys).to include("employees")
       expect(section_hrefs("employees")).to eq([ admin_users_path, admin_employee_obligations_path ])
-      # …while Payroll, down to one visible page for this user, renders plain.
-      expect(plain_keys).to include("payroll")
-      expect(section_hrefs("payroll")).to eq([ payroll_periods_path ])
+      # …while Administration, down to one visible page for this user, renders plain.
+      expect(plain_keys).to include("administration")
+      expect(section_hrefs("administration")).to eq([ admin_settings_path ])
     end
   end
 

@@ -359,6 +359,12 @@ en:
       business_analytics: "Business Analytics"
 
   attendance:
+    workspace:
+      subtitle: "Attendance records, shift scheduling and punch logs"
+      groups:
+        attendance: "Attendance"
+        scheduling: "Shifts & Scheduling"
+        devices: "Devices"
     statuses:
       present: "Present"
       late: "Late"
@@ -3380,6 +3386,12 @@ en:
     ar: "العربية"
 
   performance:
+    workspace:
+      subtitle: "Observations, monthly reviews and evaluation setup"
+      groups:
+        evaluation: "Evaluation"
+        insights: "Insights"
+        settings: "Settings"
     grade:
       excellent: "Excellent"
       good: "Good"

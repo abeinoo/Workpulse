@@ -359,6 +359,12 @@ ar:
       business_analytics: "تحليلات الأعمال"
 
   attendance:
+    workspace:
+      subtitle: "سجلات الحضور وجدولة الورديات وسجلات البصمة"
+      groups:
+        attendance: "الحضور"
+        scheduling: "الورديات والجدولة"
+        devices: "الأجهزة"
     statuses:
       present: "حاضر"
       late: "متأخر"
@@ -3414,6 +3420,12 @@ ar:
     ar: "العربية"
 
   performance:
+    workspace:
+      subtitle: "الملاحظات والتقييمات الشهرية وإعداد التقييم"
+      groups:
+        evaluation: "التقييم"
+        insights: "التحليلات"
+        settings: "الإعدادات"
     grade:
       excellent: "ممتاز"
       good: "جيد"

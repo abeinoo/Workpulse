@@ -49,6 +49,13 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
     %(sidebar__group-label">#{ERB::Util.html_escape(I18n.t(key))}<)
   end
 
+  # Whether the main sidebar links to +path+. Payroll, Adjustments and Requests
+  # live inside the "Employees" section, so check the link itself rather than
+  # a section heading or the (now shared) word "Employees".
+  def sidebar_link?(body, path)
+    Nokogiri::HTML(body).css(".sidebar a[href]").any? { |a| a["href"] == path }
+  end
+
   # ────────────────────────────────────────────────────────────────────────────
   # Test A — view_employees ONLY
   # ────────────────────────────────────────────────────────────────────────────
@@ -86,15 +93,15 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
     it "sidebar shows Employees link" do
       body = sidebar_html(user)
       expect(body).to include(admin_users_path)
-      expect(body).to include(I18n.t("nav.employees"))
+      expect(sidebar_link?(body, admin_users_path)).to be(true)
     end
 
     it "management sidebar does NOT include the Payroll section header" do
-      expect(sidebar_html(user)).not_to include(section_header("nav.section_payroll"))
+      expect(sidebar_link?(sidebar_html(user), payroll_periods_path)).to be(false)
     end
 
     it "sidebar does NOT include Requests section header" do
-      expect(sidebar_html(user)).not_to include(section_header("nav.section_requests"))
+      expect(sidebar_link?(sidebar_html(user), employee_requests_path)).to be(false)
     end
 
     it "sidebar does NOT include Settings or Permission Roles" do
@@ -137,7 +144,7 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
     end
 
     it "sidebar does NOT show Employees link" do
-      expect(sidebar_html(user)).not_to include(I18n.t("nav.employees"))
+      expect(sidebar_link?(sidebar_html(user), admin_users_path)).to be(false)
     end
   end
 
@@ -163,16 +170,16 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
 
     it "sidebar shows Requests section" do
       body = sidebar_html(user)
-      expect(body).to include(section_header("nav.section_requests"))
+      expect(sidebar_link?(body, employee_requests_path)).to be(true)
       expect(body).to include(employee_requests_path)
     end
 
     it "sidebar does NOT show the management Payroll section header" do
-      expect(sidebar_html(user)).not_to include(section_header("nav.section_payroll"))
+      expect(sidebar_link?(sidebar_html(user), payroll_periods_path)).to be(false)
     end
 
     it "sidebar does NOT show Employees link" do
-      expect(sidebar_html(user)).not_to include(I18n.t("nav.employees"))
+      expect(sidebar_link?(sidebar_html(user), admin_users_path)).to be(false)
     end
   end
 
@@ -220,9 +227,9 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       body = sidebar_html(user)
       expect(body).not_to include(section_header("nav.section_employees"))
       expect(body).not_to include(section_header("nav.section_administration"))
-      expect(body).not_to include(section_header("nav.section_payroll"))
-      expect(body).not_to include(section_header("nav.section_attendance_shifts"))
-      expect(body).not_to include(section_header("nav.section_requests"))
+      expect(body).not_to include(section_header("nav.section_workspaces"))
+      # No management workspace entries (Attendance & Shifts, Performance).
+      expect(Nokogiri::HTML(body).css(".sidebar a.sidebar__nav-item--workspace")).to be_empty
     end
   end
 
@@ -238,13 +245,13 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
 
     it "Payroll section header appears in management sidebar when view_payroll is granted, vanishes when revoked" do
       body_with = sidebar_html(user)
-      expect(body_with).to include(section_header("nav.section_payroll")), "expected Payroll section before revoke"
+      expect(sidebar_link?(body_with, payroll_periods_path)).to be(true), "expected Payroll link before revoke"
 
       role.update!(permissions: %w[view_employees])
       user.reload
 
       body_without = sidebar_html(user)
-      expect(body_without).not_to include(section_header("nav.section_payroll")), "Payroll section must disappear after revoke"
+      expect(sidebar_link?(body_without, payroll_periods_path)).to be(false), "Payroll link must disappear after revoke"
     end
 
     it "Adjustments link is NOT present when only view_payroll is granted (Payroll and Adjustments are decoupled)" do
@@ -287,8 +294,8 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
     it "owner has full management sidebar" do
       body = sidebar_html(owner)
       expect(body).to include(I18n.t("nav.payroll"))
-      expect(body).to include(I18n.t("nav.employees"))
-      expect(body).to include(section_header("nav.section_requests"))
+      expect(sidebar_link?(body, admin_users_path)).to be(true)
+      expect(sidebar_link?(body, employee_requests_path)).to be(true)
       expect(body).to include(section_header("nav.section_administration"))
     end
 
@@ -325,7 +332,7 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       # ── Step 2: First request — Payroll is visible.
       get root_path
       first_body = response.body
-      expect(first_body).to include(section_header("nav.section_payroll")),
+      expect(sidebar_link?(first_body, payroll_periods_path)).to be(true),
         "Step 2 failed — expected Payroll section to be visible while role has view_payroll"
 
       get payroll_periods_path
@@ -349,7 +356,7 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       refreshed_body = response.body
 
       # ── Step 5: Payroll has vanished from the sidebar.
-      expect(refreshed_body).not_to include(section_header("nav.section_payroll")),
+      expect(sidebar_link?(refreshed_body, payroll_periods_path)).to be(false),
         "Step 5 FAILED — Payroll section is still rendered after the permission was revoked. " \
         "This means the new permissions are not being read from the database on each request."
 
@@ -366,11 +373,11 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       role.update!(permissions: [])      # start with no perms
 
       get root_path
-      expect(response.body).not_to include(section_header("nav.section_payroll"))
+      expect(sidebar_link?(response.body, payroll_periods_path)).to be(false)
 
       role.update!(permissions: %w[view_payroll])
       get root_path
-      expect(response.body).to include(section_header("nav.section_payroll")),
+      expect(sidebar_link?(response.body, payroll_periods_path)).to be(true),
         "Granting view_payroll did not surface the Payroll section on the next request"
     end
 
@@ -486,7 +493,8 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
     end
 
     it "records-only user does NOT see the aggregate columns on the period table" do
-      body = get_html(records_only, payroll_periods_path).body
+      # Page content only — the sidebar's "Employees" section heading shares the word.
+      body = Nokogiri::HTML(get_html(records_only, payroll_periods_path).body).at_css("main").to_html
       expect(body).not_to include(I18n.t("payroll.index.employees_col"))
       expect(body).not_to include(I18n.t("payroll.index.net_total_col"))
     end

@@ -97,7 +97,7 @@
           <% end %>
 
           <% if current_workspace %>
-            <%# Workspace modules (Inventory, Finance, Laundry): header + contextual nav around the page. %>
+            <%# Workspace modules (Inventory, Finance, Laundry, Attendance & Shifts, Performance): header + contextual nav around the page. %>
             <%= render layout: "layouts/workspace", locals: { ws: current_workspace } do %><%= yield %><% end %>
           <% else %>
             <%= yield %>

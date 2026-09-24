@@ -1,7 +1,8 @@
 # Workspace navigation — the contextual nav that turns a large module
-# (Inventory, Finance, Laundry) into a workspace inside WorkPulse. Every page
-# of a workspace's controller namespace is wrapped by layouts/_workspace, and
-# the main sidebar shows a single entry per workspace.
+# (Inventory, Finance, Laundry, Attendance & Shifts, Performance) into a
+# workspace inside WorkPulse. Every page of a workspace (its controller
+# namespace, or an explicit controller list — see workspace_key_for) is wrapped
+# by layouts/_workspace, and the main sidebar shows a single entry per workspace.
 #
 # Each workspace is plain data (sections + groups); one partial renders it as a
 # vertical rail (wide desktop) or a scrolling tab strip + "More" menu (below).
@@ -14,7 +15,22 @@ module WorkspaceHelper
   Section   = Struct.new(:key, :label, :path, :group, :primary, :active, keyword_init: true)
   Workspace = Struct.new(:key, :title, :subtitle, :icon, :root_path, :groups, :sections, keyword_init: true)
 
-  WORKSPACE_KEYS = %i[finance inventory laundry].freeze
+  WORKSPACE_KEYS = %i[finance inventory laundry attendance performance].freeze
+  # Shown in the main sidebar's "Workspaces" group; the others sit under Employees.
+  GENERAL_WORKSPACE_KEYS  = %i[finance inventory laundry].freeze
+  EMPLOYEE_WORKSPACE_KEYS = %i[attendance performance].freeze
+
+  # Attendance & Shifts pages live across the root and admin namespaces, so the
+  # workspace is defined by controller rather than by namespace.
+  ATTENDANCE_CONTROLLERS = %w[
+    attendance_records admin/attendance_records admin/attendance_imports
+    shift_assignments admin/shift_templates
+    admin/shifts admin/penalty_rules shifts
+    admin/shift_rule_profiles
+    admin/biometric_punch_logs
+  ].freeze
+  # Evaluation templates keep their admin URL but belong to Performance.
+  PERFORMANCE_CONTROLLERS = %w[admin/evaluation_templates].freeze
 
   # Inline SVG bodies (24×24 viewBox, stroke icons).
   WORKSPACE_ICONS = {
@@ -49,6 +65,16 @@ module WorkspaceHelper
     towel_types:  '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>',
     inventory:    '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
     finance:      '<path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>',
+    shift_types:  '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    shift_assignments: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/>',
+    scheduling_rules: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>',
+    attendance_logs: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    punch_logs:   '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    observations: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+    reviews:      '<path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/>',
+    evaluation_templates: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/>',
+    attendance:   '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    performance:  '<path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/>',
     laundry:      '<rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><line x1="7" y1="6" x2="7.01" y2="6"/><line x1="11" y1="6" x2="11.01" y2="6"/>'
   }.freeze
 
@@ -56,8 +82,17 @@ module WorkspaceHelper
   def current_workspace
     return @current_workspace if defined?(@current_workspace)
 
-    namespace = controller_path.split("/").first.to_sym
-    @current_workspace = controller_path.include?("/") && WORKSPACE_KEYS.include?(namespace) ? workspace(namespace) : nil
+    key = current_workspace_key
+    @current_workspace = key ? workspace(key) : nil
+  end
+
+  # The workspace key a controller belongs to, or nil.
+  def workspace_key_for(path)
+    return :attendance  if ATTENDANCE_CONTROLLERS.include?(path)
+    return :performance if PERFORMANCE_CONTROLLERS.include?(path)
+
+    namespace = path.split("/").first.to_sym
+    namespace if path.include?("/") && WORKSPACE_KEYS.include?(namespace)
   end
 
   # Builds a workspace with only the sections the current user can open.
@@ -95,7 +130,7 @@ module WorkspaceHelper
   end
 
   def current_workspace_key
-    controller_path.split("/").first.to_sym if controller_path.include?("/")
+    workspace_key_for(controller_path)
   end
 
   # ── Inventory ──────────────────────────────────────────────────────────────
@@ -235,6 +270,71 @@ module WorkspaceHelper
     when "laundry/reports/branch_consumption"          then :branch_consumption
     when "laundry/reports/cost_summary"                then :cost_summary
     when "laundry/towel_types", "laundry/standard_cost_rates" then :towel_types
+    end
+  end
+
+  # ── Attendance & Shifts ────────────────────────────────────────────────────
+  # Section gates are the exact checks the main sidebar used for these links.
+  # These pages double as "My attendance" / "My shifts" for staff, so the
+  # workspace chrome is limited to users with the management sidebar.
+  def attendance_workspace_config
+    {
+      access:   current_user.management_sidebar?,
+      title:    t("nav.section_attendance_shifts"),
+      subtitle: t("attendance.workspace.subtitle"),
+      groups:   { attendance: "attendance.workspace.groups.attendance", scheduling: "attendance.workspace.groups.scheduling",
+                  devices: "attendance.workspace.groups.devices" },
+      sections: [
+        [ :attendance_logs,   t("nav.attendance_logs"),     attendance_records_path,         :attendance, true,  current_user.can?(:view_attendance) ],
+        [ :shift_assignments, t("nav.shift_assignments"),   shift_assignments_path,          :scheduling, true,  current_user.can?(:assign_shifts) ],
+        [ :shift_types,       t("nav.shift_types"),         admin_shifts_path,               :scheduling, true,  current_user.can?(:manage_shifts) ],
+        [ :scheduling_rules,  t("nav.shift_rule_profiles"), admin_shift_rule_profiles_path,  :scheduling, false, current_user.can?(:manage_shifts) ],
+        [ :punch_logs,        t("nav.punch_logs"),          admin_biometric_punch_logs_path, :devices,    false, current_user.can?(:manage_devices) ]
+      ]
+    }
+  end
+
+  def attendance_active_section_key
+    case controller_path
+    when "attendance_records", "admin/attendance_records",
+         "admin/attendance_imports"                          then :attendance_logs
+    when "shift_assignments", "admin/shift_templates"        then :shift_assignments
+    when "admin/shifts", "admin/penalty_rules", "shifts"     then :shift_types
+    when "admin/shift_rule_profiles"                         then :scheduling_rules
+    when "admin/biometric_punch_logs"                        then :punch_logs
+    end
+  end
+
+  # ── Performance ────────────────────────────────────────────────────────────
+  # Staff reach their own reviews via "My reviews"; like Attendance, the
+  # workspace chrome is for users with the management sidebar.
+  def performance_workspace_config
+    {
+      access:   current_user.management_sidebar?,
+      title:    t("nav.section_performance"),
+      subtitle: t("performance.workspace.subtitle"),
+      groups:   { evaluation: "performance.workspace.groups.evaluation", insights: "performance.workspace.groups.insights",
+                  settings: "performance.workspace.groups.settings" },
+      sections: [
+        # Mirrors Performance::DashboardController#require_dashboard_access!
+        [ :overview,             t("nav.performance_dashboard"),    performance_root_path,           nil,         true,  current_user.can?(:view_performance_dashboard) ],
+        [ :observations,         t("nav.performance_observations"), performance_observations_path,   :evaluation, true,  current_user.can?(:view_notes) || current_user.can?(:create_observations) ],
+        [ :reviews,              t("nav.performance_reviews"),      performance_reviews_path,        :evaluation, true,
+          current_user.can?(:view_monthly_reviews) || current_user.can?(:manage_reviews) || current_user.can?(:finalize_reviews) ],
+        # Mirrors Performance::ReportsController#require_reports_access!
+        [ :reports,              t("nav.performance_reports"),      performance_reports_path,        :insights,   false, current_user.can?(:view_performance_reports) ],
+        [ :evaluation_templates, t("nav.evaluation_templates"),     admin_evaluation_templates_path, :settings,   false, current_user.can?(:manage_evaluation_templates) ]
+      ]
+    }
+  end
+
+  def performance_active_section_key
+    case controller_path
+    when "performance/dashboard"      then :overview
+    when "performance/observations"   then :observations
+    when "performance/reviews"        then :reviews
+    when "performance/reports"        then :reports
+    when "admin/evaluation_templates" then :evaluation_templates
     end
   end
 end
