@@ -6,10 +6,16 @@ class DepositResponsibilityTransferPolicy < ApplicationPolicy
   end
 
   # Only the named recipient may accept, and only while the transfer is still
-  # pending. Super Admin (business owner) is never blocked by recipient
-  # assignment.
+  # pending and the day's deposit responsibility can still change. Super Admin
+  # (business owner) is never blocked by recipient assignment.
   def accept?
-    record.pending? && (owner? || record.to_user == user)
+    record.pending? && (owner? || record.to_user == user) &&
+      record.daily_reconciliation.deposit_responsibility_transferable?
+  end
+
+  # Only the named recipient may reject — there is no owner override.
+  def reject?
+    record.pending? && record.to_user == user
   end
 
   # The assigning user (from_user) or a manager may cancel while still pending.

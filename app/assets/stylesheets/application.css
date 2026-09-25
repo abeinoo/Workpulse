@@ -4375,6 +4375,7 @@ body.is-authenticated {
 }
 
 .pwa-banner[hidden] { display: none; }
+.modal-open .pwa-banner { display: none; }
 
 .pwa-banner__icon {
   border-radius: var(--radius-sm);

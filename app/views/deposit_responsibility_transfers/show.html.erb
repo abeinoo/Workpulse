@@ -31,9 +31,14 @@
         <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0 0 2px;">
           <%= t("deposit_responsibility_transfers.show.from_label") %>
         </p>
-        <p style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin: 0;">
+        <p style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin: 0; overflow-wrap: anywhere;">
           <%= @transfer.from_user.full_name %>
         </p>
+        <% if @transfer.initiated_by %>
+          <p style="font-size: var(--text-xs); color: var(--text-2); margin: 2px 0 0; overflow-wrap: anywhere;">
+            <%= t("deposit_responsibility_transfers.show.requested_by", name: @transfer.initiated_by.full_name) %>
+          </p>
+        <% end %>
         <p style="font-size: var(--text-xs); color: var(--text-3); margin: 2px 0 0;">
           <%= @transfer.branch.name %>
           <% if @transfer.daily_reconciliation.business_date %>
@@ -180,26 +185,62 @@
   </div>
 
   <%# ── Accept / already accepted / pending for another user ───────────── %>
+  <% if @transfer.notes.present? %>
+    <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0; font-style: italic; overflow-wrap: anywhere;">
+      <%= t("deposit_responsibility_transfers.show.notes_label") %>: <%= @transfer.notes %>
+    </p>
+  <% end %>
+
   <% if @transfer.pending? && policy(@transfer).accept? %>
     <%= form_with url: accept_deposit_responsibility_transfer_path(@transfer), method: :patch,
-          data: { turbo_frame: "_top" } do |f| %>
+          id: "deposit-accept-form", data: { turbo_frame: "_top" } do |f| %>
       <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-        <%= f.submit t("deposit_responsibility_transfers.show.accept_submit"),
-              class: "btn btn-checkin",
-              style: "width: 100%; justify-content: center; font-size: var(--text-base); padding: var(--space-4);" %>
-        <button type="button"
-                data-action="click->modal#close"
-                class="btn btn-checkout"
-                style="width: 100%; justify-content: center;">
-          <%= t("common.cancel") %>
-        </button>
+        <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0;">
+          <%= t("deposit_responsibility_transfers.show.confirm_accept") %>
+        </p>
+        <div style="display: flex; flex-wrap: wrap-reverse; gap: var(--space-3);">
+          <button type="button"
+                  data-action="click->modal#close"
+                  class="btn btn-ghost"
+                  style="flex: 1 1 140px; justify-content: center;">
+            <%= t("common.cancel") %>
+          </button>
+          <%= f.submit t("deposit_responsibility_transfers.show.accept_submit"),
+                id: "deposit-accept-submit",
+                class: "btn btn-checkin",
+                style: "flex: 1 1 140px; justify-content: center;" %>
+        </div>
       </div>
     <% end %>
+
+  <% elsif @transfer.pending? && policy(@transfer).reject? %>
+    <%# Recipient, but the day can no longer change hands (verified / fully deposited). %>
+    <p role="alert" style="font-size: var(--text-sm); color: var(--danger, #dc2626); margin: 0;">
+      <%= t("deposit_responsibility_transfers.errors.locked") %>
+    </p>
+    <div style="text-align: center; padding-bottom: var(--space-2);">
+      <button type="button" data-action="click->modal#close" class="btn btn-ghost btn-sm">
+        <%= t("common.close") %>
+      </button>
+    </div>
+
+  <% elsif @transfer.rejected? %>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: var(--space-1); padding: var(--space-3) 0; color: var(--text-2); font-size: var(--text-sm); text-align: center;">
+      <span><%= t("deposit_responsibility_transfers.show.rejected_note", name: @transfer.to_user.full_name) %></span>
+      <% if @transfer.rejection_reason.present? %>
+        <span style="font-style: italic; overflow-wrap: anywhere;"><%= @transfer.rejection_reason %></span>
+      <% end %>
+    </div>
+    <div style="text-align: center; padding-bottom: var(--space-2);">
+      <button type="button" data-action="click->modal#close" class="btn btn-ghost btn-sm">
+        <%= t("common.close") %>
+      </button>
+    </div>
 
   <% elsif @transfer.accepted? %>
     <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3) 0; color: var(--success); font-size: var(--text-sm);">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-      <%= t("deposit_responsibility_transfers.show.accepted_by", name: @transfer.to_user.full_name) %>
+      <%= t("deposit_responsibility_transfers.show.accepted_by", name: @transfer.acceptor.full_name) %>
     </div>
     <div style="text-align: center; padding-bottom: var(--space-2);">
       <button type="button" data-action="click->modal#close" class="btn btn-ghost btn-sm">

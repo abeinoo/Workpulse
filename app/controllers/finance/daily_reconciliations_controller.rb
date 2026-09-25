@@ -5,7 +5,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     def net_amount = collected_amount - refund_amount
   end
 
-  before_action :set_reconciliation, only: %i[show verify assign_depositor
+  before_action :set_reconciliation, only: %i[show verify assign_depositor transfer_deposit_responsibility
                                                edit_opening_float update_opening_float_amounts receive_opening_float
                                                edit_session_totals update_session_totals
                                                edit_day_close_amounts update_day_close_amounts
@@ -474,9 +474,15 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                                                .find_by(from_user_id: current_user.id, self_deposit: false)
 
     @all_deposit_transfers     = @reconciliation.deposit_responsibility_transfers
-                                                .includes(:from_user, :to_user, :cancelled_by)
+                                                .includes(:from_user, :to_user, :cancelled_by,
+                                                          :initiated_by, :accepted_by, :rejected_by)
                                                 .order(:created_at)
     @pending_deposit_transfer          = @all_deposit_transfers.find(&:pending?)
+    # "Responsibility moved on from you" notice for a previous depositor.
+    @deposit_transferred_away_from_me  = !@i_am_depositor &&
+                                         @all_deposit_transfers.select(&:accepted?)
+                                                               .max_by(&:accepted_at)
+                                                               &.then { |t| t if t.from_user_id == current_user.id }
     @pending_deposit_transfer_for_me   = @pending_deposit_transfer if @pending_deposit_transfer&.to_user_id   == current_user.id
     @pending_deposit_transfer_from_me  = @pending_deposit_transfer if @pending_deposit_transfer&.from_user_id == current_user.id
 
@@ -545,6 +551,15 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                         .includes(:actor)
                         .order(:created_at)
                         .to_a
+
+    # Direct deposit-responsibility reassignments (Finance::DepositorAssigner).
+    # Previous/new depositor names are snapshotted in metadata, so rendering
+    # them needs no further queries.
+    @depositor_transfer_events = AuditLog
+                                   .where(auditable: @reconciliation, action: "assign_depositor")
+                                   .includes(:actor)
+                                   .order(:created_at)
+                                   .to_a
 
     deposit_ids = @all_deposits.map(&:id)
     @deposit_override_events = deposit_ids.any? ?
@@ -1011,17 +1026,38 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     result = Finance::DepositorAssigner.new(
       @reconciliation.id,
-      actor:        current_user,
-      depositor_id: params[:depositor_id]
+      actor:                 current_user,
+      depositor_id:          params[:depositor_id],
+      expected_depositor_id: params[:expected_depositor_id],
+      notes:                 params[:notes]
     ).call
 
     if result.ok?
       redirect_to finance_daily_reconciliation_path(@reconciliation),
-                  notice: t("finance.daily_reconciliations.depositor_assigned")
+                  notice: t("finance.daily_reconciliations.depositor_assigned", name: result.depositor.full_name)
     else
       redirect_to finance_daily_reconciliation_path(@reconciliation),
                   alert: result.error
     end
+  end
+
+  # GET /finance/daily_reconciliations/:id/transfer_deposit_responsibility
+  # Modal form; submits to DepositResponsibilityTransfersController#create,
+  # which requests a pending transfer (the recipient must accept it).
+  def transfer_deposit_responsibility
+    authorize @reconciliation, :transfer_deposit_responsibility?
+
+    @current_depositor        = @reconciliation.till_session.depositor
+    @pending_deposit_transfer = @reconciliation.deposit_responsibility_transfers
+                                               .pending.includes(:to_user).first
+    # Never the current depositor, and never the requesting manager — a
+    # manager can't route the day's deposit to themselves through this action.
+    @depositor_candidates     = current_user.business.users
+                                            .active
+                                            .includes(:permission_role)
+                                            .where.not(id: [ @current_depositor.id, current_user.id ])
+                                            .order(:first_name, :last_name)
+                                            .select(&:eligible_depositor?)
   end
 
   private
@@ -1079,9 +1115,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
 
     (@all_deposit_transfers || []).each do |drt|
-      events << { type: :deposit_assigned,  time: drt.created_at,   actor: drt.from_user,    data: drt }
-      events << { type: :deposit_accepted,  time: drt.accepted_at,  actor: drt.to_user,      data: drt } if drt.accepted?
+      events << { type: :deposit_assigned,  time: drt.created_at,   actor: drt.requester,    data: drt }
+      events << { type: :deposit_accepted,  time: drt.accepted_at,  actor: drt.acceptor,     data: drt } if drt.accepted?
+      events << { type: :deposit_rejected,  time: drt.rejected_at,  actor: drt.rejected_by,  data: drt } if drt.rejected?
       events << { type: :deposit_cancelled, time: drt.cancelled_at, actor: drt.cancelled_by, data: drt } if drt.cancelled?
+    end
+
+    (@depositor_transfer_events || []).each do |log|
+      events << { type: :deposit_responsibility_transferred, time: log.created_at, actor: log.actor, data: log }
     end
 
     # Use @all_deposits (includes voided) so voids appear in the audit trail.

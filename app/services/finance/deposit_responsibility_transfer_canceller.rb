@@ -6,6 +6,10 @@ module Finance
   #   - The from_user retains depositor_id on TillSession (no change needed)
   #   - The unique partial index allows a new transfer to be created
   #   - The audit history is preserved; cancelled_at is additive
+  #
+  # The pending? re-check runs under the DR row lock shared with the
+  # acceptor/rejecter, so a cancel can't land on a transfer that was accepted
+  # a moment earlier.
   class DepositResponsibilityTransferCanceller
     include AuditLoggable
 
@@ -22,9 +26,11 @@ module Finance
                     .where(daily_reconciliations: { business_id: @actor.business_id })
                     .find(@transfer_id)
 
-      return Result.new(ok: false, error: I18n.t("deposit_responsibility_transfers.errors.not_pending")) unless @transfer.pending?
-
       ActiveRecord::Base.transaction do
+        @transfer.daily_reconciliation.lock!
+        @transfer.reload
+        raise ArgumentError, I18n.t("deposit_responsibility_transfers.errors.not_pending") unless @transfer.pending?
+
         @transfer.update!(cancelled_at: Time.current, cancelled_by: @actor)
 
         log_audit(actor: @actor, auditable: @transfer, action: "cancel",
@@ -33,6 +39,8 @@ module Finance
       end
 
       Result.new(ok: true)
+    rescue ArgumentError => e
+      Result.new(ok: false, error: e.message)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
     end

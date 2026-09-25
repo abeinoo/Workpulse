@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -464,17 +464,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_120000) do
 
   create_table "deposit_responsibility_transfers", force: :cascade do |t|
     t.datetime "accepted_at"
+    t.bigint "accepted_by_id"
     t.datetime "cancelled_at"
     t.bigint "cancelled_by_id"
     t.datetime "created_at", null: false
     t.bigint "daily_reconciliation_id", null: false
     t.bigint "from_user_id", null: false
+    t.bigint "initiated_by_id"
+    t.text "notes"
+    t.datetime "rejected_at"
+    t.bigint "rejected_by_id"
+    t.text "rejection_reason"
     t.bigint "to_user_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["accepted_by_id"], name: "index_deposit_responsibility_transfers_on_accepted_by_id"
     t.index ["cancelled_by_id"], name: "index_deposit_responsibility_transfers_on_cancelled_by_id"
-    t.index ["daily_reconciliation_id"], name: "idx_drt_one_pending_per_dr", unique: true, where: "((accepted_at IS NULL) AND (cancelled_at IS NULL))"
+    t.index ["daily_reconciliation_id"], name: "idx_drt_one_pending_per_dr", unique: true, where: "((accepted_at IS NULL) AND (cancelled_at IS NULL) AND (rejected_at IS NULL))"
     t.index ["daily_reconciliation_id"], name: "idx_on_daily_reconciliation_id_5e4449e75b"
     t.index ["from_user_id"], name: "index_deposit_responsibility_transfers_on_from_user_id"
+    t.index ["initiated_by_id"], name: "index_deposit_responsibility_transfers_on_initiated_by_id"
+    t.index ["rejected_by_id"], name: "index_deposit_responsibility_transfers_on_rejected_by_id"
     t.index ["to_user_id"], name: "index_deposit_responsibility_transfers_on_to_user_id"
   end
 
@@ -2400,8 +2409,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_120000) do
   add_foreign_key "deposit_matches", "till_deposits"
   add_foreign_key "deposit_matches", "users", column: "matched_by_id"
   add_foreign_key "deposit_responsibility_transfers", "daily_reconciliations"
+  add_foreign_key "deposit_responsibility_transfers", "users", column: "accepted_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "cancelled_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "from_user_id"
+  add_foreign_key "deposit_responsibility_transfers", "users", column: "initiated_by_id"
+  add_foreign_key "deposit_responsibility_transfers", "users", column: "rejected_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "to_user_id"
   add_foreign_key "employee_insurance_profiles", "businesses"
   add_foreign_key "employee_insurance_profiles", "users"

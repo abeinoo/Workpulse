@@ -44,6 +44,64 @@ RSpec.describe Finance::DepositResponsibilityTransferAcceptor, type: :model do
       expect(result.ok?).to be true
       expect(transfer.reload.accepted_at).to be_present
       expect(till_session.reload.depositor).to eq(owner)
+      expect(transfer.reload.accepted_by).to eq(owner)
+    end
+
+    it "records who accepted and audits the previous depositor" do
+      accept
+      expect(transfer.reload.accepted_by).to eq(to_user)
+      log = AuditLog.where(auditable: transfer, action: "accept").sole
+      expect(log.metadata["previous_depositor_id"]).to eq(from_user.id)
+    end
+
+    it "refuses a rejected transfer and leaves the depositor alone" do
+      transfer.update!(rejected_at: Time.current, rejected_by: to_user, rejection_reason: "no")
+      expect(accept.error).to eq(I18n.t("deposit_responsibility_transfers.errors.rejected"))
+      expect(till_session.reload.depositor).to eq(from_user)
+    end
+
+    it "refuses a second accept" do
+      expect(accept).to be_ok
+      expect(accept.error).to eq(I18n.t("deposit_responsibility_transfers.errors.already_accepted"))
+    end
+
+    it "re-checks the day on the server: a verified day cannot change depositor" do
+      dr.update!(state: "verified", verified_at: Time.current)
+      expect(accept.error).to eq(I18n.t("deposit_responsibility_transfers.errors.locked"))
+      expect(transfer.reload).to be_pending
+      expect(till_session.reload.depositor).to eq(from_user)
+    end
+  end
+
+  describe "two tabs accepting at once" do
+    self.use_transactional_tests = false
+
+    after do
+      AuditLog.where(business: business).delete_all
+      DepositResponsibilityTransfer.where(daily_reconciliation_id: dr.id).delete_all
+      TillSession.where(daily_reconciliation_id: dr.id).delete_all
+      DailyReconciliation.where(id: dr.id).delete_all
+      User.where(business: business).delete_all
+      Branch.where(business: business).delete_all
+      Business.where(id: business.id).delete_all
+    end
+
+    it "lets exactly one succeed and gives the other a clear error" do
+      results = []
+      mutex   = Mutex.new
+      2.times.map do
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            r = described_class.new(transfer.id, actor: to_user).call
+            mutex.synchronize { results << r }
+          end
+        end
+      end.each(&:join)
+
+      expect(results.count(&:ok?)).to eq(1)
+      expect(results.reject(&:ok?).sole.error).to eq(I18n.t("deposit_responsibility_transfers.errors.already_accepted"))
+      expect(till_session.reload.depositor).to eq(to_user)
+      expect(AuditLog.where(auditable: transfer, action: "accept").count).to eq(1)
     end
   end
 end

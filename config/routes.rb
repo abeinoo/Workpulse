@@ -282,10 +282,12 @@ Rails.application.routes.draw do
     end
   end
 
-  resources :deposit_responsibility_transfers, only: %i[show] do
+  resources :deposit_responsibility_transfers, only: %i[show create] do
     member do
       patch :accept
       patch :cancel
+      get   :reject_form
+      patch :reject
     end
   end
 
@@ -474,6 +476,7 @@ Rails.application.routes.draw do
       member do
         patch :verify
         patch :assign_depositor
+        get   :transfer_deposit_responsibility
         get   :edit_opening_float
         patch :update_opening_float_amounts
         post  :receive_opening_float

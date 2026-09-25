@@ -154,6 +154,18 @@ class DailyReconciliation < ApplicationRecord
     end
   end
 
+  # Whether the day's deposit responsibility may still move to someone else —
+  # checked both when a transfer is requested and again when it is accepted.
+  # Closed (the depositor exists from Day Close on, nothing deposited yet), or
+  # deposited while cash is still owed. A verified day, or a deposited day
+  # with nothing left to deposit, keeps its depositor as the historical owner.
+  # Already-recorded TillDeposits keep their own deposited_by either way.
+  def deposit_responsibility_transferable?
+    return false if till_session&.depositor_id.blank?
+
+    closed? || (deposited? && pending_deposit_amount.positive?)
+  end
+
   # How much is still outstanding before this deposit form is submitted.
   # Successful deposits AND open ATM Deposit Disputes both reduce this —
   # disputed cash is being tracked by the Bank Dispute workflow instead of

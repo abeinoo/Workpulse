@@ -15,6 +15,9 @@ RSpec.describe DepositResponsibilityTransferPolicy do
     )
   end
 
+  # A transfer always sits on a closed day whose depositor is from_user.
+  let!(:till_session) { TillSession.create!(daily_reconciliation: dr, depositor: from_user) }
+
   let(:transfer) do
     DepositResponsibilityTransfer.create!(daily_reconciliation: dr, from_user: from_user, to_user: to_user)
   end
@@ -39,6 +42,33 @@ RSpec.describe DepositResponsibilityTransferPolicy do
 
     it "allows the business owner even though the transfer is addressed to someone else" do
       expect(described_class.new(owner, transfer).accept?).to be true
+    end
+
+    it "blocks once rejected" do
+      transfer.update!(rejected_at: Time.current, rejected_by: to_user)
+      expect(described_class.new(to_user, transfer).accept?).to be false
+    end
+
+    it "blocks once the day is verified (deposit responsibility can no longer change)" do
+      dr.update!(state: "verified", verified_at: Time.current)
+      expect(described_class.new(to_user, transfer).accept?).to be false
+    end
+  end
+
+  describe "#reject?" do
+    it "allows only the named recipient while pending" do
+      expect(described_class.new(to_user, transfer).reject?).to be true
+      expect(described_class.new(from_user, transfer).reject?).to be false
+      expect(described_class.new(third, transfer).reject?).to be false
+    end
+
+    it "gives the business owner no override" do
+      expect(described_class.new(owner, transfer).reject?).to be false
+    end
+
+    it "blocks once accepted" do
+      transfer.update!(accepted_at: Time.current)
+      expect(described_class.new(to_user, transfer).reject?).to be false
     end
   end
 end

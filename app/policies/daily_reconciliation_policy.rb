@@ -2,6 +2,10 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def index?                 = can?(:view_daily_reconciliation)
   def verify?                = can?(:verify_daily_reconciliation)
   def assign_depositor?      = can?(:verify_daily_reconciliation)
+  # The DR-page "Transfer Deposit Responsibility" action: same authority as
+  # assign_depositor?, only while the day's deposit is still outstanding.
+  def transfer_deposit_responsibility? =
+    assign_depositor? && !record.is_a?(Class) && record.deposit_responsibility_transferable?
   def create?                = can?(:create_till_session) || can?(:verify_daily_reconciliation)
   def leave_opening_float?         = can?(:close_till_session)
   def receive_opening_float?       = cashier_permission?
@@ -73,7 +77,16 @@ class DailyReconciliationPolicy < ApplicationPolicy
 
     session.current_holder_id == user.id ||
       session.depositor_id == user.id ||
-      record.till_handovers.pending.exists?(to_user_id: user.id)
+      record.till_handovers.pending.exists?(to_user_id: user.id) ||
+      # Either side of a deposit responsibility transfer on this day — the
+      # recipient must reach the page to answer it, and both the depositor who
+      # handed it on and a recipient who declined must still see the outcome.
+      involved_in_deposit_transfer?
+  end
+
+  def involved_in_deposit_transfer?
+    transfers = record.deposit_responsibility_transfers
+    transfers.where(from_user_id: user.id).or(transfers.where(to_user_id: user.id)).exists?
   end
 
   # Uses record.business_date, not today — record here is the (possibly

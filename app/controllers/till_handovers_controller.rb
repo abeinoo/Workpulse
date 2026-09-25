@@ -7,6 +7,17 @@ class TillHandoversController < ApplicationController
   def my_shift
     authorize TillHandover, :my_shift?
 
+    # A deposit responsibility transfer waiting for this employee's answer —
+    # personal, so it doesn't depend on today's branch assignment.
+    transfer_recon = DailyReconciliation
+                       .where(business_id: current_user.business_id)
+                       .joins(:deposit_responsibility_transfers)
+                       .merge(DepositResponsibilityTransfer.pending.where(to_user_id: current_user.id))
+                       .order(closed_at: :desc)
+                       .first
+
+    return redirect_to finance_daily_reconciliation_path(transfer_recon) if transfer_recon
+
     branch = current_user.effective_branch_on(Date.current)
     unless branch
       @state = :no_branch
@@ -243,7 +254,7 @@ class TillHandoversController < ApplicationController
                               .includes(:permission_role)
                               .where.not(id: current_user.id)
                               .order(:first_name)
-                              .select { |u| u.can?(:create_till_deposit) }
+                              .select(&:eligible_depositor?)
   end
 
   # Historical-context colleague list: when acting on a specific target

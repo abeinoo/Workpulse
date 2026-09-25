@@ -208,6 +208,11 @@ class User < ApplicationRecord
     permission_role.has_permission?(permission)
   end
 
+  # Who may hold a Daily Reconciliation's deposit responsibility — the same
+  # rule the Day Close depositor picker and TillHandoverCreator apply: an
+  # active employee who can record deposits (TillDepositPolicy#create?).
+  def eligible_depositor? = active? && can?(:create_till_deposit)
+
   # Warehouse-scoped inventory access.
   #
   # Returns nil when the user may see EVERY warehouse (owners, and anyone with no

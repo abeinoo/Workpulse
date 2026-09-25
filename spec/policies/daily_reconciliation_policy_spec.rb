@@ -63,4 +63,44 @@ RSpec.describe DailyReconciliationPolicy do
       expect(described_class.new(no_perm, dr).view_pos_transaction_verification?).to be false
     end
   end
+
+  describe "#transfer_deposit_responsibility?" do
+    let(:manager)   { user_with("view_daily_reconciliation", "verify_daily_reconciliation") }
+    let(:depositor) { user_with("close_till_session", "create_till_deposit") }
+
+    def dr_owed(state: "closed")
+      make_dr(state: state).tap do |dr|
+        TillSession.create!(daily_reconciliation: dr, depositor: depositor)
+        TillSessionAmount.create!(daily_reconciliation: dr, payment_method: cash_pm, payment_method_name: "Cash",
+                                  collected_amount: 500, refund_amount: 0)
+      end
+    end
+
+    %w[closed deposited].each do |state|
+      it "allows a verify_daily_reconciliation holder while cash is still owed (#{state})" do
+        expect(described_class.new(manager, dr_owed(state: state)).transfer_deposit_responsibility?).to be true
+      end
+    end
+
+    it "denies users without verify_daily_reconciliation, including the current depositor" do
+      dr = dr_owed
+      expect(described_class.new(no_perm, dr).transfer_deposit_responsibility?).to be false
+      expect(described_class.new(depositor, dr).transfer_deposit_responsibility?).to be false
+    end
+
+    it "denies once the day is verified" do
+      expect(described_class.new(manager, dr_owed(state: "verified")).transfer_deposit_responsibility?).to be false
+    end
+
+    it "denies once the day is fully deposited" do
+      dr = dr_owed(state: "deposited")
+      TillDeposit.create!(daily_reconciliation: dr, payment_method: cash_pm, amount: 500,
+                          deposited_by: depositor, deposited_at: Time.current)
+      expect(described_class.new(manager, dr).transfer_deposit_responsibility?).to be false
+    end
+
+    it "denies a class-level check" do
+      expect(described_class.new(manager, DailyReconciliation).transfer_deposit_responsibility?).to be false
+    end
+  end
 end

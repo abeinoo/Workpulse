@@ -203,21 +203,88 @@
     </div>
   <% end %>
 
-  <%# ── Pending deposit responsibility transfer banner (target employee) ── %>
+  <%# ── Deposit responsibility request (recipient of a pending transfer) ── %>
   <% if @pending_deposit_transfer_for_me %>
-    <div style="background: rgba(var(--warning-rgb, 234,179,8), 0.10); border: 1.5px solid rgba(var(--warning-rgb, 234,179,8), 0.40); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4);">
-      <div style="flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgba(var(--warning-rgb, 234,179,8), 0.15); display: flex; align-items: center; justify-content: center; color: var(--warning, #ca8a04);">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/></svg>
+    <% incoming = @pending_deposit_transfer_for_me %>
+    <% dl_lbl = "font-size: var(--text-xs); color: var(--text-2); margin: 0;" %>
+    <% dl_val = "font-size: var(--text-sm); font-weight: 600; color: var(--text-1); margin: 0; overflow-wrap: anywhere;" %>
+    <div id="deposit-transfer-request-card"
+         style="background: rgba(var(--warning-rgb, 234,179,8), 0.08); border: 2px solid rgba(var(--warning-rgb, 234,179,8), 0.45); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); margin-bottom: var(--space-4); min-width: 0;">
+      <div style="display: flex; align-items: flex-start; gap: var(--space-4); min-width: 0;">
+        <div style="flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgba(var(--warning-rgb, 234,179,8), 0.15); display: flex; align-items: center; justify-content: center; color: var(--warning, #ca8a04);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/></svg>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 2px;">
+            <%= t("finance.daily_reconciliations.show.deposit_request.title") %>
+          </p>
+          <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0;">
+            <%= t("finance.daily_reconciliations.show.deposit_request.body") %>
+          </p>
+        </div>
       </div>
-      <div style="flex: 1; min-width: 0;">
-        <p style="font-size: var(--text-sm); font-weight: 700; color: var(--text-1); margin: 0 0 2px;">
-          <%= t("finance.daily_reconciliations.show.deposit_transfer_banner_title",
-                name: @pending_deposit_transfer_for_me.from_user.full_name) %>
-        </p>
-        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0;">
-          <%= t("finance.daily_reconciliations.show.deposit_transfer_banner_body") %>
-        </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3) var(--space-4); min-width: 0;">
+        <div style="min-width: 0;">
+          <p style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.deposit_request.day") %></p>
+          <p style="<%= dl_val %>"><%= l(@reconciliation.business_date, format: :long) %></p>
+        </div>
+        <div style="min-width: 0;">
+          <p style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.deposit_request.branch") %></p>
+          <p style="<%= dl_val %>"><%= @reconciliation.branch.name %></p>
+        </div>
+        <div style="min-width: 0;">
+          <p style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.deposit_request.current") %></p>
+          <p style="<%= dl_val %>"><%= incoming.from_user.full_name %></p>
+        </div>
+        <div style="min-width: 0;">
+          <p style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.deposit_request.requested_by") %></p>
+          <p style="<%= dl_val %>"><%= incoming.requester.full_name %></p>
+        </div>
       </div>
+
+      <% if incoming.notes.present? %>
+        <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0; font-style: italic; overflow-wrap: anywhere;">
+          <%= incoming.notes %>
+        </p>
+      <% end %>
+
+      <% if policy(incoming).accept? %>
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-3);">
+          <%= link_to deposit_responsibility_transfer_path(incoming),
+                id: "deposit-request-accept",
+                class: "btn btn-primary",
+                data: { turbo_frame: "modal" },
+                style: "flex: 1 1 180px; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); white-space: normal; text-align: center;" do %>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            <%= t("finance.daily_reconciliations.show.action_accept_deposit_transfer") %>
+          <% end %>
+          <% if policy(incoming).reject? %>
+            <%= link_to reject_form_deposit_responsibility_transfer_path(incoming),
+                  id: "deposit-request-reject",
+                  class: "btn btn-ghost",
+                  data: { turbo_frame: "modal" },
+                  style: "flex: 1 1 180px; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); white-space: normal; text-align: center;" do %>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <%= t("finance.daily_reconciliations.show.action_reject_deposit_transfer") %>
+            <% end %>
+          <% end %>
+        </div>
+      <% else %>
+        <%# The day can no longer change hands (verified / fully deposited) —
+            say why instead of offering a button the server would refuse. %>
+        <p role="alert" style="font-size: var(--text-sm); color: var(--danger, #dc2626); margin: 0;">
+          <%= t("deposit_responsibility_transfers.errors.locked") %>
+        </p>
+        <% if policy(incoming).reject? %>
+          <div>
+            <%= link_to t("finance.daily_reconciliations.show.action_reject_deposit_transfer"),
+                  reject_form_deposit_responsibility_transfer_path(incoming),
+                  id: "deposit-request-reject",
+                  class: "btn btn-ghost btn-sm", data: { turbo_frame: "modal" } %>
+          </div>
+        <% end %>
+      <% end %>
     </div>
   <% end %>
 
@@ -261,8 +328,6 @@
                   policy(TillRefund.new(daily_reconciliation: @reconciliation)).create? %>
   <% show_action_bar = !@waiting_for_opening_float && (
                        @pending_handover_for_me ||
-                       @pending_deposit_transfer_for_me ||
-                       @pending_deposit_transfer_from_me ||
                        (@reconciliation.open? && policy(TillHandover.new).create?) ||
                        can_refund ||
                        (@i_am_depositor && (@reconciliation.closed? || @reconciliation.deposited?))) %>
@@ -276,29 +341,6 @@
               style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
           <%= t("finance.daily_reconciliations.show.action_accept") %>
-        <% end %>
-      <% end %>
-
-      <%# Accept deposit responsibility (target employee) %>
-      <% if @pending_deposit_transfer_for_me %>
-        <%= link_to deposit_responsibility_transfer_path(@pending_deposit_transfer_for_me),
-              class: "btn btn-primary",
-              data: { turbo_frame: "modal" },
-              style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/></svg>
-          <%= t("finance.daily_reconciliations.show.action_accept_deposit_transfer") %>
-        <% end %>
-      <% end %>
-
-      <%# Cancel pending deposit responsibility transfer (from_user or manager) %>
-      <% if @pending_deposit_transfer_from_me && policy(@pending_deposit_transfer_from_me).cancel? %>
-        <%= button_to cancel_deposit_responsibility_transfer_path(@pending_deposit_transfer_from_me),
-              method: :patch,
-              class: "btn btn-ghost",
-              data: { turbo_confirm: t("finance.daily_reconciliations.show.confirm_cancel_deposit_transfer") },
-              style: "display: inline-flex; align-items: center; gap: var(--space-2);" do %>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          <%= t("finance.daily_reconciliations.show.action_cancel_deposit_transfer") %>
         <% end %>
       <% end %>
 
@@ -358,6 +400,72 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/></svg>
             <%= t("finance.daily_reconciliations.show.action_deposit") %>
           <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Deposit responsibility (who must deposit today's cash) ─────────────
+      The name shown is always TillSession#depositor — a pending transfer
+      never changes it until the recipient accepts. %>
+  <% if @session&.depositor && (@reconciliation.closed? || @reconciliation.deposited? || @reconciliation.verified?) %>
+    <% can_transfer_deposit = @pending_deposit_transfer.nil? && policy(@reconciliation).transfer_deposit_responsibility? %>
+    <div id="deposit-responsibility-card"
+         style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); margin-bottom: var(--space-4); min-width: 0;">
+      <div style="flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgba(var(--warning-rgb, 202,138,4), 0.12); display: flex; align-items: center; justify-content: center; color: var(--warning, #ca8a04);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="17"/><line x1="9.5" y1="14.5" x2="14.5" y2="14.5"/></svg>
+      </div>
+      <div style="flex: 1 1 180px; min-width: 0;">
+        <p style="font-size: var(--text-xs); color: var(--text-2); margin: 0 0 2px;">
+          <%= t("finance.daily_reconciliations.transfer_deposit.card_label") %>
+        </p>
+        <p id="deposit-responsibility-name" style="font-size: var(--text-base); font-weight: 700; color: var(--text-1); margin: 0; overflow-wrap: anywhere;">
+          <%= @session.depositor.full_name %>
+          <% if @i_am_depositor %>
+            <span class="badge badge-accent" style="margin-inline-start: var(--space-2); vertical-align: middle;"><%= t("finance.daily_reconciliations.transfer_deposit.you_badge") %></span>
+          <% end %>
+        </p>
+        <% if @pending_deposit_transfer %>
+          <div id="deposit-responsibility-pending" style="margin-top: var(--space-2); display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0;">
+            <span class="badge badge-warning"><%= t("finance.daily_reconciliations.transfer_deposit.pending_badge") %></span>
+            <span style="font-size: var(--text-xs); color: var(--text-2); overflow-wrap: anywhere;">
+              <%= t("finance.daily_reconciliations.transfer_deposit.pending_to") %>
+              <strong style="color: var(--text-1);"><%= @pending_deposit_transfer.to_user.full_name %></strong>
+              <% if @pending_deposit_transfer.initiated_by %>
+                · <%= t("finance.daily_reconciliations.transfer_deposit.pending_by", name: @pending_deposit_transfer.initiated_by.full_name) %>
+              <% end %>
+            </span>
+          </div>
+        <% elsif @deposit_transferred_away_from_me %>
+          <p id="deposit-responsibility-moved" style="font-size: var(--text-xs); color: var(--text-2); margin: 2px 0 0; overflow-wrap: anywhere;">
+            <%= t("finance.daily_reconciliations.transfer_deposit.moved_from_you",
+                  name: @deposit_transferred_away_from_me.acceptor.full_name,
+                  time: l(@deposit_transferred_away_from_me.accepted_at, format: :short)) %>
+          </p>
+        <% elsif !can_transfer_deposit && policy(@reconciliation).assign_depositor? %>
+          <p style="font-size: var(--text-xs); color: var(--text-3); margin: 2px 0 0;">
+            <%= t("finance.daily_reconciliations.transfer_deposit.locked_hint") %>
+          </p>
+        <% end %>
+      </div>
+      <% if can_transfer_deposit %>
+        <%= link_to transfer_deposit_responsibility_finance_daily_reconciliation_path(@reconciliation),
+              id: "transfer-deposit-responsibility-button",
+              class: "btn btn-secondary",
+              data: { turbo_frame: "modal" },
+              style: "flex: 0 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); max-width: 100%; white-space: normal; text-align: center;" do %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 21 3 16.5m0 0 4.5-4.5M3 16.5h13.5m0-9L21 3m0 0-4.5 4.5M21 3H7.5"/></svg>
+          <%= t("finance.daily_reconciliations.transfer_deposit.action") %>
+        <% end %>
+      <% elsif @pending_deposit_transfer && policy(@pending_deposit_transfer).cancel? && !@pending_deposit_transfer_for_me %>
+        <%= button_to cancel_deposit_responsibility_transfer_path(@pending_deposit_transfer),
+              method: :patch,
+              form: { id: "deposit-transfer-cancel-form", style: "flex: 0 1 auto; max-width: 100%;" },
+              class: "btn btn-ghost",
+              data: { turbo_confirm: t("finance.daily_reconciliations.show.confirm_cancel_deposit_transfer") },
+              style: "display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); max-width: 100%; white-space: normal;" do %>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <%= t("finance.daily_reconciliations.show.action_cancel_deposit_transfer") %>
         <% end %>
       <% end %>
     </div>
