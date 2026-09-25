@@ -1,0 +1,135 @@
+<% content_for :title, t("inventory.goods_receipts.settlements.new_title") %>
+<div class="form-page">
+  <%= link_to inventory_goods_receipt_path(@goods_receipt), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+
+  <h1 class="page-title mb-6"><%= t("inventory.goods_receipts.settlements.new_title") %></h1>
+
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("inventory.goods_receipts.number") %></dt>
+        <dd><%= @goods_receipt.receipt_number %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.goods_receipts.supplier") %></dt>
+        <dd><%= @goods_receipt.supplier&.name || "—" %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.goods_receipts.date") %></dt>
+        <dd><%= local_date(@goods_receipt.received_on) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.goods_receipts.total_amount") %></dt>
+        <dd><strong><%= format_currency(@settlement_total) %></strong></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.goods_receipts.paid_amount") %></dt>
+        <dd><%= format_currency(@settled_amount) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("inventory.goods_receipts.remaining_amount") %></dt>
+        <dd><strong><%= format_currency(@remaining_amount) %></strong></dd>
+      </div>
+    </dl>
+  </div>
+
+  <% selected_kind  = @settlement_params[:source_kind].to_s %>
+  <% custody_chosen = selected_kind == "employee_custody" %>
+  <%= form_with url: inventory_goods_receipt_settlements_path(@goods_receipt), method: :post, scope: :settlement,
+                class: "form-card",
+                data: {
+                  controller: "funding-source settlement-form",
+                  "settlement-form-remaining-value": @remaining_amount.to_d.round(2).to_s("F"),
+                  "settlement-form-has-custody-value": @custody_account.present?,
+                  "settlement-form-balance-value": @custody_balance.to_d.round(2).to_s("F"),
+                  "settlement-form-symbol-value": format_currency_parts(0).first,
+                  "settlement-form-locale-value": I18n.locale,
+                  "settlement-form-msg-positive-value": t("inventory.goods_receipts.settlements.errors.amount_must_be_positive"),
+                  "settlement-form-msg-exceeds-remaining-value": t("inventory.goods_receipts.settlements.errors.exceeds_remaining",
+                                                                   remaining: format_currency(@remaining_amount)),
+                  "settlement-form-msg-no-custody-value": t("inventory.goods_receipts.settlements.errors.no_custody_account")
+                } do |f| %>
+    <h2 class="section-title"><%= t("inventory.goods_receipts.settlements.payment_source") %></h2>
+    <div class="form-grid">
+      <% FinancialSettlement::SOURCE_KINDS.each do |kind| %>
+        <div class="form-group">
+          <label class="form-label">
+            <%= f.radio_button :source_kind, kind, checked: selected_kind == kind,
+                  data: { "funding-source-target": "kindRadio", "settlement-form-target": "kindRadio",
+                          action: "funding-source#toggle settlement-form#update" } %>
+            <%= t("inventory.goods_receipts.funding_source_kinds.#{kind}") %>
+          </label>
+        </div>
+      <% end %>
+
+      <%# Employee Custody = the logged-in user's own custody (no selector; the
+          server resolves the same account). Same presentation as the goods
+          receipt form's custody panel. %>
+      <div data-funding-source-target="panel" class="form-group <%= 'hidden' unless custody_chosen %>"
+           style="grid-column: 1 / -1; min-width: 0;" <%= "hidden" unless custody_chosen %>>
+        <p class="form-label"><%= t("inventory.goods_receipts.settlements.custody_balance") %></p>
+        <% if @custody_account %>
+          <p class="<%= 'text-danger' if @custody_balance.negative? %>" style="font-weight: 600; font-size: var(--text-lg); margin: 0;"
+             data-settlement-form-target="available">
+            <%= format_currency(@custody_balance) %>
+          </p>
+          <p class="form-hint"><%= t("inventory.goods_receipts.settlements.custody_hint") %></p>
+        <% else %>
+          <p class="text-danger" style="margin: 0;"><%= t("inventory.goods_receipts.settlements.errors.no_custody_account") %></p>
+        <% end %>
+      </div>
+    </div>
+
+    <h2 class="section-title"><%= t("inventory.goods_receipts.settlements.payment_details") %></h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :amount, t("inventory.goods_receipts.settlements.amount"), class: "form-label" %>
+        <%= f.number_field :amount, value: @settlement_params[:amount] || @remaining_amount.to_d.round(2).to_s("F"),
+              step: "0.01", min: 0.01, max: @remaining_amount, class: "form-control", required: true,
+              inputmode: "decimal",
+              data: { "settlement-form-target": "amount", action: "input->settlement-form#update" } %>
+        <p class="form-hint">
+          <%= t("inventory.goods_receipts.settlements.amount_max_hint", remaining: format_currency(@remaining_amount)) %>
+        </p>
+        <p class="form-hint">
+          <%= t("inventory.goods_receipts.settlements.remaining_after") %>:
+          <strong data-settlement-form-target="remainingAfter">—</strong>
+        </p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :payment_date, t("inventory.goods_receipts.settlement_date"), class: "form-label" %>
+        <%= f.date_field :payment_date, value: @settlement_params[:payment_date], class: "form-control", required: true %>
+      </div>
+
+      <%# Employee custody only: the user's custody balance after this settlement. %>
+      <div class="form-group <%= 'hidden' unless custody_chosen %>" style="grid-column: 1 / -1;"
+           data-settlement-form-target="balanceAfterRow" <%= "hidden" unless custody_chosen %>>
+        <p class="form-label"><%= t("inventory.goods_receipts.settlements.balance_after") %></p>
+        <p style="font-weight: 600; font-size: var(--text-lg); margin: 0;" data-settlement-form-target="balanceAfter">—</p>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :reference, t("inventory.goods_receipts.settlements.reference"), class: "form-label" %>
+        <%= f.text_field :reference, value: @settlement_params[:reference], maxlength: 120, class: "form-control",
+              placeholder: t("inventory.goods_receipts.settlements.reference_placeholder") %>
+      </div>
+
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <%= f.label :notes, t("finance.common.notes"), class: "form-label" %>
+        <%= f.text_area :notes, value: @settlement_params[:notes], rows: 3, class: "form-control" %>
+      </div>
+    </div>
+
+    <p class="text-danger" role="alert" hidden data-settlement-form-target="error" style="margin: 0 0 var(--space-3);"></p>
+
+    <div class="form-actions">
+      <%= f.submit t("inventory.goods_receipts.settlements.submit"), class: "btn btn-primary",
+            data: { "settlement-form-target": "submit", turbo_confirm: t("inventory.goods_receipts.settlements.submit_confirm") } %>
+      <%= link_to t("common.cancel"), inventory_goods_receipt_path(@goods_receipt), class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>

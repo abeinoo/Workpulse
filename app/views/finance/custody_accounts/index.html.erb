@@ -322,7 +322,10 @@
           <div class="card-header">
             <h2 class="card-title"><%= t("finance.custody.transactions.ledger") %></h2>
           </div>
-          <div class="table-wrap" style="margin-bottom: 0;">
+          <%# Same responsive treatment as the ledger on the account page
+              (finance/custody_accounts/show): plain table on desktop, cards at
+              ≤768px with the amount first — shared .custody-ledger styles. %>
+          <div class="table-wrap table-wrap--cards custody-ledger" style="margin-bottom: 0;">
             <table>
               <thead>
                 <tr>
@@ -334,14 +337,14 @@
               </thead>
               <tbody>
                 <% @transactions.each do |txn| %>
-                  <tr class="<%= 'is-voided' if txn.voided? %>">
-                    <td><%= l(txn.created_at.to_date, format: :long) %></td>
-                    <td><%= render "finance/custody_accounts/txn_type_badge", txn: txn %></td>
-                    <td style="text-align: end; color: <%= txn.amount.negative? ? 'var(--danger)' : 'var(--success)' %>;">
+                  <tr id="my-txn-<%= txn.id %>" class="<%= 'is-voided' if txn.voided? %>">
+                    <td class="custody-ledger__date"><%= l(txn.created_at.to_date, format: :long) %></td>
+                    <td class="custody-ledger__type"><div><%= render "finance/custody_accounts/txn_type_badge", txn: txn %></div></td>
+                    <td class="custody-ledger__amount" style="text-align: end; color: <%= txn.amount.negative? ? 'var(--danger)' : 'var(--success)' %>;">
                       <%= format_currency(txn.amount) %>
                     </td>
-                    <td class="td-secondary">
-                      <%= txn.notes.presence || txn.expense&.reference_number || "—" %>
+                    <td class="td-secondary custody-ledger__notes">
+                      <span dir="auto"><%= txn.notes.presence || txn.expense&.reference_number || "—" %></span>
                     </td>
                   </tr>
                 <% end %>

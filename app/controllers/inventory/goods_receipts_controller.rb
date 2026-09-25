@@ -26,7 +26,12 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     )
     authorize @goods_receipt
     @items           = @goods_receipt.items.includes(:product)
-    @settlements     = @goods_receipt.financial_settlements.chronological.includes(:funding_source, :created_by)
+    @settlements     = @goods_receipt.financial_settlements.chronological
+                                     .includes(:created_by, :custody_transaction, { funding_source: :user },
+                                               { reversal: :created_by }, :reverses_settlement)
+    @settlement_total = @goods_receipt.settlement_total
+    @settled_amount   = @settlements.sum(&:amount)
+    @remaining_amount = [ @settlement_total - @settled_amount, 0 ].max
     @audit_logs      = AuditLog.for_auditable(@goods_receipt).recent.includes(:actor)
     @timeline_events = build_timeline_events
   end
@@ -257,14 +262,20 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
         events << { type: :received, time: log.created_at, actor: log.actor }
       when "void"
         events << { type: :voided, time: log.created_at, actor: log.actor, data: log.metadata["reason"] }
+      when "reverse_settlement"
+        events << { type: :settlement_reversed, time: log.created_at, actor: log.actor, data: log.metadata["reason"] }
       end
     end
 
-    # Only the original deduction, never its reversal (a negative amount) —
-    # a void already gets its own :voided entry, and reversal-vs-original
-    # nuance belongs in the Payment Information ledger, not the headline timeline.
-    @settlements.select { |s| s.amount.positive? }.each do |settlement|
-      events << { type: :settled, time: settlement.settled_at, actor: settlement.created_by, data: settlement }
+    # Only original payments, never their reversals — a single reversal gets
+    # its own :settlement_reversed entry (from the audit log, which carries the
+    # reason), a void its :voided entry; per-row detail lives in the
+    # Settlement History ledger.
+    # Placed by when the payment was RECORDED (created_at), not its payment
+    # date (settled_at, often a bare date → midnight), so the timeline stays
+    # in true chronological order; the ledger row shows the payment date.
+    @settlements.reject(&:reversal?).each do |settlement|
+      events << { type: :settled, time: settlement.created_at, actor: settlement.created_by, data: settlement }
     end
 
     events.sort_by { |event| event[:time] }

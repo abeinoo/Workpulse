@@ -9,16 +9,19 @@ module Inventory
   # inventory movement to reverse (GoodsReceiptPoster never ran), so the
   # receipt is simply marked voided directly.
   #
-  # Either way, every settlement recorded against the receipt is reversed via
+  # Either way, every settlement still in effect on the receipt is reversed via
   # FinancialSettlementService.reverse_all — each with a new, equal-and-
-  # opposite FinancialSettlement row (never modifying the original) — plus,
-  # for any settlement funded from an employee's custody account, a matching
-  # reversing CustodyTransaction so the balance returns to what it was before
-  # approval.
+  # opposite FinancialSettlement row linked to its original (never modifying
+  # the original) — plus, for any settlement funded from an employee's custody
+  # account, a matching reversing CustodyTransaction so the balance returns to
+  # what it was before that payment.
   #
-  # A receipt can only be voided once (guarded below / by DocumentVoider), so
-  # at the point this runs every existing settlement is an original — there's
-  # nothing to guard against double-reversal.
+  # A receipt may carry several settlements (partial payments from different
+  # sources), some of which may already have been individually reversed via
+  # Inventory::GoodsReceiptSettlementReverser. reverse_all only touches
+  # originals that are still unreversed, so reversal rows and already-reversed
+  # payments are never reversed a second time, and custody is only refunded
+  # for the payments actually being reversed here.
   #
   # Everything happens in one transaction: if any reversal fails, the stock
   # reversal (if any) is rolled back too.
@@ -77,8 +80,6 @@ module Inventory
     end
 
     def reverse_settlements!
-      originals = @receipt.financial_settlements.to_a
-
       results = FinancialSettlementService.reverse_all(
         settleable: @receipt, actor: @actor,
         notes: I18n.t("inventory.goods_receipts.settlement_reversal_note", reference: @receipt.receipt_number)
@@ -86,21 +87,24 @@ module Inventory
       failed = results.find { |r| !r.ok? }
       raise ActiveRecord::RecordInvalid, failed.settlement if failed
 
-      originals.each do |settlement|
-        reverse_custody_transaction!(settlement) if settlement.funding_source.is_a?(CustodyAccount)
+      results.each do |result|
+        reversal = result.settlement
+        reverse_custody_transaction!(reversal) if reversal.funding_source.is_a?(CustodyAccount)
       end
     end
 
-    def reverse_custody_transaction!(settlement)
-      account = settlement.funding_source
+    # Credits back the custody side of one reversal settlement, linked to it.
+    def reverse_custody_transaction!(reversal)
+      account = reversal.funding_source
       account.with_lock do
         account.custody_transactions.create!(
-          business:   account.business,
-          txn_type:   "inventory_purchase_reversal",
-          amount:     settlement.amount,
-          source:     @receipt,
-          created_by: @actor,
-          notes:      I18n.t("finance.custody.inventory_purchase_reversal_note", reference: @receipt.receipt_number)
+          business:             account.business,
+          txn_type:             "inventory_purchase_reversal",
+          amount:               -reversal.amount,
+          source:               @receipt,
+          financial_settlement: reversal,
+          created_by:           @actor,
+          notes:                I18n.t("finance.custody.inventory_purchase_reversal_note", reference: @receipt.receipt_number)
         )
         account.refresh_balance!
       end

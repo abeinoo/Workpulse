@@ -30,7 +30,7 @@ class Finance::CustodyAccountsController < Finance::BaseController
   def show
     authorize @account
     @balance          = Finance::CustodyBalance.new(@account).current
-    @transactions     = @account.custody_transactions.includes(:expense, :created_by).recent.limit(100)
+    @transactions     = @account.custody_transactions.includes(:expense, :created_by, :source).recent.limit(100)
     @new_transaction  = @account.custody_transactions.build(business: @account.business)
     @other_accounts   = policy_scope(CustodyAccount).active.where.not(id: @account.id).ordered
     @balance_requests = policy_scope(BalanceRequest)

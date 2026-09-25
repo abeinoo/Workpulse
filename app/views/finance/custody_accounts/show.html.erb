@@ -249,7 +249,10 @@
         <div class="empty-state"><p class="empty-state__title"><%= t("finance.custody.transactions.empty") %></p></div>
       </div>
     <% else %>
-      <div class="table-wrap" style="margin-bottom: 0;">
+      <%# Desktop: plain table. ≤768px: .table-wrap--cards turns each row into a
+          card (labels from <th>); .custody-ledger reorders fields by priority
+          (amount → type → date → by → document → balance → notes → actions). %>
+      <div class="table-wrap table-wrap--cards custody-ledger" style="margin-bottom: 0;">
         <table>
           <thead>
             <tr>
@@ -265,29 +268,48 @@
           </thead>
           <tbody>
             <% running = @balance %>
+            <% can_view_receipts = policy(GoodsReceipt).show? %>
             <% @transactions.each do |txn| %>
+              <% linked   = txn.settlement_linked? && !txn.voided? %>
+              <% voidable = !linked && !txn.voided? && policy(txn).void? %>
               <tr id="txn-<%= txn.id %>" class="<%= 'is-voided' if txn.voided? %>">
-                <td><%= l(txn.created_at.to_date, format: :long) %></td>
-                <td><%= render "finance/custody_accounts/txn_type_badge", txn: txn %></td>
-                <td class="td-secondary">
+                <td class="custody-ledger__date"><%= l(txn.created_at.to_date, format: :long) %></td>
+                <td class="custody-ledger__type">
+                  <div>
+                    <%= render "finance/custody_accounts/txn_type_badge", txn: txn %>
+                    <span class="custody-ledger__id td-secondary"><%= t("finance.custody.transactions.txn_ref", id: txn.id) %></span>
+                  </div>
+                </td>
+                <td class="td-secondary custody-ledger__ref">
                   <% if txn.expense %>
-                    <%= txn.expense.reference_number %>
+                    <bdi><%= txn.expense.reference_number %></bdi>
                   <% elsif txn.source.is_a?(GoodsReceipt) %>
-                    <%= link_to txn.source.receipt_number, inventory_goods_receipt_path(txn.source), class: "link" %>
+                    <%= link_to inventory_goods_receipt_path(txn.source), class: "link" do %><bdi><%= txn.source.receipt_number %></bdi><% end %>
                   <% else %>
                     —
                   <% end %>
                 </td>
-                <td style="text-align: end; color: <%= txn.amount.negative? ? 'var(--danger)' : 'var(--success)' %>;">
+                <td class="custody-ledger__amount" style="text-align: end; color: <%= txn.amount.negative? ? 'var(--danger)' : 'var(--success)' %>;">
                   <%= format_currency(txn.amount) %>
                 </td>
-                <td style="text-align: end; color: <%= running.negative? ? 'var(--danger)' : 'inherit' %>;">
+                <td class="custody-ledger__running" style="text-align: end; color: <%= running.negative? ? 'var(--danger)' : 'inherit' %>;">
                   <%= txn.voided? ? "—" : format_currency(running) %>
                 </td>
-                <td class="td-secondary"><%= txn.created_by&.full_name || "—" %></td>
-                <td class="td-secondary"><%= txn.notes.presence || "—" %></td>
-                <td>
-                  <% if !txn.voided? && policy(txn).void? %>
+                <td class="td-secondary custody-ledger__by"><bdi><%= txn.created_by&.full_name || "—" %></bdi></td>
+                <td class="td-secondary custody-ledger__notes"><span dir="auto"><%= txn.notes.presence || "—" %></span></td>
+                <td class="custody-ledger__actions <%= 'is-empty' unless linked || voidable %>">
+                  <% if linked %>
+                    <%# Settlement-linked: never voided here (see CustodyTransaction#settlement_linked?). %>
+                    <div class="custody-ledger__linked">
+                      <span class="badge badge-accent"><%= t("finance.custody.transactions.settlement_linked_badge") %></span>
+                      <p class="td-secondary" style="margin: var(--space-1) 0 0;"><%= t("finance.custody.transactions.settlement_linked_hint") %></p>
+                      <% if can_view_receipts && txn.source.is_a?(GoodsReceipt) %>
+                        <%= link_to t("finance.custody.transactions.view_settlement"),
+                              inventory_goods_receipt_path(txn.source, anchor: "settlement-#{txn.financial_settlement_id}"),
+                              class: "link" %>
+                      <% end %>
+                    </div>
+                  <% elsif voidable %>
                     <div data-controller="collapsible">
                       <button type="button" class="btn btn-ghost btn-sm"
                               style="color: var(--danger);"
@@ -295,7 +317,7 @@
                               data-action="click->collapsible#toggle">
                         <%= t("finance.custody.transactions.void") %>
                       </button>
-                      <div data-collapsible-target="content" hidden style="padding-top: var(--space-2); min-width: 220px;">
+                      <div data-collapsible-target="content" hidden class="custody-ledger__void-form" style="padding-top: var(--space-2);">
                         <%= form_with url: void_finance_custody_account_custody_transaction_path(@account, txn), method: :patch do %>
                           <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
                             <%= text_field_tag :void_reason, nil,

@@ -93,4 +93,76 @@ RSpec.describe FinancialSettlement, type: :model do
       expect(settlement.errors[:funding_source]).to be_present
     end
   end
+
+  describe "custody transaction link" do
+    it "accepts only the exact mirror of the settlement, and at most one per settlement" do
+      receipt    = build_receipt
+      settlement = receipt.financial_settlements.create!(funding_source: account, amount: 100, settled_at: Time.current)
+      other      = create(:custody_account, business: business)
+
+      wrong_amount  = account.custody_transactions.build(business: business, txn_type: "inventory_purchase",
+                                                         amount: -50, financial_settlement: settlement)
+      wrong_account = other.custody_transactions.build(business: business, txn_type: "inventory_purchase",
+                                                       amount: -100, financial_settlement: settlement)
+      expect(wrong_amount).not_to be_valid
+      expect(wrong_account).not_to be_valid
+
+      account.custody_transactions.create!(business: business, txn_type: "inventory_purchase",
+                                           amount: -100, financial_settlement: settlement)
+      expect(settlement.reload.custody_transaction.amount).to eq(-100)
+
+      expect {
+        account.custody_transactions.create!(business: business, txn_type: "inventory_purchase",
+                                             amount: -100, financial_settlement: settlement)
+      }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+  end
+
+  describe "source kind & reversal link" do
+    it "tags a custody-funded row as employee_custody automatically" do
+      settlement = build_receipt.financial_settlements.create!(funding_source: account, amount: 100, settled_at: Time.current)
+      expect(settlement.source_kind).to eq("employee_custody")
+    end
+
+    it "requires a custody account for employee_custody" do
+      settlement = build_receipt.financial_settlements.build(source_kind: "employee_custody", amount: 100, settled_at: Time.current)
+      expect(settlement).not_to be_valid
+      expect(settlement.errors[:funding_source]).to be_present
+    end
+
+    it "forbids a linked account for company_cash / bank_account (no internal cash/bank balance exists)" do
+      %w[company_cash bank_account].each do |kind|
+        settlement = build_receipt.financial_settlements.build(source_kind: kind, funding_source: account,
+                                                               amount: 100, settled_at: Time.current)
+        expect(settlement).not_to be_valid
+      end
+    end
+
+    it "rejects supplier_credit and unknown source kinds" do
+      %w[supplier_credit wire].each do |kind|
+        settlement = build_receipt.financial_settlements.build(source_kind: kind, amount: 100, settled_at: Time.current)
+        expect(settlement).not_to be_valid
+        expect(settlement.errors[:source_kind]).to be_present
+      end
+    end
+
+    it "requires a reversal to mirror its original exactly" do
+      receipt  = build_receipt
+      original = receipt.financial_settlements.create!(source_kind: "company_cash", amount: 100, settled_at: Time.current)
+
+      wrong_amount = receipt.financial_settlements.build(source_kind: "company_cash", amount: -50,
+                                                         settled_at: Time.current, reverses_settlement: original)
+      expect(wrong_amount).not_to be_valid
+
+      other_doc = build_receipt.financial_settlements.build(source_kind: "company_cash", amount: -100,
+                                                            settled_at: Time.current, reverses_settlement: original)
+      expect(other_doc).not_to be_valid
+
+      ok = receipt.financial_settlements.create!(source_kind: "company_cash", amount: -100,
+                                                 settled_at: Time.current, reverses_settlement: original)
+      expect(original.reload).to be_reversed
+      expect(ok).to be_reversal
+      expect(receipt.financial_settlements.unreversed).to be_empty
+    end
+  end
 end

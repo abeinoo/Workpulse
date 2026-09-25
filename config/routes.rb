@@ -344,8 +344,13 @@ Rails.application.routes.draw do
         post  :approve
         post  :reject
       end
+      resources :settlements, only: [ :new, :create ], controller: "goods_receipt_settlements" do
+        member do
+          patch :reverse
+        end
+      end
     end
-    resources :stock_issues,    only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
+    resources :stock_issues,   only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
       member do
         patch :void
         patch :cancel

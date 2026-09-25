@@ -2925,6 +2925,9 @@ en:
         no_results_title: "No results match the filters"
         no_results_text: "Try changing your search or clearing some filters."
 
+  financial_settlements:
+    errors:
+      already_reversed: "This settlement has already been reversed."
   forms:
     save: "Save"
     cancel: "Cancel"
@@ -4161,10 +4164,11 @@ en:
         submitted: "Submitted for Approval"
         approved: "Approved"
         rejected: "Rejected"
-        settled: "Financial Settlement Completed"
+        settled: "Payment Recorded"
         received: "Goods Received"
         voided: "Voided"
-        settled_meta: "%{source} deducted"
+        settled_meta: "Paid from %{source}"
+        settlement_reversed: "Settlement Reversed"
         reason: "Reason: %{reason}"
         unknown_actor: "System"
       section_funding_source: "Funding Source"
@@ -4200,6 +4204,52 @@ en:
         already_processed: "This receipt has already been confirmed or voided."
         not_approved: "This receipt must be approved before it can be confirmed."
         invalid_approval_transition: "Invalid approval transition."
+      settlements:
+        action: "Financial Settlement"
+        new_title: "Record Financial Settlement"
+        history_title: "Settlement History"
+        payment_source: "Payment Source"
+        payment_details: "Payment Details"
+        source: "Source"
+        custody_balance: "Custody Balance"
+        balance_after: "Balance After Settlement"
+        amount: "Settlement Amount"
+        remaining_after: "Remaining on this receipt after this payment"
+        custody_transaction_ref: "Custody transaction #%{id}"
+        settlement_ref: "Settlement #%{id}"
+        custody_hint: "Paid from your own custody: the full amount is deducted from your custody balance, which may go negative."
+        amount_max_hint: "Maximum: %{remaining} (remaining on this receipt)"
+        reference: "Reference"
+        reference_placeholder: "Bank transfer #, cash voucher #, …"
+        submit: "Record Settlement"
+        submit_confirm: "Record this payment against the goods receipt?"
+        recorded: "Financial settlement recorded."
+        reversed: "Settlement reversed."
+        recorded_by: "Recorded By"
+        status: "Status"
+        total_paid: "Total Paid"
+        unlinked_source: "Not linked to an account"
+        statuses:
+          active: "Settled"
+          reversed: "Reversed"
+          reversal: "Reversal Entry"
+        reversal_of: "Reverses settlement #%{id}"
+        reversed_meta: "Reversed by %{actor} · %{date}"
+        reverse_action: "Reverse"
+        reversal_reason: "Reversal Reason"
+        reversal_reason_placeholder: "Explain why this payment is being reversed"
+        reverse_submit: "Confirm Reversal"
+        reverse_confirm: "Reverse this %{amount} payment? The original stays on record and the amount becomes outstanding again."
+        errors:
+          invalid_source_kind: "Choose a valid payment source."
+          amount_must_be_positive: "Enter an amount greater than zero."
+          invalid_payment_date: "Enter a valid payment date."
+          not_settleable: "Only approved, non-voided goods receipts can be settled."
+          already_settled: "This goods receipt is already fully settled."
+          exceeds_remaining: "Amount exceeds the remaining balance of %{remaining}."
+          no_custody_account: "There is no active custody for this employee."
+          reason_required: "A reason is required to reverse a settlement."
+          receipt_voided: "This goods receipt is voided; its settlements were already reversed."
     stock_issues:
       title: "Stock Issues"
       new_action: "New Issue"
@@ -4717,6 +4767,14 @@ en:
               must_match_purchase_request: "must match the originating purchase request's supplier"
             purchase_request:
               invalid: "must belong to the same business"
+        financial_settlement:
+          attributes:
+            funding_source:
+              required: "must be an employee custody account when the source is Employee Custody"
+              must_be_blank: "must be blank for company cash or bank payments"
+            reverses_settlement:
+              invalid: "must be an original settlement on the same document"
+              taken: "has already been reversed"
         goods_receipt_item:
           attributes:
             product_id:
@@ -4759,6 +4817,8 @@ en:
               must_be_positive: "must be positive for a top-up"
               must_be_negative: "must be negative for an expense deduction"
               must_not_be_zero: "cannot be zero"
+            base:
+              settlement_linked_void: "This custody transaction cannot be voided directly because it is linked to a financial settlement. Reverse the settlement from the Goods Receipt."
         bank_statement:
           attributes:
             statement_to:
@@ -6229,10 +6289,13 @@ en:
         target_required: "Choose a different account to transfer to."
         already_voided: "This transaction is already voided."
         reason_required: "A reason is required to void a transaction."
+        settlement_linked: "This custody transaction cannot be voided directly because it is linked to a financial settlement. Reverse the settlement from the Goods Receipt."
       expense_deduction_note: "Expense deduction — %{reference}"
       expense_deduction_reversal_note: "Expense cancellation — %{reference}"
       inventory_purchase_note: "Inventory Purchase - Goods Receipt %{reference}"
       inventory_purchase_reversal_note: "Goods Receipt Cancellation - %{reference}"
+      inventory_settlement_note: "Goods Receipt %{reference} - Settlement #%{settlement}"
+      inventory_settlement_reversal_note: "Goods Receipt %{reference} - Settlement #%{settlement} reversed: %{reason}"
       accounts:
         title: "Employee Balances"
         add: "New Balance Account"
@@ -6262,6 +6325,10 @@ en:
         adjust: "Adjust"
       transactions:
         add: "Record Transaction"
+        settlement_linked_badge: "Linked to a financial settlement"
+        txn_ref: "Transaction #%{id}"
+        settlement_linked_hint: "Linked to a financial settlement — it can only be undone by reversing that settlement on the goods receipt."
+        view_settlement: "View settlement"
         deposit_title: "Deposit Balance"
         adjustment_title: "Manual Adjustment"
         ledger: "Transaction History"

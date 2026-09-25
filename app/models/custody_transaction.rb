@@ -9,6 +9,10 @@ class CustodyTransaction < ApplicationRecord
   belongs_to :created_by,  class_name: "User", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
   belongs_to :source, polymorphic: true, optional: true
+  # The exact FinancialSettlement row this movement settles (a payment's debit)
+  # or undoes (a reversal's credit) — alongside #source, which still points at
+  # the settled document. Unique: at most one custody movement per settlement.
+  belongs_to :financial_settlement, optional: true, inverse_of: :custody_transaction
 
   # Whitelist for the polymorphic #source link (mirrors FinancialAdjustment#adjustable) —
   # currently only used to trace an inventory_purchase/inventory_purchase_reversal
@@ -36,13 +40,41 @@ class CustodyTransaction < ApplicationRecord
   validate  :amount_sign_matches_type
   validate  :account_in_same_business
   validate  :expense_in_same_business
+  validate  :mirrors_financial_settlement, on: :create
+  validate  :settlement_linked_not_voided_directly, on: :update
 
   scope :for_business, ->(business)    { where(business: business) }
   scope :for_account,  ->(account_id)  { where(custody_account_id: account_id) if account_id.present? }
   scope :of_type,      ->(type)        { where(txn_type: type) if type.present? }
   scope :recent,       -> { order(created_at: :desc, id: :desc) }
 
+  # The custody side of a FinancialSettlement (a payment's debit or a
+  # reversal's credit). Its lifecycle belongs to the settlement: it is undone
+  # only by reversing the settlement, which posts a new, linked credit — never
+  # by voiding this row, which would move the balance while the settlement
+  # still counts as paid.
+  def settlement_linked? = financial_settlement_id.present?
+
   private
+
+  # Model-level backstop for #settlement_linked?: blocks voiding through ANY
+  # path (service, console, future code), not just Finance::TransactionVoider.
+  def settlement_linked_not_voided_directly
+    return unless settlement_linked? && will_save_change_to_voided_at? && voided_at.present?
+
+    errors.add(:base, :settlement_linked_void)
+  end
+
+  # A settlement-linked movement must be the exact custody side of that
+  # settlement: same account, equal-and-opposite amount (settlement +2,000 ↔
+  # custody −2,000; reversal −2,000 ↔ custody +2,000).
+  def mirrors_financial_settlement
+    return if financial_settlement.nil?
+
+    errors.add(:financial_settlement, :invalid) unless financial_settlement.funding_source_type == "CustodyAccount" &&
+                                                       financial_settlement.funding_source_id == custody_account_id
+    errors.add(:amount, :invalid) unless amount.present? && amount == -financial_settlement.amount
+  end
 
   def amount_sign_matches_type
     return if amount.blank?

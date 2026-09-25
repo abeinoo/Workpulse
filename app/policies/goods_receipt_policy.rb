@@ -32,6 +32,20 @@ class GoodsReceiptPolicy < ApplicationPolicy
   def cancel?  = (can?(:manage_inventory) || can?(:create_goods_receipts)) && not_voided? &&
                  (!record.is_a?(GoodsReceipt) || %w[draft pending_approval].include?(record.approval_status))
 
+  # Recording a later payment against an approved receipt's outstanding amount
+  # (Inventory::GoodsReceiptSettlementRecorder). Same people who make the
+  # receipt's financial decision at approval — no employee-balance permission
+  # is needed to pay from someone's custody; the service enforces the custody
+  # rules (active account, sufficient balance). Independent of receiving status.
+  def settle? = (can?(:manage_inventory) || can?(:approve_goods_receipts)) && not_voided? &&
+                (!record.is_a?(GoodsReceipt) ||
+                  (record.approval_approved? && record.remaining_settlement_amount.positive?))
+
+  # Reversing ONE recorded settlement (Inventory::GoodsReceiptSettlementReverser)
+  # — the same reversing-entry mechanism as a void, so it's gated like #void?.
+  def reverse_settlement? = (can?(:manage_inventory) || can?(:void_goods_receipts)) && not_voided? &&
+                            (!record.is_a?(GoodsReceipt) || record.approval_approved?)
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       for_accessible_warehouses(scope.for_business(user.business))

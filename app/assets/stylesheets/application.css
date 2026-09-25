@@ -13843,3 +13843,72 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
   .obl-results-bar__control { flex: 1 1 0; min-width: 0; }
   .obl-results-bar__control .filter-bar__select { width: 100%; }
 }
+
+/* ============================================================
+   CUSTODY LEDGER (Finance › Employee Balance page)
+   Built on .table-wrap--cards: desktop stays a plain table; at
+   the shared ≤768px card breakpoint each transaction becomes a
+   card with fields in priority order and a prominent amount.
+   ============================================================ */
+.custody-ledger__id { display: none; }
+.custody-ledger__linked { min-width: 180px; max-width: 260px; }
+.custody-ledger__void-form { min-width: 220px; }
+
+@media (max-width: 768px) {
+  .table-wrap--cards.custody-ledger tbody tr {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Long names / references / notes wrap instead of widening the card. */
+  .table-wrap--cards.custody-ledger tbody td {
+    overflow-wrap: anywhere;
+  }
+
+  .table-wrap--cards.custody-ledger tbody td > * { min-width: 0; }
+
+  /* Amount/balance cells are end-aligned on desktop; keep their card label at the start. */
+  .table-wrap--cards.custody-ledger tbody td::before { text-align: start; }
+
+  .custody-ledger__amount  { order: 1; font-size: var(--text-lg); font-weight: 700; }
+  .custody-ledger__type    { order: 2; }
+  .custody-ledger__date    { order: 3; }
+  .custody-ledger__by      { order: 4; }
+  .custody-ledger__ref     { order: 5; }
+  .custody-ledger__running { order: 6; }
+  .custody-ledger__notes   { order: 7; }
+  .custody-ledger__actions { order: 8; }
+
+  /* Visual first/last rows after reordering. */
+  .table-wrap--cards.custody-ledger tbody td.custody-ledger__date   { padding-top: var(--space-2); }
+  .table-wrap--cards.custody-ledger tbody td.custody-ledger__amount { padding-top: 0; }
+
+  .custody-ledger__type > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .custody-ledger__id { display: inline; font-size: var(--text-xs); }
+
+  /* Actions: no label, separated from the data rows, full card width. */
+  .table-wrap--cards.custody-ledger tbody td.custody-ledger__actions {
+    display: block;
+    padding-top: var(--space-3);
+    margin-top: var(--space-1);
+    border-top: 1px solid var(--border);
+    border-bottom: none;
+  }
+
+  .table-wrap--cards.custody-ledger tbody td.custody-ledger__actions::before { display: none; }
+  .table-wrap--cards.custody-ledger tbody td.custody-ledger__actions.is-empty { display: none; }
+  .table-wrap--cards.custody-ledger tbody tr:has(td.is-empty) td.custody-ledger__notes {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .custody-ledger__linked,
+  .custody-ledger__void-form { min-width: 0; max-width: none; }
+}

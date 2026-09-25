@@ -26,17 +26,48 @@ class FinancialSettlement < ApplicationRecord
   # other — it simply moves no internal balance and has nothing to link to.
   FUNDING_SOURCE_TYPES = %w[CustodyAccount].freeze
 
+  # WHERE the money came from — reuses the existing funding-source vocabulary
+  # (GoodsReceipt::FUNDING_SOURCE_KINDS), minus supplier_credit, which is the
+  # absence of a payment, not a way of paying. Only employee_custody is backed
+  # by a trackable account (funding_source = CustodyAccount); company_cash and
+  # bank_account settlements carry a NIL funding_source because no CashAccount /
+  # BankAccount model exists yet — they record a real payment but move no
+  # internal balance. When such a model is added, it joins FUNDING_SOURCE_TYPES
+  # and #funding_source_matches_kind is relaxed for its kind.
+  # NIL source_kind = legacy untracked expense payment (cash vs. bank unknown).
+  SOURCE_KINDS = (GoodsReceipt::FUNDING_SOURCE_KINDS - %w[supplier_credit]).freeze
+  ACCOUNTLESS_SOURCE_KINDS = %w[company_cash bank_account].freeze
+
   belongs_to :settleable, polymorphic: true
   belongs_to :funding_source, polymorphic: true, optional: true
   belongs_to :created_by, class_name: "User", optional: true
+
+  # A reversal is a separate row pointing at the exact original it undoes
+  # (unique index: each settlement can be reversed at most once).
+  belongs_to :reverses_settlement, class_name: "FinancialSettlement", optional: true, inverse_of: :reversal
+  has_one    :reversal, class_name: "FinancialSettlement", foreign_key: :reverses_settlement_id,
+                        inverse_of: :reverses_settlement, dependent: :restrict_with_error
+  # The custody movement this settlement produced (custody-funded rows only).
+  has_one    :custody_transaction, inverse_of: :financial_settlement, dependent: :restrict_with_error
 
   validates :amount, presence: true, numericality: { other_than: 0 }
   validates :settled_at, presence: true
   validates :settleable_type, inclusion: { in: SETTLEABLE_TYPES }
   validates :funding_source_type, inclusion: { in: FUNDING_SOURCE_TYPES }, allow_nil: true
+  validates :source_kind, inclusion: { in: SOURCE_KINDS }, allow_nil: true
   validate  :funding_source_in_same_business
+  validate  :funding_source_matches_kind
+  validate  :reversal_mirrors_original, on: :create
+
+  before_validation :default_source_kind_from_funding_source, on: :create
 
   scope :chronological, -> { order(:settled_at, :id) }
+  scope :originals,     -> { where(reverses_settlement_id: nil) }
+  # Originals that are still in effect — the only rows a void/reversal may undo.
+  scope :unreversed,    -> { originals.where.missing(:reversal) }
+
+  def reversal? = reverses_settlement_id.present?
+  def reversed? = reversal.present?
 
   before_update  { raise ActiveRecord::ReadOnlyRecord, "FinancialSettlement records are immutable after creation." }
   before_destroy { raise ActiveRecord::ReadOnlyRecord, "FinancialSettlement records cannot be deleted." }
@@ -48,5 +79,29 @@ class FinancialSettlement < ApplicationRecord
     return unless funding_source.respond_to?(:business_id) && settleable.respond_to?(:business_id)
 
     errors.add(:funding_source, :invalid) if funding_source.business_id != settleable.business_id
+  end
+
+  # Existing callers (goods receipt approval, expense approval/payments) only
+  # pass a CustodyAccount — tag those rows without having to change them.
+  def default_source_kind_from_funding_source
+    self.source_kind ||= "employee_custody" if funding_source.is_a?(CustodyAccount)
+  end
+
+  def funding_source_matches_kind
+    if source_kind == "employee_custody"
+      errors.add(:funding_source, :required) unless funding_source.is_a?(CustodyAccount)
+    elsif ACCOUNTLESS_SOURCE_KINDS.include?(source_kind) && funding_source.present?
+      errors.add(:funding_source, :must_be_blank)
+    end
+  end
+
+  def reversal_mirrors_original
+    return if reverses_settlement.nil?
+
+    original = reverses_settlement
+    errors.add(:reverses_settlement, :invalid) if original.reversal?
+    errors.add(:reverses_settlement, :invalid) unless original.settleable_type == settleable_type &&
+                                                      original.settleable_id == settleable_id
+    errors.add(:amount, :invalid) unless amount.present? && amount == -original.amount
   end
 end

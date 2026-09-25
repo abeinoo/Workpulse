@@ -4,6 +4,12 @@ module Finance
   # scope). A transaction locked into a settlement can't be voided until the
   # settlement is rejected. Voiding one leg of a transfer voids its counterpart
   # too, so paired balances stay consistent.
+  #
+  # A movement linked to a FinancialSettlement (CustodyTransaction#settlement_linked?,
+  # e.g. a goods receipt payment from custody) is refused: it must be undone by
+  # reversing the settlement (Inventory::GoodsReceiptSettlementReverser), which
+  # keeps custody and the document's paid amount in step. The model enforces
+  # the same rule as a backstop.
   class TransactionVoider
     include AuditLoggable
 
@@ -17,6 +23,7 @@ module Finance
 
     def call
       return err(I18n.t("finance.custody.errors.already_voided")) if @txn.voided?
+      return err(I18n.t("finance.custody.errors.settlement_linked")) if @txn.settlement_linked?
       return err(I18n.t("finance.custody.errors.reason_required")) if @reason.blank?
 
       counterpart = @txn.transfer_counterparty

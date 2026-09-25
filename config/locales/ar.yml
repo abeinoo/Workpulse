@@ -2915,6 +2915,9 @@ ar:
         title: "تعديل الالتزام"
         submit: "تحديث الالتزام"
 
+  financial_settlements:
+    errors:
+      already_reversed: "تم عكس هذه التسوية بالفعل."
   forms:
     save: "حفظ"
     cancel: "إلغاء"
@@ -4199,10 +4202,11 @@ ar:
         submitted: "تم الإرسال للاعتماد"
         approved: "تم الاعتماد"
         rejected: "تم الرفض"
-        settled: "تمت التسوية المالية"
+        settled: "تم تسجيل دفعة"
         received: "تم استلام البضاعة"
         voided: "تم الإلغاء"
-        settled_meta: "تم خصم %{source}"
+        settled_meta: "الدفع من %{source}"
+        settlement_reversed: "تم عكس تسوية"
         reason: "السبب: %{reason}"
         unknown_actor: "النظام"
       section_funding_source: "مصدر التمويل"
@@ -4238,6 +4242,52 @@ ar:
         already_processed: "تم بالفعل تأكيد أو إلغاء هذا الإذن."
         not_approved: "يجب اعتماد هذا الإذن قبل تأكيده."
         invalid_approval_transition: "انتقال اعتماد غير صالح."
+      settlements:
+        action: "تسوية مالية"
+        new_title: "تسجيل تسوية مالية"
+        history_title: "سجل التسويات المالية"
+        payment_source: "مصدر الدفع"
+        payment_details: "تفاصيل الدفع"
+        source: "المصدر"
+        custody_balance: "رصيد العهدة"
+        balance_after: "الرصيد بعد التسوية"
+        amount: "مبلغ التسوية"
+        remaining_after: "المتبقي على الإذن بعد هذه الدفعة"
+        custody_transaction_ref: "حركة عهدة رقم %{id}"
+        settlement_ref: "تسوية رقم %{id}"
+        custody_hint: "الدفع من عهدتك: سيتم خصم كامل المبلغ من رصيد عهدتك، وقد يصبح الرصيد سالبًا."
+        amount_max_hint: "الحد الأقصى: %{remaining} (المتبقي على هذا الإذن)"
+        reference: "المرجع"
+        reference_placeholder: "رقم التحويل البنكي، رقم سند الصرف، …"
+        submit: "تسجيل التسوية"
+        submit_confirm: "تسجيل هذه الدفعة على إذن الاستلام؟"
+        recorded: "تم تسجيل التسوية المالية."
+        reversed: "تم عكس التسوية."
+        recorded_by: "سجّلها"
+        status: "الحالة"
+        total_paid: "إجمالي المدفوع"
+        unlinked_source: "غير مرتبط بحساب"
+        statuses:
+          active: "تمت التسوية"
+          reversed: "تم العكس"
+          reversal: "قيد عكسي"
+        reversal_of: "يعكس التسوية رقم %{id}"
+        reversed_meta: "عكسها %{actor} · %{date}"
+        reverse_action: "عكس"
+        reversal_reason: "سبب العكس"
+        reversal_reason_placeholder: "اشرح سبب عكس هذه الدفعة"
+        reverse_submit: "تأكيد العكس"
+        reverse_confirm: "عكس هذه الدفعة بقيمة %{amount}؟ ستبقى الدفعة الأصلية في السجل ويعود المبلغ مستحقًا."
+        errors:
+          invalid_source_kind: "اختر مصدر دفع صالحًا."
+          amount_must_be_positive: "أدخل مبلغًا أكبر من صفر."
+          invalid_payment_date: "أدخل تاريخ دفع صالحًا."
+          not_settleable: "لا يمكن تسوية إلا أذونات الاستلام المعتمدة وغير الملغاة."
+          already_settled: "تمت تسوية إذن الاستلام بالكامل بالفعل."
+          exceeds_remaining: "المبلغ يتجاوز الرصيد المتبقي وقدره %{remaining}."
+          no_custody_account: "لا توجد عهدة نشطة لهذا الموظف."
+          reason_required: "يجب إدخال سبب لعكس التسوية."
+          receipt_voided: "إذن الاستلام ملغى، وقد تم عكس تسوياته بالفعل."
     stock_issues:
       title: "إذونات الصرف"
       new_action: "إذن صرف جديد"
@@ -4755,6 +4805,14 @@ ar:
               must_match_purchase_request: "يجب أن يطابق مورد طلب الشراء الأصلي"
             purchase_request:
               invalid: "يجب أن ينتمي إلى نفس المنشأة"
+        financial_settlement:
+          attributes:
+            funding_source:
+              required: "يجب أن يكون حساب عهدة موظف عندما يكون المصدر عهدة موظف"
+              must_be_blank: "يجب أن يكون فارغًا لمدفوعات نقدية الشركة أو الحساب البنكي"
+            reverses_settlement:
+              invalid: "يجب أن تكون تسوية أصلية على نفس المستند"
+              taken: "تم عكسها بالفعل"
         goods_receipt_item:
           attributes:
             product_id:
@@ -4797,6 +4855,8 @@ ar:
               must_be_positive: "يجب أن يكون موجباً لعملية إيداع"
               must_be_negative: "يجب أن يكون سالباً لخصم مصروف"
               must_not_be_zero: "لا يمكن أن يكون صفراً"
+            base:
+              settlement_linked_void: "لا يمكن إلغاء حركة العهدة مباشرة لأنها مرتبطة بتسوية مالية. استخدم عكس التسوية من إذن الاستلام."
         bank_statement:
           attributes:
             statement_to:
@@ -6253,10 +6313,13 @@ ar:
         target_required: "اختر حسابًا آخر للتحويل إليه."
         already_voided: "تم إلغاء هذه المعاملة بالفعل."
         reason_required: "يلزم سبب لإلغاء المعاملة."
+        settlement_linked: "لا يمكن إلغاء حركة العهدة مباشرة لأنها مرتبطة بتسوية مالية. استخدم عكس التسوية من إذن الاستلام."
       expense_deduction_note: "خصم مصروف — %{reference}"
       expense_deduction_reversal_note: "إلغاء مصروف — %{reference}"
       inventory_purchase_note: "شراء مخزون - إذن استلام %{reference}"
       inventory_purchase_reversal_note: "إلغاء إذن استلام - %{reference}"
+      inventory_settlement_note: "إذن استلام %{reference} - تسوية رقم %{settlement}"
+      inventory_settlement_reversal_note: "إذن استلام %{reference} - عكس التسوية رقم %{settlement}: %{reason}"
       accounts:
         title: "أرصدة الموظفين"
         add: "حساب رصيد جديد"
@@ -6286,6 +6349,10 @@ ar:
         adjust: "تسوية"
       transactions:
         add: "تسجيل معاملة"
+        settlement_linked_badge: "مرتبطة بتسوية مالية"
+        txn_ref: "حركة عهدة رقم %{id}"
+        settlement_linked_hint: "مرتبطة بتسوية مالية — لا يمكن التراجع عنها إلا بعكس التسوية من إذن الاستلام."
+        view_settlement: "عرض التسوية"
         deposit_title: "إيداع رصيد"
         adjustment_title: "تسوية يدوية"
         ledger: "سجل المعاملات"

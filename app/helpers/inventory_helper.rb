@@ -53,7 +53,7 @@ module InventoryHelper
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
     approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
     settled: "activity-timeline__marker--accent", received: "activity-timeline__marker--success",
-    voided: "activity-timeline__marker--danger"
+    voided: "activity-timeline__marker--danger", settlement_reversed: "activity-timeline__marker--warning"
   }.freeze
 
   def goods_receipt_timeline_marker_class(type)
@@ -73,7 +73,17 @@ module InventoryHelper
   }.freeze
 
   def goods_receipt_timeline_icon(type)
-    GOODS_RECEIPT_TIMELINE_ICONS.fetch(type, GOODS_RECEIPT_TIMELINE_ICONS[:created])
+    icon_type = type == :settlement_reversed ? :settled : type
+    GOODS_RECEIPT_TIMELINE_ICONS.fetch(icon_type, GOODS_RECEIPT_TIMELINE_ICONS[:created])
+  end
+
+  # "Where did this payment come from?" for one FinancialSettlement row —
+  # reuses the funding-source labels. A NIL source_kind is a legacy payment
+  # through an untracked means (cash vs. bank unknown).
+  def financial_settlement_source_label(settlement)
+    return t("inventory.goods_receipts.settlements.unlinked_source") if settlement.source_kind.blank?
+
+    t("inventory.goods_receipts.funding_source_kinds.#{settlement.source_kind}")
   end
 
   # Badge colour for a stock issue's workflow status. Voided is a separate,

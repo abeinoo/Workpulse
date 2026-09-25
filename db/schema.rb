@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_23_111414) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -390,6 +390,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_111414) do
     t.bigint "created_by_id"
     t.bigint "custody_account_id", null: false
     t.bigint "expense_id"
+    t.bigint "financial_settlement_id"
     t.text "notes"
     t.bigint "source_id"
     t.string "source_type"
@@ -406,6 +407,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_111414) do
     t.index ["custody_account_id", "created_at"], name: "index_custody_transactions_on_account_and_created_at"
     t.index ["custody_account_id"], name: "index_custody_transactions_on_custody_account_id"
     t.index ["expense_id"], name: "index_custody_transactions_on_expense_id"
+    t.index ["financial_settlement_id"], name: "index_custody_transactions_on_financial_settlement_id", unique: true
     t.index ["source_type", "source_id"], name: "index_custody_transactions_on_source"
     t.index ["transfer_counterparty_id"], name: "index_custody_transactions_on_transfer_counterparty_id"
     t.index ["voided_by_id"], name: "index_custody_transactions_on_voided_by_id"
@@ -733,12 +735,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_111414) do
     t.bigint "funding_source_id"
     t.string "funding_source_type"
     t.text "notes"
+    t.string "reference"
+    t.bigint "reverses_settlement_id"
     t.bigint "settleable_id", null: false
     t.string "settleable_type", null: false
     t.datetime "settled_at", null: false
+    t.string "source_kind"
     t.datetime "updated_at", null: false
     t.index ["created_by_id"], name: "index_financial_settlements_on_created_by_id"
     t.index ["funding_source_type", "funding_source_id"], name: "index_financial_settlements_on_funding_source"
+    t.index ["reverses_settlement_id"], name: "index_financial_settlements_on_reverses_settlement_id", unique: true
     t.index ["settleable_type", "settleable_id"], name: "index_financial_settlements_on_settleable"
   end
 
@@ -2381,6 +2387,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_111414) do
   add_foreign_key "custody_transactions", "custody_accounts"
   add_foreign_key "custody_transactions", "custody_transactions", column: "transfer_counterparty_id"
   add_foreign_key "custody_transactions", "expenses"
+  add_foreign_key "custody_transactions", "financial_settlements"
   add_foreign_key "custody_transactions", "users", column: "approved_by_id"
   add_foreign_key "custody_transactions", "users", column: "created_by_id"
   add_foreign_key "custody_transactions", "users", column: "voided_by_id"
@@ -2434,6 +2441,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_111414) do
   add_foreign_key "financial_adjustments", "businesses"
   add_foreign_key "financial_adjustments", "users", column: "actor_id"
   add_foreign_key "financial_adjustments", "users", column: "approved_by_id"
+  add_foreign_key "financial_settlements", "financial_settlements", column: "reverses_settlement_id"
   add_foreign_key "financial_settlements", "users", column: "created_by_id"
   add_foreign_key "goods_receipt_items", "goods_receipts"
   add_foreign_key "goods_receipt_items", "products"

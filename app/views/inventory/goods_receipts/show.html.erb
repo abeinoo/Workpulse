@@ -44,6 +44,20 @@
         <span class="badge badge--md <%= goods_receipt_financial_status_class(@goods_receipt.financial_status) %>">
           <%= t("inventory.goods_receipts.financial_statuses.#{@goods_receipt.financial_status}") %>
         </span>
+        <% if @goods_receipt.approval_approved? && !@goods_receipt.voided? %>
+          <p class="td-secondary" style="margin: var(--space-2) 0 0;">
+            <%= t("inventory.goods_receipts.total_amount") %>: <strong><%= format_currency(@settlement_total) %></strong>
+            · <%= t("inventory.goods_receipts.paid_amount") %>: <strong><%= format_currency(@settled_amount) %></strong>
+            · <%= t("inventory.goods_receipts.remaining_amount") %>: <strong><%= format_currency(@remaining_amount) %></strong>
+          </p>
+        <% end %>
+        <% if policy(@goods_receipt).settle? %>
+          <%= link_to new_inventory_goods_receipt_settlement_path(@goods_receipt), class: "btn btn-primary btn-sm",
+                style: "margin-top: var(--space-3); display: inline-flex; gap: var(--space-2); align-items: center;" do %>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="<%= goods_receipt_timeline_icon(:settled) %>"/></svg>
+            <%= t("inventory.goods_receipts.settlements.action") %>
+          <% end %>
+        <% end %>
       </div>
     </div>
   </div>
@@ -148,38 +162,125 @@
       <% end %>
     </dl>
 
+  </div>
+
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <div class="flex" style="justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);">
+      <h2 class="card-title" style="font-size: var(--text-lg); margin: 0;"><%= t("inventory.goods_receipts.settlements.history_title") %></h2>
+      <% if policy(@goods_receipt).settle? %>
+        <%= link_to t("inventory.goods_receipts.settlements.action"), new_inventory_goods_receipt_settlement_path(@goods_receipt),
+              class: "btn btn-ghost btn-sm" %>
+      <% end %>
+    </div>
+
     <% if @settlements.any? %>
-      <div class="table-wrap" style="margin-top: var(--space-4);">
+      <% can_reverse = policy(@goods_receipt).reverse_settlement? %>
+      <%# Each cell's content sits in ONE wrapper so the mobile card layout
+          (td = label/value flex row) keeps multi-line values together. %>
+      <div class="table-wrap table-wrap--cards">
         <table>
           <thead><tr>
             <th><%= t("inventory.goods_receipts.settlement_date") %></th>
-            <th><%= t("inventory.goods_receipts.settlement_source") %></th>
             <th style="text-align: end;"><%= t("inventory.goods_receipts.settlement_amount") %></th>
-            <th><%= t("finance.common.notes") %></th>
+            <th><%= t("inventory.goods_receipts.settlements.source") %></th>
+            <th><%= t("inventory.goods_receipts.settlements.reference") %></th>
+            <th><%= t("inventory.goods_receipts.settlements.recorded_by") %></th>
+            <th style="min-width: 180px;"><%= t("inventory.goods_receipts.settlements.status") %></th>
           </tr></thead>
           <tbody>
             <% @settlements.each do |settlement| %>
-              <tr>
-                <td><%= l(settlement.settled_at.to_date, format: :long) %></td>
-                <td>
-                  <% if settlement.funding_source.is_a?(CustodyAccount) %>
-                    <%= link_to settlement.funding_source.name, finance_custody_account_path(settlement.funding_source), class: "link" %>
-                  <% else %>
-                    <%= settlement.funding_source_type %>
-                  <% end %>
-                </td>
-                <td style="text-align: end; color: <%= settlement.amount.negative? ? 'var(--danger)' : 'var(--success)' %>;">
+              <tr id="settlement-<%= settlement.id %>">
+                <td><%= local_date(settlement.settled_at.to_date) %></td>
+                <td style="text-align: end; white-space: nowrap; color: <%= settlement.amount.negative? ? 'var(--danger)' : 'var(--success)' %>;">
                   <%= format_currency(settlement.amount) %>
                 </td>
-                <td class="td-secondary"><%= settlement.notes.presence || "—" %></td>
+                <td>
+                  <div>
+                    <%= financial_settlement_source_label(settlement) %>
+                    <% if settlement.funding_source.is_a?(CustodyAccount) %>
+                      <div>
+                        <%= link_to settlement.funding_source.user&.full_name || settlement.funding_source.name,
+                              finance_custody_account_path(settlement.funding_source), class: "link" %>
+                      </div>
+                      <% if settlement.custody_transaction %>
+                        <div class="td-secondary">
+                          <%= t("inventory.goods_receipts.settlements.custody_transaction_ref", id: settlement.custody_transaction.id) %>
+                        </div>
+                      <% end %>
+                    <% end %>
+                  </div>
+                </td>
+                <td class="td-secondary">
+                  <div>
+                    <%= settlement.reference.presence || "—" %>
+                    <div><%= t("inventory.goods_receipts.settlements.settlement_ref", id: settlement.id) %></div>
+                  </div>
+                </td>
+                <td><%= settlement.created_by&.full_name || t("inventory.goods_receipts.timeline.unknown_actor") %></td>
+                <td>
+                  <div style="flex: 1 1 auto; min-width: 0;">
+                    <% if settlement.reversal? %>
+                      <span class="badge badge-neutral"><%= t("inventory.goods_receipts.settlements.statuses.reversal") %></span>
+                      <p class="td-secondary" style="margin: var(--space-1) 0 0;">
+                        <%= t("inventory.goods_receipts.settlements.reversal_of", id: settlement.reverses_settlement_id) %>
+                      </p>
+                    <% elsif settlement.reversed? %>
+                      <span class="badge badge-danger"><%= t("inventory.goods_receipts.settlements.statuses.reversed") %></span>
+                      <p class="td-secondary" style="margin: var(--space-1) 0 0;">
+                        <%= t("inventory.goods_receipts.settlements.reversed_meta",
+                              actor: settlement.reversal.created_by&.full_name || t("inventory.goods_receipts.timeline.unknown_actor"),
+                              date: l(settlement.reversal.created_at, format: :short)) %>
+                      </p>
+                      <% if settlement.reversal.notes.present? %>
+                        <p class="td-secondary" style="margin: var(--space-1) 0 0;">
+                          <%= t("inventory.goods_receipts.timeline.reason", reason: settlement.reversal.notes) %>
+                        </p>
+                      <% end %>
+                    <% else %>
+                      <span class="badge badge-success"><%= t("inventory.goods_receipts.settlements.statuses.active") %></span>
+                    <% end %>
+                    <% if settlement.notes.present? && !settlement.reversal? %>
+                      <p class="td-secondary" style="margin: var(--space-1) 0 0;"><%= settlement.notes %></p>
+                    <% end %>
+
+                    <% if can_reverse && !settlement.reversal? && !settlement.reversed? %>
+                      <details style="margin-top: var(--space-2);">
+                        <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
+                          <%= t("inventory.goods_receipts.settlements.reverse_action") %>
+                        </summary>
+                        <%= form_with url: reverse_inventory_goods_receipt_settlement_path(@goods_receipt, settlement), method: :patch,
+                                      style: "margin-top: var(--space-3); max-width: 360px;" do %>
+                          <div class="form-group">
+                            <label class="form-label" for="reversal_reason_<%= settlement.id %>"><%= t("inventory.goods_receipts.settlements.reversal_reason") %></label>
+                            <textarea id="reversal_reason_<%= settlement.id %>" name="reversal_reason" rows="2" class="form-control" required
+                                      placeholder="<%= t('inventory.goods_receipts.settlements.reversal_reason_placeholder') %>"></textarea>
+                          </div>
+                          <button type="submit" class="btn btn-danger btn-sm"
+                                  data-turbo-confirm="<%= t('inventory.goods_receipts.settlements.reverse_confirm', amount: format_currency(settlement.amount)) %>">
+                            <%= t("inventory.goods_receipts.settlements.reverse_submit") %>
+                          </button>
+                        <% end %>
+                      </details>
+                    <% end %>
+                  </div>
+                </td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
     <% else %>
-      <p class="td-secondary" style="margin-top: var(--space-3);"><%= t("inventory.goods_receipts.no_settlements") %></p>
+      <p class="td-secondary"><%= t("inventory.goods_receipts.no_settlements") %></p>
     <% end %>
+
+    <dl class="detail-list" style="margin-top: var(--space-4); margin-bottom: 0;">
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.total_amount") %></dt><dd><%= format_currency(@settlement_total) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.settlements.total_paid") %></dt><dd><strong><%= format_currency(@settled_amount) %></strong></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.remaining_amount") %></dt><dd><strong><%= format_currency(@remaining_amount) %></strong></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.financial_status_label") %></dt>
+        <dd><span class="badge <%= goods_receipt_financial_status_class(@goods_receipt.financial_status) %>"><%= t("inventory.goods_receipts.financial_statuses.#{@goods_receipt.financial_status}") %></span></dd>
+      </div>
+    </dl>
   </div>
 
   <div class="card" style="margin-bottom: var(--space-5);">
@@ -249,8 +350,8 @@
               <p class="activity-timeline__title"><%= t("inventory.goods_receipts.timeline.#{event[:type]}") %></p>
               <% if event[:type] == :settled %>
                 <p class="activity-timeline__meta">
-                  <%= t("inventory.goods_receipts.timeline.settled_meta",
-                        source: t("inventory.goods_receipts.funding_source_kinds.#{@goods_receipt.funding_source_kind}")) %>
+                  <%= t("inventory.goods_receipts.timeline.settled_meta", source: financial_settlement_source_label(event[:data])) %>
+                  · <%= event[:actor]&.full_name || t("inventory.goods_receipts.timeline.unknown_actor") %>
                   · <%= l(event[:time], format: :short) %>
                 </p>
                 <p class="activity-timeline__amount"><%= format_currency(event[:data].amount) %></p>

@@ -116,12 +116,13 @@ module Inventory
       raise ActiveRecord::RecordInvalid, settlement_result.settlement unless settlement_result.ok?
 
       account.custody_transactions.create!(
-        business:       account.business,
-        txn_type:       "inventory_purchase",
-        amount:         -receipt.total_value,
-        source:         receipt,
-        created_by:     @actor,
-        notes:          I18n.t("finance.custody.inventory_purchase_note", reference: receipt.receipt_number)
+        business:             account.business,
+        txn_type:             "inventory_purchase",
+        amount:               -receipt.total_value,
+        source:               receipt,
+        financial_settlement: settlement_result.settlement,
+        created_by:           @actor,
+        notes:                I18n.t("finance.custody.inventory_purchase_note", reference: receipt.receipt_number)
       )
       account.refresh_balance!
     end
