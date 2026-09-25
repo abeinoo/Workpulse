@@ -19,6 +19,48 @@ RSpec.describe DailyReconciliationPolicy do
     )
   end
 
+  describe "index dashboard section gates (collection-level)" do
+    %i[view_reconciliation_workflow view_reconciliation_insights view_session_totals].each do |perm|
+      describe "##{perm}?" do
+        it "allows a user holding #{perm}" do
+          viewer = user_with("view_daily_reconciliation", perm.to_s)
+          expect(described_class.new(viewer, DailyReconciliation).public_send(:"#{perm}?")).to be true
+        end
+
+        it "is not granted by page access (view_daily_reconciliation) alone" do
+          expect(described_class.new(no_perm, DailyReconciliation).index?).to be true
+          expect(described_class.new(no_perm, DailyReconciliation).public_send(:"#{perm}?")).to be false
+        end
+
+        it "is granted to the business owner" do
+          owner = create(:user, :owner, business: business)
+          expect(described_class.new(owner, DailyReconciliation).public_send(:"#{perm}?")).to be true
+        end
+      end
+    end
+  end
+
+  describe "#view_full_reconciliation_history?" do
+    it "is granted by verify_daily_reconciliation" do
+      admin = user_with("view_daily_reconciliation", "verify_daily_reconciliation")
+      expect(described_class.new(admin, DailyReconciliation).view_full_reconciliation_history?).to be true
+    end
+
+    it "is granted by view_deposit_verification" do
+      accountant = user_with("view_daily_reconciliation", "view_deposit_verification")
+      expect(described_class.new(accountant, DailyReconciliation).view_full_reconciliation_history?).to be true
+    end
+
+    it "is not granted by view_daily_reconciliation alone" do
+      expect(described_class.new(no_perm, DailyReconciliation).view_full_reconciliation_history?).to be false
+    end
+
+    it "is granted to the business owner" do
+      owner = create(:user, :owner, business: business)
+      expect(described_class.new(owner, DailyReconciliation).view_full_reconciliation_history?).to be true
+    end
+  end
+
   describe "#view_sales_transactions_verification?" do
     it "allows a user with the dedicated permission" do
       viewer = user_with("view_daily_reconciliation", "view_sales_transactions_verification")

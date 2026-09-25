@@ -17,7 +17,8 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
   let(:actor) do
     user_with("view_daily_reconciliation", "view_deposit_verification", "close_till_session",
               "create_till_deposit", "verify_deposits", "manual_match_deposits",
-              "verify_daily_reconciliation")
+              "verify_daily_reconciliation", "view_session_totals",
+              "view_reconciliation_workflow", "view_reconciliation_insights")
   end
 
   before { sign_in actor }

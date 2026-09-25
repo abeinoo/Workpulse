@@ -72,6 +72,13 @@ class DailyReconciliation < ApplicationRecord
   scope :for_business, ->(business)  { where(business: business) }
   scope :for_branch,   ->(branch)    { where(branch: branch) }
   scope :in_period,    ->(from, to)  { where(business_date: from..to) }
+  # Index-listing window for users without full-history access: `today` plus
+  # the previous (days - 1) business days, keyed on business_date (pass
+  # BusinessDay.current, never Date.current). Show/member actions never use it.
+  INDEX_RECENT_BUSINESS_DAYS = 14
+  scope :within_recent_business_days, ->(today, days: INDEX_RECENT_BUSINESS_DAYS) {
+    where(business_date: (today - (days - 1))..)
+  }
   scope :ordered,      ->            { order(opened_at: :desc) }
   scope :verified,     ->            { where.not(verified_at: nil) }
   scope :unverified,   ->            { where(verified_at: nil) }

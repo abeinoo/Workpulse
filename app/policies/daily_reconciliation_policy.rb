@@ -15,6 +15,19 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def correct_opening_float?        = can?(:correct_opening_float)
   def update_opening_float_amounts? = can?(:correct_opening_float)
   def view_session_totals?                        = can?(:view_session_totals)
+  # Index-page dashboard sections — independent of page access (index?), so a
+  # role can open the DR list without seeing the aggregate dashboards.
+  def view_reconciliation_workflow?               = can?(:view_reconciliation_workflow)
+  def view_reconciliation_insights?               = can?(:view_reconciliation_insights)
+  # Index/export listing history. Without it the listing is limited to the
+  # last DailyReconciliation::INDEX_RECENT_BUSINESS_DAYS business days — show
+  # and member actions are unaffected (they go through Scope, not this).
+  # verify_daily_reconciliation (DR management) and view_deposit_verification
+  # (bank matching, which is inherently historical — statements arrive late)
+  # separate manager/finance roles from reception/cashier roles; owners pass
+  # via can?.
+  def view_full_reconciliation_history?           =
+    can?(:verify_daily_reconciliation) || can?(:view_deposit_verification)
   def edit_session_totals?                        = can?(:edit_session_totals) && !record.is_a?(Class)
   def edit_day_close_amounts?                     = can?(:edit_day_close_amounts) && !record.is_a?(Class)
   def view_own_employee_reconciliation_summary?   = can?(:view_own_employee_reconciliation_summary)

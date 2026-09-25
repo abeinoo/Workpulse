@@ -43,6 +43,8 @@ class PermissionRole < ApplicationRecord
     daily_reconciliation:  %w[create_till_session
                                view_daily_reconciliation
                                view_session_totals
+                               view_reconciliation_workflow
+                               view_reconciliation_insights
                                close_till_session
                                accept_till_handover
                                create_till_deposit
@@ -289,6 +291,8 @@ class PermissionRole < ApplicationRecord
     "assign_shifts"          => %w[view_shifts],
     "create_till_deposit"    => %w[close_till_session],
     "view_session_totals"    => %w[view_daily_reconciliation],
+    "view_reconciliation_workflow" => %w[view_daily_reconciliation],
+    "view_reconciliation_insights" => %w[view_daily_reconciliation],
     "verify_daily_reconciliation" => %w[view_daily_reconciliation],
     "edit_session_totals"    => %w[view_daily_reconciliation],
     "edit_day_close_amounts" => %w[view_daily_reconciliation],

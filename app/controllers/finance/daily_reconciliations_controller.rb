@@ -19,6 +19,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     @show_verification = current_user.can?(:view_deposit_verification)
 
+    # Dashboard-section gates. Page access (index?) deliberately grants none
+    # of these — each section has its own permission, and the data that only
+    # feeds a section is skipped below when the section won't render.
+    dr_policy                   = policy(DailyReconciliation)
+    @can_view_workflow          = dr_policy.view_reconciliation_workflow?
+    @can_view_insights          = dr_policy.view_reconciliation_insights?
+    @can_view_financial_summary = @show_verification && dr_policy.view_session_totals?
+
     query = DailyReconciliation
               .where(business_id: current_user.business_id)
               .includes(:branch, :business, :bank_disputes,
@@ -37,6 +45,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     # never drift from what set_reconciliation's policy_scope(...).find(id)
     # (used by #show and every other member action) already enforces.
     query = policy_scope(query)
+    query = restrict_to_index_history_window(query)
 
     # The branch picker/filter for THIS index must offer every branch the
     # (already date-correlated) policy scope actually contains a visible DR
@@ -57,7 +66,9 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     # it would silently drop a branch whose only visible DRs happen to have
     # aged out of the most-recent 200, which has nothing to do with this fix.
     @accessible_branches = index_filter_branches(
-      policy_scope(DailyReconciliation.where(business_id: current_user.business_id))
+      restrict_to_index_history_window(
+        policy_scope(DailyReconciliation.where(business_id: current_user.business_id))
+      )
     )
 
     # ── Optional filters ─────────────────────────────────────────────────────
@@ -139,7 +150,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         depositor_counts[depositor] += 1 if depositor
       end
       @depositor_counts = depositor_counts.sort_by { |_user, count| -count }.to_h
-      @top_depositors    = @depositor_counts.first(5)
+      @top_depositors    = @can_view_insights ? @depositor_counts.first(5) : []
 
       # Single source of truth for everything below: dashboard cards, the
       # reconciliation list, and every counter/total/percentage on the page.
@@ -187,10 +198,12 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       build_employee_issue_badges(@reconciliations)
 
       # Amount summary strip — totals across the final filtered set.
-      @summary_expected = @reconciliations.sum(&:expected_cash_deposit)
-      @summary_deposited = @reconciliations.sum(&:total_deposited)
-      @summary_matched   = @reconciliations.sum(&:total_matched_amount)
-      @summary_outstanding = @reconciliations.sum(&:total_remaining_balance)
+      if @can_view_financial_summary
+        @summary_expected = @reconciliations.sum(&:expected_cash_deposit)
+        @summary_deposited = @reconciliations.sum(&:total_deposited)
+        @summary_matched   = @reconciliations.sum(&:total_matched_amount)
+        @summary_outstanding = @reconciliations.sum(&:total_remaining_balance)
+      end
 
       @empty_state_key = empty_state_key_for(@filter_bank_status) if @reconciliations.empty?
     else
@@ -301,7 +314,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     authorize DailyReconciliation, :export?
 
     ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
-    scope = policy_scope(DailyReconciliation)
+    scope = restrict_to_index_history_window(policy_scope(DailyReconciliation))
               .includes(:branch, till_session: :depositor,
                         till_deposits: [ :deposit_matches, :bank_statement_transactions ],
                         remaining_deposit_balances: [])
@@ -1770,6 +1783,17 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # over-grant beyond what Scope#resolve already permits, since it's derived
   # directly from that same scoped relation, not a separate re-derivation of
   # "the employee's branch."
+  # Listing-only (index + export) history boundary, applied in SQL before
+  # every filter/limit so no date filter, ids[] or branch param can widen it.
+  # Deliberately NOT part of DailyReconciliationPolicy::Scope — show and all
+  # member actions resolve through that scope and must keep working for
+  # older records.
+  def restrict_to_index_history_window(scope)
+    return scope if policy(DailyReconciliation).view_full_reconciliation_history?
+
+    scope.within_recent_business_days(BusinessDay.current(context: current_user.business))
+  end
+
   def index_filter_branches(scoped_query)
     sales_branches.active.where(id: scoped_query.distinct.select(:branch_id)).order(:name).to_a
   end

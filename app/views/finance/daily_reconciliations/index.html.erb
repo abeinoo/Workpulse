@@ -212,19 +212,6 @@
       All associations are eager-loaded — no extra queries below.
     %>
     <%
-      waiting_count     = @reconciliations.count(&:waiting_for_opening?)
-      # "Waiting for Deposit" — workflow-stage pipeline card, same population
-      # as the index's status=waiting_deposit filter (query.closed): day
-      # closed, no deposit recorded yet. Distinct from the Outstanding
-      # Balance card below (an open remaining_deposit_balance), which is a
-      # financial condition orthogonal to workflow stage — a DR can be
-      # verified and still carry an outstanding shortfall.
-      closed_count      = @reconciliations.count(&:closed?)
-      open_count        = @reconciliations.count(&:open?)
-      # "deposited" state is reached as soon as the first deposit is recorded
-      # — a remaining balance is normal and doesn't change readiness to verify.
-      deposited_count   = @reconciliations.count(&:deposited?)
-      verified_count    = @reconciliations.count(&:verified?)
       # Same definition as DailyReconciliation#total_remaining_balance (open
       # balances only — settled/written-off amounts are correctly excluded,
       # matching the show page's "Settled Later"/"Written Off" lines rather
@@ -255,7 +242,24 @@
         system defines). Fixed color meaning per stage, not conditional on
         count, per the requested Waiting=orange / Verification=blue /
         Completed=green scheme. ── %>
-    <div class="dashboard-section">
+    <%# Gated by view_reconciliation_workflow — page access alone does not
+        grant it. Counts are only computed when the section renders. ── %>
+    <% if @can_view_workflow %>
+    <%
+      waiting_count     = @reconciliations.count(&:waiting_for_opening?)
+      # "Waiting for Deposit" — workflow-stage pipeline card, same population
+      # as the index's status=waiting_deposit filter (query.closed): day
+      # closed, no deposit recorded yet. Distinct from the Outstanding
+      # Balance card below (an open remaining_deposit_balance), which is a
+      # financial condition orthogonal to workflow stage — a DR can be
+      # verified and still carry an outstanding shortfall.
+      closed_count      = @reconciliations.count(&:closed?)
+      # "deposited" state is reached as soon as the first deposit is recorded
+      # — a remaining balance is normal and doesn't change readiness to verify.
+      deposited_count   = @reconciliations.count(&:deposited?)
+      verified_count    = @reconciliations.count(&:verified?)
+    %>
+    <div class="dashboard-section" id="dr-section-workflow">
       <h2 class="dashboard-section__title" style="margin: 0 0 var(--space-4);">
         <%= t("finance.daily_reconciliations.index.workspace.section_workflow_title") %>
       </h2>
@@ -285,6 +289,7 @@
         </div>
       </div>
     </div>
+    <% end %>
 
     <% if @show_verification && @bank_status_counts %>
       <%# ── Section 2 — Exceptions ──────────────────────────────────────
@@ -355,8 +360,10 @@
         </div>
       </div>
 
-      <%# ── Section 3 — Financial Summary — unchanged, unsplit. ── %>
-      <div class="dashboard-section">
+      <%# ── Section 3 — Financial Summary — additionally gated by
+          view_session_totals (@can_view_financial_summary). ── %>
+      <% if @can_view_financial_summary %>
+      <div class="dashboard-section" id="dr-section-financial-summary">
         <h2 class="dashboard-section__title" style="margin: 0 0 var(--space-4);">
           <%= t("finance.daily_reconciliations.index.workspace.section_financial_title") %>
         </h2>
@@ -396,13 +403,16 @@
           </div>
         </div>
       </div>
+      <% end %>
     <% end %>
 
     <%# ── Section 4 — Operational Insights — lower priority than workflow;
-        smaller cards. Outstanding Balance / Open Sessions are available to
-        every viewer (not gated on view_deposit_verification, same as
-        before); Top Depositors stays gated exactly as before. ── %>
-    <div class="dashboard-section">
+        smaller cards. Whole section gated by view_reconciliation_insights;
+        Top Depositors additionally stays gated on view_deposit_verification
+        exactly as before. ── %>
+    <% if @can_view_insights %>
+    <% open_count = @reconciliations.count(&:open?) %>
+    <div class="dashboard-section" id="dr-section-insights">
       <h2 class="dashboard-section__title" style="margin: 0 0 var(--space-4);">
         <%= t("finance.daily_reconciliations.index.workspace.section_operational_title") %>
       </h2>
@@ -444,6 +454,7 @@
         </div>
       <% end %>
     </div>
+    <% end %>
 
     <%# ── Bulk action bar — settle outstanding balances ───────────────── %>
     <% if can_bulk_settle && has_outstanding %>
