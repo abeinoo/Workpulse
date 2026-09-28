@@ -138,4 +138,48 @@ RSpec.describe ApplicationHelper, type: :helper do
       expect(helper.bank_status_summary("completed")).to eq("completed")
     end
   end
+
+  describe "12-hour display helpers" do
+    it "formats wall-clock strings as AM/PM without any timezone shift" do
+      with_business(ny_biz) do
+        { "15:10" => "03:10 PM", "14:05" => "02:05 PM", "02:07" => "02:07 AM",
+          "00:00" => "12:00 AM", "12:30" => "12:30 PM", "15:10:00" => "03:10 PM" }.each do |input, out|
+          expect(Nokogiri::HTML.fragment(helper.clock_12h(input)).text).to eq(out)
+        end
+      end
+    end
+
+    it "wraps the clock in an LTR-isolated bdi so it stays readable in RTL" do
+      html = Nokogiri::HTML.fragment(helper.clock_12h("15:10")).at_css("bdi")
+      expect(html["dir"]).to eq("ltr")
+    end
+
+    it "returns the fallback for blank / nil values" do
+      allow(helper).to receive(:current_user).and_return(nil)
+      expect(helper.clock_12h(nil)).to eq("—")
+      expect(helper.clock_12h("")).to eq("—")
+      expect(helper.local_time_12h(nil)).to eq("—")
+      expect(helper.local_datetime_12h(nil)).to eq("—")
+    end
+
+    it "converts timestamps to the business timezone like local_time does" do
+      utc_ts = Time.utc(2026, 9, 14, 23, 7, 0) # 02:07 next day in Riyadh
+      with_business(riyadh_biz) do
+        expect(helper.local_time(utc_ts)).to eq("02:07")
+        expect(Nokogiri::HTML.fragment(helper.local_time_12h(utc_ts)).text).to eq("02:07 AM")
+      end
+    end
+
+    it "renders a locale-aware date with a 12-hour clock" do
+      utc_ts = Time.utc(2026, 9, 14, 19, 8, 0) # 22:08 Riyadh
+      with_business(riyadh_biz) do
+        I18n.with_locale(:en) do
+          expect(Nokogiri::HTML.fragment(helper.local_datetime_12h(utc_ts)).text).to eq("Sep 14, 2026 10:08 PM")
+        end
+        I18n.with_locale(:ar) do
+          expect(Nokogiri::HTML.fragment(helper.local_datetime_12h(utc_ts)).text).to eq("14 سبتمبر 2026 10:08 PM")
+        end
+      end
+    end
+  end
 end

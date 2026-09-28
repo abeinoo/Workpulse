@@ -200,13 +200,14 @@ RSpec.describe Requests::Approver do
       expect(check_out_local.min).to eq(0)
     end
 
-    it "stores approved_time string when manager provides a different time" do
+    it "stores the reviewer's final punch as one datetime when a different time is given" do
       described_class.approve(
         request:       request,
         reviewed_by:   manager,
         approved_time: "16:45"
       )
-      expect(request.reload.approved_time).to eq("16:45")
+      expect(request.reload.approved_punch_at)
+        .to eq(ActiveSupport::TimeZone["Asia/Riyadh"].local(work_date.year, work_date.month, work_date.day, 16, 45))
       check_out_local = attendance_record.reload.check_out_at.in_time_zone("Asia/Riyadh")
       expect(check_out_local.hour).to eq(16)
       expect(check_out_local.min).to eq(45)

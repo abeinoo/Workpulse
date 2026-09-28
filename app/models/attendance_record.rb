@@ -68,6 +68,12 @@ class AttendanceRecord < ApplicationRecord
     check_out_at.in_time_zone(tz).to_date > work_date
   end
 
+  # :critical / :suspicious when worked_minutes exceeds the business's review
+  # thresholds (see Attendance::DurationCheck), nil otherwise. Derived, not stored.
+  def duration_severity
+    Attendance::DurationCheck.severity(worked_minutes, business: branch&.business || user.business)
+  end
+
   def total_penalty_minutes
     late_minutes.to_i + early_leave_minutes.to_i
   end

@@ -1,0 +1,30 @@
+<%# Worked duration the attendance record has with this correction applied.
+    assessment: Requests::PunchCorrectionAssessment — projected_worked_minutes
+    comes from Attendance::RecordRecomputer, severity from
+    Attendance::DurationCheck (the business's configurable thresholds). %>
+<% minutes  = assessment.projected_worked_minutes %>
+<% severity = assessment.duration_severity %>
+<div class="info-card resulting-duration <%= "resulting-duration--#{severity}" if severity %>"
+     style="margin-top: 1rem;" data-testid="resulting-duration">
+  <p class="info-card__section-title"><%= t("requests.show.resulting_duration.title") %></p>
+
+  <% if assessment.punch_order_invalid? %>
+    <div class="alert alert-danger resulting-duration__warning" role="alert" data-testid="punch-order-invalid">
+      <p class="window-alert__title">🔴 <%= t("requests.errors.check_out_before_check_in") %></p>
+    </div>
+  <% elsif minutes %>
+    <p class="resulting-duration__value" data-testid="resulting-duration-value"><%= format_duration_hm(minutes) %></p>
+  <% else %>
+    <p class="info-card__empty"><%= t("requests.show.resulting_duration.unavailable") %></p>
+  <% end %>
+
+  <% if severity %>
+    <div class="alert <%= severity == :critical ? 'alert-danger' : 'alert-warning' %> resulting-duration__warning"
+         role="alert" data-testid="resulting-duration-warning" data-severity="<%= severity %>">
+      <p class="window-alert__title">
+        <%= severity == :critical ? "🔴" : "⚠️" %> <%= t("requests.show.resulting_duration.abnormal") %>
+      </p>
+      <p><%= t("requests.show.resulting_duration.exceeds", hours: Attendance::DurationCheck.threshold_hours(severity, business: assessment.request.user.business)) %></p>
+    </div>
+  <% end %>
+</div>

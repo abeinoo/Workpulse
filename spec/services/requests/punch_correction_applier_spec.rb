@@ -190,13 +190,12 @@ RSpec.describe Requests::PunchCorrectionApplier do
   # ──────────────────────────────────────────────────────────────
   # Regression: check-in stored on a calendar day AFTER the work_date.
   #
-  # Reproduces the production bug "Worked minutes must be greater than or
-  # equal to 0". The shift's work_date is the day before the punch's real
-  # calendar date (e.g. an overnight business whose business_day_start_hour
-  # pushes an afternoon punch onto the prior work_date). proposed_date
-  # defaults to requested_for_date (the work_date), so build_datetime would
-  # anchor the corrected check-out to the day BEFORE the check-in, producing
-  # a check_out_at earlier than check_in_at and a negative worked_minutes.
+  # Originally the production bug "Worked minutes must be greater than or
+  # equal to 0": proposed_date defaults to requested_for_date (the work_date),
+  # anchoring the corrected check-out to the day BEFORE the check-in. The date
+  # is now applied exactly as selected — never shifted automatically — so that
+  # case is refused with a clear error (no negative minutes, nothing written),
+  # and succeeds once the reviewer selects the real punch date.
   # ──────────────────────────────────────────────────────────────
   describe "wrong_check_out_time when check-in is on the day after work_date (overnight)" do
     let(:riyadh)    { create(:business, timezone: "Asia/Riyadh") }
@@ -232,22 +231,29 @@ RSpec.describe Requests::PunchCorrectionApplier do
              reviewed_at:        Time.current)
     end
 
-    it "succeeds instead of failing the worked_minutes validation" do
+    it "refuses a check-out before the check-in with a clear error instead of moving the date" do
       result = described_class.call(request: request)
-      expect(result).to be_success, "expected success, got: #{result.error.inspect}"
+      expect(result).not_to be_success
+      expect(result.error).to eq(I18n.t("requests.errors.check_out_before_check_in"))
+      record.reload
+      expect(record.check_out_at).to be_nil
+      expect(record.worked_minutes).to be_nil
     end
 
-    it "stores the check-out after the check-in on the same calendar day" do
-      described_class.call(request: request)
-      out = record.reload.check_out_at.in_time_zone(tz)
-      expect(out.to_date).to eq(Date.new(2026, 6, 2))
-      expect(out.hour).to eq(22)
-      expect(out.min).to eq(22)
-    end
+    context "when the reviewer selects the real punch date" do
+      before { request.update!(approved_punch_at: tz.local(2026, 6, 2, 22, 22)) }
 
-    it "computes a non-negative worked_minutes (13:05 → 22:22 = 9h17m)" do
-      described_class.call(request: request)
-      expect(record.reload.worked_minutes).to eq(557)
+      it "stores the check-out on exactly that date" do
+        expect(described_class.call(request: request)).to be_success
+        out = record.reload.check_out_at.in_time_zone(tz)
+        expect(out.to_date).to eq(Date.new(2026, 6, 2))
+        expect([ out.hour, out.min ]).to eq([ 22, 22 ])
+      end
+
+      it "computes a non-negative worked_minutes (13:05 → 22:22 = 9h17m)" do
+        described_class.call(request: request)
+        expect(record.reload.worked_minutes).to eq(557)
+      end
     end
   end
 

@@ -1,0 +1,67 @@
+<%# Punch correction vs the employee's expected attendance window for the work date.
+    assessment: Requests::PunchCorrectionAssessment %>
+<% window  = assessment.window %>
+<% shift   = window.shift %>
+<% applied = assessment.request.approved? %>
+<div class="info-card attendance-window <%= 'attendance-window--outside' unless assessment.inside_window? %>"
+     style="margin-top: 1rem;" data-testid="attendance-window">
+  <p class="info-card__section-title"><%= t("requests.show.window.title") %></p>
+
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("requests.show.window.work_date") %></span>
+    <strong data-testid="window-work-date"><%= local_date(window.work_date) %></strong>
+  </div>
+
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("requests.show.window.shift") %></span>
+    <span data-testid="window-shift">
+      <% if shift.nil? %>
+        <%= t("requests.show.window.no_shift") %>
+      <% elsif window.shift_starts_at %>
+        <%= shift.name %> ·
+        <%= local_datetime_12h(window.shift_starts_at, separator: " — ") %>
+        <span aria-hidden="true">→</span>
+        <%= local_datetime_12h(window.shift_ends_at, separator: " — ") %>
+      <% else %>
+        <%= t("requests.show.window.hour_based", name: shift.name, hours: shift.required_hours.to_f.round(1)) %>
+      <% end %>
+    </span>
+  </div>
+
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("requests.show.original_check_in") %></span>
+    <span><%= local_datetime_12h(assessment.original_check_in_at, separator: " — ") %></span>
+  </div>
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("requests.show.original_check_out") %></span>
+    <span><%= assessment.original_check_out_at ? local_datetime_12h(assessment.original_check_out_at, separator: " — ") : t("requests.show.missing") %></span>
+  </div>
+
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("requests.show.proposed_punch") %></span>
+    <span data-testid="window-proposal">
+      <%= local_date_clock_12h(assessment.request.proposed_punch_date, assessment.request.proposed_time) %>
+    </span>
+  </div>
+
+  <div class="info-card__row">
+    <span class="info-card__label">
+      <%= applied ? t("requests.show.window.final_punch_applied") : t("requests.show.window.final_punch") %>
+    </span>
+    <strong data-testid="window-final">
+      <%= local_datetime_12h(assessment.effective_at, separator: " — ") %>
+      <% if assessment.reviewer_modified? %>
+        <span class="badge badge-neutral"><%= t("requests.show.window.reviewer_modified") %></span>
+      <% end %>
+    </strong>
+  </div>
+
+  <div class="info-card__row">
+    <span class="info-card__label"><%= t("requests.show.window.status") %></span>
+    <% if assessment.inside_window? %>
+      <span class="badge badge-success" data-testid="window-status">✓ <%= t("requests.show.window.inside") %></span>
+    <% else %>
+      <span class="badge badge-danger" data-testid="window-status">⚠️ <%= t("requests.show.window.outside") %></span>
+    <% end %>
+  </div>
+</div>

@@ -32,7 +32,8 @@ module Api
         result = Requests::Approver.approve(
           request:       @request,
           reviewed_by:   current_user,
-          response_note: params[:response_note]
+          response_note: params[:response_note],
+          confirm_out_of_window: params[:confirm_out_of_window]
         )
         handle_result(result)
       end

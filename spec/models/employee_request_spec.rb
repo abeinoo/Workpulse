@@ -469,4 +469,69 @@ RSpec.describe EmployeeRequest, type: :model do
       end
     end
   end
+
+  describe "#reviewer_time_changes" do
+    def punch(type, proposed:, approved:, reviewed: true)
+      build(:employee_request, :punch_correction, correction_type: type,
+            proposed_time: proposed, approved_time: approved,
+            reviewed_at: (Time.current if reviewed))
+    end
+
+    it "is empty when the reviewer approved the proposed time as-is" do
+      expect(punch("wrong_check_in_time", proposed: "15:10", approved: "15:10").reviewer_time_changes).to be_empty
+      expect(punch("wrong_check_in_time", proposed: "15:10", approved: "15:10:00").reviewer_time_changes).to be_empty
+    end
+
+    it "is empty for legacy approvals with no approved_time" do
+      expect(punch("missing_check_out", proposed: "17:00", approved: nil).reviewer_time_changes).to be_empty
+    end
+
+    it "is empty before review" do
+      expect(punch("wrong_check_in_time", proposed: "15:10", approved: "02:07", reviewed: false).reviewer_time_changes).to be_empty
+    end
+
+    it "reports a check-in change with the original proposed and reviewed values" do
+      change = punch("wrong_check_in_time", proposed: "15:10", approved: "02:07").reviewer_time_changes.sole
+      expect(change).to have_attributes(field: :check_in, proposed: "15:10", approved: "02:07", date_changed?: false)
+    end
+
+    it "reports a check-out change" do
+      change = punch("missing_check_out", proposed: "14:05", approved: "18:30").reviewer_time_changes.sole
+      expect(change).to have_attributes(field: :check_out, proposed: "14:05", approved: "18:30", date_changed?: false)
+    end
+
+    it "reports a date-only change with the proposal preserved" do
+      req = punch("missing_check_out", proposed: "01:30", approved: nil)
+      req.assign_attributes(proposed_date: Date.new(2026, 9, 13),
+                            approved_punch_at: ActiveSupport::TimeZone["Asia/Riyadh"].local(2026, 9, 14, 1, 30))
+      change = req.reviewer_time_changes.sole
+      expect(change).to have_attributes(proposed_date: Date.new(2026, 9, 13), approved_date: Date.new(2026, 9, 14),
+                                        proposed: "01:30", approved: "01:30",
+                                        date_changed?: true, time_changed?: false)
+    end
+
+    it "is empty when the reviewer kept both the proposed date and time" do
+      req = punch("missing_check_out", proposed: "01:30", approved: "01:30")
+      req.assign_attributes(proposed_date: Date.new(2026, 9, 14),
+                            approved_punch_at: ActiveSupport::TimeZone["Asia/Riyadh"].local(2026, 9, 14, 1, 30))
+      expect(req.reviewer_time_changes).to be_empty
+    end
+  end
+
+  describe "#final_punch_date / #final_punch_time" do
+    it "derives from the reviewer's single datetime, else the proposal, then the work date" do
+      req = build(:employee_request, :punch_correction, requested_for_date: Date.new(2026, 9, 13),
+                  proposed_date: nil, proposed_time: "01:30")
+      expect([ req.final_punch_date, req.final_punch_time ]).to eq([ Date.new(2026, 9, 13), "01:30" ])
+      req.assign_attributes(proposed_date: Date.new(2026, 9, 14))
+      expect(req.final_punch_date).to eq(Date.new(2026, 9, 14))
+      # Stored as one datetime; split in the business timezone (Riyadh, UTC+3).
+      req.assign_attributes(approved_punch_at: Time.utc(2026, 9, 14, 23, 0))
+      expect([ req.final_punch_date, req.final_punch_time ]).to eq([ Date.new(2026, 9, 15), "02:00" ])
+    end
+
+    it "does not apply to non punch-correction requests" do
+      expect(build(:employee_request, :early_leave, reviewed_at: Time.current).reviewer_time_changes).to be_empty
+    end
+  end
 end

@@ -164,6 +164,23 @@
       </div>
     </div>
 
+    <%# Proposed punch outside the expected attendance window: warn, never alter
+        the entered date/time; submitting again requires explicit acknowledgement. %>
+    <% if @window_warning %>
+      <div class="alert alert-warning window-alert" role="alert" data-testid="window-warning">
+        <p class="window-alert__title">⚠️ <%= t("requests.new.window_warning.title") %></p>
+        <dl class="window-alert__facts">
+          <div><dt><%= t("requests.show.window.work_date") %>:</dt> <dd><%= local_date(@request.requested_for_date) %></dd></div>
+          <div><dt><%= t("requests.show.window.proposed_time") %>:</dt> <dd><%= local_datetime_12h(@window_warning.effective_at, separator: " — ") %></dd></div>
+        </dl>
+        <p><%= t("requests.new.window_warning.body") %></p>
+        <label class="window-confirm__check">
+          <%= check_box_tag "employee_request[acknowledge_out_of_window]", "1", false %>
+          <span><%= t("requests.new.window_warning.acknowledge") %></span>
+        </label>
+      </div>
+    <% end %>
+
     <div class="form-actions">
       <%= f.submit t("requests.new.submit"), class: "btn btn-primary" %>
       <%= link_to t("forms.cancel"), employee_requests_path, class: "btn btn-ghost" %>

@@ -14,15 +14,27 @@ import flatpickr from "flatpickr"
 //   datetime → "Y-m-d H:i"
 // altInput shows a friendlier, locale-aware label while the real input keeps
 // the machine value. Native typing remains possible as a fallback.
+//
+// Optional per-field overrides (defaults keep every existing picker unchanged):
+//   data-datepicker-date-format-value  machine value format (e.g. "Y-m-d\TH:i"
+//                                      for a datetime-local input)
+//   data-datepicker-alt-format-value   displayed format (e.g. "d/m/Y, h:i K")
+//   data-datepicker-time24hr-value     false → 12-hour picker with an AM/PM
+//                                      toggle, kept as Latin AM/PM in Arabic too
 export default class extends Controller {
-  static values = { mode: { type: String, default: "date" } }
+  static values = {
+    mode:       { type: String,  default: "date" },
+    dateFormat: { type: String,  default: "" },
+    altFormat:  { type: String,  default: "" },
+    time24hr:   { type: Boolean, default: true }
+  }
 
   connect() {
     const opts = {
       allowInput: true,
       clickOpens: true,
       altInput:   true,
-      time_24hr:  true,
+      time_24hr:  this.time24hrValue,
       locale:     this.#locale()
     }
 
@@ -47,6 +59,9 @@ export default class extends Controller {
         opts.dateFormat = "Y-m-d"
         opts.altFormat  = "M j, Y"
     }
+
+    if (this.dateFormatValue) opts.dateFormat = this.dateFormatValue
+    if (this.altFormatValue)  opts.altFormat  = this.altFormatValue
 
     this.fp = flatpickr(this.element, opts)
 
@@ -74,7 +89,12 @@ export default class extends Controller {
     const lang = (document.documentElement.lang || "en").toLowerCase()
     if (lang.startsWith("ar")) {
       import("flatpickr/ar")
-        .then(mod => { if (this.fp) this.fp.set("locale", mod.Arabic || mod.default) })
+        .then(mod => {
+          if (!this.fp) return
+          const arabic = mod.Arabic || mod.default
+          // 12-hour pickers keep Latin AM/PM (the Arabic locale would show ص/م).
+          this.fp.set("locale", this.time24hrValue ? arabic : { ...arabic, amPM: [ "AM", "PM" ] })
+        })
         .catch(() => {})
     }
     return "default"

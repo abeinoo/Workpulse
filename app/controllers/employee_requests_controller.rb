@@ -79,6 +79,15 @@ class EmployeeRequestsController < ApplicationController
         user:      @request.user,
         work_date: @request.requested_for_date
       )
+      # Validation data is computed only for reviewers, so it never reaches the
+      # requester's rendered page (not merely hidden).
+      @reviewer_view = policy(@request).review_details?
+      if @reviewer_view
+        # A refused approval returns here with the reviewer's chosen final
+        # datetime so the checks (and the form) reflect exactly what they entered.
+        @review_date, @review_time = review_param_datetime
+        @assessment = Requests::PunchCorrectionAssessment.for(@request, date: @review_date, time_str: @review_time)
+      end
     end
   end
 
@@ -100,7 +109,17 @@ class EmployeeRequestsController < ApplicationController
 
     authorize @request
 
-    if @request.save
+    # Punch corrections outside the expected attendance window are held back
+    # once with a warning; the employee resubmits with explicit acknowledgement.
+    # Nothing about the proposed date/time is changed.
+    if @request.punch_correction? && @request.valid?
+      assessment = Requests::PunchCorrectionAssessment.for(@request)
+      unless assessment.inside_window? || params.dig(:employee_request, :acknowledge_out_of_window) == "1"
+        @window_warning = assessment
+      end
+    end
+
+    if @window_warning.nil? && @request.save
       redirect_to employee_requests_path, notice: t("flash.request_submitted")
     else
       @for_user              = @request.user unless @request.user == current_user
@@ -120,11 +139,15 @@ class EmployeeRequestsController < ApplicationController
       request:       @request,
       reviewed_by:   current_user,
       response_note: params[:response_note],
-      approved_time: params[:approved_time]
+      approved_at:   params[:approved_at],
+      confirm_out_of_window: params[:confirm_out_of_window]
     )
 
     if result.success?
       redirect_back fallback_location: employee_request_path(@request), notice: t("flash.request_approved")
+    elsif @request.punch_correction?
+      redirect_to employee_request_path(@request, params.permit(:approved_at).to_h),
+                  alert: result.error
     else
       redirect_back fallback_location: employee_request_path(@request), alert: result.error
     end
@@ -220,6 +243,15 @@ class EmployeeRequestsController < ApplicationController
   end
 
   private
+
+  # Reviewer-selected final punch datetime carried back to the show page after
+  # a refused approval, as [date, "HH:MM"]; ignored unless pending and valid.
+  def review_param_datetime
+    return unless @request.pending?
+
+    parsed = Requests::Approver.parse_approved_at(params[:approved_at], business: @request.user.business)
+    parsed.is_a?(Array) ? parsed : nil
+  end
 
   # Builds the redirect flash for a bulk-pay outcome. Returns a hash suitable for
   # splatting into redirect_to (notice and/or alert).

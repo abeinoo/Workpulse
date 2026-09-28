@@ -338,6 +338,50 @@ module ApplicationHelper
     fallback
   end
 
+  # ── 12-hour display variants (display only: same instant, same timezone) ──
+  # The clock is wrapped in an LTR-isolated <bdi> so "03:10 PM" keeps its
+  # visual order inside Arabic (RTL) text instead of rendering as "PM 03:10".
+
+  # "03:10 PM"
+  def local_time_12h(value, fallback: "—")
+    return fallback if value.nil?
+    ltr_clock(value.in_time_zone(current_business_timezone).strftime("%I:%M %p"))
+  end
+
+  # "Sep 14, 2026 10:08 PM" / "14 سبتمبر 2026 10:08 PM"
+  # The date is the timestamp's own date in the business timezone.
+  def local_datetime_12h(value, fallback: "—", separator: " ")
+    return fallback if value.nil?
+    t = value.in_time_zone(current_business_timezone)
+    safe_join([ I18n.l(t.to_date), local_time_12h(t) ], separator)
+  end
+
+  # Formats a stored wall-clock string ("15:10" / "15:10:00") as "03:10 PM".
+  # Such strings (e.g. EmployeeRequest#proposed_time) are already in the
+  # business timezone, so no conversion is applied.
+  def clock_12h(value, fallback: "—")
+    return fallback if value.blank?
+    hours, minutes = value.to_s.split(":").first(2).map(&:to_i)
+    ltr_clock(format("%02d:%02d %s", (hours % 12).zero? ? 12 : hours % 12, minutes, hours < 12 ? "AM" : "PM"))
+  end
+
+  # A calendar date plus a stored wall-clock string: "Sep 12, 2026 — 03:10 PM".
+  def local_date_clock_12h(date, time_str, fallback: "—")
+    return fallback if time_str.blank?
+    return clock_12h(time_str) if date.nil?
+    safe_join([ local_date(date), clock_12h(time_str) ], " — ")
+  end
+
+  # Localized hours + minutes: "32h 53m" / "32 ساعة و53 دقيقة".
+  def format_duration_hm(minutes)
+    return "—" if minutes.nil?
+    t("attendance.duration_hm", hours: minutes.to_i / 60, minutes: minutes.to_i % 60)
+  end
+
+  def ltr_clock(text)
+    content_tag(:bdi, text, dir: "ltr", class: "clock-12h")
+  end
+
   # Locale-aware date: "Jun 5, 2026" / "5 يونيو 2026"
   def local_date(value, fallback: "—")
     return fallback if value.nil?

@@ -86,6 +86,7 @@ class Business < ApplicationRecord
   validates :name,                presence: true
   validates :timezone,            presence: true
   validate  :timezone_recognized
+  validate  :attendance_duration_thresholds_ordered
   validates :working_days_per_month,
             numericality: { greater_than: 0, less_than_or_equal_to: 31 }
   validates :business_day_start_hour,
@@ -193,9 +194,44 @@ class Business < ApplicationRecord
     self.settings = (settings || {}).merge("finance_notify_thresholds" => val.to_s.strip)
   end
 
-  private
+  # ── Attendance duration review thresholds (JSON settings column) ──────────
+  # A worked duration above these flags the attendance record for review; the
+  # record itself is never modified. Hours, whole numbers.
+  ATTENDANCE_SETTING_DEFAULTS = {
+    "attendance_suspicious_duration_hours" => 16,
+    "attendance_critical_duration_hours"   => 24
+  }.freeze
 
-  def timezone_recognized
+  def attendance_suspicious_duration_hours
+    attendance_setting("attendance_suspicious_duration_hours").clamp(1, 72)
+  end
+
+  def attendance_suspicious_duration_hours=(val)
+    self.settings = (settings || {}).merge("attendance_suspicious_duration_hours" => val.to_i)
+  end
+
+  def attendance_critical_duration_hours
+    attendance_setting("attendance_critical_duration_hours").clamp(1, 72)
+  end
+
+  def attendance_critical_duration_hours=(val)
+    self.settings = (settings || {}).merge("attendance_critical_duration_hours" => val.to_i)
+  end
+
+private
+
+def attendance_setting(key)
+  (settings || {}).fetch(key, ATTENDANCE_SETTING_DEFAULTS[key]).to_i
+end
+
+def attendance_duration_thresholds_ordered
+  return if attendance_critical_duration_hours > attendance_suspicious_duration_hours
+
+  errors.add(:attendance_critical_duration_hours, :greater_than,
+             count: attendance_suspicious_duration_hours)
+end
+
+def timezone_recognized
     return if timezone.blank?
     errors.add(:timezone, "is not a recognized timezone") unless ActiveSupport::TimeZone[timezone]
   end

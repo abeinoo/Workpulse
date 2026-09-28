@@ -6,6 +6,11 @@ class EmployeeRequestPolicy < ApplicationPolicy
   # buttons (views read policy.approve?/reject?) and the controller `authorize`.
   def approve? = can?(:approve_requests) && !own_request?
   def reject?  = can?(:approve_requests) && !own_request?
+  # Reviewer-only validation details on the show page (attendance-window check,
+  # shift span, resulting work duration, duration warnings, confirmation). Same
+  # people who may approve — independent of status, so the details stay visible
+  # to reviewers after approval. Requesters never see them.
+  def review_details? = can?(:approve_requests) && !own_request?
   def pay?     = can?(:pay_advances) && same_business?(record.user)
   def bulk_pay? = can?(:pay_advances)  # class-level; per-request scoping via policy_scope
   def update?  = own_request? && record.pending?

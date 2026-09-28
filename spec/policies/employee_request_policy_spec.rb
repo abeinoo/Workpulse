@@ -113,6 +113,32 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
     end
   end
 
+  describe "review_details?" do
+    it "permits an approver of someone else's request" do
+      expect(subject.new(manager, request).review_details?).to be true
+    end
+
+    it "stays permitted after the request is reviewed (status-independent)" do
+      request.update!(status: "approved", reviewed_at: Time.current)
+      expect(subject.new(manager, request).review_details?).to be true
+    end
+
+    it "denies the requesting employee" do
+      expect(subject.new(employee, request).review_details?).to be false
+    end
+
+    it "denies a view-only user who cannot approve" do
+      viewer = create(:user, business: business,
+                      permission_role: create(:permission_role, business: business, permissions: %w[view_requests]))
+      expect(subject.new(viewer, request).review_details?).to be false
+    end
+
+    it "denies an approver viewing their OWN request (they are the requester there)" do
+      own_request = create(:employee_request, user: manager)
+      expect(subject.new(manager, own_request).review_details?).to be false
+    end
+  end
+
   describe "reject?" do
     it "permits super_admin" do
       expect(subject.new(super_admin, request).reject?).to be true

@@ -125,6 +125,64 @@ class EmployeeRequest < ApplicationRecord
     request&.duration_minutes.to_i
   end
 
+  # A punch the reviewer altered during approval: `proposed` / `proposed_date`
+  # are the employee's original values (never overwritten), `approved` /
+  # `approved_date` what the reviewer applied.
+  ReviewerTimeChange = Struct.new(:field, :proposed, :approved, :proposed_date, :approved_date,
+                                  keyword_init: true) do
+    def date_changed? = approved_date != proposed_date
+    def time_changed? = EmployeeRequest.normalized_clock(approved) != EmployeeRequest.normalized_clock(proposed)
+  end
+
+  # "15:10" / "15:10:00" → "15:10"; nil when blank.
+  def self.normalized_clock(value)
+    return if value.blank?
+
+    format("%02d:%02d", *value.to_s.split(":").first(2).map(&:to_i))
+  end
+
+  # The employee's proposed punch date (defaults to the work date).
+  def proposed_punch_date
+    proposed_date || requested_for_date
+  end
+
+  # The punch the correction applies: the reviewer's final datetime
+  # (approved_punch_at) when set, otherwise the employee's proposal — taken
+  # literally, never day-shifted. Split into the business-timezone date and
+  # "HH:MM" that PunchCorrectionApplier builds the moment from. Legacy approvals
+  # (before approved_punch_at) only stored a reviewer time string.
+  def final_punch_date
+    approved_punch_local&.to_date || proposed_punch_date
+  end
+
+  def final_punch_time
+    approved_punch_local&.strftime("%H:%M") || approved_time.presence || proposed_time
+  end
+
+  def approved_punch_local
+    approved_punch_at&.in_time_zone(user.business.timezone_object)
+  end
+
+  # Which attendance punch a correction targets: :check_in or :check_out.
+  def correction_field
+    return unless punch_correction?
+
+    correction_missing_check_in? || correction_wrong_check_in_time? ? :check_in : :check_out
+  end
+
+  # Reviewer edits (date and/or time) derived from the persisted request values,
+  # not from the resulting attendance record. Empty when the proposal was
+  # approved as-is (or the request has not been approved). approved_time /
+  # approved_punch_at are nil on legacy approvals that used the proposal — no change.
+  def reviewer_time_changes
+    return [] unless punch_correction? && reviewed_at.present?
+
+    change = ReviewerTimeChange.new(field: correction_field,
+                                    proposed: proposed_time, approved: final_punch_time,
+                                    proposed_date: proposed_punch_date, approved_date: final_punch_date)
+    change.date_changed? || change.time_changed? ? [ change ] : []
+  end
+
   private
 
   # For same-day (non-overnight) corrections the punch date equals the work date,

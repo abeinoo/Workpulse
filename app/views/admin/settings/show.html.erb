@@ -75,6 +75,36 @@
           <p class="form-error"><%= @business.errors[:overtime_grace_minutes].first %></p>
         <% end %>
       </div>
+
+      <div class="form-group">
+        <%= f.label :attendance_suspicious_duration_hours, t("admin.settings.attendance_suspicious_duration_label"), class: "form-label" %>
+        <div class="input-with-suffix">
+          <%= f.number_field :attendance_suspicious_duration_hours,
+                value: @business.attendance_suspicious_duration_hours,
+                class: "form-control #{is-error if @business.errors[:attendance_suspicious_duration_hours].any?}",
+                min: 1, max: 72, step: 1 %>
+          <span class="input-suffix"><%= t("admin.settings.hours_suffix") %></span>
+        </div>
+        <p class="form-hint"><%= t("admin.settings.attendance_suspicious_duration_hint") %></p>
+        <% if @business.errors[:attendance_suspicious_duration_hours].any? %>
+          <p class="form-error"><%= @business.errors[:attendance_suspicious_duration_hours].first %></p>
+        <% end %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :attendance_critical_duration_hours, t("admin.settings.attendance_critical_duration_label"), class: "form-label" %>
+        <div class="input-with-suffix">
+          <%= f.number_field :attendance_critical_duration_hours,
+                value: @business.attendance_critical_duration_hours,
+                class: "form-control #{is-error if @business.errors[:attendance_critical_duration_hours].any?}",
+                min: 1, max: 72, step: 1 %>
+          <span class="input-suffix"><%= t("admin.settings.hours_suffix") %></span>
+        </div>
+        <p class="form-hint"><%= t("admin.settings.attendance_critical_duration_hint") %></p>
+        <% if @business.errors[:attendance_critical_duration_hours].any? %>
+          <p class="form-error"><%= @business.errors[:attendance_critical_duration_hours].first %></p>
+        <% end %>
+      </div>
     </div>
 
     <div class="divider"></div>

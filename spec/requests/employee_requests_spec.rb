@@ -195,6 +195,14 @@ RSpec.describe "EmployeeRequests", type: :request do
   # Overnight punch correction — work date + punch date
   # ──────────────────────────────────────────────────────────────
   describe "POST /employee_requests (overnight punch_correction)" do
+    # A 20:00 → 03:00 shift: the 2 Jun 04:00 check-out is within the shift's
+    # attendance window for work date 1 Jun, so no out-of-window warning applies.
+    before do
+      create(:shift_assignment, user: employee, branch: branch, effective_from: Date.new(2026, 5, 1),
+             shift: create(:shift, :fixed_time, business: business,
+                           start_time: Time.zone.parse("20:00"), end_time: Time.zone.parse("03:00")))
+    end
+
     it "stores requested_for_date (work day) and proposed_date (punch day) separately" do
       post employee_requests_path, params: {
         employee_request: {

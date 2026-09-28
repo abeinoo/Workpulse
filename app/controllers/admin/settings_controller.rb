@@ -32,6 +32,7 @@ class Admin::SettingsController < Admin::BaseController
       :timezone, :working_days_per_month, :business_day_start_hour,
       :default_locale, :currency, :max_salary_advance_percentage,
       :overtime_grace_minutes,
+      :attendance_suspicious_duration_hours, :attendance_critical_duration_hours,
       :payroll_auto_generate_day, :payroll_cutoff_day,
       :employee_code_start,
       :barcode_prefix, :barcode_next_number,

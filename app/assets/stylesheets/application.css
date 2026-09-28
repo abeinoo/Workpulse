@@ -3139,6 +3139,39 @@ body.is-authenticated {
   flex-shrink: 0;
 }
 
+/* Reviewer change: muted struck-through original → emphasized reviewed value */
+.review-change__visual {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.review-change__old { color: var(--text-2); text-decoration: line-through; }
+.review-change__new { font-weight: 600; }
+.review-change__arrow { display: inline-block; color: var(--text-2); }
+/* The arrow reads in the text direction: old (start) → new (end) */
+[dir="rtl"] .review-change__arrow { transform: scaleX(-1); }
+
+/* Attendance-window / abnormal-duration warnings (punch corrections) */
+.window-alert, .window-confirm { margin-top: var(--space-4); }
+.window-alert p, .window-confirm p { margin: 0 0 var(--space-2); }
+.window-alert__title { font-weight: 600; }
+.window-alert__facts { margin: 0 0 var(--space-2); display: grid; gap: var(--space-1); }
+.window-alert__facts > div { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.window-alert__facts dt { font-weight: 600; }
+.window-alert__facts dd { margin: 0; }
+.window-confirm__check { display: flex; align-items: flex-start; gap: var(--space-2); cursor: pointer; }
+.window-confirm__check input { margin-top: 0.2em; flex-shrink: 0; }
+.attendance-window--outside { border-color: var(--danger); }
+[dir="rtl"] .attendance-window [aria-hidden="true"] { display: inline-block; transform: scaleX(-1); }
+/* Work duration after correction: prominent value, border tint by severity */
+.resulting-duration__value { margin: var(--space-2) 0 0; font-size: var(--text-2xl, 1.5rem); font-weight: 700; }
+.resulting-duration__warning { margin-top: var(--space-3); }
+.resulting-duration__warning p { margin: 0 0 var(--space-1); }
+.resulting-duration__warning p:last-child { margin-bottom: 0; }
+.resulting-duration--suspicious { border-color: var(--warning); }
+.resulting-duration--critical { border-color: var(--danger); }
+
 /* ============================================================
    § 21 — Employee Dashboard
    ============================================================ */

@@ -61,6 +61,13 @@
         <span class="info-card__label"><%= t("attendance.records.worked") %></span>
         <span><%= @record.worked_minutes / 60 %>h <%= @record.worked_minutes % 60 %>m</span>
       </div>
+      <% if (severity = @record.duration_severity) %>
+        <div class="alert <%= severity == :critical ? 'alert-danger' : 'alert-warning' %> window-alert"
+             role="alert" data-testid="duration-alert" style="margin: 0.5rem 0;">
+          <p class="window-alert__title">⚠️ <%= t("attendance.abnormal_duration", duration: format_duration_hm(@record.worked_minutes)) %></p>
+          <p><%= t("attendance.abnormal_duration_hint", hours: Attendance::DurationCheck.threshold_hours(severity, business: current_user.business)) %></p>
+        </div>
+      <% end %>
     <% end %>
     <% if @record.late_minutes > 0 %>
       <div class="info-card__row">

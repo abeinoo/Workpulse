@@ -14,9 +14,41 @@ module Requests
       def success? = success
     end
 
-    def self.approve(request:, reviewed_by:, response_note: nil, approved_time: nil)
+    # confirm_out_of_window — the reviewer explicitly acknowledged that a punch
+    # correction falls outside the expected attendance window or produces an
+    # abnormal worked duration. Required (server-side) for such corrections.
+    # approved_at — the reviewer's final punch for a punch correction as ONE
+    # datetime ("YYYY-MM-DDTHH:MM" from a datetime-local input, or a Time).
+    # approved_time — shorthand used when only a time is given: that time on
+    # the proposed date. Blank → the employee's proposal.
+    def self.approve(request:, reviewed_by:, response_note: nil, approved_time: nil,
+                     approved_at: nil, confirm_out_of_window: false)
       new(request: request, reviewed_by: reviewed_by, response_note: response_note,
-          approved_time: approved_time).approve
+          approved_time: approved_time, approved_at: approved_at,
+          confirm_out_of_window: confirm_out_of_window).approve
+    end
+
+    DATETIME_LOCAL = /\A(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/
+
+    # A reviewer datetime ("YYYY-MM-DDTHH:MM" from a datetime-local input, or a
+    # Time) as [business-timezone date, "HH:MM"] — the parts
+    # PunchCorrectionApplier builds the moment from. nil when blank, :invalid
+    # when unparseable.
+    def self.parse_approved_at(value, business:)
+      return nil if value.blank?
+
+      unless value.is_a?(String)
+        local = value.in_time_zone(business.timezone_object)
+        return [ local.to_date, local.strftime("%H:%M") ]
+      end
+
+      match = value.strip.match(DATETIME_LOCAL) or return :invalid
+      hours, minutes = match[2].to_i, match[3].to_i
+      return :invalid if hours > 23 || minutes > 59
+
+      [ Date.iso8601(match[1]), format("%02d:%02d", hours, minutes) ]
+    rescue ArgumentError
+      :invalid
     end
 
     def self.reject(request:, reviewed_by:, response_note: nil)
@@ -52,7 +84,10 @@ module Requests
       BulkResult.new(paid_count: paid, errors: errs)
     end
 
-    def initialize(request:, reviewed_by:, response_note: nil, approved_time: nil, paid_at: nil)
+    def initialize(request:, reviewed_by:, response_note: nil, approved_time: nil, paid_at: nil,
+                   approved_at: nil, confirm_out_of_window: false)
+      @confirm_out_of_window = ActiveModel::Type::Boolean.new.cast(confirm_out_of_window) || false
+      @approved_at   = approved_at
       @request       = request
       @reviewed_by   = reviewed_by
       @response_note = response_note
@@ -148,7 +183,20 @@ module Requests
     end
 
     def approve_punch_correction
+      final = parse_approved_at
+      return err(I18n.t("requests.errors.invalid_approved_date")) if final == :invalid
+
+      final_date, final_time = final || [ @request.proposed_punch_date, @approved_time.presence || @request.proposed_time ]
+
+      # Every check runs on the FINAL reviewer-selected datetime.
+      assessment = PunchCorrectionAssessment.for(@request, date: final_date, time_str: final_time)
+      return err(I18n.t("requests.errors.check_out_before_check_in")) if assessment.punch_order_invalid?
+      if assessment.requires_confirmation? && !@confirm_out_of_window
+        return err(I18n.t("requests.errors.attendance_window_confirmation_required"))
+      end
+
       applier_error = nil
+      applied_record = nil
 
       ActiveRecord::Base.transaction do
         update_attrs = {
@@ -157,7 +205,8 @@ module Requests
           reviewed_at:   Time.current,
           response_note: @response_note
         }
-        update_attrs[:approved_time] = @approved_time if @approved_time.present?
+        # Stored as one datetime: exactly the moment the applier will write.
+        update_attrs[:approved_punch_at] = assessment.effective_at
         @request.update!(update_attrs)
 
         result = Requests::PunchCorrectionApplier.call(request: @request)
@@ -165,6 +214,7 @@ module Requests
           applier_error = result.error
           raise ActiveRecord::Rollback
         end
+        applied_record = result.record
       end
 
       return err(applier_error) if applier_error
@@ -179,13 +229,50 @@ module Requests
           correction_type: @request.correction_type,
           approved_time:   @request.approved_time,
           proposed_time:   @request.proposed_time,
-          response_note:   @response_note
+          response_note:   @response_note,
+          punch_review:    punch_review_metadata(final_date, final_time),
+          attendance_window: assessment.audit_metadata.merge(
+            confirmed_by_reviewer:       assessment.requires_confirmation?,
+            resulting_worked_minutes:    applied_record&.worked_minutes,
+            resulting_duration_severity: applied_record&.duration_severity
+          )
         }
       )
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
+    end
+
+    def parse_approved_at
+      self.class.parse_approved_at(@approved_at, business: @request.user.business)
+    end
+
+    # Employee proposal vs reviewer-selected final punch, for the audit trail.
+    # The reviewer and the moment are the audit row's actor / created_at, and are
+    # repeated here so the entry reads on its own.
+    def punch_review_metadata(final_date, final_time)
+      proposed_date = @request.proposed_punch_date
+      proposed_time = @request.proposed_time
+      date_changed  = final_date != proposed_date
+      time_changed  = EmployeeRequest.normalized_clock(final_time) != EmployeeRequest.normalized_clock(proposed_time)
+      proposed_at = PunchCorrectionApplier.effective_punch_at(request: @request, date: proposed_date,
+                                                             time_str: proposed_time)
+      {
+        proposed_at:   proposed_at&.iso8601,  final_at:      @request.approved_punch_at&.iso8601,
+        datetime_changed: date_changed || time_changed,
+        proposed_date: proposed_date.iso8601, proposed_time: proposed_time,
+        final_date:    final_date.iso8601,    final_time:    final_time,
+        date_changed:  date_changed,          time_changed:  time_changed,
+        change:        if date_changed && time_changed then "date_and_time"
+                       elsif date_changed then "date"
+                       elsif time_changed then "time"
+                       else "none"
+                       end,
+        reviewer_id:   @reviewed_by.id,
+        reviewer_name: @reviewed_by.full_name,
+        reviewed_at:   @request.reviewed_at&.iso8601
+      }
     end
 
     # Backstop for direct service/API calls (the policy already hides the UI):

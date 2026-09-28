@@ -19,6 +19,24 @@ module Requests
       new(request).call
     end
 
+    # The exact moment a correction applies: the final punch date + "HH:MM" in
+    # the business timezone, taken literally — never shifted across midnight.
+    # Defaults to the request's final punch (reviewer-selected date/time, else
+    # the employee's proposal). Public so the pre-approval attendance-window and
+    # duration checks judge the same datetime the applier writes.
+    def self.effective_punch_at(request:, date: nil, time_str: nil)
+      new(request).effective_punch_at(date: date || request.final_punch_date,
+                                      time_str: time_str.presence || request.final_punch_time)
+    end
+
+    # What a correction approved BEFORE reviewer-selected dates existed
+    # (approved_punch_at nil) actually wrote: the proposal rolled ±1 day against the
+    # record's other punch. Used only to display those historical approvals
+    # faithfully — new approvals never roll.
+    def self.legacy_applied_punch_at(request:, check_in_at:, check_out_at:)
+      new(request).legacy_applied_punch_at(check_in_at: check_in_at, check_out_at: check_out_at)
+    end
+
     def initialize(request)
       @request = request
     end
@@ -40,15 +58,22 @@ module Requests
           original_check_out_source: record.check_out_source
         )
 
-        effective_dt = build_datetime(@request.approved_time || @request.proposed_time)
+        effective_dt = self.class.effective_punch_at(request: @request)
 
-        case @request.correction_type
-        when "missing_check_in", "wrong_check_in_time"
-          record.check_in_at     = resolve_check_in(effective_dt, record.check_out_at)
+        case @request.correction_field
+        when :check_in
+          record.check_in_at     = effective_dt
           record.check_in_source = "admin_manual"
-        when "missing_check_out", "wrong_check_out_time"
-          record.check_out_at     = resolve_check_out(effective_dt, record.check_in_at)
+        when :check_out
+          record.check_out_at     = effective_dt
           record.check_out_source = "admin_manual"
+        end
+
+        # The date is applied exactly as selected; a check-out before the
+        # check-in is refused rather than silently moved to another day.
+        if record.check_in_at && record.check_out_at && record.check_out_at < record.check_in_at
+          applier_error = I18n.t("requests.errors.check_out_before_check_in")
+          raise ActiveRecord::Rollback
         end
 
         record.save!
@@ -68,38 +93,42 @@ module Requests
       failure(e.message)
     end
 
+    def effective_punch_at(date:, time_str:)
+      build_datetime(date, time_str)
+    end
+
+    def legacy_applied_punch_at(check_in_at:, check_out_at:)
+      dt = build_datetime(@request.proposed_punch_date, @request.final_punch_time)
+      case @request.correction_field
+      when :check_in  then resolve_check_in(dt, check_out_at)
+      when :check_out then resolve_check_out(dt, check_in_at)
+      end
+    end
+
     private
 
-    # Combines the punch's actual calendar date with an "HH:MM" string in the
-    # business timezone. Uses proposed_date (the real punch date) rather than
-    # requested_for_date (the work/business date) so overnight punches that cross
-    # midnight resolve to the correct moment — e.g. a check-out at 04:00 belonging
-    # to the previous day's shift is stored on the next calendar day.
-    def build_datetime(time_str)
-      return nil if time_str.blank?
+    # Combines the punch's actual calendar date (not the work/business date) with
+    # an "HH:MM" string in the business timezone. Overnight punches carry their
+    # real date — e.g. a check-out at 04:00 for the previous day's shift is dated
+    # the next calendar day by the employee or the reviewer.
+    def build_datetime(date, time_str)
+      return nil if date.nil? || time_str.blank?
 
       hours, minutes = time_str.to_s.split(":").first(2).map(&:to_i)
-      tz   = ActiveSupport::TimeZone[@request.user.business.timezone]
-      date = @request.proposed_date || @request.requested_for_date
+      tz = ActiveSupport::TimeZone[@request.user.business.timezone]
       tz.local(date.year, date.month, date.day, hours, minutes, 0)
     end
 
-    # A corrected check-out must not land before the existing check-in. When the
-    # anchor date (proposed_date, defaulting to the work_date) sits on an earlier
-    # calendar day than the actual check-in — e.g. an overnight shift whose
-    # work_date precedes the punch's real date, or a record whose check-in was
-    # stored on a later day — build_datetime would otherwise produce a moment
-    # before check_in_at and yield a negative worked_minutes. Roll the check-out
-    # forward one day so it falls after the check-in (overnight crossing).
+    # Legacy only (see legacy_applied_punch_at): the ±1-day roll that approvals
+    # made before reviewer-selected dates existed. Rolled a check-out that fell
+    # before the check-in forward one day.
     def resolve_check_out(check_out_dt, existing_check_in)
       return check_out_dt if check_out_dt.nil? || existing_check_in.nil?
 
       check_out_dt < existing_check_in ? check_out_dt + 1.day : check_out_dt
     end
 
-    # Symmetric guard for check-in corrections: a corrected check-in must not land
-    # after the existing check-out. Roll it back one day when the anchor date
-    # overshoots past the recorded check-out (overnight crossing).
+    # Legacy only: the symmetric roll of a check-in past the check-out back one day.
     def resolve_check_in(check_in_dt, existing_check_out)
       return check_in_dt if check_in_dt.nil? || existing_check_out.nil?
 

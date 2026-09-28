@@ -1,0 +1,14 @@
+<%# Proposed punch (the employee's submission, as entered) and — when the reviewer
+    changed the date and/or time — the final punch that will be applied.
+    assessment: Requests::PunchCorrectionAssessment %>
+<% req = assessment.request %>
+<div>
+  <dt><%= t("requests.show.window.proposed_time") %>:</dt>
+  <dd><%= local_date_clock_12h(req.proposed_punch_date, req.proposed_time) %></dd>
+</div>
+<% if assessment.reviewer_modified? %>
+  <div>
+    <dt><%= t("requests.show.window.final_punch") %>:</dt>
+    <dd><%= local_datetime_12h(assessment.effective_at, separator: " — ") %></dd>
+  </div>
+<% end %>

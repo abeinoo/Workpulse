@@ -11,6 +11,28 @@
     </span>
   </div>
 
+  <%# Outside-window warning for punch corrections. The resulting-duration
+      warning is shown separately in its own card (_resulting_duration). ── %>
+  <%# Reviewer-only sections are gated on @reviewer_view (EmployeeRequestPolicy#review_details?);
+      for requesters the validation data is never computed or rendered. %>
+  <% if @reviewer_view && (@request.pending? || @request.approved?) && !@assessment.inside_window? %>
+    <div class="alert alert-warning window-alert" role="alert" data-testid="window-alert">
+      <p class="window-alert__title">⚠️ <%= t("requests.show.window.alert_outside_title") %></p>
+      <p><%= t("requests.show.window.alert_outside") %></p>
+      <dl class="window-alert__facts">
+        <div><dt><%= t("requests.show.window.work_date") %>:</dt> <dd><%= local_date(@request.requested_for_date) %></dd></div>
+        <%= render "punch_facts", assessment: @assessment %>
+      </dl>
+    </div>
+  <% end %>
+  <% if @reviewer_view && (severity = @attendance_record&.duration_severity) %>
+    <div class="alert <%= severity == :critical ? 'alert-danger' : 'alert-warning' %> window-alert"
+         role="alert" data-testid="duration-alert">
+      <p class="window-alert__title">⚠️ <%= t("attendance.abnormal_duration", duration: format_duration_hm(@attendance_record.worked_minutes)) %></p>
+      <p><%= t("attendance.abnormal_duration_hint", hours: Attendance::DurationCheck.threshold_hours(severity, business: current_user.business)) %></p>
+    </div>
+  <% end %>
+
   <div class="info-card">
     <% if current_user.can?(:view_requests) || current_user.can?(:approve_requests) %>
       <div class="info-card__row">
@@ -31,15 +53,12 @@
       </div>
       <div class="info-card__row">
         <span class="info-card__label"><%= t("requests.show.proposed_punch") %></span>
-        <span>
-          <%= local_date(@request.proposed_date) if @request.proposed_date %>
-          <%= @request.proposed_time %>
-        </span>
+        <span><%= local_date_clock_12h(@request.proposed_date, @request.proposed_time) %></span>
       </div>
-      <% if @request.approved_time.present? %>
+      <% if @request.approved_time.present? || @request.approved_punch_at.present? %>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("requests.show.approved_time") %></span>
-          <span><%= @request.approved_time %></span>
+          <span><%= local_date_clock_12h(@request.final_punch_date, @request.final_punch_time) %></span>
         </div>
       <% end %>
     <% end %>
@@ -54,7 +73,7 @@
           <span class="info-card__label">
             <%= @request.early_leave? ? t("requests.show.requested_departure") : t("requests.show.requested_arrival") %>
           </span>
-          <span><%= summary[:time] %></span>
+          <span><%= clock_12h(summary[:time]) %></span>
         </div>
       <% end %>
     <% end %>
@@ -76,7 +95,7 @@
           <% end %>
         </span>
         <span>
-          <%= local_datetime(@request.reviewed_at) %>
+          <%= local_datetime_12h(@request.reviewed_at) %>
           <% if @request.reviewed_by %>
             <%= t("requests.by_actor", name: @request.reviewed_by.full_name) %>
           <% end %>
@@ -100,11 +119,11 @@
       <% if @attendance_record %>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("requests.show.original_check_in") %></span>
-          <span><%= @attendance_record.check_in_at ? local_time(@attendance_record.check_in_at) : "—" %></span>
+          <span><%= @attendance_record.check_in_at ? local_datetime_12h(@attendance_record.check_in_at, separator: " — ") : "—" %></span>
         </div>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("requests.show.original_check_out") %></span>
-          <span><%= @attendance_record.check_out_at ? local_time(@attendance_record.check_out_at) : t("requests.show.missing") %></span>
+          <span><%= @attendance_record.check_out_at ? local_datetime_12h(@attendance_record.check_out_at, separator: " — ") : t("requests.show.missing") %></span>
         </div>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("attendance.status") %></span>
@@ -115,23 +134,71 @@
       <% end %>
     </div>
 
+    <% if @reviewer_view %>
+      <%= render "attendance_window", assessment: @assessment %>
+      <%= render "resulting_duration", assessment: @assessment %>
+    <% end %>
+
     <%# Audit trail once approved ── %>
     <% if @request.approved? && @request.original_check_in_at.present? %>
       <div class="info-card" style="margin-top: 1rem;">
         <p class="info-card__section-title"><%= t("requests.show.audit_trail") %></p>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("requests.show.original_check_in") %></span>
-          <span><%= local_time(@request.original_check_in_at) %></span>
+          <span><%= local_datetime_12h(@request.original_check_in_at, separator: " — ") %></span>
         </div>
         <% if @request.original_check_out_at.present? %>
           <div class="info-card__row">
             <span class="info-card__label"><%= t("requests.show.original_check_out") %></span>
-            <span><%= local_time(@request.original_check_out_at) %></span>
+            <span><%= local_datetime_12h(@request.original_check_out_at, separator: " — ") %></span>
           </div>
         <% end %>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("requests.show.approved_time") %></span>
-          <span><%= @request.approved_time.presence || @request.proposed_time %></span>
+          <span>
+            <%= @assessment ? local_datetime_12h(@assessment.effective_at, separator: " — ")
+                            : local_date_clock_12h(@request.final_punch_date, @request.final_punch_time) %>
+          </span>
+        </div>
+      </div>
+    <% end %>
+
+    <%# Reviewer changes: original proposed value → value applied at review ── %>
+    <% if @request.reviewed_at && !@request.rejected? %>
+      <% reviewer_changes = @request.reviewer_time_changes %>
+      <div class="info-card review-changes" style="margin-top: 1rem;" data-testid="reviewer-changes">
+        <p class="info-card__section-title"><%= t("requests.show.reviewer_changes") %></p>
+        <% if reviewer_changes.any? %>
+          <% reviewer_changes.each do |change| %>
+            <div class="info-card__row" data-testid="reviewer-change-<%= change.field %>">
+              <span class="info-card__label"><%= t("requests.show.reviewer_field_#{change.field}") %></span>
+              <span class="review-change">
+                <span class="review-change__visual" aria-hidden="true">
+                  <span class="review-change__old"><%= local_date_clock_12h(change.proposed_date, change.proposed) %></span>
+                  <span class="review-change__arrow">→</span>
+                  <strong class="review-change__new"><%= local_date_clock_12h(change.approved_date, change.approved) %></strong>
+                </span>
+                <span class="sr-only">
+                  <%= t("requests.show.reviewer_change_sr", from: local_date_clock_12h(change.proposed_date, change.proposed), to: local_date_clock_12h(change.approved_date, change.approved)) %>
+                </span>
+              </span>
+            </div>
+          <% end %>
+        <% else %>
+          <div class="info-card__row" data-testid="reviewer-approved-as-proposed">
+            <span class="info-card__label"><%= t("requests.show.approved_as_proposed") %></span>
+            <span><%= local_date_clock_12h(@request.proposed_date, @request.proposed_time) %></span>
+          </div>
+        <% end %>
+        <div class="info-card__row">
+          <span class="info-card__label">
+            <%= reviewer_changes.any? ? t("requests.show.reviewer_changed_by") : t("requests.show.reviewer_approved_by") %>
+          </span>
+          <span><%= @request.reviewed_by&.full_name || "—" %></span>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("requests.show.review_date") %></span>
+          <span><%= local_datetime_12h(@request.reviewed_at) %></span>
         </div>
       </div>
     <% end %>
@@ -141,17 +208,29 @@
   <% if @request.pending? && policy(@request).approve? %>
     <div class="form-card" style="margin-top: 1rem;">
       <% if @request.punch_correction? %>
-        <%# Punch correction: full approval form with editable approved_time %>
+        <%# Punch correction: approval form with an editable final date AND time.
+            Prefilled with the employee's proposal (or the reviewer's last attempt). %>
         <p class="form-card__title"><%= t("requests.show.review_correction") %></p>
+        <p class="review-correction-type" data-testid="review-correction-type">
+          <span class="info-card__label"><%= t("requests.show.correction_type") %>:</span>
+          <strong><%= t("requests.correction_types.#{@request.correction_type}") %></strong>
+        </p>
         <%= form_with url: approve_employee_request_path(@request), method: :patch, local: true do |f| %>
           <div class="form-grid">
-            <div class="form-group">
-              <%= label_tag :approved_time, t("requests.show.approved_time_label"), class: "form-label" %>
-              <%= time_field_tag :approved_time,
-                    @request.proposed_time,
+            <%# ONE datetime input (date + time together). The value is the
+                datetime-local form "YYYY-MM-DDTHH:MM"; the picker shows
+                "DD/MM/YYYY, hh:mm AM/PM". %>
+            <div class="form-group form-group--full">
+              <%= label_tag :approved_at, t("requests.show.approved_at_label"), class: "form-label" %>
+              <%= datetime_local_field_tag :approved_at,
+                    "#{(@review_date || @request.proposed_punch_date).iso8601}T#{EmployeeRequest.normalized_clock(@review_time || @request.proposed_time)}",
                     class: "form-control",
-                    data: { controller: "datepicker", datepicker_mode_value: "time" } %>
-              <p class="form-hint"><%= t("requests.show.approved_time_hint") %></p>
+                    data: { controller: "datepicker",
+                            datepicker_mode_value: "datetime",
+                            datepicker_date_format_value: "Y-m-d\TH:i",
+                            datepicker_alt_format_value: "d/m/Y, h:i K",
+                            datepicker_time24hr_value: false } %>
+              <p class="form-hint"><%= t("requests.show.approved_punch_hint") %></p>
             </div>
             <div class="form-group form-group--full">
               <%= label_tag :response_note, t("requests.show.response_note_label"), class: "form-label" %>
@@ -159,6 +238,27 @@
                     placeholder: t("requests.show.response_note_placeholder") %>
             </div>
           </div>
+          <%# Out-of-window / abnormal-duration corrections need an explicit
+              confirmation; Requests::Approver enforces it server-side too. %>
+          <% if @reviewer_view && @assessment.requires_confirmation? %>
+            <div class="alert alert-warning window-confirm" data-testid="window-confirm">
+              <% unless @assessment.inside_window? %>
+                <p class="window-alert__title">⚠️ <%= t("requests.show.window.alert_outside") %></p>
+              <% end %>
+              <% if @assessment.duration_severity %>
+                <p class="window-alert__title">⚠️ <%= t("requests.show.window.alert_duration", duration: format_duration_hm(@assessment.projected_worked_minutes)) %></p>
+              <% end %>
+              <dl class="window-alert__facts">
+                <div><dt><%= t("requests.show.window.work_date") %>:</dt> <dd><%= local_date(@request.requested_for_date) %></dd></div>
+                <%= render "punch_facts", assessment: @assessment %>
+              </dl>
+              <p><strong><%= t("requests.show.window.confirm_question") %></strong></p>
+              <label class="window-confirm__check">
+                <%= check_box_tag :confirm_out_of_window, "1", false, required: true %>
+                <span><%= t("requests.show.window.confirm_label") %></span>
+              </label>
+            </div>
+          <% end %>
           <div class="form-actions">
             <%= f.submit t("requests.approve"), class: "btn btn-primary" %>
           </div>
@@ -242,7 +342,7 @@
       <div class="info-card__row">
         <span class="info-card__label"><%= t("requests.cancelled_at") %></span>
         <span>
-          <%= local_datetime(@request.cancelled_at) %>
+          <%= local_datetime_12h(@request.cancelled_at) %>
           <% if @request.cancelled_by %>
             <%= t("requests.by_actor", name: @request.cancelled_by.full_name) %>
           <% end %>
