@@ -59,14 +59,26 @@
   <% employee_custody_selected = goods_receipt.funding_source_kind == "employee_custody" %>
   <h2 class="section-title"><%= t("inventory.goods_receipts.section_funding_source") %></h2>
   <div class="form-grid">
+    <%# Employee Custody is always the current user's own account (resolved
+        server-side by Inventory::GoodsReceiptDraftService) — never a
+        selectable employee. Without an account it's unavailable, with the reason. %>
     <% GoodsReceipt::FUNDING_SOURCE_KINDS.each do |kind| %>
+      <% unavailable = kind == "employee_custody" && @custody_account.nil? %>
       <div class="form-group">
-        <label class="form-label">
+        <label class="form-label" style="<%= 'opacity: 0.55; cursor: not-allowed;' if unavailable %>">
           <%= f.radio_button :funding_source_kind, kind,
-                checked: goods_receipt.funding_source_kind == kind,
+                checked:  goods_receipt.funding_source_kind == kind,
+                disabled: unavailable,
+                required: true,
+                "aria-describedby": ("employee-custody-unavailable" if unavailable),
                 data: { "funding-source-target": "kindRadio", action: "funding-source#toggle" } %>
           <%= t("inventory.goods_receipts.funding_source_kinds.#{kind}") %>
         </label>
+        <% if unavailable %>
+          <p id="employee-custody-unavailable" class="form-hint text-warning" style="margin: 0;">
+            <%= t("activerecord.errors.models.goods_receipt.attributes.base.no_custody_account") %>
+          </p>
+        <% end %>
       </div>
     <% end %>
 
@@ -74,9 +86,9 @@
          style="grid-column: 1 / -1;" <%= "hidden" unless employee_custody_selected %>>
       <p class="form-label"><%= t("inventory.goods_receipts.my_balance") %></p>
       <% if @custody_account %>
-        <p style="font-weight: 600;"><%= format_currency(@custody_account.current_balance) %></p>
+        <p id="employee-custody-balance" style="font-weight: 600;"><%= format_currency(@custody_balance) %></p>
       <% else %>
-        <p class="form-hint"><%= t("inventory.goods_receipts.no_custody_account") %></p>
+        <p class="form-hint"><%= t("activerecord.errors.models.goods_receipt.attributes.base.no_custody_account") %></p>
       <% end %>
     </div>
   </div>

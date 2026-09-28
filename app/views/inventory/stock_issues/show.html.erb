@@ -141,8 +141,12 @@
             <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
             <td class="td-secondary"><%= item.product.sku %></td>
             <td style="text-align: end;"><%= item.quantity.to_i %></td>
-            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
-            <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
+            <% if item.cost_unavailable? %>
+              <td colspan="2" style="text-align: end;"><span class="badge badge-warning"><%= t("inventory.stock_issues.cost_unavailable") %></span></td>
+            <% else %>
+              <td style="text-align: end;"><%= format_currency(item.effective_unit_cost) %></td>
+              <td style="text-align: end;"><%= format_currency(item.effective_total_cost) %></td>
+            <% end %>
           </tr>
         <% end %>
       </tbody>
@@ -151,6 +155,12 @@
           <td colspan="4" style="text-align: end; font-weight: 600;"><%= t("inventory.stock_issues.total") %></td>
           <td style="text-align: end; font-weight: 600;"><%= format_currency(@stock_issue.total_value) %></td>
         </tr>
+        <% if @stock_issue.cost_estimated? %>
+          <tr><td colspan="5" class="td-secondary" style="text-align: start; font-size: var(--text-xs);"><%= t("inventory.stock_issues.cost_estimated_hint") %></td></tr>
+        <% end %>
+        <% if @stock_issue.cost_unavailable? %>
+          <tr><td colspan="5" class="td-secondary" style="text-align: start; font-size: var(--text-xs);"><%= t("inventory.stock_issues.cost_unavailable_hint") %></td></tr>
+        <% end %>
       </tfoot>
     </table>
   </div>

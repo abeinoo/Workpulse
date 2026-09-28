@@ -46,6 +46,43 @@ RSpec.describe Inventory::GoodsReceiptDraftService, type: :model do
     expect(log).to be_present
   end
 
+  describe "funding source resolution" do
+    let(:someone_else) { create(:custody_account, business: business) }
+
+    it "charges Employee Custody to the actor's own active account, overriding anything preset" do
+      mine    = create(:custody_account, business: business, user: actor)
+      receipt = new_receipt
+      receipt.funding_source_kind = "employee_custody"
+      receipt.funding_source      = someone_else
+
+      expect(described_class.new(receipt, actor: actor).call).to be_ok
+      expect(receipt.reload.funding_source).to eq(mine)
+    end
+
+    it "fails with the no-custody-account message when the actor has no active account" do
+      create(:custody_account, business: business, user: actor, active: false)
+      receipt = new_receipt
+      receipt.funding_source_kind = "employee_custody"
+      receipt.funding_source      = someone_else
+
+      expect(described_class.new(receipt, actor: actor).call).not_to be_ok
+      expect(receipt).not_to be_persisted
+      expect(receipt.errors[:base]).to include(I18n.t("activerecord.errors.models.goods_receipt.attributes.base.no_custody_account"))
+      expect(receipt.errors[:funding_source]).to be_empty
+    end
+
+    %w[company_cash bank_account supplier_credit].each do |kind|
+      it "saves #{kind} with no funding_source, even if one was preset" do
+        receipt = new_receipt
+        receipt.funding_source_kind = kind
+        receipt.funding_source      = someone_else
+
+        expect(described_class.new(receipt, actor: actor).call).to be_ok
+        expect(receipt.reload.funding_source).to be_nil
+      end
+    end
+  end
+
   it "returns a failed Result without raising when the receipt is invalid" do
     # GoodsReceipt.new (not business.goods_receipts.build) so this unsaved,
     # invalid record never lands in `business`'s in-memory association target

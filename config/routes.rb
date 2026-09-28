@@ -363,6 +363,7 @@ Rails.application.routes.draw do
       end
       collection do
         get  :import
+        post :preview_import, path: "import/preview"
         post :run_import, path: "import"
         get  :import_template
       end

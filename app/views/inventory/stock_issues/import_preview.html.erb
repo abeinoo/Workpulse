@@ -1,0 +1,228 @@
+<% content_for :title, t("inventory.imports.stock_issues.title") %>
+<%
+  column_label = ->(index) { @mapper.headers[index].presence || t("inventory.imports.mapping.unnamed_column", number: index + 1) }
+  columns_json = @mapper.headers.each_index.map { |i| { name: column_label.call(i), samples: @mapper.samples(i) } }.to_json
+  mapping_ready = @mapping_errors.empty? && @mapper.data_row_count.positive?
+  all_valid     = mapping_ready && @invalid_rows.empty?
+  missing_required = @mapping_errors.any? { |_, error| error == :required_missing }
+%>
+
+<div class="form-page" style="max-width: 960px;">
+  <%= link_to import_inventory_stock_issues_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("inventory.imports.mapping.upload_different_file") %>
+  <% end %>
+  <h1 class="page-title mb-6"><%= t("inventory.imports.stock_issues.title") %></h1>
+
+  <% if @import_blocked %>
+    <div id="import-blocked" class="form-error" role="alert" style="margin-bottom: var(--space-4);">
+      <p class="form-error__title" style="margin: 0;"><%= t("inventory.imports.mapping.import_blocked") %></p>
+    </div>
+  <% elsif missing_required %>
+    <div id="mapping-required" class="form-error" role="alert" style="margin-bottom: var(--space-4);">
+      <p class="form-error__title" style="margin: 0;"><%= t("inventory.imports.mapping.required_summary") %></p>
+    </div>
+  <% elsif @just_uploaded %>
+    <div id="upload-success" class="form-hint form-hint--info" role="status" style="margin-bottom: var(--space-4);">
+      <%= t("inventory.imports.mapping.upload_success") %>
+    </div>
+  <% end %>
+
+  <div class="card" style="padding: var(--space-4) var(--space-5); margin-bottom: var(--space-5);">
+    <dl class="detail-list">
+      <% if @file_name.present? %>
+        <div class="detail-list__row"><dt><%= t("inventory.imports.file") %></dt><dd><bdi><%= @file_name %></bdi></dd></div>
+      <% end %>
+      <div class="detail-list__row"><dt><%= t("inventory.imports.warehouse") %></dt><dd><%= @warehouse.name %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_issues.branch") %></dt><dd><%= @branch.name %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.imports.mapping.data_rows") %></dt><dd><%= number_with_delimiter(@mapper.data_row_count) %></dd></div>
+    </dl>
+  </div>
+
+  <%= form_with url: run_import_inventory_stock_issues_path, method: :post, id: "import-mapping-form",
+                data: { turbo: false, controller: "import-mapping", import_mapping_columns_value: columns_json,
+                        csv_column_text: t("inventory.imports.mapping.csv_column"),
+                        examples_text: t("inventory.imports.mapping.examples"),
+                        not_mapped_text: t("inventory.imports.mapping.not_mapped") } do %>
+    <%= hidden_field_tag :csv_payload, @mapper.payload %>
+    <%= hidden_field_tag :file_name, @file_name %>
+    <%= hidden_field_tag :warehouse_id, @warehouse.id %>
+    <%= hidden_field_tag :branch_id, @branch.id %>
+
+    <%# ── Step 2: Match Columns ─────────────────────────────────────────── %>
+    <section class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);" aria-labelledby="match-columns-title">
+      <h2 id="match-columns-title" class="card-title" style="font-size: var(--text-lg); margin: 0 0 var(--space-1);">
+        <%= t("inventory.imports.mapping.title") %>
+      </h2>
+      <p class="form-hint" style="margin: 0 0 var(--space-4);"><%= t("inventory.imports.mapping.hint") %></p>
+
+      <div style="display: grid; gap: var(--space-4);">
+        <% @fields.each do |field| %>
+          <% selected = @mapping[field.key] %>
+          <% field_errors = @mapping_errors.select { |key, _| key == field.key }.map(&:last).uniq %>
+          <div class="form-group" style="margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-2) var(--space-4); align-items: start;">
+            <div>
+              <%= label_tag "mapping_#{field.key}", class: "form-label", style: "margin-bottom: var(--space-1);" do %>
+                <%= t("inventory.imports.mapping.fields.#{field.key}") %>
+                <% if field.required %><span class="text-danger" aria-hidden="true">*</span><span class="sr-only"><%= t("inventory.imports.required") %></span><% end %>
+              <% end %>
+              <%= select_tag "mapping[#{field.key}]",
+                    options_for_select(@mapper.headers.each_index.map { |i| [ column_label.call(i), i ] }, selected),
+                    include_blank: t("inventory.imports.mapping.ignore_column"),
+                    id: "mapping_#{field.key}", class: "form-control",
+                    "aria-required": field.required, # not `required`: the server's clear message must be reachable
+                    "aria-invalid": field_errors.any?,
+                    data: { action: "change->import-mapping#changed", import_mapping_target: "select", field: field.key } %>
+              <% field_errors.each do |error| %>
+                <p class="form-error" style="margin-top: var(--space-1);" role="alert"><%= t("inventory.imports.mapping.errors.#{error}") %></p>
+              <% end %>
+            </div>
+            <div class="td-secondary" style="font-size: var(--text-sm); padding-top: var(--space-6);"
+                 data-import-mapping-target="source" data-field="<%= field.key %>">
+              <% if selected %>
+                <%= t("inventory.imports.mapping.csv_column") %>: <strong><bdi><%= column_label.call(selected) %></bdi></strong>
+                <% samples = @mapper.samples(selected) %>
+                <% if samples.any? %>
+                  <br><%= t("inventory.imports.mapping.examples") %>: <bdi><%= samples.join(" · ") %></bdi>
+                <% end %>
+              <% else %>
+                <%= t("inventory.imports.mapping.not_mapped") %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <p class="form-hint" style="margin: var(--space-4) 0 0;">
+        <%= t("inventory.imports.mapping.other_columns_ignored", count: [ @mapper.headers.size - @mapping.values.compact.size, 0 ].max) %>
+      </p>
+      <p class="form-hint text-warning" hidden data-import-mapping-target="staleNotice" role="status" style="margin: var(--space-2) 0 0;">
+        <%= t("inventory.imports.mapping.stale_preview") %>
+      </p>
+      <div class="form-actions" style="margin-top: var(--space-4);">
+        <button type="submit" class="btn btn-secondary" formaction="<%= preview_import_inventory_stock_issues_path %>">
+          <%= t("inventory.imports.mapping.update_preview") %>
+        </button>
+      </div>
+    </section>
+
+    <%# ── Step 3: Preview ──────────────────────────────────────────────── %>
+    <% if @preview_rows %>
+      <section aria-labelledby="preview-title" style="margin-bottom: var(--space-5);">
+        <h2 id="preview-title" class="card-title" style="font-size: var(--text-lg); margin: 0 0 var(--space-3);">
+          <%= t("inventory.imports.mapping.preview_title") %>
+        </h2>
+
+        <div class="stats-grid" style="margin-bottom: var(--space-4);">
+          <div class="stat-card">
+            <span class="stat-card__label"><%= t("inventory.imports.mapping.data_rows") %></span>
+            <span class="stat-card__value"><%= number_with_delimiter(@preview_rows.size) %></span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card__label"><%= t("inventory.imports.mapping.valid_rows") %></span>
+            <span class="stat-card__value" id="preview-valid-count"><%= number_with_delimiter(@preview_rows.size - @invalid_rows.size) %></span>
+          </div>
+          <div class="stat-card <%= 'stat-card--accent' if @invalid_rows.any? %>">
+            <span class="stat-card__label"><%= t("inventory.imports.mapping.rows_with_errors") %></span>
+            <span class="stat-card__value" id="preview-invalid-count"><%= number_with_delimiter(@invalid_rows.size) %></span>
+          </div>
+        </div>
+
+        <% if @invalid_rows.any? %>
+          <div class="card" style="padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); border-inline-start: 3px solid var(--warning, #d97706);">
+            <h3 style="font-size: var(--text-base); margin: 0 0 var(--space-1);"><%= t("inventory.imports.mapping.errors_title") %></h3>
+            <p class="form-hint" style="margin: 0 0 var(--space-3);">
+              <%= t("inventory.imports.mapping.errors_hint") %>
+              <%= link_to t("inventory.imports.mapping.upload_corrected_file"), import_inventory_stock_issues_path, class: "link" %>
+            </p>
+            <div id="preview-errors" class="table-wrap table-wrap--cards">
+              <table>
+                <thead><tr>
+                  <th><%= t("inventory.imports.row") %></th>
+                  <th><%= t("inventory.imports.mapping.fields.sku") %></th>
+                  <th style="text-align: end;"><%= t("inventory.imports.mapping.fields.quantity") %></th>
+                  <th><%= t("inventory.imports.reason") %></th>
+                </tr></thead>
+                <tbody>
+                  <% @invalid_rows.each do |row| %>
+                    <tr>
+                      <td><%= row.row_number %></td>
+                      <td><bdi><%= row.sku.presence || "—" %></bdi></td>
+                      <td style="text-align: end;"><%= row.detail ? "—" : number_with_delimiter(row.quantity.to_s("F").sub(/\.0\z/, "")) %></td>
+                      <td>
+                        <span class="badge badge-danger">
+                          <%= t("inventory.imports.mapping.row_errors.#{row.detail || row.failure_reason}",
+                                available: row.available_hint.to_s.sub(/\.0\z/, "")) %>
+                        </span>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <% end %>
+
+        <% shown = @preview_rows.first(100) %>
+        <div id="preview-rows" class="table-wrap table-wrap--cards">
+          <table>
+            <thead><tr>
+              <th><%= t("inventory.imports.row") %></th>
+              <th><%= t("inventory.imports.mapping.fields.sku") %></th>
+              <th><%= t("inventory.stock_issues.product") %></th>
+              <th style="text-align: end;"><%= t("inventory.imports.mapping.fields.quantity") %></th>
+              <th><%= t("inventory.imports.mapping.row_status") %></th>
+            </tr></thead>
+            <tbody>
+              <% shown.each do |row| %>
+                <tr>
+                  <td><%= row.row_number %></td>
+                  <td><bdi><%= row.sku.presence || "—" %></bdi></td>
+                  <td><%= row.product&.name || "—" %></td>
+                  <td style="text-align: end;"><%= row.detail ? "—" : number_with_delimiter(row.quantity.to_s("F").sub(/\.0\z/, "")) %></td>
+                  <td>
+                    <% if row.valid? %>
+                      <span class="badge badge-success"><%= t("inventory.imports.mapping.row_ok") %></span>
+                    <% else %>
+                      <span class="badge badge-danger"><%= t("inventory.imports.mapping.row_errors.#{row.detail || row.failure_reason}",
+                                                            available: row.available_hint.to_s.sub(/\.0\z/, "")) %></span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <% if @preview_rows.size > shown.size %>
+          <p class="form-hint" style="margin-top: var(--space-2);">
+            <%= t("inventory.imports.mapping.showing_first", shown: shown.size, total: @preview_rows.size) %>
+          </p>
+        <% end %>
+      </section>
+    <% end %>
+
+    <% if @mapping_errors.empty? && @mapper.data_row_count.zero? %>
+      <p class="form-error" role="alert"><%= t("inventory.imports.mapping.no_data_rows") %></p>
+    <% end %>
+
+    <div class="form-actions" style="flex-wrap: wrap; gap: var(--space-3);">
+      <button type="submit" id="import-submit" class="btn btn-primary" <%= "disabled" unless all_valid %>
+              data-import-mapping-target="importButton">
+        <%= t("inventory.imports.mapping.import") %>
+      </button>
+      <% if mapping_ready && @invalid_rows.any? %>
+        <%# Explicit opt-in: valid rows are attached now, the rest go to the
+            existing Resolve Import Errors screen before the issue is posted. %>
+        <button type="submit" id="import-partial" name="allow_partial" value="1" class="btn btn-ghost"
+                data-import-mapping-target="importButton">
+          <%= t("inventory.imports.mapping.import_partial") %>
+        </button>
+      <% end %>
+      <% if !mapping_ready %>
+        <span class="form-hint"><%= t("inventory.imports.mapping.import_disabled_hint") %></span>
+      <% elsif @invalid_rows.any? %>
+        <span class="form-hint"><%= t("inventory.imports.mapping.import_invalid_rows_hint", count: @invalid_rows.size) %></span>
+      <% end %>
+    </div>
+  <% end %>
+</div>

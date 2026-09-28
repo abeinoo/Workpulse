@@ -92,8 +92,19 @@ class StockIssue < ApplicationRecord
     )
   }
 
+  # Posted: the frozen ledger total. Not yet posted: an estimate at current
+  # average cost (see StockIssueItem#effective_unit_cost); lines whose cost is
+  # unavailable contribute nothing — flagged via #cost_unavailable?.
   def total_value
-    items.sum(&:total_cost)
+    items.sum { |item| item.effective_total_cost || 0 }
+  end
+
+  def cost_estimated?
+    !issued?
+  end
+
+  def cost_unavailable?
+    items.any?(&:cost_unavailable?)
   end
 
   # ImmutableDocument's before_destroy is unconditional by default (it applies

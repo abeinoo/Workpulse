@@ -87,6 +87,14 @@ class GoodsReceipt < ApplicationRecord
     funding_source_kind == "employee_custody"
   end
 
+  # Company cash / bank account pay the supplier at approval like custody
+  # does, but through no modeled account: the settlement row carries the
+  # source_kind and a nil funding_source (see FinancialSettlement). Only
+  # supplier_credit leaves a payable to be settled later.
+  def accountless_payment_funded?
+    FinancialSettlement::ACCOUNTLESS_SOURCE_KINDS.include?(funding_source_kind)
+  end
+
   # Settleable's required hook: the amount considered "fully settled".
   alias_method :settlement_total, :total_value
 
@@ -109,9 +117,13 @@ class GoodsReceipt < ApplicationRecord
     errors.add(:base, :no_items) if items.reject(&:marked_for_destruction?).empty?
   end
 
+  # funding_source is resolved server-side from the acting user (see
+  # Inventory::GoodsReceiptDraftService), so a missing one under Employee
+  # Custody means that user has no active custody account — say exactly that,
+  # not "funding source must be selected" (the kind IS selected).
   def funding_source_matches_kind
     if employee_custody_funded?
-      errors.add(:funding_source, :required) if funding_source.nil?
+      errors.add(:base, :no_custody_account) if funding_source.nil?
     elsif funding_source.present?
       errors.add(:funding_source, :must_be_blank)
     end

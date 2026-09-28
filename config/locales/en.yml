@@ -3895,7 +3895,70 @@ en:
         columns: "Upload a CSV of products. Required and optional columns are listed below."
       stock_issues:
         title: "Import Stock Issue"
+        index_button: "Import Stock Issue"
         columns: "Upload a CSV of items to issue from one warehouse. Required and optional columns are listed below."
+      mapping:
+        download_sample_csv: "Download CSV Template"
+        download_sample_xlsx: "Download Excel Template"
+        file_label: "CSV or Excel file (.xlsx)"
+        file_formats_hint: "Supported extensions:"
+        upload_success: "File uploaded successfully. Choose the columns that match the required fields."
+        required_summary: "Choose the SKU column and the Quantity column before continuing."
+        import_blocked: "Some rows are invalid. Fix them in your file and upload it again, or choose “Import valid rows and fix the rest”."
+        import_partial: "Import valid rows and fix the rest"
+        import_invalid_rows_hint:
+          one: "1 row has an error — fix it in the file and re-upload, or fix it on the next screen."
+          other: "%{count} rows have errors — fix them in the file and re-upload, or fix them on the next screen."
+        upload_corrected_file: "Upload a corrected file"
+        title: "Match Columns"
+        hint: "Choose which column in your file holds each field. Suggestions are pre-selected — change any that are wrong. Fields marked * are required."
+        any_columns_hint: "Upload a CSV or Excel (.xlsx) file. It doesn't need these exact column names — after uploading you'll match your own columns to each field. The sample files are just examples."
+        continue_to_mapping: "Upload & Match Columns"
+        upload_different_file: "Upload a different file"
+        data_rows: "Rows in File"
+        fields:
+          sku: "SKU"
+          quantity: "Quantity"
+        ignore_column: "— Ignore this column —"
+        unnamed_column: "Column %{number} (no header)"
+        csv_column: "File column"
+        examples: "Examples"
+        not_mapped: "Not mapped"
+        other_columns_ignored:
+          zero: "Every column in the file is mapped."
+          one: "1 other column in the file will be ignored."
+          other: "%{count} other columns in the file will be ignored."
+        stale_preview: "Mapping changed — click “Update Preview” to check the rows before importing."
+        update_preview: "Update Preview"
+        preview_title: "Preview"
+        valid_rows: "Valid Rows"
+        rows_with_errors: "Rows with Errors"
+        errors_title: "Rows that need attention"
+        errors_hint: "Fix these rows in your file and upload it again — or import the valid rows now and fix the rest on the next screen."
+        row_status: "Status"
+        row_ok: "Ready"
+        showing_first: "Showing the first %{shown} of %{total} rows."
+        no_data_rows: "The file has no data rows to import."
+        import: "Import Stock Issue"
+        import_disabled_hint: "Map every required field (*) to a different column to enable import."
+        errors:
+          required_missing: "This field is required — choose the column that holds it."
+          duplicate_column: "This column is already mapped to another field."
+        row_errors:
+          missing_sku: "Missing SKU"
+          invalid_quantity: "Invalid quantity"
+          non_positive_quantity: "Quantity must be greater than zero"
+          invalid_row: "Invalid row"
+          unknown_sku: "SKU does not exist"
+          insufficient_stock: "Not enough stock (available: %{available})"
+        parse_errors:
+          unsupported_format: "Unsupported file type. Upload a CSV or Excel (.xlsx) file."
+          file_too_large: "The file is too large. The maximum size is 10 MB."
+          malformed_xlsx: "The Excel file could not be read. Make sure it is a valid .xlsx workbook (not .xls or a renamed file) and upload again."
+          empty_file: "The CSV file is empty."
+          invalid_encoding: "The file isn't UTF-8 encoded. In Excel choose “Save As → CSV UTF-8” and upload again."
+          malformed: "The CSV could not be read. Save it as plain CSV (UTF-8) or Excel (.xlsx) and upload again."
+          invalid_payload: "The import session was lost. Please upload the file again."
       reasons:
         missing_required: "Missing required value (name or SKU)"
         duplicate_sku: "Duplicate SKU"
@@ -4276,6 +4339,9 @@ en:
       select_product: "Select product"
       quantity: "Quantity"
       unit_cost: "Unit Cost"
+      cost_unavailable: "Cost unavailable"
+      cost_unavailable_hint: "No purchase or opening-balance cost is recorded for one or more products — those lines are excluded from the total."
+      cost_estimated_hint: "Estimated at current average cost. The cost is fixed when the issue is confirmed."
       total: "Total"
       total_quantity: "Total Quantity"
       add_item: "Add Item"
@@ -4581,6 +4647,9 @@ en:
       performance_review_score: "Score"
       performance_observation: "Observation"
     attributes:
+      goods_receipt:
+        funding_source_kind: "Funding source"
+        warehouse: "Warehouse"
       user:
         first_name: "First name"
         last_name: "Last name"
@@ -4669,10 +4738,6 @@ en:
             base:
               no_items: "Add at least one product to issue"
               insufficient_stock: "Not enough stock for %{product} (%{sku}): %{available} available, %{requested} requested"
-        goods_receipt:
-          attributes:
-            base:
-              no_items: "Add at least one product to receive"
         purchase_request:
           attributes:
             base:
@@ -4764,8 +4829,12 @@ en:
               circular: "cannot be set to the product itself"
         goods_receipt:
           attributes:
+            base:
+              no_items: "Add at least one product to receive"
+              no_custody_account: "You do not have a custody account. You cannot use Employee Custody as the funding source."
+            funding_source_kind:
+              inclusion: "must be selected"
             funding_source:
-              required: "must be selected when the funding source is Employee Custody"
               must_be_blank: "must be blank unless the funding source is Employee Custody"
             supplier:
               must_match_purchase_request: "must match the originating purchase request's supplier"

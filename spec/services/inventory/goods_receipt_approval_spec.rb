@@ -19,6 +19,41 @@ RSpec.describe Inventory::GoodsReceiptApproval, type: :model do
     described_class.new(goods_receipt_id: receipt.id, actor: actor)
   end
 
+  describe "#approve! payment by funding source" do
+    def pending_receipt(kind, unit_cost: 100)
+      r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current, created_by: requester,
+                                        funding_source_kind: kind)
+      r.items.build(product: product, quantity: 2, unit_cost: unit_cost)
+      r.save!
+      r.update_column(:approval_status, "pending_approval")
+      r
+    end
+
+    %w[company_cash bank_account].each do |kind|
+      it "records one full, accountless #{kind} settlement inside the approval" do
+        receipt = pending_receipt(kind)
+        expect(approval_for(receipt, actor: approver).approve!).to be_ok
+
+        expect(receipt.reload).to be_settled
+        expect(receipt.financial_settlements.sole)
+          .to have_attributes(amount: 200, source_kind: kind, funding_source_id: nil, created_by_id: approver.id)
+      end
+    end
+
+    it "records nothing for supplier_credit" do
+      receipt = pending_receipt("supplier_credit")
+      expect(approval_for(receipt, actor: approver).approve!).to be_ok
+      expect(receipt.reload.financial_settlements).to be_empty
+      expect(receipt).to be_pending_settlement
+    end
+
+    it "approves a zero-value cash receipt without a (zero-amount) settlement" do
+      receipt = pending_receipt("company_cash", unit_cost: 0)
+      expect(approval_for(receipt, actor: approver).approve!).to be_ok
+      expect(receipt.reload.financial_settlements).to be_empty
+    end
+  end
+
   describe "#submit!" do
     it "moves draft to pending_approval and logs the transition" do
       receipt = draft_receipt

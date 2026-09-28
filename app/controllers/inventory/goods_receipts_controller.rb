@@ -37,7 +37,11 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   end
 
   def new
-    @goods_receipt = current_user.business.goods_receipts.build(received_on: Date.current, funding_source_kind: "employee_custody")
+    # Default to Employee Custody only for a user who can actually use it;
+    # otherwise no kind is pre-selected and the user must choose one.
+    @goods_receipt = current_user.business.goods_receipts.build(
+      received_on: Date.current, funding_source_kind: (own_custody_account ? "employee_custody" : nil)
+    )
 
     if params[:purchase_request_id].present?
       @purchase_request = find_receivable_purchase_request(params[:purchase_request_id])
@@ -58,7 +62,6 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   def create
     @goods_receipt = current_user.business.goods_receipts.build(receipt_params)
     @goods_receipt.created_by = current_user
-    assign_funding_source
     authorize @goods_receipt
     ensure_warehouses_accessible!(@goods_receipt.warehouse_id)
 
@@ -90,7 +93,6 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     @goods_receipt = find_receipt
     authorize @goods_receipt
     @goods_receipt.assign_attributes(receipt_params)
-    assign_funding_source
     ensure_warehouses_accessible!(@goods_receipt.warehouse_id)
 
     result = Inventory::GoodsReceiptDraftService.new(@goods_receipt, actor: current_user).call
@@ -189,16 +191,14 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     @warehouses      = accessible_warehouses
     @suppliers       = current_user.business.suppliers.ordered
     @products        = current_user.business.products.transactable.ordered
-    @custody_account = current_user.custody_accounts.active.first
+    @custody_account = own_custody_account
+    @custody_balance = @custody_account&.computed_balance
   end
 
-  # Employee Custody always means the acting user's own account — never a
-  # selectable employee. Ignoring any client-supplied account id here is what
-  # makes "never allow selecting another employee" actually true server-side.
-  def assign_funding_source
-    return unless @goods_receipt.funding_source_kind == "employee_custody"
-
-    @goods_receipt.funding_source = current_user.custody_accounts.active.first
+  # Display only — the account a receipt is actually charged to is resolved
+  # (with the same rule) by Inventory::GoodsReceiptDraftService.
+  def own_custody_account
+    @own_custody_account ||= current_user.custody_accounts.active.find_by(business_id: current_user.business_id)
   end
 
   def receipt_params

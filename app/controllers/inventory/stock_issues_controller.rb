@@ -158,28 +158,56 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @branches   = current_user.business.branches.active.order(:name)
   end
 
+  # ?kind=xlsx serves the Excel version; both carry the same SKU/Quantity
+  # columns and are only examples — any column names can be mapped.
   def import_template
     authorize StockIssue, :create?
-    send_data Inventory::Imports::StockIssueImporter.sample_csv,
-              filename: "stock_issue_import_sample.csv", type: "text/csv"
+    if params[:kind] == "xlsx"
+      send_data Inventory::Imports::StockIssueImporter.sample_xlsx,
+                filename: "stock_issue_import_sample.xlsx",
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else
+      send_data Inventory::Imports::StockIssueImporter.sample_csv,
+                filename: "stock_issue_import_sample.csv", type: "text/csv"
+    end
   end
 
+  # Step 2 — Match Columns + Preview. Reached from the upload form (params[:file])
+  # and re-submitted whenever the user changes a mapping (params[:csv_payload]).
+  # Never writes anything.
+  def preview_import
+    authorize StockIssue, :create?
+    return unless load_import_context
+
+    @mapping = import_mapping
+    render_import_preview
+  end
+
+  # Step 3 — Import with the confirmed mapping. A direct file upload (no
+  # mapping) is auto-matched; if that can't satisfy the required fields the
+  # user is sent to the mapping step instead of being rejected.
+  #
+  # Every row must pass the preview validation. The one exception is the
+  # user's explicit "import and fix the rest" choice (allow_partial=1), which
+  # hands the invalid rows to the existing Resolve Import Errors screen.
   def run_import
     authorize StockIssue, :create?
-    file      = params[:file]
-    warehouse = accessible_warehouses.find_by(id: params[:warehouse_id])
-    branch    = current_user.business.branches.find_by(id: params[:branch_id])
-    if file.blank? || warehouse.nil? || branch.nil?
-      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.file_warehouse_and_branch_required") and return
+    return unless load_import_context
+
+    @mapping = import_mapping
+    unless @mapper.mapping_valid?(@mapping) && @mapper.data_row_count.positive?
+      render_import_preview(status: :unprocessable_entity) and return
     end
 
-    result = Inventory::Imports::StockIssueImporter.new(
-      current_user.business, file.read, warehouse: warehouse, branch: branch, user: current_user
-    ).call
-
-    unless result.ok?
-      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.invalid_headers") and return
+    importer = Inventory::Imports::StockIssueImporter.new(
+      current_user.business, @mapper.rows(@mapping), warehouse: @warehouse, branch: @branch, user: current_user
+    )
+    if params[:allow_partial] != "1" && importer.preview.any? { |row| !row.valid? }
+      @import_blocked = true
+      render_import_preview(status: :unprocessable_entity) and return
     end
+
+    result = importer.call
 
     if result.batch
       redirect_to inventory_stock_issue_import_batch_path(result.batch)
@@ -200,6 +228,53 @@ class Inventory::StockIssuesController < Inventory::BaseController
     else
       redirect_to inventory_stock_issue_path(@stock_issue), alert: result.error
     end
+  end
+
+  # Resolves warehouse/branch and the CSV (fresh upload or the payload carried
+  # through the mapping step). Redirects back to the upload form and returns
+  # false on anything unusable.
+  def load_import_context
+    @warehouse = accessible_warehouses.find_by(id: params[:warehouse_id])
+    @branch    = current_user.business.branches.find_by(id: params[:branch_id])
+    fields     = Inventory::Imports::StockIssueImporter::COLUMNS
+    source     = params[:file].presence || params[:csv_payload].presence
+
+    if source.nil? || @warehouse.nil? || @branch.nil?
+      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.file_warehouse_and_branch_required")
+      return false
+    end
+
+    @file_name     = params[:file].respond_to?(:original_filename) ? params[:file].original_filename : params[:file_name].to_s
+    @just_uploaded = params[:file].present?
+    @mapper        = if params[:file].present?
+      Inventory::Imports::CsvColumnMapper.from_upload(params[:file].read, filename: @file_name, fields: fields)
+    else
+      Inventory::Imports::CsvColumnMapper.from_payload(params[:csv_payload], fields: fields)
+    end
+    true
+  rescue Inventory::Imports::CsvColumnMapper::ParseError => e
+    redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.mapping.parse_errors.#{e.message}")
+    false
+  end
+
+  # The user's confirmed mapping, or the auto-suggestion on first upload.
+  def import_mapping
+    return @mapper.suggested_mapping if params[:mapping].blank?
+
+    keys = Inventory::Imports::StockIssueImporter::COLUMNS.map(&:key)
+    @mapper.normalize_mapping(params.require(:mapping).permit(*keys))
+  end
+
+  def render_import_preview(status: :ok)
+    @fields         = Inventory::Imports::StockIssueImporter::COLUMNS
+    @mapping_errors = @mapper.mapping_errors(@mapping)
+    if @mapping_errors.empty?
+      @preview_rows = Inventory::Imports::StockIssueImporter.new(
+        current_user.business, @mapper.rows(@mapping), warehouse: @warehouse, branch: @branch
+      ).preview
+      @invalid_rows = @preview_rows.reject(&:valid?)
+    end
+    render :import_preview, status: status
   end
 
   def load_options

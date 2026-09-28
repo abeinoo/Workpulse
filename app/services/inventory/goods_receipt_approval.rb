@@ -2,10 +2,17 @@ module Inventory
   # Handles the goods receipt approval lifecycle: draft/rejected → pending_approval
   # → approved | rejected. Modeled directly on Finance::ExpenseApproval.
   #
-  # Approval — not confirmation/receiving — is the financial event: approving
-  # an employee-custody-funded receipt validates and deducts the balance,
-  # records a FinancialSettlement, and posts a linked CustodyTransaction, all
-  # inside the same transaction as the approval_status transition. It NEVER
+  # Approval — not confirmation/receiving — is the financial event. The
+  # funding source decides what it records, all inside the same transaction as
+  # the approval_status transition:
+  #   - employee_custody: validates and deducts the approver-time balance,
+  #     records a FinancialSettlement for the full amount, and posts a linked
+  #     CustodyTransaction.
+  #   - company_cash / bank_account: paid on the spot, so a full-amount
+  #     FinancialSettlement is recorded with that source_kind and no funding
+  #     account (no CashAccount/BankAccount model exists — no balance moves).
+  #   - supplier_credit: nothing — the receipt stays pending_settlement and is
+  #     paid off later through Inventory::GoodsReceiptSettlementRecorder. It NEVER
   # posts inventory movements — that stays entirely with warehouse receiving
   # (Inventory::GoodsReceiptConfirmationService), which is purely an inventory
   # event and moves no money, gated on approval_status == "approved".
@@ -37,20 +44,26 @@ module Inventory
     # transaction, all inside the transition's transaction.
     def approve!
       return self_approval_error if self_approval?
-      return invalid_transition_error unless receipt.approval_status == "pending_approval"
 
-      account = nil
-      if receipt.employee_custody_funded?
-        account = receipt.funding_source
-        account.with_lock do
-          return insufficient_balance_error if account.computed_balance < receipt.total_value
+      # Row lock (reloads the receipt): a concurrent second approval waits,
+      # then sees "approved" and is refused — the payment is recorded once.
+      receipt.with_lock do
+        return invalid_transition_error unless receipt.approval_status == "pending_approval"
+
+        account = nil
+        if receipt.employee_custody_funded?
+          account = receipt.funding_source
+          account.with_lock do
+            return insufficient_balance_error if account.computed_balance < receipt.total_value
+          end
         end
-      end
 
-      transition(from: "pending_approval", to: "approved", action: "approve") do
-        receipt.decided_by = @actor
-        receipt.decided_at = Time.current
-        post_custody_deduction(account) if account
+        transition(from: "pending_approval", to: "approved", action: "approve") do
+          receipt.decided_by = @actor
+          receipt.decided_at = Time.current
+          post_custody_deduction(account) if account
+          post_accountless_payment if receipt.accountless_payment_funded?
+        end
       end
     end
 
@@ -125,6 +138,23 @@ module Inventory
         notes:                I18n.t("finance.custody.inventory_purchase_note", reference: receipt.receipt_number)
       )
       account.refresh_balance!
+    end
+
+    # Company cash / bank: the full amount is paid at approval. Same ledger
+    # (FinancialSettlementService) and the same reversal path on void as every
+    # other settlement; source_kind records where the money came from.
+    def post_accountless_payment
+      return unless receipt.total_value.positive?
+
+      result = FinancialSettlementService.create(
+        settleable:  receipt,
+        source_kind: receipt.funding_source_kind,
+        reference:   receipt.receipt_number,
+        amount:      receipt.total_value,
+        actor:       @actor,
+        notes:       I18n.t("finance.custody.inventory_purchase_note", reference: receipt.receipt_number)
+      )
+      raise ActiveRecord::RecordInvalid, result.settlement unless result.ok?
     end
 
     def transition(from:, to:, action:, metadata: {})

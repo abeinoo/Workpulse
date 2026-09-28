@@ -2,8 +2,12 @@ require "csv"
 
 module Inventory
   module Imports
-    # Imports a stock issue from a CSV of "SKU, Quantity" rows, for a single
-    # warehouse. Exactly one StockIssue is created for the whole import and
+    # Imports a stock issue from "SKU, Quantity" rows, for a single warehouse.
+    # Rows arrive already normalized by CsvColumnMapper (the user maps their
+    # CSV's own columns onto COLUMNS), so this class never reads raw headers:
+    #
+    #   [{ row_number: 2, "sku" => "UYN1", "quantity" => "2" }, ...]
+    # Exactly one StockIssue is created for the whole import and
     # used for its entire lifecycle: structurally-valid, in-stock rows are
     # attached to it as items immediately; everything else (blank/invalid
     # rows, unknown SKUs, or rows that collectively exceed on-hand stock) is
@@ -12,16 +16,20 @@ module Inventory
     # SAME issue. If nothing failed, the issue is posted right away; otherwise
     # it stays a draft until "Complete Import" posts it.
     class StockIssueImporter
-      REQUIRED_HEADERS = [ "sku", "quantity" ].freeze
-
-      # Column schema — single source of truth for the parser's headers, the
-      # downloadable sample template, and the on-screen required/optional guide.
-      # Header matching is case-insensitive (see #parse), so `header` casing is
-      # for display only.
-      Column = Struct.new(:header, :required, :example, keyword_init: true)
+      # Field schema — single source of truth for the column-mapping step
+      # (key + auto-match synonyms), the downloadable sample template, and the
+      # on-screen required/optional guide. `synonyms` are in priority order;
+      # `fallback_synonyms` are only suggested when nothing better matches.
+      Column = Struct.new(:key, :header, :required, :example, :synonyms, :fallback_synonyms, keyword_init: true)
       COLUMNS = [
-        Column.new(header: "SKU",      required: true, example: "WIDGET-001"),
-        Column.new(header: "Quantity", required: true, example: "5")
+        Column.new(key: "sku", header: "SKU", required: true, example: "WIDGET-001",
+                   synonyms: [ "SKU", "Product SKU", "Item SKU", "Item Code", "Product Code", "Code",
+                               "رمز المنتج", "كود المنتج", "كود الصنف", "رمز الصنف", "الرمز", "الكود", "كود" ],
+                   fallback_synonyms: [ "Barcode", "الباركود", "باركود" ]),
+        Column.new(key: "quantity", header: "Quantity", required: true, example: "5",
+                   synonyms: [ "Quantity", "Qty", "Qty ordered", "Quantity ordered", "Ordered qty",
+                               "Requested Quantity", "Qty requested", "Issue quantity", "Qty to issue",
+                               "الكمية", "كمية", "الكمية المطلوبة", "الكمية المصروفة" ])
       ].freeze
 
       # Header row + one example row, so users can fill in their own data.
@@ -32,26 +40,45 @@ module Inventory
         end
       end
 
-      Result = Struct.new(:issue, :batch, :header_error, keyword_init: true) do
-        def ok? = header_error.nil?
+      # Excel version of the same template. SKU is a text cell so codes with
+      # leading zeros (e.g. 00123) survive a round-trip through Excel.
+      def self.sample_xlsx
+        package = Axlsx::Package.new
+        package.workbook.add_worksheet(name: "Stock Issue") do |sheet|
+          sheet.add_row COLUMNS.map(&:header)
+          sheet.add_row COLUMNS.map(&:example), types: [ :string, :integer ]
+        end
+        package.to_stream.read
       end
 
-      Row = Struct.new(:row_number, :sku, :quantity, :product, :failure_reason, :available_hint, keyword_init: true)
+      Result = Struct.new(:issue, :batch, keyword_init: true) do
+        def ok? = issue.present? || batch.present?
+      end
 
-      def initialize(business, csv_data, warehouse:, branch:, user: nil)
+      # failure_reason is what the resolution batch persists; `detail` refines
+      # :invalid_row for display (:missing_sku, :invalid_quantity,
+      # :non_positive_quantity).
+      Row = Struct.new(:row_number, :sku, :quantity, :product, :failure_reason, :detail, :available_hint,
+                       keyword_init: true) do
+        def valid? = failure_reason.nil?
+      end
+
+      def initialize(business, rows, warehouse:, branch:, user: nil)
         @business  = business
-        @csv_data  = csv_data
+        @rows      = rows
         @warehouse = warehouse
         @branch    = branch
         @user      = user
       end
 
-      def call
-        table = parse
-        return Result.new(header_error: :invalid_headers) unless headers_valid?(table)
+      # Side-effect-free dry run: exactly the rows #call would build, with the
+      # same failure reasons — used by the preview step.
+      def preview
+        build_rows
+      end
 
-        rows = table.each.with_index(2).map { |row, line| build_row(row, line) }
-        split_insufficient_stock!(rows)
+      def call
+        rows = build_rows
 
         issue = @business.stock_issues.create!(
           warehouse: @warehouse, branch: @branch, issued_on: Date.current,
@@ -80,18 +107,38 @@ module Inventory
 
       private
 
-      def build_row(row, line)
-        sku = row["sku"].to_s.strip
-        qty = decimal(row["quantity"])
+      def build_rows
+        products = products_by_sku
+        rows = @rows.map { |row| build_row(row, products) }
+        split_insufficient_stock!(rows)
+        rows
+      end
 
-        if sku.blank? || !qty.positive?
-          return Row.new(row_number: line, sku: sku, quantity: qty, failure_reason: :invalid_row)
+      def build_row(row, products)
+        line = row[:row_number]
+        sku  = row["sku"].to_s.strip
+        qty  = decimal(row["quantity"])
+
+        detail = if sku.blank? then :missing_sku
+        elsif qty.nil? then :invalid_quantity
+        elsif !qty.positive? then :non_positive_quantity
+        end
+        if detail
+          return Row.new(row_number: line, sku: sku, quantity: qty || 0, failure_reason: :invalid_row, detail: detail)
         end
 
-        product = @business.products.active.find_by("LOWER(sku) = ?", sku.downcase)
+        product = products[sku.downcase]
         return Row.new(row_number: line, sku: sku, quantity: qty, failure_reason: :unknown_sku) if product.nil?
 
         Row.new(row_number: line, sku: sku, quantity: qty, product: product)
+      end
+
+      # One query for every SKU in the file (case-insensitive, active only).
+      def products_by_sku
+        skus = @rows.map { |r| r["sku"].to_s.strip.downcase }.reject(&:empty?).uniq
+        return {} if skus.empty?
+
+        @business.products.active.where("LOWER(sku) IN (?)", skus).index_by { |p| p.sku.downcase }
       end
 
       # Mirrors StockIssuePoster#availability_ok? as a pre-filter: sums requested
@@ -129,18 +176,11 @@ module Inventory
         batch
       end
 
-      def parse
-        CSV.parse(@csv_data, headers: true, header_converters: ->(h) { h.to_s.strip.downcase })
-      end
-
-      def headers_valid?(table)
-        (REQUIRED_HEADERS - table.headers.compact).empty?
-      end
-
+      # nil when unparsable, so "abc" (invalid) is told apart from "0".
       def decimal(value)
         BigDecimal(value.to_s.strip)
       rescue ArgumentError, TypeError
-        0
+        nil
       end
     end
   end

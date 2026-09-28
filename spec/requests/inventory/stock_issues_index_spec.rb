@@ -155,4 +155,35 @@ RSpec.describe "Inventory::StockIssues#index", type: :request do
       expect_only(response, present: matching)
     end
   end
+
+  describe "header actions" do
+    def header_links
+      Nokogiri::HTML(response.body).css(".page-header a").to_h { |a| [ a.text.squish, a["href"] ] }
+    end
+
+    it "shows New Issue and Import Stock Issue (EN), the import pointing at the import page" do
+      sign_in owner
+      get inventory_stock_issues_path
+
+      expect(header_links).to eq("Import Stock Issue" => import_inventory_stock_issues_path,
+                                 "New Issue"          => new_inventory_stock_issue_path)
+      expect(response.body).not_to include("Import CSV")
+    end
+
+    it "shows إذن صرف جديد and استيراد إذن صرف (AR)" do
+      owner.update!(preferred_locale: "ar")
+      sign_in owner
+      get inventory_stock_issues_path
+
+      expect(header_links).to eq("استيراد إذن صرف" => import_inventory_stock_issues_path,
+                                 "إذن صرف جديد"    => new_inventory_stock_issue_path)
+      expect(response.body).not_to include("استيراد CSV")
+    end
+
+    it "leaves the Products page's shared Import CSV label unchanged" do
+      sign_in owner
+      get inventory_products_path
+      expect(response.body).to include(I18n.t("inventory.imports.import_csv"))
+    end
+  end
 end

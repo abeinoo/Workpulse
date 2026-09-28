@@ -16,10 +16,19 @@ RSpec.describe GoodsReceipt, type: :model do
   end
 
   describe "funding source validations" do
-    it "requires an employee (funding_source) when the kind is employee_custody" do
+    it "reports a missing custody account (not a missing selection) when the kind is employee_custody" do
       receipt = build_receipt(funding_source_kind: "employee_custody")
       expect(receipt).not_to be_valid
-      expect(receipt.errors[:funding_source]).to include(match(/must be selected/))
+      expect(receipt.errors[:base]).to eq(
+        [ "You do not have a custody account. You cannot use Employee Custody as the funding source." ]
+      )
+      expect(receipt.errors[:funding_source]).to be_empty
+    end
+
+    it "requires a funding source kind to be chosen" do
+      receipt = build_receipt(funding_source_kind: nil)
+      expect(receipt).not_to be_valid
+      expect(receipt.errors.full_messages).to include("Funding source must be selected")
     end
 
     it "is valid when employee_custody has a linked custody account" do

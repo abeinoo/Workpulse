@@ -9,8 +9,11 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
     "SKU,Quantity\n#{sku},#{qty}\n"
   end
 
+  # The importer consumes normalized rows; go through the column mapper's
+  # auto-suggestion exactly as the controller does for a standard template.
   def importer(csv_data)
-    described_class.new(business, csv_data, warehouse: warehouse, branch: branch)
+    mapper = Inventory::Imports::CsvColumnMapper.new(csv_data, fields: described_class::COLUMNS)
+    described_class.new(business, mapper.rows(mapper.suggested_mapping), warehouse: warehouse, branch: branch)
   end
 
   def receive(product, qty:)
@@ -123,6 +126,46 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
 
       expect(result.issue).to be_nil
       expect(result.batch.rows.first.failure_reason).to eq("invalid_row")
+    end
+  end
+
+  describe "#preview" do
+    let!(:product) do
+      business.products.create!(name: "Widget", sku: "UYN1", initial_cost_price: 10, average_cost_price: 10)
+    end
+
+    before { receive(product, qty: 20) }
+
+    it "reports every row with its spreadsheet row number and exact reason" do
+      csv = "SKU,Quantity\nUYN1,2\n,5\nUYN1,abc\nUYN1,0\nUYN1,-3\nNOPE,1\nuyn1,1\n"
+      rows = importer(csv).preview
+
+      expect(rows.map { |r| [ r.row_number, r.detail || r.failure_reason ] }).to eq([
+        [ 2, nil ],
+        [ 3, :missing_sku ],
+        [ 4, :invalid_quantity ],
+        [ 5, :non_positive_quantity ],
+        [ 6, :non_positive_quantity ],
+        [ 7, :unknown_sku ],
+        [ 8, nil ] # SKU match is case-insensitive
+      ])
+      expect(rows.select(&:valid?).map(&:product)).to all(eq(product))
+    end
+
+    it "flags products whose rows together exceed on-hand stock" do
+      rows = importer("SKU,Quantity\nUYN1,15\nUYN1,10\n").preview
+      expect(rows.map(&:failure_reason)).to all(eq(:insufficient_stock))
+      expect(rows.first.available_hint).to eq(20)
+    end
+
+    it "writes nothing" do
+      expect { importer("SKU,Quantity\nUYN1,2\nNOPE,1\n").preview }
+        .not_to change { [ StockIssue.count, StockIssueImportBatch.count, InventoryMovement.count ] }
+    end
+
+    it "persists a batch row's invalid quantity as 0, as before" do
+      result = importer("SKU,Quantity\nUYN1,abc\n").call
+      expect(result.batch.rows.first).to have_attributes(failure_reason: "invalid_row", quantity: 0)
     end
   end
 

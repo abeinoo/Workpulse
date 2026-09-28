@@ -3933,7 +3933,77 @@ ar:
         columns: "ارفع ملف CSV للمنتجات. الأعمدة المطلوبة والاختيارية موضحة أدناه."
       stock_issues:
         title: "استيراد إذن صرف"
+        index_button: "استيراد إذن صرف"
         columns: "ارفع ملف CSV للأصناف المراد صرفها من مستودع واحد. الأعمدة المطلوبة والاختيارية موضحة أدناه."
+      mapping:
+        download_sample_csv: "تنزيل نموذج CSV"
+        download_sample_xlsx: "تنزيل نموذج Excel"
+        file_label: "ملف CSV أو Excel (.xlsx)"
+        file_formats_hint: "الامتدادات المدعومة:"
+        upload_success: "تم تحميل الملف بنجاح. اختر الأعمدة المطابقة للحقول المطلوبة."
+        required_summary: "يجب اختيار عمود SKU وعمود Quantity قبل المتابعة."
+        import_blocked: "بعض الصفوف غير صالحة. صحّحها في ملفك ثم ارفعه مرة أخرى، أو اختر «استيراد الصفوف الصالحة وتصحيح الباقي»."
+        import_partial: "استيراد الصفوف الصالحة وتصحيح الباقي"
+        import_invalid_rows_hint:
+          zero: "لا توجد صفوف بها أخطاء."
+          one: "صف واحد به خطأ — صحّحه في الملف وأعد رفعه، أو صحّحه في الشاشة التالية."
+          two: "صفان بهما أخطاء — صحّحهما في الملف وأعد رفعه، أو صحّحهما في الشاشة التالية."
+          few: "%{count} صفوف بها أخطاء — صحّحها في الملف وأعد رفعه، أو صحّحها في الشاشة التالية."
+          many: "%{count} صفًا بها أخطاء — صحّحها في الملف وأعد رفعه، أو صحّحها في الشاشة التالية."
+          other: "%{count} صف بها أخطاء — صحّحها في الملف وأعد رفعه، أو صحّحها في الشاشة التالية."
+        upload_corrected_file: "رفع ملف مُصحّح"
+        title: "مطابقة الأعمدة"
+        hint: "اختر العمود في ملفك الذي يحتوي على كل حقل. تم اختيار اقتراحات تلقائيًا — غيّر أي اقتراح غير صحيح. الحقول المعلّمة بـ * مطلوبة."
+        any_columns_hint: "ارفع ملف CSV أو Excel (.xlsx). لا يلزم أن يحتوي الملف على أسماء الأعمدة هذه بالضبط — بعد الرفع ستطابق أعمدتك مع كل حقل. ملفات النموذج مجرد أمثلة."
+        continue_to_mapping: "رفع ومطابقة الأعمدة"
+        upload_different_file: "رفع ملف آخر"
+        data_rows: "صفوف الملف"
+        fields:
+          sku: "رمز المنتج (SKU)"
+          quantity: "الكمية"
+        ignore_column: "— تجاهل هذا العمود —"
+        unnamed_column: "العمود %{number} (بدون عنوان)"
+        csv_column: "عمود الملف"
+        examples: "أمثلة"
+        not_mapped: "غير مطابق"
+        other_columns_ignored:
+          zero: "تمت مطابقة جميع أعمدة الملف."
+          one: "سيتم تجاهل عمود واحد آخر في الملف."
+          two: "سيتم تجاهل عمودين آخرين في الملف."
+          few: "سيتم تجاهل %{count} أعمدة أخرى في الملف."
+          many: "سيتم تجاهل %{count} عمودًا آخر في الملف."
+          other: "سيتم تجاهل %{count} عمود آخر في الملف."
+        stale_preview: "تم تغيير المطابقة — اضغط «تحديث المعاينة» لمراجعة الصفوف قبل الاستيراد."
+        update_preview: "تحديث المعاينة"
+        preview_title: "المعاينة"
+        valid_rows: "صفوف صالحة"
+        rows_with_errors: "صفوف بها أخطاء"
+        errors_title: "صفوف تحتاج إلى مراجعة"
+        errors_hint: "صحّح هذه الصفوف في ملفك ثم ارفعه مرة أخرى — أو استورد الصفوف الصالحة الآن وصحّح الباقي في الشاشة التالية."
+        row_status: "الحالة"
+        row_ok: "جاهز"
+        showing_first: "عرض أول %{shown} من %{total} صف."
+        no_data_rows: "لا يحتوي الملف على صفوف بيانات للاستيراد."
+        import: "استيراد إذن الصرف"
+        import_disabled_hint: "طابق كل حقل مطلوب (*) مع عمود مختلف لتفعيل الاستيراد."
+        errors:
+          required_missing: "هذا الحقل مطلوب — اختر العمود الذي يحتوي عليه."
+          duplicate_column: "هذا العمود مطابق بالفعل مع حقل آخر."
+        row_errors:
+          missing_sku: "رمز المنتج مفقود"
+          invalid_quantity: "كمية غير صالحة"
+          non_positive_quantity: "يجب أن تكون الكمية أكبر من صفر"
+          invalid_row: "صف غير صالح"
+          unknown_sku: "رمز المنتج غير موجود"
+          insufficient_stock: "المخزون غير كافٍ (المتاح: %{available})"
+        parse_errors:
+          unsupported_format: "نوع الملف غير مدعوم. ارفع ملف CSV أو Excel (.xlsx)."
+          file_too_large: "حجم الملف كبير جدًا. الحد الأقصى 10 ميجابايت."
+          malformed_xlsx: "تعذّرت قراءة ملف Excel. تأكد أنه ملف ‎.xlsx صالح (وليس ‎.xls أو ملفًا أُعيدت تسميته) ثم ارفعه مرة أخرى."
+          empty_file: "ملف CSV فارغ."
+          invalid_encoding: "ترميز الملف ليس UTF-8. في Excel اختر «حفظ باسم ← CSV UTF-8» ثم ارفع الملف مرة أخرى."
+          malformed: "تعذّرت قراءة ملف CSV. احفظه كملف CSV عادي (UTF-8) أو Excel (.xlsx) ثم ارفعه مرة أخرى."
+          invalid_payload: "انتهت جلسة الاستيراد. يرجى رفع الملف مرة أخرى."
       reasons:
         missing_required: "قيمة مطلوبة مفقودة (الاسم أو SKU)"
         duplicate_sku: "رمز SKU مكرر"
@@ -4314,6 +4384,9 @@ ar:
       select_product: "اختر المنتج"
       quantity: "الكمية"
       unit_cost: "تكلفة الوحدة"
+      cost_unavailable: "التكلفة غير متوفرة"
+      cost_unavailable_hint: "لا توجد تكلفة شراء أو رصيد افتتاحي مسجلة لمنتج أو أكثر — تم استبعاد هذه البنود من الإجمالي."
+      cost_estimated_hint: "تكلفة تقديرية بمتوسط التكلفة الحالي. تُثبَّت التكلفة عند تأكيد الصرف."
       total: "الإجمالي"
       total_quantity: "إجمالي الكمية"
       add_item: "إضافة صنف"
@@ -4619,6 +4692,9 @@ ar:
       performance_review_score: "درجة"
       performance_observation: "ملاحظة"
     attributes:
+      goods_receipt:
+        funding_source_kind: "مصدر التمويل"
+        warehouse: "المستودع"
       user:
         first_name: "الاسم الأول"
         last_name: "اسم العائلة"
@@ -4707,10 +4783,6 @@ ar:
             base:
               no_items: "أضف منتجاً واحداً على الأقل للصرف"
               insufficient_stock: "المخزون غير كافٍ للمنتج %{product} (%{sku}): المتاح %{available}، المطلوب %{requested}"
-        goods_receipt:
-          attributes:
-            base:
-              no_items: "أضف منتجاً واحداً على الأقل للاستلام"
         purchase_request:
           attributes:
             base:
@@ -4802,8 +4874,12 @@ ar:
               circular: "لا يمكن ضبطه ليكون المنتج نفسه"
         goods_receipt:
           attributes:
+            base:
+              no_items: "أضف منتجاً واحداً على الأقل للاستلام"
+              no_custody_account: "لا يوجد لديك حساب عهدة. لا يمكنك اختيار «عهدة موظف» كمصدر تمويل."
+            funding_source_kind:
+              inclusion: "يجب اختياره"
             funding_source:
-              required: "يجب اختياره عندما يكون مصدر التمويل عهدة الموظف"
               must_be_blank: "يجب أن يكون فارغًا ما لم يكن مصدر التمويل عهدة الموظف"
             supplier:
               must_match_purchase_request: "يجب أن يطابق مورد طلب الشراء الأصلي"

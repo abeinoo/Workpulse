@@ -7,15 +7,20 @@
   <% end %>
   <h1 class="page-title mb-6"><%= t("inventory.imports.stock_issues.title") %></h1>
 
-  <%= form_with url: run_import_inventory_stock_issues_path, method: :post,
+  <%= form_with url: preview_import_inventory_stock_issues_path, method: :post,
                 multipart: true, class: "form-card", data: { turbo: false } do |f| %>
     <div class="flex items-center" style="justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap;">
       <p class="form-hint" style="margin: 0;"><%= t("inventory.imports.stock_issues.columns") %></p>
-      <%= link_to t("inventory.imports.download_sample"), import_template_inventory_stock_issues_path,
-            class: "btn btn-secondary btn-sm" %>
+      <div class="flex" style="gap: var(--space-2); flex-wrap: wrap;">
+        <%= link_to t("inventory.imports.mapping.download_sample_csv"), import_template_inventory_stock_issues_path,
+              class: "btn btn-secondary btn-sm", id: "download-sample-csv" %>
+        <%= link_to t("inventory.imports.mapping.download_sample_xlsx"), import_template_inventory_stock_issues_path(kind: "xlsx"),
+              class: "btn btn-secondary btn-sm", id: "download-sample-xlsx" %>
+      </div>
     </div>
 
     <%= render "inventory/shared/import_columns", columns: Inventory::Imports::StockIssueImporter::COLUMNS %>
+    <p class="form-hint" style="margin: 0 0 var(--space-4);"><%= t("inventory.imports.mapping.any_columns_hint") %></p>
 
     <div class="form-grid">
       <div class="form-group">
@@ -31,12 +36,16 @@
               include_blank: "— #{t('inventory.stock_issues.select_branch')}", class: "form-control", required: true %>
       </div>
       <div class="form-group" style="grid-column: 1 / -1;">
-        <%= label_tag :file, t("inventory.imports.file"), class: "form-label" %>
-        <%= file_field_tag :file, accept: ".csv", class: "form-control", required: true %>
+        <%= label_tag :file, t("inventory.imports.mapping.file_label"), class: "form-label" %>
+        <%= file_field_tag :file, class: "form-control", required: true, "aria-describedby": "import-file-hint",
+              accept: ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" %>
+        <p id="import-file-hint" class="form-hint" style="margin: var(--space-1) 0 0;">
+          <%= t("inventory.imports.mapping.file_formats_hint") %> <bdi dir="ltr">.csv, .xlsx</bdi>
+        </p>
       </div>
     </div>
     <div class="form-actions">
-      <%= f.submit t("inventory.imports.upload"), class: "btn btn-primary" %>
+      <%= f.submit t("inventory.imports.mapping.continue_to_mapping"), class: "btn btn-primary" %>
     </div>
   <% end %>
 </div>

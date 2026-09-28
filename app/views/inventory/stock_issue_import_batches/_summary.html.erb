@@ -1,9 +1,13 @@
 <%= turbo_frame_tag "import_batch_summary" do %>
+  <%# "issued" is the only StockIssue status where inventory has actually moved
+      (Inventory::StockIssuePoster) — the import's Complete step posts its draft
+      straight to it. Approval alone never posts, so it doesn't count here. %>
+  <% issue_posted = batch.stock_issue.issued? %>
   <div class="stats-grid" style="margin-bottom: var(--space-5);">
     <%= link_to inventory_stock_issue_path(batch.stock_issue),
-          class: "stat-card #{'stat-card--success' if batch.stock_issue.posted?}" do %>
+          class: "stat-card #{'stat-card--success' if issue_posted}" do %>
       <span class="stat-card__label">
-        <%= batch.stock_issue.posted? ? t("inventory.imports.created_issue") : t("inventory.imports.draft_issue") %>
+        <%= issue_posted ? t("inventory.imports.created_issue") : t("inventory.imports.draft_issue") %>
       </span>
       <span class="stat-card__value"><%= batch.stock_issue.issue_number %></span>
     <% end %>

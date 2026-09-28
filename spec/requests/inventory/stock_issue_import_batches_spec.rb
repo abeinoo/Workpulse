@@ -18,8 +18,10 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
 
   def run_import(csv)
     file = Rack::Test::UploadedFile.new(StringIO.new(csv), "text/csv", original_filename: "import.csv")
+    # allow_partial: the user's explicit "import valid rows and fix the rest"
+    # choice — the only way invalid rows reach a Resolve Import Errors batch.
     post run_import_inventory_stock_issues_path,
-         params: { file: file, warehouse_id: warehouse.id, branch_id: branch.id }
+         params: { file: file, warehouse_id: warehouse.id, branch_id: branch.id, allow_partial: "1" }
   end
 
   it "imports clean rows immediately and redirects straight to the issue when nothing failed" do
@@ -110,6 +112,80 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
 
       patch resolve_inventory_stock_issue_import_batch_row_path(batch, row), params: { quantity: 10 }
       expect(row.reload).to be_resolved
+    end
+  end
+
+  describe "batch summary (show page)" do
+    def issue_card
+      Nokogiri::HTML(response.body).at_css("turbo-frame#import_batch_summary a.stat-card")
+    end
+
+    def expect_issue_card(label_key, success:, locale: :en)
+      card = issue_card
+      expect(card.at_css(".stat-card__label").text.squish).to eq(I18n.t("inventory.imports.#{label_key}", locale: locale))
+      expect(card["class"].split).send(success ? :to : :not_to, include("stat-card--success"))
+      expect(card.at_css(".stat-card__value").text.squish).to eq(batch.stock_issue.issue_number)
+    end
+
+    let(:batch) do
+      run_import("SKU,Quantity\n#{product.sku},3\nUNKNOWN-SKU,2\n")
+      business.stock_issue_import_batches.last
+    end
+
+    it "labels an imported, not-yet-completed issue as a draft" do
+      get inventory_stock_issue_import_batch_path(batch)
+
+      expect(response).to have_http_status(:ok)
+      expect(batch.stock_issue).to be_draft
+      expect_issue_card(:draft_issue, success: false)
+    end
+
+    it "labels the issue as created once Complete Import posts it (issued)" do
+      patch skip_inventory_stock_issue_import_batch_row_path(batch, batch.rows.first)
+      patch complete_inventory_stock_issue_import_batch_path(batch)
+      expect(batch.reload.stock_issue).to be_issued
+
+      get inventory_stock_issue_import_batch_path(batch)
+
+      expect(response).to have_http_status(:ok)
+      expect_issue_card(:created_issue, success: true)
+    end
+
+    it "renders the summary in the Complete Import turbo-stream response" do
+      patch skip_inventory_stock_issue_import_batch_row_path(batch, batch.rows.first)
+      patch complete_inventory_stock_issue_import_batch_path(batch), as: :turbo_stream
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("inventory.imports.created_issue"))
+    end
+
+    it "renders the summary in a row-resolve turbo-stream response" do
+      patch resolve_inventory_stock_issue_import_batch_row_path(batch, batch.rows.first),
+            params: { product_id: product.id }, as: :turbo_stream
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("inventory.imports.draft_issue"))
+    end
+
+    it "treats an approved (not yet issued) issue as a draft, and a confirmed one as created" do
+      issue = batch.stock_issue
+      patch skip_inventory_stock_issue_import_batch_row_path(batch, batch.rows.first)
+      issue.update_columns(status: "approved") # taken through the manual approval workflow
+
+      get inventory_stock_issue_import_batch_path(batch)
+      expect_issue_card(:draft_issue, success: false) # approval moves no stock
+
+      expect(Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: owner).call).to be_ok
+      get inventory_stock_issue_import_batch_path(batch)
+      expect_issue_card(:created_issue, success: true)
+    end
+
+    it "keeps the Arabic labels" do
+      owner.update!(preferred_locale: "ar")
+      get inventory_stock_issue_import_batch_path(batch)
+
+      expect(response.body).to include('dir="rtl"')
+      expect_issue_card(:draft_issue, success: false, locale: :ar)
     end
   end
 
