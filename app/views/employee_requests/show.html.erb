@@ -215,7 +215,13 @@
           <span class="info-card__label"><%= t("requests.show.correction_type") %>:</span>
           <strong><%= t("requests.correction_types.#{@request.correction_type}") %></strong>
         </p>
-        <%= form_with url: approve_employee_request_path(@request), method: :patch, local: true do |f| %>
+        <%# Check-out corrections: live "must be after the check-in" hint;
+            Requests::Approver enforces it server-side. %>
+        <% guard_check_in = @request.correction_field == :check_out && @assessment&.original_check_in_at %>
+        <%= form_with url: approve_employee_request_path(@request), method: :patch, local: true,
+                      data: (guard_check_in ? { controller: "punch-order-guard",
+                                                punch_order_guard_check_in_value: guard_check_in.in_time_zone(@request.user.business.timezone_object).strftime("%Y-%m-%dT%H:%M"),
+                                                action: "change->punch-order-guard#check input->punch-order-guard#check submit->punch-order-guard#validate" } : {}) do |f| %>
           <div class="form-grid">
             <%# ONE datetime input (date + time together). The value is the
                 datetime-local form "YYYY-MM-DDTHH:MM"; the picker shows
@@ -229,8 +235,15 @@
                             datepicker_mode_value: "datetime",
                             datepicker_date_format_value: "Y-m-d\TH:i",
                             datepicker_alt_format_value: "d/m/Y, h:i K",
-                            datepicker_time24hr_value: false } %>
+                            datepicker_time24hr_value: false,
+                            punch_order_guard_target: "datetime" } %>
               <p class="form-hint"><%= t("requests.show.approved_punch_hint") %></p>
+              <% if guard_check_in %>
+                <div class="alert alert-danger" role="alert" hidden
+                     data-punch-order-guard-target="error" data-testid="punch-order-client-error">
+                  <%= t("requests.errors.check_out_not_after_check_in") %>
+                </div>
+              <% end %>
             </div>
             <div class="form-group form-group--full">
               <%= label_tag :response_note, t("requests.show.response_note_label"), class: "form-label" %>

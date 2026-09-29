@@ -1238,6 +1238,7 @@ en:
       other: "%{count} salary advances approved by managers and awaiting disbursement."
     errors:
       check_out_before_check_in: "The check-out would be before the check-in. Select the correct date and time — dates are never moved automatically."
+      check_out_not_after_check_in: "The check-out time must be after the check-in time."
       invalid_approved_date: "The approved date & time is invalid."
       attendance_window_confirmation_required: "This correction is outside the expected attendance window or produces an abnormal work duration. Confirm it explicitly to approve."
       exceeds_monthly_limit: "exceeds the monthly limit (%{remaining} minutes remaining out of %{limit})"

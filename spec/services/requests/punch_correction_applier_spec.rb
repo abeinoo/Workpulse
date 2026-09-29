@@ -222,7 +222,7 @@ RSpec.describe Requests::PunchCorrectionApplier do
     # Wrong-check-out correction with proposed time 22:22 and no explicit
     # proposed_date — it defaults to requested_for_date (the work_date).
     let(:request) do
-      create(:employee_request, :punch_correction,
+      create(:employee_request, :punch_correction, :predating_check_out_order_rule,
              user:               rz_user,
              correction_type:    "wrong_check_out_time",
              requested_for_date: work_date,
@@ -234,7 +234,7 @@ RSpec.describe Requests::PunchCorrectionApplier do
     it "refuses a check-out before the check-in with a clear error instead of moving the date" do
       result = described_class.call(request: request)
       expect(result).not_to be_success
-      expect(result.error).to eq(I18n.t("requests.errors.check_out_before_check_in"))
+      expect(result.error).to eq(I18n.t("requests.errors.check_out_not_after_check_in"))
       record.reload
       expect(record.check_out_at).to be_nil
       expect(record.worked_minutes).to be_nil

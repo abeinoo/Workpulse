@@ -190,7 +190,7 @@ module Requests
 
       # Every check runs on the FINAL reviewer-selected datetime.
       assessment = PunchCorrectionAssessment.for(@request, date: final_date, time_str: final_time)
-      return err(I18n.t("requests.errors.check_out_before_check_in")) if assessment.punch_order_invalid?
+      return err(assessment.punch_order_error) if assessment.punch_order_invalid?
       if assessment.requires_confirmation? && !@confirm_out_of_window
         return err(I18n.t("requests.errors.attendance_window_confirmation_required"))
       end

@@ -35,6 +35,7 @@ class EmployeeRequest < ApplicationRecord
   validates :correction_type, presence: true, if: :punch_correction?
   validates :proposed_time,   presence: true, if: :punch_correction?
   validates :proposed_date,   presence: true, if: :punch_correction?
+  validate :check_out_after_check_in, on: :create, if: -> { punch_correction? && correction_field == :check_out }
 
   before_validation :default_proposed_date, if: :punch_correction?
   before_save :derive_affects_payroll
@@ -195,6 +196,17 @@ class EmployeeRequest < ApplicationRecord
   # affects_payroll drives EntryCalculator exemptions; only duration-based types apply.
   def derive_affects_payroll
     self.affects_payroll = late_permission? || early_leave?
+  end
+
+  # A check-out correction must be strictly after the attendance record's
+  # check-in, judged on the full datetime PunchCorrectionApplier would write
+  # (so an overnight check-out dated the next day is valid). Reviewer changes
+  # and final approval are guarded by Requests::Approver / PunchCorrectionApplier.
+  def check_out_after_check_in
+    return unless user.present? && requested_for_date.present? && proposed_date.present? && proposed_time.present?
+    return unless Requests::PunchCorrectionAssessment.for(self).check_out_not_after_check_in?
+
+    errors.add(:base, I18n.t("requests.errors.check_out_not_after_check_in"))
   end
 
   def within_advance_limit

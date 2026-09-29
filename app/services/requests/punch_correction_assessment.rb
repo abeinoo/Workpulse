@@ -79,10 +79,30 @@ module Requests
     # auto-fixed by moving the date: approval is refused until the reviewer
     # selects the right date/time.
     def punch_order_invalid?
+      return true if check_out_not_after_check_in?
+
       copy = projected_record
       return false unless copy&.check_in_at && copy.check_out_at
 
       copy.check_out_at < copy.check_in_at
+    end
+
+    # Check-out corrections (missing / wrong check-out): the corrected
+    # check-out must be STRICTLY after the check-in. Compares full datetimes,
+    # so an overnight check-out dated the next day (19:00 → 02:00) is valid.
+    def check_out_not_after_check_in?
+      return false unless request.correction_field == :check_out
+
+      check_in_at = original_check_in_at
+      return false unless check_in_at && effective_at
+
+      effective_at <= check_in_at
+    end
+
+    # The message for an invalid punch order (see punch_order_invalid?).
+    def punch_order_error
+      key = check_out_not_after_check_in? ? "check_out_not_after_check_in" : "check_out_before_check_in"
+      I18n.t("requests.errors.#{key}")
     end
 
     def duration_severity

@@ -101,6 +101,7 @@ class EmployeeRequestsController < ApplicationController
     @permission_limits     = permission_limits_for(target_user)
     @allowed_request_types = allowed_request_types_for(target_user)
     @advance_limit         = Salary::AdvanceEligibilityCalculator.for(user: target_user)
+    @punch_check_ins       = punch_check_ins_for(target_user)
   end
 
   def create
@@ -127,6 +128,7 @@ class EmployeeRequestsController < ApplicationController
       @permission_limits     = permission_limits_for(@request.user)
       @allowed_request_types = allowed_request_types_for(@request.user)
       @advance_limit         = Salary::AdvanceEligibilityCalculator.for(user: @request.user)
+      @punch_check_ins       = punch_check_ins_for(@request.user)
       render :new, status: :unprocessable_entity
     end
   end
@@ -306,6 +308,19 @@ class EmployeeRequestsController < ApplicationController
   def requestable_employees
     EmployeeScope.new(current_user)
                  .for_permissions(:approve_requests, :view_requests, :view_employees)
+  end
+
+  PUNCH_CHECK_IN_LOOKBACK = 62.days
+
+  # Recent check-ins as { "YYYY-MM-DD" work date => business-local "YYYY-MM-DDTHH:MM" },
+  # for the request form's live check-out ordering hint (punch_order_guard).
+  # EmployeeRequest validates server-side; this is display only.
+  def punch_check_ins_for(target_user)
+    tz = target_user.business.timezone_object
+    AttendanceRecord.where(user: target_user, work_date: (Date.current - PUNCH_CHECK_IN_LOOKBACK)..)
+                    .where.not(check_in_at: nil)
+                    .pluck(:work_date, :check_in_at)
+                    .to_h { |date, at| [ date.iso8601, at.in_time_zone(tz).strftime("%Y-%m-%dT%H:%M") ] }
   end
 
   def allowed_request_types_for(target_user)

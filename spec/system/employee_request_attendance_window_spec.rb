@@ -153,7 +153,9 @@ RSpec.describe "Employee request attendance window", type: :system do
 
     it "edits the final date in the review form; nothing is shifted automatically (Arabic)" do
       # After-midnight check-out entered with the work date: literally before the check-in.
-      req = create(:employee_request, :punch_correction, user: employee, correction_type: "wrong_check_out_time",
+      # Submitted before the check-out ordering rule existed (refused at creation today).
+      req = create(:employee_request, :punch_correction, :predating_check_out_order_rule,
+                   user: employee, correction_type: "wrong_check_out_time",
                    requested_for_date: work_date, proposed_date: work_date, proposed_time: "01:30")
       set_viewport(375)
       visit employee_request_path(req)
@@ -180,6 +182,21 @@ RSpec.describe "Employee request attendance window", type: :system do
       expect(req.reload).to have_attributes(status: "approved", proposed_date: work_date, approved_punch_at: at(14, 1, 30))
       expect(record.reload.check_out_at).to eq(at(14, 1, 30))
       screenshot("review-datetime-approved-ar-375")
+    end
+
+    it "blocks a check-out equal to the check-in in the browser, with the Arabic message" do
+      req = create(:employee_request, :punch_correction, user: employee, correction_type: "wrong_check_out_time",
+                   requested_for_date: work_date, proposed_date: Date.new(2026, 9, 14), proposed_time: "01:30")
+      visit employee_request_path(req)
+      expect(page).to have_no_css("[data-testid='punch-order-client-error']")
+
+      set_picker("approved_at", "2026-09-13T19:05") # exactly the check-in
+      click_button I18n.t("requests.approve", locale: :ar)
+
+      expect(find("[data-testid='punch-order-client-error']")).to have_text("وقت الانصراف يجب أن يكون بعد وقت الحضور.")
+      expect(page).to have_current_path(employee_request_path(req))
+      expect(req.reload).to be_pending
+      expect(record.reload.check_out_at).to eq(at(14, 0, 3))
     end
 
     it "approves a legitimate overnight correction with no warning or confirmation (English LTR)" do

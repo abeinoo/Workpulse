@@ -37,6 +37,13 @@ FactoryBot.define do
       reason           { "Forgot to clock out" }
     end
 
+    # A pending request submitted before the "check-out must be after the
+    # check-in" creation rule existed. Saved in a non-:create validation
+    # context so only on: :create rules are skipped (callbacks still run).
+    trait :predating_check_out_order_rule do
+      to_create { |request| request.save!(context: :predating_check_out_order_rule) }
+    end
+
     trait :pending do
       status { :pending }
     end

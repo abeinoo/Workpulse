@@ -70,10 +70,16 @@ module Requests
         end
 
         # The date is applied exactly as selected; a check-out before the
-        # check-in is refused rather than silently moved to another day.
-        if record.check_in_at && record.check_out_at && record.check_out_at < record.check_in_at
-          applier_error = I18n.t("requests.errors.check_out_before_check_in")
-          raise ActiveRecord::Rollback
+        # check-in is refused rather than silently moved to another day. A
+        # check-out correction must land strictly after the check-in (full
+        # datetime, so a next-day overnight check-out is valid).
+        if record.check_in_at && record.check_out_at
+          if @request.correction_field == :check_out && record.check_out_at <= record.check_in_at
+            applier_error = I18n.t("requests.errors.check_out_not_after_check_in")
+          elsif record.check_out_at < record.check_in_at
+            applier_error = I18n.t("requests.errors.check_out_before_check_in")
+          end
+          raise ActiveRecord::Rollback if applier_error
         end
 
         record.save!

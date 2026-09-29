@@ -34,8 +34,8 @@ RSpec.describe "Punch correction review: single approved datetime input", type: 
 
   before { branch.update_column(:branch_manager_id, manager.id) }
 
-  def correction(type, time, date:)
-    create(:employee_request, :punch_correction, user: employee, correction_type: type,
+  def correction(type, time, date:, traits: [])
+    create(:employee_request, :punch_correction, *traits, user: employee, correction_type: type,
            requested_for_date: work_date, proposed_date: date, proposed_time: time)
   end
 
@@ -124,12 +124,13 @@ RSpec.describe "Punch correction review: single approved datetime input", type: 
 
   describe "B. date-only change (checkout after midnight)" do
     # Employee entered the work date for an after-midnight check-out.
-    let(:request) { correction("wrong_check_out_time", "01:30", date: sep(13)) }
+    # Submitted before the creation rule existed (it would be refused today).
+    let(:request) { correction("wrong_check_out_time", "01:30", date: sep(13), traits: [ :predating_check_out_order_rule ]) }
 
     it "does not shift the date automatically: approval as proposed is refused" do
       approve(request, approved_at: "2026-09-13T01:30", confirm: "1")
       expect(request).to be_pending
-      expect(flash[:alert]).to eq(I18n.t("requests.errors.check_out_before_check_in", locale: :ar))
+      expect(flash[:alert]).to eq(I18n.t("requests.errors.check_out_not_after_check_in", locale: :ar))
       expect(record.reload.check_out_at).to eq(at(14, 0, 3))
     end
 
@@ -245,7 +246,7 @@ RSpec.describe "Punch correction review: single approved datetime input", type: 
 
   describe "history approved before the single datetime existed" do
     it "is still displayed as it was applied (legacy roll), not re-interpreted" do
-      request = correction("wrong_check_out_time", "01:30", date: sep(13))
+      request = correction("wrong_check_out_time", "01:30", date: sep(13), traits: [ :predating_check_out_order_rule ])
       request.update_columns(status: "approved", reviewed_at: Time.current, reviewed_by_id: manager.id,
                              original_check_in_at: at(13, 19, 5), original_check_out_at: at(14, 0, 3))
       expect(Requests::PunchCorrectionAssessment.for(request).effective_at).to eq(at(14, 1, 30))

@@ -37,7 +37,10 @@
     </div>
   <% end %>
 
-  <%= form_with model: @request, url: employee_requests_path, local: true, class: "form-card" do |f| %>
+  <%= form_with model: @request, url: employee_requests_path, local: true, class: "form-card",
+                data: { controller: "punch-order-guard",
+                        punch_order_guard_check_ins_value: @punch_check_ins.to_json,
+                        action: "change->punch-order-guard#check input->punch-order-guard#check submit->punch-order-guard#validate" } do |f| %>
     <% if @for_user %>
       <%= hidden_field_tag "employee_request[for_user_id]", @for_user.id %>
     <% end %>
@@ -51,7 +54,8 @@
               @allowed_request_types.map { |rt| [t("requests.types.#{rt}"), rt] },
               { include_blank: t("forms.select") },
               class: "form-control",
-              id: "request_type_select" %>
+              id: "request_type_select",
+              data: { punch_order_guard_target: "requestType" } %>
         <% if @allowed_request_types.exclude?("late_permission") %>
           <p class="form-hint form-hint--info"><%= t("requests.new.late_permission_unavailable") %></p>
         <% end %>
@@ -103,7 +107,8 @@
         <%= f.select :correction_type,
               EmployeeRequest::CORRECTION_TYPES.map { |ct| [t("requests.correction_types.#{ct}"), ct] },
               { include_blank: t("forms.select") },
-              class: "form-control" %>
+              class: "form-control",
+              data: { punch_order_guard_target: "correctionType" } %>
       </div>
 
       <div class="form-group" id="proposed-date-field">
@@ -111,14 +116,18 @@
         <%= f.date_field :proposed_date,
               class: "form-control",
               value: @request.proposed_date,
-              data: { controller: "datepicker" } %>
+              data: { controller: "datepicker", punch_order_guard_target: "date" } %>
         <p class="form-hint"><%= t("requests.new.proposed_date_hint") %></p>
       </div>
 
       <div class="form-group" id="proposed-time-field">
         <%= f.label :proposed_time, t("requests.new.proposed_time_label"), class: "form-label form-label--required" %>
-        <%= f.time_field :proposed_time, class: "form-control", data: { controller: "datepicker", datepicker_mode_value: "time" } %>
+        <%= f.time_field :proposed_time, class: "form-control", data: { controller: "datepicker", datepicker_mode_value: "time", punch_order_guard_target: "time" } %>
         <p class="form-hint"><%= t("requests.new.proposed_time_hint") %></p>
+        <div class="alert alert-danger" role="alert" hidden
+             data-punch-order-guard-target="error" data-testid="punch-order-client-error">
+          <%= t("requests.errors.check_out_not_after_check_in") %>
+        </div>
       </div>
 
       <%# Duration — shown for late_permission and early_leave requests %>
@@ -151,7 +160,7 @@
         <%= f.date_field :requested_for_date,
               class: "form-control",
               value: @request.requested_for_date || Date.current,
-              data: { controller: "datepicker" } %>
+              data: { controller: "datepicker", punch_order_guard_target: "workDate" } %>
         <p class="form-hint" id="work-date-hint" style="display:none;"><%= t("requests.new.work_date_hint") %></p>
       </div>
 

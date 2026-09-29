@@ -10,7 +10,7 @@
 
   <% if assessment.punch_order_invalid? %>
     <div class="alert alert-danger resulting-duration__warning" role="alert" data-testid="punch-order-invalid">
-      <p class="window-alert__title">🔴 <%= t("requests.errors.check_out_before_check_in") %></p>
+      <p class="window-alert__title">🔴 <%= assessment.punch_order_error %></p>
     </div>
   <% elsif minutes %>
     <p class="resulting-duration__value" data-testid="resulting-duration-value"><%= format_duration_hm(minutes) %></p>
