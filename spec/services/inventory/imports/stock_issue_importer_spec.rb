@@ -4,6 +4,7 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
   let(:business)   { create(:business) }
   let(:warehouse)  { business.warehouses.create!(name: "Main") }
   let(:branch)     { business.branches.create!(name: "Main Branch", active: true) }
+  let(:user)       { create(:user, business: business) }
 
   def csv_for(sku, qty = 5)
     "SKU,Quantity\n#{sku},#{qty}\n"
@@ -13,7 +14,7 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
   # auto-suggestion exactly as the controller does for a standard template.
   def importer(csv_data)
     mapper = Inventory::Imports::CsvColumnMapper.new(csv_data, fields: described_class::COLUMNS)
-    described_class.new(business, mapper.rows(mapper.suggested_mapping), warehouse: warehouse, branch: branch)
+    described_class.new(business, mapper.rows(mapper.suggested_mapping), warehouse: warehouse, branch: branch, user: user)
   end
 
   def receive(product, qty:)
@@ -64,21 +65,107 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
     end
   end
 
-  describe "valid import" do
-    it "creates and posts a stock issue for an active product with sufficient stock" do
-      product = business.products.create!(
-        name: "Widget", sku: "W-001",
-        initial_cost_price: 10, average_cost_price: 10
-      )
-      receive(product, qty: 20)
+  describe "valid import — approval gate" do
+    let!(:product) do
+      business.products.create!(name: "Widget", sku: "W-001", initial_cost_price: 10, average_cost_price: 10)
+    end
 
+    before { receive(product, qty: 20) }
+
+    it "creates the stock issue in pending_approval, submitted by the importing user" do
       result = importer(csv_for(product.sku, 5)).call
 
       expect(result.ok?).to be true
-      expect(result.issue).to be_present
-      expect(result.issue).to be_issued
-      expect(result.issue.items.count).to eq(1)
       expect(result.batch).to be_nil
+      expect(result.issue).to be_pending_approval
+      expect(result.issue).to have_attributes(created_by: user, submitted_by: user)
+      expect(result.issue.submitted_at).to be_present
+      expect(result.issue.items.sole).to have_attributes(product: product, quantity: 5)
+    end
+
+    it "never deducts stock or posts a movement" do
+      expect { importer(csv_for(product.sku, 5)).call }.not_to change(InventoryMovement, :count)
+      expect(product.stock_in(warehouse)).to eq(20)
+      expect(product.reload.current_stock).to eq(20)
+    end
+
+    it "writes the create + submit_for_approval audit trail" do
+      issue = importer(csv_for(product.sku, 5)).call.issue
+
+      expect(AuditLog.for_auditable(issue).order(:id).pluck(:action)).to eq(%w[create submit_for_approval])
+    end
+
+    it "refuses to run without an importing user" do
+      mapper = Inventory::Imports::CsvColumnMapper.new(csv_for(product.sku), fields: described_class::COLUMNS)
+      bare = described_class.new(business, mapper.rows(mapper.suggested_mapping), warehouse: warehouse, branch: branch)
+
+      expect { bare.call }.to raise_error(ArgumentError)
+      expect(StockIssue.count).to eq(0)
+    end
+  end
+
+  describe "Stock Issue notes (document-level, from the import form)" do
+    let!(:product) do
+      business.products.create!(name: "Widget", sku: "ABC123", initial_cost_price: 10, average_cost_price: 10)
+    end
+    let!(:other) do
+      business.products.create!(name: "Gadget", sku: "XYZ456", initial_cost_price: 10, average_cost_price: 10)
+    end
+    let(:csv) { "SKU,Quantity\nABC123,5\nXYZ456,2\n" }
+
+    before do
+      receive(product, qty: 20)
+      receive(other, qty: 20)
+    end
+
+    def importer_with_notes(csv_data, notes)
+      mapper = Inventory::Imports::CsvColumnMapper.new(csv_data, fields: described_class::COLUMNS)
+      described_class.new(business, mapper.rows(mapper.suggested_mapping),
+                          warehouse: warehouse, branch: branch, user: user, notes: notes)
+    end
+
+    it "has only SKU and Quantity as file columns — no Notes column" do
+      expect(described_class::COLUMNS.map { |c| [ c.header, c.required ] }).to eq([ [ "SKU", true ], [ "Quantity", true ] ])
+      expect(CSV.parse(described_class.sample_csv).first).to eq(%w[SKU Quantity])
+    end
+
+    it "saves the note once on the stock issue, preserving Arabic text, and keeps it pending approval" do
+      note = "صرف مستلزمات للفرع لتغطية احتياج الأسبوع"
+      issue = nil
+      expect { issue = importer_with_notes(csv, note).call.issue }.not_to change(InventoryMovement, :count)
+
+      expect(issue.notes).to eq(note)
+      expect(issue).to be_pending_approval
+      expect(issue.items.count).to eq(2)
+      expect(product.stock_in(warehouse)).to eq(20)
+    end
+
+    it "does not duplicate the note onto the stock issue lines" do
+      issue = importer_with_notes(csv, "Weekly branch supply").call.issue
+
+      expect(StockIssueItem.column_names).not_to include("notes")
+      expect(issue.items.map(&:attributes).flat_map(&:values)).not_to include("Weekly branch supply")
+    end
+
+    it "accepts empty notes" do
+      [ nil, "", "   " ].each do |blank|
+        issue = importer_with_notes("SKU,Quantity\nABC123,1\n", blank).call.issue
+        expect(issue).to be_pending_approval
+        expect(issue.notes).to be_nil
+      end
+    end
+
+    it "keeps the note on the draft issue when rows still need resolving" do
+      result = importer_with_notes("SKU,Quantity\nABC123,1\nNOPE,1\n", "ملحوظة").call
+      expect(result.batch.stock_issue.notes).to eq("ملحوظة")
+    end
+
+    it "ignores a Notes column present in the file (it is not an import field)" do
+      issue = importer_with_notes("SKU,Quantity,Notes\nABC123,1,row note\n", nil).call.issue
+
+      expect(issue).to be_pending_approval
+      expect(issue.notes).to be_nil
+      expect(issue.items.sole).to have_attributes(product: product, quantity: 1)
     end
   end
 

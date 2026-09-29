@@ -21,7 +21,7 @@ RSpec.describe "Inventory movement report — pagination, export, reconciliation
   def issue(qty:, on:, wh: main)
     i = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: on)
     i.items.build(product: product, quantity: qty)
-    Inventory::StockIssuePoster.new(i).call.tap { |res| expect(res.ok?).to be(true) }.issue
+    approve_and_post_stock_issue(i).tap { |res| expect(res.ok?).to be(true) }.issue
   end
 
   def transfer(qty:, on:)

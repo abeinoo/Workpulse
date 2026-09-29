@@ -26,7 +26,7 @@ RSpec.describe "Inventory consumption report filters", type: :request do
   def issue(qty, on:, branch: nasr, product: dye, wh: main)
     i = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: on)
     i.items.build(product: product, quantity: qty)
-    Inventory::StockIssuePoster.new(i).call.tap { |res| expect(res.ok?).to be(true) }.issue
+    approve_and_post_stock_issue(i).tap { |res| expect(res.ok?).to be(true) }.issue
   end
 
   before do

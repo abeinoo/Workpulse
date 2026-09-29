@@ -32,7 +32,7 @@ RSpec.describe Inventory::Reports::BranchComparison, type: :model do
   def issue(qty:, branch:, wh: main, on: from + 1, item: product)
     i = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: on)
     i.items.build(product: item, quantity: qty)
-    Inventory::StockIssuePoster.new(i).call.tap { |res| expect(res.ok?).to be(true) }.issue
+    approve_and_post_stock_issue(i).tap { |res| expect(res.ok?).to be(true) }.issue
   end
 
   def transfer(qty:, on: from + 2)

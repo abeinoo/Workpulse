@@ -15,9 +15,9 @@ class Inventory::StockIssueImportBatchesController < Inventory::BaseController
     respond_to do |format|
       format.turbo_stream
       format.html do
-        if result.ok? && @batch.stock_issue.issued?
+        if result.ok? && @batch.stock_issue.pending_approval?
           redirect_to inventory_stock_issue_path(@batch.stock_issue),
-                      notice: t("inventory.imports.import_completed")
+                      notice: t("inventory.imports.submitted_for_approval")
         elsif result.ok?
           redirect_to inventory_stock_issue_import_batch_path(@batch),
                       notice: t("inventory.imports.import_completed")

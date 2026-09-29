@@ -146,7 +146,7 @@ RSpec.describe Laundry::LaundryCostSummaryReport, type: :model do
     def issue!(branch:, qty: 3, wh: warehouse, on: from + 2.days)
       i = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: on)
       i.items.build(product: product, quantity: qty)
-      Inventory::StockIssuePoster.new(i).call.issue
+      approve_and_post_stock_issue(i).issue
     end
 
     it "counts a valid Stock Issue to the laundry branch" do
@@ -219,7 +219,7 @@ RSpec.describe Laundry::LaundryCostSummaryReport, type: :model do
       other_issue = other_business.stock_issues.build(warehouse: other_warehouse, branch: other_laundry,
                                                        issued_on: from + 2.days)
       other_issue.items.build(product: other_product, quantity: 2)
-      Inventory::StockIssuePoster.new(other_issue).call
+      approve_and_post_stock_issue(other_issue)
 
       expect(run.material_cost).to eq(0)
     end

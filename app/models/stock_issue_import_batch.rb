@@ -2,8 +2,9 @@
 # StockIssue for this import's entire lifecycle: structurally-valid rows are
 # added to it as items immediately; whatever's left over is held here as
 # `rows` for the user to fix inline (without re-uploading the file), and each
-# resolved row appends its item to that SAME draft. "Complete Import" simply
-# posts it — there is never a second issue for one import.
+# resolved row appends its item to that SAME draft. "Complete Import" submits
+# it for approval (it never posts stock) — there is never a second issue for
+# one import.
 class StockIssueImportBatch < ApplicationRecord
   belongs_to :business
   belongs_to :warehouse

@@ -5,9 +5,9 @@ module Inventory
     # updates) this row's line item on the batch's one draft StockIssue right
     # away; a row that goes back to pending (or gets skipped) has its item
     # removed again, so the draft always reflects exactly what's currently
-    # resolved. Nothing is ever posted here — the final, authoritative
-    # availability check happens once, when StockIssueImportBatchCompleter
-    # posts that same draft issue.
+    # resolved. Nothing is ever posted here — StockIssueImportBatchCompleter
+    # re-checks availability for the whole issue before submitting it for
+    # approval, and stock only moves once that approved issue is confirmed.
     class StockIssueImportRowResolver
       Result = Struct.new(:ok, :row, keyword_init: true) { def ok? = ok }
 

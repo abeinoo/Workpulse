@@ -1,15 +1,15 @@
 <%= turbo_frame_tag "import_batch_summary" do %>
-  <%# "issued" is the only StockIssue status where inventory has actually moved
-      (Inventory::StockIssuePoster) — the import's Complete step posts its draft
-      straight to it. Approval alone never posts, so it doesn't count here. %>
-  <% issue_posted = batch.stock_issue.issued? %>
+  <%# The import's Complete step submits its draft for approval — it never
+      posts stock. Show the issue's real workflow status so a submitted import
+      reads as "Pending Approval", never as issued. %>
+  <% issue = batch.stock_issue %>
   <div class="stats-grid" style="margin-bottom: var(--space-5);">
-    <%= link_to inventory_stock_issue_path(batch.stock_issue),
-          class: "stat-card #{'stat-card--success' if issue_posted}" do %>
+    <%= link_to inventory_stock_issue_path(issue),
+          class: "stat-card #{issue.issued? ? 'stat-card--success' : ('stat-card--warning' unless issue.draft?)}" do %>
       <span class="stat-card__label">
-        <%= issue_posted ? t("inventory.imports.created_issue") : t("inventory.imports.draft_issue") %>
+        <%= issue.draft? ? t("inventory.imports.draft_issue") : t("inventory.stock_issues.statuses.#{issue.status}") %>
       </span>
-      <span class="stat-card__value"><%= batch.stock_issue.issue_number %></span>
+      <span class="stat-card__value"><%= issue.issue_number %></span>
     <% end %>
     <div class="stat-card <%= 'stat-card--warning' if batch.rows.pending.any? %>">
       <span class="stat-card__label"><%= t("inventory.imports.pending_rows") %></span>
@@ -27,9 +27,10 @@
 
   <% if batch.completed? %>
     <div class="form-hint form-hint--info" style="margin-bottom: var(--space-5);">
-      <%= t("inventory.imports.import_completed") %>
+      <%= issue.draft? ? t("inventory.imports.import_completed") : t("inventory.imports.submitted_for_approval") %>
     </div>
   <% else %>
+    <p class="form-hint" style="margin: 0 0 var(--space-3);"><%= t("inventory.imports.stock_issues.approval_required") %></p>
     <%= button_to t("inventory.imports.complete_import"),
           complete_inventory_stock_issue_import_batch_path(batch), method: :patch,
           class: "btn btn-primary", disabled: batch.rows.pending.any? %>

@@ -35,6 +35,12 @@
       <% end %>
       <div class="detail-list__row"><dt><%= t("inventory.imports.warehouse") %></dt><dd><%= @warehouse.name %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.stock_issues.branch") %></dt><dd><%= @branch.name %></dd></div>
+      <% if params[:notes].present? %>
+        <div class="detail-list__row" id="preview-issue-notes">
+          <dt><%= t("inventory.imports.stock_issues.issue_notes_label") %></dt>
+          <dd><bdi style="white-space: pre-line;"><%= params[:notes] %></bdi></dd>
+        </div>
+      <% end %>
       <div class="detail-list__row"><dt><%= t("inventory.imports.mapping.data_rows") %></dt><dd><%= number_with_delimiter(@mapper.data_row_count) %></dd></div>
     </dl>
   </div>
@@ -48,6 +54,7 @@
     <%= hidden_field_tag :file_name, @file_name %>
     <%= hidden_field_tag :warehouse_id, @warehouse.id %>
     <%= hidden_field_tag :branch_id, @branch.id %>
+    <%= hidden_field_tag :notes, params[:notes] %>
 
     <%# ── Step 2: Match Columns ─────────────────────────────────────────── %>
     <section class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);" aria-labelledby="match-columns-title">
@@ -205,6 +212,10 @@
       <p class="form-error" role="alert"><%= t("inventory.imports.mapping.no_data_rows") %></p>
     <% end %>
 
+    <p id="import-approval-reminder" class="form-hint form-hint--info" role="note" style="margin-bottom: var(--space-3);">
+      <%= t("inventory.imports.stock_issues.approval_required") %>
+    </p>
+
     <div class="form-actions" style="flex-wrap: wrap; gap: var(--space-3);">
       <button type="submit" id="import-submit" class="btn btn-primary" <%= "disabled" unless all_valid %>
               data-import-mapping-target="importButton">
@@ -212,7 +223,8 @@
       </button>
       <% if mapping_ready && @invalid_rows.any? %>
         <%# Explicit opt-in: valid rows are attached now, the rest go to the
-            existing Resolve Import Errors screen before the issue is posted. %>
+            existing Resolve Import Errors screen before the issue is
+            submitted for approval. %>
         <button type="submit" id="import-partial" name="allow_partial" value="1" class="btn btn-ghost"
                 data-import-mapping-target="importButton">
           <%= t("inventory.imports.mapping.import_partial") %>

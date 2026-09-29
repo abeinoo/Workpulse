@@ -86,7 +86,7 @@ RSpec.describe Inventory::GoodsReceiptVoider, type: :model do
     branch = business.branches.create!(name: "Branch", active: true)
     issue = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current)
     issue.items.build(product: product, quantity: 8)
-    Inventory::StockIssuePoster.new(issue).call
+    approve_and_post_stock_issue(issue)
 
     result = void(receipt)
 

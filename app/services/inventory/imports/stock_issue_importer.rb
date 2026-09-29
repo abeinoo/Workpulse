@@ -9,13 +9,19 @@ module Inventory
     #   [{ row_number: 2, "sku" => "UYN1", "quantity" => "2" }, ...]
     # Exactly one StockIssue is created for the whole import and
     # used for its entire lifecycle: structurally-valid, in-stock rows are
-    # attached to it as items immediately; everything else (blank/invalid
-    # rows, unknown SKUs, or rows that collectively exceed on-hand stock) is
-    # held in a `StockIssueImportBatch` so the user can fix it inline instead
-    # of re-uploading the file — each resolved row appends its item to that
-    # SAME issue. If nothing failed, the issue is posted right away; otherwise
-    # it stays a draft until "Complete Import" posts it.
+    # attached to it as items immediately; everything else (blank/invalid rows, unknown SKUs, or rows that
+    # collectively exceed on-hand stock) is held in a `StockIssueImportBatch`
+    # so the user can fix it inline instead of re-uploading the file — each
+    # resolved row appends its item to that SAME issue.
+    #
+    # An import NEVER deducts stock. If nothing failed, the issue is submitted
+    # for approval right away (draft -> pending_approval, via
+    # Inventory::StockIssueSubmission); otherwise it stays a draft until
+    # "Complete Import" submits it. From there it follows the same workflow as
+    # a manual issue: approve, then "Confirm Issue" posts the stock movements.
     class StockIssueImporter
+      include AuditLoggable
+
       # Field schema — single source of truth for the column-mapping step
       # (key + auto-match synonyms), the downloadable sample template, and the
       # on-screen required/optional guide. `synonyms` are in priority order;
@@ -63,12 +69,16 @@ module Inventory
         def valid? = failure_reason.nil?
       end
 
-      def initialize(business, rows, warehouse:, branch:, user: nil)
+      # `notes` is the document-level note for the whole issue (the import
+      # form's "Stock Issue Notes" field) — saved on StockIssue#notes, never
+      # on individual lines. Optional.
+      def initialize(business, rows, warehouse:, branch:, user: nil, notes: nil)
         @business  = business
         @rows      = rows
         @warehouse = warehouse
         @branch    = branch
         @user      = user
+        @notes     = notes.to_s.strip.presence
       end
 
       # Side-effect-free dry run: exactly the rows #call would build, with the
@@ -77,32 +87,31 @@ module Inventory
         build_rows
       end
 
+      # All-or-nothing: the issue, its items, and its submission (or its
+      # resolution batch) are written in one transaction. The importing user
+      # is required — they are the issue's creator and submitter, which also
+      # means the approval step's self-approval rule applies to them.
       def call
+        raise ArgumentError, "an importing user is required" if @user.nil?
+
         rows = build_rows
+        clean_rows, failed_rows = rows.partition(&:valid?)
 
-        issue = @business.stock_issues.create!(
-          warehouse: @warehouse, branch: @branch, issued_on: Date.current,
-          created_by: @user, status: :draft
-        )
+        ActiveRecord::Base.transaction do
+          issue = @business.stock_issues.create!(
+            warehouse: @warehouse, branch: @branch, issued_on: Date.current,
+            created_by: @user, status: :draft, notes: @notes
+          )
+          clean_rows.each { |r| issue.items.create!(product: r.product, quantity: r.quantity) }
+          log_audit(actor: @user, auditable: issue, action: "create", metadata: { source: "import" })
 
-        clean_rows, failed_rows = rows.partition { |r| r.failure_reason.nil? }
-        clean_rows.each { |r| issue.items.create!(product: r.product, quantity: r.quantity) }
-
-        if failed_rows.empty?
-          result = StockIssuePoster.new(issue).call
-          return Result.new(issue: result.issue, batch: nil) if result.ok?
-
-          # The poster re-checked and blocked at posting time — e.g. a race
-          # with stock consumed elsewhere between our pre-check and now.
-          # Detach the just-created items (a row only owns an item once it's
-          # actually resolved) and hold every row for resolution instead of
-          # losing them.
-          issue.items.destroy_all
-          failed_rows = clean_rows.each { |r| r.failure_reason = :insufficient_stock }
+          if failed_rows.empty?
+            submit_for_approval!(issue)
+            Result.new(issue: issue.reload, batch: nil)
+          else
+            Result.new(issue: nil, batch: build_batch(issue, failed_rows))
+          end
         end
-
-        batch = build_batch(issue, failed_rows)
-        Result.new(issue: nil, batch: batch)
       end
 
       private
@@ -145,7 +154,8 @@ module Inventory
       # quantity per product across the whole file and compares to on-hand. If a
       # product's rows collectively overshoot, none of them are safe to post
       # together, so all are held for the user to resolve individually. The
-      # poster still re-checks authoritatively when the issue is finally posted.
+      # poster still re-checks authoritatively when the approved issue is
+      # finally confirmed.
       def split_insufficient_stock!(rows)
         rows.select { |r| r.product && r.failure_reason.nil? }
             .group_by(&:product)
@@ -174,6 +184,13 @@ module Inventory
           )
         end
         batch
+      end
+
+      # Enters the standard approval workflow — never posts stock. A failed
+      # submission rolls back the whole import.
+      def submit_for_approval!(issue)
+        result = StockIssueSubmission.new(stock_issue_id: issue.id, actor: @user).call
+        raise ActiveRecord::RecordInvalid, result.issue unless result.ok?
       end
 
       # nil when unparsable, so "abc" (invalid) is told apart from "0".

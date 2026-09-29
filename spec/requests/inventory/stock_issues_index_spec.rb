@@ -21,7 +21,7 @@ RSpec.describe "Inventory::StockIssues#index", type: :request do
   def post_issue(warehouse:, branch:, qty:, user: owner, issued_on: Date.current)
     issue = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: issued_on, created_by: user)
     issue.items.build(product: product, quantity: qty)
-    Inventory::StockIssuePoster.new(issue).call.issue
+    approve_and_post_stock_issue(issue).issue
   end
 
   def expect_only(response, present:, absent: [])

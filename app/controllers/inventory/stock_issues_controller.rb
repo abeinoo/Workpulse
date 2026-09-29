@@ -190,6 +190,11 @@ class Inventory::StockIssuesController < Inventory::BaseController
   # Every row must pass the preview validation. The one exception is the
   # user's explicit "import and fix the rest" choice (allow_partial=1), which
   # hands the invalid rows to the existing Resolve Import Errors screen.
+  #
+  # An import never deducts stock: a clean import lands in pending_approval
+  # (see Inventory::Imports::StockIssueImporter) and follows the normal
+  # approve -> confirm workflow. params[:notes] is the form's document-level
+  # "Stock Issue Notes", saved on the issue itself (never per line).
   def run_import
     authorize StockIssue, :create?
     return unless load_import_context
@@ -200,7 +205,8 @@ class Inventory::StockIssuesController < Inventory::BaseController
     end
 
     importer = Inventory::Imports::StockIssueImporter.new(
-      current_user.business, @mapper.rows(@mapping), warehouse: @warehouse, branch: @branch, user: current_user
+      current_user.business, @mapper.rows(@mapping), warehouse: @warehouse, branch: @branch, user: current_user,
+      notes: params[:notes]
     )
     if params[:allow_partial] != "1" && importer.preview.any? { |row| !row.valid? }
       @import_blocked = true
@@ -212,7 +218,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
     if result.batch
       redirect_to inventory_stock_issue_import_batch_path(result.batch)
     else
-      redirect_to inventory_stock_issue_path(result.issue), notice: t("inventory.imports.import_completed")
+      redirect_to inventory_stock_issue_path(result.issue), notice: t("inventory.imports.submitted_for_approval")
     end
   end
 

@@ -53,7 +53,7 @@ RSpec.describe "Inventory::Reports", type: :request do
       branch = business.branches.create!(name: "Nasr City", active: true)
       issue  = business.stock_issues.build(warehouse: wh_a, branch: branch, issued_on: Date.current)
       issue.items.build(product: product, quantity: 3)
-      Inventory::StockIssuePoster.new(issue).call
+      approve_and_post_stock_issue(issue)
 
       get inventory_movements_report_path, params: { warehouse_id: wh_a.id }
       first_row = response.body[/<tbody>.*?<\/tr>/m]
@@ -127,7 +127,7 @@ RSpec.describe "Inventory::Reports", type: :request do
       12.times do
         i = business.stock_issues.build(warehouse: wh_a, branch: branch, issued_on: Date.current)
         i.items.build(product: product, quantity: 0.5)
-        Inventory::StockIssuePoster.new(i).call
+        approve_and_post_stock_issue(i)
       end
     end
 
@@ -183,7 +183,7 @@ RSpec.describe "Inventory::Reports", type: :request do
       [ [ wh_a, nasr, 3 ], [ wh_a, shubra, 1 ], [ wh_b, zamalek, 2 ] ].each do |wh, branch, qty|
         i = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: Date.current)
         i.items.build(product: product, quantity: qty)
-        Inventory::StockIssuePoster.new(i).call
+        approve_and_post_stock_issue(i)
       end
     end
 

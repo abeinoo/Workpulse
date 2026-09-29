@@ -37,8 +37,7 @@ RSpec.describe StockIssue, type: :model do
     end
 
     it "refuses to destroy an issued document" do
-      issue = build_issue(status: "issued")
-      issue.save!
+      issue = save_stock_issue_in_status!(build_issue(status: "issued"), "issued")
       expect { issue.destroy }.to raise_error(ImmutableDocument::DeletionNotAllowedError)
       expect(StockIssue.exists?(issue.id)).to be true
     end
@@ -71,9 +70,9 @@ RSpec.describe StockIssue, type: :model do
     end
 
     it "includes an issue whose import batch has already completed" do
-      issue = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current, status: :issued)
+      issue = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current)
       issue.items.build(product: product, quantity: 1)
-      issue.save!
+      save_stock_issue_in_status!(issue, :issued)
       StockIssueImportBatch.create!(business: business, warehouse: warehouse, branch: branch,
                                     stock_issue: issue, status: :completed)
 

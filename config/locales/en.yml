@@ -4075,7 +4075,8 @@ en:
       pending_rows: "Pending"
       resolved_rows: "Resolved"
       import_completed: "Import completed."
-      complete_import: "Complete Import"
+      submitted_for_approval: "Import completed — the stock issue was submitted for approval. No stock has been deducted yet; it is deducted only after the issue is approved and confirmed."
+      complete_import: "Complete Import & Submit for Approval"
       complete_failed: "Some rows could not be imported — check the details below and try again."
       row_resolved: "Ready to import"
       row_skipped: "Skipped"
@@ -4100,6 +4101,10 @@ en:
         title: "Import Stock Issue"
         index_button: "Import Stock Issue"
         columns: "Upload a CSV of items to issue from one warehouse. Required and optional columns are listed below."
+        approval_required: "Imported stock issues require approval before any stock is deducted. The import creates a stock issue in “Pending Approval”; stock is deducted only after it is approved and then confirmed."
+        issue_notes_label: "Stock Issue Notes"
+        issue_notes_placeholder: "e.g. Weekly supplies for the branch"
+        issue_notes_hint: "Optional. Saved on the stock issue itself — one note for the whole document, shared by all imported items. It is not a column in the file."
       mapping:
         download_sample_csv: "Download CSV Template"
         download_sample_xlsx: "Download Excel Template"
@@ -4605,6 +4610,9 @@ en:
       cancellation_placeholder: "Explain why this issue is being cancelled…"
       cancelled: "Stock issue cancelled."
       delete_confirm: "Delete this draft stock issue? This cannot be undone."
+      stock_not_deducted_draft: "Draft — no stock has been deducted. Submit this issue for approval to continue."
+      stock_not_deducted_pending_approval: "Pending approval — no stock has been deducted. Stock is deducted only after this issue is approved and then confirmed."
+      stock_not_deducted_approved: "Approved — no stock has been deducted yet. Stock is deducted when the issue is confirmed (Confirm Issue)."
       activity_timeline: "Activity Timeline"
       no_history: "No activity recorded yet."
       timeline:
@@ -5183,6 +5191,7 @@ en:
             base:
               no_items: "Add at least one product to issue"
               insufficient_stock: "Not enough stock for %{product} (%{sku}): %{available} available, %{requested} requested"
+              not_approved: "This stock issue must be approved before stock can be deducted"
         purchase_request:
           attributes:
             base:

@@ -20,9 +20,7 @@ RSpec.describe StockIssuePolicy, type: :policy do
   def build_issue(status: "draft")
     i = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current)
     i.items.build(product: product, quantity: 1) unless status == "draft"
-    i.status = status
-    i.save!
-    i.reload
+    save_stock_issue_in_status!(i, status).reload
   end
 
   describe "#update? / #destroy? / #submit?" do

@@ -125,7 +125,8 @@ RSpec.describe "Inventory::StockIssues CSV import column mapping", type: :reques
 
       issue = business.stock_issues.last
       expect(response).to redirect_to(inventory_stock_issue_path(issue))
-      expect(issue).to be_issued
+      expect(issue).to be_pending_approval
+      expect(issue.inventory_movements).to be_empty
       expect(issue.items.map { |i| [ i.product.sku, i.quantity.to_i ] }).to contain_exactly([ "UYN1", 2 ], [ "ABC123", 5 ])
     end
 

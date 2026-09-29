@@ -19,7 +19,7 @@ RSpec.describe "Inventory overview dashboard", type: :request do
   def issue(product, qty, wh: main)
     i = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: today)
     i.items.build(product: product, quantity: qty)
-    Inventory::StockIssuePoster.new(i).call
+    approve_and_post_stock_issue(i)
   end
 
   def body_text = Nokogiri::HTML(response.body).text.squish

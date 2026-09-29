@@ -52,7 +52,7 @@ RSpec.describe "Inventory warehouse → branch supply links", type: :request do
       Inventory::GoodsReceiptPoster.new(r).call
       i = business.stock_issues.build(warehouse: main, branch: shubra, issued_on: Date.current)
       i.items.build(product: product, quantity: 1)
-      Inventory::StockIssuePoster.new(i).call
+      approve_and_post_stock_issue(i)
 
       get inventory_warehouse_supplies_path
       expect(response.body).to include(I18n.t("inventory.warehouse_supplies.sources.inferred"),

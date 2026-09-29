@@ -12,9 +12,7 @@ RSpec.describe Inventory::StockIssueCancellation, type: :model do
   def issue(status:)
     i = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current, created_by: actor)
     i.items.build(product: product, quantity: 1) unless status == "draft"
-    i.status = status
-    i.save!
-    i
+    save_stock_issue_in_status!(i, status)
   end
 
   def cancel(issue, reason: "no longer needed")

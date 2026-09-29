@@ -29,11 +29,12 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
     path.to_s
   end
 
-  def upload(path)
+  def upload(path, notes: nil)
     visit import_inventory_stock_issues_path
     expect(page).not_to have_select("mapping_sku") # no mapping before a file is uploaded
     select warehouse.name, from: "warehouse_id"
     select branch.name,    from: "branch_id"
+    fill_in "notes", with: notes if notes
     attach_file "file", path
     click_button mapping_t("continue_to_mapping")
   end
@@ -52,7 +53,7 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
 
   it "CSV: map columns, fix a missing mapping, preview and import" do
     csv = "Location,SKU,Qty ordered,Total cost\nMain,UYN1,2,70\nMain,ABC123,5,50\n"
-    upload(temp_file("export.csv", csv))
+    upload(temp_file("export.csv", csv), notes: "صرف مستلزمات للفرع لتغطية احتياج الأسبوع")
 
     expect(page).to have_css("#upload-success", text: mapping_t("upload_success"))
     expect(page).to have_select("mapping_sku", selected: "SKU")
@@ -74,9 +75,13 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
     expect(page).to have_css("#preview-valid-count", text: "2")
 
     click_button mapping_t("import")
-    expect(page).to have_content(I18n.t("inventory.imports.import_completed"))
+    expect(page).to have_content(I18n.t("inventory.imports.submitted_for_approval"))
+    expect(page).to have_css("#stock-not-deducted-notice")
     issue = business.stock_issues.last
-    expect(issue).to be_issued
+    expect(issue).to be_pending_approval
+    expect(issue.inventory_movements).to be_empty
+    # The form's note survives the mapping round-trips and lands on the issue.
+    expect(issue.notes).to eq("صرف مستلزمات للفرع لتغطية احتياج الأسبوع")
     expect(issue.items.order(:id).map { |i| [ i.product.sku, i.quantity.to_i ] }).to eq([ [ "UYN1", 2 ], [ "ABC123", 5 ] ])
   end
 
@@ -89,7 +94,7 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
     expect(preview_rows).to eq([ [ "2", "ABC123", "Widget", "3" ] ])
 
     click_button mapping_t("import")
-    expect(page).to have_content(I18n.t("inventory.imports.import_completed"))
+    expect(page).to have_content(I18n.t("inventory.imports.submitted_for_approval"))
     expect(business.stock_issues.last.items.sole).to have_attributes(product: abc, quantity: 3)
   end
 

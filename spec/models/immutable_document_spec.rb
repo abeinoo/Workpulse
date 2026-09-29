@@ -20,7 +20,7 @@ RSpec.describe ImmutableDocument, type: :model do
     posted_receipt
     i = business.stock_issues.build(warehouse: warehouse, branch: business.branches.first_or_create!(name: "Doc Branch", active: true), issued_on: Date.current)
     i.items.build(product: product, quantity: 2)
-    Inventory::StockIssuePoster.new(i).call.issue
+    approve_and_post_stock_issue(i).issue
   end
 
   def posted_transfer

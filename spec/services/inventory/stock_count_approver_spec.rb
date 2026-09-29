@@ -69,7 +69,7 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
       # Stock changes after the count was taken: issue 5 → live system now 15.
       i = business.stock_issues.build(warehouse: warehouse, branch: business.branches.first_or_create!(name: "Count Branch", active: true), issued_on: Date.current)
       i.items.build(product: p1, quantity: 5)
-      Inventory::StockIssuePoster.new(i).call
+      approve_and_post_stock_issue(i)
 
       described_class.new(count, user: approver).call
       # Counted 20 vs live 15 → +5 applied, ending at the counted 20.

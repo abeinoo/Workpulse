@@ -4,6 +4,7 @@ RSpec.describe Inventory::Imports::StockIssueImportBatchCompleter do
   let(:business)  { create(:business) }
   let(:warehouse) { business.warehouses.create!(name: "Main") }
   let(:branch)    { business.branches.create!(name: "Main Branch", active: true) }
+  let(:user)      { create(:user, business: business) }
   let(:stock_issue) do
     business.stock_issues.create!(warehouse: warehouse, branch: branch, issued_on: Date.current, status: :draft)
   end
@@ -32,29 +33,45 @@ RSpec.describe Inventory::Imports::StockIssueImportBatchCompleter do
     receive(10)
     batch.rows.create!(row_number: 1, sku: product.sku, quantity: 3, failure_reason: :unknown_sku)
 
-    result = described_class.new(business, batch.id).call
+    result = described_class.new(business, batch.id, user: user).call
 
     expect(result.ok?).to be false
     expect(batch.reload).to be_draft
   end
 
-  it "posts the batch's draft issue (clean rows + resolved rows already attached) and marks the batch completed" do
+  it "submits the batch's draft issue for approval and marks the batch completed — without deducting stock" do
     receive(10)
-    resolve_row(quantity: 3)
+    row = resolve_row(quantity: 3)
 
-    result = described_class.new(business, batch.id, user: nil).call
+    result = nil
+    expect { result = described_class.new(business, batch.id, user: user).call }
+      .not_to change(InventoryMovement, :count)
 
     expect(result.ok?).to be true
     expect(batch.reload).to be_completed
-    expect(stock_issue.reload).to be_issued
+    expect(row.reload.status).to eq("imported")
+    expect(stock_issue.reload).to be_pending_approval
+    expect(stock_issue.submitted_by).to eq(user)
     expect(stock_issue.items.sum(:quantity)).to eq(3)
-    expect(product.stock_in(warehouse)).to eq(7)
+    expect(product.stock_in(warehouse)).to eq(10)
+  end
+
+  it "is a no-op on a batch that was already completed (double click / refresh)" do
+    receive(10)
+    resolve_row(quantity: 3)
+    described_class.new(business, batch.id, user: user).call
+
+    result = described_class.new(business, batch.id, user: user).call
+
+    expect(result.ok?).to be true
+    expect(stock_issue.reload).to be_pending_approval
+    expect(AuditLog.for_auditable(stock_issue).where(action: "submit_for_approval").count).to eq(1)
   end
 
   it "completes a batch with no resolved rows (everything skipped) without posting the issue" do
     batch.rows.create!(row_number: 1, sku: "X", quantity: 1, status: :skipped)
 
-    result = described_class.new(business, batch.id).call
+    result = described_class.new(business, batch.id, user: user).call
 
     expect(result.ok?).to be true
     expect(batch.reload).to be_completed
@@ -65,7 +82,7 @@ RSpec.describe Inventory::Imports::StockIssueImportBatchCompleter do
     receive(2)
     row = resolve_row(quantity: 3)
 
-    result = described_class.new(business, batch.id).call
+    result = described_class.new(business, batch.id, user: user).call
 
     expect(result.ok?).to be false
     expect(batch.reload).to be_draft
@@ -89,7 +106,7 @@ RSpec.describe Inventory::Imports::StockIssueImportBatchCompleter do
     ok_row = batch.rows.create!(row_number: 2, sku: ok_product.sku, quantity: 5,
                                 product: ok_product, status: :resolved, stock_issue_item: ok_item)
 
-    result = described_class.new(business, batch.id).call
+    result = described_class.new(business, batch.id, user: user).call
 
     expect(result.ok?).to be false
     expect(short_row.reload.status).to eq("pending")

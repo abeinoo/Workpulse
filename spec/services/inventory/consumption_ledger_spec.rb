@@ -25,7 +25,7 @@ RSpec.describe Inventory::ConsumptionLedger, type: :model do
   def issue(qty:, on: today, to_branch: branch)
     i = business.stock_issues.build(warehouse: warehouse, branch: to_branch, issued_on: on)
     i.items.build(product: product, quantity: qty)
-    Inventory::StockIssuePoster.new(i).call.tap { |res| expect(res.ok?).to be(true) }.issue
+    approve_and_post_stock_issue(i).tap { |res| expect(res.ok?).to be(true) }.issue
   end
 
   def void(doc)

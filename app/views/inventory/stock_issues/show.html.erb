@@ -25,6 +25,14 @@
     </div>
   </div>
 
+  <%# Stock only moves at "Confirm Issue" on an approved issue — say so plainly
+      for every state before that, so nobody reads a pending issue as issued. %>
+  <% if !@stock_issue.voided? && (@stock_issue.draft? || @stock_issue.pending_approval? || @stock_issue.approved?) %>
+    <div id="stock-not-deducted-notice" class="form-hint form-hint--info" role="status" style="margin-bottom: var(--space-5);">
+      <%= t("inventory.stock_issues.stock_not_deducted_#{@stock_issue.status}") %>
+    </div>
+  <% end %>
+
   <% if @stock_issue.pending_approval? && policy(@stock_issue).approve? %>
     <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
       <%= button_to t("inventory.stock_issues.approve"), approve_inventory_stock_issue_path(@stock_issue),

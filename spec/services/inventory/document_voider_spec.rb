@@ -19,7 +19,7 @@ RSpec.describe Inventory::DocumentVoider, type: :model do
     branch = business.branches.first_or_create!(name: "Void Branch", active: true)
     i = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: Date.current)
     i.items.build(product: product, quantity: qty)
-    Inventory::StockIssuePoster.new(i).call.issue
+    approve_and_post_stock_issue(i).issue
   end
 
   def void(doc, reason: "correction")

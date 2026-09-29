@@ -19,7 +19,7 @@ RSpec.describe Inventory::BranchSupplyMap, type: :model do
   def issue(wh, branch)
     i = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: Date.current)
     i.items.build(product: product, quantity: 1)
-    Inventory::StockIssuePoster.new(i).call.tap { |res| expect(res.ok?).to be(true) }
+    approve_and_post_stock_issue(i).tap { |res| expect(res.ok?).to be(true) }
   end
 
   def link(branch, wh, active: true)

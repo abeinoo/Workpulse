@@ -7,6 +7,10 @@
   <% end %>
   <h1 class="page-title mb-6"><%= t("inventory.imports.stock_issues.title") %></h1>
 
+  <div id="import-approval-notice" class="form-hint form-hint--info" role="note" style="margin-bottom: var(--space-4);">
+    <%= t("inventory.imports.stock_issues.approval_required") %>
+  </div>
+
   <%= form_with url: preview_import_inventory_stock_issues_path, method: :post,
                 multipart: true, class: "form-card", data: { turbo: false } do |f| %>
     <div class="flex items-center" style="justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap;">
@@ -34,6 +38,18 @@
         <%= select_tag :branch_id,
               options_from_collection_for_select(@branches, :id, :name),
               include_blank: "— #{t('inventory.stock_issues.select_branch')}", class: "form-control", required: true %>
+      </div>
+      <%# Document-level note for the ONE stock issue this import creates —
+          saved on StockIssue#notes, shared by every imported line. Not a
+          file column. %>
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <%= label_tag :notes, t("inventory.imports.stock_issues.issue_notes_label"), class: "form-label" %>
+        <%= text_area_tag :notes, params[:notes], rows: 2, class: "form-control", id: "notes",
+              placeholder: t("inventory.imports.stock_issues.issue_notes_placeholder"),
+              "aria-describedby": "issue-notes-hint" %>
+        <p id="issue-notes-hint" class="form-hint" style="margin: var(--space-1) 0 0;">
+          <%= t("inventory.imports.stock_issues.issue_notes_hint") %>
+        </p>
       </div>
       <div class="form-group" style="grid-column: 1 / -1;">
         <%= label_tag :file, t("inventory.imports.mapping.file_label"), class: "form-label" %>

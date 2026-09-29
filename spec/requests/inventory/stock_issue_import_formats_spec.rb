@@ -63,11 +63,37 @@ RSpec.describe "Inventory::StockIssues import — CSV and XLSX", type: :request 
         expect(html.at_css("#import-submit")["disabled"]).to be_nil
         expect(html.at_css("#import-partial")).to be_nil
 
-        expect { import!({ sku: "0", quantity: "1" }) }.to change(StockIssue, :count).by(1)
+        expect { import!({ sku: "0", quantity: "1" }) }
+          .to change(StockIssue, :count).by(1)
+          .and not_change(InventoryMovement, :count)
         issue = business.stock_issues.last
         expect(response).to redirect_to(inventory_stock_issue_path(issue))
-        expect(issue).to be_issued
+        expect(issue).to be_pending_approval
         expect(issue.items.order(:id).map { |i| [ i.product.sku, i.quantity.to_i ] }).to eq([ [ "UYN1", 2 ], [ "ABC123", 5 ] ])
+        expect(uyn1.stock_in(warehouse)).to eq(20)
+      end
+
+      it "saves the form's Stock Issue Notes on the issue itself (Arabic preserved), carried through the preview" do
+        note = "صرف مستلزمات للفرع لتغطية احتياج الأسبوع"
+        post preview_import_inventory_stock_issues_path,
+             params: context_params.merge(file: file_for(format, [ %w[SKU Quantity], %w[UYN1 5], %w[ABC123 2] ]), notes: note)
+        expect(html.at_css("input[name=notes]")["value"]).to eq(note)
+        expect(html.at_css("#preview-issue-notes").text).to include(note)
+
+        import!({ sku: "0", quantity: "1" }, notes: html.at_css("input[name=notes]")["value"])
+        issue = business.stock_issues.last
+        expect(issue).to be_pending_approval
+        expect(issue.notes).to eq(note)
+        expect(issue.items.count).to eq(2)
+      end
+
+      it "imports a file without any Notes column, with empty Stock Issue Notes" do
+        upload(format, [ %w[SKU Quantity], %w[UYN1 1] ])
+        import!({ sku: "0", quantity: "1" }, notes: "")
+
+        issue = business.stock_issues.last
+        expect(issue).to be_pending_approval
+        expect(issue.notes).to be_nil
       end
 
       it "maps Arabic headers in a different order with extra columns, preserving row order" do
@@ -194,7 +220,7 @@ RSpec.describe "Inventory::StockIssues import — CSV and XLSX", type: :request 
       expect(html.at_css("#import-file-hint").text.squish).to include("الامتدادات المدعومة:", ".csv, .xlsx")
     end
 
-    it "downloads an Excel template with SKU, Quantity" do
+    it "downloads an Excel template with only SKU and Quantity" do
       get import_template_inventory_stock_issues_path(kind: "xlsx")
 
       expect(response.media_type).to eq(xlsx_type)
@@ -202,7 +228,7 @@ RSpec.describe "Inventory::StockIssues import — CSV and XLSX", type: :request 
         .to eq(%w[SKU Quantity])
     end
 
-    it "still downloads the CSV template" do
+    it "downloads a CSV template with only SKU and Quantity" do
       get import_template_inventory_stock_issues_path
       expect(response.media_type).to eq("text/csv")
       expect(CSV.parse(response.body).first).to eq(%w[SKU Quantity])

@@ -20,7 +20,7 @@ RSpec.describe "Inventory posting & costing", type: :model do
     branch = business.branches.first_or_create!(name: "Issue Branch", active: true)
     issue = business.stock_issues.build(warehouse: wh, branch: branch, issued_on: Date.current)
     issue.items.build(product: product, quantity: qty)
-    Inventory::StockIssuePoster.new(issue).call
+    approve_and_post_stock_issue(issue)
   end
 
   describe "stock derived from the movement ledger" do

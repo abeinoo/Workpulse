@@ -825,8 +825,11 @@ if business.inventory_movements.none?
   end
 
   post_issue = lambda do |warehouse:, on:, note:, lines:|
-    iss = business.stock_issues.build(warehouse: warehouse, issued_on: on, notes: note, created_by: admin)
+    # Stock only moves for an approved issue — seed it approved, then post.
+    iss = business.stock_issues.build(warehouse: warehouse, issued_on: on, notes: note, created_by: admin,
+                                      status: :approved, approved_by: admin, approved_at: Time.current)
     lines.each { |product, qty| iss.items.build(product: product, quantity: qty) }
+    iss.save!
     result = Inventory::StockIssuePoster.new(iss).call
     raise "Stock issue seed failed (@ #{warehouse.name}): #{iss.errors.full_messages.join('; ')}" unless result.ok?
     iss

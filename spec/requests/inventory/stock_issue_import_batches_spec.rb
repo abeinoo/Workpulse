@@ -24,15 +24,21 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
          params: { file: file, warehouse_id: warehouse.id, branch_id: branch.id, allow_partial: "1" }
   end
 
-  it "imports clean rows immediately and redirects straight to the issue when nothing failed" do
+  it "imports clean rows immediately and redirects straight to the issue — pending approval, no stock deducted" do
     run_import("SKU,Quantity\n#{product.sku},3\n")
 
-    expect(response).to redirect_to(inventory_stock_issue_path(business.stock_issues.last))
-    expect(business.stock_issues.last.items.sum(:quantity)).to eq(3)
+    issue = business.stock_issues.last
+    expect(response).to redirect_to(inventory_stock_issue_path(issue))
+    expect(flash[:notice]).to eq(I18n.t("inventory.imports.submitted_for_approval"))
+    expect(issue).to be_pending_approval
+    expect(issue.submitted_by).to eq(owner)
+    expect(issue.items.sum(:quantity)).to eq(3)
+    expect(issue.inventory_movements).to be_empty
+    expect(product.stock_in(warehouse)).to eq(10)
     expect(business.stock_issue_import_batches.count).to eq(0)
   end
 
-  it "posts clean rows and redirects to a draft batch for the rest" do
+  it "attaches clean rows to the draft and redirects to a draft batch for the rest" do
     run_import("SKU,Quantity\n#{product.sku},3\nUNKNOWN-SKU,2\n")
 
     batch = business.stock_issue_import_batches.last
@@ -55,7 +61,7 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
 
     expect(business.stock_issues.count).to eq(1)
     issue = business.stock_issues.sole
-    expect(issue).to be_issued
+    expect(issue).to be_pending_approval
     expect(issue.items.sum(:quantity)).to eq(5)
   end
 
@@ -76,9 +82,25 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
       batch.reload
       expect(batch).to be_completed
       expect(batch.stock_issue_id).to eq(draft_issue_id)
-      expect(batch.stock_issue).to be_issued
+      expect(batch.stock_issue).to be_pending_approval
       expect(batch.stock_issue.items.sum(:quantity)).to eq(2)
-      expect(product.stock_in(warehouse)).to eq(10 - 2)
+      expect(product.stock_in(warehouse)).to eq(10) # nothing deducted before approval + confirmation
+      expect(response).to redirect_to(inventory_stock_issue_path(batch.stock_issue))
+    end
+
+    it "keeps the form's Stock Issue Notes on the issue through resolve and complete" do
+      file = Rack::Test::UploadedFile.new(StringIO.new("SKU,Quantity\nUNKNOWN-SKU,2\n"), "text/csv", original_filename: "i.csv")
+      post run_import_inventory_stock_issues_path,
+           params: { file: file, warehouse_id: warehouse.id, branch_id: branch.id, allow_partial: "1",
+                     notes: "استخدام قسم الاستقبال" }
+      batch = business.stock_issue_import_batches.last
+      expect(batch.stock_issue.notes).to eq("استخدام قسم الاستقبال")
+
+      patch resolve_inventory_stock_issue_import_batch_row_path(batch, batch.rows.first), params: { product_id: product.id }
+      patch complete_inventory_stock_issue_import_batch_path(batch)
+
+      expect(batch.stock_issue.reload).to be_pending_approval
+      expect(batch.stock_issue.notes).to eq("استخدام قسم الاستقبال")
     end
 
     it "skips a row and allows completion without it" do
@@ -122,7 +144,7 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
 
     def expect_issue_card(label_key, success:, locale: :en)
       card = issue_card
-      expect(card.at_css(".stat-card__label").text.squish).to eq(I18n.t("inventory.imports.#{label_key}", locale: locale))
+      expect(card.at_css(".stat-card__label").text.squish).to eq(I18n.t(label_key, locale: locale))
       expect(card["class"].split).send(success ? :to : :not_to, include("stat-card--success"))
       expect(card.at_css(".stat-card__value").text.squish).to eq(batch.stock_issue.issue_number)
     end
@@ -137,18 +159,19 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(batch.stock_issue).to be_draft
-      expect_issue_card(:draft_issue, success: false)
+      expect_issue_card("inventory.imports.draft_issue", success: false)
     end
 
-    it "labels the issue as created once Complete Import posts it (issued)" do
+    it "labels the issue Pending Approval once Complete Import submits it — never as issued" do
       patch skip_inventory_stock_issue_import_batch_row_path(batch, batch.rows.first)
       patch complete_inventory_stock_issue_import_batch_path(batch)
-      expect(batch.reload.stock_issue).to be_issued
+      expect(batch.reload.stock_issue).to be_pending_approval
 
       get inventory_stock_issue_import_batch_path(batch)
 
       expect(response).to have_http_status(:ok)
-      expect_issue_card(:created_issue, success: true)
+      expect_issue_card("inventory.stock_issues.statuses.pending_approval", success: false)
+      expect(response.body).to include(I18n.t("inventory.imports.submitted_for_approval"))
     end
 
     it "renders the summary in the Complete Import turbo-stream response" do
@@ -156,7 +179,7 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
       patch complete_inventory_stock_issue_import_batch_path(batch), as: :turbo_stream
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include(I18n.t("inventory.imports.created_issue"))
+      expect(response.body).to include(I18n.t("inventory.stock_issues.statuses.pending_approval"))
     end
 
     it "renders the summary in a row-resolve turbo-stream response" do
@@ -167,17 +190,18 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
       expect(response.body).to include(I18n.t("inventory.imports.draft_issue"))
     end
 
-    it "treats an approved (not yet issued) issue as a draft, and a confirmed one as created" do
+    it "shows an approved (not yet issued) issue as Approved, and only a confirmed one as issued" do
       issue = batch.stock_issue
       patch skip_inventory_stock_issue_import_batch_row_path(batch, batch.rows.first)
+      patch complete_inventory_stock_issue_import_batch_path(batch)
       issue.update_columns(status: "approved") # taken through the manual approval workflow
 
       get inventory_stock_issue_import_batch_path(batch)
-      expect_issue_card(:draft_issue, success: false) # approval moves no stock
+      expect_issue_card("inventory.stock_issues.statuses.approved", success: false) # approval moves no stock
 
       expect(Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: owner).call).to be_ok
       get inventory_stock_issue_import_batch_path(batch)
-      expect_issue_card(:created_issue, success: true)
+      expect_issue_card("inventory.stock_issues.statuses.issued", success: true)
     end
 
     it "keeps the Arabic labels" do
@@ -185,7 +209,7 @@ RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
       get inventory_stock_issue_import_batch_path(batch)
 
       expect(response.body).to include('dir="rtl"')
-      expect_issue_card(:draft_issue, success: false, locale: :ar)
+      expect_issue_card("inventory.imports.draft_issue", success: false, locale: :ar)
     end
   end
 

@@ -2,19 +2,20 @@ class StockIssue < ApplicationRecord
   include ImmutableDocument
   include Voidable
 
-  # The approval + physical-issuance workflow. "draft" is the entry state for
-  # both a normal manually-created issue (awaiting submission) AND the
-  # stock-issue import flow (a single issue created up front, items appended
-  # to it as each import row resolves over possibly several requests) — the
-  # import flow deliberately bypasses approval and posts straight from draft
-  # (see Inventory::Imports::StockIssueImportBatchCompleter), exactly as it
-  # always has. For a human-submitted issue: draft -> pending_approval ->
-  # approved -> issued, with pending_approval -> rejected and
-  # draft/approved -> cancelled as the alternate paths. "issued" is the only
-  # state where inventory has actually moved (see
-  # Inventory::StockIssueConfirmationService / StockIssuePoster) — approval
-  # alone never deducts stock. rejected/cancelled are terminal; there is no
-  # transition back out of them.
+  # The approval + physical-issuance workflow, shared by EVERY creation path
+  # (manual form, CSV/Excel import): draft -> pending_approval -> approved ->
+  # issued, with pending_approval -> rejected and draft/approved -> cancelled
+  # as the alternate paths. "draft" is the entry state for a manually-created
+  # issue (awaiting submission) and for an import still being resolved (a
+  # single issue created up front, items appended as each import row
+  # resolves); a finished import is submitted straight to pending_approval
+  # (see Inventory::Imports::StockIssueImporter / StockIssueImportBatchCompleter)
+  # — it never skips approval. "issued" is the only state where inventory has
+  # actually moved, and it is reachable ONLY from "approved" (see
+  # Inventory::StockIssueConfirmationService / StockIssuePoster, and the
+  # #issued_only_from_approved validation below) — approval alone never
+  # deducts stock. rejected/cancelled are terminal; there is no transition
+  # back out of them.
   enum :status, { draft: "draft", pending_approval: "pending_approval", approved: "approved",
                   rejected: "rejected", issued: "issued", cancelled: "cancelled" }
 
@@ -56,6 +57,7 @@ class StockIssue < ApplicationRecord
   # terminal record — nothing was going to be issued anyway.
   validate  :has_at_least_one_item, unless: -> { draft? || cancelled? }
   validate  :branch_in_same_business
+  validate  :issued_only_from_approved, if: -> { will_save_change_to_status?(to: "issued") }
 
   before_create :assign_issue_number
 
@@ -133,6 +135,14 @@ class StockIssue < ApplicationRecord
 
   def has_at_least_one_item
     errors.add(:base, :no_items) if items.reject(&:marked_for_destruction?).empty?
+  end
+
+  # Hard invariant behind the approval gate: stock may only be deducted for a
+  # persisted, approved issue. Refuses any save that moves an issue to
+  # "issued" from anything else (a new record, draft, pending_approval, …),
+  # whatever the caller.
+  def issued_only_from_approved
+    errors.add(:base, :not_approved) unless status_in_database == "approved"
   end
 
   def branch_in_same_business
