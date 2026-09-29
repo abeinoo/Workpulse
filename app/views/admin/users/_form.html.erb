@@ -92,9 +92,7 @@
 
     <div class="form-group">
       <%= f.label :job_title, t("admin.users.form.job_title"), class: "form-label" %>
-      <%= f.text_field :job_title,
-            class: "form-control",
-            placeholder: t("admin.users.form.job_title_placeholder") %>
+      <%= render "shared/job_title_select", f: f %>
     </div>
 
     <div class="form-group">
@@ -114,6 +112,16 @@
     <div class="form-group">
       <%= f.label :hire_date, t("admin.users.form.hire_date"), class: "form-label" %>
       <%= f.date_field :hire_date, class: "form-control" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :date_of_birth, t("admin.users.form.date_of_birth"), class: "form-label" %>
+      <%= f.date_field :date_of_birth, class: "form-control" %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :address, t("activerecord.attributes.user.address"), class: "form-label" %>
+      <%= f.text_area :address, class: "form-control", rows: 2, maxlength: 500 %>
     </div>
 
     <div class="form-group">

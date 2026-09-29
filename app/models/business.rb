@@ -61,6 +61,7 @@ class Business < ApplicationRecord
   has_many :laundry_standard_cost_rates, dependent: :destroy
 
   has_many :departments,              dependent: :destroy
+  has_many :job_titles,               dependent: :destroy
   has_many :evaluation_templates,     dependent: :destroy
   has_many :performance_reviews,      dependent: :destroy
   has_many :performance_observations, dependent: :destroy

@@ -14,6 +14,9 @@
     <%= render "dashboard/quick_actions" %>
   </header>
 
+  <%# ── Today's birthdays (team, permission + scope gated) ── %>
+  <%= render "dashboard/team_birthdays" if show_team_birthdays? %>
+
   <%# ── Personal widgets (self-owned, data-gated, responsive grid) ── %>
   <% if @has_personal_widgets %>
     <div class="dashboard-personal">
@@ -46,5 +49,7 @@
   <%= render "dashboard/inventory_section"         if show_inventory_section? %>
 
 </div>
+
+<%= render "dashboard/birthday_celebration" if @show_birthday_celebration %>
 
 <%= render "shared/greeting_script" %>

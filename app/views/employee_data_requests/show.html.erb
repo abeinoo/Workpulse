@@ -1,0 +1,280 @@
+<% content_for :title, "#{t('employee_data_requests.show.title')} — WorkPulse" %>
+<% req_policy     = policy(@request) %>
+<% reviewer_view  = req_policy.review_details? %>
+<% can_decide     = req_policy.decide? %>
+<% can_correct    = req_policy.correct? %>
+<% can_documents  = req_policy.document? %>
+<% review         = @request.latest_review_event %>
+<% show_value     = ->(rev, field) {
+     value = rev.public_send(field)
+     value.is_a?(Date) ? local_date(value) : (value.presence || "—")
+   } %>
+
+<div class="admin-page edr-page edr-show">
+  <%= link_to employee_data_requests_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("employee_data_requests.back_to_list") %>
+  <% end %>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("employee_data_requests.show.title") %></h1>
+      <p class="page-subtitle edr-show__name"><%= @current.full_name %></p>
+    </div>
+    <%= edr_status_badge(@request) %>
+  </div>
+
+  <%# ── Status banner: what happens next, for whoever is looking ── %>
+  <% if @request.pending_review? %>
+    <% acting = can_decide || can_correct %>
+    <div class="alert <%= acting ? 'alert-warning' : 'alert-info' %> edr-status-note" data-testid="status-note">
+      <%= acting ? t("employee_data_requests.show.pending_reviewer") : t("employee_data_requests.show.pending_submitter") %>
+    </div>
+  <% elsif @request.changes_requested? && review %>
+    <div class="alert alert-warning edr-review-note" data-testid="status-note">
+      <p class="edr-review-note__title"><%= t("employee_data_requests.show.changes_requested_title") %></p>
+      <p class="edr-review-note__body"><%= review.note %></p>
+      <p class="edr-review-note__meta"><%= t("employee_data_requests.by_actor_at_html", name: review.actor.full_name, time: local_datetime_12h(review.created_at)) %></p>
+      <% if req_policy.update? %>
+        <%= link_to t("employee_data_requests.show.edit_and_resubmit"), edit_employee_data_request_path(@request),
+                    class: "btn btn-primary edr-review-note__cta" %>
+      <% end %>
+    </div>
+  <% elsif @request.rejected? && review %>
+    <div class="alert alert-danger edr-review-note" data-testid="status-note">
+      <p class="edr-review-note__title"><%= t("employee_data_requests.show.rejected_title") %></p>
+      <p class="edr-review-note__body"><%= review.note %></p>
+      <p class="edr-review-note__meta"><%= t("employee_data_requests.by_actor_at_html", name: review.actor.full_name, time: local_datetime_12h(review.created_at)) %></p>
+    </div>
+  <% elsif @request.approved? %>
+    <div class="alert alert-success edr-review-note" data-testid="status-note">
+      <p class="edr-review-note__title"><%= t("employee_data_requests.show.approved_title") %></p>
+      <p class="edr-review-note__body"><%= t("employee_data_requests.show.approved_next_step") %></p>
+      <% if @request.employee && policy(@request.employee).update? %>
+        <%= link_to t("employee_data_requests.show.configure_employee"), edit_admin_user_path(@request.employee),
+                    class: "btn btn-primary edr-review-note__cta" %>
+      <% elsif @request.employee && policy(@request.employee).show? %>
+        <%= link_to t("employee_data_requests.show.view_employee"), admin_user_path(@request.employee),
+                    class: "btn btn-secondary edr-review-note__cta" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <div class="edr-show__grid">
+    <div class="edr-show__main">
+      <% if @correction %>
+        <%# ── Reviewer: every field editable before deciding. Corrections are
+            saved as a new reviewer revision; the manager's submission stays. ── %>
+        <%= form_with model: @correction, scope: :employee_data_request,
+                      url: correct_employee_data_request_path(@request), method: :patch, local: true,
+                      id: "edr-review-form", class: "form-card edr-form edr-review-form", data: { testid: "review-form" } do |f| %>
+          <div>
+            <h2 class="form-card__title"><%= t("employee_data_requests.show.review_form_title") %></h2>
+            <p class="form-hint"><%= t("employee_data_requests.show.review_form_hint") %></p>
+          </div>
+          <%= render "data_fields", f: f, submitted: @submitted, id_prefix: "review" %>
+        <% end %>
+      <% else %>
+        <%# ── Read-only: requester, or any viewer once decided ── %>
+        <section class="info-card edr-card" aria-labelledby="edr-basic" data-testid="employee-data">
+          <h2 class="info-card__section-title" id="edr-basic"><%= t("employee_data_requests.show.basic_section") %></h2>
+          <% EmployeeDataRequestRevision::FIELD_GROUPS.each do |group, fields| %>
+            <p class="edr-card__group"><%= t("employee_data_requests.form.sections.#{group}") %></p>
+            <% fields.each do |field| %>
+              <% ltr = field.in?(EmployeeDataRequestRevision::LTR_FIELDS) %>
+              <div class="info-card__row">
+                <span class="info-card__label"><%= t("employee_data_requests.fields.#{field}") %></span>
+                <span class="edr-value <%= 'edr-value--ltr' if ltr %>" data-testid="field-<%= field %>">
+                  <bdi><%= show_value.(@current, field) %></bdi>
+                  <% if reviewer_view && @submitted && @submitted.public_send(field) != @current.public_send(field) %>
+                    <span class="edr-value__submitted" data-testid="submitted-<%= field %>">
+                      <%= t("employee_data_requests.show.submitted_value") %>: <bdi><%= show_value.(@submitted, field) %></bdi>
+                    </span>
+                  <% end %>
+                </span>
+              </div>
+            <% end %>
+          <% end %>
+        </section>
+      <% end %>
+
+      <%# ── Request information (manager notes are informational only) ── %>
+      <section class="info-card edr-card" aria-labelledby="edr-request">
+        <h2 class="info-card__section-title" id="edr-request"><%= t("employee_data_requests.show.request_section") %></h2>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("employee_data_requests.columns.submitted_by") %></span>
+          <span><%= @request.submitted_by.full_name %></span>
+        </div>
+        <div class="info-card__row">
+          <span class="info-card__label"><%= t("employee_data_requests.columns.submitted_at") %></span>
+          <span><%= local_datetime_12h(@request.created_at) %></span>
+        </div>
+        <div class="edr-notes">
+          <p class="info-card__label"><%= t("employee_data_requests.fields.manager_notes") %></p>
+          <% if @current.manager_notes.present? %>
+            <p class="edr-notes__body" data-testid="manager-notes"><%= @current.manager_notes %></p>
+            <p class="edr-notes__hint"><%= t("employee_data_requests.show.notes_informational") %></p>
+          <% else %>
+            <p class="edr-notes__empty">—</p>
+          <% end %>
+        </div>
+      </section>
+    </div>
+
+    <div class="edr-show__aside">
+      <%# ── Reviewer-only verification checks (never rendered for requesters) ── %>
+      <% if reviewer_view && @checks.present? %>
+        <section class="info-card edr-card edr-checks" aria-labelledby="edr-checks" data-testid="verification-checks">
+          <h2 class="info-card__section-title" id="edr-checks"><%= t("employee_data_requests.checks.title") %></h2>
+          <ul class="edr-checks__list">
+            <% @checks.each do |check| %>
+              <% params = check.params.transform_values { |v| v.is_a?(Date) ? local_date(v) : v } %>
+              <li class="edr-checks__item edr-checks__item--<%= check.status %>" data-testid="check-<%= check.key %>">
+                <span class="edr-checks__icon" aria-hidden="true"><%= check.ok? ? "✓" : "!" %></span>
+                <span><%= t("employee_data_requests.checks.#{check.key}", **params) %></span>
+              </li>
+            <% end %>
+          </ul>
+          <p class="edr-notes__hint"><%= t("employee_data_requests.checks.advisory") %></p>
+        </section>
+      <% end %>
+
+      <%# ── Documents (requester's own upload, or reviewer mode) ── %>
+      <% if can_documents %>
+        <section class="info-card edr-card edr-show__docs" aria-labelledby="edr-docs" data-testid="documents">
+          <h2 class="info-card__section-title" id="edr-docs"><%= t("employee_data_requests.show.documents_section") %></h2>
+          <div class="edr-photos">
+            <%= render "id_photo", request: @request, revision: @current, side: :front %>
+            <%= render "id_photo", request: @request, revision: @current, side: :back %>
+          </div>
+        </section>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Reviewer / approver actions: each shown only with its own permission
+      (the controller authorizes each one again server-side). ── %>
+  <% if can_decide || can_correct %>
+    <section class="form-card edr-actions" aria-labelledby="edr-actions-title" data-testid="review-actions">
+      <h2 class="form-card__title" id="edr-actions-title"><%= t("employee_data_requests.show.review_title") %></h2>
+      <% if req_policy.approve? %>
+        <p class="form-hint"><%= t("employee_data_requests.show.approve_scope_hint") %></p>
+      <% end %>
+
+      <div class="edr-actions__primary">
+        <% if req_policy.approve? %>
+          <% if @correction %>
+            <%# Submits the review form above, so the reviewer's edits are applied. %>
+            <button type="submit" form="edr-review-form" formaction="<%= approve_employee_data_request_path(@request) %>"
+                    class="btn btn-success edr-actions__approve" data-testid="approve-button"
+                    data-turbo-confirm="<%= t("employee_data_requests.actions.approve_confirm") %>">
+              <%= t("employee_data_requests.actions.approve") %>
+            </button>
+          <% else %>
+            <%= button_to t("employee_data_requests.actions.approve"), approve_employee_data_request_path(@request),
+                          method: :patch, class: "btn btn-success edr-actions__approve", data: { testid: "approve-button" },
+                          form: { data: { turbo_confirm: t("employee_data_requests.actions.approve_confirm") } } %>
+          <% end %>
+        <% end %>
+        <% if can_correct %>
+          <button type="submit" form="edr-review-form" formaction="<%= correct_employee_data_request_path(@request) %>"
+                  class="btn btn-secondary" data-testid="save-corrections-button">
+            <%= t("employee_data_requests.actions.save_corrections") %>
+          </button>
+        <% end %>
+      </div>
+
+      <div class="edr-actions__secondary">
+        <% if req_policy.request_changes? %>
+        <details class="edr-decision" data-testid="request-changes-action">
+          <summary class="btn btn-secondary"><%= t("employee_data_requests.actions.request_changes") %></summary>
+          <%= form_with url: request_changes_employee_data_request_path(@request), method: :patch, local: true, class: "edr-decision__form" do |f| %>
+            <%= f.label :note, t("employee_data_requests.actions.changes_note_label"), class: "form-label form-label--required", for: "changes_note" %>
+            <%= f.text_area :note, id: "changes_note", rows: 3, required: true, maxlength: 2000, class: "form-control",
+                            placeholder: t("employee_data_requests.actions.changes_note_placeholder") %>
+            <%= f.submit t("employee_data_requests.actions.send_changes"), class: "btn btn-primary" %>
+          <% end %>
+        </details>
+        <% end %>
+
+        <% if req_policy.reject? %>
+        <details class="edr-decision" data-testid="reject-action">
+          <summary class="btn btn-danger"><%= t("employee_data_requests.actions.reject") %></summary>
+          <%= form_with url: reject_employee_data_request_path(@request), method: :patch, local: true, class: "edr-decision__form",
+                        data: { turbo_confirm: t("employee_data_requests.actions.reject_confirm") } do |f| %>
+            <%= f.label :note, t("employee_data_requests.actions.reject_note_label"), class: "form-label form-label--required", for: "reject_note" %>
+            <%= f.text_area :note, id: "reject_note", rows: 3, required: true, maxlength: 2000, class: "form-control" %>
+            <%= f.submit t("employee_data_requests.actions.confirm_reject"), class: "btn btn-danger" %>
+          <% end %>
+        </details>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+
+  <%# ── History (append-only events; earlier versions stay viewable) ── %>
+  <section class="info-card edr-card edr-history" aria-labelledby="edr-history">
+    <h2 class="info-card__section-title" id="edr-history"><%= t("employee_data_requests.show.history_section") %></h2>
+    <% revisions_by_id = @revisions.index_by(&:id) %>
+    <ol class="edr-history__list">
+      <% @events.each do |event| %>
+        <% revision = revisions_by_id[event.revision_id] %>
+        <% prev = revision && @revisions.find { |r| r.revision_number == revision.revision_number - 1 } %>
+        <li class="edr-history__item edr-history__item--<%= event.action %>" data-testid="event-<%= event.action %>">
+          <span class="edr-history__marker" aria-hidden="true"></span>
+          <div class="edr-history__body">
+            <p class="edr-history__title"><%= t("employee_data_requests.events.#{event.action}") %></p>
+            <p class="edr-history__meta"><%= t("employee_data_requests.by_actor_at_html", name: event.actor.full_name, time: local_datetime_12h(event.created_at)) %></p>
+            <% if event.note.present? %>
+              <p class="edr-history__note"><%= event.note %></p>
+            <% end %>
+            <% if event.action == "resubmitted" && revision %>
+              <% changed = revision.changed_fields_since(prev) %>
+              <p class="edr-history__changes">
+                <%= t("employee_data_requests.show.changed_fields") %>:
+                <%= changed.any? ? changed.map { |f| t("employee_data_requests.fields.#{f}") }.join("، ") : t("employee_data_requests.show.no_changes") %>
+              </p>
+            <% end %>
+            <% if event.action == "corrected" && revision && prev %>
+              <% changed = revision.changed_data_fields_since(prev) %>
+              <% if reviewer_view %>
+                <ul class="edr-history__diff" data-testid="correction-diff">
+                  <% changed.each do |f| %>
+                    <li>
+                      <span class="edr-history__diff-field"><%= t("employee_data_requests.fields.#{f}") %>:</span>
+                      <del><bdi><%= show_value.(prev, f) %></bdi></del> → <ins><bdi><%= show_value.(revision, f) %></bdi></ins>
+                    </li>
+                  <% end %>
+                </ul>
+              <% else %>
+                <p class="edr-history__changes">
+                  <%= t("employee_data_requests.show.changed_fields") %>:
+                  <%= changed.map { |f| t("employee_data_requests.fields.#{f}") }.join("، ") %>
+                </p>
+              <% end %>
+            <% end %>
+            <% if event.action.in?(%w[submitted resubmitted]) && revision && revision != @current %>
+              <details class="edr-history__snapshot">
+                <summary><%= t("employee_data_requests.show.view_submitted_data", number: revision.revision_number) %></summary>
+                <dl class="edr-snapshot">
+                  <% (EmployeeDataRequestRevision::DATA_FIELDS + [ :manager_notes ]).each do |field| %>
+                    <div class="edr-snapshot__row">
+                      <dt><%= t("employee_data_requests.fields.#{field}") %></dt>
+                      <dd><bdi><%= show_value.(revision, field) %></bdi></dd>
+                    </div>
+                  <% end %>
+                </dl>
+                <% if can_documents %>
+                  <div class="edr-photos edr-photos--compact">
+                    <%= render "id_photo", request: @request, revision: revision, side: :front %>
+                    <%= render "id_photo", request: @request, revision: revision, side: :back %>
+                  </div>
+                <% end %>
+              </details>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ol>
+  </section>
+</div>

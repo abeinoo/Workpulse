@@ -1,0 +1,70 @@
+<%# The employee basic-data fields, grouped. Shared by the manager's form and
+    the reviewer's correction form so both always edit the same fields.
+    locals: f (form builder), submitted (reviewer only: the manager's latest
+            submission, to show "submitted → corrected"; nil otherwise),
+            id_prefix (unique DOM id prefix) %>
+<% submitted = local_assigns[:submitted] %>
+<% id_prefix = local_assigns.fetch(:id_prefix, "edr") %>
+<% max_birth = BusinessDay.current(context: current_user.business).iso8601 %>
+<% EmployeeDataRequestRevision::FIELD_GROUPS.each do |group, fields| %>
+  <section class="edr-form__section" aria-labelledby="<%= id_prefix %>-<%= group %>">
+    <h2 class="edr-form__heading" id="<%= id_prefix %>-<%= group %>"><%= t("employee_data_requests.form.sections.#{group}") %></h2>
+    <% if group == :emergency && submitted.nil? %>
+      <p class="form-hint"><%= t("employee_data_requests.form.emergency_hint") %></p>
+    <% end %>
+    <div class="edr-form__fields">
+      <% fields.each do |field| %>
+        <% required = field.in?(EmployeeDataRequestRevision::REQUIRED_FIELDS) %>
+        <% ltr      = field.in?(EmployeeDataRequestRevision::LTR_FIELDS) %>
+        <% dom_id   = "#{id_prefix}_#{field}" %>
+        <div class="form-group <%= 'form-group--full' if field.in?(%i[full_name address]) %> <%= 'edr-field--error' if f.object.errors[field].any? %>">
+          <%= f.label field, t("employee_data_requests.fields.#{field}"), for: dom_id,
+                      class: "form-label #{'form-label--required' if required}" %>
+          <% opts = { id: dom_id, class: "form-control #{'edr-form__ltr' if ltr} #{'is-error' if f.object.errors[field].any?}",
+                      required: required, autocomplete: "off" } %>
+          <% case field
+             when :address %>
+            <%= f.text_area field, opts.merge(rows: 2, maxlength: 500) %>
+          <% when *EmployeeDataRequestRevision::DATE_FIELDS %>
+            <%= f.date_field field, opts.merge(max: (field == :date_of_birth ? max_birth : nil), data: { controller: "datepicker" }) %>
+          <% when :phone_number, :emergency_contact_phone %>
+            <%= f.telephone_field field, opts.merge(maxlength: 20, inputmode: "tel", dir: "ltr",
+                                                    placeholder: t("employee_data_requests.form.phone_placeholder")) %>
+          <% when :national_id %>
+            <%= f.text_field field, opts.merge(maxlength: 20, inputmode: "numeric", dir: "ltr",
+                                               placeholder: t("employee_data_requests.form.national_id_placeholder")) %>
+          <% when :job_title %>
+            <%# Same component + source of truth as the employee form. %>
+            <%= render "shared/job_title_select", f: f, html: opts.except(:autocomplete) %>
+          <% when :emergency_contact_relationship %>
+            <%= f.text_field field, opts.merge(maxlength: 100, list: "#{id_prefix}-relationships") %>
+            <datalist id="<%= id_prefix %>-relationships">
+              <% Array(t("admin.users.form.relationship_options")).each do |opt| %>
+                <option value="<%= opt %>">
+              <% end %>
+            </datalist>
+          <% else %>
+            <%= f.text_field field, opts.merge(maxlength: field == :full_name ? 150 : 100,
+                                               placeholder: (field == :full_name ? t("employee_data_requests.form.full_name_placeholder") : nil)) %>
+          <% end %>
+          <% if f.object.errors[field].any? %>
+            <p class="edr-field__error"><%= f.object.errors[field].to_sentence %></p>
+          <% end %>
+          <% if field == :national_id && submitted.nil? %>
+            <p class="form-hint"><%= t("employee_data_requests.form.national_id_hint") %></p>
+          <% end %>
+          <% if submitted %>
+            <% submitted_value = submitted.public_send(field) %>
+            <% if submitted_value != f.object.public_send(field) %>
+              <p class="edr-field__submitted" data-testid="submitted-<%= field %>">
+                <span class="badge badge-accent badge-xs"><%= t("employee_data_requests.show.corrected") %></span>
+                <%= t("employee_data_requests.show.submitted_value") %>:
+                <bdi><%= submitted_value.is_a?(Date) ? local_date(submitted_value) : submitted_value.presence || "—" %></bdi>
+              </p>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </section>
+<% end %>

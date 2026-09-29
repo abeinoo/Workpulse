@@ -1,0 +1,24 @@
+<% content_for :title, "#{t('employee_data_requests.edit.title')} — WorkPulse" %>
+<% review = @request.latest_review_event %>
+
+<div class="form-page edr-page">
+  <%= link_to employee_data_request_path(@request), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("employee_data_requests.back_to_request") %>
+  <% end %>
+
+  <h1 class="page-title"><%= t("employee_data_requests.edit.title") %></h1>
+
+  <% if review&.note.present? %>
+    <div class="alert alert-warning edr-review-note" role="note">
+      <p class="edr-review-note__title"><%= t("employee_data_requests.show.changes_requested_title") %></p>
+      <p class="edr-review-note__body"><%= review.note %></p>
+      <p class="edr-review-note__meta">
+        <%= t("employee_data_requests.by_actor_at_html", name: review.actor.full_name, time: local_datetime_12h(review.created_at)) %>
+      </p>
+    </div>
+  <% end %>
+
+  <%= render "form", revision: @revision, previous: @current,
+             url: employee_data_request_path(@request), method: :patch %>
+</div>

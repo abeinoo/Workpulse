@@ -1,0 +1,16 @@
+<%# The job-title dropdown — ONE component for every form that sets an
+    employee's job title (admin employee form, employee data request, reviewer
+    correction). Options come only from the business's managed JobTitle list
+    (Admin → Job Titles); a no-longer-active current value is kept selectable.
+    locals: f (form builder), field (attribute, default :job_title),
+            html (extra select attributes, e.g. id / class) %>
+<% field   = local_assigns.fetch(:field, :job_title) %>
+<% current = f.object.public_send(field) %>
+<% html    = local_assigns.fetch(:html, {}) %>
+<%= f.select field,
+      options_for_select(JobTitle.options_for(current_user.business, current: current), current),
+      { include_blank: "— #{t("job_titles.select_blank")} —" },
+      { class: "form-control" }.merge(html) %>
+<% if policy(JobTitle).index? %>
+  <p class="form-hint"><%= link_to t("job_titles.manage_link"), admin_job_titles_path, target: "_blank", rel: "noopener" %></p>
+<% end %>

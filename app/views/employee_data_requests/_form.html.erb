@@ -1,0 +1,66 @@
+<%# Manager's employee data form — employee basic data + ID photos + notes.
+    Branch, salary, role, shifts, commission and payroll are deliberately
+    absent: they are configured on the employee after approval.
+    locals: revision (EmployeeDataRequestRevision), url, method,
+            previous (the prior revision on resubmission, else nil) %>
+<% previous = local_assigns[:previous] %>
+<%= form_with model: revision, scope: :employee_data_request, url: url, method: method,
+              local: true, multipart: true, class: "form-card edr-form" do |f| %>
+  <%= render "shared/error_messages", object: revision %>
+
+  <%= render "data_fields", f: f %>
+
+  <section class="edr-form__section" aria-labelledby="edr-documents-heading">
+    <h2 class="edr-form__heading" id="edr-documents-heading"><%= t("employee_data_requests.form.documents_section") %></h2>
+    <% if previous %>
+      <p class="form-hint form-hint--info"><%= t("employee_data_requests.form.keep_documents_hint") %></p>
+    <% end %>
+
+    <div class="edr-form__uploads">
+      <% { id_front: :front, id_back: :back }.each do |field, side| %>
+        <div class="form-group">
+          <%= f.label field, t("employee_data_requests.fields.#{field}"),
+                      class: "form-label #{'form-label--required' unless previous}" %>
+          <div class="upload-field edr-upload" data-controller="image-upload">
+            <div class="upload-field__preview">
+              <% if previous %>
+                <img src="<%= document_employee_data_request_path(previous.employee_data_request, side: side, revision_id: previous.id) %>"
+                     class="upload-field__doc-thumb" alt="<%= t("employee_data_requests.fields.#{field}") %>"
+                     data-image-upload-target="img">
+                <div class="upload-field__doc-placeholder" data-image-upload-target="placeholder" hidden>&#128196;</div>
+              <% else %>
+                <img class="upload-field__doc-thumb" alt="" data-image-upload-target="img" hidden>
+                <div class="upload-field__doc-placeholder" data-image-upload-target="placeholder">&#128196;</div>
+              <% end %>
+              <span class="upload-field__filename" data-image-upload-target="filename" hidden></span>
+              <div class="upload-field__controls">
+                <label class="btn btn-secondary btn-sm upload-field__choose">
+                  <%= previous ? t("employee_data_requests.form.replace_photo") : t("employee_data_requests.form.upload_photo") %>
+                  <%= f.file_field field, accept: Attachable::IMAGE_CONTENT_TYPES.join(","),
+                                   class: "upload-field__input", required: previous.nil?,
+                                   data: { "image-upload-target": "input", action: "change->image-upload#change" } %>
+                </label>
+              </div>
+            </div>
+            <p class="upload-field__hint"><%= t("employee_data_requests.form.photo_hint") %></p>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="edr-form__section" aria-labelledby="edr-notes-heading">
+    <h2 class="edr-form__heading" id="edr-notes-heading"><%= t("employee_data_requests.fields.manager_notes") %></h2>
+    <div class="form-group">
+      <%= f.label :manager_notes, t("employee_data_requests.fields.manager_notes"), class: "form-label sr-only" %>
+      <%= f.text_area :manager_notes, class: "form-control", rows: 4, maxlength: 2000,
+                      placeholder: t("employee_data_requests.form.notes_placeholder") %>
+      <p class="form-hint"><%= t("employee_data_requests.form.notes_hint") %></p>
+    </div>
+  </section>
+
+  <div class="form-actions edr-form__actions">
+    <%= f.submit previous ? t("employee_data_requests.form.resubmit") : t("employee_data_requests.form.submit"),
+                 class: "btn btn-primary edr-form__submit", data: { turbo_submits_with: t("employee_data_requests.form.submitting") } %>
+  </div>
+<% end %>

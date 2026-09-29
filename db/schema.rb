@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_29_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -487,6 +487,58 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
     t.index ["to_user_id"], name: "index_deposit_responsibility_transfers_on_to_user_id"
   end
 
+  create_table "employee_data_request_events", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "actor_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "employee_data_request_id", null: false
+    t.text "note"
+    t.bigint "revision_id"
+    t.index ["actor_id"], name: "index_employee_data_request_events_on_actor_id"
+    t.index ["employee_data_request_id"], name: "index_employee_data_request_events_on_employee_data_request_id"
+    t.index ["revision_id"], name: "index_employee_data_request_events_on_revision_id"
+  end
+
+  create_table "employee_data_request_revisions", force: :cascade do |t|
+    t.text "address"
+    t.datetime "created_at", null: false
+    t.date "date_of_birth", null: false
+    t.string "emergency_contact_name"
+    t.string "emergency_contact_phone"
+    t.string "emergency_contact_relationship"
+    t.bigint "employee_data_request_id", null: false
+    t.string "full_name", null: false
+    t.date "hire_date"
+    t.date "identity_card_expiry_date"
+    t.string "job_title"
+    t.text "manager_notes"
+    t.string "national_id", null: false
+    t.string "phone_number", null: false
+    t.integer "revision_number", null: false
+    t.string "source", default: "submission", null: false
+    t.bigint "submitted_by_id", null: false
+    t.index ["employee_data_request_id", "revision_number"], name: "index_edr_revisions_on_request_and_number", unique: true
+    t.index ["employee_data_request_id"], name: "idx_on_employee_data_request_id_86bca1c4fa"
+    t.index ["national_id"], name: "index_employee_data_request_revisions_on_national_id"
+    t.index ["submitted_by_id"], name: "index_employee_data_request_revisions_on_submitted_by_id"
+  end
+
+  create_table "employee_data_requests", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "employee_id"
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_id"
+    t.string "status", default: "pending_review", null: false
+    t.bigint "submitted_by_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "status"], name: "index_employee_data_requests_on_business_id_and_status"
+    t.index ["business_id"], name: "index_employee_data_requests_on_business_id"
+    t.index ["employee_id"], name: "index_employee_data_requests_on_employee_id"
+    t.index ["reviewed_by_id"], name: "index_employee_data_requests_on_reviewed_by_id"
+    t.index ["submitted_by_id"], name: "index_employee_data_requests_on_submitted_by_id"
+  end
+
   create_table "employee_insurance_profiles", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.datetime "created_at", null: false
@@ -829,6 +881,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
     t.index ["product_id"], name: "index_inventory_movements_on_product_id"
     t.index ["source_type", "source_id"], name: "index_inventory_movements_on_source"
     t.index ["warehouse_id"], name: "index_inventory_movements_on_warehouse_id"
+  end
+
+  create_table "job_titles", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "business_id, lower((name)::text)", name: "index_job_titles_on_business_id_and_lower_name", unique: true
+    t.index ["business_id"], name: "index_job_titles_on_business_id"
   end
 
   create_table "laundry_batch_consumptions", force: :cascade do |t|
@@ -2286,11 +2348,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
 
   create_table "users", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.text "address"
     t.text "admin_notes"
     t.boolean "allow_biometric_attendance", default: true, null: false
     t.boolean "allow_mobile_attendance", default: true, null: false
     t.integer "business_id"
     t.datetime "created_at", null: false
+    t.date "date_of_birth"
     t.string "department"
     t.bigint "department_id"
     t.string "email"
@@ -2432,6 +2496,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
   add_foreign_key "deposit_responsibility_transfers", "users", column: "initiated_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "rejected_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "to_user_id"
+  add_foreign_key "employee_data_request_events", "employee_data_request_revisions", column: "revision_id"
+  add_foreign_key "employee_data_request_events", "employee_data_requests"
+  add_foreign_key "employee_data_request_events", "users", column: "actor_id"
+  add_foreign_key "employee_data_request_revisions", "employee_data_requests"
+  add_foreign_key "employee_data_request_revisions", "users", column: "submitted_by_id"
+  add_foreign_key "employee_data_requests", "businesses"
+  add_foreign_key "employee_data_requests", "users", column: "employee_id"
+  add_foreign_key "employee_data_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "employee_data_requests", "users", column: "submitted_by_id"
   add_foreign_key "employee_insurance_profiles", "businesses"
   add_foreign_key "employee_insurance_profiles", "users"
   add_foreign_key "employee_insurance_profiles", "users", column: "created_by_id"
@@ -2487,6 +2560,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
   add_foreign_key "inventory_movements", "businesses"
   add_foreign_key "inventory_movements", "products"
   add_foreign_key "inventory_movements", "warehouses"
+  add_foreign_key "job_titles", "businesses"
   add_foreign_key "laundry_batch_consumptions", "branches", column: "laundry_branch_id"
   add_foreign_key "laundry_batch_consumptions", "inventory_movements"
   add_foreign_key "laundry_batch_consumptions", "laundry_batches"

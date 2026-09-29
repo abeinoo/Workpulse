@@ -8,6 +8,7 @@ class DashboardController < ApplicationController
   # mutually-exclusive. Personal/self-owned widgets are universal.
   def index
     load_personal_data
+    load_birthday_data
     load_branch_management_data if show_branch_management_section?
     load_area_management_data   if show_area_management_section?
     load_payroll_data           if show_payroll_section?
@@ -30,7 +31,8 @@ class DashboardController < ApplicationController
                 :show_area_management_section?,
                 :show_payroll_section?,
                 :show_analytics_section?,
-                :show_inventory_section?
+                :show_inventory_section?,
+                :show_team_birthdays?
 
   # Inventory low-stock summary: anyone who can view inventory. Warehouse-scoped
   # users only see alerts for their assigned warehouses.
@@ -193,6 +195,26 @@ class DashboardController < ApplicationController
     @has_personal_widgets =
       @missing_checkout.present? || @has_attendance_context ||
       @recent_requests.any? || @latest_payroll.present?
+  end
+
+  # ── Birthdays ─────────────────────────────────────────────────────────────
+  # The viewer's own celebration (once per business day) plus today's team
+  # birthdays for anyone who can view employees. The team list is drawn from
+  # policy_scope(User), so it never reveals employees the viewer can't access.
+  def show_team_birthdays?
+    current_user.can?(:view_employees)
+  end
+
+  def load_birthday_data
+    today = BusinessDay.current(context: current_user.business)
+
+    @birthday_today = current_user.birthday_on?(today)
+    @show_birthday_celebration =
+      @birthday_today &&
+      !Dashboard::Birthdays::Celebration.shown?(current_user, today)
+
+    @team_birthdays =
+      show_team_birthdays? ? Dashboard::Birthdays.team(policy_scope(User), viewer: current_user, date: today) : []
   end
 
   # ── Branch management section ─────────────────────────────────────────────

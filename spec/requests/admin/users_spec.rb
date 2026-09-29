@@ -179,6 +179,11 @@ RSpec.describe "Admin::Users", type: :request do
       expect(target_user.reload.first_name).to eq("Ahmed")
       expect(response).to redirect_to(admin_users_path)
     end
+
+    it "saves the date of birth" do
+      patch admin_user_path(target_user), params: { user: { date_of_birth: "1990-09-29" } }
+      expect(target_user.reload.date_of_birth).to eq(Date.new(1990, 9, 29))
+    end
   end
 
   describe "DELETE /admin/users/:id" do

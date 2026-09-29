@@ -16,6 +16,12 @@ class PermissionRole < ApplicationRecord
 
   PERMISSION_GROUPS = {
     employees:             %w[view_employees manage_employees manage_salary_profiles],
+    # Employee Add Requests (طلبات إضافة موظف) — the onboarding workflow, kept
+    # separate from employee management: none of these grants editing
+    # employees, salary, branches, permissions, payroll or attendance.
+    employee_onboarding:   %w[create_employee_requests view_employee_requests view_all_employee_requests
+                               review_employee_requests approve_employee_requests
+                               reject_employee_requests request_employee_changes],
     insurance:             %w[view_employee_insurance manage_employee_insurance],
     attendance:            %w[view_attendance manage_attendance delete_attendance manage_devices],
     payroll:               %w[view_payroll view_draft_payroll view_payroll_analytics view_payroll_audit_log
@@ -223,6 +229,9 @@ class PermissionRole < ApplicationRecord
          view_draft_payroll view_payroll_audit_log
          approve_adjustments edit_approved_adjustments manage_devices manage_shifts
          manage_evaluation_templates view_performance_reports] +
+    # Which submitters' requests a reviewer sees (requests carry no branch; the
+    # submitter is the scoping key). Review/decision actions reuse this scope.
+    %w[view_all_employee_requests] +
     BRANCH_SCOPABLE_PERMISSIONS +
     DR_MANAGEMENT_PERMISSIONS
   ).freeze
@@ -267,6 +276,12 @@ class PermissionRole < ApplicationRecord
     "delete_attendance"      => %w[manage_attendance],
     "manage_employees"       => %w[view_employees],
     "manage_salary_profiles" => %w[view_employees],
+    "create_employee_requests"   => %w[view_employee_requests],
+    "view_all_employee_requests" => %w[view_employee_requests],
+    "review_employee_requests"   => %w[view_all_employee_requests],
+    "approve_employee_requests"  => %w[view_all_employee_requests],
+    "reject_employee_requests"   => %w[view_all_employee_requests],
+    "request_employee_changes"   => %w[view_all_employee_requests],
     "manage_employee_insurance" => %w[view_employee_insurance],
     "view_draft_payroll"     => %w[view_payroll],
     "finalize_payroll"       => %w[view_payroll],

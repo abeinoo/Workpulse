@@ -1,0 +1,13 @@
+<% content_for :title, "#{t('employee_data_requests.new.title')} — WorkPulse" %>
+
+<div class="form-page edr-page">
+  <%= link_to employee_data_requests_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("employee_data_requests.back_to_list") %>
+  <% end %>
+
+  <h1 class="page-title"><%= t("employee_data_requests.new.title") %></h1>
+  <p class="page-subtitle"><%= t("employee_data_requests.new.subtitle") %></p>
+
+  <%= render "form", revision: @revision, url: employee_data_requests_path, method: :post %>
+</div>

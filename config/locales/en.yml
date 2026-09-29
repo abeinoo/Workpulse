@@ -16,6 +16,7 @@ en:
     attendance_import: "Attendance Import"
     my_attendance: "My Attendance"
     requests: "Requests"
+    employee_data_requests: "Employee Add Requests"
     adjustments: "Adjustments"
     payroll: "Payroll"
     admin: "Admin"
@@ -87,6 +88,7 @@ en:
     finance_pos_import: "POS Import"
     finance_outstanding_balances: "Outstanding Balances"
     departments: "Departments"
+    job_titles: "Job Titles"
     evaluation_templates: "Evaluation Templates"
     section_laundry: "Laundry"
     laundry_dashboard: "Laundry Dashboard"
@@ -144,6 +146,16 @@ en:
 
   dashboard:
     page_title: "Home — WorkPulse"
+    birthday:
+      celebration_title: "🎉 Happy Birthday, %{name}!"
+      celebration_message: "Wishing you a happy new year full of success ❤️"
+      celebration_tagline: "كل سنة وإنت طيب 🎂"
+      celebration_close: "Thank you!"
+      greeting_badge: "Happy Birthday 🎂"
+      team_title: "Today's Birthdays"
+      team_count:
+        one: "1 birthday"
+        other: "%{count} birthdays"
     today: "Today"
     inventory:
       low_stock_title: "Low Stock Alerts"
@@ -2184,6 +2196,7 @@ en:
       job_title: "Job Title"
       department: "Department"
       hire_date: "Hire Date"
+      date_of_birth: "Date of Birth"
       employment_type: "Employment Type"
       employment_types:
         full_time: "Full Time"
@@ -2261,6 +2274,7 @@ en:
         department: "Department"
         no_department: "No department"
         hire_date: "Hire Date"
+        date_of_birth: "Date of Birth"
         employment_type: "Employment Type"
         select_employment_type: "Select type"
         first_name_placeholder: "Jane"
@@ -2569,6 +2583,7 @@ en:
         reset_preset_confirm: "This will replace all current permissions with the preset defaults. Any custom changes will be lost. Continue?"
       groups:
         employees: "Employees"
+        employee_onboarding: "Employee Add Requests"
         insurance: "Social Insurance"
         attendance: "Attendance"
         payroll: "Payroll"
@@ -2603,6 +2618,13 @@ en:
         view_employees: "View Employees"
         manage_employees: "Manage Employees"
         manage_salary_profiles: "Manage Salary Profiles"
+        create_employee_requests: "Create Employee Add Requests"
+        view_employee_requests: "View Own Employee Add Requests"
+        view_all_employee_requests: "View All Employee Add Requests"
+        review_employee_requests: "Review Employee Add Requests"
+        approve_employee_requests: "Approve Employee Add Requests"
+        reject_employee_requests: "Reject Employee Add Requests"
+        request_employee_changes: "Return Employee Add Requests for Changes"
         view_employee_insurance: "View Social Insurance"
         manage_employee_insurance: "Manage Social Insurance"
         view_attendance: "View Attendance"
@@ -2734,6 +2756,13 @@ en:
         view_employees: "See the employee list and profiles"
         manage_employees: "Create, edit, and deactivate employees"
         manage_salary_profiles: "Create and update salary profiles"
+        create_employee_requests: "Submit new-employee data and ID photos for review; resubmit own requests returned for changes"
+        view_employee_requests: "See the status and data of Employee Add Requests you submitted"
+        view_all_employee_requests: "See Employee Add Requests submitted by other users within your scope"
+        review_employee_requests: "Open requests in reviewer mode: correct the data, see ID photos and verification checks (does not include approving)"
+        approve_employee_requests: "Approve a request, creating the employee from the approved data (never your own request)"
+        reject_employee_requests: "Reject a request with a reason"
+        request_employee_changes: "Send a request back to the requester to correct and resubmit"
         view_employee_insurance: "View employee social insurance configuration"
         manage_employee_insurance: "Edit employee social insurance configuration"
         view_attendance: "View attendance records across branches"
@@ -5037,6 +5066,10 @@ en:
   activerecord:
     errors:
       models:
+        user:
+          attributes:
+            date_of_birth:
+              in_future: "can't be in the future"
         custody_account:
           attributes:
             user_id:
@@ -5061,6 +5094,7 @@ en:
         funding_source_kind: "Funding source"
         warehouse: "Warehouse"
       user:
+        date_of_birth: "Date of birth"
         first_name: "First name"
         last_name: "Last name"
         email: "Email"

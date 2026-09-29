@@ -1,0 +1,26 @@
+<%# ── Today's birthdays (team) ──────────────────────────────────────
+    Only for users who can view employees; the list comes from
+    policy_scope(User), so it never includes anyone the viewer can't access.
+    Collapses entirely when nobody has a birthday today. %>
+<% return if @team_birthdays.blank? %>
+
+<section class="birthday-strip" aria-labelledby="birthday-strip-title">
+  <div class="birthday-strip__head">
+    <span class="birthday-strip__icon" aria-hidden="true">🎂</span>
+    <h2 class="birthday-strip__title" id="birthday-strip-title"><%= t("dashboard.birthday.team_title") %></h2>
+    <span class="birthday-strip__count"><%= t("dashboard.birthday.team_count", count: @team_birthdays.size) %></span>
+  </div>
+  <ul class="birthday-strip__list">
+    <% @team_birthdays.each do |entry| %>
+      <li class="birthday-chip">
+        <span class="birthday-chip__icon" aria-hidden="true">🎂</span>
+        <span class="birthday-chip__text">
+          <span class="birthday-chip__name"><%= entry.user.full_name %></span>
+          <% if entry.branch_name.present? %>
+            <span class="birthday-chip__branch"><%= entry.branch_name %></span>
+          <% end %>
+        </span>
+      </li>
+    <% end %>
+  </ul>
+</section>

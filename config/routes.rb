@@ -143,6 +143,7 @@ Rails.application.routes.draw do
 
     # ── Performance: Department Settings ──────────────────────────────────
     resources :departments, except: [ :show ]
+    resources :job_titles,  only: [ :index, :new, :create, :edit, :update ]
     resources :evaluation_templates
   end
 
@@ -211,6 +212,18 @@ Rails.application.routes.draw do
     end
   end
 
+  # Employee data submission ("طلب إضافة موظف") — personal data + ID photos
+  # only; employment configuration happens on the employee after approval.
+  resources :employee_data_requests, only: [ :index, :new, :create, :show, :edit, :update ] do
+    member do
+      patch :correct
+      patch :approve
+      patch :reject
+      patch :request_changes
+      get   "documents/:side", action: :document, as: :document, constraints: { side: /front|back/ }
+    end
+  end
+
   get  "payroll_dashboard",    to: "payroll_dashboard#index",    as: :payroll_dashboard
   get  "operations_dashboard", to: "operations_dashboard#index", as: :operations_dashboard
 
@@ -256,6 +269,9 @@ Rails.application.routes.draw do
 
   patch "preferences/locale", to: "preferences#update", as: :user_locale
   patch "locale", to: "locale#update", as: :set_locale
+
+  # Marks today's birthday celebration as seen (shown once per business day).
+  resource :birthday_celebration, only: :create
 
   # ── Profile (employee self-service) ───────────────────────────────────────
   namespace :profile do

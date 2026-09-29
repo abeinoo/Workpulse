@@ -1,0 +1,27 @@
+<%# ── Birthday celebration (self) ───────────────────────────────────
+    Rendered only on the employee's own birthday (business day) and only until
+    they've seen it once that day — the dialog posts an acknowledgement when it
+    opens. data-turbo-temporary keeps it out of Turbo's page cache so going
+    "back" to the dashboard doesn't replay it. %>
+<div data-controller="birthday-celebration"
+     data-birthday-celebration-url-value="<%= birthday_celebration_path %>"
+     data-turbo-temporary>
+  <dialog class="birthday-dialog"
+          aria-labelledby="birthday-dialog-title"
+          data-birthday-celebration-target="dialog"
+          data-action="click->birthday-celebration#backdropClose">
+    <div class="birthday-confetti" data-birthday-celebration-target="confetti" aria-hidden="true"></div>
+    <div class="birthday-dialog__body">
+      <div class="birthday-dialog__cake" aria-hidden="true">🎂</div>
+      <h2 class="birthday-dialog__title" id="birthday-dialog-title">
+        <%= t("dashboard.birthday.celebration_title", name: current_user.first_name.presence || current_user.full_name) %>
+      </h2>
+      <p class="birthday-dialog__message"><%= t("dashboard.birthday.celebration_message") %></p>
+      <p class="birthday-dialog__tagline"><%= t("dashboard.birthday.celebration_tagline") %></p>
+      <button type="button" class="btn btn-primary birthday-dialog__close"
+              data-action="birthday-celebration#close" autofocus>
+        <%= t("dashboard.birthday.celebration_close") %>
+      </button>
+    </div>
+  </dialog>
+</div>

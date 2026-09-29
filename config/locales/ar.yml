@@ -16,6 +16,7 @@ ar:
     attendance_import: "استيراد سجلات الحضور"
     my_attendance: "حضوري"
     requests: "الطلبات"
+    employee_data_requests: "طلبات إضافة الموظفين"
     adjustments: "التسويات"
     payroll: "الرواتب"
     admin: "الإدارة"
@@ -87,6 +88,7 @@ ar:
     finance_pos_import: "استيراد نقاط البيع"
     finance_outstanding_balances: "الأرصدة المعلقة"
     departments: "الأقسام"
+    job_titles: "المسميات الوظيفية"
     evaluation_templates: "قوالب التقييم"
     section_laundry: "المغسلة"
     laundry_dashboard: "لوحة المغسلة"
@@ -143,6 +145,20 @@ ar:
       min_length: "٦ أحرف على الأقل."
 
   dashboard:
+    birthday:
+      celebration_title: "🎉 كل سنة وإنت طيب يا %{name}!"
+      celebration_message: "نتمنى لك سنة جديدة سعيدة ومليئة بالنجاح ❤️"
+      celebration_tagline: "Happy Birthday 🎂"
+      celebration_close: "شكراً!"
+      greeting_badge: "كل سنة وإنت طيب 🎂"
+      team_title: "أعياد ميلاد اليوم"
+      team_count:
+        zero: "لا أعياد ميلاد"
+        one: "عيد ميلاد واحد"
+        two: "عيدا ميلاد"
+        few: "%{count} أعياد ميلاد"
+        many: "%{count} عيد ميلاد"
+        other: "%{count} عيد ميلاد"
     page_title: "الرئيسية — ووركبلس"
     today: "اليوم"
     inventory:
@@ -2173,6 +2189,7 @@ ar:
       job_title: "المسمى الوظيفي"
       department: "القسم"
       hire_date: "تاريخ التعيين"
+      date_of_birth: "تاريخ الميلاد"
       employment_type: "نوع التوظيف"
       employment_types:
         full_time: "دوام كامل"
@@ -2250,6 +2267,7 @@ ar:
         department: "القسم"
         no_department: "بدون قسم"
         hire_date: "تاريخ التعيين"
+        date_of_birth: "تاريخ الميلاد"
         employment_type: "نوع التوظيف"
         select_employment_type: "اختر النوع"
         first_name_placeholder: "مثال: سارة"
@@ -2559,6 +2577,7 @@ ar:
         reset_preset_confirm: "سيؤدي هذا إلى استبدال جميع الصلاحيات الحالية بافتراضيات القالب. سيتم فقدان أي تغييرات مخصصة. هل تريد المتابعة؟"
       groups:
         employees: "الموظفون"
+        employee_onboarding: "طلبات إضافة موظف"
         insurance: "التأمين الاجتماعي"
         attendance: "الحضور"
         payroll: "الرواتب"
@@ -2593,6 +2612,13 @@ ar:
         view_employees: "عرض الموظفين"
         manage_employees: "إدارة الموظفين"
         manage_salary_profiles: "إدارة ملفات الرواتب"
+        create_employee_requests: "إنشاء طلبات إضافة موظف"
+        view_employee_requests: "عرض طلبات إضافة موظف الخاصة"
+        view_all_employee_requests: "عرض جميع طلبات إضافة موظف"
+        review_employee_requests: "مراجعة طلبات إضافة موظف"
+        approve_employee_requests: "اعتماد طلبات إضافة موظف"
+        reject_employee_requests: "رفض طلبات إضافة موظف"
+        request_employee_changes: "إعادة طلبات إضافة موظف للتعديل"
         view_employee_insurance: "عرض التأمين الاجتماعي للموظف"
         manage_employee_insurance: "إدارة التأمين الاجتماعي للموظف"
         view_attendance: "عرض سجلات الحضور"
@@ -2724,6 +2750,13 @@ ar:
         view_employees: "الاطلاع على قائمة الموظفين وملفاتهم"
         manage_employees: "إنشاء الموظفين وتعديلهم وإلغاء تفعيلهم"
         manage_salary_profiles: "إنشاء ملفات الرواتب وتحديثها"
+        create_employee_requests: "إرسال بيانات موظف جديد وصور البطاقة للمراجعة، وإعادة إرسال طلباته المُعادة للتعديل"
+        view_employee_requests: "عرض حالة وبيانات طلبات إضافة الموظف التي قدّمها المستخدم"
+        view_all_employee_requests: "عرض الطلبات المقدمة من مستخدمين آخرين ضمن نطاق الصلاحية"
+        review_employee_requests: "فتح الطلب في وضع المراجعة: تصحيح البيانات وعرض صور البطاقة والتحقق (لا يشمل الاعتماد)"
+        approve_employee_requests: "اعتماد الطلب وإنشاء الموظف بالبيانات المعتمدة (لا يمكن اعتماد طلبك الخاص)"
+        reject_employee_requests: "رفض الطلب مع ذكر السبب"
+        request_employee_changes: "إعادة الطلب لمقدمه لتصحيحه وإعادة إرساله"
         view_employee_insurance: "الاطلاع على إعدادات التأمين الاجتماعي للموظفين"
         manage_employee_insurance: "تعديل إعدادات التأمين الاجتماعي للموظفين"
         view_attendance: "عرض سجلات الحضور عبر الفروع"
@@ -5098,6 +5131,10 @@ ar:
   activerecord:
     errors:
       models:
+        user:
+          attributes:
+            date_of_birth:
+              in_future: "لا يمكن أن يكون في المستقبل"
         custody_account:
           attributes:
             user_id:
@@ -5122,6 +5159,7 @@ ar:
         funding_source_kind: "مصدر التمويل"
         warehouse: "المستودع"
       user:
+        date_of_birth: "تاريخ الميلاد"
         first_name: "الاسم الأول"
         last_name: "اسم العائلة"
         email: "البريد الإلكتروني"

@@ -1,0 +1,47 @@
+ar:
+  job_titles:
+    select_blank: "اختر المسمى الوظيفي"
+    manage_link: "إدارة قائمة المسميات الوظيفية"
+  admin:
+    job_titles:
+      title: "المسميات الوظيفية"
+      intro: "القائمة المعتمدة للمسميات الوظيفية. تظهر في نموذج إضافة موظف وفي طلبات إضافة الموظفين. المسمى غير النشط لا يظهر للاختيار، لكن الموظفين الحاليين يحتفظون به."
+      add: "إضافة مسمى وظيفي"
+      new_title: "مسمى وظيفي جديد"
+      edit_title: "تعديل المسمى الوظيفي"
+      name: "المسمى الوظيفي"
+      name_placeholder: "مثال: مصفف شعر"
+      rename_hint: "تغيير الاسم يغيّر القائمة فقط؛ الموظفون الحاليون يحتفظون بالاسم المسجل لهم."
+      employees: "الموظفون"
+      status: "الحالة"
+      statuses:
+        active: "نشط"
+        inactive: "غير نشط"
+      active_label: "نشط (يظهر في قائمة الاختيار)"
+      active_hint: "إلغاء التفعيل يخفيه من الاختيار دون تغيير بيانات الموظفين."
+      empty: "لا توجد مسميات وظيفية بعد."
+      created: "تمت إضافة المسمى الوظيفي."
+      updated: "تم تحديث المسمى الوظيفي."
+  activerecord:
+    models:
+      job_title: "مسمى وظيفي"
+    attributes:
+      job_title:
+        name: "المسمى الوظيفي"
+        active: "نشط"
+    errors:
+      models:
+        job_title:
+          attributes:
+            name:
+              blank: "مطلوب"
+              taken: "موجود بالفعل"
+              too_long: "طويل جداً"
+        user:
+          attributes:
+            job_title:
+              not_in_list: "يجب اختياره من قائمة المسميات الوظيفية"
+        employee_data_request_revision:
+          attributes:
+            job_title:
+              not_in_list: "يجب اختيارها من قائمة المسميات الوظيفية"

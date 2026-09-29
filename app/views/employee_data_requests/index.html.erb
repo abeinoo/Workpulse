@@ -1,0 +1,139 @@
+<% content_for :title, "#{t('employee_data_requests.index.title')} — WorkPulse" %>
+<% list_policy = policy(EmployeeDataRequest) %>
+<% can_create  = list_policy.create? %>
+<% can_review  = list_policy.review_any? %>
+<% pending_count = @status_counts["pending_review"].to_i %>
+<% changes_count = @status_counts["changes_requested"].to_i %>
+
+<div class="admin-page edr-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("employee_data_requests.index.title") %></h1>
+      <p class="page-subtitle"><%= t("employee_data_requests.index.subtitle") %></p>
+    </div>
+    <% if can_create %>
+      <%= link_to new_employee_data_request_path, class: "btn btn-primary" do %>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <%= t("employee_data_requests.new.title") %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <%# Pending work is surfaced before anything else: the reviewer's queue, and
+      for a manager, requests sent back for correction. %>
+  <% if @reviewer && pending_count.positive? %>
+    <%= link_to employee_data_requests_path(status: "pending_review"), class: "alert alert-warning edr-queue-alert", data: { testid: "pending-alert" } do %>
+      <strong><%= t("employee_data_requests.index.pending_alert", count: pending_count) %></strong>
+      <span class="edr-queue-alert__cta"><%= t("employee_data_requests.index.review_now") %> →</span>
+    <% end %>
+  <% elsif !@reviewer && changes_count.positive? %>
+    <%= link_to employee_data_requests_path(status: "changes_requested"), class: "alert alert-info edr-queue-alert", data: { testid: "changes-alert" } do %>
+      <strong><%= t("employee_data_requests.index.changes_alert", count: changes_count) %></strong>
+      <span class="edr-queue-alert__cta"><%= t("employee_data_requests.index.fix_now") %> →</span>
+    <% end %>
+  <% end %>
+
+  <div class="stats-grid edr-stats">
+    <% [ [ "pending_review", "warning" ], [ "changes_requested", "accent" ], [ "approved", "success" ], [ "rejected", "danger" ] ].each do |status, tone| %>
+      <%= link_to employee_data_requests_path(status: status), class: "stat-card stat-card--#{tone} edr-stat #{'edr-stat--active' if @filters[:status] == status}" do %>
+        <p class="stat-card__label"><%= t("employee_data_requests.statuses.#{status}") %></p>
+        <p class="stat-card__value"><%= @status_counts[status].to_i %></p>
+      <% end %>
+    <% end %>
+  </div>
+
+  <%= form_with url: employee_data_requests_path, method: :get, local: true, class: "filter-bar" do |f| %>
+    <div class="filter-bar__fields">
+      <div class="filter-bar__field">
+        <%= f.label :status, t("employee_data_requests.filters.status"), class: "filter-bar__label" %>
+        <%= f.select :status,
+              options_for_select([ [ t("employee_data_requests.filters.all_statuses"), "" ] ] +
+                                   EmployeeDataRequest::STATUSES.map { |s| [ t("employee_data_requests.statuses.#{s}"), s ] },
+                                 @filters[:status]),
+              {}, class: "filter-bar__select" %>
+      </div>
+      <% if @reviewer && @submitters.any? %>
+        <div class="filter-bar__field">
+          <%= f.label :submitted_by_id, t("employee_data_requests.filters.submitted_by"), class: "filter-bar__label" %>
+          <%= f.select :submitted_by_id,
+                options_for_select([ [ t("employee_data_requests.filters.all_submitters"), "" ] ] +
+                                     @submitters.map { |u| [ u.full_name, u.id ] },
+                                   @filters[:submitted_by_id]),
+                {}, class: "filter-bar__select" %>
+        </div>
+      <% end %>
+      <div class="filter-bar__field">
+        <%= f.label :date_from, t("employee_data_requests.filters.date_from"), class: "filter-bar__label" %>
+        <%= f.date_field :date_from, value: @filters[:date_from], class: "filter-bar__input" %>
+      </div>
+      <div class="filter-bar__field">
+        <%= f.label :date_to, t("employee_data_requests.filters.date_to"), class: "filter-bar__label" %>
+        <%= f.date_field :date_to, value: @filters[:date_to], class: "filter-bar__input" %>
+      </div>
+    </div>
+    <div class="filter-bar__actions">
+      <%= f.submit t("employee_data_requests.filters.apply"), class: "btn btn-sm btn-primary", name: nil %>
+      <% if @active_filters %>
+        <%= link_to t("employee_data_requests.filters.clear"), employee_data_requests_path, class: "btn btn-sm btn-ghost" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <div class="table-wrap table-wrap--cards">
+    <table class="edr-table">
+      <thead>
+        <tr>
+          <th><%= t("employee_data_requests.columns.employee") %></th>
+          <th><%= t("employee_data_requests.columns.submitted_by") %></th>
+          <th><%= t("employee_data_requests.columns.submitted_at") %></th>
+          <th><%= t("employee_data_requests.columns.status") %></th>
+          <th><%= t("employee_data_requests.columns.updated_at") %></th>
+          <th><%= t("employee_data_requests.columns.reviewer") %></th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @requests.each do |req| %>
+          <tr class="<%= 'edr-row--pending' if req.pending_review? %>" data-testid="edr-row-<%= req.id %>">
+            <td data-label="<%= t("employee_data_requests.columns.employee") %>">
+              <%= link_to req.latest_revision&.full_name || "—", employee_data_request_path(req), class: "edr-table__name" %>
+            </td>
+            <td data-label="<%= t("employee_data_requests.columns.submitted_by") %>"><%= req.submitted_by.full_name %></td>
+            <td class="td-secondary" data-label="<%= t("employee_data_requests.columns.submitted_at") %>"><%= local_datetime_12h(req.created_at) %></td>
+            <td data-label="<%= t("employee_data_requests.columns.status") %>"><%= edr_status_badge(req) %></td>
+            <td class="td-secondary" data-label="<%= t("employee_data_requests.columns.updated_at") %>"><%= local_datetime_12h(req.updated_at) %></td>
+            <td class="td-secondary" data-label="<%= t("employee_data_requests.columns.reviewer") %>"><%= req.reviewed_by&.full_name || "—" %></td>
+            <td class="td-actions">
+              <%# Rows are policy-scoped; the show page re-authorizes every action. %>
+              <% own = req.submitted_by_id == current_user.id %>
+              <% if req.pending_review? && can_review && !own %>
+                <%= link_to t("employee_data_requests.index.review"), employee_data_request_path(req), class: "btn btn-sm btn-primary" %>
+              <% elsif req.changes_requested? && own && can_create %>
+                <%= link_to t("employee_data_requests.show.edit_and_resubmit"), edit_employee_data_request_path(req), class: "btn btn-sm btn-primary" %>
+              <% else %>
+                <%= link_to t("employee_data_requests.index.view"), employee_data_request_path(req), class: "link-muted" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @requests.empty? %>
+          <tr><td colspan="7" class="td-empty"><%= t("employee_data_requests.index.empty") %></td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <% if @total_pages > 1 %>
+    <nav class="pagination" aria-label="<%= t("pagination.label") %>">
+      <% if @page > 1 %>
+        <%= link_to t("pagination.prev"), employee_data_requests_path(request.query_parameters.merge(page: @page - 1)),
+                    class: "pagination__btn pagination__btn--prev" %>
+      <% end %>
+      <span class="pagination__btn pagination__btn--active"><%= @page %> / <%= @total_pages %></span>
+      <% if @page < @total_pages %>
+        <%= link_to t("pagination.next"), employee_data_requests_path(request.query_parameters.merge(page: @page + 1)),
+                    class: "pagination__btn pagination__btn--next" %>
+      <% end %>
+    </nav>
+  <% end %>
+</div>

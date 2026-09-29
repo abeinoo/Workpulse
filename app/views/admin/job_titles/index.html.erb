@@ -1,0 +1,45 @@
+<% content_for :title, t("admin.job_titles.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("admin.job_titles.title") %></h1>
+    <%= link_to t("admin.job_titles.add"), new_admin_job_title_path, class: "btn btn-primary btn-sm" %>
+  </div>
+
+  <p class="form-hint"><%= t("admin.job_titles.intro") %></p>
+
+  <% if @job_titles.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("admin.job_titles.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("admin.job_titles.name") %></th>
+            <th><%= t("admin.job_titles.employees") %></th>
+            <th><%= t("admin.job_titles.status") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @job_titles.each do |job_title| %>
+            <tr>
+              <td data-label="<%= t("admin.job_titles.name") %>"><%= job_title.name %></td>
+              <td class="td-secondary" data-label="<%= t("admin.job_titles.employees") %>"><%= @employee_counts[job_title.name.downcase].to_i %></td>
+              <td data-label="<%= t("admin.job_titles.status") %>">
+                <% if job_title.active? %>
+                  <span class="badge badge-success"><%= t("admin.job_titles.statuses.active") %></span>
+                <% else %>
+                  <span class="badge badge-neutral"><%= t("admin.job_titles.statuses.inactive") %></span>
+                <% end %>
+              </td>
+              <td class="td-actions">
+                <%= link_to t("common.edit"), edit_admin_job_title_path(job_title), class: "link-muted" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

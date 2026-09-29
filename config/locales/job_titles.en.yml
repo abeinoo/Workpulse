@@ -1,0 +1,37 @@
+en:
+  job_titles:
+    select_blank: "Select a job title"
+    manage_link: "Manage the job-title list"
+  admin:
+    job_titles:
+      title: "Job Titles"
+      intro: "The approved list of job titles, used by the Add Employee form and employee data requests. An inactive title can't be selected, but employees who hold it keep it."
+      add: "Add Job Title"
+      new_title: "New Job Title"
+      edit_title: "Edit Job Title"
+      name: "Job Title"
+      name_placeholder: "e.g. Hair Stylist"
+      rename_hint: "Renaming changes the list only; existing employees keep the name they were saved with."
+      employees: "Employees"
+      status: "Status"
+      statuses:
+        active: "Active"
+        inactive: "Inactive"
+      active_label: "Active (selectable)"
+      active_hint: "Deactivating hides it from selection without changing any employee."
+      empty: "No job titles yet."
+      created: "Job title added."
+      updated: "Job title updated."
+  activerecord:
+    models:
+      job_title: "Job title"
+    errors:
+      models:
+        user:
+          attributes:
+            job_title:
+              not_in_list: "must be chosen from the job-title list"
+        employee_data_request_revision:
+          attributes:
+            job_title:
+              not_in_list: "must be chosen from the job-title list"

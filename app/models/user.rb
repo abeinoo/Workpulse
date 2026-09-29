@@ -71,6 +71,17 @@ class User < ApplicationRecord
   scope :inactive, -> { where(active: false) }
   scope :by_department, ->(dept) { where(department: dept) }
 
+  # Employees whose birthday (day + month, year ignored) falls on `date`. Pass
+  # the business day (BusinessDay.current), never the calendar/browser day.
+  # Feb 29 birthdays are celebrated on Feb 28 in non-leap years.
+  scope :birthday_on, ->(date) {
+    pairs = [ [ date.month, date.day ] ]
+    pairs << [ 2, 29 ] if date.month == 2 && date.day == 28 && !date.leap?
+    clause = Array.new(pairs.size, "(EXTRACT(MONTH FROM users.date_of_birth) = ? AND " \
+                                   "EXTRACT(DAY FROM users.date_of_birth) = ?)").join(" OR ")
+    where.not(date_of_birth: nil).where(clause, *pairs.flatten)
+  }
+
   normalizes :email,               with: ->(e) { e.blank? ? nil : e.strip.downcase }
   normalizes :phone_number,        with: ->(phone) {
     digits = phone.to_s.gsub(/\D/, "")
@@ -96,10 +107,13 @@ class User < ApplicationRecord
                                    allow_blank: true
   validates :email, uniqueness: { case_sensitive: false }, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
   validates :first_name, :last_name, presence: true
+  validates :address, length: { maximum: 500 }
   validates :business, presence: true
   validates :password, length: { minimum: 6, maximum: 128 }, if: :password_required?
   validates_confirmation_of :password, if: :password_required?
   validate :phone_or_email_present
+  validate :date_of_birth_not_in_future
+  validate :job_title_from_catalog, if: :will_save_change_to_job_title?
 
 
   # Auto-assign a numeric employee_code on creation when none was provided.
@@ -126,6 +140,16 @@ class User < ApplicationRecord
 
   def inactive_message
     active? ? super : :inactive
+  end
+
+  # True when `date` (the business day) is this employee's birthday. Mirrors
+  # the .birthday_on scope, including the Feb 29 → Feb 28 fallback.
+  def birthday_on?(date)
+    return false if date_of_birth.nil?
+    return true if date_of_birth.month == date.month && date_of_birth.day == date.day
+
+    date_of_birth.month == 2 && date_of_birth.day == 29 &&
+      date.month == 2 && date.day == 28 && !date.leap?
   end
 
   def full_name
@@ -257,6 +281,21 @@ class User < ApplicationRecord
       "SELECT pg_advisory_xact_lock(#{EMPLOYEE_CODE_LOCK_NAMESPACE}, #{business_id.to_i})"
     )
     self.employee_code = business.next_employee_code.to_s
+  end
+
+  # A newly set / changed job title must come from the business's managed list
+  # (JobTitle). Unchanged legacy values are left alone.
+  def job_title_from_catalog
+    return if job_title.blank? || business_id.blank?
+
+    errors.add(:job_title, :not_in_list) unless JobTitle.selectable?(business_id, job_title)
+  end
+
+  def date_of_birth_not_in_future
+    return if date_of_birth.blank?
+
+    today = business ? BusinessDay.current(context: business) : Date.current
+    errors.add(:date_of_birth, :in_future) if date_of_birth > today
   end
 
   def phone_or_email_present

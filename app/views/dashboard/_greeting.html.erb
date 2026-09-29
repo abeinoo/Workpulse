@@ -10,6 +10,9 @@
       <h1 class="emp-dashboard__greeting-name">
         <%= current_user.first_name.presence || t("dashboard.there") %>
       </h1>
+      <% if @birthday_today %>
+        <span class="birthday-badge"><%= t("dashboard.birthday.greeting_badge") %></span>
+      <% end %>
     </div>
     <% if @current_shift || @upcoming_shifts.any? %>
       <div class="emp-dashboard__shift-pill">

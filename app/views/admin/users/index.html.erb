@@ -4,9 +4,13 @@
 
   <div class="page-header">
     <h1 class="page-title"><%= t("admin.users.index.title") %></h1>
-    <%= link_to new_admin_user_path, class: "btn btn-primary" do %>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <%= t("admin.users.index.add") %>
+    <%# Direct employee creation — UserPolicy#create? (manage_employees), never
+        the Employee Add Request permissions. %>
+    <% if policy(User).create? %>
+      <%= link_to new_admin_user_path, class: "btn btn-primary", data: { testid: "add-employee" } do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <%= t("admin.users.index.add") %>
+      <% end %>
     <% end %>
   </div>
 

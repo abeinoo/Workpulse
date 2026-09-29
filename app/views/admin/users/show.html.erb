@@ -54,11 +54,17 @@
         <dt class="data-list__label"><%= t("admin.users.email") %></dt>
         <dd class="data-list__value"><%= @user.email.presence || "—" %></dd>
       </div>
+      <% if @user.address.present? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("activerecord.attributes.user.address") %></dt>
+          <dd class="data-list__value"><%= @user.address %></dd>
+        </div>
+      <% end %>
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.users.employee_code") %></dt>
         <dd class="data-list__value"><%= @user.employee_code.presence || "—" %></dd>
       </div>
-      <% if @user.job_title.present? || @user.department.present? || @user.hire_date.present? || @user.employment_type.present? %>
+      <% if @user.job_title.present? || @user.department.present? || @user.hire_date.present? || @user.date_of_birth.present? || @user.employment_type.present? %>
         <div class="data-list__item data-list__item--section-header">
           <dt class="data-list__label data-list__label--section"><%= t("admin.users.employment_info") %></dt>
         </div>
@@ -78,6 +84,12 @@
           <div class="data-list__item">
             <dt class="data-list__label"><%= t("admin.users.hire_date") %></dt>
             <dd class="data-list__value"><%= local_date(@user.hire_date) %></dd>
+          </div>
+        <% end %>
+        <% if @user.date_of_birth.present? %>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("admin.users.date_of_birth") %></dt>
+            <dd class="data-list__value"><%= local_date(@user.date_of_birth) %></dd>
           </div>
         <% end %>
         <% if @user.employment_type.present? %>
