@@ -6,6 +6,8 @@ class Warehouse < ApplicationRecord
   has_many :inventory_movements, dependent: :restrict_with_error
   has_many :warehouse_assignments, dependent: :destroy
   has_many :assigned_users, through: :warehouse_assignments, source: :user
+  # Branches this warehouse supplies (reporting relationship only — stock stays here).
+  has_many :branch_supplies, class_name: "WarehouseBranchSupply", dependent: :restrict_with_error
 
   STATUSES = %w[active inactive].freeze
   enum :status, { active: "active", inactive: "inactive" }

@@ -1,0 +1,13 @@
+<%# locals: key — the inventory.reports.<key> block (title + desc). Shared
+    back link + title for every inventory report page. %>
+<%= link_to inventory_reports_path, class: "back-link" do %>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+  <%= t("inventory.reports.title") %>
+<% end %>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><%= t("inventory.reports.#{key}.title") %></h1>
+    <p class="td-secondary" style="margin: var(--space-1) 0 0;"><%= t("inventory.reports.#{key}.desc") %></p>
+  </div>
+</div>

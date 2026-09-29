@@ -1,43 +1,49 @@
 <% content_for :title, t("inventory.reports.movements.title") %>
 
 <div class="admin-page">
-  <%= link_to inventory_reports_path, class: "back-link" do %>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-    <%= t("inventory.reports.title") %>
-  <% end %>
+  <%= render "page_header", key: "movements" %>
 
-  <div class="page-header">
-    <h1 class="page-title"><%= t("inventory.reports.movements.title") %></h1>
+  <%= render "filters", url: inventory_movements_report_path, fields: %i[warehouse product branch movement_type direction document_number from to per_page] %>
+
+  <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-3);">
+    <p class="td-secondary" style="margin: 0;"><%= t("inventory.reports.results_count", count: @total_count) %></p>
+    <% if @total_count.positive? %>
+      <div class="flex items-center" style="gap: var(--space-2);">
+        <%= link_to t("inventory.reports.export_xlsx"), inventory_movements_report_export_path(movement_filter_params.merge(file: "xlsx")),
+              class: "btn btn-secondary btn-sm", data: { turbo: false } %>
+        <%= link_to t("inventory.reports.export_csv"), inventory_movements_report_export_path(movement_filter_params.merge(file: "csv")),
+              class: "btn btn-ghost btn-sm", data: { turbo: false } %>
+      </div>
+    <% end %>
   </div>
-
-  <%= form_with url: inventory_movements_report_path, method: :get, class: "filter-bar" do |f| %>
-    <%= f.select :warehouse_id, options_from_collection_for_select(@warehouses, :id, :name, params[:warehouse_id]),
-          { include_blank: t("inventory.reports.all_warehouses") }, class: "form-control" %>
-    <%= f.select :product_id, options_from_collection_for_select(@products, :id, :name, params[:product_id]),
-          { include_blank: t("inventory.reports.all_products") }, class: "form-control" %>
-    <%= f.date_field :from, value: params[:from], class: "form-control" %>
-    <%= f.date_field :to, value: params[:to], class: "form-control" %>
-    <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm" %>
-  <% end %>
 
   <% if @rows.empty? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.movements.empty") %></p></div>
   <% else %>
     <div class="table-wrap table-wrap--cards">
-      <table>
+      <table class="report-table">
         <thead><tr>
           <th><%= t("inventory.reports.fields.date") %></th>
           <th><%= t("inventory.reports.fields.product") %></th>
+          <th><%= t("inventory.reports.fields.sku") %></th>
           <th><%= t("inventory.reports.fields.warehouse") %></th>
           <th><%= t("inventory.reports.fields.type") %></th>
-          <th style="text-align: end;"><%= t("inventory.reports.fields.quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.in_quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.out_quantity") %></th>
           <th style="text-align: end;"><%= t("inventory.reports.fields.balance_after") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.unit_cost") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.total_value") %></th>
+          <th><%= t("inventory.reports.fields.document_number") %></th>
         </tr></thead>
         <tbody>
           <% @rows.each do |row| %>
             <tr>
-              <td class="td-secondary"><%= local_date(row.movement.occurred_on) %></td>
-              <td><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-secondary">
+                <%= local_date(row.movement.occurred_on) %>
+                <div class="td-secondary" style="font-size: var(--text-xs);"><%= local_time_12h(row.movement.created_at) %></div>
+              </td>
+              <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-secondary"><%= row.product.sku %></td>
               <td class="td-secondary"><%= row.warehouse.name %></td>
               <td>
                 <span class="badge <%= row.direction == 'in' ? 'badge-success' : 'badge-neutral' %>">
@@ -45,12 +51,19 @@
                 </span>
                 <span class="td-secondary"><%= t("inventory.movements.reasons.#{row.reason}") %></span>
               </td>
-              <td style="text-align: end;"><%= row.signed_quantity.positive? ? "+" : "" %><%= row.signed_quantity.to_i %></td>
-              <td style="text-align: end;"><%= row.balance_after.to_i %></td>
+              <td style="text-align: end;"><%= row.in_quantity.positive? ? "+#{row.in_quantity.to_i}" : "—" %></td>
+              <td style="text-align: end;"><%= row.out_quantity.positive? ? "-#{row.out_quantity.to_i}" : "—" %></td>
+              <td style="text-align: end; font-weight: 600;"><%= row.balance_after.to_i %></td>
+              <td style="text-align: end;"><%= format_currency(row.unit_cost) %></td>
+              <td style="text-align: end;"><%= format_currency(row.total_value) %></td>
+              <td><%= inventory_source_document_link(row.source, row.document_number) %></td>
             </tr>
           <% end %>
         </tbody>
       </table>
     </div>
+
+    <%= render "shared/pagination", page: @page, total_pages: @total_pages,
+          path_proc: ->(p) { inventory_movements_report_path(movement_filter_params.merge(per_page: @per_page, page: p)) } %>
   <% end %>
 </div>

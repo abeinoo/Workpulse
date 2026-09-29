@@ -2,7 +2,10 @@ module Inventory
   # Derives on-hand stock for a product from the immutable movement ledger.
   # Stock is never stored on the product — it is always SUM(in) - SUM(out).
   class StockLevels
-    SIGNED_SUM = "COALESCE(SUM(CASE WHEN direction = 'in' THEN quantity ELSE -quantity END), 0)".freeze
+    # Signed quantity of one movement (+in / −out) and its sum — the one
+    # definition of on-hand stock.
+    SIGNED     = "CASE WHEN direction = 'in' THEN quantity ELSE -quantity END".freeze
+    SIGNED_SUM = "COALESCE(SUM(#{SIGNED}), 0)".freeze
 
     def initialize(product)
       @product = product
@@ -25,7 +28,7 @@ module Inventory
     def by_warehouse
       @product.inventory_movements
               .group(:warehouse_id)
-              .sum(Arel.sql("CASE WHEN direction = 'in' THEN quantity ELSE -quantity END"))
+              .sum(Arel.sql(SIGNED))
     end
 
     # Class helper: on-hand for many products at once.
@@ -36,7 +39,7 @@ module Inventory
       relation = InventoryMovement.for_business(business)
       relation = relation.where(warehouse_id: warehouse_ids) if warehouse_ids
       relation.group(:product_id)
-              .sum(Arel.sql("CASE WHEN direction = 'in' THEN quantity ELSE -quantity END"))
+              .sum(Arel.sql(SIGNED))
     end
 
     # Family stock for a parent product: single query summing movements across

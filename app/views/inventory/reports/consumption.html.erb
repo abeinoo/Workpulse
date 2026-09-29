@@ -1,0 +1,58 @@
+<% content_for :title, t("inventory.reports.consumption.title") %>
+
+<div class="admin-page">
+  <%= render "page_header", key: "consumption" %>
+
+  <%= render "auto_filters", url: inventory_consumption_report_path, frame: "report-results", period: @period,
+             keys: Inventory::ReportsController::CONSUMPTION_PERIODS,
+             fields: @warehouses.size > 1 ? %i[branch product warehouse] : %i[branch product] %>
+
+  <%= turbo_frame_tag "report-results", class: "report-results", data: { turbo_action: "advance" } do %>
+  <% if @period.invalid? %>
+    <p class="form-error" role="alert"><%= t("inventory.reports.period.invalid_range_fallback") %></p>
+  <% end %>
+  <p class="td-secondary report-results__period">
+    <%= t("inventory.reports.period.showing", from: local_date(@period.from), to: local_date(@period.to)) %>
+  </p>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table class="report-table">
+        <thead><tr>
+          <th><%= t("inventory.reports.fields.product") %></th>
+          <th><%= t("inventory.reports.fields.sku") %></th>
+          <th><%= t("inventory.reports.fields.branch") %></th>
+          <th><%= t("inventory.warehouse_supplies.supplying_warehouse") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.issued_quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.reversed_quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.net_quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.consumption_value") %></th>
+        </tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-secondary"><%= row.product.sku %></td>
+              <td class="td-secondary"><%= row.branch&.name || "—" %></td>
+              <td class="td-secondary"><%= render "inventory/warehouse_supplies/link_label", warehouses: row.supply_warehouses, source: row.supply_source %></td>
+              <td style="text-align: end;"><%= row.issued_quantity.to_i %></td>
+              <td style="text-align: end;"><%= row.reversed_quantity.positive? ? row.reversed_quantity.to_i : "—" %></td>
+              <td style="text-align: end; font-weight: 600;"><%= row.net_quantity.to_i %></td>
+              <td style="text-align: end;"><%= format_currency(row.net_value) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" style="text-align: end; font-weight: 600;"><%= t("inventory.reports.fields.total") %></td>
+            <td style="text-align: end; font-weight: 600;"><%= @report.total_quantity.to_i %></td>
+            <td style="text-align: end; font-weight: 600;"><%= format_currency(@report.total_value) %></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <% end %>
+  <% end %>
+</div>

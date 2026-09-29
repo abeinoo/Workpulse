@@ -35,7 +35,7 @@ module Laundry
           reason:      :laundry_consumption,
           quantity:    quantity,
           unit_cost:   unit_cost,
-          occurred_on: Date.current,
+          occurred_on: BusinessDay.current(context: @batch.business),
           source:      @batch
         )
 

@@ -4,7 +4,15 @@ module Inventory
   # and IN (destination) movement per line. Quantity moves between warehouses;
   # the product's average cost is unchanged (same product, same business), so
   # both movements are valued at the current average cost for ledger consistency.
-  # All-or-nothing in one transaction.
+  #
+  # Transfers are intentionally immediate — there is no draft/approval stage
+  # (no status column, no edit route); creating one IS posting it.
+  #
+  # All-or-nothing: the transfer row and BOTH movements of every line are
+  # written in one transaction, so a failure can never move stock out of the
+  # source without moving it into the destination. The product rows are
+  # locked before the source-stock check (inside that transaction), so two
+  # concurrent transfers/issues can't both pass the check and overdraw it.
   class StockTransferPoster
     Result = Struct.new(:ok, :transfer, keyword_init: true) do
       def ok? = ok
@@ -16,11 +24,12 @@ module Inventory
 
     def call
       value_items
-      unless valid_warehouses? && availability_ok?
-        return Result.new(ok: false, transfer: @transfer)
-      end
+      return Result.new(ok: false, transfer: @transfer) unless valid_warehouses?
 
       ActiveRecord::Base.transaction do
+        lock_products!
+        raise ActiveRecord::Rollback unless availability_ok?
+
         @transfer.transfer_number = NumberSequencer.new(@transfer.business, :stock_transfer).next_number if @transfer.transfer_number.blank?
 
         raise ActiveRecord::Rollback unless @transfer.save
@@ -39,6 +48,13 @@ module Inventory
         next if item.product.nil?
         item.unit_cost = item.product.average_cost_price
       end
+    end
+
+    # Row locks (FOR UPDATE, id order to avoid deadlocks) serialize posts that
+    # touch the same products until this transaction commits.
+    def lock_products!
+      ids = @transfer.items.map(&:product_id).compact.uniq.sort
+      Product.where(id: ids).order(:id).lock.load if ids.any?
     end
 
     # Surfaces the "same warehouse" validation early so availability isn't even

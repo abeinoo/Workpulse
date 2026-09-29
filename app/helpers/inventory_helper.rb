@@ -5,6 +5,38 @@ module InventoryHelper
     "completed" => "badge-accent", "approved" => "badge-success"
   }.freeze
 
+  # Links a ledger movement's source document by its number — the document a
+  # report row came from. Falls back to plain text when there is no route.
+  INVENTORY_SOURCE_PATHS = {
+    "GoodsReceipt"    => :inventory_goods_receipt_path,
+    "StockIssue"      => :inventory_stock_issue_path,
+    "StockTransfer"   => :inventory_stock_transfer_path,
+    "StockAdjustment" => :inventory_stock_adjustment_path,
+    "LaundryBatch"    => :laundry_laundry_batch_path
+  }.freeze
+
+  def inventory_source_document_link(source, number)
+    return "—" if source.nil?
+
+    label = number.presence ||
+            "#{t("inventory.reports.source_types.#{source.class.name}", default: source.class.name)} ##{source.id}"
+    path  = INVENTORY_SOURCE_PATHS[source.class.name]
+    path ? link_to(label, public_send(path, source), class: "link") : label
+  end
+
+  # Operational kind of a ledger movement for dashboard badges.
+  MOVEMENT_KINDS = {
+    "goods_receipt" => [ :receipt, "badge-success" ], "opening_balance" => [ :adjustment, "badge-neutral" ],
+    "stock_issue" => [ :issue, "badge-warning" ], "laundry_consumption" => [ :issue, "badge-warning" ],
+    "transfer_in" => [ :transfer, "badge-accent" ], "transfer_out" => [ :transfer, "badge-accent" ],
+    "adjustment" => [ :adjustment, "badge-neutral" ], "reversal" => [ :reversal, "badge-danger" ]
+  }.freeze
+
+  def inventory_movement_badge(reason)
+    kind, css = MOVEMENT_KINDS.fetch(reason.to_s, [ :adjustment, "badge-neutral" ])
+    content_tag(:span, t("inventory.dashboard.overview.kinds.#{kind}"), class: "badge #{css}")
+  end
+
   def stock_count_status_class(status)
     STOCK_COUNT_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
   end
@@ -201,9 +233,9 @@ module InventoryHelper
       products.map { |p|
         all_barcodes = if p.association(:product_barcodes).loaded?
                          p.product_barcodes.map(&:barcode).compact
-                       else
+        else
                          [ p.barcode ].compact
-                       end
+        end
         [ "#{p.name} (#{p.sku})", p.id, {
           "data-barcode"             => all_barcodes.first,
           "data-barcodes"            => all_barcodes.join("|"),

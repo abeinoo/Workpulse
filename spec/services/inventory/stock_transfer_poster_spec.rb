@@ -62,6 +62,53 @@ RSpec.describe Inventory::StockTransferPoster, type: :model do
     expect(result.transfer.errors[:destination_warehouse_id]).to be_present
   end
 
+  describe "atomicity" do
+    it "writes the transfer and both movements of every line together" do
+      t = business.stock_transfers.build(source_warehouse: source, destination_warehouse: dest, transferred_on: Date.current)
+      t.items.build(product: product, quantity: 2)
+      t.items.build(product: product, quantity: 3)
+      expect(described_class.new(t).call.ok?).to be(true)
+      expect(t.inventory_movements.group(:direction).sum(:quantity)).to eq("out" => 5, "in" => 5)
+    end
+
+    # This file's own `receive(qty:, cost:, wh:)` helper shadows RSpec's.
+    def rspec_receive(message) = RSpec::Mocks::ExampleMethods.instance_method(:receive).bind_call(self, message)
+
+    it "a failure while posting the destination leg leaves no transfer and no movement" do
+      calls = 0
+      allow_any_instance_of(ActiveRecord::Associations::CollectionProxy).to rspec_receive(:create!).and_wrap_original do |m, *args, **kw|
+        calls += 1
+        raise ActiveRecord::RecordInvalid, InventoryMovement.new if calls == 2 # the IN leg
+        m.call(*args, **kw)
+      end
+
+      expect { transfer(qty: 4) }.to raise_error(ActiveRecord::RecordInvalid)
+      expect(business.stock_transfers.count).to eq(0)
+      expect(product.inventory_movements.where(reason: %w[transfer_in transfer_out])).to be_empty
+      expect(product.stock_in(source)).to eq(10)
+      expect(product.stock_in(dest)).to eq(0)
+    end
+
+    it "checks source stock inside the transaction, after locking the product rows" do
+      sql = []
+      logger = ->(*, payload) { sql << payload[:sql] }
+      ActiveSupport::Notifications.subscribed(logger, "sql.active_record") { transfer(qty: 1) }
+      lock_at  = sql.index { |q| q.include?("FROM \"products\"") && q.include?("FOR UPDATE") }
+      check_at = sql.index { |q| q.include?("inventory_movements") && q.include?("SUM") }
+      begin_at = sql.index { |q| q.match?(/BEGIN|SAVEPOINT/) }
+      expect(lock_at).to be_present
+      expect(begin_at).to be < lock_at
+      expect(lock_at).to be < check_at
+    end
+
+    it "a second transfer sees the first one's stock and cannot overdraw the source" do
+      expect(transfer(qty: 7).ok?).to be(true)
+      second = transfer(qty: 7)
+      expect(second.ok?).to be(false)
+      expect(product.stock_in(source)).to eq(3)
+    end
+  end
+
   it "assigns a sequential TRF number" do
     result = transfer(qty: 1)
     expect(result.transfer.transfer_number).to match(/\ATRF-\d{6}\z/)

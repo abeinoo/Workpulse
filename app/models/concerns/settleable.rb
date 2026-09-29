@@ -34,6 +34,16 @@ module Settleable
     "partially_settled"
   end
 
+  class_methods do
+    # { record_id => settled amount } for many records in one query — the same
+    # SUM over the FinancialSettlement ledger as #total_settled_amount, for
+    # report pages that list many settleables at once.
+    def settled_amounts_for(ids)
+      FinancialSettlement.where(settleable_type: name, settleable_id: ids)
+                         .group(:settleable_id).sum(:amount)
+    end
+  end
+
   def pending_settlement? = financial_status == "pending_settlement"
   def partially_settled?  = financial_status == "partially_settled"
   def settled?             = financial_status == "settled"

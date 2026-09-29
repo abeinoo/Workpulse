@@ -30,7 +30,7 @@
               <td class="td-secondary"><%= transfer.destination_warehouse.name %></td>
               <td>
                 <span class="badge <%= transfer.voided? ? 'badge-danger' : 'badge-success' %>">
-                  <%= transfer.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+                  <%= transfer.voided? ? t("inventory.void.status_voided") : t("inventory.stock_transfers.status_posted") %>
                 </span>
               </td>
               <td style="text-align: end;"><%= format_currency(transfer.total_value) %></td>

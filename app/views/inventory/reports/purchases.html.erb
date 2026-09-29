@@ -1,0 +1,56 @@
+<% content_for :title, t("inventory.reports.purchases.title") %>
+
+<div class="admin-page">
+  <%= render "page_header", key: "purchases" %>
+
+  <%= render "filters", url: inventory_purchases_report_path, fields: %i[supplier warehouse from to] %>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.supplier_purchases.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table class="report-table">
+        <thead><tr>
+          <th><%= t("inventory.reports.fields.date") %></th>
+          <th><%= t("inventory.reports.fields.receipt_number") %></th>
+          <th><%= t("inventory.reports.fields.supplier") %></th>
+          <th><%= t("inventory.reports.fields.purchase_request") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.products") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.purchase_value") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.paid_amount") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.outstanding") %></th>
+        </tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td class="td-secondary"><%= local_date(row.receipt.received_on) %></td>
+              <td><%= inventory_source_document_link(row.receipt, row.receipt.receipt_number) %></td>
+              <td><%= row.supplier ? link_to(row.supplier.name, inventory_supplier_path(row.supplier), class: "link") : "—" %></td>
+              <td class="td-secondary">
+                <%= row.purchase_request ? link_to(row.purchase_request.request_number, inventory_purchase_request_path(row.purchase_request), class: "link") : "—" %>
+              </td>
+              <td style="text-align: end;"><%= row.product_count %></td>
+              <td style="text-align: end;"><%= format_currency(row.total_value) %></td>
+              <td style="text-align: end;"><%= format_currency(row.paid_amount) %></td>
+              <td style="text-align: end;">
+                <% if row.outstanding_amount.positive? %>
+                  <span class="badge badge-warning"><%= format_currency(row.outstanding_amount) %></span>
+                <% else %>
+                  <%= format_currency(0) %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5" style="text-align: end; font-weight: 600;"><%= t("inventory.reports.fields.total") %></td>
+            <td style="text-align: end; font-weight: 600;"><%= format_currency(@report.total_value) %></td>
+            <td style="text-align: end; font-weight: 600;"><%= format_currency(@report.total_paid) %></td>
+            <td style="text-align: end; font-weight: 600;"><%= format_currency(@report.total_outstanding) %></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <% end %>
+</div>

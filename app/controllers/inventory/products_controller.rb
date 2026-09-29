@@ -345,20 +345,19 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   def load_consumption_stats
-    consumption = @product.inventory_movements.consumption
+    # Net of voided issues — the same ConsumptionLedger Finance uses.
+    ledger = ->(**window) { Inventory::ConsumptionLedger.new(@product.business, product_id: @product.id, **window) }
 
-    @last_consumed_on = consumption.maximum(:occurred_on)
+    @last_consumed_on = ledger.call.last_consumed_on
 
     month_start = Time.current.beginning_of_month.to_date
     month_end   = Time.current.end_of_month.to_date
-    @consumed_this_month = consumption
-      .where(occurred_on: month_start..month_end)
-      .sum(:quantity)
+    @consumed_this_month = ledger.call(from: month_start, to: month_end).net_quantity
 
     first_movement_date = @product.inventory_movements.minimum(:occurred_on)
     if first_movement_date
       months_elapsed = ((Date.current - first_movement_date).to_f / 30.44).ceil.clamp(1, Float::INFINITY)
-      total_consumed = consumption.sum(:quantity)
+      total_consumed = ledger.call.net_quantity
       @avg_monthly_consumption = (total_consumed.to_f / months_elapsed).round(1)
     else
       @avg_monthly_consumption = 0

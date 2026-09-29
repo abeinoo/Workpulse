@@ -1,0 +1,54 @@
+<% content_for :title, t("inventory.reports.transfers.title") %>
+
+<div class="admin-page">
+  <%= render "page_header", key: "transfers" %>
+
+  <%= render "filters", url: inventory_transfers_report_path, fields: %i[warehouse product transfer_status from to] %>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table class="report-table">
+        <thead><tr>
+          <th><%= t("inventory.reports.fields.date") %></th>
+          <th><%= t("inventory.reports.fields.product") %></th>
+          <th><%= t("inventory.reports.fields.sku") %></th>
+          <th><%= t("inventory.reports.fields.source_warehouse") %></th>
+          <th><%= t("inventory.reports.fields.destination_warehouse") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.total_value") %></th>
+          <th><%= t("inventory.reports.fields.status") %></th>
+          <th><%= t("inventory.reports.fields.document_number") %></th>
+        </tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td class="td-secondary"><%= local_date(row.transfer.transferred_on) %></td>
+              <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-secondary"><%= row.product.sku %></td>
+              <td class="td-secondary"><%= row.transfer.source_warehouse.name %></td>
+              <td class="td-secondary"><%= row.transfer.destination_warehouse.name %></td>
+              <td style="text-align: end;"><%= row.quantity.to_i %></td>
+              <td style="text-align: end;"><%= format_currency(row.total_cost) %></td>
+              <td>
+                <span class="badge <%= row.voided? ? 'badge-danger' : 'badge-success' %>">
+                  <%= t("inventory.reports.transfer_statuses.#{row.voided? ? 'voided' : 'posted'}") %>
+                </span>
+              </td>
+              <td><%= inventory_source_document_link(row.transfer, row.transfer.transfer_number) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5" style="text-align: end; font-weight: 600;"><%= t("inventory.reports.fields.total_posted") %></td>
+            <td style="text-align: end; font-weight: 600;"><%= @report.total_quantity.to_i %></td>
+            <td style="text-align: end; font-weight: 600;"><%= format_currency(@report.total_value) %></td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <% end %>
+</div>

@@ -399,6 +399,8 @@ Rails.application.routes.draw do
 
     # Workspace landing page for configuration screens (categories, brands).
     get "settings", to: "settings#show", as: :settings
+    # Warehouse → branch supply links (reporting relationship; stock stays with the warehouse).
+    resources :warehouse_supplies, only: [ :index, :update ]
 
     # Shared barcode → product lookup for scanner-enabled document forms.
     get "barcode_lookup", to: "barcode_lookups#show", as: :barcode_lookup
@@ -407,7 +409,16 @@ Rails.application.routes.draw do
     get "reports",                    to: "reports#index",              as: :reports
     get "reports/current_stock",      to: "reports#current_stock",      as: :current_stock_report
     get "reports/movements",          to: "reports#movements",          as: :movements_report
+    get "reports/movements/export",   to: "reports#export_movements",   as: :movements_report_export
     get "reports/supplier_purchases", to: "reports#supplier_purchases", as: :supplier_purchases_report
+    get "reports/low_stock",          to: "reports#low_stock",          as: :low_stock_report
+    get "reports/no_movement",        to: "reports#no_movement",        as: :no_movement_report
+    get "reports/branch_comparison",  to: "reports#branch_comparison",  as: :branch_comparison_report
+    get "reports/branch_comparison/export", to: "reports#export_branch_comparison", as: :branch_comparison_report_export
+    get "reports/consumption",        to: "reports#consumption",        as: :consumption_report
+    get "reports/transfers",          to: "reports#transfers",          as: :transfers_report
+    get "reports/adjustments",        to: "reports#adjustments",        as: :adjustments_report
+    get "reports/purchases",          to: "reports#purchases",          as: :purchases_report
   end
 
   # ── Financial Operations & Expense Management ─────────────────────────────

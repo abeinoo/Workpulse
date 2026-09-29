@@ -1,0 +1,59 @@
+<%#
+  Auto-applying report filters (report_filters_controller.js): a GET form that
+  targets the results Turbo Frame and advances the URL — no "Filter" button,
+  the server stays the source of truth.
+
+  Locals:
+    url     - the report path
+    frame   - id of the results turbo frame
+    period  - Inventory::Reports::Period
+    keys    - period keys offered (in order)
+    fields  - extra selects after the period, from: branch product warehouse
+%>
+<%= form_with url: url, method: :get, local: false, class: "filter-bar report-auto-filters",
+      data: { controller: "report-filters", action: "change->report-filters#changed",
+              turbo_frame: frame, turbo_action: "advance" } do |f| %>
+  <div class="filter-bar__fields">
+    <div class="filter-bar__field">
+      <%= f.label :period, t("inventory.reports.period.label"), class: "filter-bar__label" %>
+      <%= f.select :period, options_for_select(keys.map { |k| [ t("inventory.reports.period.options.#{k}"), k ] }, period.key),
+            {}, class: "filter-bar__select", data: { report_filters_target: "period" } %>
+    </div>
+
+    <div class="filter-bar__field" data-report-filters-target="custom" <%= "hidden" unless period.custom? %>>
+      <%= f.label :from, t("inventory.reports.fields.from"), class: "filter-bar__label" %>
+      <%= f.date_field :from, value: period.custom? ? (period.custom_from || period.from).iso8601 : nil,
+            class: "filter-bar__input", disabled: !period.custom?, data: { report_filters_target: "from" } %>
+    </div>
+    <div class="filter-bar__field" data-report-filters-target="custom" <%= "hidden" unless period.custom? %>>
+      <%= f.label :to, t("inventory.reports.fields.to"), class: "filter-bar__label" %>
+      <%= f.date_field :to, value: period.custom? ? (period.custom_to || period.to).iso8601 : nil,
+            class: "filter-bar__input", disabled: !period.custom?, data: { report_filters_target: "to" } %>
+    </div>
+
+    <% fields.each do |field| %>
+      <div class="filter-bar__field" <%= 'data-controller="searchable-select"'.html_safe if field == :product %>>
+        <% case field %>
+        <% when :branch %>
+          <%= f.label :branch_id, t("inventory.reports.fields.branch"), class: "filter-bar__label" %>
+          <%= f.select :branch_id, options_from_collection_for_select(@branches, :id, :name, @selected_branch_id),
+                { include_blank: t("inventory.reports.all_branches") }, class: "filter-bar__select" %>
+        <% when :product %>
+          <%= f.label :product_id, t("inventory.reports.fields.product"), class: "filter-bar__label" %>
+          <%= f.select :product_id, options_from_collection_for_select(@products, :id, :name, params[:product_id]),
+                { include_blank: t("inventory.reports.all_products") }, class: "filter-bar__select",
+                data: { searchable_select_target: "select", search_placeholder: t("inventory.reports.branch_comparison.search_product") } %>
+        <% when :warehouse %>
+          <%= f.label :warehouse_id, t("inventory.reports.fields.warehouse"), class: "filter-bar__label" %>
+          <%= f.select :warehouse_id, options_from_collection_for_select(@warehouses, :id, :name, params[:warehouse_id]),
+                { include_blank: t("inventory.reports.all_warehouses") }, class: "filter-bar__select" %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <p class="form-error report-auto-filters__error" role="alert" data-report-filters-target="error" hidden>
+    <%= t("inventory.reports.period.invalid_range") %>
+  </p>
+  <noscript><%= f.submit t("shared.filter"), class: "btn btn-secondary btn-sm" %></noscript>
+<% end %>

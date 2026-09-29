@@ -46,10 +46,9 @@ class InventoryMovement < ApplicationRecord
 
   scope :for_business, ->(business) { where(business: business) }
   scope :chronological, -> { order(:occurred_on, :id) }
-  # Stock consumed out of branches — the cost-of-consumption rows that branch
-  # profitability sums (quantity × unit_cost). Source-agnostic: a future Fresha
-  # importer writing the same OUT/stock_issue movements is picked up unchanged.
-  scope :consumption, -> { where(direction: "out", reason: "stock_issue") }
+  # Consumption figures (cost of stock consumed by branches) are NOT a plain
+  # scope: a voided stock issue must net out against its reversal. Use
+  # Inventory::ConsumptionLedger — the one place that definition lives.
   scope :for_branch,  ->(branch_id) { where(branch_id: branch_id) if branch_id.present? }
   scope :occurred_between, ->(from, to) { where(occurred_on: from..to) }
 

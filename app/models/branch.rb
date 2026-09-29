@@ -26,6 +26,8 @@ class Branch < ApplicationRecord
   has_many :shift_assignments,   dependent: :nullify
   has_many :attendance_records,  dependent: :destroy
   has_many :payroll_periods,     dependent: :destroy
+  # Primary supplying warehouse (reporting relationship only — the branch owns no stock).
+  has_one :warehouse_supply, class_name: "WarehouseBranchSupply", dependent: :destroy
 
   # Financial Operations & Expense Management — financial history is restricted
   # on delete (block, never silently orphan) to preserve the audit trail.

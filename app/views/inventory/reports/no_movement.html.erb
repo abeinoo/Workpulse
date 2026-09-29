@@ -1,0 +1,42 @@
+<% content_for :title, t("inventory.reports.no_movement.title") %>
+
+<div class="admin-page">
+  <%= render "page_header", key: "no_movement" %>
+
+  <%= render "filters", url: inventory_no_movement_report_path, fields: %i[warehouse days] %>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table class="report-table">
+        <thead><tr>
+          <th><%= t("inventory.reports.fields.product") %></th>
+          <th><%= t("inventory.reports.fields.sku") %></th>
+          <th><%= t("inventory.reports.fields.last_movement") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.days_idle") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.current_stock") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.stock_value") %></th>
+        </tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-secondary"><%= row.product.sku %></td>
+              <td class="td-secondary"><%= row.last_movement_on ? local_date(row.last_movement_on) : t("inventory.reports.no_movement.never") %></td>
+              <td style="text-align: end;"><%= row.days_idle || "—" %></td>
+              <td style="text-align: end;"><%= row.on_hand.to_i %></td>
+              <td style="text-align: end;"><%= format_currency(row.stock_value) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5" style="text-align: end; font-weight: 600;"><%= t("inventory.reports.fields.total_value") %></td>
+            <td style="text-align: end; font-weight: 600;"><%= format_currency(@report.total_value) %></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <% end %>
+</div>

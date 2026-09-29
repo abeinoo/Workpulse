@@ -1,0 +1,12 @@
+<%# locals: warehouses (Array<Warehouse>), source (:explicit / :inferred / nil)
+    Supplying warehouse(s) + where the link comes from. Shared by the supply
+    settings page and the branch reports. %>
+<% if warehouses.blank? %>
+  <span class="td-secondary">—</span>
+<% else %>
+  <%= warehouses.map(&:name).join("، ") %>
+  <span class="badge <%= source == :explicit ? 'badge-accent' : 'badge-neutral' %>"
+        title="<%= t("inventory.warehouse_supplies.sources_hint.#{source}") %>">
+    <%= t("inventory.warehouse_supplies.sources.#{source}") %>
+  </span>
+<% end %>

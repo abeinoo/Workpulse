@@ -1,0 +1,92 @@
+<%#
+  Shared filter bar for every inventory report (same .filter-bar__fields
+  grid + labels as the inventory list pages). Each field is defined once
+  here; a report lists the ones it supports.
+
+  Locals:
+    url    - the report path the form submits to
+    fields - ordered symbols from: warehouse product product_required supplier branch
+             stock_status days movement_type direction document_number
+             transfer_status adjustment_reason per_page from to
+%>
+<%= form_with url: url, method: :get, local: true, class: "filter-bar" do |f| %>
+  <div class="filter-bar__fields">
+    <% fields.each do |field| %>
+      <div class="filter-bar__field" <%= 'data-controller="searchable-select"'.html_safe if field == :product_required %>>
+        <% case field %>
+        <% when :warehouse %>
+          <%= f.label :warehouse_id, t("inventory.reports.fields.warehouse"), class: "filter-bar__label" %>
+          <%= f.select :warehouse_id, options_from_collection_for_select(@warehouses, :id, :name, params[:warehouse_id]),
+                { include_blank: t("inventory.reports.all_warehouses") }, class: "filter-bar__select" %>
+        <% when :product %>
+          <%= f.label :product_id, t("inventory.reports.fields.product"), class: "filter-bar__label" %>
+          <%= f.select :product_id, options_from_collection_for_select(@products, :id, :name, params[:product_id]),
+                { include_blank: t("inventory.reports.all_products") }, class: "filter-bar__select" %>
+        <% when :product_required %>
+          <%= f.label :product_id, t("inventory.reports.fields.product"), class: "filter-bar__label" %>
+          <%= f.select :product_id, options_from_collection_for_select(@products, :id, :name, params[:product_id]),
+                { prompt: t("inventory.reports.branch_comparison.select_product") },
+                class: "filter-bar__select", required: true,
+                data: { searchable_select_target: "select", search_placeholder: t("inventory.reports.branch_comparison.search_product") } %>
+        <% when :supplier %>
+          <%= f.label :supplier_id, t("inventory.reports.fields.supplier"), class: "filter-bar__label" %>
+          <%= f.select :supplier_id, options_from_collection_for_select(@suppliers, :id, :name, params[:supplier_id]),
+                { include_blank: t("inventory.reports.all_suppliers") }, class: "filter-bar__select" %>
+        <% when :branch %>
+          <%= f.label :branch_id, t("inventory.reports.fields.branch"), class: "filter-bar__label" %>
+          <%= f.select :branch_id, options_from_collection_for_select(@branches, :id, :name, params[:branch_id]),
+                { include_blank: t("inventory.reports.all_branches") }, class: "filter-bar__select" %>
+        <% when :stock_status %>
+          <%= f.label :stock_status, t("inventory.reports.fields.stock_status"), class: "filter-bar__label" %>
+          <%= f.select :stock_status,
+                options_for_select(Inventory::Reports::CurrentStock::STOCK_STATUSES.map { |s| [ t("inventory.reports.stock_statuses.#{s}"), s ] }, params[:stock_status]),
+                { include_blank: t("inventory.reports.stock_statuses.all") }, class: "filter-bar__select" %>
+        <% when :days %>
+          <%= f.label :days, t("inventory.reports.fields.idle_period"), class: "filter-bar__label" %>
+          <%= f.select :days,
+                options_for_select(Inventory::Reports::NoMovement::DAY_OPTIONS.map { |d| [ t("inventory.reports.no_movement.days_option", count: d), d ] }, @report.days),
+                {}, class: "filter-bar__select" %>
+        <% when :movement_type %>
+          <%= f.label :reason, t("inventory.reports.fields.type"), class: "filter-bar__label" %>
+          <%= f.select :reason,
+                options_for_select(InventoryMovement.reasons.keys.map { |r| [ t("inventory.movements.reasons.#{r}"), r ] }, params[:reason]),
+                { include_blank: t("inventory.reports.all_types") }, class: "filter-bar__select" %>
+        <% when :direction %>
+          <%= f.label :direction, t("inventory.reports.fields.direction"), class: "filter-bar__label" %>
+          <%= f.select :direction,
+                options_for_select(InventoryMovement.directions.keys.map { |d| [ t("inventory.movements.directions.#{d}"), d ] }, params[:direction]),
+                { include_blank: t("inventory.reports.all_directions") }, class: "filter-bar__select" %>
+        <% when :document_number %>
+          <%= f.label :document_number, t("inventory.reports.fields.document_number"), class: "filter-bar__label" %>
+          <%= f.text_field :document_number, value: params[:document_number], class: "filter-bar__input" %>
+        <% when :transfer_status %>
+          <%= f.label :status, t("inventory.reports.fields.status"), class: "filter-bar__label" %>
+          <%= f.select :status,
+                options_for_select(Inventory::Reports::Transfers::STATUSES.map { |s| [ t("inventory.reports.transfer_statuses.#{s}"), s ] }, params[:status] || "posted"),
+                {}, class: "filter-bar__select" %>
+        <% when :adjustment_reason %>
+          <%= f.label :reason, t("inventory.reports.fields.reason"), class: "filter-bar__label" %>
+          <%= f.select :reason,
+                options_for_select(StockAdjustment::REASONS.map { |r| [ t("inventory.stock_adjustments.reasons.#{r}"), r ] }, params[:reason]),
+                { include_blank: t("inventory.reports.all_reasons") }, class: "filter-bar__select" %>
+        <% when :per_page %>
+          <%= f.label :per_page, t("inventory.reports.per_page"), class: "filter-bar__label" %>
+          <%= f.select :per_page, options_for_select(Inventory::Reports::Movements::PER_PAGE_OPTIONS, @per_page),
+                {}, class: "filter-bar__select" %>
+        <% when :from %>
+          <%= f.label :from, t("inventory.reports.fields.from"), class: "filter-bar__label" %>
+          <%= f.date_field :from, value: params[:from], class: "filter-bar__input" %>
+        <% when :to %>
+          <%= f.label :to, t("inventory.reports.fields.to"), class: "filter-bar__label" %>
+          <%= f.date_field :to, value: params[:to], class: "filter-bar__input" %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+  <div class="filter-bar__actions">
+    <%= f.submit t("shared.filter"), class: "btn btn-primary btn-sm" %>
+    <% if request.query_parameters.except("commit").values.any?(&:present?) %>
+      <%= link_to t("shared.clear_filters"), url, class: "btn btn-ghost btn-sm" %>
+    <% end %>
+  </div>
+<% end %>

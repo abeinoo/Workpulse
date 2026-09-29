@@ -1,0 +1,285 @@
+<% content_for :title, t("inventory.reports.branch_comparison.title") %>
+<% bc = "inventory.reports.branch_comparison" %>
+
+<div class="admin-page">
+  <%= render "page_header", key: "branch_comparison" %>
+
+  <%= render "filters", url: inventory_branch_comparison_report_path, fields: %i[product_required from to branch warehouse] %>
+
+  <% if !@report.ready? %>
+    <div class="empty-state">
+      <p class="empty-state__title"><%= t("#{bc}.pick_product") %></p>
+      <p class="empty-state__text"><%= t("#{bc}.pick_product_hint") %></p>
+    </div>
+  <% else %>
+    <% no_consumption = t("#{bc}.no_consumption") %>
+    <% qty = ->(v) { number_with_delimiter(v.to_d.round(2).to_s("F").sub(/\.0\z/, "")) } %>
+
+    <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-3);">
+      <p class="td-secondary" style="margin: 0;">
+        <strong><%= @report.product.name %></strong> · <%= @report.product.sku %> ·
+        <%= t("#{bc}.period", from: local_date(@report.from), to: local_date(@report.to), days: @report.period_days) %>
+      </p>
+      <div class="flex items-center" style="gap: var(--space-2);">
+        <%= link_to t("inventory.reports.export_xlsx"), inventory_branch_comparison_report_export_path(comparison_filter_params.merge(file: "xlsx")),
+              class: "btn btn-secondary btn-sm", data: { turbo: false } %>
+        <%= link_to t("inventory.reports.export_csv"), inventory_branch_comparison_report_export_path(comparison_filter_params.merge(file: "csv")),
+              class: "btn btn-ghost btn-sm", data: { turbo: false } %>
+      </div>
+    </div>
+
+    <%# ── Summary ─────────────────────────────────────────────────────── %>
+    <div class="kpi-grid kpi-grid--compact">
+      <div class="kpi-card">
+        <span class="kpi-card__label"><%= t("#{bc}.total_stock") %></span>
+        <span class="kpi-card__value"><%= qty.(@report.total_stock) %></span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__label"><%= t("#{bc}.total_consumption") %></span>
+        <span class="kpi-card__value"><%= qty.(@report.total_consumption) %></span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__label"><%= t("#{bc}.highest_branch") %></span>
+        <span class="kpi-card__value"><%= @report.highest_branch&.branch&.name || "—" %></span>
+        <% if @report.highest_branch %><span class="td-secondary"><%= qty.(@report.highest_branch.net_consumption) %></span><% end %>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__label"><%= t("#{bc}.lowest_branch") %></span>
+        <span class="kpi-card__value"><%= @report.lowest_branch&.branch&.name || "—" %></span>
+        <% if @report.lowest_branch %><span class="td-secondary"><%= qty.(@report.lowest_branch.net_consumption) %></span><% end %>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__label"><%= t("#{bc}.consuming_branches") %></span>
+        <span class="kpi-card__value"><%= @report.consuming_branch_count %></span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__label"><%= t("#{bc}.total_value") %></span>
+        <span class="kpi-card__value">
+          <%= @report.product.average_cost_price.positive? ? format_currency(@report.total_value) : t("#{bc}.cost_not_set") %>
+        </span>
+      </div>
+    </div>
+
+    <%# ── Branch comparison ───────────────────────────────────────────── %>
+    <section class="report-hub-group">
+      <h2 class="section-title--exec report-hub-group__title">
+        <span class="report-hub-group__icon"><%= workspace_icon(:consumption) %></span>
+        <%= t("#{bc}.branches_title") %>
+      </h2>
+
+      <% if @report.branch_rows.empty? %>
+        <div class="empty-state"><p class="empty-state__title"><%= t("#{bc}.no_branches") %></p></div>
+      <% else %>
+        <% if @report.branch_rows.any?(&:shared?) %>
+          <p class="td-secondary"><span class="badge badge-neutral"><%= t("#{bc}.shared") %></span> <%= t("#{bc}.shared_hint") %></p>
+        <% end %>
+
+        <div class="table-wrap table-wrap--cards">
+          <table class="report-table">
+            <thead><tr>
+              <th><%= t("inventory.reports.fields.branch") %></th>
+              <th><%= t("#{bc}.cols.supplying_warehouse") %></th>
+              <th><%= t("#{bc}.cols.warehouse_status") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.warehouse_stock") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.issued") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.reversed") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.net_consumption") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.share") %></th>
+              <th style="text-align: end;"><%= t("inventory.reports.fields.avg_daily_consumption") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.coverage") %></th>
+              <th><%= t("inventory.reports.fields.last_consumed") %></th>
+            </tr></thead>
+            <tbody>
+              <% @report.branch_rows.each do |row| %>
+                <tr>
+                  <td class="td-wrap">
+                    <%= link_to row.branch.name,
+                          inventory_branch_comparison_report_path(comparison_filter_params.merge(drill_branch_id: row.branch.id, anchor: "branch-movements")),
+                          class: "link" %>
+                  </td>
+                  <td class="td-secondary td-wrap"><%= render "inventory/warehouse_supplies/link_label", warehouses: row.warehouses, source: row.source %></td>
+                  <td>
+                    <% if row.warehouses.empty? %>
+                      <span class="td-secondary">—</span>
+                    <% else %>
+                      <span class="badge <%= row.exclusive? ? 'badge-success' : 'badge-neutral' %>">
+                        <%= row.exclusive? ? t("#{bc}.exclusive") : t("#{bc}.shared") %>
+                      </span>
+                    <% end %>
+                  </td>
+                  <td style="text-align: end;">
+                    <% if row.warehouse_stock %>
+                      <%= qty.(row.warehouse_stock) %>
+                    <% else %>
+                      <span class="td-secondary" title="<%= t("#{bc}.stock_in_warehouse_section") %>">—</span>
+                    <% end %>
+                  </td>
+                  <td style="text-align: end;"><%= qty.(row.issued) %></td>
+                  <td style="text-align: end;"><%= row.reversed.positive? ? "−#{qty.(row.reversed)}" : "—" %></td>
+                  <td style="text-align: end; font-weight: 600;">
+                    <%= row.consuming? ? qty.(row.net_consumption) : content_tag(:span, no_consumption, class: "td-secondary") %>
+                  </td>
+                  <td style="text-align: end;"><%= number_to_percentage(row.share, precision: 1) %></td>
+                  <td style="text-align: end;"><%= number_with_precision(row.avg_daily_consumption, precision: 2) %></td>
+                  <td style="text-align: end;">
+                    <% if row.coverage_days %>
+                      <%= t("#{bc}.days", count: row.coverage_days.floor) %>
+                    <% elsif row.shared? && row.consuming? %>
+                      <span class="td-secondary" title="<%= t("#{bc}.coverage_shared_hint") %>"><%= t("#{bc}.coverage_shared") %></span>
+                    <% else %>
+                      <span class="td-secondary">—</span>
+                    <% end %>
+                  </td>
+                  <td class="td-secondary"><%= local_date(row.last_consumed_on) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <%# ── Chart: consumption by branch ── %>
+        <% chart_rows = @report.consuming_rows.group_by(&:branch).map { |branch, rows| [ branch.name, rows.sum(&:net_consumption).to_f ] }.sort_by { |_, v| -v } %>
+        <% if chart_rows.any? %>
+          <div class="chart-card" style="margin-top: var(--space-4);">
+            <div class="chart-card__header">
+              <h3 class="section-title--exec"><%= t("#{bc}.consumption_chart") %></h3>
+            </div>
+            <div class="chart-card__body">
+              <canvas data-controller="chart" data-chart-type-value="bar" data-chart-single-hue-value="true"
+                      role="img" aria-label="<%= t("#{bc}.consumption_chart") %>"
+                      data-chart-options-value="<%= { plugins: { legend: { display: false } } }.to_json %>"
+                      data-chart-data-value="<%= { labels: chart_rows.map(&:first),
+                                                   datasets: [ { label: t("#{bc}.cols.net_consumption"),
+                                                                 data: chart_rows.map(&:last), maxBarThickness: 48 } ] }.to_json %>"></canvas>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </section>
+
+    <%# ── Warehouse stock & reconciliation (stock shown once) ───────────── %>
+    <section class="report-hub-group">
+      <h2 class="section-title--exec report-hub-group__title">
+        <span class="report-hub-group__icon"><%= workspace_icon(:warehouses) %></span>
+        <%= t("#{bc}.warehouses_title") %>
+      </h2>
+      <p class="td-secondary"><%= t("#{bc}.reconciliation_hint") %></p>
+
+      <% if @report.warehouse_rows.empty? %>
+        <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.empty") %></p></div>
+      <% else %>
+        <div class="table-wrap table-wrap--cards">
+          <table class="report-table">
+            <thead><tr>
+              <th><%= t("inventory.reports.fields.warehouse") %></th>
+              <th><%= t("#{bc}.cols.supplies") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.opening") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.receipts") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.transfers_in") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.transfers_out") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.adjustments_in") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.adjustments_out") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.consumption") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.reversals") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.closing") %></th>
+              <th style="text-align: end;"><%= t("inventory.reports.fields.stock_value") %></th>
+              <th style="text-align: end;"><%= t("#{bc}.cols.coverage") %></th>
+            </tr></thead>
+            <tbody>
+              <% signed = ->(v) { v.positive? ? "+#{qty.(v)}" : (v.negative? ? "−#{qty.(v.abs)}" : "—") } %>
+              <% @report.warehouse_rows.each do |row| %>
+                <tr>
+                  <td class="td-wrap">
+                    <%= row.warehouse.name %>
+                    <% if row.shared? %><span class="badge badge-neutral"><%= t("#{bc}.shared") %></span><% end %>
+                  </td>
+                  <td class="td-secondary td-wrap"><%= row.branches.map(&:name).join("، ").presence || "—" %></td>
+                  <td style="text-align: end;"><%= qty.(row.opening) %></td>
+                  <td style="text-align: end;"><%= signed.(row.receipts) %></td>
+                  <td style="text-align: end;"><%= signed.(row.transfers_in) %></td>
+                  <td style="text-align: end;"><%= signed.(-row.transfers_out) %></td>
+                  <td style="text-align: end;"><%= signed.(row.adjustments_in) %></td>
+                  <td style="text-align: end;"><%= signed.(-row.adjustments_out) %></td>
+                  <td style="text-align: end;"><%= signed.(-row.consumption) %></td>
+                  <td style="text-align: end;"><%= signed.(row.reversals) %></td>
+                  <td style="text-align: end; font-weight: 600;">
+                    <%= qty.(row.closing) %>
+                    <% if @report.period_includes_today? %>
+                      <span class="badge <%= row.reconciles? ? 'badge-success' : 'badge-danger' %>"
+                            title="<%= t("#{bc}.current_stock_is", value: qty.(row.current_stock)) %>">
+                        <%= row.reconciles? ? t("#{bc}.reconciled") : t("#{bc}.not_reconciled") %>
+                      </span>
+                    <% end %>
+                  </td>
+                  <td style="text-align: end;"><%= format_currency(row.stock_value) %></td>
+                  <td style="text-align: end;">
+                    <%= row.coverage_days ? t("#{bc}.days", count: row.coverage_days.floor) : content_tag(:span, no_consumption, class: "td-secondary") %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </section>
+
+    <%# ── Drill-down: the Stock Movement report's rows for one branch ───── %>
+    <details class="card report-drilldown" id="branch-movements" <%= "open" if @drill_branch %>>
+      <summary class="section-title--exec">
+        <%= @drill_branch ? t("#{bc}.drill_title", branch: @drill_branch.name) : t("#{bc}.drill_prompt") %>
+      </summary>
+
+      <% if @drill_branch %>
+        <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-3); margin: var(--space-3) 0;">
+          <p class="td-secondary" style="margin: 0;"><%= t("inventory.reports.results_count", count: @drill_total) %></p>
+          <% drill_filters = { product_id: @report.product.id, branch_id: @drill_branch.id, from: @report.from.iso8601, to: @report.to.iso8601,
+                               warehouse_id: params[:warehouse_id] }.compact_blank %>
+          <span class="report-card__exports">
+            <%= link_to t("inventory.reports.export_xlsx"), inventory_movements_report_export_path(drill_filters.merge(file: "xlsx")), data: { turbo: false } %>
+            <%= link_to t("inventory.reports.export_csv"),  inventory_movements_report_export_path(drill_filters.merge(file: "csv")),  data: { turbo: false } %>
+          </span>
+        </div>
+
+        <% if @drill_rows.empty? %>
+          <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.movements.empty") %></p></div>
+        <% else %>
+          <div class="table-wrap table-wrap--cards">
+            <table class="report-table">
+              <thead><tr>
+                <th><%= t("inventory.reports.fields.date") %></th>
+                <th><%= t("inventory.reports.fields.type") %></th>
+                <th style="text-align: end;"><%= t("inventory.reports.fields.quantity") %></th>
+                <th><%= t("inventory.reports.fields.warehouse") %></th>
+                <th><%= t("inventory.reports.fields.branch") %></th>
+                <th><%= t("inventory.reports.fields.document_number") %></th>
+                <th style="text-align: end;"><%= t("#{bc}.cols.balance_before") %></th>
+                <th style="text-align: end;"><%= t("inventory.reports.fields.balance_after") %></th>
+              </tr></thead>
+              <tbody>
+                <% @drill_rows.each do |row| %>
+                  <tr>
+                    <td class="td-secondary"><%= local_date(row.movement.occurred_on) %></td>
+                    <td>
+                      <span class="badge <%= row.direction == 'in' ? 'badge-success' : 'badge-neutral' %>"><%= t("inventory.movements.directions.#{row.direction}") %></span>
+                      <span class="td-secondary"><%= t("inventory.movements.reasons.#{row.reason}") %></span>
+                    </td>
+                    <td style="text-align: end;"><%= row.signed_quantity.positive? ? "+" : "" %><%= qty.(row.signed_quantity) %></td>
+                    <td class="td-secondary"><%= row.warehouse.name %></td>
+                    <td class="td-secondary"><%= @drill_branch.name %></td>
+                    <td><%= inventory_source_document_link(row.source, row.document_number) %></td>
+                    <td style="text-align: end;"><%= qty.(row.balance_before) %></td>
+                    <td style="text-align: end; font-weight: 600;"><%= qty.(row.balance_after) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+          <%= render "shared/pagination", page: @drill_page, total_pages: @drill_pages,
+                path_proc: ->(p) { inventory_branch_comparison_report_path(comparison_filter_params.merge(drill_branch_id: @drill_branch.id, drill_page: p, anchor: "branch-movements")) } %>
+        <% end %>
+      <% else %>
+        <p class="td-secondary" style="margin-top: var(--space-3);"><%= t("#{bc}.drill_hint") %></p>
+      <% end %>
+    </details>
+  <% end %>
+</div>

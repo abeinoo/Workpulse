@@ -1,0 +1,90 @@
+<% content_for :title, t("inventory.warehouse_supplies.title") %>
+<% ws = "inventory.warehouse_supplies" %>
+
+<div class="admin-page">
+  <%= link_to inventory_settings_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("inventory.settings.title") %>
+  <% end %>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("#{ws}.title") %></h1>
+      <p class="page-subtitle"><%= t("#{ws}.desc") %></p>
+    </div>
+  </div>
+
+  <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-4);">
+    <p style="margin: 0 0 var(--space-2);">
+      <span class="badge badge-accent"><%= t("#{ws}.sources.explicit") %></span>
+      <span class="td-secondary"><%= t("#{ws}.sources_hint.explicit") %></span>
+    </p>
+    <p style="margin: 0;">
+      <span class="badge badge-neutral"><%= t("#{ws}.sources.inferred") %></span>
+      <span class="td-secondary"><%= t("#{ws}.sources_hint.inferred") %></span>
+    </p>
+  </div>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("#{ws}.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("#{ws}.branch") %></th>
+          <th><%= t("#{ws}.supplying_warehouse") %></th>
+          <th><%= t("#{ws}.status") %></th>
+          <% if @can_manage %><th><%= t("#{ws}.change") %></th><% end %>
+        </tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <% policy_ok = @can_manage && (row.supply.nil? || @warehouses.include?(row.supply.warehouse)) %>
+            <tr id="<%= dom_id(row.branch, :supply) %>">
+              <td><strong><%= row.branch.name %></strong></td>
+              <td>
+                <% case row.status %>
+                <% when :explicit %>
+                  <%= render "link_label", warehouses: [ row.supply.warehouse ], source: :explicit %>
+                <% when :inferred, :inactive %>
+                  <%= render "link_label", warehouses: row.inferred_warehouses, source: :inferred %>
+                <% else %>
+                  <span class="td-secondary">—</span>
+                <% end %>
+              </td>
+              <td>
+                <span class="badge <%= { explicit: 'badge-success', inferred: 'badge-neutral', inactive: 'badge-warning', unlinked: 'badge-danger' }[row.status] %>">
+                  <%= t("#{ws}.statuses.#{row.status}") %>
+                </span>
+                <% if row.supply %>
+                  <div class="td-secondary" style="font-size: var(--text-xs); margin-top: 2px;">
+                    <%= t("#{ws}.last_changed", user: row.supply.updated_by&.full_name || "—", at: local_date(row.supply.updated_at)) %>
+                  </div>
+                <% end %>
+              </td>
+              <% if @can_manage %>
+                <td>
+                  <% if policy_ok %>
+                    <%= form_with url: inventory_warehouse_supply_path(row.branch), method: :patch, local: true,
+                                  class: "supply-form" do |f| %>
+                      <%= f.select :warehouse_id,
+                            options_from_collection_for_select(@warehouses, :id, :name,
+                              row.supply&.warehouse_id || row.inferred_warehouses.first&.id),
+                            {}, class: "form-control", "aria-label": t("#{ws}.supplying_warehouse") %>
+                      <%= f.select :active,
+                            options_for_select([ [ t("#{ws}.active"), "true" ], [ t("#{ws}.inactive"), "false" ] ],
+                              row.supply.nil? || row.supply.active? ? "true" : "false"),
+                            {}, class: "form-control", "aria-label": t("#{ws}.status") %>
+                      <%= f.submit row.supply ? t("#{ws}.save") : t("#{ws}.set"), class: "btn btn-primary btn-sm" %>
+                    <% end %>
+                  <% else %>
+                    <span class="td-secondary"><%= t("#{ws}.no_access") %></span>
+                  <% end %>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

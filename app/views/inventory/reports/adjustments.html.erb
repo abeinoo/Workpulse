@@ -1,0 +1,47 @@
+<% content_for :title, t("inventory.reports.adjustments.title") %>
+
+<div class="admin-page">
+  <%= render "page_header", key: "adjustments" %>
+
+  <%= render "filters", url: inventory_adjustments_report_path, fields: %i[warehouse product adjustment_reason from to] %>
+
+  <% if @rows.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("inventory.reports.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table class="report-table">
+        <thead><tr>
+          <th><%= t("inventory.reports.fields.date") %></th>
+          <th><%= t("inventory.reports.fields.product") %></th>
+          <th><%= t("inventory.reports.fields.warehouse") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.previous_quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.adjustment_quantity") %></th>
+          <th style="text-align: end;"><%= t("inventory.reports.fields.new_quantity") %></th>
+          <th><%= t("inventory.reports.fields.reason") %></th>
+          <th><%= t("inventory.reports.fields.user") %></th>
+          <th><%= t("inventory.reports.fields.document_number") %></th>
+        </tr></thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td class="td-secondary"><%= local_date(row.movement.occurred_on) %></td>
+              <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-secondary"><%= row.warehouse.name %></td>
+              <td style="text-align: end;"><%= row.balance_before.to_i %></td>
+              <td style="text-align: end; font-weight: 600;"><%= row.signed_quantity.positive? ? "+" : "" %><%= row.signed_quantity.to_i %></td>
+              <td style="text-align: end;"><%= row.balance_after.to_i %></td>
+              <td>
+                <%= t("inventory.stock_adjustments.reasons.#{row.adjustment.reason}") %>
+                <% if row.reversal? %>
+                  <span class="badge badge-danger"><%= t("inventory.movements.reasons.reversal") %></span>
+                <% end %>
+              </td>
+              <td class="td-secondary"><%= row.adjustment.created_by&.full_name || "—" %></td>
+              <td><%= inventory_source_document_link(row.adjustment, row.adjustment.adjustment_number) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

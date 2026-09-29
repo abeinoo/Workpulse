@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_28_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -2335,6 +2335,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_150000) do
     t.index ["warehouse_id"], name: "index_warehouse_assignments_on_warehouse_id"
   end
 
+  create_table "warehouse_branch_supplies", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "branch_id", null: false
+    t.bigint "business_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.bigint "warehouse_id", null: false
+    t.index ["branch_id"], name: "index_warehouse_branch_supplies_on_branch_id", unique: true
+    t.index ["business_id"], name: "index_warehouse_branch_supplies_on_business_id"
+    t.index ["created_by_id"], name: "index_warehouse_branch_supplies_on_created_by_id"
+    t.index ["updated_by_id"], name: "index_warehouse_branch_supplies_on_updated_by_id"
+    t.index ["warehouse_id"], name: "index_warehouse_branch_supplies_on_warehouse_id"
+  end
+
   create_table "warehouses", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.datetime "created_at", null: false
@@ -2702,5 +2718,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_150000) do
   add_foreign_key "users", "permission_roles", on_delete: :nullify
   add_foreign_key "warehouse_assignments", "users"
   add_foreign_key "warehouse_assignments", "warehouses"
+  add_foreign_key "warehouse_branch_supplies", "branches"
+  add_foreign_key "warehouse_branch_supplies", "businesses"
+  add_foreign_key "warehouse_branch_supplies", "users", column: "created_by_id"
+  add_foreign_key "warehouse_branch_supplies", "users", column: "updated_by_id"
+  add_foreign_key "warehouse_branch_supplies", "warehouses"
   add_foreign_key "warehouses", "businesses"
 end

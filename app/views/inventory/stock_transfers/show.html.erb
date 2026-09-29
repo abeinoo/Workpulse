@@ -10,7 +10,7 @@
     <h1 class="page-title">
       <%= @stock_transfer.transfer_number %>
       <span class="badge <%= @stock_transfer.voided? ? 'badge-danger' : 'badge-success' %>">
-        <%= @stock_transfer.voided? ? t("inventory.void.status_voided") : t("inventory.void.status_active") %>
+        <%= @stock_transfer.voided? ? t("inventory.void.status_voided") : t("inventory.stock_transfers.status_posted") %>
       </span>
     </h1>
   </div>

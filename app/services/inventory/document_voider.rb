@@ -42,7 +42,8 @@ module Inventory
       ActiveRecord::Base.transaction do
         @document.reversal_entries.each do |entry|
           @document.inventory_movements.create!(
-            entry.merge(business: @document.business, reason: :reversal, occurred_on: Date.current)
+            entry.merge(business: @document.business, reason: :reversal,
+                        occurred_on: BusinessDay.current(context: @document.business))
           )
         end
 

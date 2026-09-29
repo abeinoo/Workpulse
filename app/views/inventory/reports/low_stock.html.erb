@@ -1,0 +1,16 @@
+<% content_for :title, t("inventory.reports.low_stock.title") %>
+
+<div class="admin-page">
+  <%= render "page_header", key: "low_stock" %>
+
+  <%= render "filters", url: inventory_low_stock_report_path, fields: %i[warehouse branch] %>
+
+  <% if @rows.any? %>
+    <p class="td-secondary">
+      <%= t("inventory.reports.low_stock.suggested_total") %>:
+      <strong><%= format_currency(@report.total_suggested_value) %></strong>
+    </p>
+  <% end %>
+
+  <%= render "inventory/shared/low_stock_purchasing", rows: @rows, suppliers: @suppliers, show_min_level: true %>
+</div>

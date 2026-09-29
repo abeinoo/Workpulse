@@ -12,8 +12,9 @@ module Finance
     #                   the branch(es) the employee actually worked during that period —
     #                   see #payroll_costs for why this can't be read off the period
     #                   itself (PayrollPeriod is business-wide, not branch-scoped).
-    #   Inventory     : cost of consumption — OUT/stock_issue movements attributed to
-    #                   the branch (quantity × unit_cost), NOT purchases.
+    #   Inventory     : cost of consumption — Inventory::ConsumptionLedger: OUT/
+    #                   stock_issue movements attributed to the branch (quantity ×
+    #                   unit_cost), net of voided-issue reversals; NOT purchases.
     #   Direct/Allocated expenses: approved expenses for the branch in the month, plus
     #                   the branch's allocated share of shared expenses.
     #   Laundry       : standard laundry/towel cost the branch was charged for the
@@ -37,9 +38,7 @@ module Finance
       end
 
       def inventory_costs
-        @inventory_costs ||= inventory_consumption_scope
-          .group(:branch_id)
-          .sum(Arel.sql("quantity * unit_cost"))
+        @inventory_costs ||= consumption_ledger.cost_by_branch
       end
 
       def direct_expenses
@@ -72,23 +71,25 @@ module Finance
       end
 
       # {branch_id => [{product:, category:, quantity:, unit_cost:, total:}]} —
-      # same base scope as inventory_costs (identical .consumption.where(...)
-      # .occurred_between(...)), just grouped one level finer, so its sum-by-
-      # branch reconciles to inventory_costs by construction.
+      # the same ConsumptionLedger as inventory_costs, just grouped one level
+      # finer, so its sum-by-branch reconciles to inventory_costs by construction.
+      # Products whose issues were fully voided in the period net to zero and
+      # are left out.
       def inventory_movements_by_branch_product
         @inventory_movements_by_branch_product ||= begin
-          totals    = inventory_consumption_scope.group(:branch_id, :product_id).sum(Arel.sql("quantity * unit_cost"))
-          quantities = inventory_consumption_scope.group(:branch_id, :product_id).sum(:quantity)
-          products  = Product.where(id: totals.keys.map(&:second)).includes(:product_category).index_by(&:id)
+          totals   = consumption_ledger.totals_by_branch_product
+          products = Product.where(id: totals.keys.map(&:second)).includes(:product_category).index_by(&:id)
 
-          totals.each_with_object(Hash.new { |h, k| h[k] = [] }) do |((branch_id, product_id), total), grouped|
+          totals.each_with_object(Hash.new { |h, k| h[k] = [] }) do |((branch_id, product_id), t), grouped|
+            next if t[:quantity].zero? && t[:cost].zero?
+
             product = products[product_id]
             grouped[branch_id] << {
               product:  product,
               category: product&.product_category&.name,
-              quantity: quantities[[ branch_id, product_id ]] || 0,
-              unit_cost: quantities[[ branch_id, product_id ]].to_f.zero? ? 0 : total / quantities[[ branch_id, product_id ]],
-              total:    total
+              quantity: t[:quantity],
+              unit_cost: t[:quantity].to_f.zero? ? 0 : t[:cost] / t[:quantity],
+              total:    t[:cost]
             }
           end
         end
@@ -150,10 +151,8 @@ module Finance
         @fallback_branch_id ||= @business.branches.where(branch_type: "sales").order(:id).pick(:id)
       end
 
-      def inventory_consumption_scope
-        InventoryMovement.consumption
-          .where(business_id: @business.id)
-          .occurred_between(@start, @end)
+      def consumption_ledger
+        @consumption_ledger ||= Inventory::ConsumptionLedger.new(@business, from: @start, to: @end)
       end
 
       def direct_expenses_scope

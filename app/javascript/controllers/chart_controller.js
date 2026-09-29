@@ -17,7 +17,11 @@ export default class extends Controller {
     type: String,
     data: Object,
     options: { type: Object, default: {} },
-    links: { type: Array, default: [] }
+    links: { type: Array, default: [] },
+    // One measure per category (e.g. consumption by branch): every bar in
+    // the theme accent instead of a color per bar — color then carries no
+    // (false) identity, and no legend is needed.
+    singleHue: { type: Boolean, default: false }
   }
 
   async connect() {
@@ -77,7 +81,7 @@ export default class extends Controller {
     // across re-filters/re-sorts) instead of array-index rotation, so e.g.
     // a given branch is always the same color everywhere it appears.
     const sliceColors = this.#isDonutLike() && data.labels ? data.labels.map(colorForLabel) : palette
-    const perPoint = this.#isPerPointColored()
+    const perPoint = this.#isPerPointColored() && !this.singleHueValue
 
     data.datasets = data.datasets.map((dataset, i) => ({
       backgroundColor: dataset.backgroundColor || (perPoint && Array.isArray(dataset.data) && dataset.data.length > 1 ? sliceColors : palette[i % palette.length]),

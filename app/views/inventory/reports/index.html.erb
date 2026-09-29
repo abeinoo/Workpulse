@@ -1,22 +1,119 @@
 <% content_for :title, t("inventory.reports.title") %>
 
-<div class="admin-page">
-  <div class="page-header">
-    <h1 class="page-title"><%= t("inventory.reports.title") %></h1>
+<%# Inventory Reports hub — same header / KPI / report-card language as the
+    Finance reports hub (.exec-header, .kpi-grid, .report-hub-group,
+    .report-card). Every figure comes from Inventory::Reports::Overview, which
+    reads the same report services the cards open, so a card's metric always
+    matches its report. One controller-level gate (require_reports_access!)
+    covers every report; the purchase-request action inside Low Stock keeps
+    its own permission check. %>
+<div class="admin-page exec-dashboard">
+  <div class="page-header exec-header">
+    <div>
+      <h1 class="page-title"><%= t("inventory.reports.title") %></h1>
+      <p class="exec-header__period"><%= t("inventory.reports.hub_subtitle") %></p>
+    </div>
   </div>
 
-  <div class="stats-grid">
-    <%= link_to inventory_current_stock_report_path, class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.reports.current_stock.title") %></span>
-      <span class="stat-card__sub"><%= t("inventory.reports.current_stock.desc") %></span>
+  <%# ── Headline figures ─────────────────────────────────────────────── %>
+  <div class="kpi-grid kpi-grid--compact">
+    <%= link_to inventory_current_stock_report_path, class: "kpi-card" do %>
+      <span class="kpi-card__label"><%= t("inventory.reports.kpis.total_value") %></span>
+      <span class="kpi-card__value"><%= format_currency(@overview.total_value) %></span>
     <% end %>
-    <%= link_to inventory_movements_report_path, class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.reports.movements.title") %></span>
-      <span class="stat-card__sub"><%= t("inventory.reports.movements.desc") %></span>
+    <%= link_to inventory_current_stock_report_path, class: "kpi-card" do %>
+      <span class="kpi-card__label"><%= t("inventory.reports.kpis.total_products") %></span>
+      <span class="kpi-card__value"><%= @overview.product_count %></span>
     <% end %>
-    <%= link_to inventory_supplier_purchases_report_path, class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.reports.supplier_purchases.title") %></span>
-      <span class="stat-card__sub"><%= t("inventory.reports.supplier_purchases.desc") %></span>
+    <%= link_to inventory_low_stock_report_path,
+          class: "kpi-card #{'kpi-card--danger' if @overview.low_stock_count.positive?}" do %>
+      <span class="kpi-card__label"><%= t("inventory.reports.kpis.low_stock") %></span>
+      <span class="kpi-card__value"><%= @overview.low_stock_count %></span>
+    <% end %>
+    <%= link_to inventory_current_stock_report_path(stock_status: "out_of_stock"),
+          class: "kpi-card #{'kpi-card--danger' if @overview.out_of_stock_count.positive?}" do %>
+      <span class="kpi-card__label"><%= t("inventory.reports.kpis.out_of_stock") %></span>
+      <span class="kpi-card__value"><%= @overview.out_of_stock_count %></span>
+    <% end %>
+    <%= link_to inventory_movements_report_path(from: @overview.today.iso8601),
+          class: "kpi-card" do %>
+      <span class="kpi-card__label"><%= t("inventory.reports.kpis.todays_movements") %></span>
+      <span class="kpi-card__value"><%= @overview.todays_movement_count %></span>
     <% end %>
   </div>
+
+  <%
+    # group key => [icon, [[route helper, report key, workspace icon, metric or nil], ...]]
+    sections = [
+      [ "overview", :items, [
+        [ :inventory_current_stock_report_path, "current_stock", :items,        format_currency(@overview.total_value) ],
+        [ :inventory_low_stock_report_path,     "low_stock",     :low_stock,    @overview.low_stock_count ],
+        [ :inventory_current_stock_report_path, "out_of_stock",  :out_of_stock, @overview.out_of_stock_count, { stock_status: "out_of_stock" } ],
+        [ :inventory_no_movement_report_path,   "no_movement",   :idle_stock,   @overview.no_movement_count ],
+        [ :inventory_branch_comparison_report_path, "branch_comparison", :warehouses, nil ]
+      ] ],
+      [ "movements", :movements, [
+        [ :inventory_movements_report_path,   "movements",   :movements,   @overview.todays_movement_count, nil, :inventory_movements_report_export_path ],
+        [ :inventory_consumption_report_path, "consumption", :consumption, format_currency(@overview.month_consumption_value) ]
+      ] ],
+      [ "purchasing", :purchasing, [
+        [ :inventory_purchases_report_path,          "purchases",          :receipts,  format_currency(@overview.month_purchase_value) ],
+        [ :inventory_supplier_purchases_report_path, "supplier_purchases", :suppliers, format_currency(@overview.outstanding_to_suppliers) ]
+      ] ],
+      [ "transfers", :transfers, [
+        [ :inventory_transfers_report_path, "transfers", :transfers, nil ]
+      ] ],
+      [ "adjustments", :adjustments, [
+        [ :inventory_adjustments_report_path, "adjustments", :stocktake, nil ]
+      ] ]
+    ]
+  %>
+
+  <% sections.each do |group, group_icon, cards| %>
+    <section class="report-hub-group">
+      <h2 class="section-title--exec report-hub-group__title">
+        <span class="report-hub-group__icon"><%= workspace_icon(group_icon) %></span>
+        <%= t("inventory.reports.groups.#{group}") %>
+      </h2>
+      <div class="report-hub-grid">
+        <% cards.each do |route, key, icon, metric, route_params, export_route| %>
+          <% card_body = capture do %>
+            <span class="report-card__icon"><%= workspace_icon(icon, size: 20) %></span>
+            <h3 class="report-card__title"><%= t("inventory.reports.#{key}.title") %></h3>
+            <p class="report-card__desc"><%= t("inventory.reports.#{key}.desc") %></p>
+            <% unless metric.nil? %>
+              <p class="report-card__metric">
+                <span class="report-card__metric-label"><%= t("inventory.reports.#{key}.metric") %></span>
+                <strong><%= metric %></strong>
+              </p>
+            <% end %>
+          <% end %>
+          <% arrow = capture do %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <% end %>
+          <% if export_route %>
+            <%# Exportable report: a card (not one big link) with a view action
+                plus compact export links — nested links aren't valid HTML. %>
+            <div class="exec-card report-card">
+              <%= card_body %>
+              <div class="report-card__actions">
+                <%= link_to public_send(route), class: "report-card__cta" do %>
+                  <%= t("inventory.reports.view_report") %><%= arrow %>
+                <% end %>
+                <span class="report-card__exports">
+                  <%= link_to t("inventory.reports.export_xlsx"), public_send(export_route, file: "xlsx"), data: { turbo: false } %>
+                  <%= link_to t("inventory.reports.export_csv"),  public_send(export_route, file: "csv"),  data: { turbo: false } %>
+                </span>
+              </div>
+            </div>
+          <% else %>
+            <%= link_to public_send(route, **(route_params || {})), class: "exec-card report-card" do %>
+              <%= card_body %>
+              <span class="report-card__cta"><%= t("inventory.reports.view_report") %><%= arrow %></span>
+            <% end %>
+          <% end %>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
 </div>
