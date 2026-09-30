@@ -5185,6 +5185,8 @@ en:
         allocation_not_100: "branch allocations must total 100%"
         at_least_one_branch_required: "at least one branch distribution row is required for a shared expense"
       models:
+        shift_assignment:
+          employee_not_in_business: "The selected employee does not belong to your business."
         performance_observation:
           attributes:
             employee:

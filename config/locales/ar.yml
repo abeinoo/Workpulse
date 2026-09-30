@@ -5250,6 +5250,8 @@ ar:
         allocation_not_100: "يجب أن يكون مجموع توزيعات الفروع 100%"
         at_least_one_branch_required: "مطلوب صف توزيع فرع واحد على الأقل للمصروف المشترك"
       models:
+        shift_assignment:
+          employee_not_in_business: "الموظف المحدد لا ينتمي إلى شركتك."
         performance_observation:
           attributes:
             employee:

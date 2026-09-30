@@ -106,7 +106,7 @@ class ShiftAssignmentsController < ApplicationController
     @assignment = ShiftAssignment.new(assignment_params)
     @assignment.created_by = current_user
     authorize @assignment
-    if @assignment.save
+    if assignment_employee_in_business? && @assignment.save
       redirect_to shift_assignments_path, notice: t("flash.shift_assigned")
     else
       load_form_data
@@ -350,6 +350,18 @@ class ShiftAssignmentsController < ApplicationController
                    BranchMembership.current_branch_ids(current_user)
       @branches = Branch.where(id: branch_ids.uniq).active.order(:name)
     end
+  end
+
+  # The employee must belong to the current user's business — a user_id from
+  # params is never trusted just because the record exists (same rule as
+  # Shifts::Assigner on the API). A blank user_id is left to the model's own
+  # presence validation.
+  def assignment_employee_in_business?
+    user_id = assignment_params[:user_id]
+    return true if user_id.blank? || current_user.business.users.exists?(id: user_id)
+
+    @assignment.errors.add(:base, :employee_not_in_business)
+    false
   end
 
   def assignment_params
