@@ -184,6 +184,11 @@ RSpec.describe "Admin::Users", type: :request do
       patch admin_user_path(target_user), params: { user: { date_of_birth: "1990-09-29" } }
       expect(target_user.reload.date_of_birth).to eq(Date.new(1990, 9, 29))
     end
+
+    it "saves whether the employee works shifts" do
+      patch admin_user_path(target_user), params: { user: { requires_shift_assignment: "0" } }
+      expect(target_user.reload.requires_shift_assignment).to be false
+    end
   end
 
   describe "DELETE /admin/users/:id" do

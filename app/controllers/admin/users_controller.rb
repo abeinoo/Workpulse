@@ -184,7 +184,7 @@ class Admin::UsersController < Admin::BaseController
       :permission_role_id,
       :job_title, :department_id, :hire_date, :date_of_birth, :address, :employment_type,
       :identity_card_number, :identity_card_expiry_date,
-      :allow_mobile_attendance, :allow_biometric_attendance,
+      :allow_mobile_attendance, :allow_biometric_attendance, :requires_shift_assignment,
       :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship,
       :admin_notes,
       :profile_photo, :national_id_front, :national_id_back,

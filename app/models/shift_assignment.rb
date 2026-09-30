@@ -1,4 +1,9 @@
 class ShiftAssignment < ApplicationRecord
+  # How far ahead an assignment's end date may fall and still count as
+  # "ending soon": drives the expiring-soon badges and which employees are
+  # available for a new assignment (see Shifts::AssignmentEligibility).
+  AVAILABILITY_WINDOW_DAYS = 7
+
   belongs_to :user
   belongs_to :shift
   belongs_to :branch
@@ -162,11 +167,11 @@ class ShiftAssignment < ApplicationRecord
     (effective_to - Date.current).to_i
   end
 
-  # True when the assignment ends within 7 days (including today).
+  # True when the assignment ends within AVAILABILITY_WINDOW_DAYS (including today).
   def expiring_soon?
     days = days_until_expiry
     return false if days.nil?
-    days.between?(0, 7)
+    days.between?(0, AVAILABILITY_WINDOW_DAYS)
   end
 
   private

@@ -1642,6 +1642,18 @@ ar:
       reason_label: "السبب"
       reason_placeholder: "مثال: تغطية غياب موظف آخر"
       reason_hint: "مطلوب عند اختيار التغطية المؤقتة."
+      employee_group_available_now: "متاح الآن"
+      employee_group_available_soon: "متاح قريباً"
+      employee_available_soon_option: "%{name} — الفرع الحالي: %{branch} · ينتهي: %{date}"
+      no_current_branch: "بدون فرع"
+      coverage_branch_label: "فرع التغطية"
+      select_coverage_branch: "اختر الفرع —"
+      coverage_branch_hint: "الفرع الذي سيعمل فيه الموظف مؤقتاً. لا يتغير فرعه الحالي."
+      employee_current_branch_option: "%{name} — الفرع الحالي: %{branch}"
+      coverage_route: "%{from} → %{to}"
+      employee_availability_hint:
+        one: "يعرض الموظفين الذين ليس لديهم تعيين نشط، أو الذين ينتهي تعيينهم الحالي خلال يوم واحد — بما في ذلك موظفو الفروع الأخرى."
+        other: "يعرض الموظفين الذين ليس لديهم تعيين نشط، أو الذين ينتهي تعيينهم الحالي خلال %{count} أيام — بما في ذلك موظفو الفروع الأخرى."
     coverage:
       badge: "تغطية"
     temporary:
@@ -2256,6 +2268,8 @@ ar:
         attendance_sources_hint: "حدّد كيف يُسمح لهذا الموظف بتسجيل حضوره. يجب تفعيل مصدر واحد على الأقل للموظفين الذين لديهم وردية."
         allow_mobile_attendance: "السماح بالحضور من الموبايل"
         allow_biometric_attendance: "السماح بالحضور من جهاز البصمة"
+        requires_shift_assignment: "يعمل بنظام الورديات"
+        requires_shift_assignment_hint: "ألغِ التحديد للموظفين عن بُعد والأدوار التي لا تعمل بنظام الورديات — لن يظهروا عند تعيين الورديات."
         profile_photo: "الصورة الشخصية"
         profile_photo_hint: "PNG أو JPG أو WebP · الحد الأقصى 5 ميغابايت"
         national_id_front: "الهوية الوطنية — الوجه الأمامي"
@@ -5233,6 +5247,12 @@ ar:
         allocation_not_100: "يجب أن يكون مجموع توزيعات الفروع 100%"
         at_least_one_branch_required: "مطلوب صف توزيع فرع واحد على الأقل للمصروف المشترك"
       models:
+        shift_assignment:
+          employee_not_in_business: "الموظف المحدد لا ينتمي إلى شركتك."
+          coverage_branch_not_allowed: "اختر فرع تغطية غير فرعك."
+          employee_not_available_for_assignment:
+            one: "الموظف المحدد غير متاح لتعيين جديد. يمكن فقط تعيين الموظفين الذين ليس لديهم تعيين نشط، أو الذين ينتهي تعيينهم الحالي خلال يوم واحد."
+            other: "الموظف المحدد غير متاح لتعيين جديد. يمكن فقط تعيين الموظفين الذين ليس لديهم تعيين نشط، أو الذين ينتهي تعيينهم الحالي خلال %{count} أيام."
         performance_observation:
           attributes:
             employee:

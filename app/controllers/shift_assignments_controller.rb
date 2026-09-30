@@ -106,7 +106,8 @@ class ShiftAssignmentsController < ApplicationController
     @assignment = ShiftAssignment.new(assignment_params)
     @assignment.created_by = current_user
     authorize @assignment
-    if @assignment.save
+    if assignment_employee_in_business? && assignment_employee_available? &&
+       coverage_branch_allowed? && @assignment.save
       redirect_to shift_assignments_path, notice: t("flash.shift_assigned")
     else
       load_form_data
@@ -332,17 +333,23 @@ class ShiftAssignmentsController < ApplicationController
     @shifts        = Shift.for_business(current_user.business).active.order(:name)
     @rule_profiles = ShiftRuleProfile.for_business(current_user.business).active.order(:name)
 
-    # Resolve scope most-specific-first (assign_shifts → view_shifts → view_employees)
-    # so a business-wide manager sees every employee and branch, not just their hierarchy.
-    @employees = EmployeeScope.new(current_user)
-                              .for_permissions(:assign_shifts, :view_shifts, :view_employees)
-                              .active.order(:first_name, :last_name)
+    # Temporary coverage runs alongside the employee's regular assignment, so it
+    # keeps picking from the manager's scoped employees.
+    @employees = scoped_employees.order(:first_name, :last_name)
 
-    effective_scope = current_user.scope_for(:assign_shifts) ||
-                      current_user.scope_for(:view_shifts) ||
-                      current_user.scope_for(:view_employees)
+    # Regular assignments pick only from employees available for a new
+    # assignment (see Shifts::AssignmentEligibility). Temporary coverage sends
+    # an employee from their current branch to another one.
+    if @assignment.new_record?
+      @regular_candidates       = assignment_eligibility.candidates(regular_employee_pool)
+      @availability_window_days = assignment_eligibility.window_days
+      @coverage_branches        = coverage_target_branches.order(:name)
+      @employee_current_branches = Shifts::AssignmentResolver
+                                     .for_many(users: @employees)
+                                     .transform_values { |a| a&.branch_name }
+    end
 
-    if effective_scope == "business"
+    if effective_employee_scope == "business"
       @branches = Branch.for_business(current_user.business).active.order(:name)
     else
       branch_ids = current_user.managed_branch_ids +
@@ -350,6 +357,80 @@ class ShiftAssignmentsController < ApplicationController
                    BranchMembership.current_branch_ids(current_user)
       @branches = Branch.where(id: branch_ids.uniq).active.order(:name)
     end
+  end
+
+  # The employee must belong to the current user's business — a user_id from
+  # params is never trusted just because the record exists (same rule as
+  # Shifts::Assigner on the API). A blank user_id is left to the model's own
+  # presence validation.
+  def assignment_employee_in_business?
+    user_id = assignment_params[:user_id]
+    return true if user_id.blank? || current_user.business.users.exists?(id: user_id)
+
+    @assignment.errors.add(:base, :employee_not_in_business)
+    false
+  end
+
+  # Server-side twin of the regular employee picker: a regular assignment may
+  # only be created for an employee who is both selectable by this user and
+  # available (no active assignment, or one ending within the window).
+  # Temporary coverage keeps its existing rules.
+  def assignment_employee_available?
+    return true unless @assignment.regular?
+    return true if @assignment.user_id.blank?
+    return true if assignment_eligibility.eligible_users(regular_employee_pool)
+                                         .exists?(id: @assignment.user_id)
+
+    @assignment.errors.add(:base, :employee_not_available_for_assignment,
+                           count: assignment_eligibility.window_days)
+    false
+  end
+
+  # Temporary coverage stores its target in the assignment's own branch_id —
+  # the employee's home branch stays on their untouched regular assignment. The
+  # target may be any active branch in the business except the manager's own.
+  def coverage_branch_allowed?
+    return true unless @assignment.temporary_coverage?
+    return true if @assignment.branch_id.blank? # model reports the missing branch
+    return true if coverage_target_branches.exists?(id: @assignment.branch_id)
+
+    @assignment.errors.add(:base, :coverage_branch_not_allowed)
+    false
+  end
+
+  def coverage_target_branches
+    own_branch_ids = current_user.managed_branch_ids +
+                     BranchMembership.current_branch_ids(current_user)
+    Branch.for_business(current_user.business).active.where.not(id: own_branch_ids)
+  end
+
+  # Resolve scope most-specific-first (assign_shifts → view_shifts → view_employees)
+  # so a business-wide manager sees every employee and branch, not just their hierarchy.
+  def effective_employee_scope
+    current_user.scope_for(:assign_shifts) ||
+      current_user.scope_for(:view_shifts) ||
+      current_user.scope_for(:view_employees)
+  end
+
+  def scoped_employees
+    EmployeeScope.new(current_user)
+                 .for_permissions(:assign_shifts, :view_shifts, :view_employees)
+                 .active
+  end
+
+  # Who a regular assignment may be created for, before eligibility. Employees
+  # without an active assignment belong to no branch and employees transferring
+  # in are still assigned elsewhere, so a manager's branch/area scope would hide
+  # exactly the people they need — the pool is the business's active employees
+  # and eligibility does the narrowing. A self-scoped user stays self-scoped.
+  def regular_employee_pool
+    return scoped_employees if effective_employee_scope == "self"
+
+    current_user.business.users.active.where.not(id: current_user.id)
+  end
+
+  def assignment_eligibility
+    @assignment_eligibility ||= Shifts::AssignmentEligibility.new(business: current_user.business)
   end
 
   def assignment_params

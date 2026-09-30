@@ -1,4 +1,41 @@
 module ShiftAssignmentHelper
+  # ── Regular-assignment employee picker ──────────────────────────────────────
+
+  # Grouped <option>s for Shifts::AssignmentEligibility candidates: "Available
+  # now" and "Available soon" (the latter labelled with the employee's current
+  # branch and end date, so a transfer from another branch is obvious before
+  # selecting). Empty groups are omitted.
+  def regular_employee_options(candidates, selected)
+    now, soon = candidates.partition(&:available_now?)
+    groups = []
+    groups << [ t("shift_assignments.form.employee_group_available_now"),
+                now.map { |c| [ c.user.full_name, c.user.id ] } ] if now.any?
+    if soon.any?
+      groups << [ t("shift_assignments.form.employee_group_available_soon"),
+                  soon.map { |c|
+                    [ t("shift_assignments.form.employee_available_soon_option",
+                        name:   c.user.full_name,
+                        branch: c.branch_name || t("shift_assignments.form.no_current_branch"),
+                        date:   local_date(c.ends_on)),
+                      c.user.id ]
+                  } ]
+    end
+    grouped_options_for_select(groups, selected)
+  end
+
+  # <option>s for the temporary-coverage employee picker, labelled with each
+  # employee's current branch (data-current-branch drives the "home → target"
+  # line on the form).
+  def coverage_employee_options(employees, current_branches, selected)
+    options = employees.map do |user|
+      branch = current_branches[user.id]
+      label  = branch ? t("shift_assignments.form.employee_current_branch_option",
+                          name: user.full_name, branch: branch) : user.full_name
+      [ label, user.id, { data: { current_branch: branch } } ]
+    end
+    options_for_select(options, selected)
+  end
+
   # ── Status badge ─────────────────────────────────────────────────────────────
 
   # Returns the CSS badge class (badge-success / badge-accent / badge-neutral)
