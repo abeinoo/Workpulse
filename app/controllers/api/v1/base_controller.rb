@@ -9,12 +9,14 @@ module Api
     # * ApiResponder           — legacy envelope helpers (render_success/render_error)
     # * Api::StandardResponses — standard envelope helpers (render_api_success/…)
     # * Api::ErrorHandling     — legacy by default; `standard_api_contract!` opts in
+    # * Api::Pagination        — paginate / paginate_if_requested
     #
     # No business logic belongs here.
     class BaseController < ApplicationController
       include ApiResponder
       include Api::StandardResponses
       include Api::ErrorHandling
+      include Api::Pagination
 
       skip_before_action :verify_authenticity_token
       before_action :authenticate_user!
