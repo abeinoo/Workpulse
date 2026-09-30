@@ -8,27 +8,18 @@ module Api
     #
     # * ApiResponder           — legacy envelope helpers (render_success/render_error)
     # * Api::StandardResponses — standard envelope helpers (render_api_success/…)
+    # * Api::ErrorHandling     — legacy by default; `standard_api_contract!` opts in
     #
     # No business logic belongs here.
     class BaseController < ApplicationController
       include ApiResponder
       include Api::StandardResponses
+      include Api::ErrorHandling
 
       skip_before_action :verify_authenticity_token
       before_action :authenticate_user!
 
-      rescue_from Pundit::NotAuthorizedError,      with: :handle_unauthorized
-      rescue_from ActiveRecord::RecordNotFound,    with: :handle_not_found
-
       private
-
-      def handle_unauthorized
-        render_error("Forbidden", status: :forbidden)
-      end
-
-      def handle_not_found
-        render_not_found
-      end
 
       def current_business
         current_user&.business
