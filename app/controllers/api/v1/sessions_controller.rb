@@ -3,6 +3,17 @@ module Api
     class SessionsController < BaseController
       skip_before_action :authenticate_user!, only: [:create]
 
+      # Brute-force protection (docs/api/conventions.md → "Rate limiting").
+      # Per login identifier (hashed, so no email/phone lands in cache keys) and
+      # a looser per-IP cap sized for a whole salon behind one Wi-Fi address.
+      rate_limit to: 10, within: 5.minutes, only: :create, name: "login-identifier",
+                 by:    :login_rate_limit_key,
+                 with:  -> { render_rate_limited(retry_after: 5.minutes) },
+                 store: Api::RateLimitStore
+      rate_limit to: 60, within: 1.minute, only: :create, name: "login-ip",
+                 with:  -> { render_rate_limited(retry_after: 1.minute) },
+                 store: Api::RateLimitStore
+
       def create
         user = find_user(session_params[:login].to_s.strip)
 
@@ -27,6 +38,12 @@ module Api
         else
           User.find_by(phone_number: login)
         end
+      end
+
+      def login_rate_limit_key
+        session_param = params[:session]
+        login = session_param.respond_to?(:key?) ? session_param[:login] : nil
+        "#{request.remote_ip}:#{Digest::SHA256.hexdigest(login.to_s.strip.downcase)}"
       end
 
       def session_params
