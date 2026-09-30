@@ -1,0 +1,1112 @@
+openapi: 3.1.0
+info:
+  title: WorkPulse API
+  version: v1
+  description: |
+    Existing WorkPulse `/api/v1` endpoints only — no planned endpoints are listed.
+    Kept in sync with config/routes.rb by spec/docs/openapi_spec.rb.
+
+    Contracts:
+    * **Legacy** (all endpoints unless marked otherwise): success `{success, data}`,
+      error `{success, message, errors}`. Unauthenticated JSON requests get the Devise
+      body `{"error": "..."}`. Collections are unpaginated.
+    * **Standard** (marked `x-contract: standard`): see docs/api/conventions.md.
+
+    Authentication: see docs/api/authentication.md. Clients must send
+    `Accept: application/json`; non-JSON unauthenticated requests are redirected (302).
+
+    Timestamps are ISO-8601; attendance timestamps are rendered in the business
+    timezone. Decimal amounts are JSON strings (e.g. "1000.0").
+servers:
+  - url: /
+security:
+  - sessionCookie: []
+
+tags:
+  - name: Authentication
+  - name: Attendance
+  - name: Employee requests
+  - name: Advances
+  - name: Shifts
+  - name: Salary
+  - name: Payroll
+  - name: Reports
+  - name: Devices
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: _work_pulse_session
+      description: Devise session cookie set by POST /api/v1/auth/login (same session as the web app).
+    deviceToken:
+      type: http
+      scheme: bearer
+      description: Biometric device token. `X-Device-Token` header is also accepted.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    PayrollPeriodId:
+      name: payroll_period_id
+      in: path
+      required: true
+      schema: { type: integer }
+    ShiftId:
+      name: shift_id
+      in: path
+      required: true
+      schema: { type: integer }
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: integer }
+    Page:
+      name: page
+      in: query
+      description: 1-based page. Sending page or per_page enables pagination.
+      schema: { type: integer, minimum: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      description: Page size (default 25, capped at 100).
+      schema: { type: integer, minimum: 1 }
+
+  schemas:
+    LegacySuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, const: true }
+        data: {}
+    LegacyError:
+      type: object
+      required: [success, message, errors]
+      properties:
+        success: { type: boolean, const: false }
+        message: { type: string }
+        errors: { type: array, items: { type: string } }
+    DeviseUnauthenticated:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    StandardSuccess:
+      type: object
+      required: [success, data, meta, request_id]
+      properties:
+        success: { type: boolean, const: true }
+        data: {}
+        meta:
+          type: object
+          properties:
+            pagination: { $ref: "#/components/schemas/Pagination" }
+        request_id: { type: string }
+    StandardError:
+      type: object
+      required: [success, error, request_id, message, errors]
+      properties:
+        success: { type: boolean, const: false }
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+              enum: [bad_request, unauthenticated, forbidden, not_found, conflict,
+                     validation_failed, business_rule_violation, rate_limited, internal_error]
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  code: { type: string }
+                  message: { type: string }
+        request_id: { type: string }
+        message: { type: string, description: Legacy-compatibility copy of error.message. }
+        errors: { type: array, items: { type: string }, description: Legacy-compatibility messages. }
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+        next_page: { type: [integer, "null"] }
+        previous_page: { type: [integer, "null"] }
+    Decimal:
+      type: string
+      description: Decimal serialized as a string.
+    LoginUser:
+      type: object
+      properties:
+        id: { type: integer }
+        first_name: { type: string }
+        last_name: { type: string }
+        email: { type: [string, "null"] }
+        phone_number: { type: [string, "null"] }
+        role: { type: string, enum: [owner, staff] }
+        permissions: { type: array, items: { type: string } }
+        manages_area: { type: boolean }
+        manages_branch: { type: boolean }
+        business_id: { type: integer }
+        self_service:
+          type: object
+          properties:
+            can_create_requests: { type: boolean }
+            can_view_own_attendance: { type: boolean }
+            can_view_own_payroll: { type: boolean }
+            can_check_in: { type: boolean }
+        checkin_branch_ids: { type: array, items: { type: integer } }
+    Attendance:
+      type: object
+      properties:
+        id: { type: integer }
+        work_date: { type: string, format: date }
+        date: { type: string, format: date }
+        status: { type: string }
+        check_in_latitude: { $ref: "#/components/schemas/Decimal" }
+        check_in_longitude: { $ref: "#/components/schemas/Decimal" }
+        check_out_latitude: { $ref: "#/components/schemas/Decimal" }
+        check_out_longitude: { $ref: "#/components/schemas/Decimal" }
+        worked_minutes: { type: [integer, "null"] }
+        late_minutes: { type: [integer, "null"] }
+        early_leave_minutes: { type: [integer, "null"] }
+        check_in_at: { type: [string, "null"], format: date-time }
+        check_out_at: { type: [string, "null"], format: date-time }
+        timezone: { type: string }
+    AttendanceRecord:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        branch_id: { type: [integer, "null"] }
+        date: { type: string, format: date }
+        status: { type: string }
+        worked_minutes: { type: [integer, "null"] }
+        late_minutes: { type: [integer, "null"] }
+        early_leave_minutes: { type: [integer, "null"] }
+        check_in_at: { type: [string, "null"], format: date-time }
+        check_out_at: { type: [string, "null"], format: date-time }
+        adjustments:
+          type: array
+          description: show/update only.
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              field_name: { type: string }
+              old_value: { type: [string, "null"] }
+              new_value: { type: [string, "null"] }
+              reason: { type: string }
+              created_at: { type: string, format: date-time }
+              adjusted_by_id: { type: integer }
+    EmployeeRequest:
+      type: object
+      properties:
+        id: { type: integer }
+        request_type: { type: string }
+        status: { type: string }
+        requested_for_date: { type: [string, "null"], format: date }
+        amount: { oneOf: [{ $ref: "#/components/schemas/Decimal" }, { type: "null" }] }
+        reason: { type: string }
+        response_note: { type: [string, "null"] }
+        affects_payroll: { type: boolean }
+        reviewed_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        user_id: { type: integer }
+        reviewed_by_id: { type: [integer, "null"] }
+    Advance:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        total_amount: { $ref: "#/components/schemas/Decimal" }
+        remaining_amount: { $ref: "#/components/schemas/Decimal" }
+        status: { type: string, enum: [active, fully_repaid] }
+        issued_at: { type: string, format: date-time }
+        repaid_amount: { $ref: "#/components/schemas/Decimal" }
+    Shift:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        shift_type: { type: string, enum: [fixed_time, hour_based] }
+        start_time: { type: [string, "null"] }
+        end_time: { type: [string, "null"] }
+        required_hours: { oneOf: [{ $ref: "#/components/schemas/Decimal" }, { type: "null" }] }
+        active: { type: boolean }
+        penalty_rules:
+          type: array
+          description: show only. Raw PenaltyRule attributes.
+          items: { $ref: "#/components/schemas/PenaltyRule" }
+    PenaltyRule:
+      type: object
+      description: Rendered as the full model attribute set (legacy behaviour).
+      additionalProperties: true
+      properties:
+        id: { type: integer }
+        shift_id: { type: integer }
+        rule_type: { type: string }
+        threshold_minutes: { type: integer }
+        deduction_type: { type: string }
+        deduction_value: { $ref: "#/components/schemas/Decimal" }
+    ShiftAssignment:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        shift_id: { type: integer }
+        shift_name: { type: string }
+        branch_id: { type: [integer, "null"] }
+        branch_name: { type: [string, "null"] }
+        effective_from: { type: string, format: date }
+        effective_to: { type: [string, "null"], format: date }
+    SalaryProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        salary_type: { type: string }
+        base_amount: { $ref: "#/components/schemas/Decimal" }
+        currency: { type: string }
+        effective_from: { type: string, format: date }
+        active: { type: boolean }
+    PayrollPeriod:
+      type: object
+      properties:
+        id: { type: integer }
+        status: { type: string }
+        period_year: { type: integer }
+        period_month: { type: integer }
+        working_days: { type: integer }
+        generated_at: { type: [string, "null"], format: date-time }
+        finalized_at: { type: [string, "null"], format: date-time }
+        period_label: { type: string }
+        generated_by_id: { type: [integer, "null"] }
+        finalized_by_id: { type: [integer, "null"] }
+        entry_count: { type: integer, description: index only, and only for view_payroll_analytics holders. }
+        entries: { type: array, description: show only., items: { type: object } }
+        branch_reviews: { type: array, description: show only., items: { type: object } }
+    PayrollEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        payroll_period_id: { type: integer }
+        salary_type: { type: string }
+        base_salary: { $ref: "#/components/schemas/Decimal" }
+        working_days: { type: integer }
+        days_worked: { type: integer }
+        total_deductions: { $ref: "#/components/schemas/Decimal" }
+        total_overtime: { $ref: "#/components/schemas/Decimal" }
+        total_bonuses: { $ref: "#/components/schemas/Decimal" }
+        already_paid_total: { $ref: "#/components/schemas/Decimal" }
+        advances_deducted: { $ref: "#/components/schemas/Decimal" }
+        obligations_deducted: { $ref: "#/components/schemas/Decimal" }
+        net_salary: { $ref: "#/components/schemas/Decimal" }
+        gross_salary: { $ref: "#/components/schemas/Decimal" }
+        total_adjustments: { $ref: "#/components/schemas/Decimal" }
+        currency: { type: string }
+        status: { type: string }
+        notes: { type: [string, "null"] }
+        pending_review_count: { type: integer, description: show only. }
+        line_items: { type: array, description: show only., items: { $ref: "#/components/schemas/PayrollLineItem" } }
+        attendance: { type: object, description: show only. }
+    PayrollLineItem:
+      type: object
+      properties:
+        id: { type: integer }
+        item_type: { type: string }
+        amount: { $ref: "#/components/schemas/Decimal" }
+        description: { type: [string, "null"] }
+        source_type: { type: [string, "null"] }
+        source_id: { type: [integer, "null"] }
+        review_status: { type: string }
+        reviewed_at: { type: [string, "null"], format: date-time }
+        review_notes: { type: [string, "null"] }
+        reviewed_by_id: { type: [integer, "null"] }
+    PayrollAdjustment:
+      type: object
+      properties:
+        id: { type: integer }
+        adjustment_type: { type: string }
+        amount: { $ref: "#/components/schemas/Decimal" }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
+        user_id: { type: integer }
+        created_by_id: { type: integer }
+        payroll_period_id: { type: integer }
+
+  responses:
+    Ok:
+      description: Legacy success envelope.
+      content: { application/json: { schema: { $ref: "#/components/schemas/LegacySuccess" } } }
+    Created:
+      description: Legacy success envelope.
+      content: { application/json: { schema: { $ref: "#/components/schemas/LegacySuccess" } } }
+    Unauthenticated:
+      description: No valid session (Devise failure app body).
+      content: { application/json: { schema: { $ref: "#/components/schemas/DeviseUnauthenticated" } } }
+    Forbidden:
+      description: Pundit denial — `{success:false, message:"Forbidden", errors:[]}`.
+      content: { application/json: { schema: { $ref: "#/components/schemas/LegacyError" } } }
+    NotFound:
+      description: Missing or out of the caller's scope/business — `message:"Record not found"`.
+      content: { application/json: { schema: { $ref: "#/components/schemas/LegacyError" } } }
+    Unprocessable:
+      description: Validation or business-rule failure (legacy envelope).
+      content: { application/json: { schema: { $ref: "#/components/schemas/LegacyError" } } }
+    StandardOk:
+      description: Standard success envelope.
+      content: { application/json: { schema: { $ref: "#/components/schemas/StandardSuccess" } } }
+    StandardFailure:
+      description: Standard error envelope (see error.code).
+      content: { application/json: { schema: { $ref: "#/components/schemas/StandardError" } } }
+
+paths:
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Sign in (sets the Devise session cookie)
+      security: []
+      description: Rate limited — 10 attempts / 5 min per IP + login, 60 / min per IP (429, standard envelope).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login: { type: string, description: Email or phone number. }
+                password: { type: string }
+      responses:
+        "200":
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/LegacySuccess"
+                  - properties: { data: { $ref: "#/components/schemas/LoginUser" } }
+        "400": { description: Missing credentials (Rails ParameterMissing). }
+        "401": { description: Invalid credentials or inactive user., content: { application/json: { schema: { $ref: "#/components/schemas/LegacyError" } } } }
+        "429": { $ref: "#/components/responses/StandardFailure" }
+  /api/v1/auth/logout:
+    delete:
+      tags: [Authentication]
+      summary: Sign out
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /api/v1/attendance/check_in:
+    post:
+      tags: [Attendance]
+      summary: Mobile check-in for the current user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                branch_id: { type: integer, description: Must be a branch of the user's active shift assignment. }
+                latitude: { type: number }
+                longitude: { type: number }
+      responses:
+        "201": { description: Checked in., content: { application/json: { schema: { allOf: [{ $ref: "#/components/schemas/LegacySuccess" }, { properties: { data: { $ref: "#/components/schemas/Attendance" } } }] } } } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { description: Mobile attendance not allowed for this user., content: { application/json: { schema: { $ref: "#/components/schemas/LegacyError" } } } }
+        "404": { description: "Branch not found (not assigned / other business).", content: { application/json: { schema: { $ref: "#/components/schemas/LegacyError" } } } }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/attendance/check_out:
+    post:
+      tags: [Attendance]
+      summary: Mobile check-out for the current user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                branch_id: { type: integer }
+                latitude: { type: number }
+                longitude: { type: number }
+      responses:
+        "200": { description: Checked out., content: { application/json: { schema: { allOf: [{ $ref: "#/components/schemas/LegacySuccess" }, { properties: { data: { $ref: "#/components/schemas/Attendance" } } }] } } } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/attendance/today:
+    get:
+      tags: [Attendance]
+      summary: Current user's attendance for the current business day (data is null if none)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/attendance/punch:
+    post:
+      tags: [Devices]
+      summary: Biometric device punch (check-in/out decided server-side)
+      security:
+        - deviceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id, timestamp]
+              properties:
+                employee_id: { type: string, description: employee_code, then user id — within the device's business only. }
+                timestamp: { type: string, format: date-time, description: ISO-8601 with offset; must be within ±24h. }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { description: Invalid or missing device token., content: { application/json: { schema: { $ref: "#/components/schemas/LegacyError" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+
+  /api/v1/attendance_records:
+    get:
+      tags: [Attendance]
+      summary: Attendance records in the caller's scope (unpaginated)
+      parameters:
+        - { name: start_date, in: query, schema: { type: string, format: date }, description: "Defaults to the start of the current business month; unparseable values silently fall back." }
+        - { name: end_date, in: query, schema: { type: string, format: date } }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/attendance_records/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Attendance]
+      summary: One attendance record with its adjustments
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Attendance]
+      summary: Adjust check-in/out times (requires manage_attendance; audited)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                attendance_record:
+                  type: object
+                  properties:
+                    check_in_at: { type: string, format: date-time }
+                    check_out_at: { type: string, format: date-time }
+                    reason: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+    put:
+      tags: [Attendance]
+      summary: Alias of PATCH
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+
+  /api/v1/employee_requests:
+    get:
+      tags: [Employee requests]
+      summary: Requests in the caller's scope (unpaginated)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+    post:
+      tags: [Employee requests]
+      summary: Submit a request for the current user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employee_request:
+                  type: object
+                  properties:
+                    request_type: { type: string }
+                    requested_for_date: { type: string, format: date }
+                    amount: { type: number }
+                    reason: { type: string }
+                    duration_minutes: { type: integer }
+      responses:
+        "201": { $ref: "#/components/responses/Created" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { description: "`message: \"Failed to submit request\"`, `errors`: full messages.", content: { application/json: { schema: { $ref: "#/components/schemas/LegacyError" } } } }
+  /api/v1/employee_requests/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Employee requests]
+      summary: One request
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/employee_requests/{id}/approve:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Employee requests]
+      summary: Approve (approve_requests; never one's own request)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                response_note: { type: string }
+                confirm_out_of_window: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/employee_requests/{id}/reject:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Employee requests]
+      summary: Reject (approve_requests; never one's own request)
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { response_note: { type: string } } }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/employee_requests/{id}/cancel:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Employee requests]
+      summary: Cancel (own pending request, or reviewer)
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { cancellation_reason: { type: string } } }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+
+  /api/v1/advances:
+    get:
+      tags: [Advances]
+      summary: Salary advances in the caller's scope
+      x-contract: standard
+      description: |
+        Full list unless `page`/`per_page` is sent. Default order: `-issued_at`.
+        Filters: `filter[status]=active|fully_repaid`.
+        Sorts: `issued_at`, `total_amount`, `remaining_amount` (prefix `-` for descending).
+        Search is not supported (`q` → 400).
+      parameters:
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+        - { name: "filter[status]", in: query, schema: { type: string, enum: [active, fully_repaid] } }
+        - { name: sort, in: query, schema: { type: string, example: "-issued_at" } }
+      responses:
+        "200":
+          description: Standard success envelope with Advance items.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/StandardSuccess"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/Advance" } } }
+        "400": { $ref: "#/components/responses/StandardFailure" }
+        "401": { $ref: "#/components/responses/StandardFailure" }
+  /api/v1/advances/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Advances]
+      summary: One advance
+      x-contract: standard
+      responses:
+        "200": { $ref: "#/components/responses/StandardOk" }
+        "401": { $ref: "#/components/responses/StandardFailure" }
+        "403": { $ref: "#/components/responses/StandardFailure" }
+        "404": { $ref: "#/components/responses/StandardFailure" }
+
+  /api/v1/shifts:
+    get:
+      tags: [Shifts]
+      summary: Active shifts of the business (any authenticated user)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+    post:
+      tags: [Shifts]
+      summary: Create a shift (manage_shifts)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shift:
+                  type: object
+                  properties:
+                    name: { type: string }
+                    shift_type: { type: string, enum: [fixed_time, hour_based] }
+                    start_time: { type: string }
+                    end_time: { type: string }
+                    required_hours: { type: number }
+                    active: { type: boolean }
+      responses:
+        "201": { $ref: "#/components/responses/Created" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/shifts/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Shifts]
+      summary: One shift with penalty rules
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Shifts]
+      summary: Update a shift (manage_shifts)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+    put:
+      tags: [Shifts]
+      summary: Alias of PATCH
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+    delete:
+      tags: [Shifts]
+      summary: Delete a shift (manage_shifts; refused while assignments exist)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/shifts/{shift_id}/penalty_rules:
+    parameters: [{ $ref: "#/components/parameters/ShiftId" }]
+    get:
+      tags: [Shifts]
+      summary: Penalty rules of a shift
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Shifts]
+      summary: Create a penalty rule (shift update permission)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                penalty_rule:
+                  type: object
+                  properties:
+                    rule_type: { type: string }
+                    threshold_minutes: { type: integer }
+                    deduction_type: { type: string }
+                    deduction_value: { type: number }
+      responses:
+        "201": { $ref: "#/components/responses/Created" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/shifts/{shift_id}/penalty_rules/{id}:
+    parameters: [{ $ref: "#/components/parameters/ShiftId" }, { $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Shifts]
+      summary: Update a penalty rule
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+    put:
+      tags: [Shifts]
+      summary: Alias of PATCH
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+    delete:
+      tags: [Shifts]
+      summary: Delete a penalty rule
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/shift_assignments:
+    get:
+      tags: [Shifts]
+      summary: Shift assignments in the caller's scope (unpaginated)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+    post:
+      tags: [Shifts]
+      summary: Assign a shift (assign_shifts)
+      description: "KNOWN DEFECT S1 (docs/api/baseline.md): user_id is not validated against the caller's business or scope."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shift_assignment:
+                  type: object
+                  properties:
+                    user_id: { type: integer }
+                    shift_id: { type: integer }
+                    branch_id: { type: integer }
+                    effective_from: { type: string, format: date }
+                    effective_to: { type: string, format: date }
+      responses:
+        "201": { $ref: "#/components/responses/Created" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/shift_assignments/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Shifts]
+      summary: One shift assignment
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Shifts]
+      summary: Update effective_to only
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+    put:
+      tags: [Shifts]
+      summary: Alias of PATCH
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+    delete:
+      tags: [Shifts]
+      summary: Delete an assignment without attendance
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/users/{user_id}/salary_profiles:
+    parameters: [{ $ref: "#/components/parameters/UserId" }]
+    get:
+      tags: [Salary]
+      summary: Salary profiles of an employee in the caller's scope
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Salary]
+      summary: Create a new salary profile (manage_salary_profiles)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                salary_profile:
+                  type: object
+                  properties:
+                    salary_type: { type: string }
+                    base_amount: { type: number }
+                    currency: { type: string }
+                    effective_from: { type: string, format: date }
+      responses:
+        "201": { $ref: "#/components/responses/Created" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/users/{user_id}/salary_profiles/{id}:
+    parameters: [{ $ref: "#/components/parameters/UserId" }, { $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Salary]
+      summary: One salary profile
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Salary]
+      summary: Correct non-date fields of the active profile
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+    put:
+      tags: [Salary]
+      summary: Alias of PATCH
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+
+  /api/v1/payroll_periods:
+    get:
+      tags: [Payroll]
+      summary: Payroll periods visible to the caller (status-gated, unpaginated)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+    post:
+      tags: [Payroll]
+      summary: Generate a payroll period (create_payroll)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payroll_period:
+                  type: object
+                  properties:
+                    year: { type: integer }
+                    month: { type: integer }
+      responses:
+        "201": { $ref: "#/components/responses/Created" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/payroll_periods/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Payroll]
+      summary: One period with entries and branch reviews
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Payroll]
+      summary: Delete a draft period (delete_payroll)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/payroll_periods/{id}/submit_for_review:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: &periodTransition
+      tags: [Payroll]
+      summary: Period lifecycle transition (each gated by its own permission)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/payroll_periods/{id}/approve_all_pending:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: *periodTransition
+  /api/v1/payroll_periods/{id}/finalize:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: *periodTransition
+  /api/v1/payroll_periods/{id}/mark_paid:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: *periodTransition
+  /api/v1/payroll_periods/{id}/regenerate:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: *periodTransition
+  /api/v1/payroll_periods/{id}/reopen:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: *periodTransition
+  /api/v1/payroll_periods/{id}/complete_branch_review:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: *periodTransition
+  /api/v1/payroll_periods/{payroll_period_id}/payroll_entries:
+    parameters: [{ $ref: "#/components/parameters/PayrollPeriodId" }]
+    get:
+      tags: [Payroll]
+      summary: Entries in the caller's scope (unpaginated)
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/payroll_periods/{payroll_period_id}/payroll_entries/{id}:
+    parameters: [{ $ref: "#/components/parameters/PayrollPeriodId" }, { $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Payroll]
+      summary: One entry with line items and attendance summary
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Payroll]
+      summary: Add a bonus and/or notes (regenerate_payroll; not on paid periods)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payroll_entry:
+                  type: object
+                  properties:
+                    bonus_amount: { type: number }
+                    bonus_description: { type: string }
+                    notes: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+    put:
+      tags: [Payroll]
+      summary: Alias of PATCH
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+  /api/v1/payroll_periods/{payroll_period_id}/payroll_adjustments:
+    parameters: [{ $ref: "#/components/parameters/PayrollPeriodId" }]
+    get:
+      tags: [Payroll]
+      summary: Adjustments of a period in the caller's scope
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Payroll]
+      summary: Add an adjustment (manage_adjustments; not on locked periods)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payroll_adjustment:
+                  type: object
+                  properties:
+                    user_id: { type: integer }
+                    adjustment_type: { type: string }
+                    amount: { type: number }
+                    reason: { type: string }
+      responses:
+        "201": { $ref: "#/components/responses/Created" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/payroll_periods/{payroll_period_id}/payroll_adjustments/{id}:
+    parameters: [{ $ref: "#/components/parameters/PayrollPeriodId" }, { $ref: "#/components/parameters/Id" }]
+    delete:
+      tags: [Payroll]
+      summary: Remove a pending adjustment
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/payroll_line_items/{id}/approve:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: &lineItemReview
+      tags: [Payroll]
+      summary: Review a payroll line item
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { notes: { type: string } } }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
+  /api/v1/payroll_line_items/{id}/reject:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch: *lineItemReview
+  /api/v1/payroll_line_items/{id}/waive:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Payroll]
+      summary: Waive a line item — BROKEN
+      deprecated: true
+      description: "KNOWN DEFECT D1 (docs/api/baseline.md): always fails with HTTP 500 (calls removed policy method waive?)."
+      responses:
+        "500": { description: Internal server error. }
+
+  /api/v1/reports/payroll/summary:
+    get:
+      tags: [Reports]
+      summary: Payroll summary for a period (view_payroll_analytics)
+      parameters:
+        - { name: payroll_period_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { description: "Not signed in (Devise body) or missing view_payroll_analytics (legacy envelope, message \"Not authorized\")." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/reports/payroll/export:
+    get:
+      tags: [Reports]
+      summary: Payroll CSV export (view_payroll_analytics)
+      parameters:
+        - { name: payroll_period_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: CSV file., content: { text/csv: { schema: { type: string } } } }
+        "401": { description: Not signed in or missing view_payroll_analytics. }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/reports/attendance:
+    get:
+      tags: [Reports]
+      summary: Attendance summary (view_employees or manage_employees)
+      description: "KNOWN DEFECT S2 (docs/api/baseline.md): without branch_id the summary is business-wide regardless of the caller's scope."
+      parameters:
+        - { name: start_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: end_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: branch_id, in: query, schema: { type: integer } }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { description: Not signed in or missing view/manage_employees (legacy envelope). }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Unprocessable" }
