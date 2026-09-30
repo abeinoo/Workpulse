@@ -1,7 +1,18 @@
 module Api
   module V1
+    # Base for staff-facing /api/v1 endpoints (see docs/api/conventions.md).
+    #
+    # Authentication is the existing Devise session (the same one the Rails web
+    # app uses — see docs/api/authentication.md); authorization is Pundit with
+    # the existing policies. This class only wires shared API plumbing:
+    #
+    # * ApiResponder           — legacy envelope helpers (render_success/render_error)
+    # * Api::StandardResponses — standard envelope helpers (render_api_success/…)
+    #
+    # No business logic belongs here.
     class BaseController < ApplicationController
       include ApiResponder
+      include Api::StandardResponses
 
       skip_before_action :verify_authenticity_token
       before_action :authenticate_user!

@@ -3042,6 +3042,23 @@ ar:
       mobile_attendance_not_allowed: "حسابك غير مسموح له بتسجيل الحضور من الهاتف. تواصل مع مديرك."
     attendance:
       already_checked_in: "تم تسجيل الحضور مسبقاً اليوم."
+    errors:
+      bad_request: "الطلب غير صالح."
+      unauthenticated: "يجب تسجيل الدخول للمتابعة."
+      forbidden: "غير مصرح لك بهذا الإجراء."
+      not_found: "السجل غير موجود."
+      conflict: "تم تعديل السجل بواسطة طلب آخر. يرجى إعادة المحاولة."
+      validation_failed: "فشل التحقق من البيانات."
+      business_rule_violation: "تعذر إتمام الطلب."
+      rate_limited: "عدد كبير جداً من الطلبات. يرجى المحاولة لاحقاً."
+      internal_error: "حدث خطأ ما. يرجى المحاولة مرة أخرى."
+      invalid_pagination: "يجب أن تكون قيم page و per_page أعداداً صحيحة موجبة."
+      invalid_filter_format: "يجب إرسال عوامل التصفية بصيغة filter[name]=value."
+      unknown_filter: "عامل تصفية غير معروف: %{name}."
+      invalid_filter_value: "قيمة غير صالحة لعامل التصفية %{name}."
+      invalid_sort: "ترتيب غير مدعوم: %{name}."
+      search_not_supported: "البحث غير مدعوم في هذه الواجهة."
+      search_too_long: "يجب ألا يتجاوز نص البحث %{count} حرفاً."
 
   flash:
     errors_one: "خطأ واحد حال دون الحفظ:"

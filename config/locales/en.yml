@@ -3047,6 +3047,23 @@ en:
       mobile_attendance_not_allowed: "Your account is not allowed to use mobile attendance. Please contact your manager."
     attendance:
       already_checked_in: "Already checked in today."
+    errors:
+      bad_request: "The request is invalid."
+      unauthenticated: "You need to sign in to continue."
+      forbidden: "Forbidden"
+      not_found: "Record not found"
+      conflict: "The record was changed by another request. Please retry."
+      validation_failed: "Validation failed."
+      business_rule_violation: "The request could not be completed."
+      rate_limited: "Too many requests. Please try again later."
+      internal_error: "Something went wrong. Please try again."
+      invalid_pagination: "page and per_page must be positive whole numbers."
+      invalid_filter_format: "filter must be given as filter[name]=value."
+      unknown_filter: "Unknown filter: %{name}."
+      invalid_filter_value: "Invalid value for filter %{name}."
+      invalid_sort: "Unsupported sort: %{name}."
+      search_not_supported: "Search is not supported on this endpoint."
+      search_too_long: "Search text must be at most %{count} characters."
 
   flash:
     errors_one: "1 error prevented this from saving:"
