@@ -5187,6 +5187,9 @@ en:
       models:
         shift_assignment:
           employee_not_in_business: "The selected employee does not belong to your business."
+          shift_not_in_business: "The selected shift does not belong to your business."
+          branch_not_in_business: "The selected branch does not belong to your business."
+          shift_rule_profile_not_in_business: "The selected shift rule profile does not belong to your business."
         performance_observation:
           attributes:
             employee:

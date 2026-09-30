@@ -106,7 +106,7 @@ class ShiftAssignmentsController < ApplicationController
     @assignment = ShiftAssignment.new(assignment_params)
     @assignment.created_by = current_user
     authorize @assignment
-    if assignment_employee_in_business? && @assignment.save
+    if assignment_resources_in_business? && @assignment.save
       redirect_to shift_assignments_path, notice: t("flash.shift_assigned")
     else
       load_form_data
@@ -199,7 +199,7 @@ class ShiftAssignmentsController < ApplicationController
     from_date = Date.parse(from_str) rescue nil
     return render json: { error: "invalid_date" }, status: :unprocessable_entity if from_date.nil?
 
-    shift = Shift.find_by(id: shift_id)
+    shift = Shift.for_business(current_user.business).find_by(id: shift_id)
     return render json: { error: "shift_not_found" }, status: :not_found unless shift
 
     valid       = []
@@ -268,8 +268,10 @@ class ShiftAssignmentsController < ApplicationController
                   alert: t("shift_assignments.bulk.assign_params_required") and return
     end
 
-    shift  = Shift.find(shift_id)
-    branch = branch_id ? Branch.find_by(id: branch_id) : nil
+    # Both are resolved inside the current user's business: a foreign or
+    # non-existent id is a 404, never a cross-business assignment.
+    shift  = Shift.for_business(current_user.business).find(shift_id)
+    branch = branch_id ? Branch.for_business(current_user.business).find(branch_id) : nil
 
     created = 0
     failed  = 0
@@ -352,16 +354,24 @@ class ShiftAssignmentsController < ApplicationController
     end
   end
 
-  # The employee must belong to the current user's business — a user_id from
-  # params is never trusted just because the record exists (same rule as
-  # Shifts::Assigner on the API). A blank user_id is left to the model's own
-  # presence validation.
-  def assignment_employee_in_business?
-    user_id = assignment_params[:user_id]
-    return true if user_id.blank? || current_user.business.users.exists?(id: user_id)
+  # Every resource id supplied for a new assignment must resolve inside the
+  # current user's business — an id is never trusted just because the record
+  # exists (same rule as Shifts::Assigner on the API). A foreign id and a
+  # non-existent id get the same error; blank ids are left to the model's own
+  # validation.
+  def assignment_resources_in_business?
+    business = current_user.business
+    {
+      user_id:               [ business.users,                          :employee_not_in_business ],
+      shift_id:              [ Shift.for_business(business),            :shift_not_in_business ],
+      branch_id:             [ Branch.for_business(business),           :branch_not_in_business ],
+      shift_rule_profile_id: [ ShiftRuleProfile.for_business(business), :shift_rule_profile_not_in_business ]
+    }.each do |param, (scope, error)|
+      id = assignment_params[param]
+      @assignment.errors.add(:base, error) if id.present? && !scope.exists?(id: id)
+    end
 
-    @assignment.errors.add(:base, :employee_not_in_business)
-    false
+    @assignment.errors.empty?
   end
 
   def assignment_params

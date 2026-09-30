@@ -5252,6 +5252,9 @@ ar:
       models:
         shift_assignment:
           employee_not_in_business: "الموظف المحدد لا ينتمي إلى شركتك."
+          shift_not_in_business: "الوردية المحددة لا تنتمي إلى شركتك."
+          branch_not_in_business: "الفرع المحدد لا ينتمي إلى شركتك."
+          shift_rule_profile_not_in_business: "ملف قواعد الوردية المحدد لا ينتمي إلى شركتك."
         performance_observation:
           attributes:
             employee:
