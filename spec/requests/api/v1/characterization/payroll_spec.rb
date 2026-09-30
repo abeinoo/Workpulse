@@ -185,10 +185,9 @@ RSpec.describe "API v1 characterization — payroll & reports", type: :request d
       expect_legacy_error(:not_found)
     end
 
-    # KNOWN DEFECT (docs/api/baseline.md → S2): without branch_id the summary
-    # is business-wide for anyone holding view_employees, ignoring their scope.
+    # S2 (docs/api/baseline.md) — fixed; full matrix in
+    # spec/requests/api/v1/security/cross_business_authorization_spec.rb.
     it "GET /reports/attendance limits a branch manager to their own branches" do
-      pending "S2: Reports::AttendanceController ignores the caller's employee/branch scope when branch_id is omitted"
       other_branch   = create(:branch, business: business)
       outsider       = create(:user, business: business)
       # The attendance_record factory also creates the outsider's assignment to other_branch.

@@ -106,6 +106,14 @@ removal — once the defect is fixed.
 | D7 | Low | Business logic in API controllers: `approve_all_pending` updates line items directly; `PayrollEntriesController#update` creates bonus line items with `to_f` money; `PayrollAdjustmentsController` writes `PayrollAuditLog` directly; `SalaryProfilesController#update` updates the profile directly. | respective controllers | — |
 | D8 | Low | Penalty rules are serialized as raw model attributes (any future column is exposed automatically). | `penalty_rules_controller.rb`, `shifts_controller.rb#shift_json` | characterization |
 
+**Status update (security hardening, after this baseline):** S1 and S2 are
+fixed — `Shifts::Assigner` now rejects a `user_id` outside the caller's
+business (422 `Employee not found in this business`), and the attendance
+report is limited to the caller's `BranchScope` branches unless they hold
+business-wide authority. Regression tests:
+`spec/requests/api/v1/security/cross_business_authorization_spec.rb`. The rows
+above are kept as the historical baseline. D1–D8 remain open.
+
 ## 5. Pre-existing failing specs (not caused by this phase)
 
 All 96 failures exist on unchanged `main`. None is caused or fixed by this phase.

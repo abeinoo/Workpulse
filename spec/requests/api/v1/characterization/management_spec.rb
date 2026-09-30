@@ -127,16 +127,15 @@ RSpec.describe "API v1 characterization — management endpoints", type: :reques
       expect_legacy_error(:forbidden)
     end
 
-    # KNOWN DEFECT (docs/api/baseline.md → S1): user_id is taken from params and
-    # is validated neither against the caller's business nor their employee scope.
+    # S1 (docs/api/baseline.md) — fixed; full matrix in
+    # spec/requests/api/v1/security/cross_business_authorization_spec.rb.
     it "POST /shift_assignments rejects a user from another business" do
-      pending "S1: Shifts::Assigner does not validate user_id against the business"
       sign_in owner
       post "/api/v1/shift_assignments",
            params: { shift_assignment: { user_id: foreign_user.id, shift_id: shift.id, branch_id: branch.id,
                                          effective_from: Date.current } },
            as: :json
-      expect(response).not_to have_http_status(:created)
+      expect_legacy_error(:unprocessable_content, message: "Employee not found in this business")
       expect(ShiftAssignment.where(user: foreign_user).count).to eq(0)
     end
   end

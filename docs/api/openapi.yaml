@@ -779,7 +779,7 @@ paths:
     post:
       tags: [Shifts]
       summary: Assign a shift (assign_shifts)
-      description: "KNOWN DEFECT S1 (docs/api/baseline.md): user_id is not validated against the caller's business or scope."
+      description: "The employee (user_id), shift and branch must all belong to the caller's business; otherwise 422 (`Employee not found in this business` / `Branch or shift not found in this business`). business_id params are ignored."
       requestBody:
         content:
           application/json:
@@ -1100,7 +1100,7 @@ paths:
     get:
       tags: [Reports]
       summary: Attendance summary (view_employees or manage_employees)
-      description: "KNOWN DEFECT S2 (docs/api/baseline.md): without branch_id the summary is business-wide regardless of the caller's scope."
+      description: "Limited to the caller's authorized branches (BranchScope, from the configured view_attendance → view_employees scope; default = branches they manage or area-manage). Owners and business-scoped users see the whole business. A branch_id outside that set → 404; business_id params are ignored."
       parameters:
         - { name: start_date, in: query, required: true, schema: { type: string, format: date } }
         - { name: end_date, in: query, required: true, schema: { type: string, format: date } }

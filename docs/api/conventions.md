@@ -204,8 +204,8 @@ Reuse the existing Pundit policies and scopes — **no permission redesign**.
    record → 404, and B's rows never appear in A's lists) and a
    permission-denied spec.
 
-Known violations in existing endpoints are listed in `baseline.md` (S1, S2)
-and locked by `pending` specs.
+The violations found in the baseline (S1, S2 in `baseline.md`) are fixed and
+covered by `spec/requests/api/v1/security/cross_business_authorization_spec.rb`.
 
 ## 10. Rate limiting
 
