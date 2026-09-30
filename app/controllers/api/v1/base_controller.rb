@@ -10,6 +10,7 @@ module Api
     # * Api::StandardResponses — standard envelope helpers (render_api_success/…)
     # * Api::ErrorHandling     — legacy by default; `standard_api_contract!` opts in
     # * Api::Pagination        — paginate / paginate_if_requested
+    # * Api::RequestContext    — request_id + actor ids for structured request logs
     #
     # No business logic belongs here.
     class BaseController < ApplicationController
@@ -17,6 +18,7 @@ module Api
       include Api::StandardResponses
       include Api::ErrorHandling
       include Api::Pagination
+      include Api::RequestContext
 
       skip_before_action :verify_authenticity_token
       before_action :authenticate_user!
