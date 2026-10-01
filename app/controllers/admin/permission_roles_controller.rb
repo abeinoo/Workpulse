@@ -76,7 +76,7 @@ class Admin::PermissionRolesController < Admin::BaseController
 
     user = current_user.business.users.find(params[:user_id])
 
-    unless PermissionGrants.can_change_role?(actor: current_user, target: user,
+    unless OrganizationAccess::PermissionGrants.can_change_role?(actor: current_user, target: user,
                                              from: user.permission_role, to: @permission_role)
       return redirect_to admin_permission_role_path(@permission_role),
                          alert: t("flash.not_authorized")
@@ -93,7 +93,7 @@ class Admin::PermissionRolesController < Admin::BaseController
 
     user = current_user.business.users.find(params[:user_id])
 
-    unless PermissionGrants.can_change_role?(actor: current_user, target: user,
+    unless OrganizationAccess::PermissionGrants.can_change_role?(actor: current_user, target: user,
                                              from: user.permission_role, to: nil)
       return redirect_to admin_permission_role_path(@permission_role),
                          alert: t("flash.not_authorized")
@@ -123,8 +123,8 @@ class Admin::PermissionRolesController < Admin::BaseController
   # scope for them (PermissionGrants.overbroad_scopes).
   def grants_ungrantable_permissions?(role, previous_permissions:)
     role.validate
-    denied    = PermissionGrants.ungrantable(current_user, role.permissions - previous_permissions)
-    overbroad = PermissionGrants.overbroad_scopes(current_user, role)
+    denied    = OrganizationAccess::PermissionGrants.ungrantable(current_user, role.permissions - previous_permissions)
+    overbroad = OrganizationAccess::PermissionGrants.overbroad_scopes(current_user, role)
     return false if denied.empty? && overbroad.empty?
 
     if denied.any?

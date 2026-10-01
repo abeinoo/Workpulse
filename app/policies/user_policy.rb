@@ -49,7 +49,7 @@ class UserPolicy < ApplicationPolicy
     attributes += ROLE_ATTRIBUTES       if can?(:manage_roles) && !own_record? && controls_account?
     # Changing the login identifiers of a user the actor does not cover (the
     # owner, or a higher-privileged administrator) would hand over the account.
-    attributes -= LOGIN_ATTRIBUTES      if !own_record? && record.persisted? && !PermissionGrants.covers?(user, record)
+    attributes -= LOGIN_ATTRIBUTES      if !own_record? && record.persisted? && !OrganizationAccess::PermissionGrants.covers?(user, record)
     attributes
   end
 
@@ -100,6 +100,6 @@ class UserPolicy < ApplicationPolicy
     return false unless can?(:manage_employees)
     return true if record.new_record?
 
-    in_management_scope? && PermissionGrants.covers?(user, record)
+    in_management_scope? && OrganizationAccess::PermissionGrants.covers?(user, record)
   end
 end

@@ -204,7 +204,7 @@ class Admin::UsersController < Admin::BaseController
 
     new_role = requested_id && current_user.business.permission_roles.find_by(id: requested_id)
     allowed  = (requested_id.nil? || new_role) &&
-               PermissionGrants.can_change_role?(actor: current_user, target: user,
+               OrganizationAccess::PermissionGrants.can_change_role?(actor: current_user, target: user,
                                                  from: user.permission_role, to: new_role)
     unless allowed
       user.errors.add(:permission_role_id, t("admin.users.errors.cannot_assign_role"))

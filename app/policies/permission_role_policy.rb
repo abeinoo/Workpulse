@@ -16,6 +16,6 @@ class PermissionRolePolicy < ApplicationPolicy
   private
 
   def manageable?
-    record.is_a?(Class) || PermissionGrants.manageable_role?(user, record)
+    record.is_a?(Class) || OrganizationAccess::PermissionGrants.manageable_role?(user, record)
   end
 end

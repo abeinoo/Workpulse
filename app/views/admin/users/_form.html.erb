@@ -140,7 +140,7 @@
     <% if permitted.include?(:permission_role_id) %>
     <%# Only roles the current user may grant (plus the current value). %>
     <% assignable_roles = current_user.business.permission_roles.ordered.select { |r|
-         r.id == user.permission_role_id || PermissionGrants.manageable_role?(current_user, r) } %>
+         r.id == user.permission_role_id || OrganizationAccess::PermissionGrants.manageable_role?(current_user, r) } %>
     <div class="form-group">
       <%= f.label :permission_role_id, t("admin.users.form.permission_role"), class: "form-label" %>
       <%= f.select :permission_role_id,

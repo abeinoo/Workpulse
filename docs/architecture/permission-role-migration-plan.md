@@ -320,6 +320,83 @@ boundary with an identical result.
   permission definitions moved; no second source of truth (the catalogue returns `PermissionRole`'s own arrays).
 * **Database:** no migration or schema change; `PermissionRole` / `permission_roles` unchanged.
 
+## Step 4 — PermissionGrants Migration Status
+
+**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to step 3 of the migration sequence (§10):
+move the grant rules.
+
+| | |
+|---|---|
+| **Old location** | `app/services/permission_grants.rb` — top-level `PermissionGrants` |
+| **New location** | `app/services/organization_access/permission_grants.rb` — `OrganizationAccess::PermissionGrants`, next to `PermissionCatalog` and `Authorization`; same `Shifts::` / `Finance::` convention, no config |
+| **How it moved** | `git mv` (history kept). The module body is byte-identical apart from the extra indentation of the `OrganizationAccess` wrapper: same constants (`ADMINISTRATIVE_PERMISSIONS`, `SCOPE_RANK`, `DEFAULT_SCOPE_RANK`), same 8 public methods, no private methods, same dependencies (`PermissionRole::ALL_PERMISSIONS`, `SCOPABLE_PERMISSIONS`, `.normalize_scope`, `User#owner?` / `#can?` / `#scope_for` / `#permission_role`) |
+| **Compatibility** | `app/services/permission_grants.rb` is now the one-line alias `PermissionGrants = OrganizationAccess::PermissionGrants`. It is the **same module object**, not a wrapper, so there is no behaviour to drift. The alias stays until legacy-access removal (sequence step 6) |
+
+### Callers migrated
+
+All callers are internal to Organization & Access. The legacy name is now only used by the Step 1 characterization
+spec, intentionally, to prove the alias.
+
+| Caller | Call |
+|---|---|
+| `UserPolicy#permitted_attributes` (owner login fields, OA-S4/S5) and `#controls_account?` (OA-S8 and privilege hierarchy) | `covers?` ×2 |
+| `PermissionRolePolicy#manageable?` (update/destroy, OA-S3) | `manageable_role?` |
+| `Admin::PermissionRolesController#assign_user` / `#remove_user` (OA-S3) | `can_change_role?` ×2 |
+| `Admin::PermissionRolesController#grants_ungrantable_permissions?` (escalation, scope escalation) | `ungrantable`, `overbroad_scopes` |
+| `Admin::UsersController#assign_role` (OA-S1/S3 via the employee form) | `can_change_role?` |
+| `app/views/admin/users/_form.html.erb` (assignable-role list) | `manageable_role?` |
+
+Code comments that mention "PermissionGrants" generically were left as they are.
+
+### Tests added
+
+`spec/services/organization_access/permission_grants_spec.rb` (15 examples):
+
+* the legacy name is the same module, so the 35 Step 1 decision-table examples now exercise the new location
+* public interface and constants unchanged
+* the full scope-breadth matrix (actor `self`/`branch`/`area`/blank/`business` × role scopes, legacy names)
+* changing an existing role (within → within allowed; within ↔ broader denied; same permissions at a broader scope
+  denied; self-assignment denied)
+* the business-isolation split: the module itself does **not** check businesses. A foreign role or target passes
+  the module, and isolation is enforced by callers (`current_user.business` lookups, 404) and by the `User`
+  same-business validation, which is pinned here. This is existing, intentional behaviour, documented and not
+  "fixed"
+
+### Security guarantees preserved
+
+Each guarantee is protected by an existing spec that ran green before and after:
+
+| Guarantee | Protected by |
+|---|---|
+| OA-S1 self-modification | `organization_access_security_spec` "OA-S1" |
+| OA-S2 business scoping (foreign role, user, branch → 404 / invalid) | security spec "OA-S2", `view_and_role_scope_spec` "9. cross-business", new isolation examples |
+| OA-S3 role assignment and escalation | security spec "OA-S3", Step 1 G1, new change-role examples |
+| OA-S4/S5 owner protection | security spec "OA-S4/S5", `scope_hierarchy_spec` "Case D", G1 owner examples |
+| OA-S6 account claim | security spec "OA-S6", `registration_service_spec` |
+| OA-S7 branch managers | security spec "OA-S7" (`Branch` validation; not a PermissionGrants rule) |
+| OA-S8 employee-management scope and privilege hierarchy | `scope_hierarchy_spec` "OA-S8" and "privilege hierarchy" Cases B–E |
+| Role permission-scope escalation | `view_and_role_scope_spec` "role permission scope", new matrix |
+
+### Verification
+
+* **PermissionGrants-related set** (Organization & Access characterization, boundary specs, security, user and role
+  policies, admin users, role localization): 336 examples and 4 failures **before** → 351 and 4 **after** (+15
+  new). The failing IDs are identical, all role-localization baseline failures.
+* **Broad relevant set** (the above plus permission matrix, API, Laundry, onboarding, scopes, Finance depositor,
+  transfer, till handover and daily reconciliation, admin branches): 1416 examples, 9 failures, 1 pending. The
+  failing IDs are **identical** to Step 3 and all are in `permission-role-baseline-failures.txt`. **No new
+  failures.**
+* `bin/rails zeitwerk:check`: all good. `git diff --check`: clean. RuboCop: no new offenses (8 pre-existing in
+  `admin/users_controller.rb`, untouched lines).
+* **No API or web behaviour change:** same results, routes, flashes and statuses (request specs green).
+
+### Remaining legacy access
+
+* `PermissionGrants` (top-level alias): kept for compatibility; used only by the Step 1 characterization spec.
+  Remove in sequence step 6.
+* `PermissionRole` is **untouched**: same model, table (`permission_roles`), constants and validations. No
+  migration or schema change. OA-D3, R-L4 and audit behaviour are untouched (D1–D3).
+
 ## 7. Proposed target structure
 
 The repository already uses namespaced service folders under `app/services/` (`Finance::`, `Inventory::`,
