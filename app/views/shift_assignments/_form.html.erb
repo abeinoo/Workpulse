@@ -4,14 +4,32 @@
 
   <%= render "shared/error_messages", object: @assignment %>
 
-  <div class="form-grid">
+  <div class="form-grid" <%= tag.attributes(data: { controller: ("assignment-kind-fields" unless editing) }) %>>
     <% unless editing %>
-      <div class="form-group">
+      <%# Regular and temporary-coverage assignments each have their own employee
+          and branch fields: regular picks from employees available for a new
+          assignment and the manager's branches; coverage picks from the scoped
+          employees and sends them to another branch. Only the active kind's
+          fields are enabled (and therefore submitted). %>
+      <% coverage = @assignment.temporary_coverage? %>
+      <div class="form-group <%= "hidden" if coverage %>" data-assignment-kind-fields-target="regular">
         <%= f.label :user_id, t("shift_assignments.employee"), class: "form-label form-label--required" %>
         <%= f.select :user_id,
-              options_from_collection_for_select(@employees, :id, :full_name, @assignment.user_id),
+              regular_employee_options(@regular_candidates, @assignment.user_id),
               { include_blank: t("shift_assignments.form.select_employee") },
-              class: "form-control" %>
+              class: "form-control", disabled: coverage %>
+        <p class="form-hint"><%= t("shift_assignments.form.employee_availability_hint", count: @availability_window_days) %></p>
+      </div>
+
+      <div class="form-group <%= "hidden" unless coverage %>" data-assignment-kind-fields-target="coverage">
+        <%= f.label :user_id, t("shift_assignments.employee"), class: "form-label form-label--required",
+              for: "shift_assignment_user_id_coverage" %>
+        <%= f.select :user_id,
+              coverage_employee_options(@employees, @employee_current_branches, @assignment.user_id),
+              { include_blank: t("shift_assignments.form.select_employee") },
+              class: "form-control", id: "shift_assignment_user_id_coverage", disabled: !coverage,
+              data: { assignment_kind_fields_target: "coverageEmployee",
+                      action: "change->assignment-kind-fields#updateRoute" } %>
       </div>
 
       <div class="form-group">
@@ -29,12 +47,26 @@
               class: "form-control" %>
       </div>
 
-      <div class="form-group">
+      <div class="form-group <%= "hidden" if coverage %>" data-assignment-kind-fields-target="regular">
         <%= f.label :branch_id, t("shift_assignments.branch"), class: "form-label form-label--required" %>
         <%= f.select :branch_id,
-              options_from_collection_for_select(@branches, :id, :name, @assignment.branch_id),
+              options_from_collection_for_select(@branches, :id, :name, (@assignment.branch_id unless coverage)),
               { include_blank: t("shift_assignments.form.select_branch") },
-              class: "form-control" %>
+              class: "form-control", disabled: coverage %>
+      </div>
+
+      <div class="form-group <%= "hidden" unless coverage %>" data-assignment-kind-fields-target="coverage">
+        <%= f.label :branch_id, t("shift_assignments.form.coverage_branch_label"),
+              class: "form-label form-label--required", for: "shift_assignment_branch_id_coverage" %>
+        <%= f.select :branch_id,
+              options_from_collection_for_select(@coverage_branches, :id, :name, (@assignment.branch_id if coverage)),
+              { include_blank: t("shift_assignments.form.select_coverage_branch") },
+              class: "form-control", id: "shift_assignment_branch_id_coverage", disabled: !coverage,
+              data: { assignment_kind_fields_target: "coverageBranch",
+                      action: "change->assignment-kind-fields#updateRoute" } %>
+        <p class="form-hint"><%= t("shift_assignments.form.coverage_branch_hint") %></p>
+        <p class="form-hint hidden" data-assignment-kind-fields-target="route"
+           data-template="<%= t("shift_assignments.form.coverage_route", from: "%{from}", to: "%{to}") %>"></p>
       </div>
 
       <div class="form-group">
@@ -47,7 +79,9 @@
         <%= f.select :assignment_kind,
               ShiftAssignment.assignment_kinds.keys.map { |k| [t("shift_assignments.form.assignment_kind_#{k}"), k] },
               {},
-              class: "form-control" %>
+              class: "form-control",
+              data: { assignment_kind_fields_target: "kind",
+                      action: "change->assignment-kind-fields#toggle" } %>
         <p class="form-hint"><%= t("shift_assignments.form.assignment_kind_hint") %></p>
       </div>
 

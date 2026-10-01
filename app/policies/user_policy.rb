@@ -11,7 +11,7 @@ class UserPolicy < ApplicationPolicy
   # Employment and protected attributes: managed by others, never self-edited.
   EMPLOYMENT_ATTRIBUTES = %i[
     employee_code job_title department_id hire_date employment_type
-    allow_mobile_attendance allow_biometric_attendance admin_notes
+    allow_mobile_attendance allow_biometric_attendance requires_shift_assignment admin_notes
   ].freeze
   # Account status and access: never on self, never on the owner.
   ACCOUNT_ATTRIBUTES = [ :active, { assigned_warehouse_ids: [] } ].freeze

@@ -1653,6 +1653,18 @@ en:
       reason_label: "Reason"
       reason_placeholder: "e.g. Covering another employee's absence"
       reason_hint: "Required for Temporary Coverage."
+      employee_group_available_now: "Available now"
+      employee_group_available_soon: "Available soon"
+      employee_available_soon_option: "%{name} — Current branch: %{branch} · Ends: %{date}"
+      no_current_branch: "No branch"
+      coverage_branch_label: "Coverage Branch"
+      select_coverage_branch: "Select branch —"
+      coverage_branch_hint: "The branch the employee will temporarily work at. Their current branch does not change."
+      employee_current_branch_option: "%{name} — Current branch: %{branch}"
+      coverage_route: "%{from} → %{to}"
+      employee_availability_hint:
+        one: "Lists employees with no active assignment, or whose current assignment ends within 1 day — including employees at other branches."
+        other: "Lists employees with no active assignment, or whose current assignment ends within %{count} days — including employees at other branches."
     coverage:
       badge: "Coverage"
 
@@ -2269,6 +2281,8 @@ en:
         attendance_sources_hint: "Control how this employee may record attendance. At least one source should be enabled for employees with shift assignments."
         allow_mobile_attendance: "Allow Mobile Attendance"
         allow_biometric_attendance: "Allow Biometric Attendance"
+        requires_shift_assignment: "Works shifts"
+        requires_shift_assignment_hint: "Untick for remote staff and roles that don't work shifts — they won't be offered when assigning shifts."
         profile_photo: "Profile Photo"
         profile_photo_hint: "PNG, JPG, or WebP · max 5 MB"
         national_id_front: "National ID — Front"
@@ -5199,6 +5213,10 @@ en:
           shift_not_in_business: "The selected shift does not belong to your business."
           branch_not_in_business: "The selected branch does not belong to your business."
           shift_rule_profile_not_in_business: "The selected shift rule profile does not belong to your business."
+          coverage_branch_not_allowed: "Choose a coverage branch other than your own branch."
+          employee_not_available_for_assignment:
+            one: "The selected employee is not available for a new assignment. Only employees with no active assignment, or whose current assignment ends within 1 day, can be assigned."
+            other: "The selected employee is not available for a new assignment. Only employees with no active assignment, or whose current assignment ends within %{count} days, can be assigned."
         performance_observation:
           attributes:
             employee:
