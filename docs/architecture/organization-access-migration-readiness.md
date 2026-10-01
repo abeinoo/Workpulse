@@ -553,3 +553,32 @@ migrations are unchanged.
     `BranchPolicy`, `Branch` CRUD, settings, locale, sessions, `BusinessDay`).
   * **PARTIALLY COVERED** for `User`, `admin/users` and the access scopes. These depend on the Workforce boundary.
   * **NOT SAFE YET** to restructure the admin-area permission gate and navigation.
+
+## PermissionRole Pilot
+
+`PermissionRole` is the first Organization & Access component chosen for migration. The read-only plan is in
+`permission-role-migration-plan.md`. Nothing in it is implemented.
+
+* **Approach:** introduce an Organization & Access boundary under `app/services/organization_access/`, following
+  the repo's existing `Finance::` / `Inventory::` / `Shifts::` service namespaces. Route reads and writes through
+  it, then remove legacy access. The plan has 7 steps, each revertible and each leaving the application working.
+* **Kept stable:**
+  * the `PermissionRole` constant and table (16 data migrations and about 150 specs depend on it)
+  * `User#can?` / `#scope_for` as the cross-domain authorization interface (about 570 call sites, unchanged)
+  * routes, web flows, and the API login payload (`permissions`)
+* **Database:** no schema change required.
+* **Cross-domain edits:** only two, both read-only catalogue lookups: Laundry `PERMISSION_GROUPS` and the
+  onboarding policy. User ≠ Employee is not touched.
+* **Before implementation:** add the 6 REQUIRED tests listed in the plan's "Step 1 — Characterization Gaps":
+  * `PermissionGrants` unit decision table
+  * API login permissions for a role holder and for the owner
+  * Laundry and onboarding permission-group membership pins, plus a positive onboarding `index?`
+  * `User#can?` with String vs Symbol arguments
+
+  Also record the baseline failing example IDs. Everything else is already covered.
+* **Locked decisions:**
+  * no new role-change audit records (D1)
+  * OA-D3 not fixed in the pilot (D2)
+  * R-L4 out of scope (D3)
+  * `PermissionRole` / `permission_roles` unchanged, with no migration (D4)
+* **New defect found:** `lib/tasks/attendance.rake` queries a non-existent `permission_roles.role` column (R-L4).
