@@ -242,6 +242,42 @@ against the **unchanged** code, step 1 of the migration sequence may start.
   (`User#can?` owner short-circuit). The boundary must preserve this.
 * No production code, schema or migration changes. OA-D3, R-L4 and audit behaviour are untouched (D1–D3).
 
+## Step 2 — Boundary Status
+
+**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to step 1 of the migration sequence (§10):
+introduce the boundary, delegating to today's code.
+
+Each candidate was kept only if it has a concrete current caller to migrate in Step 3 and delegates to an existing
+source of truth:
+
+| Object | Created? | Delegates to | Why it exists / why not |
+|---|---|---|---|
+| `OrganizationAccess::PermissionCatalog.group(name)` (`app/services/organization_access/permission_catalog.rb`) | **Yes** | `PermissionRole::PERMISSION_GROUPS` (returns the same array object, no copy). Unknown group → `KeyError` | Step 3 callers: `Laundry::BaseController::LAUNDRY_PERMISSIONS` and `EmployeeDataRequestPolicy#index?`, the only code outside Organization & Access reading the catalogue (I3) |
+| `OrganizationAccess::Authorization.granted_permissions(user)` (`app/services/organization_access/authorization.rb`) | **Yes** | `user.permission_role&.permissions \|\| []`, the exact expression the API uses today | Step 3 caller: `Api::V1::SessionsController#user_payload` `permissions:` (I5). The owner returns `[]` (G3 contract) |
+| `Authorization.can?` / `.scope_for` | **No** | — | `User#can?` / `#scope_for` already **are** the cross-domain interface (I1/I2, about 570 callers that will not be migrated). A delegating twin would add a second entry point with no caller. Moving their bodies into Organization & Access is a later decision |
+| `PermissionCatalog` scope vocabulary / `ALL_PERMISSIONS` / `normalize_scope` | **No** | — | Only read in code by `PermissionGrants` (internal to Organization & Access; `ApplicationPolicy` and `BranchScope` mention `SCOPE_OPTIONS` in comments only). It belongs with the `PermissionGrants` move |
+| `OrganizationAccess::PermissionGrants` | **No** | — | The plan moves it in a later step (with a top-level alias); all its callers are internal to Organization & Access. A wrapper now would have no caller to migrate in Step 3 |
+| Role services (create/update/destroy/assign) | **No** | — | A later step (controller extraction), not Step 3 |
+| `User#role_name` (I6) | **No** | — | It would modify the `User` model, which is out of scope for this step |
+
+**Existing callers have NOT been migrated.** Nothing in `app/`, `lib/` or `config/` references `OrganizationAccess`
+outside `app/services/organization_access/`. No existing file was modified: the diff is two new production files and
+two new spec files. Existing paths (`PermissionRole::PERMISSION_GROUPS`, `user.permission_role&.permissions`,
+`User#can?`, `PermissionGrants`) are unchanged.
+
+**Tests:**
+
+* New boundary specs `spec/services/organization_access/{permission_catalog,authorization}_spec.rb`: 8 examples,
+  0 failures.
+* Step 1 characterization: 49/49 green.
+* Organization & Access characterization suite plus related role, user and policy specs, security, API, permission
+  matrix, Laundry, onboarding and scope specs: 953 examples, 9 failures, 1 pending. The failing IDs are **identical**
+  to the pre-Step-2 run and all are in `permission-role-baseline-failures.txt`.
+* `bin/rails zeitwerk:check` passes (eager load); RuboCop clean; `git diff --check` clean.
+
+**Database:** no migration, no schema change. `PermissionRole` / `permission_roles` are unchanged; no model was
+modified. OA-D3, R-L4 and audit behaviour are untouched (D1–D3).
+
 ## 7. Proposed target structure
 
 The repository already uses namespaced service folders under `app/services/` (`Finance::`, `Inventory::`,
