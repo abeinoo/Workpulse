@@ -110,6 +110,8 @@ en:
       title: "Create your account"
       subtitle: "Enter the phone number or email your admin registered for you"
       page_title: "Create account — WorkPulse"
+      invalid_invitation: "This invitation link is invalid or has expired, or the phone number / email does not match it. Ask your administrator for a new invitation link."
+      invitation_required: "To activate your account, open the invitation link your administrator sent you."
       submit: "Create account"
     fields:
       login: "Phone number or email"
@@ -2212,6 +2214,10 @@ en:
       emergency_contact_phone: "Contact phone"
       registered: "Registered"
       pending_registration: "Pending registration"
+      invitation_link: "Invitation link"
+      invitation_hint: "Send this link to the employee so they can activate their account. It works once and expires after 7 days."
+      errors:
+        cannot_assign_role: "cannot be assigned: you may only assign roles whose permissions you hold, never to yourself or the owner."
       not_assigned: "Not assigned"
       salary_profile: "Salary Profile"
       new_profile: "New Profile"
@@ -2521,6 +2527,9 @@ en:
         edit_record: "Edit Record"
         check_in_location: "Check-in Location"
     permission_roles:
+      errors:
+        cannot_grant: "cannot include permissions you do not hold yourself: %{permissions}"
+        scope_too_broad: "cannot be broader than your own scope for: %{permissions}"
       back: "Permission Roles"
       index:
         title: "Permission Roles"

@@ -61,6 +61,10 @@ class Branch < ApplicationRecord
   validates :latitude,      numericality: { in: -90..90 },    allow_nil: true
   validates :longitude,     numericality: { in: -180..180 },  allow_nil: true
   validates :radius_meters, numericality: { greater_than: 0 }, allow_nil: true
+  # Branch and area managers must belong to the branch's business — the form
+  # lists only own users, but request params are never trusted (OA-S7).
+  validate :managers_in_same_business,
+           if: -> { will_save_change_to_branch_manager_id? || will_save_change_to_area_manager_id? }
 
   scope :active,        -> { where(active: true) }
   scope :for_business,  ->(business) { where(business: business) }
@@ -71,4 +75,12 @@ class Branch < ApplicationRecord
   # branches are deliberately excluded from those selectors; they require
   # explicit support before participating in any laundry workflow.
   scope :laundry_transfer_eligible, -> { where(branch_type: %w[sales laundry]) }
+
+  private
+
+  def managers_in_same_business
+    { branch_manager: branch_manager, area_manager: area_manager }.each do |attribute, manager|
+      errors.add(attribute, :invalid) if manager && manager.business_id != business_id
+    end
+  end
 end

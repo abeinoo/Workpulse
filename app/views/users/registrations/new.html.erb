@@ -16,7 +16,12 @@
 
     <%= render "users/shared/error_messages", resource: resource %>
 
+    <% if @invitation_token.blank? %>
+      <p class="form-hint"><%= t("auth.register.invitation_required") %></p>
+    <% end %>
+
     <%= form_for(resource, as: resource_name, url: user_registration_path) do |f| %>
+      <%= hidden_field_tag "user[invitation_token]", @invitation_token %>
 
       <div class="form-group">
         <%= f.label :login, t("auth.fields.login"), class: "form-label" %>

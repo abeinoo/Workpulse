@@ -28,7 +28,9 @@ class Admin::PermissionRolesController < Admin::BaseController
     @permission_role = current_user.business.permission_roles.new(permission_role_params)
     authorize @permission_role
 
-    if @permission_role.save
+    if grants_ungrantable_permissions?(@permission_role, previous_permissions: [])
+      render :new, status: :unprocessable_entity
+    elsif @permission_role.save
       redirect_to admin_permission_role_path(@permission_role),
                   notice: t("flash.permission_role_created")
     else
@@ -43,7 +45,12 @@ class Admin::PermissionRolesController < Admin::BaseController
   def update
     authorize @permission_role
 
-    if @permission_role.update(permission_role_params)
+    previous_permissions = @permission_role.permissions.dup
+    @permission_role.assign_attributes(permission_role_params)
+
+    if grants_ungrantable_permissions?(@permission_role, previous_permissions: previous_permissions)
+      render :edit, status: :unprocessable_entity
+    elsif @permission_role.save
       redirect_to admin_permission_role_path(@permission_role),
                   notice: t("flash.permission_role_updated")
     else
@@ -69,7 +76,8 @@ class Admin::PermissionRolesController < Admin::BaseController
 
     user = current_user.business.users.find(params[:user_id])
 
-    if user.owner? && !current_user.owner?
+    unless PermissionGrants.can_change_role?(actor: current_user, target: user,
+                                             from: user.permission_role, to: @permission_role)
       return redirect_to admin_permission_role_path(@permission_role),
                          alert: t("flash.not_authorized")
     end
@@ -85,7 +93,8 @@ class Admin::PermissionRolesController < Admin::BaseController
 
     user = current_user.business.users.find(params[:user_id])
 
-    if user.owner? && !current_user.owner?
+    unless PermissionGrants.can_change_role?(actor: current_user, target: user,
+                                             from: user.permission_role, to: nil)
       return redirect_to admin_permission_role_path(@permission_role),
                          alert: t("flash.not_authorized")
     end
@@ -105,6 +114,26 @@ class Admin::PermissionRolesController < Admin::BaseController
   def permission_role_params
     params.require(:permission_role)
           .permit(:name, :description, :role_type, :workspace, permissions: [], permission_scopes: {})
+  end
+
+  # A non-owner may only add permissions they hold themselves (PermissionGrants).
+  # Checked after validation so role_type defaults and normalization are
+  # included; permissions the role already had are not re-checked.
+  # Also refuses permissions granted at a scope broader than the actor's own
+  # scope for them (PermissionGrants.overbroad_scopes).
+  def grants_ungrantable_permissions?(role, previous_permissions:)
+    role.validate
+    denied    = PermissionGrants.ungrantable(current_user, role.permissions - previous_permissions)
+    overbroad = PermissionGrants.overbroad_scopes(current_user, role)
+    return false if denied.empty? && overbroad.empty?
+
+    if denied.any?
+      role.errors.add(:permissions, t("admin.permission_roles.errors.cannot_grant", permissions: denied.join(", ")))
+    end
+    if overbroad.any?
+      role.errors.add(:permission_scopes, t("admin.permission_roles.errors.scope_too_broad", permissions: overbroad.join(", ")))
+    end
+    true
   end
 
   def require_roles_management_access!

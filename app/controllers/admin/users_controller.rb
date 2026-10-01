@@ -20,14 +20,18 @@ class Admin::UsersController < Admin::BaseController
   end
 
   def create
+    @user = current_user.business.users.new
+    authorize @user
+
     p = user_params
     p.delete(:remove_profile_photo)
     p.delete(:remove_national_id_front)
     p.delete(:remove_national_id_back)
-    @user = current_user.business.users.new(p)
-    authorize @user
+    @user.assign_attributes(p.except(:permission_role_id))
 
-    if @user.save
+    if !assign_role(@user, p)
+      render :new, status: :unprocessable_entity
+    elsif @user.save
       redirect_to admin_users_path, notice: t("flash.employee_created")
     else
       render :new, status: :unprocessable_entity
@@ -60,8 +64,11 @@ class Admin::UsersController < Admin::BaseController
 
     p = user_params
     removals = p.extract!(:remove_profile_photo, :remove_national_id_front, :remove_national_id_back)
+    @user.assign_attributes(p.except(:permission_role_id))
 
-    if @user.update(p)
+    if !assign_role(@user, p)
+      render :edit, status: :unprocessable_entity
+    elsif @user.save
       %i[profile_photo national_id_front national_id_back].each do |name|
         @user.public_send(name).purge if removals["remove_#{name}"] == "1"
       end
@@ -87,11 +94,13 @@ class Admin::UsersController < Admin::BaseController
   end
 
   def toggle_active
-    authorize @user
-
+    # Checked before authorize so the owner case keeps its specific message
+    # (UserPolicy#toggle_active? also refuses it).
     if @user.owner?
       return redirect_to admin_users_path, alert: t("flash.cannot_deactivate_owner")
     end
+
+    authorize @user
 
     @user.update!(active: !@user.active?)
     flash_key = @user.active? ? :user_activated : :user_deactivated
@@ -177,19 +186,32 @@ class Admin::UsersController < Admin::BaseController
     end
   end
 
+  # Attribute tiers come from UserPolicy#permitted_attributes: self-service
+  # profile fields vs employment, account-status/access and role fields
+  # (OA-S1/S3/S5). Anything else in the request is dropped.
   def user_params
-    params.require(:user).permit(
-      :first_name, :last_name, :phone_number, :email,
-      :employee_code, :active,
-      :permission_role_id,
-      :job_title, :department_id, :hire_date, :date_of_birth, :address, :employment_type,
-      :identity_card_number, :identity_card_expiry_date,
-      :allow_mobile_attendance, :allow_biometric_attendance,
-      :emergency_contact_name, :emergency_contact_phone, :emergency_contact_relationship,
-      :admin_notes,
-      :profile_photo, :national_id_front, :national_id_back,
-      :remove_profile_photo, :remove_national_id_front, :remove_national_id_back,
-      assigned_warehouse_ids: []
-    )
+    params.require(:user).permit(*policy(@user).permitted_attributes)
+  end
+
+  # Applies a requested role change only when PermissionGrants allows it
+  # (manage_roles, never self or the owner, only roles the actor could grant,
+  # only roles of this business — OA-S2/S3). An unchanged value is a no-op.
+  def assign_role(user, attributes)
+    return true unless attributes.key?(:permission_role_id)
+
+    requested_id = attributes[:permission_role_id].presence&.to_i
+    return true if requested_id == user.permission_role_id
+
+    new_role = requested_id && current_user.business.permission_roles.find_by(id: requested_id)
+    allowed  = (requested_id.nil? || new_role) &&
+               PermissionGrants.can_change_role?(actor: current_user, target: user,
+                                                 from: user.permission_role, to: new_role)
+    unless allowed
+      user.errors.add(:permission_role_id, t("admin.users.errors.cannot_assign_role"))
+      return false
+    end
+
+    user.permission_role = new_role
+    true
   end
 end

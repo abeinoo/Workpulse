@@ -1,4 +1,7 @@
 <%= form_with model: [:admin, user], multipart: true, class: "form-card" do |f| %>
+  <%# Fields are shown only when UserPolicy#permitted_attributes allows the
+      current user to change them; the controller enforces the same list. %>
+  <% permitted = policy(user).permitted_attributes %>
 
   <%= render "users/shared/error_messages", resource: user %>
 
@@ -73,6 +76,7 @@
             placeholder: t("admin.users.form.email_placeholder") %>
     </div>
 
+    <% if permitted.include?(:employee_code) %>
     <div class="form-group">
       <%= f.label :employee_code, t("admin.users.form.employee_code"), class: "form-label" %>
       <%= f.text_field :employee_code,
@@ -82,6 +86,7 @@
         <p class="form-hint"><%= t("admin.users.form.employee_code_hint") %></p>
       <% end %>
     </div>
+    <% end %>
 
     <%# ── Employment Info ──────────────────────────────────────────────── %>
     <div class="form-group form-group--full">
@@ -132,17 +137,22 @@
             class: "form-control" %>
     </div>
 
+    <% if permitted.include?(:permission_role_id) %>
+    <%# Only roles the current user may grant (plus the current value). %>
+    <% assignable_roles = current_user.business.permission_roles.ordered.select { |r|
+         r.id == user.permission_role_id || PermissionGrants.manageable_role?(current_user, r) } %>
     <div class="form-group">
       <%= f.label :permission_role_id, t("admin.users.form.permission_role"), class: "form-label" %>
       <%= f.select :permission_role_id,
-            current_user.business.permission_roles.ordered.map { |r| [r.name, r.id] },
+            assignable_roles.map { |r| [r.name, r.id] },
             { include_blank: "— #{t("admin.users.form.no_permission_role")} —" },
             class: "form-control" %>
       <p class="form-hint"><%= t("admin.users.form.permission_role_hint") %></p>
     </div>
+    <% end %>
 
     <% warehouses = current_user.business.warehouses.ordered %>
-    <% if warehouses.any? %>
+    <% if warehouses.any? && permitted.include?(assigned_warehouse_ids: []) %>
       <div class="form-group" style="grid-column: 1 / -1;">
         <%= f.label :assigned_warehouse_ids, t("admin.users.form.warehouses"), class: "form-label" %>
         <div class="check-grid" style="display: flex; flex-wrap: wrap; gap: var(--space-3);">
@@ -170,12 +180,14 @@
             class: "form-control" %>
     </div>
 
+    <% if permitted.include?(:active) %>
     <div class="form-group">
       <label class="form-check">
         <%= f.check_box :active %>
         <span class="form-check-label"><%= t("admin.users.form.active") %></span>
       </label>
     </div>
+    <% end %>
 
     <%# ── Emergency Contact ──────────────────────────────────────────── %>
     <div class="form-group form-group--full">
@@ -220,6 +232,7 @@
     </div>
 
     <%# ── Attendance Sources ─────────────────────────────────────────── %>
+    <% if permitted.include?(:allow_mobile_attendance) %>
     <div class="form-group form-group--full">
       <p class="form-label" style="margin-bottom: var(--space-2);">
         <%= t("admin.users.form.attendance_sources") %>
@@ -238,6 +251,7 @@
         </label>
       </div>
     </div>
+    <% end %>
   </div>
 
   <%# ── ID Documents ────────────────────────────────────────────────── %>
@@ -351,6 +365,7 @@
   </div>
 
   <%# ── Internal Administrative Notes ─────────────────────────────── %>
+  <% if permitted.include?(:admin_notes) %>
   <div class="form-group form-group--full">
     <%= f.label :admin_notes, t("admin.users.form.admin_notes"), class: "form-label" %>
     <%= f.text_area :admin_notes, rows: 4,
@@ -358,6 +373,7 @@
           placeholder: t("admin.users.form.admin_notes_placeholder") %>
     <p class="form-hint"><%= t("admin.users.form.admin_notes_hint") %></p>
   </div>
+  <% end %>
 
   <div class="form-actions">
     <%= f.submit f.object.persisted? ? t("admin.users.edit.submit") : t("admin.users.new.submit"), class: "btn btn-primary" %>
