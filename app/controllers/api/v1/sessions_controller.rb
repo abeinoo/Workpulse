@@ -61,7 +61,7 @@ module Api
           # Extra admin/management capabilities granted via PermissionRole.
           # An empty array does NOT mean no access — all authenticated users
           # have the self_service capabilities listed below by default.
-          permissions:    user.permission_role&.permissions || [],
+          permissions:    OrganizationAccess::Authorization.granted_permissions(user),
           manages_area:   user.manages_area?,
           manages_branch: user.manages_branch?,
           business_id:    user.business_id,

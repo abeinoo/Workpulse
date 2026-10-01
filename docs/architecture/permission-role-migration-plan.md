@@ -278,6 +278,48 @@ two new spec files. Existing paths (`PermissionRole::PERMISSION_GROUPS`, `user.p
 **Database:** no migration, no schema change. `PermissionRole` / `permission_roles` are unchanged; no model was
 modified. OA-D3, R-L4 and audit behaviour are untouched (D1–D3).
 
+## Step 3 — Read Routing Status
+
+**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to step 2 of the migration sequence (§10):
+route reads through the boundary. The change is 3 files, 4 lines; every one is a read that now goes through the
+boundary with an identical result.
+
+### Callers migrated
+
+| Caller | Old path | New path | Why it is cross-domain | Tests covering it |
+|---|---|---|---|---|
+| `Laundry::BaseController::LAUNDRY_PERMISSIONS` (workspace gate) | `PermissionRole::PERMISSION_GROUPS[:laundry_operations] + [:laundry_cost_reports]` | `OrganizationAccess::PermissionCatalog.group(:laundry_operations) + .group(:laundry_cost_reports)` → same arrays | Inventory & Purchasing (Laundry) reading the Organization & Access permission catalogue | G4 `permission_groups_spec` (pins the resulting constant), `spec/requests/laundry/*`, `finance_laundry_workspace_navigation_spec`, `permission_catalog_spec` |
+| `EmployeeDataRequestPolicy#index?` | `PermissionRole::PERMISSION_GROUPS[:employee_onboarding].any? { can? }` | `OrganizationAccess::PermissionCatalog.group(:employee_onboarding).any? { can? }` | Workforce (onboarding) reading the Organization & Access catalogue | G5 (every member grants `index?`, none denies), G7 (String permissions), `employee_data_request_policy_spec`, `employee_data_requests_spec`, `spec/services/employee_data_requests` |
+| `Api::V1::SessionsController#user_payload` `permissions:` | `user.permission_role&.permissions \|\| []` | `OrganizationAccess::Authorization.granted_permissions(user)` (same expression) | API layer (consumed by mobile clients) reading role internals | G2 (role holder: exact list and order), G3 (owner `[]`), `api/v1/characterization/authentication_spec` (no role `[]`, payload keys, invalid credentials, unauthenticated), `sessions_spec`, `authorization_spec` |
+
+### Callers intentionally left unchanged
+
+| Caller | Why |
+|---|---|
+| Finance preloads `includes(:permission_role)`: `TillHandoversController` (2), `Finance::DailyReconciliationsController`, `Finance::DepositorAssigner`, `Finance::DepositResponsibilityTransferRequester` | They feed `eligible_depositor?` → `User#can?`, which still reads `permission_role`. The boundary does not change that path, so the preloads still prevent an N+1 and are kept (I11) |
+| `User#can?`, `#scope_for`, `#management_sidebar?`, `User` / `Business` associations and the same-business validation | Internal to Organization & Access; out of scope for this step |
+| `PermissionRolePolicy`, `PermissionGrants`, `UserPolicy`, `Admin::PermissionRolesController`, `Admin::UsersController`, role views and Stimulus form | Internal to Organization & Access (role administration and grant rules); a later step |
+| Role-name display: `admin/dashboard`, `admin/branches/_employees` (+ `includes` in both controllers), `layouts/_sidebar` | Organization & Access admin screens and the UI shell. No boundary object exists (`User#role_name` was not created because it modifies the model) |
+| `lib/tasks/attendance.rake` | R-L4, out of scope (D3) |
+| Comments in `ApplicationPolicy`, `BranchScope`, `EmployeeScope`, `LaundryBatchPolicy`, `laundry.rake`, `dashboard/_analytics_section` | Text only, no read |
+
+### Verification
+
+* **Focused runs after each migration:**
+  * Laundry: 104 examples, 0 failures.
+  * Onboarding: 111 examples, 0 failures.
+  * API session: 128 examples, 0 failures, 1 pending (pre-existing).
+* **Full relevant set** (Step 1 + Step 2 specs, Organization & Access characterization, role, user and policy specs,
+  security, API, permission matrix, Laundry, onboarding, scope and Finance depositor, transfer, till handover and
+  daily reconciliation specs): 1346 examples, 9 failures, 1 pending **both before and after**. The failing IDs are
+  identical and all are in `permission-role-baseline-failures.txt`.
+* `bin/rails zeitwerk:check`: all good. `git diff --check`: clean. RuboCop: no new offenses (2 pre-existing on
+  `sessions_controller.rb:4`).
+* **Contracts preserved:** permission group contents, `User#can?` / `#scope_for`, owner behaviour, business and
+  branch scoping, scope escalation protection, API response shape, order and owner `[]`. No write path changed; no
+  permission definitions moved; no second source of truth (the catalogue returns `PermissionRole`'s own arrays).
+* **Database:** no migration or schema change; `PermissionRole` / `permission_roles` unchanged.
+
 ## 7. Proposed target structure
 
 The repository already uses namespaced service folders under `app/services/` (`Finance::`, `Inventory::`,

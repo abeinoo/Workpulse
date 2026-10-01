@@ -22,7 +22,7 @@ class EmployeeDataRequestPolicy < ApplicationPolicy
   # The feature (list page + the sidebar entry under "Employees") is reachable
   # with ANY Employee Add Request permission; what the list contains is still
   # limited by Scope, and each action by its own permission below.
-  def index?  = PermissionRole::PERMISSION_GROUPS[:employee_onboarding].any? { |p| can?(p) }
+  def index?  = OrganizationAccess::PermissionCatalog.group(:employee_onboarding).any? { |p| can?(p) }
   def create? = can?(:create_employee_requests)
   def show?   = own_visible? || in_review_scope?
 
