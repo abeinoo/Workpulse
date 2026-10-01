@@ -2,8 +2,8 @@ require "rails_helper"
 
 # Step 4 (PermissionRole pilot): PermissionGrants now lives in Organization &
 # Access. The full decision table is characterized against the legacy name in
-# spec/characterization/organization_access/permission_grants_spec.rb; the
-# alias example below proves those examples exercise this implementation. The
+# spec/characterization/organization_access/permission_grants_spec.rb, which
+# calls this module directly since the legacy alias was removed (Step 6). The
 # examples here cover what that table does not: the complete scope-breadth
 # matrix, changing an existing role, and the module's business-agnostic
 # contract (isolation is enforced by its callers — see the OA-S2 security specs).
@@ -21,8 +21,8 @@ RSpec.describe OrganizationAccess::PermissionGrants, type: :model do
   end
 
   describe "location and compatibility" do
-    it "the legacy PermissionGrants name is the very same module" do
-      expect(PermissionGrants).to equal(described_class)
+    it "the legacy top-level PermissionGrants alias no longer exists (removed in Step 6)" do
+      expect(Object.const_defined?(:PermissionGrants)).to be(false)
     end
 
     it "keeps its public interface and constants" do

@@ -492,6 +492,90 @@ restrictions and cross-business isolation are all green in the unchanged specs:
 * `PermissionRole` is **untouched**: same model, table, constants, defaults (OA-D3 preserved) and validations. No
   migration or schema change. No audit logging added; R-L4 untouched.
 
+## Step 6 — Legacy Access Cleanup Status
+
+**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to steps 6–7 of the migration sequence (§10):
+remove legacy access and enforce the boundary.
+
+### Inventory and classification
+
+Every remaining reference to `PermissionRole`, `PermissionGrants`, `permission_role(s)` and the Organization &
+Access role services was reviewed caller by caller:
+
+| Class | References |
+|---|---|
+| **A. Organization & Access internal** | **Models:** `PermissionRole`, `User`, `Business`. **Boundary:** `app/services/organization_access/**`. **Policies:** `PermissionRolePolicy`, `UserPolicy`. **Admin:** `Admin::PermissionRolesController` and views, `Admin::UsersController`, `admin/users/_form` (assignable roles) and `show` (role name), `admin/branches/_employees` and `admin/dashboard/index` (role-name display on Organization & Access admin screens) |
+| **B. Valid cross-domain interface** | `OrganizationAccess::PermissionCatalog` (Laundry gate, onboarding policy); `OrganizationAccess::Authorization` (API login payload); `User#can?` / `#scope_for` / `#management_sidebar?` everywhere. `includes(:permission_role)` preloads (Finance ×5, admin branches and dashboard) feed `User#can?` (I11) |
+| **C. Legacy, removed** | `app/services/permission_grants.rb` — the top-level `PermissionGrants = OrganizationAccess::PermissionGrants` alias |
+| **D. Test-only compatibility** | The Step 1 characterization spec (45 call sites) and one Step 4 example used the alias. They now call `OrganizationAccess::PermissionGrants`. Assertions unchanged; the Step 4 example now asserts the alias is gone |
+| **E. Must remain unchanged** | `layouts/_sidebar` (UI shell: role-screen nav entry and current role label); `lib/tasks/attendance.rake` (R-L4, D3); `lib/tasks/laundry.rake` (message text); `dashboard/_analytics_section` (ERB comment text); `db/seeds.rb`; `db/migrate/*` (frozen history) |
+
+### Removed
+
+* The top-level `PermissionGrants` alias. It was not an external contract: an internal Ruby constant, never part
+  of the API (`docs/api`) or any route, and used only by the two specs above. `Object.const_defined?(:PermissionGrants)`
+  is `false`, including under eager loading.
+
+### Intentionally retained (direct internal access)
+
+`UserPolicy` (`covers?` ×2), `PermissionRolePolicy` (`manageable_role?`) and the users form's assignable-role list
+(`manageable_role?`) call `OrganizationAccess::PermissionGrants` directly. They are Organization & Access internals,
+and the call **is** the authorization rule. A wrapper would add an abstraction layer with no benefit, so they stay
+as they are.
+
+### Enforcement
+
+`spec/architecture/permission_role_boundary_spec.rb` is a plain RSpec architecture test, with no new gems and no
+Rails configuration:
+
+* It scans `app/**` and `lib/**` (`.rb`, `.erb`, `.rake`), ignoring full-line Ruby comments and ERB comments.
+* It fails on any reference to the following outside an explicit allow-list:
+  * `PermissionRole` (not `PermissionRolePolicy`)
+  * `PermissionGrants`
+  * `permission_role(s)`
+  * the Organization & Access role services (`RoleAssignmentRule`, `ChangeUserRole`, `CreateRole`, `UpdateRole`,
+    `DeleteRole`, `RoleGrantCheck`)
+* `.includes(:permission_role)` preloads are allowed anywhere.
+* Every allow-list entry carries its reason. A second example fails if an allow-listed file no longer needs its
+  exception, so the list can only shrink.
+* `User#can?`, `#scope_for`, `PermissionCatalog`, `Authorization` and `PermissionRolePolicy` are **not** banned.
+* **Verified:** a temporary probe file in `app/services/` reading `PermissionRole::PERMISSION_GROUPS` made the spec
+  fail with its file and line. The probe was removed.
+
+### Tests and baseline
+
+* **Pilot set:** Step 1 characterization, Step 2–5 boundary and service specs, role/user policies, security, API,
+  Laundry, onboarding, Finance, admin users, branches and role screens, permission matrix, parity spec, plus the
+  new architecture spec.
+  * Before: 1486 examples, 11 failures, 1 pending.
+  * After: 1489 examples, 11 failures, 1 pending (+3 architecture examples).
+  * The failing IDs are **identical**, all in `permission-role-baseline-failures.txt`. **No new failures.**
+* `bin/rails zeitwerk:check`: all good. `git diff --check`: clean. RuboCop: no offenses in the changed specs.
+
+### Security, behaviour and database
+
+* All green in unchanged specs:
+  * OA-S1–S8
+  * the privilege hierarchy (Cases B–E)
+  * role permission-scope escalation
+  * owner protection and self-assignment restrictions
+  * cross-business isolation
+  * role create/update/delete and assign/remove behaviour
+* The following are unchanged: web role management, the API login `permissions` payload (G2/G3), Laundry and
+  onboarding gates, and Finance depositor eligibility.
+* No application code behaviour changed. The only production change is the deleted alias file.
+* No migration or schema change. `PermissionRole` / `permission_roles` are untouched: associations, validations and
+  constants.
+
+### Remaining PermissionRole migration work
+
+* **Physical move of the model** (and, optionally, the catalogue constants into `PermissionCatalog` with model
+  aliases). The model, table and constant names stay fixed (D4); historical data migrations depend on the constant.
+* **Optional:** `User#role_name` (I6) to retire the role-name display exceptions. It requires a `User` model change.
+* **Open:** Q3 (owner `permissions` in the API), Q4 (named capability checks vs group membership), Q5 (final physical
+  structure / Packwerk), Q6 (moving access-scope infrastructure after the Workforce membership contract).
+* **Separate tasks, not pilot scope:** OA-D3, role-change auditing (D1), R-L4.
+
 ## 7. Proposed target structure
 
 The repository already uses namespaced service folders under `app/services/` (`Finance::`, `Inventory::`,
