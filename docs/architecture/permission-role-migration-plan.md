@@ -397,6 +397,101 @@ Each guarantee is protected by an existing spec that ran green before and after:
 * `PermissionRole` is **untouched**: same model, table (`permission_roles`), constants and validations. No
   migration or schema change. OA-D3, R-L4 and audit behaviour are untouched (D1–D3).
 
+## Step 5 — Role Operations Migration Status
+
+**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to steps 4–5 of the migration sequence (§10):
+role operations move into Organization & Access services, and the controllers delegate to them.
+
+### Services created
+
+All live in `app/services/organization_access/`. They follow the repository's service convention: ids in, loaded
+inside `actor.business`, a per-class `Result(ok, record, error)`, no HTTP. None of them audits (D1).
+
+| Service | Responsibility | Authorization (existing mechanisms) |
+|---|---|---|
+| `RoleAssignmentRule.decide(actor:, user:, role_id:)` → `Decision(allowed, role)` | **The single authoritative role-change decision (R-H2).** Resolves the role inside `actor.business` (unknown or foreign id → denied, OA-S2). Blank id = remove | `PermissionGrants.can_change_role?` (manage_roles, never self, never the owner, current and new role within the actor's permissions and scopes — OA-S3/S4/S5) |
+| `ChangeUserRole.new(user_id, actor:, role_id:)` | Assign or remove a role and persist it (role screen). Loads the user in `actor.business` (foreign → `RecordNotFound`, 404). `update!` as before (`RecordInvalid` still raises) | `RoleAssignmentRule` |
+| `CreateRole.new(actor:, attributes:)` | Build in `actor.business` (a supplied `business_id` is ignored), grant check, save | `PermissionRolePolicy#create?`, `RoleGrantCheck` |
+| `UpdateRole.new(role_id, actor:, attributes:)` | Load in `actor.business`, check manageability of the role as it stands, assign, grant check (only **added** permissions), save | `PermissionRolePolicy#update?`, `RoleGrantCheck` |
+| `DeleteRole.new(role_id, actor:)` | Load in `actor.business`; never delete a role with users (`:has_users`); destroy | `PermissionRolePolicy#destroy?` |
+| `RoleGrantCheck.violations?(actor:, role:, previous_permissions:)` | Escalation guard shared by create and update (moved verbatim from the controller): validate first, then `cannot_grant` / `scope_too_broad` errors | `PermissionGrants.ungrantable` / `.overbroad_scopes` |
+
+### Callers migrated
+
+| Controller action | Before | After |
+|---|---|---|
+| `Admin::PermissionRolesController#create` | build + `authorize record` + private `grants_ungrantable_permissions?` + save | `authorize PermissionRole` (`create?` only checks `manage_roles`; no throwaway record is built on `business.permission_roles`) → `CreateRole` |
+| `#update` | `authorize` + assign + grant check + save | `authorize @permission_role` → `UpdateRole(@permission_role.id)` |
+| `#destroy` | `authorize` + `users.any?` + destroy | `authorize` → `DeleteRole` (`:has_users` → same alert) |
+| `#assign_user` / `#remove_user` | `authorize :update?` + user find + `can_change_role?` + `update!` | `authorize :update?` → `ChangeUserRole` |
+| `Admin::UsersController#assign_role` (create/update employee form) | own copy: `find_by` in business + `can_change_role?` | `RoleAssignmentRule.decide`. The form-specific "unchanged value is a no-op" and the staging of the role on the (possibly unsaved) user stay in the adapter |
+
+The controllers keep only params, Pundit `authorize`, the service call, flash, redirect and render. A service
+returning `:not_authorized` (unreachable after `authorize`) raises `Pundit::NotAuthorizedError`, the same denial
+flow. The private `grants_ungrantable_permissions?` was removed.
+
+### Duplicated logic consolidated
+
+The role-assignment escalation decision existed twice (`PermissionRolesController#assign_user` / `#remove_user` and
+`UsersController#assign_role`). It now exists **once**, in `RoleAssignmentRule`, and both entry points use it.
+`spec/requests/admin/role_assignment_entry_points_spec.rb` proves the same outcome from both screens:
+
+* within authority → assigned
+* permission escalation → refused
+* broader scope → refused
+* moving off a higher role → refused
+* owner → refused
+* self → unchanged
+* foreign role → never assigned (404 on the role screen, refusal on the form)
+
+The escalation check for role definitions (create/update) likewise exists once, in `RoleGrantCheck`.
+
+### Tests added (41 examples)
+
+* `role_assignment_rule_spec.rb` (10)
+* `change_user_role_spec.rb` (7, including "no audit record", D1)
+* `role_definition_services_spec.rb` (17: create, update and delete — valid, invalid permissions, permission
+  escalation, scope escalation, unmanageable role, has users, cross-business `business_id` / role id, owner)
+* `spec/requests/admin/role_assignment_entry_points_spec.rb` (7, parity)
+
+All are green in default and two random orders.
+
+### Security guarantees preserved
+
+OA-S1–S8, the privilege hierarchy (Cases B–E), role permission-scope escalation, owner protection, self-assignment
+restrictions and cross-business isolation are all green in the unchanged specs:
+
+* `organization_access_security_spec`
+* `organization_access_scope_hierarchy_spec`
+* `organization_access_view_and_role_scope_spec`
+* `user_policy_spec`
+* `permission_role_policy_spec`
+* `permission_matrix_verification_spec`
+* the Organization & Access characterization suite (including "role assignment is NOT audited" and the OA-D3
+  accountant-defaults example)
+
+### Verification
+
+* **Role-operation set:** Organization & Access characterization, boundary and service specs, security, policies,
+  admin users, branches and role localization, permission matrix, sidebar, API, Laundry, onboarding, scopes and
+  Finance depositor, transfer, till and daily reconciliation.
+  * Before: 1445 examples, 11 failures, 1 pending.
+  * After: 1486 examples, 11 failures, 1 pending (+41 new).
+  * The failing IDs are **identical**, all in `permission-role-baseline-failures.txt`. **No new failures.**
+* `bin/rails zeitwerk:check`: all good. `git diff --check`: clean. RuboCop: no new offenses (the 8 pre-existing in
+  `admin/users_controller.rb`, untouched lines).
+* **No API or web change:** same routes, params, redirects, flash keys and status codes (422 re-render, 404 for
+  foreign records, `flash.not_authorized` on refused assignment).
+
+### Remaining legacy access
+
+* `PermissionGrants` top-level alias (Step 1 spec only), to be removed in sequence step 6.
+* Policies (`UserPolicy`, `PermissionRolePolicy`) and the users form's assignable-role list call
+  `OrganizationAccess::PermissionGrants` directly. That is the authorization mechanism itself, not duplicated role
+  logic.
+* `PermissionRole` is **untouched**: same model, table, constants, defaults (OA-D3 preserved) and validations. No
+  migration or schema change. No audit logging added; R-L4 untouched.
+
 ## 7. Proposed target structure
 
 The repository already uses namespaced service folders under `app/services/` (`Finance::`, `Inventory::`,
