@@ -26,7 +26,7 @@ The coupling is wide but shallow: about 550 permission checks across every domai
 **Conclusions:**
 
 1. **No database migration is required.** The table, columns, indexes and foreign keys stay as they are (§8.1).
-2. **The `PermissionRole` constant must not be renamed or namespaced in this pilot.** 16 historical data migrations,
+2. **The `PermissionRole` constant must not be renamed or namespaced in this pilot.** 15 historical data migrations,
    the factory (`:permission_role`), about 150 spec files and the `PermissionRole::PERMISSION_GROUPS` /
    `SCOPE_OPTIONS` references in other domains all depend on it. The pilot introduces a **boundary**, not a rename.
 3. **`User#can?` and `User#scope_for` remain the stable cross-domain authorization interface.** They are rewired to
@@ -132,7 +132,7 @@ is responsible for role, permissions and access scopes.
 | `lib/tasks/laundry.rake` | Inventory & Purchasing | message text only | — |
 | **Every policy, controller, helper and view** (policies about 350, controllers 75, views 99, helpers 19, services 11, models 4 call sites) | all domains | `user.can?(:perm)` / `can?(:perm)` | authorization lookup **through User** — does not touch `PermissionRole` |
 | About 20 call sites (API v1 payroll and reports, attendance, dashboard, finance, laundry, performance, shift assignments, till handovers, and about 22 policies via `ApplicationPolicy`) | all domains | `user.scope_for(:perm)` | authorization lookup **through User** |
-| `db/migrate/*` (16 files call `PermissionRole.` directly; 5 define an inline model) | — | historical data backfills | write (frozen history) |
+| `db/migrate/*` (15 files call `PermissionRole.` directly; 1 defines an inline model — count corrected in Step 7B) | — | historical data backfills | write (frozen history) |
 
 ## 5. Public interface (derived from actual usage)
 
@@ -603,7 +603,7 @@ reflection, and a standalone Zeitwerk experiment in a scratch directory.
 | **B. Valid cross-domain interface** | `User#can?` / `#scope_for` (all domains), `PermissionCatalog` (Laundry, onboarding), `Authorization` (API login), and `includes(:permission_role)` preloads (Finance ×5, admin users, branches, dashboard) feeding `User#can?` |
 | **C. Legacy access to migrate** | **None.** Removed in Steps 3–6 and enforced by the architecture spec |
 | **D. Test-only** | **23 spec files with 98 `PermissionRole` constant references:** `ALL_PERMISSIONS` 17, `PERMISSION_GROUPS` 15, `PERMISSION_DEPENDENCIES` 8, and `.exists?` / `.create` / `.new` / `.find_or_create_by` / `.scope_options_for` / … Also 70 spec files use the `:permission_role` factory, 79 use the association, `spec/factories/{permission_roles,users}.rb`, and `spec/support/{api_characterization,employee_data_request}_helpers.rb` |
-| **E. Database history** | 23 migrations mention roles. 7 are schema-only (table, columns, foreign key). **16 are data migrations that call the live top-level `PermissionRole` model** (`find_each`, `where`, `reset_column_information`; writes via `update_columns` ×23, `save` ×3, `update_column` ×1). 1 (`20260929190000`) uses an inline model. `db/seeds.rb` uses `PermissionRole.find_or_create_by!` |
+| **E. Database history** | 23 migrations mention roles. 7 are schema-only (table, columns, foreign key). **15 are data migrations that call the live top-level `PermissionRole` model** (corrected from 16 in Step 7B) (`find_each`, `where`, `reset_column_information`; writes via `update_columns` ×23, `save` ×3, `update_column` ×1). 1 (`20260929190000`) uses an inline model. `db/seeds.rb` uses `PermissionRole.find_or_create_by!` |
 | **F. Cannot safely migrate yet** | `lib/tasks/attendance.rake` (R-L4, broken query, D3). Not touched by any Step 7 option |
 
 ### 3. Database and migration analysis
@@ -613,10 +613,10 @@ reflection, and a standalone Zeitwerk experiment in a scratch directory.
 * **`db:schema:load` / `db:prepare` / `db:setup` / `db:test:prepare`:** these load `db/schema.rb`, which references
   no model, so they are safe under every option. `bin/setup` and `bin/docker-entrypoint` use `db:prepare`; CI uses
   `db:test:prepare`; specs use `maintain_test_schema!`.
-* **`db:migrate` on an existing database:** runs only pending migrations. The 16 data migrations are not re-run.
-* **`db:migrate` from an empty database, and `db:migrate:down` / `redo` of those 16:** these execute the migrations
+* **`db:migrate` on an existing database:** runs only pending migrations. The 15 data migrations are not re-run.
+* **`db:migrate` from an empty database, and `db:migrate:down` / `redo` of those 15:** these execute the migrations
   and **require the top-level `PermissionRole` constant to resolve to the live model.** This is the binding
-  constraint. Any design that removes or renames the top-level constant breaks fresh migration and rollback of 16
+  constraint. Any design that removes or renames the top-level constant breaks fresh migration and rollback of 15
   migrations, unless it keeps a permanent alias.
 * **Conclusion:** Step 7 requires **no migration, no schema change, no table rename and no foreign-key change** —
   provided the top-level `PermissionRole` constant is kept.
@@ -628,7 +628,7 @@ reflection, and a standalone Zeitwerk experiment in a scratch directory.
 | Autoloading | Standard Zeitwerk namespacing. `OrganizationAccess` becomes a namespace spanning `app/models` and `app/services` (supported) | Unchanged | One autoloader line: `Rails.autoloaders.main.collapse(Rails.root.join("app/models/organization_access"))`. **Verified with Zeitwerk 2.8.2:** with collapse, the file defines top-level `PermissionRole` and `OrganizationAccess::*` from `app/services` keeps working. Without collapse, Zeitwerk raises "expected file … to define constant OrganizationAccess::PermissionRole" |
 | Constant / table | New constant. `table_name` stays `permission_roles` (probe: a model in `OrganizationAccess` gets no prefix; the module defines no `table_name_prefix`) | Unchanged | Unchanged (`PermissionRole`, `permission_roles`) |
 | Existing callers | All Organization & Access callers change (~15 app files). `User` and `Business` associations need `class_name:` (**a `User` change**), unless a top-level alias is kept | None | None |
-| Migrations (16) | Need a **permanent** top-level alias `PermissionRole = OrganizationAccess::PermissionRole`, so the class has two names indefinitely | Safe | Safe (same constant) |
+| Migrations (15) | Need a **permanent** top-level alias `PermissionRole = OrganizationAccess::PermissionRole`, so the class has two names indefinitely | Safe | Safe (same constant) |
 | Factory | `factory :permission_role, class: "OrganizationAccess::PermissionRole"` | None | None |
 | STI / polymorphism | No STI; no stored type names. Safe either way | — | — |
 | Associations / callbacks / validations | Unchanged code, re-homed; association class resolution changes | Unchanged | Unchanged (file moves verbatim) |
@@ -712,7 +712,7 @@ No HTTP or network calls are involved.
 | Sub-step | Change | Behaviour | Tests | Rollback | Risk |
 |---|---|---|---|---|---|
 | **7A — physical move (one atomic commit)** | Add the collapse line; `git mv app/models/permission_role.rb app/models/organization_access/permission_role.rb` (content byte-identical); update the architecture-spec allow-list path; add the location spec. These must land together: the collapse without the folder, or the folder without the collapse, breaks loading | None | `bin/rails zeitwerk:check`; eager load (`CI=1`); the full pilot set (1489 examples) with failing IDs identical to the baseline; model spec; architecture spec | `git revert` | LOW |
-| **7B — migration-path verification (no commit unless docs)** | Run `db:create db:migrate` from zero in a **disposable** database (never development, test or production), then drop it. Proves the 16 data migrations still resolve `PermissionRole`. **Needs explicit approval:** it is a schema-creating database command, even though it runs on a throwaway database | None | Fresh migrate succeeds and `db/schema.rb` is unchanged afterwards (`git diff --exit-code db/schema.rb`) | Drop the disposable database | LOW |
+| **7B — migration-path verification (no commit unless docs)** | Run `db:create db:migrate` from zero in a **disposable** database (never development, test or production), then drop it. Proves the 15 data migrations still resolve `PermissionRole`. **Needs explicit approval:** it is a schema-creating database command, even though it runs on a throwaway database | None | Fresh migrate succeeds and `db/schema.rb` is unchanged afterwards (`git diff --exit-code db/schema.rb`) | Drop the disposable database | LOW |
 | **7C — documentation** | Step 7 status, convention note, readiness pointer | None | — | `git revert` | LOW |
 
 **No compatibility bridge is needed.** The constant never changes, so there is no alias, dual constant or staged
@@ -762,7 +762,7 @@ Stop 7A and report, without a workaround, if any of these happens:
 1. `PermissionRole` lives physically in `app/models/organization_access/` (Organization & Access) and remains the
    top-level constant on the `permission_roles` table.
 2. No database migration and no `db/schema.rb` change; no table, foreign-key or association change.
-3. The 16 historical data migrations resolve `PermissionRole` unchanged (fresh migrate verified in 7B, if approved).
+3. The 15 historical data migrations resolve `PermissionRole` unchanged (fresh migrate verified in 7B, if approved).
 4. `zeitwerk:check` and eager load pass.
 5. The full pilot set's failing IDs are identical to `permission-role-baseline-failures.txt`; no new failures.
 6. OA-S1–S8, privilege hierarchy, scope escalation, owner, self-assignment and cross-business specs are green and
@@ -776,7 +776,7 @@ Stop 7A and report, without a workaround, if any of these happens:
 **RECOMMENDED OPTION: C** — physically place `PermissionRole` in `app/models/organization_access/` with the folder
 collapsed, keeping the top-level `PermissionRole` constant and the `permission_roles` table.
 
-* **Repository evidence:** 16 data migrations need the top-level constant, and so do 23 spec files, 70 factory
+* **Repository evidence:** 15 data migrations need the top-level constant, and so do 23 spec files, 70 factory
   users and the `User` / `Business` associations. Option C changes none of them; Option A would need a permanent
   alias (two names for one class) or a `User` change.
 * **Rails compatibility:** collapse is a first-class Zeitwerk feature. The exact layout (collapsed
@@ -790,6 +790,133 @@ collapsed, keeping the top-level `PermissionRole` constant and the `permission_r
 
 **Safe to implement** — as the single atomic commit 7A, under the stop conditions above. The disposable-database
 fresh-migrate verification (7B) needs explicit approval before it is run.
+
+## Step 7B — Fresh Migration Verification Status
+
+**Status:** COMPLETE WITH PRE-EXISTING MIGRATION LIMITATION. Verification only; no code, migration, schema or
+configuration was changed.
+
+### 1. Verification objective
+
+Prove that the historical migrations which call the top-level `PermissionRole` constant still work now that Step 7A
+moved the model file to `app/models/organization_access/permission_role.rb`, keeping the `PermissionRole` constant
+and the `permission_roles` table.
+
+### 2. Disposable database isolation method
+
+* **Fresh, uniquely named PostgreSQL databases** (`work_pulse_step7b_verify_<epoch>`, then
+  `work_pulse_step7b_narrow_<epoch>`), created with `createdb` on the local server.
+* **Pointing the run at them:** `DB_NAME=<disposable>` was set for the single `bin/rails runner` process only.
+  `config/database.yml` reads the development database name from `DB_NAME`, and dotenv-rails 3 does not overwrite
+  an already-set variable.
+* **Hard guard:** the script aborted unless `connection.current_database` was exactly the disposable name, and the
+  database was empty at the start. The guard was re-checked after the schema load and before each migration.
+* **No repository writes:** migrations ran through an in-process `MigrationContext` (no `db:*` tasks), so the
+  repository's `db/schema.rb` was never re-dumped.
+* **Clean-up:** each disposable database was dropped afterwards; no configuration or environment file was modified.
+
+### 3. Runs and PermissionRole loading result
+
+* **Run 1 — all 299 migrations from zero:** stopped at migration 4 of 299 on the pre-existing duplicate
+  `phone_number` migration (§ "Pre-existing migration defects" below), before any `PermissionRole` migration.
+  `PermissionRole` itself loaded from the new path.
+* **Run 2 — narrow check (the result of record):**
+  * The disposable database was loaded in-process from the repository's `db/schema.rb`: 132 tables, 299 versions.
+  * It was seeded with one business and three roles: all current permissions, legacy scope names, and empty.
+  * Then each `PermissionRole` migration ran **`down` followed by `up`**, one at a time; no unrelated migration ran.
+* **`PermissionRole` loaded successfully** as the top-level constant from
+  `app/models/organization_access/permission_role.rb`. `table_name` is `permission_roles`, and the table's 10
+  columns and 3 indexes match `db/schema.rb`.
+
+### 4. The 15 migration versions that reference PermissionRole
+
+The earlier figure of 16 was a miscount; it is corrected throughout this document. All 15 define `up` and `down`.
+
+| Version | Migration | Result |
+|---|---|---|
+| 20260529170347 | expand_manage_payroll_permission | PASS |
+| 20260608000000 | normalize_permission_scope_names | PASS |
+| 20260626034023 | add_till_permissions_to_full_access_role | PASS |
+| 20260626060000 | add_daily_reconciliation_permissions | PASS |
+| 20260626061000 | rename_till_permissions | PASS |
+| 20260627100001 | add_settle_remaining_balance_permission | PASS |
+| 20260630400000 | split_view_performance_permission | PASS |
+| 20260702100000 | backfill_view_adjustments_permission | PASS |
+| 20260708110001 | add_review_daily_reconciliation_permission | PASS |
+| 20260709120000 | add_view_pos_transactions_verification_permission | PASS |
+| 20260716090100 | add_confirm_goods_receipts_permission | PASS |
+| 20260717091600 | add_goods_receipt_approval_permissions | PASS |
+| 20260730140000 | rename_pos_domain_to_sales | **Could not reach its PermissionRole code** |
+| 20260730150400 | remove_manage_pos_terminals_permission | PASS |
+| 20260915065402 | backfill_record_expense_payments_permission | PASS |
+
+### 5. Result
+
+* **14 of 15 passed `down` and `up`.** Model loading, `reset_column_information`, `find_each` and the role writes
+  all worked against real seeded rows.
+* 9 of the 14 left the seeded data different after the down/up round trip. This is expected, because those data
+  migrations are not exact inverses on arbitrary data; nothing raised.
+* **1 of 15 could not reach its PermissionRole code.**
+
+### 6. The failed migration
+
+`20260730140000_rename_pos_domain_to_sales`.
+
+### 7. Why it failed
+
+* **Where:** its `down` fails at line 28, `rename_table :sales_transactions, :pos_transactions`, with
+  `PG::DuplicateTable: relation "pos_transactions" already exists`.
+* **Why:** the committed `db/schema.rb` contains **both** `pos_imports` / `pos_transactions` **and**
+  `sales_imports` / `sales_transactions`. This is the pre-existing POS/Sales schema drift. Its `up` would collide the
+  same way (`rename_table :pos_imports, :sales_imports`).
+* **Effect:** in both directions the failure happens before the migration's `PermissionRole` code (its
+  `backfill_permissions` helper, the same `reset_column_information` / `find_each` pattern that passed in the other
+  14). Reaching that code would have needed workarounds, such as dropping tables or calling private migration
+  methods, so it was not attempted. Postgres DDL is transactional, so the failed migration rolled back.
+
+### 8–12. Statements
+
+* **8. The failure is unrelated to Step 7A.** It is caused by the existing schema drift, not by the model's
+  location; the migration fails before any `PermissionRole` reference.
+* **9. No migration files were changed.**
+* **10. `db/schema.rb` was unchanged.** It was loaded in-process and never written.
+* **11. Development, test and production were untouched.** The guard allowed only the disposable database.
+  Development (301 recorded migrations) and test (299), both at `20260930100000`, were only read afterwards;
+  production was never configured.
+* **12. The disposable databases were destroyed** (`dropdb`), and the temporary scripts and logs were deleted.
+
+### Conclusion
+
+**Step 7A introduced no migration compatibility problem. PermissionRole successfully loads from its new physical
+location, and its migration-dependent code executed successfully in every historical migration where that code was
+reachable.** No database migration is required for `PermissionRole`; the model (`PermissionRole`) and table
+(`permission_roles`) names are unchanged.
+
+### Pre-existing migration defects (OUT OF SCOPE — separate future technical debt)
+
+These are historical migration issues, independent of the PermissionRole pilot. They are recorded here only. They
+are **not** to be fixed, or proposed for fixing, as part of this pilot.
+
+| ID | Defect | Effect |
+|---|---|---|
+| MIG-1 | **Duplicate `phone_number` migration:** `20260504074028_create_employees` already creates `employees.phone_number`; `20260504082514_add_phone_number_to_employees` adds it again. Both date from the initial commit | `db:migrate` from an empty database fails at migration 4 (`PG::DuplicateColumn`). Normal setup is unaffected, because `db:prepare` / `db:test:prepare` load `db/schema.rb` |
+| MIG-2 | **POS/Sales schema drift:** the committed `db/schema.rb` contains both `pos_*` and `sales_*` tables. `20260730140000_rename_pos_domain_to_sales` fails on `rename_table :sales_transactions, :pos_transactions` (down) and `rename_table :pos_imports, :sales_imports` (up), because the destination table already exists | That migration cannot be re-run or rolled back against the committed schema |
+
+## PermissionRole Pilot — Step Status
+
+| Step | Status |
+|---|---|
+| Step 1 — Characterization | COMPLETE (`cb9163e`) |
+| Step 2 — Boundary | COMPLETE (`016415e`) |
+| Step 3 — Read routing | COMPLETE (`5f0468b`) |
+| Step 4 — PermissionGrants migration | COMPLETE (`e4ca403`) |
+| Step 5 — Role operations | COMPLETE (`78be7c4`) |
+| Step 6 — Legacy access cleanup / enforcement | COMPLETE (`208b5b3`) |
+| Step 7A — Physical PermissionRole move | COMPLETE (`7d957a6`) |
+| Step 7B — Fresh / narrow migration verification | COMPLETE WITH PRE-EXISTING MIGRATION LIMITATION (verification only, no commit) |
+| Step 7C — Documentation | IN PROGRESS |
+
+The PermissionRole pilot as a whole is not yet marked complete; that waits for the review of Step 7C.
 
 ## 7. Proposed target structure
 
@@ -816,7 +943,7 @@ would be a mechanical relocation of this namespace. It is **not** part of this p
 
 | File | Action | Notes |
 |---|---|---|
-| `app/models/permission_role.rb` | **KEEP** (later **REFACTOR**) | Constant name, table and validations unchanged. At step 4, the catalogue constants may be extracted into `PermissionCatalog` with the model constants kept as aliases, which 16 data migrations and the views require |
+| `app/models/permission_role.rb` | **KEEP** (later **REFACTOR**) | Constant name, table and validations unchanged. At step 4, the catalogue constants may be extracted into `PermissionCatalog` with the model constants kept as aliases, which 15 data migrations and the views require |
 | `app/models/user.rb` | **REFACTOR** (body only) | `can?`, `scope_for` and `management_sidebar?` delegate to `OrganizationAccess::Authorization`. Add `role_name`. Association and validation unchanged |
 | `app/models/business.rb` | **KEEP** | |
 | `app/services/permission_grants.rb` | **MOVE** → `organization_access/permission_grants.rb` + **WRAP** | Keep `PermissionGrants = OrganizationAccess::PermissionGrants` until step 6 |
@@ -891,7 +1018,7 @@ the next.
 | R-M4 | MEDIUM | **Permission-matrix behaviour.** It already has 3 baseline failures, which can mask a new failure in the same file | Compare failing example IDs, not counts |
 | R-M5 | MEDIUM | **Controller coupling in `Admin::UsersController`.** The role assignment is interleaved with the user create/update flow, which mixes User and Employee data | Extract only `assign_role`; do not touch the attribute tiers or employee fields |
 | R-L1 | LOW | API payload change (owner `permissions` `[]`) | Add the owner and role-holder API examples first (§6) |
-| R-L2 | LOW | Renaming the constant breaks 16 data migrations and about 150 specs | Explicitly out of scope; constant kept |
+| R-L2 | LOW | Renaming the constant breaks 15 data migrations and about 150 specs | Explicitly out of scope; constant kept |
 | R-L3 | LOW | Preload removal causing N+1 in Finance | Preloads kept (I11) |
 | R-L4 | LOW | **Existing defect:** `lib/tasks/attendance.rake` filters `permission_roles.role = "super_admin"`, but that column does not exist, so the fallback path raises. It only runs when no `actor_id` is given | Documented; not fixed in the pilot |
 | R-L5 | LOW | Translation baseline failures (`manage_bank_disputes`) hide catalogue i18n regressions | Compare failing example IDs |

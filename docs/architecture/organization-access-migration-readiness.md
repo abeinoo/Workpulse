@@ -563,7 +563,7 @@ migrations are unchanged.
   the repo's existing `Finance::` / `Inventory::` / `Shifts::` service namespaces. Route reads and writes through
   it, then remove legacy access. The plan has 7 steps, each revertible and each leaving the application working.
 * **Kept stable:**
-  * the `PermissionRole` constant and table (16 data migrations and about 150 specs depend on it)
+  * the `PermissionRole` constant and table (15 data migrations and about 150 specs depend on it)
   * `User#can?` / `#scope_for` as the cross-domain authorization interface (about 570 call sites, unchanged)
   * routes, web flows, and the API login payload (`permissions`)
 * **Database:** no schema change required.
@@ -582,3 +582,13 @@ migrations are unchanged.
   * R-L4 out of scope (D3)
   * `PermissionRole` / `permission_roles` unchanged, with no migration (D4)
 * **New defect found:** `lib/tasks/attendance.rake` queries a non-existent `permission_roles.role` column (R-L4).
+* **Physical move and migration verification (Steps 7A/7B):**
+  * `PermissionRole` now lives in `app/models/organization_access/permission_role.rb` (collapsed directory). The
+    model name (`PermissionRole`) and table (`permission_roles`) are unchanged, and **no database migration is
+    required** for `PermissionRole`.
+  * Of the **15** historical migrations that reference `PermissionRole` (previously miscounted as 16), **14 passed
+    down/up** in a disposable database.
+  * The remaining one (`20260730140000_rename_pos_domain_to_sales`) fails before its `PermissionRole` code, because
+    of the unrelated, pre-existing POS/Sales schema drift.
+  * **Step 7A caused no migration compatibility issue.** Details are in the plan's "Step 7B — Fresh Migration
+    Verification Status".
