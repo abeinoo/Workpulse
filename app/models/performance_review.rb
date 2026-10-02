@@ -16,6 +16,9 @@ class PerformanceReview < ApplicationRecord
   validates :review_month, inclusion: { in: 1..12 }
   validates :review_year,  numericality: { only_integer: true, greater_than: 2000, less_than: 3000 }
   validates :review_period, length: { maximum: 60 }, allow_blank: true
+  # Employee, department and reviewer must belong to the review's business; a
+  # request-supplied id is never trusted just because the record exists (SEC-P3-1).
+  validate :references_in_same_business, if: :references_changed?
 
   # Average is derived from the entered scores and stored for fast reporting.
   before_save :recalculate_average
@@ -51,6 +54,16 @@ class PerformanceReview < ApplicationRecord
   end
 
   private
+
+  def references_changed?
+    will_save_change_to_employee_id? || will_save_change_to_department_id? || will_save_change_to_reviewer_id?
+  end
+
+  def references_in_same_business
+    { employee: employee, department: department, reviewer: reviewer }.each do |attribute, record|
+      errors.add(attribute, :invalid) if record && record.business_id != business_id
+    end
+  end
 
   def snapshot_branch_and_department
     return unless employee
