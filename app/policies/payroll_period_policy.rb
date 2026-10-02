@@ -16,6 +16,13 @@ class PayrollPeriodPolicy < ApplicationPolicy
   # paid periods must be reopened before they can be regenerated.
   def regenerate? = can?(:regenerate_payroll) && record.draft?
 
+  # Overtime-only recalculation (Payroll::OvertimeRecalculator) — the same
+  # "recalculate payroll figures" authority as regenerate, but for a period
+  # UNDER REVIEW only; never finalized/paid (locked) ones. The service re-checks
+  # the status under a row lock.
+  def recalculate_overtime? = can?(:regenerate_payroll) && same_business? &&
+                              record.under_review? && !record.locked?
+
   # Reopen — finalized → branch_review_completed, paid → finalized.
   # Reopening a paid period additionally requires `pay_payroll` because it
   # rolls back a financial-disbursement event.

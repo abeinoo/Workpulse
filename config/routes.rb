@@ -242,6 +242,8 @@ Rails.application.routes.draw do
       patch :mark_all_reviewed
       patch :reopen
       get   :export_bank_transfer
+      get   :recalculate_overtime_preview
+      patch :recalculate_overtime
     end
     resources :payroll_entries, only: [ :show ] do
       member do

@@ -114,6 +114,13 @@
     <%# ── Secondary: regenerate (only on draft periods) ─────────────────── %>
     <% if current_user.can?(:regenerate_payroll) %>
       <div class="page-actions__sep"></div>
+      <%# Overtime-only recalculation — under-review periods only; opens a
+          read-only preview first (Payroll::OvertimeRecalculator). %>
+      <% if policy(@period).recalculate_overtime? %>
+        <%= link_to t("payroll.overtime_recalculation.action"),
+              recalculate_overtime_preview_payroll_period_path(@period),
+              class: "btn btn-warning btn-sm", data: { testid: "ot-recalc-action" } %>
+      <% end %>
       <% if policy(@period).regenerate? %>
         <%= button_to regenerate_payroll_period_path(@period),
               method: :patch,

@@ -1,0 +1,105 @@
+<%# "إعادة احتساب الوقت الإضافي" — read-only preview. Every figure comes from
+    Payroll::OvertimeRecalculator#preview; nothing has been written yet. %>
+<% scope = "payroll.overtime_recalculation" %>
+<% content_for :title, t("#{scope}.title") %>
+
+<div class="admin-page">
+  <div class="back-link">
+    <%= link_to payroll_period_path(@period) do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= @period.period_label %>
+    <% end %>
+  </div>
+  <h1 class="page-title mb-4"><%= t("#{scope}.title") %> — <%= @period.period_label %></h1>
+
+  <div class="alert alert-info" role="note" style="margin-bottom: var(--space-4);" data-testid="ot-recalc-intro">
+    <strong><%= t("#{scope}.intro", minutes: @preview.threshold) %></strong>
+    <p style="margin: var(--space-2) 0 0;"><%= t("#{scope}.scope_note") %></p>
+    <p class="td-secondary" style="margin: var(--space-2) 0 0;">
+      <%= @preview.previous_threshold ? t("#{scope}.previous_threshold", minutes: @preview.previous_threshold) : t("#{scope}.previous_threshold_unknown") %>
+    </p>
+  </div>
+
+  <div class="stats-grid" style="margin-bottom: var(--space-5);">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.affected_employees") %></span>
+      <span class="stat-card__value" data-testid="ot-affected"><%= @preview.affected_count %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.old_minutes") %></span>
+      <span class="stat-card__value" data-testid="ot-old-minutes"><%= format_minutes(@preview.old_total_minutes) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.new_minutes") %></span>
+      <span class="stat-card__value" data-testid="ot-new-minutes"><%= format_minutes(@preview.new_total_minutes) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.old_amount") %></span>
+      <span class="stat-card__value" data-testid="ot-old-amount"><%= format_currency(@preview.old_total_amount) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.new_amount") %></span>
+      <span class="stat-card__value" data-testid="ot-new-amount"><%= format_currency(@preview.new_total_amount) %></span>
+    </div>
+  </div>
+
+  <% if @preview.nothing_to_change? %>
+    <div class="card" style="padding: var(--space-5);" data-testid="ot-nothing">
+      <p style="margin: 0;"><%= t("#{scope}.nothing_to_change") %></p>
+      <%= link_to t("#{scope}.back"), payroll_period_path(@period), class: "btn btn-ghost", style: "margin-top: var(--space-3);" %>
+    </div>
+  <% else %>
+    <section class="card" style="margin-bottom: var(--space-5);">
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("#{scope}.employee") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.old_minutes") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.new_minutes") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.old_amount") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.new_amount") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.difference") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.days_removed") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.days_added") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @preview.affected_rows.sort_by { |r| r.new_payable - r.old_payable }.each do |row| %>
+              <tr data-testid="ot-row-<%= row.entry.user_id %>">
+                <td>
+                  <div>
+                    <bdi><%= row.entry.user.full_name %></bdi>
+                    <% if row.entry.overtime_overridden? %>
+                      <div class="td-secondary"><span class="badge badge-warning"><%= t("#{scope}.override") %></span> <%= t("#{scope}.override_note") %></div>
+                    <% end %>
+                  </div>
+                </td>
+                <td style="text-align: end;"><%= format_minutes(row.old_minutes) %></td>
+                <td style="text-align: end;"><%= format_minutes(row.new_minutes) %></td>
+                <td style="text-align: end;"><%= format_currency(row.old_payable) %></td>
+                <td style="text-align: end;"><%= format_currency(row.new_payable) %></td>
+                <td style="text-align: end; color: <%= row.new_payable < row.old_payable ? 'var(--danger)' : 'var(--success)' %>;">
+                  <%= format_currency(row.new_payable - row.old_payable) %>
+                </td>
+                <td style="text-align: end;"><%= row.line_removals.size %></td>
+                <td style="text-align: end;"><%= row.line_additions.size %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <%= form_with url: recalculate_overtime_payroll_period_path(@period), method: :patch, local: true do %>
+      <%= hidden_field_tag :preview_digest, @preview.digest %>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-warning"
+                data-turbo-confirm="<%= t("#{scope}.confirm_prompt", count: @preview.affected_count) %>">
+          <%= t("#{scope}.confirm") %>
+        </button>
+        <%= link_to t("#{scope}.back"), payroll_period_path(@period), class: "btn btn-ghost" %>
+      </div>
+    <% end %>
+  <% end %>
+</div>
