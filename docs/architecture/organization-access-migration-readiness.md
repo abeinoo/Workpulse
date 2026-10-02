@@ -556,8 +556,8 @@ migrations are unchanged.
 
 ## PermissionRole Pilot
 
-`PermissionRole` is the first Organization & Access component chosen for migration. The read-only plan is in
-`permission-role-migration-plan.md`. Nothing in it is implemented.
+**Status: COMPLETE.** `PermissionRole` is the first Organization & Access component migrated (pilot Steps 1–7C,
+see `permission-role-migration-plan.md`), with the Step 7B pre-existing migration limitation documented there.
 
 * **Approach:** introduce an Organization & Access boundary under `app/services/organization_access/`, following
   the repo's existing `Finance::` / `Inventory::` / `Shifts::` service namespaces. Route reads and writes through

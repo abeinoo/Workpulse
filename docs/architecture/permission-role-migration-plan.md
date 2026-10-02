@@ -914,9 +914,10 @@ are **not** to be fixed, or proposed for fixing, as part of this pilot.
 | Step 6 — Legacy access cleanup / enforcement | COMPLETE (`208b5b3`) |
 | Step 7A — Physical PermissionRole move | COMPLETE (`7d957a6`) |
 | Step 7B — Fresh / narrow migration verification | COMPLETE WITH PRE-EXISTING MIGRATION LIMITATION (verification only, no commit) |
-| Step 7C — Documentation | IN PROGRESS |
+| Step 7C — Documentation | COMPLETE |
 
-The PermissionRole pilot as a whole is not yet marked complete; that waits for the review of Step 7C.
+**PermissionRole Pilot: COMPLETE.** The Step 7B pre-existing migration limitation remains as documented above
+(MIG-1, MIG-2: out-of-scope technical debt, unrelated to the pilot).
 
 ## 7. Proposed target structure
 
