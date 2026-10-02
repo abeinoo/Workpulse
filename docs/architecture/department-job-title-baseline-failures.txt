@@ -1,0 +1,23 @@
+# Department + JobTitle pilot (Workforce) — M0 baseline failing example IDs
+# Recorded at c1aac8b (no code changes), 2026-10-02, before any pilot change.
+# Command (relevant set):
+#   bundle exec rspec spec/models/user_job_title_spec.rb spec/models/user_spec.rb spec/models/performance_review_spec.rb \
+#     spec/requests/admin/job_titles_spec.rb spec/requests/admin/users_spec.rb spec/requests/employee_data_requests_spec.rb \
+#     spec/requests/performance spec/requests/sidebar_active_state_spec.rb spec/services/employee_data_requests \
+#     spec/services/performance spec/policies/employee_data_request_policy_spec.rb spec/policies/user_policy_spec.rb \
+#     spec/architecture
+# Result: 319 examples. Compare later runs by ID, never by count.
+#
+# Deterministic pre-existing failures (also in permission-role-baseline-failures.txt):
+rspec ./spec/requests/sidebar_active_state_spec.rb:215
+rspec ./spec/requests/sidebar_active_state_spec.rb:293
+#
+# KNOWN PRE-EXISTING FLAKY failure (TD-PERF1). Not caused by migration work; not fixed in this pilot.
+# Root cause: the spec expects employee.full_name in plain text; Faker can generate a name with an
+# apostrophe (observed: "Fatimah O'Conner"); the rendered HTML escapes it as &#39;, so the plain-text
+# expectation fails depending on generated data. Passed 6/6 isolated reruns (flaky, not deterministic).
+# The same pattern exists at lines 29 and 91 of the same file (same risk).
+# Treat a failure of these IDs as known-flaky (rerun to confirm), never as a new failure.
+flaky rspec ./spec/requests/performance/reviews_analytics_spec.rb:38
+flaky rspec ./spec/requests/performance/reviews_analytics_spec.rb:29
+flaky rspec ./spec/requests/performance/reviews_analytics_spec.rb:91
