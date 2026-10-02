@@ -540,6 +540,9 @@ Repository evidence does not require changing this sequence. Note on steps 4–5
 Before each step: triage that domain's pre-existing failing specs (docs/api/baseline.md) and add characterization
 specs where coverage is thin.
 
+Each component within a step follows the standard procedure in `migration-pattern.md` (derived from the completed
+PermissionRole pilot).
+
 ## 20. Resolved and Remaining Items
 
 ### 20.1 Resolved (repository evidence)
