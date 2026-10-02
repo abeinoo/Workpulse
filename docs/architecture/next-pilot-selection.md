@@ -742,3 +742,184 @@ No reference was **unclear**; none needed a stop.
 * RuboCop: no offenses. `git diff --check`: clean.
 
 **Next per D-WF5:** optional M7 (collapsed `app/models/workforce/`), then M8 docs. Neither has started.
+
+---
+
+## Department + JobTitle — M7 Physical Organization Status
+
+**Status:** COMPLETE (uncommitted; awaiting review). This is a physical move only (D-WF2, D-WF4, D-WF5); D-WF3 is
+preserved.
+
+* **Moved (`git mv`, byte-identical; git records 0-line renames):**
+  * `app/models/department.rb` → `app/models/workforce/department.rb`
+  * `app/models/job_title.rb` → `app/models/workforce/job_title.rb`
+* **Autoloading:** a new one-line initializer, `config/initializers/workforce_autoload.rb`:
+  `Rails.autoloaders.main.collapse(Rails.root.join("app/models/workforce"))`. It is the same collapsed-folder
+  approach as `organization_access_autoload.rb`. The classes stay **top-level `Department` / `JobTitle`** on
+  `departments` / `job_titles`. No `Workforce` constant is defined; there is no `Workforce::Department` or
+  `Workforce::JobTitle`.
+* **Verified:**
+  * `bin/rails zeitwerk:check` passes.
+  * **Eager load** (`CI=1`): both resolve from `app/models/workforce/`, and the `User belongs_to :department` and
+    `Business has_many :departments / :job_titles` associations resolve the identical classes.
+  * **Development (lazy) load:** queries work, the source paths are correct, and there is no `Workforce` constant.
+* **Specs:**
+  * New `spec/architecture/workforce_model_location_spec.rb` (7 examples): top-level constant loaded from
+    `app/models/workforce/`; tables unchanged; not namespaced under `Workforce`; same class behind the associations.
+  * `spec/architecture/workforce_catalog_boundary_spec.rb`: only the two allow-list keys were updated to the new
+    model paths. Its stale-entry check required this; the rule itself is unchanged.
+* **Unchanged:** associations, validations, callbacks, controllers, policies, views, routes, APIs, factories, the
+  database, schema and migrations. No compatibility alias was needed (constants unchanged).
+* **Tests:**
+  * Location spec: 7/7, including in random order.
+  * `spec/architecture`: 17/17.
+  * Characterization: 31/31.
+  * **Baseline set:** 329 examples (322 + 7) with 2 failures, `sidebar_active_state_spec.rb:215` and `:293`, both
+    baseline. **No new failures.** TD-PERF1 did not recur and is untouched.
+* **No stop condition was encountered:**
+  * no autoloading ambiguity
+  * no namespace, database, association or migration change
+  * no alias
+  * no unexpected dependency
+* **Next:** M8 (documentation close-out) has not started.
+
+---
+
+## Department + JobTitle — M8 Final Verification
+
+**Status:** M8 COMPLETE (verification and documentation; uncommitted, awaiting approval). **The next pilot has not
+been selected.**
+
+### 1. Completed steps
+
+| Step | Result | Commit |
+|---|---|---|
+| Candidate analysis, decision review, selection (D-WF1, D-WF2) | Department + JobTitle selected | `cafb6f6` |
+| M0 — inventory, ownership, database analysis, baseline (D-WF3–D-WF6, TD-PERF1, TD-WF1) | Complete | `cafb6f6` |
+| M1 — characterization (DJ1–DJ3 + consumers, 31 examples) | Complete | `cafb6f6` |
+| M2/M3/M4/M5 | **Not applicable** (D-WF3: no cross-domain code callers; D-WF4: no operation services needed) | — |
+| M6 — boundary enforcement (`workforce_catalog_boundary_spec.rb`) | Complete | `b872d7a` |
+| M7 — physical organization (`app/models/workforce/`, collapsed) | Complete | uncommitted (with this M8 documentation) |
+| M8 — final verification + documentation | Complete | uncommitted |
+
+### 2. Final locations and constants
+
+| Item | Final state |
+|---|---|
+| `Department` | `app/models/workforce/department.rb`, top-level `Department`, table `departments` |
+| `JobTitle` | `app/models/workforce/job_title.rb`, top-level `JobTitle`, table `job_titles` |
+| Autoloading | `config/initializers/workforce_autoload.rb` (collapse `app/models/workforce`) |
+| `Workforce::` namespace | **Does not exist** (no constant, no `app/services/workforce/`) |
+| Controllers, policies, views, routes | Unchanged locations (`admin/departments`, `admin/job_titles`, `DepartmentPolicy`, `JobTitlePolicy`) |
+| Enforcement | `spec/architecture/workforce_catalog_boundary_spec.rb` (allow-list with reasons) and `spec/architecture/workforce_model_location_spec.rb` |
+
+### 3. Test results (at M7 working tree)
+
+| Suite | Result |
+|---|---|
+| `bin/rails zeitwerk:check` | All is good |
+| Workforce architecture specs (boundary 3 + location 7) | 10 examples, 0 failures |
+| All `spec/architecture` (PermissionRole + Workforce) | 17 examples, 0 failures |
+| Department + JobTitle characterization | 31 examples, 0 failures |
+| Baseline set + all characterization (Organization & Access and Workforce) + `spec/requests/security` (OA-S1–S8) | 601 examples, **2 failures** |
+
+### 4. Known pre-existing failures (compared by exact ID)
+
+* `spec/requests/sidebar_active_state_spec.rb:215` and `:293`. These are deterministic, in both baseline files, and
+  **not new**.
+* **TD-PERF1** (`performance/reviews_analytics_spec.rb:29/38/91`, flaky): did not recur in any M1–M8 run; untouched.
+* **No new failures** in any step from M0 to M8.
+
+### 5. Database, API, security and architecture status
+
+* **Database:** no migration required or created; `db/schema.rb` unchanged; no table, column, index or foreign-key
+  change. No migration instantiates the models, and no stored class names exist.
+* **API / routes:** unchanged. No API references these models; `config/routes.rb` is untouched.
+* **Namespace:** no change (`Department` / `JobTitle` stay top-level). **No compatibility alias exists.**
+* **Cross-domain:** no new cross-domain dependency was introduced. The documented exceptions (D-WF1 `User`
+  validation, D-WF6 `Business` inverses, the employee-profile part of `admin/users`, the sidebar) are unchanged and
+  enforced.
+* **Security:**
+  * Authorization is unchanged: `manage_evaluation_templates` / `manage_settings` for departments,
+    `manage_employees` / `manage_settings` for job titles.
+  * Business isolation is unchanged (policy scopes; 404 for foreign records), as characterized.
+  * The OA-S1–S8 security specs are green.
+
+### 6. Six-domain verification
+
+| Domain | Effect of this pilot |
+|---|---|
+| Organization & Access | Unchanged. `User` / `Business` keep their associations and the D-WF1 validation; the admin gate and sidebar are unchanged |
+| **Workforce** | Owns `Department` and `JobTitle`, now physically under `app/models/workforce/` and enforced by an architecture spec |
+| Attendance & Payroll | No references; unaffected |
+| Inventory & Purchasing | No references; unaffected |
+| Finance & Sales | No references; unaffected |
+| Reporting | No references (Performance analytics is Workforce); unaffected |
+
+### 7. What the pilot proved
+
+* **Model ownership:** catalogue ownership can be established and enforced without moving behaviour or adding
+  interfaces when there are no cross-domain code callers.
+* **Physical organization:** collapsed `app/models/<domain>/` folders keep top-level constants for a second domain,
+  with one initializer per domain (`organization_access_autoload.rb`, `workforce_autoload.rb`) and no alias.
+* **Boundary enforcement:** the allow-list architecture spec generalizes. Domain-owned code living in shared files
+  (the employee part of `admin/users`) is handled as a documented exception rather than a move.
+* **Characterization strategy:** pinning only the touched contracts (31 examples) was enough; existing coverage was
+  reused rather than duplicated.
+* **Cross-domain exceptions:** a stewardship rule on a shared table (D-WF1) can stay in place as a reasoned,
+  enforced exception.
+* **Database compatibility:** moving the files needed no database work, because the constants and tables are
+  unchanged and no migration references the models.
+* **Rollback:** each step is a single `git revert` (M0/M1 `cafb6f6`, M6 `b872d7a`, M7 one commit).
+* **Baseline discipline:** comparing by ID, plus a flaky marker in the baseline file (TD-PERF1), caught an unexpected
+  failure, stopped the work, and classified it without hiding anything.
+
+### 8. Intentionally unchanged
+
+* `User`, Employee and `Business` (including D-WF1, the inverse associations, and the legacy `users.department`
+  column, TD-WF1).
+* Controllers, policies, views, routes and the admin gate.
+* Performance and onboarding behaviour.
+* Existing sub-area namespaces (`Shifts::`, `Scheduling::`, `Performance::`, `EmployeeDataRequests::`, `Requests::`,
+  `Employee::`).
+
+### 9. Not to be generalized automatically
+
+* **Skipping M2–M5** is valid only when the M0 inventory proves there are no cross-domain **code** callers and no
+  controller business logic. Components with real consumers (e.g. a future EmployeeDataRequest or BiometricDevice
+  pilot) will need boundaries and/or services.
+* **Treating domain-owned code in shared files as an exception** fits small surfaces. A large shared controller
+  should eventually be split, in its own step.
+* **A collapsed model folder** suits models referenced by migrations, associations or stored names. It is not a
+  reason to move every model.
+
+### 10. Locked decisions (now final for this pilot)
+
+* **D-WF1:** `User` → `JobTitle` validation stays in `User`.
+* **D-WF2:** Workforce structure convention.
+* **D-WF3:** no Workforce boundary object.
+* **D-WF4:** no operation services; models stay top-level.
+* **D-WF5:** the pilot step set.
+* **D-WF6:** the recorded out-of-scope items.
+
+### 11. Technical debt discovered or confirmed (not fixed)
+
+| ID | Item |
+|---|---|
+| TD-PERF1 | Flaky name assertions in `performance/reviews_analytics_spec.rb` (an HTML-escaped apostrophe in Faker names) |
+| TD-WF1 | Legacy `users.department` string shadowed by the `department` association; `scope :by_department` has no callers |
+| TD-ST1 | `ShiftTemplateEntry.branch` optional vs `ShiftAssignment.branch` required; template apply produces row errors; 12 baseline failures |
+| MIG-1, MIG-2 | Pre-existing migration-history defects (from the PermissionRole pilot) |
+| (observation) | `JobTitle.selectable?` does not trim whitespace, so a padded value never matches. Characterized; not changed |
+
+### 12. Conclusion
+
+**The Department + JobTitle pilot is complete:**
+
+* The first Workforce component is physically owned by Workforce (`app/models/workforce/`).
+* The boundary is enforced by architecture specs.
+* Characterization is in place, and behaviour, database, API and security are unchanged.
+* There is no new failure versus the baseline; the only failures remain the two pre-existing sidebar failures.
+* It confirms the standard migration pattern for a component with no cross-domain code callers: M0 → M1 → M6 →
+  (optional) M7 → M8.
+* **The next pilot has not been selected**; selection will follow a separate review of this document.

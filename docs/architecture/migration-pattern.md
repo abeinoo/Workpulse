@@ -48,6 +48,19 @@ It is a **menu with rules**, not a fixed script. A component takes only the step
 | The first Step 7B run attempted all 299 migrations from zero, which the repository cannot replay (pre-existing defect MIG-1) | Check replayability first. Verify **only the migrations that reference the moved code**, from a schema-loaded disposable database (§8) |
 | Several spec bugs came from test mechanics, not the code under test: a helper named `change` shadowing the RSpec matcher; `const_source_location` before autoload; constants defined in a `describe` block | Known pitfalls, listed in §7 |
 
+### Confirmed by the Department + JobTitle pilot (first Workforce pilot)
+
+* **M2–M5 can legitimately be empty.** M0 proved that no other domain calls the catalogues through code, so the
+  pilot was M0 → M1 → M6 → M7 → M8 (decisions D-WF3/D-WF4). Boundary objects follow callers, not the sequence.
+* **Domain-owned code can live in shared files.** The employee-profile part of `admin/users` belongs to Workforce
+  but sits in Organization & Access files. It is handled as a reasoned allow-list exception, not moved.
+* **A stewardship rule on a shared table can stay put.** `User#job_title_from_catalog` (D-WF1) is an enforced,
+  documented exception; wrapping it would add coupling without removing any.
+* **One collapse initializer per domain** (`organization_access_autoload.rb`, `workforce_autoload.rb`). M7 must
+  update the boundary-spec allow-list paths in the same commit, because the stale-entry check enforces it.
+* **Flaky baseline failures** are recorded in the baseline file with a `flaky` marker and a TD id (TD-PERF1):
+  rerun to confirm, never counted as new, never fixed inside the pilot.
+
 ---
 
 ## 3. Standard migration sequence
@@ -147,6 +160,9 @@ Minimum safety net **before** any production change (M0–M1):
 * Compared **by ID** before and after every step. Any ID not in the baseline file is a new failure, and the
   migration stops (§10).
 * Counts are reported but never used as the criterion.
+* A failure outside the baseline stops the work. If investigation proves it is data-dependent flakiness (passes on
+  repeated reruns, root cause identified), record its IDs as `flaky <id>` with a TD id after review. Never silently
+  ignore it.
 
 **Known spec pitfalls:**
 
@@ -154,6 +170,12 @@ Minimum safety net **before** any production change (M0–M1):
 * Trigger autoload before `const_source_location`.
 * Keep spec constants inside a namespaced module, not a `describe` block.
 * Use `examples?, ` when grepping results.
+* When building roles in specs, satisfy permission dependencies (e.g. `manage_evaluation_templates` needs
+  `view_performance_dashboard`), or the factory raises.
+* Create lazily-defined records (`let`) before a `change` block that counts them.
+* Find the real code path before asserting an error. Onboarding approval is refused by the revision's
+  `valid_as_employee`, not by the later `User` save.
+* Do not assert ordering across mixed case; `order(:name)` follows the database collation.
 
 ---
 
@@ -291,7 +313,7 @@ The pattern works per **component inside a domain**. It does not change the doma
 | Domain | Fit | Notes |
 |---|---|---|
 | **1. Organization & Access** | Proven (PermissionRole) | Boundary: `app/services/organization_access/` (`OrganizationAccess::`); models: collapsed `app/models/organization_access/` |
-| **2. Workforce** | Fits | Same layout (`Workforce::` boundary; collapsed models). M5 is likely for request workflows; the User ≠ Employee stewardship constrains M7 (`users` stays in OA) |
+| **2. Workforce** | **Proven** (Department + JobTitle: collapsed `app/models/workforce/`, enforcement spec, no boundary object) | `Workforce::` boundary (`app/services/workforce/`) only when a real cross-domain caller appears; collapsed models. M5 is likely for request workflows; the User ≠ Employee stewardship constrains M7 (`users` stays in Organization & Access) |
 | **3. Attendance & Payroll** | Fits | Strong existing coverage shortens M1; WF-defined contracts and `payroll.period_finalized` follow `module-boundaries.md` §12 inversion rules, not new HTTP |
 | **4. Inventory & Purchasing** | Fits | Recorded IP → FS violations must be resolved via events in the owning steps; never fixed inside an unrelated component move |
 | **5. Finance & Sales** | Fits, with care | Money paths: full security and characterization net, immutability (`Voidable`, ledger) asserted in M1; large controllers make M5 central |

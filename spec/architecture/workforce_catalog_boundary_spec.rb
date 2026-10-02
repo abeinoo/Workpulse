@@ -25,8 +25,8 @@ module ArchitectureSpecs
 
     # Workforce-owned code (module-boundaries.md §5): uses the catalogues directly.
     WORKFORCE_FILES = {
-      "app/models/department.rb"                             => "the model itself",
-      "app/models/job_title.rb"                              => "the model itself",
+      "app/models/workforce/department.rb"                   => "the model itself (folder collapsed: top-level constant)",
+      "app/models/workforce/job_title.rb"                    => "the model itself (folder collapsed: top-level constant)",
       "app/controllers/admin/departments_controller.rb"      => "Workforce catalogue administration",
       "app/controllers/admin/job_titles_controller.rb"       => "Workforce catalogue administration",
       "app/controllers/admin/evaluation_templates_controller.rb" => "Workforce Performance: templates are per department",
