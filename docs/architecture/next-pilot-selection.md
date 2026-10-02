@@ -675,3 +675,70 @@ bundle exec rspec spec/models/user_job_title_spec.rb spec/models/user_spec.rb sp
 ### 12. M0 status
 
 **M0 is complete.** M1 has not started. No production code, tests, schema or migrations were changed.
+
+---
+
+## Department + JobTitle — M6 Boundary Enforcement Status
+
+**Status:** COMPLETE (uncommitted; awaiting review). This is enforcement only: no production change, and D-WF3 is
+preserved.
+
+### What the enforcement protects
+
+`spec/architecture/workforce_catalog_boundary_spec.rb` follows the same style as
+`permission_role_boundary_spec.rb`:
+
+* It scans `app/**` and `lib/**` (`.rb`, `.erb`, `.rake`), ignoring full-line Ruby comments and ERB comments.
+* It fails on any **new** reference to Workforce catalogue internals outside the allow-list:
+  * the `Department` and `JobTitle` constants and class methods (`DepartmentPolicy` / `JobTitlePolicy` excluded)
+  * the `departments` and `job_titles` collections and tables
+* Employee attributes on `users` (`user.department`, `department_id`, `includes(:department)`, `users.job_title`) are
+  **not** guarded, because any domain may read them (M0 §3, Decision Review Q3). Route helpers are not matched.
+* A second example fails if an allow-listed file no longer needs its entry, so the list can only shrink.
+* A third example pins what the token rule matches and what it leaves alone.
+* **Verified:** a temporary probe in `app/services/` reading `business.departments` made the spec fail with its file
+  and line. The probe was removed.
+
+### Allow-list (repository evidence at `cafb6f6`; 24 files currently reference the catalogue)
+
+**Workforce-owned** (`module-boundaries.md` §5), with direct use allowed:
+
+| Path | Reason |
+|---|---|
+| `app/models/department.rb`, `app/models/job_title.rb` | The models themselves |
+| `app/controllers/admin/departments_controller.rb`, `app/controllers/admin/job_titles_controller.rb` | Catalogue administration |
+| `app/views/admin/departments/`, `app/views/admin/job_titles/` (dirs) | Catalogue administration screens |
+| `app/controllers/admin/evaluation_templates_controller.rb`, `app/views/admin/evaluation_templates/` (dir) | Workforce Performance: templates are per department |
+| `app/controllers/performance/`, `app/services/performance/` (dirs) | Workforce Performance: review filters, analytics name lookups, export column headers |
+| `app/views/shared/_job_title_select.html.erb` | Workforce job-title dropdown (`JobTitle.options_for`) used by the employee form and onboarding |
+
+**Cross-domain exceptions** (documented; each must keep its reason):
+
+| Path | Reason |
+|---|---|
+| `app/models/user.rb` | **D-WF1:** `User#job_title_from_catalog` → `JobTitle.selectable?` (Workforce rule on the shared `users` table) |
+| `app/models/business.rb` | **D-WF6:** `Business has_many :departments / :job_titles` (inverse associations) |
+| `app/views/admin/users/_form.html.erb` | Employee-profile part of `admin/users` (department select). Workforce-owned per §5, but physically in an Organization & Access-shared file |
+| `app/views/layouts/_sidebar.html.erb` | UI shell: catalogue nav entries and `policy(JobTitle).index?` |
+
+No reference was **unclear**; none needed a stop.
+
+### D-WF3 preserved
+
+* **No Workforce boundary object was created.** There is no `app/services/workforce/`, no `Workforce::`, and no
+  wrapper, alias, facade or service.
+* `Department`, `JobTitle`, `User`, `Business`, Performance, onboarding, controllers, policies, routes, APIs, the
+  database, migrations and schema are unchanged.
+
+### Tests and baseline
+
+* **New architecture spec:** 3 examples, 0 failures (plus the probe proof above).
+* **Department + JobTitle characterization:** 31 examples, 0 failures.
+* **Baseline set** (including `spec/architecture`) **plus characterization:** 353 examples, 2 failures.
+  * `sidebar_active_state_spec.rb:215` and `:293`, both in `department-job-title-baseline-failures.txt`.
+  * **No new failures.**
+  * No baseline failure was fixed.
+  * TD-PERF1 did not recur and is untouched.
+* RuboCop: no offenses. `git diff --check`: clean.
+
+**Next per D-WF5:** optional M7 (collapsed `app/models/workforce/`), then M8 docs. Neither has started.
