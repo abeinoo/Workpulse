@@ -923,3 +923,207 @@ been selected.**
 * It confirms the standard migration pattern for a component with no cross-domain code callers: M0 → M1 → M6 →
   (optional) M7 → M8.
 * **The next pilot has not been selected**; selection will follow a separate review of this document.
+
+---
+
+## Pilot 3 — Selection and Fast-Track Plan
+
+**Status:** PLAN ONLY (at `0aa0066`; nothing implemented). It uses the fast track (`migration-pattern.md` §4,
+"Fast track"). Implementation needs explicit approval.
+
+### 1. Recommended candidate
+
+**Workforce — Performance evaluation group.** It completes the Workforce Performance sub-area, builds directly on
+Pilot 2 (Department), and is migrated as one coherent group.
+
+### 2. Why (repository evidence)
+
+* **Ownership is unambiguous:** `module-boundaries.md` §5 lists Performance under Workforce.
+* **Large and coherent:** 57 own files (5 models, 5 `performance/` controllers + `admin/evaluation_templates`,
+  4 policies, `Performance::` services and exports, views).
+* **Zero cross-domain code callers by constant.** The 3 external hits are not real: a CSV sample string in
+  `bulk_adjustments_controller.rb`, and `Employee::PerformanceScorer`, which is a different thing (below).
+* **No database risk:** 0 data migrations call its constants; no stored class names (`audit_logs`, Active Storage:
+  none).
+* It depends only on Workforce (`Department`, already migrated) and Organization & Access (`User`, `Business`), so it
+  is upstream-safe.
+
+### 3. Scope (all Workforce)
+
+* **Models:** `PerformanceReview`, `PerformanceReviewScore`, `PerformanceObservation`, `EvaluationTemplate`,
+  `EvaluationCriterion`.
+* **Controllers:** `Performance::{Base,Dashboard,Observations,Reports,Reviews}Controller`,
+  `Admin::EvaluationTemplatesController`.
+* **Services:** `Performance::{Analytics,ReviewAnalytics,ReviewComposer}`,
+  `Performance::Exports::{EmployeeSummaryWorkbook,ReviewsWorkbook,PdfRenderer}`.
+* **Policies:** `PerformanceReviewPolicy`, `PerformanceObservationPolicy`, `EvaluationTemplatePolicy`,
+  `EvaluationCriterionPolicy`.
+* **Tables:** `performance_reviews`, `performance_review_scores`, `performance_observations`,
+  `evaluation_templates`, `evaluation_criteria`.
+
+### 4. Not included
+
+| Component | Reason |
+|---|---|
+| `Employee::PerformanceScorer` | Despite its name, it scores **attendance** (`AttendanceRecord`). It is called by `Payroll::RecommendationEngine` and `OperationsDashboardController`. Its ownership (Workforce namespace vs Attendance & Payroll data) is a separate question, recorded as **Q-P3-1** |
+| `User` / `Business` / Employee | Inverse associations stay (same treatment as D-WF6); no User/Employee change |
+| `Department` / `JobTitle` | Done in Pilot 2 |
+| Controllers' and services' physical folders | Already in `performance/` namespaces; moving them adds no ownership value (D-WF2: `app/services/workforce/` is for public boundaries only) |
+| TD-PERF1 | Flaky spec; recorded, not fixed |
+
+### 5. Fast M0 dependency summary
+
+| Kind | Finding |
+|---|---|
+| Internal (Workforce) | `Department has_many :evaluation_templates / :performance_reviews` (restrict); `PerformanceReview` snapshots `employee.department_id`; observation ↔ criterion department consistency; `EvaluationCriterion has_one :department, through: :evaluation_template` |
+| Cross-domain | `User has_many :performance_reviews / :performance_observations` (`dependent: :destroy`) and `Business has_many` ×3 (Organization & Access → Workforce inverses); `admin/users_controller` + `admin/users/show` performance tab (employee-profile part, Workforce per §5); `workspace_helper` nav (UI shell); `user.scope_for(:view_monthly_reviews / :view_notes / :create_observations)` and `filter_by_data_scope` (allowed Organization & Access interfaces) |
+| Direct writes across boundaries | **None** |
+| Circular dependencies | **None** (Workforce → Organization & Access only) |
+| Security-sensitive paths | Human-resources evaluation data. `PerformanceReviewPolicy::Scope`: managers by data scope, employees see their own **finalized** reviews. `finalize?` (`finalize_reviews`); `update?` blocked once finalized. Observation edit/destroy only by the observer or the owner. Data-scope filtering per the permission scope |
+
+### 6. Characterization coverage
+
+* **Exists (57 examples):**
+  * `performance_review_spec` (4: snapshot)
+  * `reviews_analytics_spec` (9, TD-PERF1 flaky)
+  * `reviews_index_spec` (3)
+  * `performance/review_analytics_spec` (25)
+  * `attendance_performance_workspace_navigation_spec` (16)
+  * observation consistency (Pilot 2 `department_spec`)
+* **Missing (to add in M1; security-relevant first):**
+  1. Review lifecycle: create (draft) → submit → finalize; no edit after finalize; `ReviewComposer` scoring.
+  2. Review visibility: manager data scope (branch/business), employee sees own finalized only, cross-business 404.
+  3. Observations: create, scope by `view_notes` / `create_observations`, edit/destroy only by observer or owner,
+     cross-business isolation.
+  4. Evaluation templates admin: CRUD + criteria, authorization (`manage_evaluation_templates` / `manage_settings`),
+     business isolation.
+* **Not needed:** analytics and exports (already covered); navigation (covered).
+
+### 7. Boundary strategy
+
+* Everything in §3 becomes **Workforce-owned and enforced**: extend the existing
+  `workforce_catalog_boundary_spec.rb` approach to the Performance constants and tables.
+* **Allowed cross-domain access:** the `User` / `Business` inverse associations (documented exceptions), the
+  employee-profile performance tab, UI-shell navigation, and Organization & Access authorization interfaces.
+* **No boundary/interface object:** no other domain calls Performance through code (the D-WF3 rationale applies).
+
+### 8. Fast-track sequence
+
+| Fast-track step | Standard IDs | Pilot 3 content | Optional? |
+|---|---|---|---|
+| M0 Fast inventory | M0 | This section, plus a baseline capture of the Performance set | — |
+| M1 Characterization | M1 | Gaps 1–4 above | Required |
+| M2 Boundary | M6 (enforcement) | Extend the Workforce boundary spec to Performance | Required |
+| M3–M5 Migration | M2–M5 | **None needed** (no cross-domain callers; rules already in models/policies) | Skipped (evidence) |
+| M6 Physical organization | M7 | `git mv` the 5 models into `app/models/workforce/` (existing collapse) + location spec | Optional |
+| M7 Verification + M8 Docs | M8 | Focused + architecture + security specs, Zeitwerk, ID comparison; one status section | Required |
+
+**Combinable:** M2 enforcement + M6 physical move + verification in **one commit** after M1 is committed (the
+allow-list paths and the move must change together anyway). So the plan is 2 implementation commits: M1, then
+M2 + M6 + M8.
+
+### 9. Risk assessment
+
+| Area | Risk | Note |
+|---|---|---|
+| Security | Medium | Human-resources data visibility. Mitigated by characterizing scopes **before** any move; the move itself changes no code |
+| Data integrity | Low | No schema change; no data migration; finalized reviews immutable by policy (characterized) |
+| Regression | Low | Byte-identical moves; constants unchanged |
+| Coupling | Low | Only documented inverses and UI shell |
+| Migration | Low | Same mechanics as Pilot 2; one caveat: TD-PERF1 lives in this spec area (flaky IDs already recorded) |
+
+### 10. Verification plan
+
+* M1 Performance characterization specs (new).
+* Existing Performance specs (57).
+* Pilot 2 characterization (31).
+* `spec/architecture` (boundary + location).
+* `spec/requests/security` (OA-S1–S8).
+* The established baseline set.
+* `bin/rails zeitwerk:check`.
+* Compare failures **by ID** against `department-job-title-baseline-failures.txt`: only `sidebar_active_state:215/293`
+  expected; TD-PERF1 IDs are known-flaky.
+
+### 11. Files likely to change (not modified yet)
+
+* `spec/characterization/workforce/performance_*_spec.rb` (new, M1).
+* `spec/architecture/workforce_catalog_boundary_spec.rb` (tokens + allow-list) and
+  `spec/architecture/workforce_model_location_spec.rb` (5 more models).
+* `app/models/{performance_review,performance_review_score,performance_observation,evaluation_template,evaluation_criterion}.rb`
+  → `app/models/workforce/` (`git mv`, byte-identical; no new initializer).
+* This document (one status section).
+
+### 12. Stop conditions
+
+* A new failing ID.
+* The review or observation visibility behaviour cannot be characterized stably, or differs from the documented
+  policy.
+* A real cross-domain code caller appears (it would need an interface decision).
+* Any schema or migration need.
+* Any namespace change or alias need.
+* Q-P3-1 (`PerformanceScorer`) turns out to be entangled with the group.
+
+### 13. Next implementation checkpoint (after approval)
+
+1. Capture the Performance baseline (existing 57 examples + Pilot 2 set), compared by ID.
+2. Write M1 gaps 1–4 against unchanged code (no production change), run them in default and random order, and
+   report. Stop for review before M2/M6.
+
+**Open question:** **Q-P3-1:** ownership of `Employee::PerformanceScorer` (attendance-based score in a Workforce
+namespace, consumed by Attendance & Payroll and the operations dashboard). Not part of Pilot 3.
+
+---
+
+## Pilot 3 — Performance Migration Status (complete)
+
+**Status:** COMPLETE locally (commits not yet pushed). It used the fast track, mapped to standard steps M0, M1,
+M6, M7 and M8.
+
+| Step | Result | Commit |
+|---|---|---|
+| M0 fast inventory + baseline | Focused set 499 examples; only `sidebar_active_state:215/293` failing | — |
+| **SEC-P3-1** (found in M0, fixed separately) | Same-business validations on `EvaluationTemplate` (department), `PerformanceReview` (employee / department / reviewer), `PerformanceReviewScore` (criterion template), `PerformanceObservation` (employee / observer / criterion template); request security spec (11); `performance_review` factory defaults to same-business | `8c1e2df` |
+| **PERF-D1** (found in M1, fixed separately) | An invalid review period re-rendered the form with `Date::Error`; `ReviewComposer#month_observations` now returns none for an invalid period; regression spec (2) | `309fcc4` |
+| M1 characterization | 33 examples: reviews lifecycle + visibility (12), observations (9), template admin (12) | `d7e83ca` |
+| M3–M5 | **Skipped** on M0 evidence: no cross-domain code callers; business rules already in models and policies | — |
+| M6 boundary + M7 physical + M8 | See below | migration commit |
+
+**Physical move.** `git mv`, byte-identical, into the **existing** collapsed `app/models/workforce/`. No new
+initializer. Constants and tables are unchanged:
+
+* `app/models/performance_review.rb` → `app/models/workforce/performance_review.rb`
+* `app/models/performance_review_score.rb` → `app/models/workforce/performance_review_score.rb`
+* `app/models/performance_observation.rb` → `app/models/workforce/performance_observation.rb`
+* `app/models/evaluation_template.rb` → `app/models/workforce/evaluation_template.rb`
+* `app/models/evaluation_criterion.rb` → `app/models/workforce/evaluation_criterion.rb`
+
+**Boundary.** `workforce_catalog_boundary_spec.rb` now also guards the Performance constants and their
+collections/tables. **No boundary or interface object was needed.**
+
+* **Workforce-owned:** the 5 models, `app/views/performance/` (added), `app/controllers/performance/`,
+  `app/services/performance/`, and admin evaluation templates.
+* **Documented exceptions:**
+  * `User` / `Business` inverse associations
+  * the employee-profile performance tab (`admin/users_controller`, `admin/users/show`)
+  * `workspace_helper` (UI-shell navigation)
+
+A probe confirmed the spec flags new access. The location spec now covers all 7 Workforce models.
+
+**Verification:**
+
+* Architecture: 32/32.
+* Broad set (all characterization, Performance, security including SEC-P3-1 and PERF-D1, architecture, employee
+  and onboarding specs): 693 examples. The only failures are `sidebar_active_state_spec.rb:215` and `:293`
+  (baseline), so there are **no new failures**.
+* TD-PERF1 did not recur.
+* `zeitwerk:check` passes; eager load resolves all 5 from `app/models/workforce/` with no `Workforce` constant.
+* RuboCop clean; `git diff --check` clean.
+
+**Known defects remaining (not fixed):**
+
+* **PERF-D2:** deleting a template whose criteria are scored or observed is correctly blocked, but the admin gets an
+  empty alert, because the restriction error sits on the nested criterion. Pinned in the characterization spec.
+* TD-PERF1, TD-WF1, TD-ST1, MIG-1, MIG-2 (unchanged).
+* Q-P3-1 (`Employee::PerformanceScorer` ownership) remains open.
+
+There are no database, schema, migration, route or API changes.

@@ -95,6 +95,32 @@ Step IDs are fixed (`M0`–`M8`). A component's plan lists which steps apply and
 | M7 | **OPTIONAL** | Physical co-location is wanted and the constant can stay unchanged (§5 rules E, F) |
 | M8 | **REQUIRED** (docs) / **ONLY WHEN NEEDED** (database verification, §8) | Database verification only when constants referenced by migrations move, or the database is touched |
 
+### Fast track (from Pilot 3 onward)
+
+The fast track groups the standard steps; it is **not** a second numbering. Plans name both labels.
+
+| Fast-track step | Standard step IDs |
+|---|---|
+| M0 Fast inventory | M0 (inventory, ownership, cross-domain refs, direct writes, cycles, security paths, gaps, baseline) |
+| M1 Characterization | M1 (only missing coverage) |
+| M2 Boundary | M6 enforcement (+ M2 only when a real cross-domain caller exists) |
+| M3–M5 Migration | M2–M5 (only where evidence requires) |
+| M6 Physical organization | M7 (collapsed folder; optional) |
+| M7 Verification / M8 Docs | M8 |
+
+When no cross-domain code callers exist, fast-track M2 + M6 + M7/M8 may be a single commit after M1.
+
+**Pilot 3 (Workforce Performance) lessons.**
+
+* **Characterization finds real defects.** Fix each one in its own approved commit **before** pinning behaviour:
+  * security gaps first (SEC-P3-1, cross-business references)
+  * crashes that block characterization (PERF-D1)
+* **Low-impact defects can be pinned** as labelled known defects instead (PERF-D2).
+* **Same-business validations can invalidate factory defaults.** Make factories build same-business data, and keep
+  cross-business data explicit in security specs.
+* **Each new domain group extends its domain's existing boundary spec and allowed directories**, rather than adding
+  a new spec.
+
 ---
 
 ## 5. Boundary rules (decision rules A–L)
