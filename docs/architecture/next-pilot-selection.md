@@ -1,7 +1,15 @@
 # Next Migration Pilot — Candidate Analysis
 
-**Status:** ANALYSIS ONLY. **No pilot has been selected.** The final choice is a separate human decision.
-**Baseline:** `feature/api-foundation` @ `c1aac8b`.
+**Status:** History of the pilot selections, plus the pilot status records.
+
+* **Pilot 2, Workforce Department + JobTitle:** COMPLETE and pushed (`cafb6f6`, `b872d7a`, `0aa0066`).
+* **Pilot 3, Workforce Performance:** COMPLETE and pushed (`8c1e2df`, `309fcc4`, `d7e83ca`, `ae74dcc`). It is on
+  `origin/feature/api-foundation` at `ae74dcc`.
+* **Pilot 4:** not selected.
+
+§1–§11 below are the original candidate analysis (at `c1aac8b`), kept as history.
+
+**Original analysis baseline:** `feature/api-foundation` @ `c1aac8b`.
 **Method:** `docs/architecture/migration-pattern.md` §12 (weighted 1–3 scores, disqualifiers, dependency-order
 tie-break), within the six domains of `docs/architecture/module-boundaries.md`.
 **Evidence:**
@@ -250,8 +258,8 @@ C3 BiometricDevice group (Attendance & Payroll) ──► Business (Organization
 
 ## 11. Statement
 
-**No pilot has been selected.** This document classifies candidates as RECOMMENDED FOR REVIEW, ELIGIBLE or NOT
-ELIGIBLE only. Selection, and any implementation, require a separate explicit decision.
+**At the time of this analysis, no pilot had been selected.** This section classified candidates only. Department +
+JobTitle was selected afterwards (see "Selected pilot and locked decisions").
 
 ---
 
@@ -680,7 +688,7 @@ bundle exec rspec spec/models/user_job_title_spec.rb spec/models/user_spec.rb sp
 
 ## Department + JobTitle — M6 Boundary Enforcement Status
 
-**Status:** COMPLETE (uncommitted; awaiting review). This is enforcement only: no production change, and D-WF3 is
+**Status:** COMPLETE (commit `b872d7a`, pushed). This is enforcement only: no production change, and D-WF3 is
 preserved.
 
 ### What the enforcement protects
@@ -747,7 +755,7 @@ No reference was **unclear**; none needed a stop.
 
 ## Department + JobTitle — M7 Physical Organization Status
 
-**Status:** COMPLETE (uncommitted; awaiting review). This is a physical move only (D-WF2, D-WF4, D-WF5); D-WF3 is
+**Status:** COMPLETE (commit `0aa0066`, pushed). This is a physical move only (D-WF2, D-WF4, D-WF5); D-WF3 is
 preserved.
 
 * **Moved (`git mv`, byte-identical; git records 0-line renames):**
@@ -787,8 +795,8 @@ preserved.
 
 ## Department + JobTitle — M8 Final Verification
 
-**Status:** M8 COMPLETE (verification and documentation; uncommitted, awaiting approval). **The next pilot has not
-been selected.**
+**Status:** M8 COMPLETE (commit `0aa0066`, pushed). Pilot 3 was selected afterwards (see "Pilot 3 — Selection
+and Fast-Track Plan").
 
 ### 1. Completed steps
 
@@ -922,14 +930,14 @@ been selected.**
 * There is no new failure versus the baseline; the only failures remain the two pre-existing sidebar failures.
 * It confirms the standard migration pattern for a component with no cross-domain code callers: M0 → M1 → M6 →
   (optional) M7 → M8.
-* **The next pilot has not been selected**; selection will follow a separate review of this document.
+* The next pilot (Pilot 3, Performance) was selected after review of this document.
 
 ---
 
 ## Pilot 3 — Selection and Fast-Track Plan
 
-**Status:** PLAN ONLY (at `0aa0066`; nothing implemented). It uses the fast track (`migration-pattern.md` §4,
-"Fast track"). Implementation needs explicit approval.
+**Status:** Plan written at `0aa0066`; **implemented and complete** (see "Pilot 3 — Performance Migration Status").
+It uses the fast track (`migration-pattern.md` §4, "Fast track").
 
 ### 1. Recommended candidate
 
@@ -1076,7 +1084,8 @@ namespace, consumed by Attendance & Payroll and the operations dashboard). Not p
 
 ## Pilot 3 — Performance Migration Status (complete)
 
-**Status:** COMPLETE locally (commits not yet pushed). It used the fast track, mapped to standard steps M0, M1,
+**Status:** COMPLETE and pushed to `origin/feature/api-foundation` (final commit `ae74dcc`). It used the fast
+track, mapped to standard steps M0, M1,
 M6, M7 and M8.
 
 | Step | Result | Commit |
@@ -1086,7 +1095,7 @@ M6, M7 and M8.
 | **PERF-D1** (found in M1, fixed separately) | An invalid review period re-rendered the form with `Date::Error`; `ReviewComposer#month_observations` now returns none for an invalid period; regression spec (2) | `309fcc4` |
 | M1 characterization | 33 examples: reviews lifecycle + visibility (12), observations (9), template admin (12) | `d7e83ca` |
 | M3–M5 | **Skipped** on M0 evidence: no cross-domain code callers; business rules already in models and policies | — |
-| M6 boundary + M7 physical + M8 | See below | migration commit |
+| M6 boundary + M7 physical + M8 | See below | `ae74dcc` |
 
 **Physical move.** `git mv`, byte-identical, into the **existing** collapsed `app/models/workforce/`. No new
 initializer. Constants and tables are unchanged:
@@ -1124,6 +1133,14 @@ A probe confirmed the spec flags new access. The location spec now covers all 7 
 * **PERF-D2:** deleting a template whose criteria are scored or observed is correctly blocked, but the admin gets an
   empty alert, because the restriction error sits on the nested criterion. Pinned in the characterization spec.
 * TD-PERF1, TD-WF1, TD-ST1, MIG-1, MIG-2 (unchanged).
+* **TD-FIN1** (found in the milestone review full-suite run at `ae74dcc`):
+  `spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb:128`.
+  * **Status:** pre-existing relative to this milestone; **flaky**; it passed in 2 of 3 isolated reruns.
+  * **Root cause:** the same as TD-PERF1. Faker can generate a name with an apostrophe (observed: `O'Connell`),
+    which the rendered HTML escapes, so the spec's plain-text name expectation fails depending on the generated
+    data.
+  * **Not a regression:** the branch did not modify Finance code or specs.
+  * **Not fixed;** recorded as `flaky` in `permission-role-baseline-failures.txt`.
 * Q-P3-1 (`Employee::PerformanceScorer` ownership) remains open.
 
 There are no database, schema, migration, route or API changes.

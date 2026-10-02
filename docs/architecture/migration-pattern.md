@@ -1,7 +1,8 @@
 # WorkPulse — Standard Component Migration Pattern
 
-**Status:** standard, derived from the completed PermissionRole pilot (`cb9163e` … `5246f6c`,
-`docs/architecture/permission-role-migration-plan.md`). It applies inside the six-domain modular monolith defined in
+**Status:** standard, derived from the PermissionRole pilot (`cb9163e` … `5246f6c`,
+`docs/architecture/permission-role-migration-plan.md`). It was validated by the Workforce Department + JobTitle pilot
+(`0aa0066`) and the Workforce Performance pilot (`ae74dcc`); see `next-pilot-selection.md`. It applies inside the six-domain modular monolith defined in
 `module-boundaries.md`: one Rails app, one database, in-process interfaces only, a strangler-style migration and no
 HTTP between domains.
 
@@ -108,11 +109,14 @@ The fast track groups the standard steps; it is **not** a second numbering. Plan
 | M6 Physical organization | M7 (collapsed folder; optional) |
 | M7 Verification / M8 Docs | M8 |
 
-When no cross-domain code callers exist, fast-track M2 + M6 + M7/M8 may be a single commit after M1.
+**Default:** use the fast track when M0 finds no real cross-domain code callers (validated by both Workforce
+pilots). In that case fast-track M2 + M6 + M7/M8 may be a single commit after M1. When M0 finds real cross-domain
+callers (as in PermissionRole), run the boundary and routing steps (standard M2–M5) explicitly.
 
 **Pilot 3 (Workforce Performance) lessons.**
 
-* **Characterization finds real defects.** Fix each one in its own approved commit **before** pinning behaviour:
+* **M0/M1 can reveal real production defects.** Fix each genuine defect in its own approved commit **before**
+  pinning behaviour:
   * security gaps first (SEC-P3-1, cross-business references)
   * crashes that block characterization (PERF-D1)
 * **Low-impact defects can be pinned** as labelled known defects instead (PERF-D2).

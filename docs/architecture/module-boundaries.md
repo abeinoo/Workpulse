@@ -1,7 +1,18 @@
 # WorkPulse — Six-Domain Architecture (Module Boundaries)
 
-**Status:** Architecture baseline for review — documentation only. Nothing described here is implemented.
-**Code baseline:** branch `feature/api-foundation` @ `a4e9a96`.
+**Status:** Target architecture, partially implemented (as of `ae74dcc` on `feature/api-foundation`).
+
+* The six-domain model below remains the **target**.
+* **API infrastructure exists:** `/api/v1` standard contract (errors, pagination, filtering, serialization, request
+  tracing, login rate limiting); see `docs/api/`.
+* **Organization & Access is partially migrated:** the `PermissionRole` pilot (`app/models/organization_access/`,
+  `app/services/organization_access/`); see `permission-role-migration-plan.md`.
+* **Workforce is partially migrated:** `Department`, `JobTitle` and the Performance evaluation group are in
+  `app/models/workforce/`; see `next-pilot-selection.md`.
+* **Attendance & Payroll, Inventory & Purchasing, Finance & Sales and Reporting are not yet migrated.**
+* The cross-domain violations recorded in §12.2 remain until their owning steps.
+
+**Original code baseline (for the analysis below):** branch `feature/api-foundation` @ `a4e9a96`.
 **Decisions applied:** six top-level domains; ownership decisions 1–12 of the ownership-resolution review
 (User vs Employee, supporting models, Payroll → Finance, Requests → Payroll/Attendance, Inventory → Finance,
 Reporting, cross-domain write rule, scheduling eligibility, unresolved items, dependency graph, migration sequence).

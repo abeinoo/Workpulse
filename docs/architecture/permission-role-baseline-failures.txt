@@ -88,3 +88,8 @@ rspec ./spec/services/scheduling/template_applier_spec.rb:51
 rspec ./spec/services/scheduling/template_applier_spec.rb:57
 rspec ./spec/services/scheduling/template_applier_spec.rb:89
 rspec ./spec/services/scheduling/template_applier_spec.rb:93
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-FIN1 (recorded at ae74dcc, milestone review). Not caused by the
+# architecture work (no Finance code/spec changes on the branch); not fixed. Faker apostrophe names are
+# HTML-escaped, so the plain-text expectation fails depending on generated data (passed 2/3 isolated reruns).
+flaky rspec ./spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb:128

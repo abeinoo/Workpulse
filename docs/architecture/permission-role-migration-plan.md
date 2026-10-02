@@ -1,7 +1,13 @@
 # PermissionRole — Migration Pilot Plan (Organization & Access)
 
-**Status:** design only. Nothing in this document has been implemented.
-**Branch:** `feature/api-foundation` @ `7c69c9e`.
+**Status:** **IMPLEMENTED — pilot COMPLETE** (`cb9163e` … `5246f6c`, on `feature/api-foundation`).
+
+* §1–§14 are the **original plan**, written at `7c69c9e` and kept as history.
+* The **completed implementation** is recorded in the "Step N — … Status" sections and the "PermissionRole Pilot —
+  Step Status" table.
+* **Known technical debt and migration-history defects:** OA-D3, R-L4, MIG-1, MIG-2 (Step 7B section).
+
+**Original plan branch:** `feature/api-foundation` @ `7c69c9e`.
 **Related:** `module-boundaries.md`, `organization-access-migration-readiness.md`,
 `organization-access-characterization.md`.
 
@@ -244,7 +250,7 @@ against the **unchanged** code, step 1 of the migration sequence may start.
 
 ## Step 2 — Boundary Status
 
-**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to step 1 of the migration sequence (§10):
+**Status:** COMPLETE (commit `016415e`). This corresponds to step 1 of the migration sequence (§10):
 introduce the boundary, delegating to today's code.
 
 Each candidate was kept only if it has a concrete current caller to migrate in Step 3 and delegates to an existing
@@ -280,7 +286,7 @@ modified. OA-D3, R-L4 and audit behaviour are untouched (D1–D3).
 
 ## Step 3 — Read Routing Status
 
-**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to step 2 of the migration sequence (§10):
+**Status:** COMPLETE (commit `5f0468b`). This corresponds to step 2 of the migration sequence (§10):
 route reads through the boundary. The change is 3 files, 4 lines; every one is a read that now goes through the
 boundary with an identical result.
 
@@ -322,7 +328,7 @@ boundary with an identical result.
 
 ## Step 4 — PermissionGrants Migration Status
 
-**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to step 3 of the migration sequence (§10):
+**Status:** COMPLETE (commit `e4ca403`). This corresponds to step 3 of the migration sequence (§10):
 move the grant rules.
 
 | | |
@@ -399,7 +405,7 @@ Each guarantee is protected by an existing spec that ran green before and after:
 
 ## Step 5 — Role Operations Migration Status
 
-**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to steps 4–5 of the migration sequence (§10):
+**Status:** COMPLETE (commit `78be7c4`). This corresponds to steps 4–5 of the migration sequence (§10):
 role operations move into Organization & Access services, and the controllers delegate to them.
 
 ### Services created
@@ -494,7 +500,7 @@ restrictions and cross-business isolation are all green in the unchanged specs:
 
 ## Step 6 — Legacy Access Cleanup Status
 
-**Status:** COMPLETE (uncommitted; awaiting review). This corresponds to steps 6–7 of the migration sequence (§10):
+**Status:** COMPLETE (commit `208b5b3`). This corresponds to steps 6–7 of the migration sequence (§10):
 remove legacy access and enforce the boundary.
 
 ### Inventory and classification
@@ -578,7 +584,7 @@ Rails configuration:
 
 ## Step 7 — Physical Migration Design
 
-**Status:** DESIGN ONLY (read-only review at `208b5b3`; nothing implemented). Every finding below was re-derived from
+**Status:** Design, written at `208b5b3`; **implemented as Option C in Step 7A (`7d957a6`)**. Every finding below was re-derived from
 the repository at this commit, plus read-only probes: database queries on development and test, in-memory model
 reflection, and a standalone Zeitwerk experiment in a scratch directory.
 
