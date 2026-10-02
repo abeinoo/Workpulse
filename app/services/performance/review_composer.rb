@@ -73,7 +73,11 @@ module Performance
       @persisted_scores ||= @review&.persisted? ? @review.performance_review_scores.to_a : []
     end
 
+    # An invalid period (e.g. month 13 re-rendered after a failed validation)
+    # has no observations rather than raising Date::Error (PERF-D1).
     def month_observations
+      return @month_observations ||= [] unless Date.valid_date?(year, month, 1)
+
       @month_observations ||= PerformanceObservation
         .for_employee(employee)
         .for_month(year, month)
