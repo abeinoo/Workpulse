@@ -28,7 +28,7 @@ module ArchitectureSpecs
 
     ALLOWED_FILES = {
       # Organization & Access internals
-      "app/models/permission_role.rb"                       => "the model itself",
+      "app/models/organization_access/permission_role.rb"   => "the model itself (folder collapsed: top-level constant)",
       "app/models/user.rb"                                  => "account role association, can?/scope_for",
       "app/models/business.rb"                              => "business has_many :permission_roles",
       "app/policies/permission_role_policy.rb"              => "role administration policy",

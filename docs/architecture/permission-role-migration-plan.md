@@ -576,6 +576,221 @@ Rails configuration:
   structure / Packwerk), Q6 (moving access-scope infrastructure after the Workforce membership contract).
 * **Separate tasks, not pilot scope:** OA-D3, role-change auditing (D1), R-L4.
 
+## Step 7 — Physical Migration Design
+
+**Status:** DESIGN ONLY (read-only review at `208b5b3`; nothing implemented). Every finding below was re-derived from
+the repository at this commit, plus read-only probes: database queries on development and test, in-memory model
+reflection, and a standalone Zeitwerk experiment in a scratch directory.
+
+### 1. Current state
+
+* `app/models/permission_role.rb` defines the top-level `PermissionRole` on the `permission_roles` table: no
+  single-table inheritance (no `type` column), 3 validation callbacks, and these associations:
+  * `belongs_to :business`
+  * `has_many :users, dependent: :nullify`
+  * reverse: `User belongs_to :permission_role` (foreign key `permission_role_id`, `on_delete: :nullify`) and
+    `Business has_many :permission_roles, dependent: :destroy`
+* The behaviour already lives behind Organization & Access: `PermissionCatalog`, `Authorization`, `PermissionGrants`
+  and the role services (Steps 2–5). The boundary is enforced by `spec/architecture/permission_role_boundary_spec.rb`
+  (Step 6).
+* No database migration, schema change or API change exists for the pilot.
+
+### 2. Remaining references (at `208b5b3`)
+
+| Class | References |
+|---|---|
+| **A. Organization & Access internal** | The model. `User` (association, `can?`, `scope_for`, `management_sidebar?`, same-business validation) and `Business` (`has_many`). `app/services/organization_access/**`: `PermissionCatalog` → `PERMISSION_GROUPS`; `PermissionGrants` → `ALL_PERMISSIONS`, `SCOPABLE_PERMISSIONS`, `.normalize_scope`; `UpdateRole` / `DeleteRole` → `PermissionRole.where`. `PermissionRolePolicy`, `UserPolicy` (`ROLE_ATTRIBUTES`). `Admin::PermissionRolesController` and its views (`PERMISSION_GROUPS`, `SCOPABLE_PERMISSIONS`, `PERMISSION_DEPENDENCIES`, `DEFAULT_PERMISSIONS_BY_ROLE_TYPE`, `ROLE_TYPES`, `.workspaces`, `.scope_options_for`). `Admin::UsersController` and its form/show views. `admin/branches/_employees`, `admin/dashboard/index`. `config/routes.rb` (`resources :permission_roles`), locales |
+| **B. Valid cross-domain interface** | `User#can?` / `#scope_for` (all domains), `PermissionCatalog` (Laundry, onboarding), `Authorization` (API login), and `includes(:permission_role)` preloads (Finance ×5, admin users, branches, dashboard) feeding `User#can?` |
+| **C. Legacy access to migrate** | **None.** Removed in Steps 3–6 and enforced by the architecture spec |
+| **D. Test-only** | **23 spec files with 98 `PermissionRole` constant references:** `ALL_PERMISSIONS` 17, `PERMISSION_GROUPS` 15, `PERMISSION_DEPENDENCIES` 8, and `.exists?` / `.create` / `.new` / `.find_or_create_by` / `.scope_options_for` / … Also 70 spec files use the `:permission_role` factory, 79 use the association, `spec/factories/{permission_roles,users}.rb`, and `spec/support/{api_characterization,employee_data_request}_helpers.rb` |
+| **E. Database history** | 23 migrations mention roles. 7 are schema-only (table, columns, foreign key). **16 are data migrations that call the live top-level `PermissionRole` model** (`find_each`, `where`, `reset_column_information`; writes via `update_columns` ×23, `save` ×3, `update_column` ×1). 1 (`20260929190000`) uses an inline model. `db/seeds.rb` uses `PermissionRole.find_or_create_by!` |
+| **F. Cannot safely migrate yet** | `lib/tasks/attendance.rake` (R-L4, broken query, D3). Not touched by any Step 7 option |
+
+### 3. Database and migration analysis
+
+* **Stored class names:** no polymorphic `*_type` column contains `"PermissionRole"` in development or test (all
+  `*_type` columns scanned). Roles are never audited (D1), so no stored type strings depend on the class name.
+* **`db:schema:load` / `db:prepare` / `db:setup` / `db:test:prepare`:** these load `db/schema.rb`, which references
+  no model, so they are safe under every option. `bin/setup` and `bin/docker-entrypoint` use `db:prepare`; CI uses
+  `db:test:prepare`; specs use `maintain_test_schema!`.
+* **`db:migrate` on an existing database:** runs only pending migrations. The 16 data migrations are not re-run.
+* **`db:migrate` from an empty database, and `db:migrate:down` / `redo` of those 16:** these execute the migrations
+  and **require the top-level `PermissionRole` constant to resolve to the live model.** This is the binding
+  constraint. Any design that removes or renames the top-level constant breaks fresh migration and rollback of 16
+  migrations, unless it keeps a permanent alias.
+* **Conclusion:** Step 7 requires **no migration, no schema change, no table rename and no foreign-key change** —
+  provided the top-level `PermissionRole` constant is kept.
+
+### 4. Model move options
+
+| | **Option A** — `app/models/organization_access/permission_role.rb` → `OrganizationAccess::PermissionRole` | **Option B** — keep `app/models/permission_role.rb`; logical ownership only | **Option C** — `app/models/organization_access/permission_role.rb`, folder **collapsed** → still top-level `PermissionRole` |
+|---|---|---|---|
+| Autoloading | Standard Zeitwerk namespacing. `OrganizationAccess` becomes a namespace spanning `app/models` and `app/services` (supported) | Unchanged | One autoloader line: `Rails.autoloaders.main.collapse(Rails.root.join("app/models/organization_access"))`. **Verified with Zeitwerk 2.8.2:** with collapse, the file defines top-level `PermissionRole` and `OrganizationAccess::*` from `app/services` keeps working. Without collapse, Zeitwerk raises "expected file … to define constant OrganizationAccess::PermissionRole" |
+| Constant / table | New constant. `table_name` stays `permission_roles` (probe: a model in `OrganizationAccess` gets no prefix; the module defines no `table_name_prefix`) | Unchanged | Unchanged (`PermissionRole`, `permission_roles`) |
+| Existing callers | All Organization & Access callers change (~15 app files). `User` and `Business` associations need `class_name:` (**a `User` change**), unless a top-level alias is kept | None | None |
+| Migrations (16) | Need a **permanent** top-level alias `PermissionRole = OrganizationAccess::PermissionRole`, so the class has two names indefinitely | Safe | Safe (same constant) |
+| Factory | `factory :permission_role, class: "OrganizationAccess::PermissionRole"` | None | None |
+| STI / polymorphism | No STI; no stored type names. Safe either way | — | — |
+| Associations / callbacks / validations | Unchanged code, re-homed; association class resolution changes | Unchanged | Unchanged (file moves verbatim) |
+| Test impact | 23 files / 98 references plus factory and helpers (or none if the alias stays, which defeats the move) | None | **1 line:** the architecture spec's allow-list path for the model |
+| Rollback | Multi-file revert | — | `git revert` of one small commit |
+| Future extraction | Namespaced model; a later Packwerk / engine extraction keeps it | Model stays in the shared `app/models` | **Aligned with packs:** in `packs-rails` / Packwerk each pack's `app/models` is an autoload root with **top-level** constants. Moving `app/models/organization_access/` → `packs/organization_access/app/models/` later is again a pure move |
+
+### 5. Recommended structure — Option C
+
+```
+app/models/organization_access/permission_role.rb   # top-level PermissionRole (folder collapsed)
+app/services/organization_access/*.rb                # OrganizationAccess:: boundary (unchanged)
+config/initializers/organization_access_autoload.rb  # the single collapse line (or config/application.rb)
+```
+
+Convention to document with the change: **`app/models/organization_access/` holds Organization & Access models as
+top-level constants (collapsed); `app/services/organization_access/` holds the `OrganizationAccess::` boundary.**
+Only `PermissionRole` moves in this pilot.
+
+### 6. Constant strategy
+
+* `PERMISSION_GROUPS`, `ALL_PERMISSIONS`, `SCOPABLE_PERMISSIONS`, `PERMISSION_DEPENDENCIES`,
+  `DEFAULT_PERMISSIONS_BY_ROLE_TYPE`, `ROLE_TYPES`, `SCOPE_OPTIONS` / `LEGACY_SCOPE_ALIASES` and the class methods
+  `.normalize_scope` / `.scope_options_for` **stay on `PermissionRole`**: the single source of truth, moved
+  verbatim with the file.
+* `PermissionCatalog` and `Authorization` keep delegating; nothing is copied.
+* Moving the catalogue into `PermissionCatalog` (with model aliases) is **not** recommended in Step 7. It would
+  create two names for each constant, and the gain is small, because outside callers already use the catalogue and
+  the remaining users are Organization & Access internals and specs.
+
+### 7. Association strategy
+
+* No association changes (constant unchanged).
+* Internal Organization & Access relationships: `PermissionRole ↔ Business` (tenant), `PermissionRole ↔ User`
+  (account role).
+* Cross-domain relationships: none on the model. Other domains reach roles only through `User#can?`, `#scope_for`,
+  `PermissionCatalog`, `Authorization` and preloads.
+* `dependent: :nullify` (users), `dependent: :destroy` (from `Business`), the foreign key `on_delete: :nullify` and
+  the `User` same-business validation are kept as they are.
+* `User` and Employee are **not** touched; the User ≠ Employee split stays out of scope.
+
+### 8. User#role_name decision
+
+**Decision: KEEP the status quo. Do not introduce `User#role_name`; remove I6 from pilot scope.**
+
+* **Callers:** `user.permission_role&.name` appears in 4 display sites — `admin/dashboard/index`,
+  `admin/users/show`, `admin/branches/_employees` and `layouts/_sidebar`. All of them are Organization & Access
+  screens or the UI shell, and are already allow-listed with reasons.
+* Each site has a different fallback (`t("admin.users.super_admin_role")`, `"—"`, a hard-coded `"Super Admin"`,
+  `t("nav.staff")`), so a single method would either change output or need parameters.
+* It is not needed for Step 7. Adding it requires a `User` change and gives no boundary benefit while no other
+  domain needs the role name. Revisit only if a non-Organization & Access caller appears.
+
+### 9. Cross-domain contracts after Step 7
+
+Unchanged, because Option C keeps the constant:
+
+| Consumer | Interface |
+|---|---|
+| Workforce (onboarding) | `PermissionCatalog.group(:employee_onboarding)` + `User#can?` |
+| Inventory & Purchasing (Laundry) | `PermissionCatalog.group(:laundry_operations / :laundry_cost_reports)` |
+| Finance & Sales | `User#eligible_depositor?` / `#can?`, `includes(:permission_role)` preload |
+| Attendance & Payroll, Reporting, all policies | `User#can?`, `#scope_for`, `ApplicationPolicy` helpers |
+| API clients | `Authorization.granted_permissions` (login payload; owner `[]`) |
+
+No HTTP or network calls are involved.
+
+### 10. Test impact (Option C)
+
+* **No spec needs a namespace, factory or constant change.** The model spec (154 examples with the translations
+  spec), the 23 constant-using specs, the 70 factory users and the support helpers are unchanged.
+* **One required edit:** `spec/architecture/permission_role_boundary_spec.rb`, where the allow-list key moves
+  `app/models/permission_role.rb` → `app/models/organization_access/permission_role.rb`. Its stale-entry example
+  would otherwise fail, by design.
+* **Recommended addition:** one small location spec pinning `PermissionRole.table_name == "permission_roles"`, the
+  source file path under `app/models/organization_access/`, and that `OrganizationAccess::PermissionRole` is **not**
+  defined (guards against an accidental un-collapse).
+
+### 11. Proposed implementation sequence
+
+| Sub-step | Change | Behaviour | Tests | Rollback | Risk |
+|---|---|---|---|---|---|
+| **7A — physical move (one atomic commit)** | Add the collapse line; `git mv app/models/permission_role.rb app/models/organization_access/permission_role.rb` (content byte-identical); update the architecture-spec allow-list path; add the location spec. These must land together: the collapse without the folder, or the folder without the collapse, breaks loading | None | `bin/rails zeitwerk:check`; eager load (`CI=1`); the full pilot set (1489 examples) with failing IDs identical to the baseline; model spec; architecture spec | `git revert` | LOW |
+| **7B — migration-path verification (no commit unless docs)** | Run `db:create db:migrate` from zero in a **disposable** database (never development, test or production), then drop it. Proves the 16 data migrations still resolve `PermissionRole`. **Needs explicit approval:** it is a schema-creating database command, even though it runs on a throwaway database | None | Fresh migrate succeeds and `db/schema.rb` is unchanged afterwards (`git diff --exit-code db/schema.rb`) | Drop the disposable database | LOW |
+| **7C — documentation** | Step 7 status, convention note, readiness pointer | None | — | `git revert` | LOW |
+
+**No compatibility bridge is needed.** The constant never changes, so there is no alias, dual constant or staged
+caller migration, and therefore nothing temporary to remove later.
+
+### 12. Rollback strategy
+
+* 7A is one self-contained commit. `git revert` restores `app/models/permission_role.rb`, removes the collapse
+  line and restores the allow-list path.
+* No data, schema or API state is involved, so a revert is instantaneous and complete.
+* If eager loading misbehaves in an environment after deploy, a revert is the full remedy.
+
+### 13. Risks
+
+| Level | Risk | Mitigation |
+|---|---|---|
+| MEDIUM | **Where and when the collapse is configured.** It must be applied before the main autoloader is set up. The Rails autoloading guide configures `Rails.autoloaders.main` from `config/initializers`; this was **not** verified inside the app in this read-only review (only the standalone Zeitwerk behaviour was). The wrong hook would surface as a Zeitwerk error at boot | Verify in 7A with `zeitwerk:check` and eager-load boot; fall back to `config/application.rb` if needed; stop condition below |
+| LOW | Same folder name with two meanings: `app/models/organization_access/` is collapsed (top-level constants), `app/services/organization_access/` is namespaced (`OrganizationAccess::`) | A documented convention plus the location spec |
+| LOW | Tooling caches (bootsnap, IDE indexes) holding the old path | Restart; bootsnap keys on paths |
+| LOW | Accidental future addition of `app/models/organization_access/*.rb` expecting namespacing | Location spec plus convention note |
+| — | Security (OA-S1–S8, hierarchy, scope escalation, owner, self, cross-business) | No code path changes (verbatim file move); the regression set below must stay identical |
+
+**Regression tests that must stay green (unchanged):**
+
+* `spec/requests/security/organization_access_{security,scope_hierarchy,view_and_role_scope}_spec.rb`
+* `spec/characterization/organization_access/*`
+* `spec/services/organization_access/*`
+* `spec/requests/admin/role_assignment_entry_points_spec.rb`
+* `spec/models/permission_role_spec.rb`, `spec/policies/{user,permission_role}_policy_spec.rb`
+* `spec/requests/permission_matrix_verification_spec.rb`
+* `spec/architecture/permission_role_boundary_spec.rb`
+
+### 14. Stop conditions
+
+Stop 7A and report, without a workaround, if any of these happens:
+
+* `zeitwerk:check` or the eager-load boot fails with the collapse in place.
+* Any spec in the regression set gains a failing ID not in `permission-role-baseline-failures.txt`.
+* The move would require changing `User`, `Business`, the factory, any migration, `db/schema.rb`, routes or API code.
+* A fresh `db:migrate` in a disposable database fails, or changes `db/schema.rb`.
+* A stored class name `"PermissionRole"` is found in any production `*_type` column (check before deploy). It cannot
+  break under Option C, but it would block any later rename.
+* Any change would need a compatibility alias or a second constant.
+
+### 15. Success criteria
+
+1. `PermissionRole` lives physically in `app/models/organization_access/` (Organization & Access) and remains the
+   top-level constant on the `permission_roles` table.
+2. No database migration and no `db/schema.rb` change; no table, foreign-key or association change.
+3. The 16 historical data migrations resolve `PermissionRole` unchanged (fresh migrate verified in 7B, if approved).
+4. `zeitwerk:check` and eager load pass.
+5. The full pilot set's failing IDs are identical to `permission-role-baseline-failures.txt`; no new failures.
+6. OA-S1–S8, privilege hierarchy, scope escalation, owner, self-assignment and cross-business specs are green and
+   unchanged.
+7. API contracts (login `permissions`, owner `[]`) and web behaviour are unchanged.
+8. No compatibility code exists, so there is nothing temporary left to remove. The architecture spec allow-list
+   points at the new path.
+
+### 16. Final recommendation
+
+**RECOMMENDED OPTION: C** — physically place `PermissionRole` in `app/models/organization_access/` with the folder
+collapsed, keeping the top-level `PermissionRole` constant and the `permission_roles` table.
+
+* **Repository evidence:** 16 data migrations need the top-level constant, and so do 23 spec files, 70 factory
+  users and the `User` / `Business` associations. Option C changes none of them; Option A would need a permanent
+  alias (two names for one class) or a `User` change.
+* **Rails compatibility:** collapse is a first-class Zeitwerk feature. The exact layout (collapsed
+  `app/models/organization_access` next to namespaced `app/services/organization_access`) was verified in a
+  standalone experiment with the app's Zeitwerk 2.8.2.
+* **Migration safety:** no schema change; fresh migrate and rollback keep working.
+* **Test impact:** one allow-list line plus one new location spec.
+* **Long-term architecture:** it matches the packs/Packwerk convention (top-level constants per pack), so a future
+  `packs/organization_access/` extraction is another pure move. Option B (do nothing) is safe but leaves the model
+  physically outside the domain.
+
+**Safe to implement** — as the single atomic commit 7A, under the stop conditions above. The disposable-database
+fresh-migrate verification (7B) needs explicit approval before it is run.
+
 ## 7. Proposed target structure
 
 The repository already uses namespaced service folders under `app/services/` (`Finance::`, `Inventory::`,
