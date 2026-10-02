@@ -1,6 +1,8 @@
 module Inventory
   # Creates one Purchase Request PER SUPPLIER from a flat list of selected
-  # items (e.g. checked rows from the Low Stock Alerts table). Never posts
+  # items — checked rows from the Low Stock Alerts table, or the lines of the
+  # general "إنشاء طلب شراء" form (any transactable product, low stock or
+  # not; there it's always a single supplier, so a single request). Never posts
   # inventory — a Purchase Request is a request-only document; stock only
   # moves later, at Goods Receipt confirmation.
   #
@@ -17,6 +19,13 @@ module Inventory
   # opens). The DB backstop is a unique index on (idempotency_key,
   # supplier_id) — see the migration — which still allows several suppliers
   # to legitimately share one batch key.
+  #
+  # Server-side guards (never trust the picker): every product must be a
+  # transactable product of this business, every source warehouse must belong
+  # to this business AND be one the actor is assigned to (warehouse-scoped
+  # users) — and, from the general form, must be present and active — and a
+  # product may appear only once per warehouse in a batch — a
+  # repeated line must be edited, not duplicated.
   class PurchaseRequestCreator
     include AuditLoggable
 
@@ -25,12 +34,18 @@ module Inventory
     end
 
     # items: array of { product_id:, quantity:, unit_price:, supplier_id:, source_warehouse_id: (optional), notes: (optional) }
-    def initialize(business, actor:, items:, source: nil, idempotency_key: nil)
+    # notes: request-level notes, applied to every request in the batch.
+    # require_warehouse: every line must name an ACTIVE, accessible warehouse
+    # (the general form). Off for the Low Stock review modal, whose total-stock
+    # alerts legitimately carry no warehouse.
+    def initialize(business, actor:, items:, source: nil, idempotency_key: nil, notes: nil, require_warehouse: false)
       @business        = business
       @actor           = actor
       @items           = Array(items).map(&:symbolize_keys)
       @source          = source
       @idempotency_key = idempotency_key.presence
+      @notes           = notes.presence
+      @require_warehouse = require_warehouse
     end
 
     def call
@@ -41,6 +56,10 @@ module Inventory
 
       missing = @items.select { |item| item[:supplier_id].blank? }
       return missing_supplier_error(missing) if missing.any?
+      return error(:invalid_product)         unless products_allowed?
+      return error(:missing_warehouse)       if @require_warehouse && @items.any? { |i| i[:source_warehouse_id].blank? }
+      return error(:unauthorized_warehouse)  unless warehouses_allowed?
+      return error(:duplicate_product)       if duplicate_lines?
 
       created = []
       ActiveRecord::Base.transaction do
@@ -68,6 +87,7 @@ module Inventory
         supplier_id:      supplier_id,
         created_by:       @actor,
         source:           @source,
+        notes:            @notes,
         idempotency_key:  @idempotency_key
       )
 
@@ -92,6 +112,35 @@ module Inventory
         }
       )
       request
+    end
+
+    def products_allowed?
+      ids = @items.map { |item| item[:product_id].to_s }.uniq
+      return false if ids.any?(&:blank?)
+
+      @business.products.transactable.where(id: ids).count == ids.size
+    end
+
+    # A given warehouse must be in scope. Blank is only reachable when
+    # require_warehouse is off (the Low Stock modal's total-stock alerts).
+    def warehouses_allowed?
+      ids = @items.filter_map { |item| item[:source_warehouse_id].presence&.to_s }.uniq
+      return true if ids.empty?
+
+      candidates = @require_warehouse ? @business.warehouses.active : @business.warehouses
+      allowed = candidates.where(id: ids).pluck(:id).map(&:to_s)
+      scoped  = @actor.inventory_warehouse_ids
+      allowed &= scoped.map(&:to_s) if scoped
+      (ids - allowed).empty?
+    end
+
+    def duplicate_lines?
+      keys = @items.map { |item| [ item[:product_id].to_s, item[:source_warehouse_id].presence.to_s ] }
+      keys.uniq.size != keys.size
+    end
+
+    def error(key)
+      Result.new(ok: false, error: I18n.t("inventory.purchase_requests.errors.#{key}"))
     end
 
     def no_items_error

@@ -1,0 +1,125 @@
+<% scope = "inventory.purchase_request_advances" %>
+<% content_for :title, t("#{scope}.new_title") %>
+
+<div class="admin-page">
+  <div class="back-link">
+    <%= link_to inventory_purchase_request_path(@purchase_request, anchor: "advances") do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= @purchase_request.request_number %>
+    <% end %>
+  </div>
+  <h1 class="page-title mb-2"><%= t("#{scope}.new_title") %></h1>
+  <p class="td-secondary mb-6">
+    <%= @purchase_request.request_number %> — <bdi><%= @purchase_request.supplier.name %></bdi>
+  </p>
+
+  <div class="stats-grid" style="margin-bottom: var(--space-5);">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.summary.total") %></span>
+      <span class="stat-card__value"><%= format_currency(@purchase_request.total_amount) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.summary.advances") %></span>
+      <span class="stat-card__value"><%= format_currency(@purchase_request.advances_total) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.max_amount") %></span>
+      <span class="stat-card__value" data-testid="advance-capacity"><%= format_currency(@capacity) %></span>
+    </div>
+  </div>
+
+  <%
+    cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
+    cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
+    cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
+  %>
+  <%= form_with model: @advance, url: inventory_purchase_request_advances_path(@purchase_request), method: :post,
+                class: "form-card",
+                data: { controller: "funding-source advance-custody-preview",
+                        "advance-custody-preview-currency-prefix-value": cur_prefix,
+                        "advance-custody-preview-currency-suffix-value": cur_suffix } do |f| %>
+    <% if @error.present? %>
+      <div class="alert alert-danger" role="alert" style="margin-bottom: var(--space-4);"><%= @error %></div>
+    <% end %>
+    <%= hidden_field_tag :idempotency_key, @idempotency_key %>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :amount, t("#{scope}.fields.amount"), class: "form-label" %>
+        <%= f.number_field :amount, step: "0.01", min: "0.01", max: @capacity, required: true, class: "form-control",
+                           "aria-describedby": "advance-amount-hint",
+                           data: { advance_custody_preview_target: "amount", action: "input->advance-custody-preview#update" } %>
+        <p id="advance-amount-hint" class="form-hint"><%= t("#{scope}.amount_hint", max: format_currency(@capacity)) %></p>
+      </div>
+      <div class="form-group">
+        <%= f.label :paid_on, t("#{scope}.fields.paid_on"), class: "form-label" %>
+        <%= f.date_field :paid_on, required: true, class: "form-control" %>
+      </div>
+    </div>
+
+    <h2 class="section-title"><%= t("#{scope}.fields.source_kind") %></h2>
+    <div class="form-grid">
+      <% PurchaseRequestAdvance::SOURCE_KINDS.each do |kind| %>
+        <div class="form-group">
+          <label class="form-label">
+            <%= f.radio_button :source_kind, kind, required: true,
+                  data: { "funding-source-target": "kindRadio", action: "funding-source#toggle" } %>
+            <%= t("#{scope}.source_kinds.#{kind}") %>
+          </label>
+        </div>
+      <% end %>
+
+      <% custody_selected = @advance.source_kind == "employee_custody" %>
+      <div data-funding-source-target="panel" class="form-group <%= 'hidden' unless custody_selected %>"
+           style="grid-column: 1 / -1;" <%= "hidden" unless custody_selected %>>
+        <%= f.label :custody_account_id, t("#{scope}.fields.custody_account"), class: "form-label" %>
+        <% if @custody_accounts.any? %>
+          <%= f.select :custody_account_id,
+                options_for_select(
+                  @custody_accounts.map { |a|
+                    balance = @custody_balances[a.id] || 0
+                    [ t("#{scope}.custody_option", name: a.user&.full_name || a.name, balance: format_currency(balance)),
+                      a.id, { "data-balance" => balance.to_d.to_s } ]
+                  },
+                  @advance.custody_account_id
+                ),
+                { include_blank: "— #{t("#{scope}.select_custody_account")}" }, class: "form-control",
+                data: { advance_custody_preview_target: "account", action: "change->advance-custody-preview#update" } %>
+          <p class="form-hint"><%= t("#{scope}.custody_hint") %></p>
+
+          <dl class="detail-list" data-advance-custody-preview-target="preview" hidden
+              style="margin-top: var(--space-3);" aria-live="polite">
+            <div class="detail-list__row"><dt><%= t("#{scope}.custody_preview.current_balance") %></dt>
+              <dd data-advance-custody-preview-target="current" data-testid="custody-current">—</dd></div>
+            <div class="detail-list__row"><dt><%= t("#{scope}.custody_preview.advance_amount") %></dt>
+              <dd data-advance-custody-preview-target="advance" data-testid="custody-advance">—</dd></div>
+            <div class="detail-list__row"><dt><strong><%= t("#{scope}.custody_preview.balance_after") %></strong></dt>
+              <dd><strong data-advance-custody-preview-target="after" data-testid="custody-after">—</strong></dd></div>
+          </dl>
+          <p class="form-hint" style="color: var(--danger);" data-advance-custody-preview-target="negativeNote"
+             data-testid="custody-negative-note" hidden><%= t("#{scope}.custody_preview.negative_note") %></p>
+        <% else %>
+          <p class="form-hint text-warning"><%= t("#{scope}.no_custody_accounts") %></p>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <%= f.label :reference, t("#{scope}.fields.reference"), class: "form-label" %>
+        <%= f.text_field :reference, maxlength: 120, class: "form-control" %>
+      </div>
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <%= f.label :notes, t("#{scope}.fields.notes"), class: "form-label" %>
+        <%= f.text_area :notes, rows: 2, class: "form-control" %>
+      </div>
+    </div>
+
+    <p class="td-secondary"><%= t("#{scope}.pending_hint") %></p>
+
+    <div class="form-actions">
+      <%= f.submit t("#{scope}.submit"), class: "btn btn-primary" %>
+      <%= link_to t("common.cancel"), inventory_purchase_request_path(@purchase_request, anchor: "advances"), class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>

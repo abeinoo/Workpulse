@@ -9,6 +9,9 @@
       — <%= @purchase_request.supplier.name %>
     </div>
     <%= f.hidden_field :purchase_request_id %>
+    <% if @purchase_request.advances_total.positive? %>
+      <%= render "inventory/goods_receipts/purchase_request_advances_summary", purchase_request: @purchase_request %>
+    <% end %>
   <% end %>
 
   <h2 class="section-title"><%= t("inventory.goods_receipts.section_header") %></h2>

@@ -6,7 +6,7 @@ module Inventory
   # FinancialSettlement row; Paid / Remaining / financial_status are always
   # derived from that ledger (Settleable), never stored on the receipt.
   #
-  # Payment sources (FinancialSettlement::SOURCE_KINDS):
+  # Payment sources (FinancialSettlement::PAYMENT_SOURCE_KINDS):
   #   - employee_custody — ALWAYS the actor's own active custody account,
   #     resolved server-side exactly like the goods receipt form and
   #     Finance::ExpensePaymentRecorder (`actor.custody_accounts.active.first`).
@@ -38,7 +38,7 @@ module Inventory
       @receipt = GoodsReceipt.where(business_id: @actor.business_id).find(@goods_receipt_id)
 
       source_kind = @params[:source_kind].to_s
-      return err(t("errors.invalid_source_kind")) unless FinancialSettlement::SOURCE_KINDS.include?(source_kind)
+      return err(t("errors.invalid_source_kind")) unless FinancialSettlement::PAYMENT_SOURCE_KINDS.include?(source_kind)
 
       amount = parse_amount
       return err(t("errors.amount_must_be_positive")) unless amount&.positive?

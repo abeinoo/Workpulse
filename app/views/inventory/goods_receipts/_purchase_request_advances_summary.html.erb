@@ -1,0 +1,40 @@
+<%#
+  Advance-payment picture for a receipt created from a Purchase Request, so
+  nobody has to work out "what's still due" by hand. Every number comes from
+  the model/allocator (derived from the settlement ledgers) — nothing is
+  calculated here.
+
+  Locals:
+    purchase_request - the receipt's PurchaseRequest
+    allocator        - (optional) Inventory::PurchaseRequestAdvanceAllocator for
+                       a persisted receipt; omitted on the new-receipt form,
+                       where the receipt's value isn't final yet.
+%>
+<% allocator = local_assigns[:allocator] %>
+<% scope = "inventory.purchase_request_advances.receiving" %>
+<section class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);" id="purchase-request-advances-summary">
+  <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("#{scope}.title") %></h2>
+  <dl class="detail-list">
+    <div class="detail-list__row"><dt><%= t("#{scope}.request_total") %></dt>
+      <dd><%= format_currency(purchase_request.total_amount) %></dd></div>
+    <div class="detail-list__row"><dt><%= t("#{scope}.advances_paid") %></dt>
+      <dd><%= format_currency(purchase_request.advances_total) %></dd></div>
+    <% if allocator %>
+      <% receipt = allocator.receipt %>
+      <div class="detail-list__row"><dt><%= t("#{scope}.received_value") %></dt>
+        <dd><%= format_currency(receipt.total_value) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("#{scope}.advance_deducted") %></dt>
+        <dd>
+          <%= format_currency(allocator.receipt_applied_amount) %>
+          <% unless receipt.approval_approved? %>
+            <span class="td-secondary">— <%= t("#{scope}.deducted_at_approval") %></span>
+          <% end %>
+        </dd></div>
+      <div class="detail-list__row"><dt><strong><%= t("#{scope}.amount_due_now") %></strong></dt>
+        <dd><strong data-testid="advance-amount-due"><%= format_currency(allocator.receipt_amount_due) %></strong></dd></div>
+    <% end %>
+    <div class="detail-list__row"><dt><%= t("#{scope}.unapplied_balance") %></dt>
+      <dd><%= format_currency(purchase_request.unapplied_advances_total) %></dd></div>
+  </dl>
+  <p class="td-secondary" style="margin: var(--space-3) 0 0;"><%= t("#{scope}.rule_hint") %></p>
+</section>

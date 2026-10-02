@@ -57,25 +57,27 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
                                   goods_receipts: :items)
                         .find(params[:id])
     authorize @purchase_request
+    load_advances
   end
 
+  # The general "إنشاء طلب شراء" form — any transactable product, low stock or
+  # not. Low Stock is offered inside the form only as a convenience source of
+  # lines (see _low_stock_picker), never as a precondition. Notes belong to the
+  # request; every line needs an explicit, accessible destination warehouse.
+  def new
+    authorize PurchaseRequest
+    @purchase_request = PurchaseRequest.new
+    @purchase_request.items.build
+    @idempotency_key = SecureRandom.uuid
+    load_new_form_options
+  end
+
+  # Two entry points share this action and the same service:
+  #   - purchase_request[...] — the general form above (one supplier, one request)
+  #   - items[]               — the Low Stock Alerts review modal (one request per supplier)
   def create
     authorize PurchaseRequest
-
-    result = Inventory::PurchaseRequestCreator.new(
-      current_user.business,
-      actor:            current_user,
-      items:            purchase_request_items_params,
-      source:           PurchaseRequest::SOURCE_LOW_STOCK_ALERT,
-      idempotency_key:  params[:idempotency_key]
-    ).call
-
-    if result.ok?
-      redirect_to inventory_purchase_requests_path(created_ids: result.purchase_requests.map(&:id).join(",")),
-                  notice: t("inventory.purchase_requests.created", count: result.purchase_requests.size)
-    else
-      redirect_to inventory_root_path, alert: result.error
-    end
+    params.key?(:purchase_request) ? create_from_form : create_from_low_stock_selection
   end
 
   def edit
@@ -152,6 +154,58 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
 
   private
 
+  def create_from_low_stock_selection
+    result = Inventory::PurchaseRequestCreator.new(
+      current_user.business,
+      actor:            current_user,
+      items:            purchase_request_items_params,
+      source:           PurchaseRequest::SOURCE_LOW_STOCK_ALERT,
+      idempotency_key:  params[:idempotency_key]
+    ).call
+
+    if result.ok?
+      redirect_to inventory_purchase_requests_path(created_ids: result.purchase_requests.map(&:id).join(",")),
+                  notice: t("inventory.purchase_requests.created", count: result.purchase_requests.size)
+    else
+      redirect_to inventory_root_path, alert: result.error
+    end
+  end
+
+  def create_from_form
+    attrs = purchase_request_form_params
+    lines = form_lines(attrs)
+
+    result = Inventory::PurchaseRequestCreator.new(
+      current_user.business,
+      actor:            current_user,
+      items:            lines.map { |line| line.merge(supplier_id: attrs[:supplier_id]) },
+      notes:            attrs[:notes],
+      require_warehouse: true,
+      idempotency_key:  params[:idempotency_key]
+    ).call
+
+    if result.ok?
+      redirect_to inventory_purchase_requests_path(created_ids: result.purchase_requests.map(&:id).join(",")),
+                  notice: t("inventory.purchase_requests.created", count: result.purchase_requests.size)
+    else
+      @purchase_request = PurchaseRequest.new(supplier_id: attrs[:supplier_id], notes: attrs[:notes])
+      lines.each { |line| @purchase_request.items.build(line) }
+      @purchase_request.items.build if @purchase_request.items.empty?
+      @purchase_request.errors.add(:base, result.error)
+      @idempotency_key = params[:idempotency_key].presence || SecureRandom.uuid
+      load_new_form_options
+      render :new, status: :unprocessable_entity
+    end
+  end
+
+  # Rows with no product chosen are ignored — same rule as the edit form's
+  # nested attributes (PurchaseRequest reject_if).
+  def form_lines(attrs)
+    attrs.fetch(:items_attributes, {}).to_h.values
+         .map { |line| line.symbolize_keys.slice(:product_id, :quantity, :unit_price, :source_warehouse_id) }
+         .reject { |line| line[:product_id].blank? }
+  end
+
   def created_ids
     params[:created_ids].to_s.split(",").map(&:to_i)
   end
@@ -189,6 +243,13 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     end
   end
 
+  def purchase_request_form_params
+    params.require(:purchase_request).permit(
+      :supplier_id, :notes,
+      items_attributes: [ :product_id, :quantity, :unit_price, :source_warehouse_id ]
+    )
+  end
+
   def purchase_request_update_params
     params.require(:purchase_request).permit(
       :supplier_id, :notes,
@@ -200,5 +261,32 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     @suppliers  = current_user.business.suppliers.ordered
     @products   = current_user.business.products.transactable.ordered
     @warehouses = accessible_warehouses
+  end
+
+  # "الدفعات المقدمة": every advance (all statuses, for the audit trail) plus
+  # the ledger-derived totals — computed here, never in the view.
+  def load_advances
+    @advances = @purchase_request.advances.includes(:created_by, :confirmed_by, :cancelled_by, :reversed_by,
+                                                    custody_account: :user)
+                                 .order(:created_at, :id).to_a
+    applied = FinancialSettlement.advance_applications
+                                 .where(funding_source_type: "PurchaseRequestAdvance", funding_source_id: @advances.map(&:id))
+                                 .group(:funding_source_id).sum(:amount)
+    @advance_applied_amounts = applied
+    @advance_summary = {
+      total:     @purchase_request.total_amount,
+      advances:  @purchase_request.advances_total,
+      remaining: @purchase_request.amount_remaining_after_advances,
+      count:     @advances.count(&:confirmed?),
+      unapplied: @purchase_request.advances_total - applied.values.sum
+    }
+    @new_advance = PurchaseRequestAdvance.new(business: @purchase_request.business, purchase_request: @purchase_request)
+  end
+
+  # Low Stock rows come from the same report the dashboard and Low Stock page
+  # use — restricted to the warehouses this user may access — never recomputed.
+  def load_new_form_options
+    load_options
+    @low_stock_rows = Inventory::Reports::LowStock.new(current_user.business, warehouse_ids: accessible_warehouse_ids).rows
   end
 end

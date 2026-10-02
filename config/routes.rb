@@ -344,13 +344,20 @@ Rails.application.routes.draw do
       end
     end
     resources :barcode_labels, only: [ :index, :show ]
-    resources :purchase_requests, only: [ :index, :show, :create, :edit, :update, :destroy ] do
+    resources :purchase_requests, only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
       member do
         post :submit
         post :approve
         post :reject
         post :cancel
         post :close_remaining
+      end
+      resources :advances, only: [ :new, :create ], controller: "purchase_request_advances" do
+        member do
+          post :confirm
+          post :cancel
+          post :reverse
+        end
       end
     end
     resources :goods_receipts,  only: [ :index, :show, :new, :create, :edit, :update ] do

@@ -198,6 +198,11 @@
     </section>
   <% end %>
 
+  <% if @purchase_request.receivable? || @advances.any? %>
+    <%= render "advances", purchase_request: @purchase_request, advances: @advances,
+                           summary: @advance_summary, applied_amounts: @advance_applied_amounts %>
+  <% end %>
+
   <section class="card" style="margin-bottom: var(--space-6);">
     <div class="card__header">
       <h2 class="card__title" style="margin: 0;"><%= t("inventory.purchase_requests.items_count") %></h2>

@@ -1,0 +1,13 @@
+<% content_for :title, t("inventory.purchase_requests.new_title") %>
+
+<div class="admin-page">
+  <div class="back-link">
+    <%= link_to inventory_purchase_requests_path do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= t("inventory.purchase_requests.title") %>
+    <% end %>
+  </div>
+  <h1 class="page-title mb-2"><%= t("inventory.purchase_requests.new_title") %></h1>
+  <p class="td-secondary mb-6"><%= t("inventory.purchase_requests.new_intro") %></p>
+  <%= render "form", purchase_request: @purchase_request %>
+</div>

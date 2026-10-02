@@ -27,8 +27,14 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     authorize @goods_receipt
     @items           = @goods_receipt.items.includes(:product)
     @settlements     = @goods_receipt.financial_settlements.chronological
-                                     .includes(:created_by, :custody_transaction, { funding_source: :user },
-                                               { reversal: :created_by }, :reverses_settlement)
+                                     .includes(:created_by, :custody_transaction, :funding_source,
+                                               { reversal: :created_by }, :reverses_settlement).to_a
+    # funding_source is polymorphic (CustodyAccount or PurchaseRequestAdvance);
+    # only custody accounts have a holder to preload.
+    ActiveRecord::Associations::Preloader.new(records: @settlements.map(&:funding_source).grep(CustodyAccount),
+                                              associations: :user).call
+    @advance_allocator = Inventory::PurchaseRequestAdvanceAllocator.new(@goods_receipt) if @goods_receipt.purchase_request
+    @custody_payment_preview = custody_payment_preview
     @settlement_total = @goods_receipt.settlement_total
     @settled_amount   = @settlements.sum(&:amount)
     @remaining_amount = [ @settlement_total - @settled_amount, 0 ].max
@@ -223,6 +229,20 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   # ONLY preselected when every line already points at the exact same
   # warehouse; otherwise it is left blank and the form requires an explicit
   # choice — never a guess (see PurchaseRequestItem#source_warehouse).
+  # Before approval of a custody-funded receipt: what the custody account will
+  # look like after paying the amount due (advances already deducted). Display
+  # only — a negative result is allowed and never blocks approval.
+  def custody_payment_preview
+    return unless @goods_receipt.approval_pending_approval? && @goods_receipt.employee_custody_funded?
+
+    account = @goods_receipt.funding_source
+    return { account: nil } unless account.is_a?(CustodyAccount) && account.active?
+
+    current = account.computed_balance
+    due     = (@advance_allocator || Inventory::PurchaseRequestAdvanceAllocator.new(@goods_receipt)).amount_due
+    { account: account, current: current, due: due, after: current - due }
+  end
+
   def prefill_from_purchase_request(purchase_request)
     @goods_receipt.purchase_request = purchase_request
     @goods_receipt.supplier_id      = purchase_request.supplier_id

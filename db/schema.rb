@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_02_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1467,6 +1467,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
   end
 
+  create_table "purchase_request_advances", force: :cascade do |t|
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.bigint "business_id", null: false
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
+    t.datetime "confirmed_at"
+    t.bigint "confirmed_by_id"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.bigint "custody_account_id"
+    t.bigint "financial_settlement_id"
+    t.string "idempotency_key"
+    t.text "notes"
+    t.date "paid_on", null: false
+    t.bigint "purchase_request_id", null: false
+    t.string "reference"
+    t.text "reversal_reason"
+    t.datetime "reversed_at"
+    t.bigint "reversed_by_id"
+    t.string "source_kind", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "idempotency_key"], name: "index_pr_advances_on_business_and_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["business_id"], name: "index_purchase_request_advances_on_business_id"
+    t.index ["cancelled_by_id"], name: "index_purchase_request_advances_on_cancelled_by_id"
+    t.index ["confirmed_by_id"], name: "index_purchase_request_advances_on_confirmed_by_id"
+    t.index ["created_by_id"], name: "index_purchase_request_advances_on_created_by_id"
+    t.index ["custody_account_id"], name: "index_purchase_request_advances_on_custody_account_id"
+    t.index ["financial_settlement_id"], name: "index_purchase_request_advances_on_financial_settlement_id", unique: true
+    t.index ["purchase_request_id", "status"], name: "idx_on_purchase_request_id_status_fd0ad49a4e"
+    t.index ["purchase_request_id"], name: "index_purchase_request_advances_on_purchase_request_id"
+    t.index ["reversed_by_id"], name: "index_purchase_request_advances_on_reversed_by_id"
+    t.check_constraint "amount > 0::numeric", name: "pr_advances_amount_positive"
+  end
+
   create_table "purchase_request_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "notes"
@@ -2009,6 +2045,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
     t.bigint "batch_id", null: false
     t.datetime "created_at", null: false
     t.string "failure_reason"
+    t.text "notes"
     t.bigint "product_id"
     t.decimal "quantity", precision: 12, scale: 3
     t.integer "row_number", null: false
@@ -2024,6 +2061,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
 
   create_table "stock_issue_items", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.text "notes"
     t.bigint "product_id", null: false
     t.decimal "quantity", precision: 12, scale: 3, null: false
     t.bigint "stock_issue_id", null: false
@@ -2642,6 +2680,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
   add_foreign_key "products", "product_categories"
   add_foreign_key "products", "products", column: "parent_product_id", on_delete: :nullify
   add_foreign_key "products", "suppliers", column: "default_supplier_id"
+  add_foreign_key "purchase_request_advances", "businesses"
+  add_foreign_key "purchase_request_advances", "custody_accounts"
+  add_foreign_key "purchase_request_advances", "financial_settlements"
+  add_foreign_key "purchase_request_advances", "purchase_requests"
+  add_foreign_key "purchase_request_advances", "users", column: "cancelled_by_id"
+  add_foreign_key "purchase_request_advances", "users", column: "confirmed_by_id"
+  add_foreign_key "purchase_request_advances", "users", column: "created_by_id"
+  add_foreign_key "purchase_request_advances", "users", column: "reversed_by_id"
   add_foreign_key "purchase_request_items", "products"
   add_foreign_key "purchase_request_items", "purchase_requests"
   add_foreign_key "purchase_request_items", "warehouses", column: "source_warehouse_id"

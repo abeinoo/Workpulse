@@ -3,14 +3,19 @@
   cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
   cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
 %>
-<%= form_with model: purchase_request, url: inventory_purchase_request_path(purchase_request), method: :patch,
+<% creating = purchase_request.new_record? %>
+<%= form_with model: purchase_request,
+              url: creating ? inventory_purchase_requests_path : inventory_purchase_request_path(purchase_request),
+              method: creating ? :post : :patch,
               class: "form-card",
               data: {
                 controller: "line-items purchase-request-form",
                 "purchase-request-form-currency-prefix-value": cur_prefix,
-                "purchase-request-form-currency-suffix-value": cur_suffix
+                "purchase-request-form-currency-suffix-value": cur_suffix,
+                "purchase-request-form-duplicate-message-value": t("inventory.purchase_requests.form.duplicate_line")
               } do |f| %>
   <%= render "shared/error_messages", object: purchase_request %>
+  <%= hidden_field_tag :idempotency_key, @idempotency_key if creating %>
 
   <h2 class="section-title"><%= t("inventory.purchase_requests.form.section_details") %></h2>
   <div class="form-grid">
@@ -19,7 +24,9 @@
       <%= f.select :supplier_id,
             options_from_collection_for_select(@suppliers, :id, :name, purchase_request.supplier_id),
             { include_blank: "— #{t('inventory.purchase_requests.form.select_supplier')}" },
-            class: "form-control #{'is-error' if purchase_request.errors[:supplier].any?}" %>
+            class: "form-control #{'is-error' if purchase_request.errors[:supplier].any?}",
+            required: creating,
+            data: { purchase_request_form_target: "supplier" } %>
     </div>
     <div class="form-group" style="grid-column: 1 / -1;">
       <%= f.label :notes, t("inventory.purchase_requests.form.notes_label"), class: "form-label" %>
@@ -30,10 +37,15 @@
   <div class="divider"></div>
 
   <h2 class="section-title"><%= t("inventory.purchase_requests.form.section_items") %></h2>
+  <% if creating && @warehouses.empty? %>
+    <p class="td-secondary" role="alert" style="color: var(--color-danger, #c62828);">
+      <%= t("inventory.purchase_requests.form.no_accessible_warehouses") %>
+    </p>
+  <% end %>
   <div class="table-wrap table-wrap--form-cards">
     <table class="line-items-table">
       <thead><tr>
-        <th style="width: 35%;"><%= t("inventory.purchase_requests.form.product_label") %></th>
+        <th style="width: 30%;"><%= t("inventory.purchase_requests.form.product_label") %></th>
         <th><%= t("inventory.purchase_requests.form.warehouse_label") %></th>
         <th><%= t("inventory.purchase_requests.form.quantity_label") %></th>
         <th><%= t("inventory.purchase_requests.form.unit_price_label") %></th>
@@ -42,7 +54,7 @@
       </tr></thead>
       <tbody data-line-items-target="rows">
         <%= f.fields_for :items do |item_f| %>
-          <%= render "item_fields", f: item_f, products: @products, warehouses: @warehouses %>
+          <%= render "item_fields", f: item_f, products: @products, warehouses: @warehouses, require_warehouse: creating %>
         <% end %>
       </tbody>
     </table>
@@ -52,14 +64,25 @@
     <%= t("inventory.purchase_requests.form.no_items_hint") %>
   </p>
 
-  <button type="button" class="btn btn-ghost btn-sm" data-action="click->line-items#add click->purchase-request-form#recalculate" style="margin-top: var(--space-3);">
-    + <%= t("inventory.purchase_requests.form.add_item") %>
-  </button>
+  <p class="td-secondary" role="alert" data-purchase-request-form-target="duplicateNotice" hidden
+     style="color: var(--color-danger, #c62828); margin-top: var(--space-2);"></p>
+
+  <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
+    <button type="button" class="btn btn-ghost btn-sm" data-action="click->line-items#add click->purchase-request-form#recalculate">
+      + <%= t("inventory.purchase_requests.form.add_item") %>
+    </button>
+    <% if creating %>
+      <button type="button" class="btn btn-secondary btn-sm" data-action="click->purchase-request-form#openLowStock">
+        <%= t("inventory.purchase_requests.form.add_from_low_stock") %>
+        <% if @low_stock_rows.any? %><span class="badge badge-warning"><%= @low_stock_rows.size %></span><% end %>
+      </button>
+    <% end %>
+  </div>
 
   <%# Template for new rows (index replaced by JS) %>
   <template data-line-items-target="template">
     <%= f.fields_for :items, PurchaseRequestItem.new, child_index: "NEW_INDEX" do |item_f| %>
-      <%= render "item_fields", f: item_f, products: @products, warehouses: @warehouses %>
+      <%= render "item_fields", f: item_f, products: @products, warehouses: @warehouses, require_warehouse: creating %>
     <% end %>
   </template>
 
@@ -69,7 +92,11 @@
   </div>
 
   <div class="form-actions">
-    <%= f.submit t("common.save"), class: "btn btn-primary" %>
-    <%= link_to t("common.cancel"), inventory_purchase_request_path(purchase_request), class: "btn btn-ghost" %>
+    <%= f.submit creating ? t("inventory.purchase_requests.form.create_submit") : t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"),
+                creating ? inventory_purchase_requests_path : inventory_purchase_request_path(purchase_request),
+                class: "btn btn-ghost" %>
   </div>
+
+  <%= render "low_stock_picker", rows: @low_stock_rows if creating %>
 <% end %>

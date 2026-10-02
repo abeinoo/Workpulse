@@ -16,7 +16,7 @@
       <%= link_to t("inventory.purchase_requests.filters.needs_action"), inventory_purchase_requests_path(needs_action: "1"),
             class: "btn btn-sm #{@filters[:needs_action] == '1' ? 'btn-primary' : 'btn-secondary'}" %>
       <% if current_user.can?(:manage_inventory) || current_user.can?(:create_purchase_requests) %>
-        <%= link_to t("inventory.purchase_requests.new_action"), inventory_root_path(anchor: "low-stock-alerts"), class: "btn btn-primary btn-sm" %>
+        <%= link_to t("inventory.purchase_requests.new_action"), new_inventory_purchase_request_path, class: "btn btn-primary btn-sm" %>
       <% end %>
     </div>
   </div>
@@ -160,7 +160,7 @@
           <p class="td-secondary"><%= t("inventory.purchase_requests.empty_state_hint") %></p>
         <% end %>
         <% if !@active_filters && (current_user.can?(:manage_inventory) || current_user.can?(:create_purchase_requests)) %>
-          <%= link_to t("inventory.purchase_requests.new_action"), inventory_root_path(anchor: "low-stock-alerts"), class: "btn btn-primary btn-sm", style: "margin-top: var(--space-3);" %>
+          <%= link_to t("inventory.purchase_requests.new_action"), new_inventory_purchase_request_path, class: "btn btn-primary btn-sm", style: "margin-top: var(--space-3);" %>
         <% end %>
       </div>
     <% else %>

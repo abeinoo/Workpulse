@@ -15,7 +15,7 @@
         <%= link_to t("inventory.stock_issues.new_action"), new_inventory_stock_issue_path, class: "btn btn-secondary btn-sm" %>
       <% end %>
       <% if policy(PurchaseRequest).create? %>
-        <%= link_to t("#{ov}.quick.purchase_request"), inventory_root_path(anchor: "low-stock-alerts"), class: "btn btn-ghost btn-sm" %>
+        <%= link_to t("#{ov}.quick.purchase_request"), new_inventory_purchase_request_path, class: "btn btn-ghost btn-sm" %>
       <% end %>
       <% if policy(StockAdjustment).create? %>
         <%= link_to t("#{ov}.quick.adjustment"), new_inventory_stock_adjustment_path, class: "btn btn-ghost btn-sm" %>
@@ -57,7 +57,7 @@
             <%= link_to t("inventory.goods_receipts.new_action"), new_inventory_goods_receipt_path, class: "btn btn-ghost btn-sm" %>
           <% end %>
           <% if policy(PurchaseRequest).create? %>
-            <%= link_to t("#{ov}.quick.purchase_request"), inventory_root_path(keep.({}).merge(anchor: "low-stock-alerts")), class: "btn btn-ghost btn-sm" %>
+            <%= link_to t("#{ov}.quick.purchase_request"), new_inventory_purchase_request_path, class: "btn btn-ghost btn-sm" %>
           <% end %>
         </div>
       </div>

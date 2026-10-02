@@ -132,9 +132,11 @@ RSpec.describe "Inventory::GoodsReceiptSettlements", type: :request do
       html = Nokogiri::HTML(body)
       expect(html.css("select")).to be_empty
       expect(html.css("[name*='custody_account']")).to be_empty
-      FinancialSettlement::SOURCE_KINDS.each do |kind|
+      FinancialSettlement::PAYMENT_SOURCE_KINDS.each do |kind|
         expect(body).to include(I18n.t("inventory.goods_receipts.funding_source_kinds.#{kind}"))
       end
+      # Applying a Purchase Request advance is internal (receipt approval) — never a manual payment choice.
+      expect(html.css("input[value='#{FinancialSettlement::ADVANCE_APPLICATION_KIND}']")).to be_empty
     end
 
     it "renders in Arabic" do
