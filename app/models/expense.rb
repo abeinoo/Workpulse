@@ -190,10 +190,58 @@ class Expense < ApplicationRecord
     rows = effective_allocations
     if rows.empty?
       errors.add(:expense_allocations, :at_least_one_branch_required)
+    elsif duplicate_allocation_branches?(rows)
+      errors.add(:base, :allocation_duplicate_branch)
+    elsif distribution_method == "manual"
+      validate_amount_distribution(rows)
     else
       total = rows.sum { |a| a.allocation_percentage.to_d }
       errors.add(:base, :allocation_not_100) unless total == 100
     end
+  end
+
+  # One row per branch, whatever the distribution method. ExpenseAllocation's
+  # uniqueness validation only sees rows already in the database, so two new
+  # rows for the same branch would otherwise reach the unique index and raise.
+  def duplicate_allocation_branches?(rows)
+    branch_ids = rows.map(&:branch_id).compact
+    branch_ids.uniq.size != branch_ids.size
+  end
+
+  # "By amount" (manual): the entered branch amounts are the allocation, so they
+  # must add up to the expense amount exactly — never more, never less. The
+  # expense amount stays the source of truth; re-checked on every save, so
+  # editing the amount after distributing forces the rows to be re-balanced.
+  def validate_amount_distribution(rows)
+    return if amount.blank?
+
+    if rows.any? { |a| a.allocated_amount.to_d <= 0 }
+      errors.add(:base, :allocation_amount_not_positive)
+      return
+    end
+
+    # The column keeps 2 dp: a 3rd decimal would pass this check in memory and
+    # then be rounded by the database into a total that no longer matches.
+    if rows.any? { |a| a.allocated_amount.to_d != a.allocated_amount.to_d.round(2) }
+      errors.add(:base, :allocation_amount_precision)
+      return
+    end
+
+    expected    = amount.to_d
+    distributed = rows.sum { |a| a.allocated_amount.to_d }
+
+    if distributed < expected
+      errors.add(:base, :allocation_amount_short, amount: allocation_money(expected - distributed))
+    elsif distributed > expected
+      errors.add(:base, :allocation_amount_exceeds, amount: allocation_money(distributed - expected))
+    end
+  end
+
+  # Mirrors ApplicationHelper#format_currency (no request context in a model).
+  def allocation_money(value)
+    info = Business::CURRENCIES[business&.currency.presence || "SAR"] || Business::CURRENCIES["SAR"]
+    num  = ActiveSupport::NumberHelper.number_to_rounded(value, precision: 2, delimiter: ",")
+    I18n.locale.to_s == "ar" ? "#{num} #{info[:symbol]}" : "#{info[:symbol_en]} #{num}"
   end
 
   def sync_payment_source

@@ -173,19 +173,68 @@ RSpec.describe Inventory::GoodsReceiptApproval, type: :model do
         expect(txn.custody_account).to eq(account)
       end
 
-      it "blocks approval when the balance is insufficient, leaving the receipt pending and creating no settlement or transaction" do
+      it "approves with an insufficient balance — custody may go negative (100 − 500 = −400)" do
         top_up!(100)
         receipt = custody_receipt(qty: 10, cost: 50)
 
         result = approval_for(receipt, actor: approver).approve!
 
+        expect(result.ok?).to be(true)
+        expect(receipt.reload).to be_approval_approved
+        expect(account.reload.computed_balance).to eq(-400)
+        expect(account.current_balance).to eq(-400)
+        txn = receipt.custody_transactions.sole
+        expect(txn).to have_attributes(txn_type: "inventory_purchase", amount: -500)
+        expect(txn.financial_settlement).to eq(receipt.financial_settlements.sole)
+        expect(receipt).to be_settled
+      end
+
+      it "approves with a zero balance (0 − 500 = −500)" do
+        receipt = custody_receipt(qty: 10, cost: 50)
+
+        expect(approval_for(receipt, actor: approver).approve!.ok?).to be(true)
+        expect(account.reload.computed_balance).to eq(-500)
+      end
+
+      it "rejects when the receipt's custody account is no longer active, recording nothing" do
+        top_up!(1000)
+        receipt = custody_receipt(qty: 10, cost: 50)
+        account.update!(active: false)
+
+        result = approval_for(receipt, actor: approver).approve!
+
         expect(result.ok?).to be(false)
-        expect(result.error).to eq(I18n.t("inventory.goods_receipts.errors.insufficient_custody_balance"))
+        expect(result.error).to eq(I18n.t("inventory.goods_receipts.errors.no_active_custody_account"))
         expect(receipt.reload).to be_approval_pending_approval
-        expect(account.reload.current_balance).to eq(100)
         expect(receipt.custody_transactions.count).to eq(0)
         expect(receipt.financial_settlements.count).to eq(0)
-        expect(receipt).to be_pending_settlement
+        expect(account.reload.computed_balance).to eq(1000)
+      end
+
+      it "is atomic: if the custody ledger row fails, the approval and settlement roll back too" do
+        top_up!(1000)
+        receipt = custody_receipt(qty: 10, cost: 50)
+        allow_any_instance_of(CustodyTransaction).to receive(:save!).and_raise(ActiveRecord::RecordInvalid.new(CustodyTransaction.new))
+        allow_any_instance_of(CustodyTransaction).to receive(:save).and_return(false)
+
+        result = approval_for(receipt, actor: approver).approve!
+
+        expect(result.ok?).to be(false)
+        expect(receipt.reload).to be_approval_pending_approval
+        expect(receipt.financial_settlements.count).to eq(0)
+        expect(account.reload.computed_balance).to eq(1000)
+      end
+
+      it "a second approval (double click / retry) never deducts custody twice" do
+        top_up!(100)
+        receipt = custody_receipt(qty: 10, cost: 50)
+
+        expect(approval_for(receipt, actor: approver).approve!.ok?).to be(true)
+        expect(approval_for(receipt, actor: approver).approve!.ok?).to be(false)
+
+        expect(account.reload.computed_balance).to eq(-400)
+        expect(receipt.custody_transactions.count).to eq(1)
+        expect(receipt.financial_settlements.count).to eq(1)
       end
     end
   end

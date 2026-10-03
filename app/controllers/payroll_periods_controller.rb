@@ -408,6 +408,33 @@ class PayrollPeriodsController < ApplicationController
     send_data exporter.to_csv, filename: exporter.filename, type: "text/csv"
   end
 
+  # "إعادة احتساب الوقت الإضافي" — read-only preview; nothing is written.
+  def recalculate_overtime_preview
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :recalculate_overtime?
+
+    result = Payroll::OvertimeRecalculator.new(period_id: @period.id, actor: current_user).preview
+    return redirect_to(payroll_period_path(@period), alert: result.error) unless result.ok?
+
+    @preview = result.preview
+  end
+
+  def recalculate_overtime
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :recalculate_overtime?
+
+    result = Payroll::OvertimeRecalculator.new(period_id: @period.id, actor: current_user)
+                                          .apply!(expected_digest: params[:preview_digest])
+    if result.ok?
+      redirect_to payroll_period_path(@period),
+                  notice: t("payroll.overtime_recalculation.flash.applied", count: result.preview.affected_count)
+    elsif result.preview
+      redirect_to recalculate_overtime_preview_payroll_period_path(@period), alert: result.error
+    else
+      redirect_to payroll_period_path(@period), alert: result.error
+    end
+  end
+
   def regenerate
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period, :regenerate?

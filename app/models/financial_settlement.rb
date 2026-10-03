@@ -13,7 +13,7 @@ class FinancialSettlement < ApplicationRecord
   # Document types allowed to be settled. Extend as new modules adopt the
   # engine (PurchaseInvoice, Expense, SalaryAdvance, Payroll, VendorPayment,
   # BranchTransfer, ...).
-  SETTLEABLE_TYPES = %w[GoodsReceipt Expense].freeze
+  SETTLEABLE_TYPES = %w[GoodsReceipt Expense PurchaseRequest].freeze
 
   # Funding sources allowed to settle a document. Only CustodyAccount is
   # functional today; the rest are added as they're implemented (CompanyCash,
@@ -24,7 +24,12 @@ class FinancialSettlement < ApplicationRecord
   # someone else entirely). The payment itself is still real — a normal
   # immutable ledger row that Total Paid / Remaining include exactly like any
   # other — it simply moves no internal balance and has nothing to link to.
-  FUNDING_SOURCE_TYPES = %w[CustodyAccount].freeze
+  #
+  # PurchaseRequestAdvance funds the receipt-side "application" rows: a
+  # Goods Receipt paid (partly) out of an advance already paid against its
+  # Purchase Request (see Inventory::PurchaseRequestAdvanceAllocator). No money
+  # moves on those rows — it moved once, when the advance was confirmed.
+  FUNDING_SOURCE_TYPES = %w[CustodyAccount PurchaseRequestAdvance].freeze
 
   # WHERE the money came from — reuses the existing funding-source vocabulary
   # (GoodsReceipt::FUNDING_SOURCE_KINDS), minus supplier_credit, which is the
@@ -35,7 +40,13 @@ class FinancialSettlement < ApplicationRecord
   # internal balance. When such a model is added, it joins FUNDING_SOURCE_TYPES
   # and #funding_source_matches_kind is relaxed for its kind.
   # NIL source_kind = legacy untracked expense payment (cash vs. bank unknown).
-  SOURCE_KINDS = (GoodsReceipt::FUNDING_SOURCE_KINDS - %w[supplier_credit]).freeze
+  #
+  # PAYMENT_SOURCE_KINDS are real ways of paying (offered on payment forms);
+  # ADVANCE_APPLICATION_KIND is internal only — the receipt-side consumption of
+  # a Purchase Request advance — and is never accepted from a payment form.
+  PAYMENT_SOURCE_KINDS = (GoodsReceipt::FUNDING_SOURCE_KINDS - %w[supplier_credit]).freeze
+  ADVANCE_APPLICATION_KIND = "purchase_request_advance".freeze
+  SOURCE_KINDS = (PAYMENT_SOURCE_KINDS + [ ADVANCE_APPLICATION_KIND ]).freeze
   ACCOUNTLESS_SOURCE_KINDS = %w[company_cash bank_account].freeze
 
   belongs_to :settleable, polymorphic: true
@@ -57,6 +68,7 @@ class FinancialSettlement < ApplicationRecord
   validates :source_kind, inclusion: { in: SOURCE_KINDS }, allow_nil: true
   validate  :funding_source_in_same_business
   validate  :funding_source_matches_kind
+  validate  :advance_funding_only_for_applications
   validate  :reversal_mirrors_original, on: :create
 
   before_validation :default_source_kind_from_funding_source, on: :create
@@ -65,8 +77,10 @@ class FinancialSettlement < ApplicationRecord
   scope :originals,     -> { where(reverses_settlement_id: nil) }
   # Originals that are still in effect — the only rows a void/reversal may undo.
   scope :unreversed,    -> { originals.where.missing(:reversal) }
+  scope :advance_applications, -> { where(source_kind: ADVANCE_APPLICATION_KIND) }
 
   def reversal? = reverses_settlement_id.present?
+  def advance_application? = source_kind == ADVANCE_APPLICATION_KIND
   def reversed? = reversal.present?
 
   before_update  { raise ActiveRecord::ReadOnlyRecord, "FinancialSettlement records are immutable after creation." }
@@ -87,9 +101,16 @@ class FinancialSettlement < ApplicationRecord
     self.source_kind ||= "employee_custody" if funding_source.is_a?(CustodyAccount)
   end
 
+  # Any other source kind must not carry an advance as its funding source.
+  def advance_funding_only_for_applications
+    errors.add(:funding_source, :invalid) if funding_source.is_a?(PurchaseRequestAdvance) && !advance_application?
+  end
+
   def funding_source_matches_kind
     if source_kind == "employee_custody"
       errors.add(:funding_source, :required) unless funding_source.is_a?(CustodyAccount)
+    elsif advance_application?
+      errors.add(:funding_source, :required) unless funding_source.is_a?(PurchaseRequestAdvance)
     elsif ACCOUNTLESS_SOURCE_KINDS.include?(source_kind) && funding_source.present?
       errors.add(:funding_source, :must_be_blank)
     end

@@ -81,6 +81,40 @@ RSpec.describe PayrollEntryPolicy, type: :model do
     end
   end
 
+  describe "view_overtime_override?" do
+    def user_with(permissions, scopes: {})
+      role = create(:permission_role, business: business, permissions: permissions, permission_scopes: scopes)
+      create(:user, business: business, permission_role: role)
+    end
+
+    it "permits accountant" do
+      expect(subject.new(accountant, entry).view_overtime_override?).to be true
+    end
+
+    it "permits super_admin" do
+      expect(subject.new(super_admin, entry).view_overtime_override?).to be true
+    end
+
+    it "permits branch_manager (holds complete_branch_review)" do
+      expect(subject.new(manager, entry).view_overtime_override?).to be true
+    end
+
+    it "denies a regular employee viewing their own entry" do
+      expect(subject.new(employee, entry).view_overtime_override?).to be false
+    end
+
+    it "denies a self-scoped view_payroll holder viewing their own entry" do
+      viewer    = user_with(%w[view_payroll], scopes: { "view_payroll" => "self" })
+      own_entry = create(:payroll_entry, payroll_period: period, user: viewer)
+      expect(subject.new(viewer, own_entry).view_overtime_override?).to be false
+    end
+
+    it "denies a reviewer from another business" do
+      outsider = create(:user, :accountant, business: create(:business))
+      expect(subject.new(outsider, entry).view_overtime_override?).to be false
+    end
+  end
+
   describe "mark_reviewed?" do
     let(:draft_period) { create(:payroll_period, business: business, status: :draft) }
     let(:draft_entry)  { create(:payroll_entry, payroll_period: draft_period, user: employee) }

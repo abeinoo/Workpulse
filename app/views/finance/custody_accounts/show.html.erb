@@ -269,6 +269,7 @@
           <tbody>
             <% running = @balance %>
             <% can_view_receipts = policy(GoodsReceipt).show? %>
+            <% can_view_purchase_requests = policy(PurchaseRequest).show? %>
             <% @transactions.each do |txn| %>
               <% linked   = txn.settlement_linked? && !txn.voided? %>
               <% voidable = !linked && !txn.voided? && policy(txn).void? %>
@@ -285,6 +286,8 @@
                     <bdi><%= txn.expense.reference_number %></bdi>
                   <% elsif txn.source.is_a?(GoodsReceipt) %>
                     <%= link_to inventory_goods_receipt_path(txn.source), class: "link" do %><bdi><%= txn.source.receipt_number %></bdi><% end %>
+                  <% elsif txn.source.is_a?(PurchaseRequest) %>
+                    <%= link_to inventory_purchase_request_path(txn.source, anchor: "advances"), class: "link" do %><bdi><%= txn.source.request_number %></bdi><% end %>
                   <% else %>
                     —
                   <% end %>
@@ -306,6 +309,10 @@
                       <% if can_view_receipts && txn.source.is_a?(GoodsReceipt) %>
                         <%= link_to t("finance.custody.transactions.view_settlement"),
                               inventory_goods_receipt_path(txn.source, anchor: "settlement-#{txn.financial_settlement_id}"),
+                              class: "link" %>
+                      <% elsif can_view_purchase_requests && txn.source.is_a?(PurchaseRequest) %>
+                        <%= link_to t("finance.custody.transactions.view_settlement"),
+                              inventory_purchase_request_path(txn.source, anchor: "advances"),
                               class: "link" %>
                       <% end %>
                     </div>

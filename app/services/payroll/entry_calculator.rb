@@ -9,6 +9,43 @@ module Payroll
       new(period: period, user: user, business: business, entry: entry).call
     end
 
+    # ── Shared calculation inputs ───────────────────────────────────────────
+    # Also used by Payroll::OvertimeRecalculator so a day's overtime is always
+    # priced exactly as a full payroll calculation would price it.
+
+    # Daily-rate calculator for the period. An employee whose FIRST profile only
+    # becomes effective partway through the month would not be found when
+    # anchoring the lookup at period_start — yet they worked during the period
+    # and must still receive a (prorated) entry. For those mid-period starters
+    # the lookup is anchored at period_end; everyone else at period_start.
+    def self.rate_calculator_for(user:, business:, period:,
+                                 earliest_effective: user.salary_profiles.minimum(:effective_from))
+      return nil unless earliest_effective
+
+      anchor = earliest_effective > period.period_start ? period.period_end : period.period_start
+      Salary::DailyRateCalculator.for(user: user, business: business, date: anchor)
+    end
+
+    # The attendance payroll reads for the period (only complete days pay).
+    def self.attendance_records_for(user:, period:)
+      AttendanceRecord
+        .active
+        .includes(shift_assignment: [ :rule_profile, { shift: :penalty_rules } ])
+        .where(user: user)
+        .for_period(period.period_start, period.period_end)
+    end
+
+    # One day's overtime under the business's CURRENT overtime threshold.
+    def self.overtime_for(record:, daily_rate:, multiplier:, business:)
+      Salary::OvertimeCalculator.calculate(
+        record:        record,
+        daily_rate:    daily_rate,
+        multiplier:    multiplier,
+        grace_minutes: business.overtime_grace_minutes.to_i,
+        rule_profile:  record.shift_assignment&.rule_profile
+      )
+    end
+
     def initialize(period:, user:, business:, entry: nil)
       @period         = period
       @user           = user
@@ -18,20 +55,13 @@ module Payroll
     end
 
     def call
-      # Resolve the salary profile that applies to this period. An employee whose
-      # FIRST profile only becomes effective partway through the month would not be
-      # found when anchoring the lookup at period_start — yet they worked during the
-      # period and must still receive a (prorated) entry. For those mid-period
-      # starters we anchor the lookup at period_end; everyone else keeps the original
-      # period_start anchor, so existing payrolls are unaffected.
+      # Resolve the salary profile that applies to this period (anchor rule:
+      # see .rate_calculator_for).
       earliest_effective = @user.salary_profiles.minimum(:effective_from)
       return nil unless earliest_effective
 
-      mid_period_start = earliest_effective > @period.period_start
-      rate_anchor      = mid_period_start ? @period.period_end : @period.period_start
-      rate_calc        = Salary::DailyRateCalculator.for(
-        user: @user, business: @business, date: rate_anchor
-      )
+      rate_calc = self.class.rate_calculator_for(user: @user, business: @business, period: @period,
+                                                 earliest_effective: earliest_effective)
       return nil unless rate_calc.profile
 
       daily_rate = rate_calc.daily_rate
@@ -186,19 +216,14 @@ module Payroll
     end
 
     def load_records
-      AttendanceRecord
-        .active
-        .includes(shift_assignment: { shift: :penalty_rules })
-        .where(user: @user)
-        .for_period(@period.period_start, @period.period_end)
+      self.class.attendance_records_for(user: @user, period: @period)
     end
 
     def attendance_line_items(records, daily_rate, overtime_multiplier = nil)
       records.flat_map do |record|
         next [] unless record.complete?
 
-        items        = []
-        rule_profile = record.shift_assignment&.rule_profile
+        items = []
 
         # Partial permission reduction: approved late/early-leave requests reduce the
         # penalised minutes proportionally rather than waiving the penalty entirely.
@@ -224,13 +249,8 @@ module Payroll
                         original_minutes: record.early_leave_minutes.to_i, permission_minutes: early_leave_allowed)
         end
 
-        overtime = Salary::OvertimeCalculator.calculate(
-          record:        record,
-          daily_rate:    daily_rate,
-          multiplier:    overtime_multiplier,
-          grace_minutes: @business.overtime_grace_minutes.to_i,
-          rule_profile:  rule_profile
-        )
+        overtime = self.class.overtime_for(record: record, daily_rate: daily_rate,
+                                           multiplier: overtime_multiplier, business: @business)
         if overtime.overtime_pay > 0
           items << item("overtime", overtime.overtime_pay, record, "Overtime #{record.work_date}")
           @calculated_overtime_minutes += overtime.overtime_minutes.to_i

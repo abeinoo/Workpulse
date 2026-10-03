@@ -5,10 +5,11 @@ module Finance
   # Three modes (the controller picks one from the form):
   #   :equal      → split evenly across the chosen branches (percentages set too)
   #   :percentage → percentages are given; amounts derived from them
-  #   :manual     → amounts are given directly; percentages derived from them
+  #   :manual     → "By amount": amounts are given directly; percentages derived
+  #                 from them (Expense validates Σ amounts == expense.amount)
   #
-  # Rounding: amounts are rounded to 2 dp and the final allocation absorbs any
-  # residual so Σ allocated_amount == expense.amount exactly.
+  # Rounding (equal / percentage): amounts are rounded to 2 dp and the final
+  # allocation absorbs any residual so Σ allocated_amount == expense.amount exactly.
   class AllocationCalculator
     def initialize(expense, mode: :percentage)
       @expense = expense
@@ -48,10 +49,16 @@ module Finance
     end
 
     # Amounts are authoritative; derive each percentage from the entered amount.
+    # The percentage is informational only here (Expense validates Σ amounts ==
+    # expense.amount), so a positive amount is kept within the column's valid
+    # 0.01–100 range — a tiny share never rounds to an invalid 0%, and an
+    # over-distributed row surfaces the amount error rather than a % error.
     def apply_manual(allocations)
       allocations.each do |a|
         amt = a.allocated_amount.to_d
-        a.allocation_percentage = total.zero? ? 0 : (amt / total * 100).round(2)
+        pct = total.zero? ? BigDecimal(0) : (amt / total * 100).round(2)
+        pct = pct.clamp(BigDecimal("0.01"), BigDecimal(100)) if amt.positive? && total.positive?
+        a.allocation_percentage = pct
       end
     end
 

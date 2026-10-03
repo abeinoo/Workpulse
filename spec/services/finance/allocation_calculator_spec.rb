@@ -50,5 +50,21 @@ RSpec.describe Finance::AllocationCalculator, type: :model do
       described_class.new(e, mode: :manual).call
       expect(e.expense_allocations.map(&:allocation_percentage)).to eq([ 75, 25 ])
     end
+
+    it "leaves the entered amounts untouched" do
+      e = build(:expense, business: business, amount: 100)
+      e.expense_allocations.build(branch: b1, allocated_amount: BigDecimal("33.33"))
+      e.expense_allocations.build(branch: b2, allocated_amount: BigDecimal("66.67"))
+      described_class.new(e, mode: :manual).call
+      expect(e.expense_allocations.map(&:allocated_amount)).to eq([ BigDecimal("33.33"), BigDecimal("66.67") ])
+    end
+
+    it "keeps derived percentages within 0.01–100 for positive amounts" do
+      e = build(:expense, business: business, amount: 20_000)
+      e.expense_allocations.build(branch: b1, allocated_amount: BigDecimal("0.50"))
+      e.expense_allocations.build(branch: b2, allocated_amount: BigDecimal("30000"))
+      described_class.new(e, mode: :manual).call
+      expect(e.expense_allocations.map(&:allocation_percentage)).to eq([ BigDecimal("0.01"), BigDecimal(100) ])
+    end
   end
 end

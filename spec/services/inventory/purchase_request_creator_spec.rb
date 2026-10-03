@@ -168,4 +168,73 @@ RSpec.describe Inventory::PurchaseRequestCreator, type: :model do
 
     expect(product_a.reload.average_cost_price).to eq(100)
   end
+
+  describe "server-side guards" do
+    let(:warehouse_a) { business.warehouses.create!(name: "WH A") }
+    let(:warehouse_b) { business.warehouses.create!(name: "WH B") }
+
+    it "creates a request for any transactable product, with request-level notes and no source" do
+      result = described_class.new(business, actor: actor, notes: "general order",
+                                             items: [ item(product_a, supplier_1, qty: 2, price: 100) ]).call
+
+      expect(result).to be_ok
+      expect(result.purchase_requests.first.notes).to eq("general order")
+      expect(result.purchase_requests.first.source).to be_nil
+    end
+
+    it "rejects a product from another business, an archived product, and a parent product" do
+      foreign  = create(:business).products.create!(name: "F", sku: "F-1", average_cost_price: 1)
+      archived = business.products.create!(name: "Arch", sku: "AR-1", average_cost_price: 1, active: false)
+      parent   = business.products.create!(name: "Parent", sku: "P-1", average_cost_price: 1)
+      business.products.create!(name: "Child", sku: "P-1-C", average_cost_price: 1, parent_product: parent)
+
+      [ foreign, archived, parent ].each do |product|
+        result = create_batch([ item(product, supplier_1, qty: 1, price: 1) ])
+        expect(result).not_to be_ok
+        expect(result.error).to eq(I18n.t("inventory.purchase_requests.errors.invalid_product"))
+      end
+      expect(PurchaseRequest.count).to eq(0)
+    end
+
+    it "rejects a warehouse the actor is not assigned to" do
+      scoped = create(:user, business: business)
+      WarehouseAssignment.create!(user: scoped, warehouse: warehouse_a)
+
+      denied = described_class.new(business, actor: scoped, items: [
+        item(product_a, supplier_1, qty: 1, price: 1).merge(source_warehouse_id: warehouse_b.id)
+      ]).call
+      allowed = described_class.new(business, actor: scoped, items: [
+        item(product_a, supplier_1, qty: 1, price: 1).merge(source_warehouse_id: warehouse_a.id)
+      ]).call
+
+      expect(denied.error).to eq(I18n.t("inventory.purchase_requests.errors.unauthorized_warehouse"))
+      expect(allowed).to be_ok
+    end
+
+    it "requires an active warehouse on every line when require_warehouse is set" do
+      build = ->(wh_id) {
+        described_class.new(business, actor: actor, require_warehouse: true,
+                                      items: [ item(product_a, supplier_1, qty: 1, price: 1).merge(source_warehouse_id: wh_id) ]).call
+      }
+
+      expect(build.(nil).error).to eq(I18n.t("inventory.purchase_requests.errors.missing_warehouse"))
+      warehouse_b.update!(status: "inactive")
+      expect(build.(warehouse_b.id).error).to eq(I18n.t("inventory.purchase_requests.errors.unauthorized_warehouse"))
+      expect(build.(warehouse_a.id)).to be_ok
+    end
+
+    it "rejects the same product twice for the same warehouse, but allows it for different warehouses" do
+      dup = create_batch([
+        item(product_a, supplier_1, qty: 1, price: 1).merge(source_warehouse_id: warehouse_a.id),
+        item(product_a, supplier_1, qty: 2, price: 1).merge(source_warehouse_id: warehouse_a.id)
+      ])
+      expect(dup.error).to eq(I18n.t("inventory.purchase_requests.errors.duplicate_product"))
+
+      split = create_batch([
+        item(product_a, supplier_1, qty: 1, price: 1).merge(source_warehouse_id: warehouse_a.id),
+        item(product_a, supplier_1, qty: 2, price: 1).merge(source_warehouse_id: warehouse_b.id)
+      ])
+      expect(split).to be_ok
+    end
+  end
 end

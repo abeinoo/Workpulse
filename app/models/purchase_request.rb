@@ -1,5 +1,9 @@
 class PurchaseRequest < ApplicationRecord
   include ImmutableDocument
+  # Its FinancialSettlement ledger holds the CONFIRMED advance payments made to
+  # the supplier against this request (see PurchaseRequestAdvance); reversals
+  # are equal-and-opposite rows, so the ledger SUM is always the net advance.
+  include Settleable
 
   # A request-only document: it never posts inventory or money itself. The
   # full lifecycle:
@@ -53,6 +57,7 @@ class PurchaseRequest < ApplicationRecord
 
   has_many :items, class_name: "PurchaseRequestItem", dependent: :destroy
   has_many :goods_receipts, dependent: :restrict_with_error
+  has_many :advances, class_name: "PurchaseRequestAdvance", dependent: :restrict_with_error
 
   accepts_nested_attributes_for :items,
                                 allow_destroy: true,
@@ -119,6 +124,50 @@ class PurchaseRequest < ApplicationRecord
 
   def receivable?
     RECEIVABLE_STATUSES.include?(status)
+  end
+
+  # ── Advance payments ───────────────────────────────────────────────────────
+  # Every figure below is derived from the FinancialSettlement ledgers (this
+  # request's, and its receipts'), never stored.
+
+  # Settleable's required hook: advances may never exceed the request's value.
+  alias_method :settlement_total, :total_amount
+
+  # Net confirmed advances (reversed ones net to zero).
+  def advances_total = total_settled_amount
+
+  # "المتبقي": request total minus confirmed advances.
+  def amount_remaining_after_advances = remaining_settlement_amount
+
+  # Part of the confirmed advances already consumed by approved receipts.
+  def applied_advances_total
+    FinancialSettlement.advance_applications
+                       .where(funding_source_type: "PurchaseRequestAdvance", funding_source_id: advances.select(:id))
+                       .sum(:amount)
+  end
+
+  # Advance money still held by the supplier, to be deducted from the next
+  # approved receipt(s).
+  def unapplied_advances_total
+    [ advances_total - applied_advances_total, 0 ].max
+  end
+
+  # Money paid on this request's (non-voided) receipts through their own
+  # funding source — i.e. NOT out of an advance.
+  def direct_receipt_payments_total
+    FinancialSettlement.where(settleable_type: "GoodsReceipt", settleable_id: goods_receipts.active.select(:id))
+                       .where.not(source_kind: FinancialSettlement::ADVANCE_APPLICATION_KIND)
+                       .or(FinancialSettlement.where(settleable_type: "GoodsReceipt",
+                                                     settleable_id: goods_receipts.active.select(:id),
+                                                     source_kind: nil))
+                       .sum(:amount)
+  end
+
+  # Ceiling for a new advance: what is still unpaid on the request after
+  # confirmed advances and direct receipt payments. pending_total lets the
+  # caller also reserve advances that are recorded but not yet confirmed.
+  def advance_capacity(pending_total: 0)
+    [ total_amount - advances_total - direct_receipt_payments_total - pending_total, 0 ].max
   end
 
   # Amount closed off without being received — only meaningful once

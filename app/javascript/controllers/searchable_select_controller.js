@@ -6,8 +6,16 @@ import { Controller } from "@hotwired/stimulus"
 // fallback — so its value submits exactly as a plain select would. Choosing an
 // option writes the value back to the <select> and fires a `change` event (so
 // auto-submit / other listeners keep working).
+//
+// floating (opt-in, data-searchable-select-floating-value="true"): for a
+// select inside a clipping/scrolling container (e.g. a line-items table in a
+// .table-wrap). The menu is positioned against the viewport instead of its
+// parent, so no ancestor overflow can clip it, and opens upward when there
+// isn't enough room below. Physical left/width from the input's rect, so it
+// lines up identically in LTR and RTL.
 export default class extends Controller {
   static targets = ["select"]
+  static values = { floating: Boolean }
 
   connect() {
     if (!this.hasSelectTarget) return
@@ -18,6 +26,7 @@ export default class extends Controller {
 
   disconnect() {
     if (this._onOutside) document.removeEventListener("click", this._onOutside)
+    this._unbindReposition()
   }
 
   _build() {
@@ -54,16 +63,62 @@ export default class extends Controller {
     this.combo.classList.add("is-open")
     this.input.select()
     this._render("")
+    this._bindReposition()
   }
 
   _filter() {
     this.combo.classList.add("is-open")
     this._render(this.input.value)
+    this._bindReposition()
   }
 
   _close() {
     this.combo.classList.remove("is-open")
+    this._unbindReposition()
     this._syncFromSelect()
+  }
+
+  // ── Floating positioning ────────────────────────────────────────────────
+
+  _bindReposition() {
+    if (!this.floatingValue) return
+    this._position()
+    if (this._onReposition) return
+    this._onReposition = () => this._position()
+    window.addEventListener("scroll", this._onReposition, true) // capture: any scrolling ancestor
+    window.addEventListener("resize", this._onReposition)
+  }
+
+  _unbindReposition() {
+    if (!this._onReposition) return
+    window.removeEventListener("scroll", this._onReposition, true)
+    window.removeEventListener("resize", this._onReposition)
+    this._onReposition = null
+  }
+
+  _position() {
+    const gap     = 2
+    const margin  = 8
+    const rect    = this.input.getBoundingClientRect()
+    const below   = window.innerHeight - rect.bottom - gap - margin
+    const above   = rect.top - gap - margin
+    const natural = Math.min(this.menu.scrollHeight, 256) // 16rem, as in CSS
+    const openUp  = below < natural && above > below
+
+    const style = this.menu.style
+    style.position  = "fixed"
+    style.left      = `${rect.left}px`
+    style.right     = "auto"
+    style.width     = `${rect.width}px`
+    style.maxHeight = `${Math.max(Math.min(256, openUp ? above : below), 96)}px`
+    if (openUp) {
+      style.top    = "auto"
+      style.bottom = `${window.innerHeight - rect.top + gap}px`
+    } else {
+      style.top    = `${rect.bottom + gap}px`
+      style.bottom = "auto"
+    }
+    this.combo.classList.toggle("searchable-select--up", openUp)
   }
 
   _render(query) {

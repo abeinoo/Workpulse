@@ -1,0 +1,147 @@
+<%#
+  "الدفعات المقدمة" — advance payments to this request's supplier. Totals come
+  from the controller (ledger-derived); the view only formats.
+
+  Locals:
+    purchase_request - the PurchaseRequest
+    advances         - all its PurchaseRequestAdvance rows (every status, preloaded)
+    summary          - { total:, advances:, remaining:, count:, unapplied: }
+    applied_amounts  - { advance_id => amount applied to receipts }
+%>
+<% scope = "inventory.purchase_request_advances" %>
+<% status_badges = { "pending" => "badge-warning", "confirmed" => "badge-success",
+                     "cancelled" => "badge-neutral", "reversed" => "badge-danger" } %>
+<section class="card" style="margin-bottom: var(--space-6);" id="advances">
+  <div class="card__header flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-3);">
+    <h2 class="card__title" style="margin: 0;"><%= t("#{scope}.title") %></h2>
+    <% if policy(@new_advance).create? %>
+      <%= link_to t("#{scope}.add_action"), new_inventory_purchase_request_advance_path(purchase_request),
+                  class: "btn btn-primary btn-sm" %>
+    <% end %>
+  </div>
+
+  <div class="stats-grid" style="padding: 0 var(--space-4) var(--space-4);">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.summary.total") %></span>
+      <span class="stat-card__value" data-testid="advance-summary-total"><%= format_currency(summary[:total]) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.summary.advances") %></span>
+      <span class="stat-card__value" data-testid="advance-summary-advances"><%= format_currency(summary[:advances]) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.summary.remaining") %></span>
+      <span class="stat-card__value" data-testid="advance-summary-remaining"><%= format_currency(summary[:remaining]) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.summary.count") %></span>
+      <span class="stat-card__value" data-testid="advance-summary-count"><%= summary[:count] %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.summary.unapplied") %></span>
+      <span class="stat-card__value"><%= format_currency(summary[:unapplied]) %></span>
+    </div>
+  </div>
+
+  <% if advances.empty? %>
+    <p class="td-secondary" style="padding: 0 var(--space-4) var(--space-4);"><%= t("#{scope}.empty") %></p>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("#{scope}.columns.date") %></th>
+            <th style="text-align: end;"><%= t("#{scope}.columns.amount") %></th>
+            <th><%= t("#{scope}.columns.method") %></th>
+            <th><%= t("#{scope}.columns.employee") %></th>
+            <th><%= t("#{scope}.columns.status") %></th>
+            <th><%= t("#{scope}.columns.notes") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% advances.each do |advance| %>
+            <% holder = advance.custody_account&.user&.full_name || advance.custody_account&.name %>
+            <tr id="advance-<%= advance.id %>" data-advance-status="<%= advance.status %>">
+              <td>
+                <div>
+                  <%= local_date(advance.paid_on) %>
+                  <div class="td-secondary"><%= t("#{scope}.advance_ref", id: advance.id) %></div>
+                </div>
+              </td>
+              <td style="text-align: end; white-space: nowrap;"><%= format_currency(advance.amount) %></td>
+              <td>
+                <div>
+                  <%= advance.employee_custody? ? t("#{scope}.method_labels.employee_custody", name: holder) : t("#{scope}.method_labels.#{advance.source_kind}") %>
+                  <% if advance.reference.present? %>
+                    <div class="td-secondary"><%= t("#{scope}.reference_label") %>: <bdi><%= advance.reference %></bdi></div>
+                  <% end %>
+                </div>
+              </td>
+              <td><bdi><%= holder || "—" %></bdi></td>
+              <td>
+                <div>
+                  <span class="badge <%= status_badges.fetch(advance.status, 'badge-neutral') %>"><%= t("#{scope}.statuses.#{advance.status}") %></span>
+                  <p class="td-secondary" style="margin: var(--space-1) 0 0;">
+                    <%= t("#{scope}.meta.created", actor: advance.created_by&.full_name || "—", date: l(advance.created_at, format: :short)) %>
+                  </p>
+                  <% if advance.confirmed_at %>
+                    <p class="td-secondary" style="margin: 0;">
+                      <%= t("#{scope}.meta.confirmed", actor: advance.confirmed_by&.full_name || "—", date: l(advance.confirmed_at, format: :short)) %>
+                    </p>
+                  <% end %>
+                  <% if advance.confirmed? && applied_amounts[advance.id].to_d.positive? %>
+                    <p class="td-secondary" style="margin: 0;">
+                      <%= t("#{scope}.meta.applied", amount: format_currency(applied_amounts[advance.id])) %>
+                    </p>
+                  <% end %>
+                  <% if advance.cancelled? %>
+                    <p class="td-secondary" style="margin: 0;">
+                      <%= t("#{scope}.meta.cancelled", actor: advance.cancelled_by&.full_name || "—",
+                            date: l(advance.cancelled_at, format: :short), reason: advance.cancellation_reason) %>
+                    </p>
+                  <% end %>
+                  <% if advance.reversed? %>
+                    <p class="td-secondary" style="margin: 0;">
+                      <%= t("#{scope}.meta.reversed", actor: advance.reversed_by&.full_name || "—",
+                            date: l(advance.reversed_at, format: :short), reason: advance.reversal_reason) %>
+                    </p>
+                  <% end %>
+                </div>
+              </td>
+              <td class="td-secondary"><span dir="auto"><%= advance.notes.presence || "—" %></span></td>
+              <td class="td-actions">
+                <div class="flex" style="gap: var(--space-2); flex-wrap: wrap; align-items: flex-start;">
+                  <% if policy(advance).confirm? %>
+                    <%= button_to t("#{scope}.actions.confirm"), confirm_inventory_purchase_request_advance_path(purchase_request, advance),
+                          method: :post, class: "btn btn-primary btn-sm",
+                          form: { data: { turbo_confirm: t("#{scope}.confirm_prompt", amount: format_currency(advance.amount)) } } %>
+                  <% end %>
+                  <% [ [ :cancel, policy(advance).cancel? ], [ :reverse, policy(advance).reverse? ] ].each do |action, allowed| %>
+                    <% next unless allowed %>
+                    <details>
+                      <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
+                        <%= t("#{scope}.actions.#{action}") %>
+                      </summary>
+                      <%= form_with url: public_send("#{action}_inventory_purchase_request_advance_path", purchase_request, advance),
+                                    method: :post, style: "margin-top: var(--space-3); max-width: 320px;" do %>
+                        <div class="form-group">
+                          <label class="form-label" for="<%= action %>_reason_<%= advance.id %>"><%= t("#{scope}.reason_label") %></label>
+                          <textarea id="<%= action %>_reason_<%= advance.id %>" name="reason" rows="2" class="form-control" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-danger btn-sm"
+                                data-turbo-confirm="<%= t("#{scope}.#{action}_prompt", amount: format_currency(advance.amount)) %>">
+                          <%= t("#{scope}.actions.#{action}_submit") %>
+                        </button>
+                      <% end %>
+                    </details>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</section>

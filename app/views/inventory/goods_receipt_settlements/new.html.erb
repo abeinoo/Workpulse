@@ -54,7 +54,7 @@
                 } do |f| %>
     <h2 class="section-title"><%= t("inventory.goods_receipts.settlements.payment_source") %></h2>
     <div class="form-grid">
-      <% FinancialSettlement::SOURCE_KINDS.each do |kind| %>
+      <% FinancialSettlement::PAYMENT_SOURCE_KINDS.each do |kind| %>
         <div class="form-group">
           <label class="form-label">
             <%= f.radio_button :source_kind, kind, checked: selected_kind == kind,

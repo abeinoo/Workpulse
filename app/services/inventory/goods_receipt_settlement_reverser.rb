@@ -35,6 +35,9 @@ module Inventory
 
         original = @receipt.financial_settlements.lock.find(@settlement_id)
         return err(I18n.t("financial_settlements.errors.already_reversed")) if original.reversal? || original.reversed?
+        # Advance applications aren't payments to undo one by one — they are
+        # released only by voiding the receipt (see PurchaseRequestAdvanceAllocator).
+        return err(t("errors.advance_application_not_reversible")) if original.advance_application?
 
         result = FinancialSettlementService.reverse(settlement: original, actor: @actor, notes: @reason)
         raise ActiveRecord::RecordInvalid, result.settlement unless result.ok?

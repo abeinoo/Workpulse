@@ -71,6 +71,31 @@
   <% end %>
 
   <% if @goods_receipt.approval_pending_approval? && policy(@goods_receipt).approve? %>
+    <% if (preview = @custody_payment_preview) %>
+      <% pscope = "inventory.goods_receipts.custody_payment_preview" %>
+      <section class="card" style="padding: var(--space-4); margin-bottom: var(--space-3);" id="custody-payment-preview">
+        <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("#{pscope}.title") %></h2>
+        <% if preview[:account] %>
+          <dl class="detail-list">
+            <div class="detail-list__row"><dt><%= t("#{pscope}.holder") %></dt>
+              <dd><bdi><%= preview[:account].user&.full_name || preview[:account].name %></bdi></dd></div>
+            <div class="detail-list__row"><dt><%= t("#{pscope}.current_balance") %></dt>
+              <dd data-testid="custody-preview-current"><%= format_currency(preview[:current]) %></dd></div>
+            <div class="detail-list__row"><dt><%= t("#{pscope}.amount_due") %></dt>
+              <dd data-testid="custody-preview-due"><%= format_currency(preview[:due]) %></dd></div>
+            <div class="detail-list__row"><dt><strong><%= t("#{pscope}.balance_after") %></strong></dt>
+              <dd><strong data-testid="custody-preview-after" style="<%= 'color: var(--danger);' if preview[:after].negative? %>"><%= format_currency(preview[:after]) %></strong></dd></div>
+          </dl>
+          <% if preview[:after].negative? %>
+            <p class="form-hint" style="color: var(--danger); margin: var(--space-2) 0 0;" data-testid="custody-preview-negative">
+              <%= t("#{pscope}.negative_note") %>
+            </p>
+          <% end %>
+        <% else %>
+          <p class="form-hint text-warning" style="margin: 0;"><%= t("inventory.goods_receipts.errors.no_active_custody_account") %></p>
+        <% end %>
+      </section>
+    <% end %>
     <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
       <%= button_to t("inventory.goods_receipts.approve"), approve_inventory_goods_receipt_path(@goods_receipt),
             method: :post, class: "btn btn-primary btn-sm",
@@ -122,6 +147,10 @@
       <% end %>
     </dl>
   </div>
+
+  <% if @advance_allocator && (@goods_receipt.purchase_request.advances_total.positive? || @advance_allocator.receipt_applied_amount.positive?) %>
+    <%= render "purchase_request_advances_summary", purchase_request: @goods_receipt.purchase_request, allocator: @advance_allocator %>
+  <% end %>
 
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("inventory.goods_receipts.payment_information") %></h2>
@@ -197,6 +226,13 @@
                 <td>
                   <div>
                     <%= financial_settlement_source_label(settlement) %>
+                    <% if settlement.advance_application? && @goods_receipt.purchase_request %>
+                      <div>
+                        <%= link_to t("inventory.purchase_request_advances.advance_ref", id: settlement.funding_source_id),
+                              inventory_purchase_request_path(@goods_receipt.purchase_request, anchor: "advance-#{settlement.funding_source_id}"),
+                              class: "link" %>
+                      </div>
+                    <% end %>
                     <% if settlement.funding_source.is_a?(CustodyAccount) %>
                       <div>
                         <%= link_to settlement.funding_source.user&.full_name || settlement.funding_source.name,
@@ -243,7 +279,7 @@
                       <p class="td-secondary" style="margin: var(--space-1) 0 0;"><%= settlement.notes %></p>
                     <% end %>
 
-                    <% if can_reverse && !settlement.reversal? && !settlement.reversed? %>
+                    <% if can_reverse && !settlement.reversal? && !settlement.reversed? && !settlement.advance_application? %>
                       <details style="margin-top: var(--space-2);">
                         <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
                           <%= t("inventory.goods_receipts.settlements.reverse_action") %>

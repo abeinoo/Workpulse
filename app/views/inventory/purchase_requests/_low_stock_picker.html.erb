@@ -1,0 +1,72 @@
+<%#
+  "اختيار من المنخفض من المخزن" picker on the new Purchase Request form. A
+  convenience source of lines only — nothing here creates anything. Rows are
+  Inventory::Reports::LowStock rows (already scoped to the user's warehouses
+  by the controller); suggested quantity = the configured reorder quantity.
+  Inputs carry no `name`, so they are never submitted with the form — the
+  purchase-request-form controller copies the checked rows into real lines.
+
+  Locals:
+    rows - Inventory::Reports::LowStock rows
+%>
+<div class="modal-overlay" style="display:none"
+     data-purchase-request-form-target="lowStockModal"
+     data-action="click->purchase-request-form#lowStockOverlayClick">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="low-stock-picker-title" style="max-width: 820px;">
+    <h3 class="modal-card__title" id="low-stock-picker-title"><%= t("inventory.purchase_requests.form.low_stock_picker_title") %></h3>
+    <p class="td-secondary"><%= t("inventory.purchase_requests.form.low_stock_picker_intro") %></p>
+
+    <% if rows.empty? %>
+      <p class="td-secondary" style="padding: var(--space-4) 0;"><%= t("inventory.dashboard.low_stock_empty") %></p>
+    <% else %>
+      <div class="table-wrap table-wrap--cards" style="max-height: 55vh; overflow-y: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th class="td-check"></th>
+              <th><%= t("inventory.products.name") %></th>
+              <th><%= t("inventory.dashboard.warehouse") %></th>
+              <th style="text-align: end;"><%= t("inventory.products.current_stock") %></th>
+              <th style="text-align: end;"><%= t("inventory.reports.fields.min_level") %></th>
+              <th style="text-align: end;"><%= t("inventory.purchase_requests.form.suggested_quantity") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rows.each do |row| %>
+              <tr data-low-stock-row
+                  data-product-id="<%= row.product.id %>"
+                  data-warehouse-id="<%= row.warehouse_id %>"
+                  data-unit-price="<%= row.priced? ? row.unit_cost.to_d : "" %>"
+                  data-supplier-id="<%= row.supplier&.id %>">
+                <td class="td-check">
+                  <input type="checkbox" data-low-stock-check aria-label="<%= row.product.name %>">
+                  <span class="badge badge-neutral" data-low-stock-added hidden><%= t("inventory.purchase_requests.form.already_added") %></span>
+                </td>
+                <td><%= row.product.name %> <span class="td-secondary">(<%= row.product.sku %>)</span></td>
+                <td class="td-secondary"><%= row.total? ? t("inventory.dashboard.all_warehouses") : row.warehouse_name %></td>
+                <td style="text-align: end;"><span class="badge badge-warning"><%= row.on_hand.to_i %></span></td>
+                <td style="text-align: end;"><%= row.low_stock_level.to_i %></td>
+                <td style="text-align: end;">
+                  <input type="number" min="0.001" step="0.001" value="<%= row.suggested_quantity.to_d.positive? ? row.suggested_quantity.to_d : 1 %>"
+                         data-low-stock-quantity style="width: 90px;"
+                         aria-label="<%= t("inventory.purchase_requests.form.quantity_label") %>">
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+
+    <div class="form-actions">
+      <% if rows.any? %>
+        <button type="button" class="btn btn-primary" data-action="click->purchase-request-form#addFromLowStock">
+          <%= t("inventory.purchase_requests.form.add_selected") %>
+        </button>
+      <% end %>
+      <button type="button" class="btn btn-ghost" data-action="click->purchase-request-form#closeLowStock">
+        <%= t("common.cancel") %>
+      </button>
+    </div>
+  </div>
+</div>

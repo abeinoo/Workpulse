@@ -15,9 +15,10 @@ class CustodyTransaction < ApplicationRecord
   belongs_to :financial_settlement, optional: true, inverse_of: :custody_transaction
 
   # Whitelist for the polymorphic #source link (mirrors FinancialAdjustment#adjustable) —
-  # currently only used to trace an inventory_purchase/inventory_purchase_reversal
-  # back to the GoodsReceipt that caused it.
-  SOURCE_TYPES = %w[GoodsReceipt].freeze
+  # used to trace an inventory_purchase/inventory_purchase_reversal back to the
+  # GoodsReceipt that caused it, or to the PurchaseRequest whose advance
+  # payment caused it (see PurchaseRequestAdvance).
+  SOURCE_TYPES = %w[GoodsReceipt PurchaseRequest].freeze
 
   has_one_attached :document
   validates_attachment :document,
