@@ -144,6 +144,10 @@
            <dd style="display: inline; margin: 0;" data-allocation-target="amountRemaining"></dd></div>
     </dl>
 
+    <p data-allocation-target="duplicateMsg" class="form-hint text-danger" style="margin-top: var(--space-2);" role="alert" hidden>
+      <%= t("activerecord.errors.messages.allocation_duplicate_branch") %>
+    </p>
+
     <p data-allocation-target="summary" class="form-hint" style="margin-top: var(--space-2);"></p>
 
     <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if expense.expense_allocations.any? %>>

@@ -5407,6 +5407,7 @@ ar:
         before_start: "يجب أن يكون في تاريخ البدء أو بعده"
         after_start: "يجب أن يكون في تاريخ البدء أو بعده"
         allocation_not_100: "يجب أن يكون مجموع توزيعات الفروع 100%"
+        allocation_duplicate_branch: "لا يمكن إضافة نفس الفرع أكثر من مرة في توزيع المصروف."
         allocation_amount_short: "يجب أن يساوي إجمالي توزيع الفروع مبلغ المصروف بالكامل. المتبقي للتوزيع: %{amount}."
         allocation_amount_exceeds: "إجمالي توزيع الفروع يتجاوز مبلغ المصروف بمقدار %{amount}."
         allocation_amount_not_positive: "يجب أن تكون قيمة توزيع كل فرع أكبر من صفر."

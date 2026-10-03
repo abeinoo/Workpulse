@@ -5338,6 +5338,7 @@ en:
         before_start: "must be on or after the start date"
         after_start: "must be on or after the start date"
         allocation_not_100: "branch allocations must total 100%"
+        allocation_duplicate_branch: "The same branch cannot be added more than once in an expense distribution."
         allocation_amount_short: "Branch distribution must equal the full expense amount. Remaining to distribute: %{amount}."
         allocation_amount_exceeds: "Branch distribution exceeds the expense amount by %{amount}."
         allocation_amount_not_positive: "Each branch distribution amount must be greater than zero."

@@ -142,6 +142,15 @@ class Finance::ExpensesController < Finance::BaseController
     true
   rescue ActiveRecord::RecordInvalid
     false
+  rescue ActiveRecord::RecordNotUnique => e
+    # Expense#allocations_consistent_when_shared rejects duplicate branches up
+    # front; this only covers what in-memory validation can't see (e.g. two
+    # existing rows swapping branches, whose row-by-row UPDATEs collide on the
+    # unique index). Anything else is a genuine error and re-raises.
+    raise unless e.message.include?("index_expense_allocations_on_expense_id_and_branch_id")
+
+    @expense.errors.add(:base, :allocation_duplicate_branch)
+    false
   end
 
   def load_options

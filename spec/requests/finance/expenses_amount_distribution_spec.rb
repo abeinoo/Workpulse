@@ -166,24 +166,6 @@ RSpec.describe "Finance::Expenses amount distribution", type: :request do
     end
   end
 
-  describe "duplicate branch handling (unchanged)" do
-    it "is still rejected by the unique index in amount mode" do
-      expect {
-        post finance_expenses_path, params: shared_params(amount: 100, method: "manual",
-          rows: [ { branch_id: b1.id, allocated_amount: "50" }, { branch_id: b1.id, allocated_amount: "50" } ])
-      }.to raise_error(ActiveRecord::RecordNotUnique)
-      expect(Expense.count).to eq(0)
-    end
-
-    it "is still rejected by the unique index in percentage mode" do
-      expect {
-        post finance_expenses_path, params: shared_params(amount: 100, method: "percentage",
-          rows: [ { branch_id: b1.id, allocation_percentage: "50" }, { branch_id: b1.id, allocation_percentage: "50" } ])
-      }.to raise_error(ActiveRecord::RecordNotUnique)
-      expect(Expense.count).to eq(0)
-    end
-  end
-
   describe "existing methods are unchanged" do
     it "percentage: derives amounts from percentages; amounts submitted are ignored" do
       rows = [

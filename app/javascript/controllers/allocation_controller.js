@@ -26,6 +26,7 @@ export default class extends Controller {
     "amountDistributed",
     "amountRemaining",
     "summary",
+    "duplicateMsg",
     "submitBtn"
   ]
 
@@ -55,6 +56,30 @@ export default class extends Controller {
 
   // Called on keyup/change of any percentage input.
   inputChanged() {
+    this.#updateSummary()
+  }
+
+  // Called when a row's branch <select> changes. A branch may appear only
+  // once per distribution (Expense validates the same server-side): picking a
+  // branch another visible row already holds clears THIS select — the
+  // existing row stays as it was — and shows the duplicate message. The
+  // cleared select is `required`, so the duplicate row can't be submitted.
+  branchChanged(event) {
+    const select = event.target
+    const taken  = this.#visibleBranchSelects.filter(s => s !== select).map(s => s.value)
+
+    this.#duplicateRejected = select.value !== "" && taken.includes(select.value)
+    if (this.#duplicateRejected) select.value = ""
+    select.classList.toggle("is-error", this.#duplicateRejected)
+
+    this.#updateSummary()
+  }
+
+  // Called after line-items#remove soft-removes (hides) a persisted row. A new
+  // row is detached from the DOM instead, which skips this action — that path
+  // is covered by branchSelectTargetDisconnected.
+  rowsChanged() {
+    this.#duplicateRejected = false
     this.#updateSummary()
   }
 
@@ -92,7 +117,13 @@ export default class extends Controller {
     select.disabled = this.#sectionHidden
   }
 
+  branchSelectTargetDisconnected() {
+    this.rowsChanged()
+  }
+
   // ── private ──────────────────────────────────────────────────────────────
+
+  #duplicateRejected = false
 
   // A `required` field inside a `hidden` ancestor is still a candidate for
   // native constraint validation in some browsers — the ancestor's `hidden`
@@ -133,7 +164,20 @@ export default class extends Controller {
     // Section irrelevant (a specific branch is selected) — distribution is
     // ignored entirely, so it can never block the save button.
     if (this.#sectionHidden) {
+      if (this.hasDuplicateMsgTarget) this.duplicateMsgTarget.hidden = true
       this.#setSubmitDisabled(false)
+      return
+    }
+
+    // Duplicates already on the page (e.g. a server re-render) block saving
+    // until one of the rows is changed or removed.
+    const hasDuplicate = this.#hasDuplicateBranches
+    if (this.hasDuplicateMsgTarget) {
+      this.duplicateMsgTarget.hidden = !(hasDuplicate || this.#duplicateRejected)
+    }
+    if (hasDuplicate) {
+      this.summaryTarget.textContent = ""
+      this.#setSubmitDisabled(true)
       return
     }
 
@@ -265,6 +309,15 @@ export default class extends Controller {
 
   get #methodBlank() {
     return !this.hasModeSelectTarget || this.modeSelectTarget.value === ""
+  }
+
+  get #visibleBranchSelects() {
+    return this.branchSelectTargets.filter(s => !s.closest("[data-line-row]")?.hidden)
+  }
+
+  get #hasDuplicateBranches() {
+    const values = this.#visibleBranchSelects.map(s => s.value).filter(v => v !== "")
+    return new Set(values).size !== values.length
   }
 
   get #isAmount() {

@@ -190,12 +190,22 @@ class Expense < ApplicationRecord
     rows = effective_allocations
     if rows.empty?
       errors.add(:expense_allocations, :at_least_one_branch_required)
+    elsif duplicate_allocation_branches?(rows)
+      errors.add(:base, :allocation_duplicate_branch)
     elsif distribution_method == "manual"
       validate_amount_distribution(rows)
     else
       total = rows.sum { |a| a.allocation_percentage.to_d }
       errors.add(:base, :allocation_not_100) unless total == 100
     end
+  end
+
+  # One row per branch, whatever the distribution method. ExpenseAllocation's
+  # uniqueness validation only sees rows already in the database, so two new
+  # rows for the same branch would otherwise reach the unique index and raise.
+  def duplicate_allocation_branches?(rows)
+    branch_ids = rows.map(&:branch_id).compact
+    branch_ids.uniq.size != branch_ids.size
   end
 
   # "By amount" (manual): the entered branch amounts are the allocation, so they

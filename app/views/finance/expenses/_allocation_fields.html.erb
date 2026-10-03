@@ -4,7 +4,7 @@
           options_from_collection_for_select(branches, :id, :name, f.object.branch_id),
           { include_blank: "— #{t('finance.expenses.select_branch')}" },
           class: "form-control", required: true,
-          data: { allocation_target: "branchSelect" } %>
+          data: { allocation_target: "branchSelect", action: "change->allocation#branchChanged" } %>
   </td>
   <td data-allocation-target="pctCell">
     <%= f.number_field :allocation_percentage,
@@ -28,6 +28,6 @@
     <% if f.object.persisted? %>
       <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
     <% end %>
-    <button type="button" class="btn btn-ghost btn-sm text-danger" data-action="line-items#remove" aria-label="<%= t('common.delete') %>">&times;</button>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" data-action="line-items#remove allocation#rowsChanged" aria-label="<%= t('common.delete') %>">&times;</button>
   </td>
 </tr>
