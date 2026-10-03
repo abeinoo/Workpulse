@@ -1,6 +1,8 @@
 class Finance::CustodyAccountsController < Finance::BaseController
   before_action :set_account, only: %i[show edit update destroy]
 
+  TRANSACTIONS_PER_PAGE = 50
+
   def index
     authorize CustodyAccount
     @finance_view = current_user.can?(:view_employee_balances) || current_user.can?(:manage_employee_balances)
@@ -29,8 +31,20 @@ class Finance::CustodyAccountsController < Finance::BaseController
 
   def show
     authorize @account
-    @balance          = Finance::CustodyBalance.new(@account).current
-    @transactions     = @account.custody_transactions.includes(:expense, :created_by, :source).recent.limit(100)
+    balance           = Finance::CustodyBalance.new(@account)
+    @balance          = balance.current
+    @last_activity_at = @account.custody_transactions.maximum(:created_at)
+
+    # Full ledger history, paginated in SQL (newest first, id as tie-breaker).
+    @total_count  = @account.custody_transactions.count
+    @total_pages  = [ (@total_count.to_f / TRANSACTIONS_PER_PAGE).ceil, 1 ].max
+    @page         = params[:page].to_i.clamp(1, @total_pages)
+    offset        = (@page - 1) * TRANSACTIONS_PER_PAGE
+    @transactions = @account.custody_transactions.includes(:expense, :created_by, :source).recent
+                            .offset(offset).limit(TRANSACTIONS_PER_PAGE)
+    # Running-balance column starts from the balance after this page's newest row.
+    @page_start_balance = balance.excluding_newest(offset)
+
     @new_transaction  = @account.custody_transactions.build(business: @account.business)
     @other_accounts   = policy_scope(CustodyAccount).active.where.not(id: @account.id).ordered
     @balance_requests = policy_scope(BalanceRequest)

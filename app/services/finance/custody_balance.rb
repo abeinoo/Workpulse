@@ -10,6 +10,17 @@ module Finance
       @account.custody_transactions.active.sum(:amount)
     end
 
+    # The balance as it stood before the `count` newest transactions (by the
+    # ledger's `recent` order, voided rows included in the count) — i.e. the
+    # running balance to start from when page N of the ledger begins at that
+    # offset. Pure read; derived from `current`, never stored.
+    def excluding_newest(count)
+      return current if count <= 0
+
+      newest_ids = @account.custody_transactions.recent.limit(count).select(:id)
+      current - @account.custody_transactions.active.where(id: newest_ids).sum(:amount)
+    end
+
     def self.summarize(transactions)
       txns = transactions.to_a
       {

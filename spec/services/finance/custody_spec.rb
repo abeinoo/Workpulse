@@ -49,4 +49,23 @@ RSpec.describe "Finance balance account workflows", type: :model do
       expect(Finance::CustodyBalance.new(account2).current).to eq(0)
     end
   end
+
+  describe Finance::CustodyBalance, "#excluding_newest" do
+    it "subtracts the newest N rows (voided ones counted in N, not in the sum)" do
+      t1 = record(account, txn_type: "top_up", magnitude: 100).transaction
+      t2 = record(account, txn_type: "top_up", magnitude: 20).transaction
+      t3 = record(account, txn_type: "top_up", magnitude: 3).transaction
+      t1.update_columns(created_at: 3.days.ago)
+      t2.update_columns(created_at: 2.days.ago)
+      t3.update_columns(created_at: 1.day.ago, voided_at: Time.current)
+
+      balance = described_class.new(account)
+      expect(balance.current).to eq(120)
+      expect(balance.excluding_newest(0)).to eq(120)
+      expect(balance.excluding_newest(1)).to eq(120) # newest is voided
+      expect(balance.excluding_newest(2)).to eq(100)
+      expect(balance.excluding_newest(3)).to eq(0)
+      expect(balance.excluding_newest(10)).to eq(0)
+    end
+  end
 end

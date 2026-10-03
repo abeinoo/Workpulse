@@ -42,10 +42,10 @@
         <dt><%= t("finance.custody.accounts.branch") %></dt>
         <dd><%= @account.branch&.name || "—" %></dd>
       </div>
-      <% if @transactions.first %>
+      <% if @last_activity_at %>
         <div class="detail-list__row">
           <dt><%= t("finance.custody.accounts.last_activity") %></dt>
-          <dd><%= l(@transactions.first.created_at.to_date, format: :long) %></dd>
+          <dd><%= l(@last_activity_at.to_date, format: :long) %></dd>
         </div>
       <% end %>
     </dl>
@@ -267,7 +267,7 @@
             </tr>
           </thead>
           <tbody>
-            <% running = @balance %>
+            <% running = @page_start_balance %>
             <% can_view_receipts = policy(GoodsReceipt).show? %>
             <% can_view_purchase_requests = policy(PurchaseRequest).show? %>
             <% @transactions.each do |txn| %>
@@ -345,6 +345,15 @@
           </tbody>
         </table>
       </div>
+
+      <% if @total_pages > 1 %>
+        <p class="form-hint" style="padding: var(--space-3) var(--space-4) 0; margin: 0;">
+          <%= t("finance.custody.transactions.page_info", page: @page, pages: @total_pages, count: @total_count) %>
+        </p>
+      <% end %>
+      <%= render "shared/pagination",
+            page: @page, total_pages: @total_pages,
+            path_proc: ->(p) { finance_custody_account_path(@account, request.query_parameters.merge(page: p)) } %>
     <% end %>
   </div>
 </div>

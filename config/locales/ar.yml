@@ -7188,6 +7188,7 @@ ar:
         type: "النوع"
         reference: "المرجع"
         running_balance: "الرصيد التراكمي"
+        page_info: "الصفحة %{page} من %{pages} · %{count} معاملة"
         created_by: "أنشأه"
         amount: "المبلغ"
         amount_hint: "أدخل مبلغًا موجبًا؛ تُحدَّد الإشارة حسب النوع."

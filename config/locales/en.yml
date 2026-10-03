@@ -7133,6 +7133,7 @@ en:
         type: "Type"
         reference: "Reference"
         running_balance: "Running Balance"
+        page_info: "Page %{page} of %{pages} · %{count} transactions"
         created_by: "Created By"
         amount: "Amount"
         amount_hint: "Enter a positive amount; the sign is set by the type."
