@@ -15,6 +15,15 @@
           required: true,
           data: { allocation_target: "pctInput", action: "input->allocation#inputChanged" } %>
   </td>
+  <td data-allocation-target="amtCell" hidden>
+    <%= f.number_field :allocated_amount,
+          step: "0.01", min: "0.01",
+          value: (f.object.allocated_amount.to_d.positive? ? f.object.allocated_amount : nil),
+          class: "form-control",
+          required: true,
+          disabled: true,
+          data: { allocation_target: "amtInput", action: "input->allocation#inputChanged" } %>
+  </td>
   <td class="td-actions">
     <% if f.object.persisted? %>
       <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>

@@ -5407,6 +5407,10 @@ ar:
         before_start: "يجب أن يكون في تاريخ البدء أو بعده"
         after_start: "يجب أن يكون في تاريخ البدء أو بعده"
         allocation_not_100: "يجب أن يكون مجموع توزيعات الفروع 100%"
+        allocation_amount_short: "يجب أن يساوي إجمالي توزيع الفروع مبلغ المصروف بالكامل. المتبقي للتوزيع: %{amount}."
+        allocation_amount_exceeds: "إجمالي توزيع الفروع يتجاوز مبلغ المصروف بمقدار %{amount}."
+        allocation_amount_not_positive: "يجب أن تكون قيمة توزيع كل فرع أكبر من صفر."
+        allocation_amount_precision: "يمكن أن تحتوي قيم توزيع الفروع على منزلتين عشريتين كحد أقصى."
         at_least_one_branch_required: "مطلوب صف توزيع فرع واحد على الأقل للمصروف المشترك"
       models:
         shift_assignment:
@@ -6926,13 +6930,20 @@ ar:
       allocations_hint: "أضف صفًا لكل فرع لتوزيع مصروف مشترك. يجب أن يكون مجموع النسب 100%."
       hint_percentage_mode: "أدخل نسبة كل فرع. يجب أن يكون مجموع النسب 100٪."
       hint_equal_mode: "اختر الفروع فقط وسيتم توزيع المصروف بالتساوي بينها تلقائياً."
+      hint_amount_mode: "أدخل القيمة المحددة لكل فرع. يجب أن يساوي مجموع القيم مبلغ المصروف بالكامل."
       allocation_mode: "طريقة التوزيع"
       distribution_method: "طريقة التوزيع"
       select_distribution_method: "اختر طريقة التوزيع"
       modes:
         percentage: "بالنسبة المئوية"
         equal: "تقسيم بالتساوي"
+        manual: "بالقيمة"
       percentage: "النسبة"
+      branch_amount: "القيمة"
+      amount_summary:
+        expense_total: "إجمالي المصروف"
+        distributed_total: "إجمالي التوزيع"
+        remaining: "المتبقي"
       allocated_amount: "المخصص"
       no_allocations_hint: "لا يوجد توزيع — هذا مصروف لفرع واحد أو على مستوى المنشأة."
       add_allocation: "إضافة فرع"

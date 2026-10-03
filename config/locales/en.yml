@@ -5338,6 +5338,10 @@ en:
         before_start: "must be on or after the start date"
         after_start: "must be on or after the start date"
         allocation_not_100: "branch allocations must total 100%"
+        allocation_amount_short: "Branch distribution must equal the full expense amount. Remaining to distribute: %{amount}."
+        allocation_amount_exceeds: "Branch distribution exceeds the expense amount by %{amount}."
+        allocation_amount_not_positive: "Each branch distribution amount must be greater than zero."
+        allocation_amount_precision: "Branch distribution amounts can have at most 2 decimal places."
         at_least_one_branch_required: "at least one branch distribution row is required for a shared expense"
       models:
         shift_assignment:
@@ -6871,13 +6875,20 @@ en:
       allocations_hint: "Add a row per branch to split a shared expense. Percentages must total 100%."
       hint_percentage_mode: "Enter each branch's share. Percentages must total 100%."
       hint_equal_mode: "Select branches only — the expense will be divided equally among them automatically."
+      hint_amount_mode: "Enter the exact amount for each branch. The amounts must add up to the full expense amount."
       allocation_mode: "Allocation mode"
       distribution_method: "Distribution Method"
       select_distribution_method: "Select distribution method"
       modes:
         percentage: "By percentage"
         equal: "Split equally"
+        manual: "By amount"
       percentage: "Percentage"
+      branch_amount: "Amount"
+      amount_summary:
+        expense_total: "Expense total"
+        distributed_total: "Distributed total"
+        remaining: "Remaining"
       allocated_amount: "Allocated"
       no_allocations_hint: "No allocations — this is a single-branch or business-level expense."
       add_allocation: "Add branch"

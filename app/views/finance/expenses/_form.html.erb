@@ -3,7 +3,13 @@
         controller: "line-items allocation expense-type-select expense-scope payment-type",
         expense_type_select_url_value: options_finance_expense_types_path,
         expense_type_select_placeholder_value: "— #{t('finance.expenses.select_type')}",
-        expense_type_select_initial_type_id_value: expense.expense_type_id
+        expense_type_select_initial_type_id_value: expense.expense_type_id,
+        allocation_currency_value: format_currency_parts(0).first,
+        allocation_rtl_value: I18n.locale.to_s == "ar",
+        allocation_short_message_value: t("activerecord.errors.messages.allocation_amount_short", amount: "%{amount}"),
+        allocation_exceeds_message_value: t("activerecord.errors.messages.allocation_amount_exceeds", amount: "%{amount}"),
+        allocation_not_positive_message_value: t("activerecord.errors.messages.allocation_amount_not_positive"),
+        allocation_precision_message_value: t("activerecord.errors.messages.allocation_amount_precision")
       } do |f| %>
   <%= render "shared/error_messages", object: expense %>
 
@@ -29,7 +35,8 @@
     </div>
     <div class="form-group">
       <%= f.label :amount, t("finance.expenses.amount"), class: "form-label" %>
-      <%= f.number_field :amount, step: "0.01", min: 0, class: "form-control #{'is-error' if expense.errors[:amount].any?}" %>
+      <%= f.number_field :amount, step: "0.01", min: 0, class: "form-control #{'is-error' if expense.errors[:amount].any?}",
+            data: { allocation_target: "expenseAmount", action: "input->allocation#inputChanged" } %>
       <p class="form-hint"><%= t("finance.expenses.amount_hint") %></p>
     </div>
     <div class="form-group">
@@ -94,13 +101,17 @@
     <p class="form-hint" data-allocation-target="equalMsg" hidden>
       <%= t("finance.expenses.hint_equal_mode") %>
     </p>
+    <p class="form-hint" data-allocation-target="amountMsg" hidden>
+      <%= t("finance.expenses.hint_amount_mode") %>
+    </p>
 
     <div class="form-group" style="max-width: 280px;">
       <%= f.label :distribution_method, t("finance.expenses.distribution_method"), class: "form-label" %>
       <%= f.select :distribution_method,
             options_for_select(
               [ [ t("finance.expenses.modes.percentage"), "percentage" ],
-                [ t("finance.expenses.modes.equal"), "equal" ] ],
+                [ t("finance.expenses.modes.equal"), "equal" ],
+                [ t("finance.expenses.modes.manual"), "manual" ] ],
               expense.distribution_method),
             { include_blank: "— #{t('finance.expenses.select_distribution_method')}" },
             class: "form-control #{'is-error' if expense.errors[:distribution_method].any?}",
@@ -113,6 +124,7 @@
         <thead><tr>
           <th style="width: 60%;"><%= t("finance.expenses.branch") %></th>
           <th data-allocation-target="pctHeader"><%= t("finance.expenses.percentage") %></th>
+          <th data-allocation-target="amtHeader" hidden><%= t("finance.expenses.branch_amount") %></th>
           <th></th>
         </tr></thead>
         <tbody data-line-items-target="rows">
@@ -122,6 +134,15 @@
         </tbody>
       </table>
     </div>
+
+    <dl data-allocation-target="amountSummary" class="form-hint" style="margin-top: var(--space-2);" hidden>
+      <div><dt style="display: inline;"><%= t("finance.expenses.amount_summary.expense_total") %>:</dt>
+           <dd style="display: inline; margin: 0;" data-allocation-target="amountTotal"></dd></div>
+      <div><dt style="display: inline;"><%= t("finance.expenses.amount_summary.distributed_total") %>:</dt>
+           <dd style="display: inline; margin: 0;" data-allocation-target="amountDistributed"></dd></div>
+      <div><dt style="display: inline;"><%= t("finance.expenses.amount_summary.remaining") %>:</dt>
+           <dd style="display: inline; margin: 0;" data-allocation-target="amountRemaining"></dd></div>
+    </dl>
 
     <p data-allocation-target="summary" class="form-hint" style="margin-top: var(--space-2);"></p>
 
