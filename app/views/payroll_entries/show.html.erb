@@ -83,8 +83,8 @@
     </div>
   <% end %>
 
-  <%# ── Overtime override (payroll users only) ─────────────────────────────── %>
-  <% if can_manage && (@entry.calculated_overtime_minutes.to_i > 0 || @entry.overtime_overridden?) %>
+  <%# ── Overtime override (payroll reviewers only) ──────────────────────────── %>
+  <% if policy(@entry).view_overtime_override? && (@entry.calculated_overtime_minutes.to_i > 0 || @entry.overtime_overridden?) %>
     <% can_override = policy(@entry).override_overtime? %>
     <div class="ot-override-card <%= @entry.overtime_overridden? ? 'ot-override-card--active' : '' %>">
       <div class="ot-override-card__row">

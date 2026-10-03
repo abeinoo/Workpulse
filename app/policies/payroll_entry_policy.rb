@@ -1,4 +1,11 @@
 class PayrollEntryPolicy < ApplicationPolicy
+  # Payroll-review authorities — the pipeline participants (who see review-stage
+  # periods) plus branch reviewers and payroll recalculators. Holding plain
+  # `view_payroll` (e.g. a self-scoped payslip viewer) is not enough.
+  OVERTIME_REVIEW_PERMISSIONS = (
+    PayrollPeriodPolicy::Scope::PIPELINE_PERMISSIONS + %w[complete_branch_review regenerate_payroll]
+  ).freeze
+
   def index?  = true  # scope handles isolation; employees see only their own finalized/paid entries
   def show?   = can?(:view_payroll) || own_entry?
   # Editing entry-level fields is a payroll-rebuild concern: it requires the
@@ -12,6 +19,14 @@ class PayrollEntryPolicy < ApplicationPolicy
     can?(:manage_payroll_overrides) &&
       record.payroll_period&.business_id == user.business_id &&
       record.payroll_period&.editable?
+  end
+
+  # Seeing the overtime-override card (calculated vs approved overtime, the
+  # withheld difference, and who overrode it, when, and why) — reviewer data,
+  # never shown to a regular employee viewing their own payslip. The payable
+  # overtime itself stays visible in the salary breakdown.
+  def view_overtime_override?
+    overtime_reviewer? && record.payroll_period&.business_id == user.business_id
   end
 
   # Clearing the "Needs Review" flag — the same reviewer persona that
@@ -45,5 +60,9 @@ class PayrollEntryPolicy < ApplicationPolicy
 
   def own_entry?
     record.user_id == user.id
+  end
+
+  def overtime_reviewer?
+    OVERTIME_REVIEW_PERMISSIONS.any? { |permission| can?(permission) }
   end
 end

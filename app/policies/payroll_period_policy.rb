@@ -56,6 +56,12 @@ class PayrollPeriodPolicy < ApplicationPolicy
     can?(:submit_payroll_review) && same_business? && record.under_review?
   end
 
+  # Per-entry overtime-override badges in the entries table — the same reviewer
+  # data as PayrollEntryPolicy#view_overtime_override?, evaluated once per period.
+  def view_overtime_overrides?
+    same_business? && PayrollEntryPolicy::OVERTIME_REVIEW_PERMISSIONS.any? { |p| can?(p) }
+  end
+
   # Viewing the payroll audit log is gated separately from viewing payroll.
   def view_audit_log? = can?(:view_payroll_audit_log)
 

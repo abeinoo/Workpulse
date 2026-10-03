@@ -438,6 +438,7 @@
   <% can_bulk_ot    = current_user.can?(:manage_payroll_overrides) && @period.editable? %>
   <% can_bulk_waive = current_user.can?(:manage_payroll_deduction_waivers) && @period.editable? %>
   <% can_bulk       = can_bulk_ot || can_bulk_waive %>
+  <% can_view_ot_override = policy(@period).view_overtime_overrides? %>
   <div data-controller="payroll-overtime-bulk">
   <div class="table-wrap table-wrap--cards">
     <table>
@@ -515,7 +516,7 @@
                       <% end %>
                     </div>
                   <% end %>
-                  <% if entry.overtime_overridden? %>
+                  <% if can_view_ot_override && entry.overtime_overridden? %>
                     <div class="payroll-entry-badges"><%= overtime_override_badge(entry) %></div>
                   <% end %>
                   <% if entry.needs_review? %>
