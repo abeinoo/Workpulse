@@ -1,23 +1,29 @@
 module Api
   module V1
+    # Base for staff-facing /api/v1 endpoints (see docs/api/conventions.md).
+    #
+    # Authentication is the existing Devise session (the same one the Rails web
+    # app uses — see docs/api/authentication.md); authorization is Pundit with
+    # the existing policies. This class only wires shared API plumbing:
+    #
+    # * ApiResponder           — legacy envelope helpers (render_success/render_error)
+    # * Api::StandardResponses — standard envelope helpers (render_api_success/…)
+    # * Api::ErrorHandling     — legacy by default; `standard_api_contract!` opts in
+    # * Api::Pagination        — paginate / paginate_if_requested
+    # * Api::RequestContext    — request_id + actor ids for structured request logs
+    #
+    # No business logic belongs here.
     class BaseController < ApplicationController
       include ApiResponder
+      include Api::StandardResponses
+      include Api::ErrorHandling
+      include Api::Pagination
+      include Api::RequestContext
 
       skip_before_action :verify_authenticity_token
       before_action :authenticate_user!
 
-      rescue_from Pundit::NotAuthorizedError,      with: :handle_unauthorized
-      rescue_from ActiveRecord::RecordNotFound,    with: :handle_not_found
-
       private
-
-      def handle_unauthorized
-        render_error("Forbidden", status: :forbidden)
-      end
-
-      def handle_not_found
-        render_not_found
-      end
 
       def current_business
         current_user&.business

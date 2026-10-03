@@ -44,10 +44,13 @@ RSpec.describe UserPolicy, type: :model do
       expect(subject).to permit(manager, employee)
     end
 
-    it "permits branch_manager with view_employees — scope handles branch isolation" do
+    # Profile visibility follows the employee scope (not only the list):
+    # an employee outside the manager's branches cannot be opened by URL.
+    it "denies branch_manager viewing an employee outside their branches" do
       other_branch = create(:branch, business: business)
       other_employee = create(:user, business: business)
-      expect(subject).to permit(manager, other_employee)
+      create(:shift_assignment, user: other_employee, branch: other_branch, shift: shift)
+      expect(subject).not_to permit(manager, other_employee)
     end
 
     it "denies employee viewing another employee" do

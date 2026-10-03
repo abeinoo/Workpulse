@@ -97,6 +97,16 @@ class User < ApplicationRecord
 
   attr_accessor :login
 
+  # Account-claim invitation (OA-S6): knowing a phone/email is not enough to
+  # activate a pending account — the claimant must present this signed token,
+  # issued by an administrator. Stateless (no column); it stops working once a
+  # password is set or the account is deactivated, and after 7 days. The block
+  # value is embedded (signed, not encrypted) in the token, so it must never
+  # include secrets such as the password digest.
+  generates_token_for :account_claim, expires_in: 7.days do
+    [ encrypted_password.present?, active? ]
+  end
+
   validates :preferred_locale, inclusion: { in: %w[en ar] }, allow_blank: true
   validates :employee_code,            uniqueness: { scope: :business_id, case_sensitive: false },
                                        allow_blank: true
@@ -114,6 +124,8 @@ class User < ApplicationRecord
   validate :phone_or_email_present
   validate :date_of_birth_not_in_future
   validate :job_title_from_catalog, if: :will_save_change_to_job_title?
+  # A role from another business must never be assigned (OA-S2).
+  validate :permission_role_in_same_business, if: :will_save_change_to_permission_role_id?
 
 
   # Auto-assign a numeric employee_code on creation when none was provided.
@@ -289,6 +301,12 @@ class User < ApplicationRecord
     return if job_title.blank? || business_id.blank?
 
     errors.add(:job_title, :not_in_list) unless JobTitle.selectable?(business_id, job_title)
+  end
+
+  def permission_role_in_same_business
+    return if permission_role.nil? || permission_role.business_id == business_id
+
+    errors.add(:permission_role, :invalid)
   end
 
   def date_of_birth_not_in_future

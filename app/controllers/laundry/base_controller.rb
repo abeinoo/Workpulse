@@ -9,8 +9,8 @@ class Laundry::BaseController < ApplicationController
   # Pundit policies/checks — this only keeps out users with no laundry access
   # at all (e.g. an accountant with only laundry_cost_reports must still get
   # past this gate to reach the cost report controllers).
-  LAUNDRY_PERMISSIONS = (PermissionRole::PERMISSION_GROUPS[:laundry_operations] +
-                         PermissionRole::PERMISSION_GROUPS[:laundry_cost_reports]).map(&:to_sym).freeze
+  LAUNDRY_PERMISSIONS = (OrganizationAccess::PermissionCatalog.group(:laundry_operations) +
+                         OrganizationAccess::PermissionCatalog.group(:laundry_cost_reports)).map(&:to_sym).freeze
 
   def require_laundry_access!
     return if LAUNDRY_PERMISSIONS.any? { |p| current_user.can?(p) }

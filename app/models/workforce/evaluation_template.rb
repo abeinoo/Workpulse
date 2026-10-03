@@ -7,6 +7,9 @@ class EvaluationTemplate < ApplicationRecord
                                 reject_if: ->(attrs) { attrs[:name].blank? }
 
   validates :name, presence: true, length: { maximum: 150 }
+  # The department must belong to the template's business; a request-supplied
+  # id is never trusted just because the record exists (SEC-P3-1).
+  validate :department_in_same_business, if: :will_save_change_to_department_id?
 
   scope :active,  -> { where(active: true) }
   scope :ordered, -> { order(:name) }
@@ -21,4 +24,10 @@ class EvaluationTemplate < ApplicationRecord
 
   def deactivate! = update!(active: false)
   def activate!   = update!(active: true)
+
+  private
+
+  def department_in_same_business
+    errors.add(:department, :invalid) if department && department.business_id != business_id
+  end
 end

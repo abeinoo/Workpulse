@@ -16,6 +16,9 @@ class PerformanceObservation < ApplicationRecord
   # when the employee or criterion is set/changed — editing the note or date on an
   # older record never re-triggers it, so pre-existing observations stay valid.
   validate :criterion_within_employee_department, if: :department_consistency_check_needed?
+  # Employee, observer and criterion must belong to the observation's business;
+  # a request-supplied id is never trusted just because the record exists (SEC-P3-1).
+  validate :references_in_same_business, if: :references_changed?
 
   scope :for_business, ->(business) { where(business: business) }
   scope :for_employee, ->(employee) { where(employee: employee) }
@@ -29,6 +32,18 @@ class PerformanceObservation < ApplicationRecord
   }
 
   private
+
+  def references_changed?
+    will_save_change_to_employee_id? || will_save_change_to_observed_by_id? ||
+      will_save_change_to_evaluation_criterion_id?
+  end
+
+  def references_in_same_business
+    errors.add(:employee, :invalid)    if employee && employee.business_id != business_id
+    errors.add(:observed_by, :invalid) if observed_by && observed_by.business_id != business_id
+    template_business_id = evaluation_criterion&.evaluation_template&.business_id
+    errors.add(:evaluation_criterion, :invalid) if template_business_id && template_business_id != business_id
+  end
 
   def department_consistency_check_needed?
     new_record? ||

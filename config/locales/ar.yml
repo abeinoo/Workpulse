@@ -110,6 +110,8 @@ ar:
       title: "إنشاء حسابك"
       subtitle: "أدخل رقم الجوال أو البريد الإلكتروني الذي سجّله المسؤول لك"
       page_title: "إنشاء حساب — ووركبلس"
+      invalid_invitation: "رابط الدعوة غير صالح أو منتهي الصلاحية، أو أن رقم الهاتف / البريد الإلكتروني لا يطابقه. اطلب من المسؤول رابط دعوة جديداً."
+      invitation_required: "لتفعيل حسابك، افتح رابط الدعوة الذي أرسله لك المسؤول."
       submit: "إنشاء الحساب"
     fields:
       login: "رقم الجوال أو البريد الإلكتروني"
@@ -2248,6 +2250,10 @@ ar:
         title: "نسبة اكتمال بيانات الموظف"
       registered: "مُسجَّل"
       pending_registration: "بانتظار التسجيل"
+      invitation_link: "رابط الدعوة"
+      invitation_hint: "أرسل هذا الرابط للموظف ليتمكن من تفعيل حسابه. يعمل مرة واحدة وتنتهي صلاحيته بعد 7 أيام."
+      errors:
+        cannot_assign_role: "لا يمكن تعيينه: يمكنك تعيين الأدوار التي تملك صلاحياتها فقط، ولا يمكن تعيينها لنفسك أو للمالك."
       emergency_contact: "جهة اتصال للطوارئ"
       emergency_contact_name: "اسم جهة الاتصال"
       emergency_contact_phone: "رقم هاتف للطوارئ"
@@ -2563,6 +2569,9 @@ ar:
         check_in_location: "موقع تسجيل الدخول"
 
     permission_roles:
+      errors:
+        cannot_grant: "لا يمكن أن يتضمن صلاحيات لا تملكها: %{permissions}"
+        scope_too_broad: "لا يمكن أن يكون أوسع من نطاقك أنت في: %{permissions}"
       back: "أدوار الصلاحيات"
       index:
         title: "أدوار الصلاحيات"
@@ -3094,6 +3103,23 @@ ar:
       mobile_attendance_not_allowed: "حسابك غير مسموح له بتسجيل الحضور من الهاتف. تواصل مع مديرك."
     attendance:
       already_checked_in: "تم تسجيل الحضور مسبقاً اليوم."
+    errors:
+      bad_request: "الطلب غير صالح."
+      unauthenticated: "يجب تسجيل الدخول للمتابعة."
+      forbidden: "غير مصرح لك بهذا الإجراء."
+      not_found: "السجل غير موجود."
+      conflict: "تم تعديل السجل بواسطة طلب آخر. يرجى إعادة المحاولة."
+      validation_failed: "فشل التحقق من البيانات."
+      business_rule_violation: "تعذر إتمام الطلب."
+      rate_limited: "عدد كبير جداً من الطلبات. يرجى المحاولة لاحقاً."
+      internal_error: "حدث خطأ ما. يرجى المحاولة مرة أخرى."
+      invalid_pagination: "يجب أن تكون قيم page و per_page أعداداً صحيحة موجبة."
+      invalid_filter_format: "يجب إرسال عوامل التصفية بصيغة filter[name]=value."
+      unknown_filter: "عامل تصفية غير معروف: %{name}."
+      invalid_filter_value: "قيمة غير صالحة لعامل التصفية %{name}."
+      invalid_sort: "ترتيب غير مدعوم: %{name}."
+      search_not_supported: "البحث غير مدعوم في هذه الواجهة."
+      search_too_long: "يجب ألا يتجاوز نص البحث %{count} حرفاً."
 
   flash:
     errors_one: "خطأ واحد حال دون الحفظ:"
@@ -5416,6 +5442,9 @@ ar:
       models:
         shift_assignment:
           employee_not_in_business: "الموظف المحدد لا ينتمي إلى شركتك."
+          shift_not_in_business: "الوردية المحددة لا تنتمي إلى شركتك."
+          branch_not_in_business: "الفرع المحدد لا ينتمي إلى شركتك."
+          shift_rule_profile_not_in_business: "ملف قواعد الوردية المحدد لا ينتمي إلى شركتك."
           coverage_branch_not_allowed: "اختر فرع تغطية غير فرعك."
           employee_not_available_for_assignment:
             one: "الموظف المحدد غير متاح لتعيين جديد. يمكن فقط تعيين الموظفين الذين ليس لديهم تعيين نشط، أو الذين ينتهي تعيينهم الحالي خلال يوم واحد."

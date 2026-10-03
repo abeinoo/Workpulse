@@ -109,6 +109,16 @@
           <% end %>
         </dd>
       </div>
+      <% if policy(@user).invite? %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.users.invitation_link") %></dt>
+          <dd class="data-list__value">
+            <input type="text" readonly class="form-control"
+                   value="<%= new_user_registration_url(invitation: @user.generate_token_for(:account_claim)) %>">
+            <p class="form-hint"><%= t("admin.users.invitation_hint") %></p>
+          </dd>
+        </div>
+      <% end %>
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.users.identity_card") %></dt>
         <dd class="data-list__value"><%= @user.identity_card_number.presence || "—" %></dd>

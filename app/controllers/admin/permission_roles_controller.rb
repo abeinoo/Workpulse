@@ -25,10 +25,14 @@ class Admin::PermissionRolesController < Admin::BaseController
   end
 
   def create
-    @permission_role = current_user.business.permission_roles.new(permission_role_params)
-    authorize @permission_role
+    authorize PermissionRole
 
-    if @permission_role.save
+    result = OrganizationAccess::CreateRole.new(actor: current_user, attributes: permission_role_params).call
+    raise Pundit::NotAuthorizedError if result.error == :not_authorized
+
+    @permission_role = result.record
+
+    if result.ok?
       redirect_to admin_permission_role_path(@permission_role),
                   notice: t("flash.permission_role_created")
     else
@@ -43,7 +47,13 @@ class Admin::PermissionRolesController < Admin::BaseController
   def update
     authorize @permission_role
 
-    if @permission_role.update(permission_role_params)
+    result = OrganizationAccess::UpdateRole.new(@permission_role.id, actor: current_user,
+                                                attributes: permission_role_params).call
+    raise Pundit::NotAuthorizedError if result.error == :not_authorized
+
+    @permission_role = result.record
+
+    if result.ok?
       redirect_to admin_permission_role_path(@permission_role),
                   notice: t("flash.permission_role_updated")
     else
@@ -54,46 +64,37 @@ class Admin::PermissionRolesController < Admin::BaseController
   def destroy
     authorize @permission_role
 
-    if @permission_role.users.any?
-      redirect_to admin_permission_roles_path,
-                  alert: t("flash.permission_role_has_users")
-    else
-      @permission_role.destroy
+    result = OrganizationAccess::DeleteRole.new(@permission_role.id, actor: current_user).call
+    raise Pundit::NotAuthorizedError if result.error == :not_authorized
+
+    if result.ok?
       redirect_to admin_permission_roles_path,
                   notice: t("flash.permission_role_deleted")
+    else
+      redirect_to admin_permission_roles_path,
+                  alert: t("flash.permission_role_has_users")
     end
   end
 
   def assign_user
     authorize @permission_role, :update?
 
-    user = current_user.business.users.find(params[:user_id])
-
-    if user.owner? && !current_user.owner?
-      return redirect_to admin_permission_role_path(@permission_role),
-                         alert: t("flash.not_authorized")
-    end
-
-    user.update!(permission_role: @permission_role)
+    result = OrganizationAccess::ChangeUserRole.new(params[:user_id], actor: current_user,
+                                                    role_id: @permission_role.id).call
+    return redirect_to admin_permission_role_path(@permission_role), alert: t("flash.not_authorized") unless result.ok?
 
     redirect_to admin_permission_role_path(@permission_role),
-                notice: t("flash.permission_role_user_assigned", name: user.full_name)
+                notice: t("flash.permission_role_user_assigned", name: result.record.full_name)
   end
 
   def remove_user
     authorize @permission_role, :update?
 
-    user = current_user.business.users.find(params[:user_id])
-
-    if user.owner? && !current_user.owner?
-      return redirect_to admin_permission_role_path(@permission_role),
-                         alert: t("flash.not_authorized")
-    end
-
-    user.update!(permission_role: nil)
+    result = OrganizationAccess::ChangeUserRole.new(params[:user_id], actor: current_user, role_id: nil).call
+    return redirect_to admin_permission_role_path(@permission_role), alert: t("flash.not_authorized") unless result.ok?
 
     redirect_to admin_permission_role_path(@permission_role),
-                notice: t("flash.permission_role_user_removed", name: user.full_name)
+                notice: t("flash.permission_role_user_removed", name: result.record.full_name)
   end
 
   private

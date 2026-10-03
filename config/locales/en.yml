@@ -110,6 +110,8 @@ en:
       title: "Create your account"
       subtitle: "Enter the phone number or email your admin registered for you"
       page_title: "Create account — WorkPulse"
+      invalid_invitation: "This invitation link is invalid or has expired, or the phone number / email does not match it. Ask your administrator for a new invitation link."
+      invitation_required: "To activate your account, open the invitation link your administrator sent you."
       submit: "Create account"
     fields:
       login: "Phone number or email"
@@ -2254,6 +2256,10 @@ en:
       emergency_contact_phone: "Contact phone"
       registered: "Registered"
       pending_registration: "Pending registration"
+      invitation_link: "Invitation link"
+      invitation_hint: "Send this link to the employee so they can activate their account. It works once and expires after 7 days."
+      errors:
+        cannot_assign_role: "cannot be assigned: you may only assign roles whose permissions you hold, never to yourself or the owner."
       not_assigned: "Not assigned"
       salary_profile: "Salary Profile"
       new_profile: "New Profile"
@@ -2565,6 +2571,9 @@ en:
         edit_record: "Edit Record"
         check_in_location: "Check-in Location"
     permission_roles:
+      errors:
+        cannot_grant: "cannot include permissions you do not hold yourself: %{permissions}"
+        scope_too_broad: "cannot be broader than your own scope for: %{permissions}"
       back: "Permission Roles"
       index:
         title: "Permission Roles"
@@ -3095,6 +3104,23 @@ en:
       mobile_attendance_not_allowed: "Your account is not allowed to use mobile attendance. Please contact your manager."
     attendance:
       already_checked_in: "Already checked in today."
+    errors:
+      bad_request: "The request is invalid."
+      unauthenticated: "You need to sign in to continue."
+      forbidden: "Forbidden"
+      not_found: "Record not found"
+      conflict: "The record was changed by another request. Please retry."
+      validation_failed: "Validation failed."
+      business_rule_violation: "The request could not be completed."
+      rate_limited: "Too many requests. Please try again later."
+      internal_error: "Something went wrong. Please try again."
+      invalid_pagination: "page and per_page must be positive whole numbers."
+      invalid_filter_format: "filter must be given as filter[name]=value."
+      unknown_filter: "Unknown filter: %{name}."
+      invalid_filter_value: "Invalid value for filter %{name}."
+      invalid_sort: "Unsupported sort: %{name}."
+      search_not_supported: "Search is not supported on this endpoint."
+      search_too_long: "Search text must be at most %{count} characters."
 
   flash:
     errors_one: "1 error prevented this from saving:"
@@ -5347,6 +5373,9 @@ en:
       models:
         shift_assignment:
           employee_not_in_business: "The selected employee does not belong to your business."
+          shift_not_in_business: "The selected shift does not belong to your business."
+          branch_not_in_business: "The selected branch does not belong to your business."
+          shift_rule_profile_not_in_business: "The selected shift rule profile does not belong to your business."
           coverage_branch_not_allowed: "Choose a coverage branch other than your own branch."
           employee_not_available_for_assignment:
             one: "The selected employee is not available for a new assignment. Only employees with no active assignment, or whose current assignment ends within 1 day, can be assigned."

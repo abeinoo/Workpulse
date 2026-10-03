@@ -15,6 +15,7 @@ module Shifts
 
     def call
       return invalid_scope_result unless valid_business_scope?
+      return invalid_user_result  unless valid_business_user?
 
       assignment = ShiftAssignment.new(@params)
 
@@ -37,8 +38,19 @@ module Shifts
       branch_ok && @business.shifts.exists?(@params[:shift_id])
     end
 
+    # The employee must belong to the same business as the branch and shift —
+    # never trusted just because the user_id exists. A blank user_id is left to
+    # ShiftAssignment's own presence validation.
+    def valid_business_user?
+      @params[:user_id].blank? || @business.users.exists?(@params[:user_id])
+    end
+
     def invalid_scope_result
       Result.new(success: false, error: "Branch or shift not found in this business")
+    end
+
+    def invalid_user_result
+      Result.new(success: false, error: "Employee not found in this business")
     end
 
     # Closes the current open assignment for this user+branch so date ranges never overlap.

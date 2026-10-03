@@ -4,10 +4,16 @@ module Api
     # Authenticates via device token — not Devise session.
     class BiometricBaseController < ActionController::API
       include ApiResponder
+      include Api::RequestContext
 
       before_action :authenticate_device!
 
       private
+
+      # Structured request logs identify the device, not a user.
+      def api_log_actor
+        { device_id: @current_device&.id, business_id: @current_device&.business_id }
+      end
 
       def authenticate_device!
         token = extract_token

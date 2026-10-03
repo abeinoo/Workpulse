@@ -2,13 +2,16 @@ module Reports
   # Aggregates AttendanceRecords for a business/branch + date range.
   # Uses a single GROUP BY query to avoid loading every record into memory.
   class AttendanceSummary
-    def self.call(business:, branch: nil, start_date:, end_date:)
-      new(business: business, branch: branch, start_date: start_date, end_date: end_date).call
+    # branch_ids (optional) restricts a business-level summary to those
+    # branches — the caller's authorized scope. nil means no restriction.
+    def self.call(business:, branch: nil, branch_ids: nil, start_date:, end_date:)
+      new(business: business, branch: branch, branch_ids: branch_ids, start_date: start_date, end_date: end_date).call
     end
 
-    def initialize(business:, branch: nil, start_date:, end_date:)
+    def initialize(business:, branch: nil, branch_ids: nil, start_date:, end_date:)
       @business   = business
       @branch     = branch
+      @branch_ids = branch_ids
       @start_date = start_date
       @end_date   = end_date
     end
@@ -78,7 +81,10 @@ module Reports
 
     def base_scope
       scope = AttendanceRecord.active.for_period(@start_date, @end_date)
-      @branch ? scope.where(branch: @branch) : scope.for_business(@business)
+      return scope.where(branch: @branch) if @branch
+
+      scope = scope.for_business(@business)
+      @branch_ids.nil? ? scope : scope.where(branch_id: @branch_ids)
     end
   end
 end

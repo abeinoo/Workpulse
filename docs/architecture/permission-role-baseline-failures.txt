@@ -1,0 +1,95 @@
+# PermissionRole pilot — full-suite baseline failing example IDs
+# Recorded before Step 1 specs were added: commit 7c69c9e, 7042 examples, 87 failures, 1 pending.
+# Success criterion 4 compares IDs against this list (not counts).
+rspec './spec/requests/admin/permission_roles_localization_spec.rb[1:1:1]'
+rspec './spec/requests/admin/permission_roles_localization_spec.rb[1:1:2]'
+rspec './spec/requests/admin/permission_roles_localization_spec.rb[1:2:1]'
+rspec './spec/requests/admin/permission_roles_localization_spec.rb[1:2:2]'
+rspec ./spec/helpers/attachment_helper_spec.rb:55
+rspec ./spec/models/employee_request_spec.rb:432
+rspec ./spec/models/permission_role_translations_spec.rb:50
+rspec ./spec/models/permission_role_translations_spec.rb:59
+rspec ./spec/models/shift_assignment_spec.rb:7
+rspec ./spec/policies/expense_policy_spec.rb:54
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:15
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:16
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:17
+rspec ./spec/policies/payroll_period_policy_spec.rb:217
+rspec ./spec/requests/adjustments_spec.rb:740
+rspec ./spec/requests/admin/shift_templates_spec.rb:204
+rspec ./spec/requests/api/v1/attendance_spec.rb:101
+rspec ./spec/requests/api/v1/attendance_spec.rb:110
+rspec ./spec/requests/api/v1/attendance_spec.rb:138
+rspec ./spec/requests/api/v1/attendance_spec.rb:329
+rspec ./spec/requests/api/v1/attendance_spec.rb:337
+rspec ./spec/requests/api/v1/attendance_spec.rb:76
+rspec ./spec/requests/api/v1/attendance_spec.rb:88
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:110
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:118
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:125
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:131
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:164
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:170
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:175
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:181
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:186
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:100
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:115
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:130
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:142
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:150
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:155
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:169
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:174
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:187
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:206
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:211
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:216
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:231
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:268
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:73
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:79
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:88
+rspec ./spec/requests/dashboard_spec.rb:432
+rspec ./spec/requests/dashboard_spec.rb:460
+rspec ./spec/requests/inventory/barcode_labels_spec.rb:36
+rspec ./spec/requests/inventory/products_barcode_spec.rb:50
+rspec ./spec/requests/payroll_review_approval_paths_spec.rb:45
+rspec ./spec/requests/payroll_review_approval_paths_spec.rb:58
+rspec ./spec/requests/payroll_review_approval_paths_spec.rb:79
+rspec ./spec/requests/payroll_review_approval_paths_spec.rb:98
+rspec ./spec/requests/permission_matrix_verification_spec.rb:502
+rspec ./spec/requests/permission_matrix_verification_spec.rb:508
+rspec ./spec/requests/permission_matrix_verification_spec.rb:556
+rspec ./spec/requests/sidebar_active_state_spec.rb:215
+rspec ./spec/requests/sidebar_active_state_spec.rb:293
+rspec ./spec/services/attendance/check_in_service_spec.rb:57
+rspec ./spec/services/attendance/check_in_service_spec.rb:66
+rspec ./spec/services/attendance/check_in_service_spec.rb:72
+rspec ./spec/services/attendance/check_in_service_spec.rb:78
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:25
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:37
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:50
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:55
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:63
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:76
+rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:198
+rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:208
+rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:253
+rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:264
+rspec ./spec/services/scheduling/conflict_detector_spec.rb:70
+rspec ./spec/services/scheduling/template_applier_spec.rb:102
+rspec ./spec/services/scheduling/template_applier_spec.rb:107
+rspec ./spec/services/scheduling/template_applier_spec.rb:127
+rspec ./spec/services/scheduling/template_applier_spec.rb:33
+rspec ./spec/services/scheduling/template_applier_spec.rb:37
+rspec ./spec/services/scheduling/template_applier_spec.rb:45
+rspec ./spec/services/scheduling/template_applier_spec.rb:51
+rspec ./spec/services/scheduling/template_applier_spec.rb:57
+rspec ./spec/services/scheduling/template_applier_spec.rb:89
+rspec ./spec/services/scheduling/template_applier_spec.rb:93
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-FIN1 (recorded at ae74dcc, milestone review). Not caused by the
+# architecture work (no Finance code/spec changes on the branch); not fixed. Faker apostrophe names are
+# HTML-escaped, so the plain-text expectation fails depending on generated data (passed 2/3 isolated reruns).
+flaky rspec ./spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb:128
