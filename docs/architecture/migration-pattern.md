@@ -370,7 +370,10 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
   * See `next-pilot-selection.md` §17.
 * **Milestone 2 — Finance & Sales Expenses** is selected (standard path). M0 is done; SEC-M2-12 (`6b4d300`),
   FS-D1 (`f88e022`) and FS-D2 (`94c4dce`) are fixed; **M1 is complete** (`98edd8e`). The standard path is kept
-  (the AP → FS write and cycle F3 remain), so **M2 is next**; M2–M8 not started (`next-pilot-selection.md` §18.6).
+  (the AP → FS write and cycle F3 remained). **M2 `4b94668`, M3 `d009f0d` and M4 `0ca2dc5` are complete:** the
+  AP-defined, FS-implemented `Payroll::FinalizationEffects` contract carries the payroll-computed insurance cost,
+  Finance owns the expense, `Payroll::InsuranceExpenseGenerator` is removed and **cycle F3 is eliminated**. M5 was
+  evaluated as not needed; **M6 is next** (`next-pilot-selection.md` §18.7).
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
@@ -444,3 +447,18 @@ sequence (§3) or the rules (§5).
   without changing behaviour.
 * **Reuse the domain's existing collapse.** The second AP group needed no new initializer: one per domain folder,
   however many groups move into it.
+* **Break a cross-domain cycle by splitting the service by data ownership, not by moving it whole** (Finance &
+  Sales Expenses M4).
+  * **The trap:** a service that reads the caller's data and writes the callee's data cannot simply move to the
+    callee. Moving `Payroll::InsuranceExpenseGenerator` into `Finance::` unchanged would have made Finance read
+    payroll entries and shift assignments, reversing the cycle instead of removing it.
+  * **The rule:** the caller computes what it owns and passes it as plain data in the contract
+    (`employer_insurance_total`, `employer_insurance_by_branch`); the callee owns every write (records, category,
+    allocations, numbering, void, audit). Check it with a source scan on both sides.
+* **M2 → M3 → M4 as three small commits keeps each step provable.** M2 added the contract with an adapter that
+  delegates to the old code; M3 routed the callers; M4 moved the logic. Each step kept the same failure IDs, and M4
+  only had to change stub targets and payloads in specs, never expectations.
+* **Remove the old class in M4 when nothing references it.** No compatibility wrapper without a concrete caller
+  that needs it; leave a one-line provenance comment in the new code instead.
+* **M5 is evaluated, not assumed.** Once M4 leaves every piece as a service in its owning domain and no controller
+  holds the logic, record M5 as not needed with that evidence.

@@ -2108,8 +2108,8 @@ issues were all fixed:
 
 ## 18. Milestone 2 — Finance & Sales Expenses: M0 and preconditions
 
-**Status:** selected; M0 done; the preconditions are fixed; **M1 complete** (`98edd8e`, §18.6). **Next: M2.** M2–M8
-have not started.
+**Status:** selected; M0 done; the preconditions are fixed; **M1 complete** (`98edd8e`, §18.6); **M2 `4b94668`,
+M3 `d009f0d` and M4 `0ca2dc5` complete** (§18.7). **M5 evaluated as not needed.** **Next: M6** (not started).
 
 * **Path (approved):** the **standard path**, M0 → preconditions → M1 → M2 → M3 → M4 → (M5 only if needed) → M6 →
   M7 → M8.
@@ -2305,4 +2305,90 @@ because skipping them would leave a real cross-domain write unresolved. The next
 * **M5:** only if needed.
 * Then **M6** (boundary spec), **M7** (`app/models/finance_sales/` plus initializer) and **M8**.
 
-**M2–M8 have not started.**
+At this checkpoint M2–M8 had not started. M2–M4 are now complete (§18.7).
+
+### 18.7 M2–M4: contract, routing and relocation (complete)
+
+M2 and M3 were committed without a docs checkpoint, as instructed; they are recorded here with M4.
+
+| Step | Commit | What |
+|---|---|---|
+| **M2** | `4b94668` | `Payroll::FinalizationEffects` (Attendance & Payroll contract: `OPERATIONS`, `register` checks every operation, `NotRegistered` instead of a silent skip). `Finance::PayrollFinalizationEffects` implements it, delegating to the then-existing generator; registered in `config/initializers/payroll_finalization_effects.rb` (`to_prepare`). Contract spec `spec/services/payroll/finalization_effects_spec.rb` |
+| **M3** | `d009f0d` | `Payroll::Approver` (→ `finalized`) and `Payroll::Reopener` (`finalized` → `branch_review_completed`) call the contract, inside their existing transactions; the paid transition and paid → finalized reopen trigger nothing, as before. Routing spec `spec/services/payroll/finalization_effects_routing_spec.rb` |
+| **M4** | `0ca2dc5` | The insurance-expense logic is relocated by owner and `Payroll::InsuranceExpenseGenerator` is removed (below) |
+
+**M4 decision: split per `module-boundaries.md` §14.1 A** (approved before implementation). The generator mixed a
+payroll read with Finance writes. Moving it whole into `Finance::` would have made Finance read payroll entries and
+shift assignments, inverting the dependency instead of removing it. Instead:
+
+* **Attendance & Payroll owns the employer insurance calculation:** `Payroll::EmployerInsuranceCost.for(period)`
+  returns `total` and `by_branch` (`{branch_id => amount}`): insured entries only, attributed via the Workforce
+  `ShiftAssignment.branch_ids_by_user` read, falling back to the business's first branch. Read-only.
+* **Finance & Sales owns the expense:** `Finance::PayrollInsuranceExpense` creates it (idempotent while an active
+  expense exists, nothing for a zero total), reuses the "Social Insurance" category case-insensitively (FS-D2),
+  sets a single branch or a percentage split with exact amounts and rounding absorbed by the last row, numbers it
+  via `Finance::NumberSequencer`, voids it on reopen (`voided_at` / `voided_by` / `void_reason` plus `status:
+  "cancelled"`, FS-D1) and writes the `insurance_expense_generated` / `insurance_expense_voided` audits.
+* **Final contract signature:**
+
+  ```ruby
+  Payroll::FinalizationEffects.period_finalized(period:, actor:,
+                                                employer_insurance_total:, employer_insurance_by_branch:)
+  Payroll::FinalizationEffects.period_reopened(period:, actor:, reason:)
+  ```
+
+  `Payroll::Approver` computes the cost inside its transaction just before the call.
+  `Finance::PayrollFinalizationEffects` stays the registered adapter, forwarding to
+  `Finance::PayrollInsuranceExpense.record(period:, actor:, total:, by_branch:)` / `.void_for(period:, actor:, reason:)`.
+* **`Payroll::InsuranceExpenseGenerator` is removed,** with no compatibility wrapper: every reference was migrated.
+  Only provenance comments name it (the two new services and their specs).
+* **One recorded nuance:** the cost is now computed before Finance's idempotency check, so it also runs on a call
+  that creates nothing. It is read-only; observable behaviour is unchanged.
+
+**Cycle F3 (AP ↔ FS) is eliminated.**
+
+* Attendance & Payroll code (`app/services/payroll`, `app/models/attendance_payroll`) has no non-comment reference
+  to `Finance::`, `Expense*` or `NumberSequencer`; it reaches Finance only through its own contract and the
+  boot-time registration.
+* Finance's only reference to Attendance & Payroll is the period handed to it (id, `period_end`) and the
+  `source_payroll_period` foreign key, an allowed FS → AP direction. Source-scan examples pin both sides: the
+  contract is free of Finance references, and `Finance::PayrollInsuranceExpense` reads no payroll entries or shift
+  assignments.
+* No allow-list exception was added; no new cross-domain dependency was found.
+
+**Specs:** new `spec/services/payroll/employer_insurance_cost_spec.rb` (4) and
+`spec/services/finance/payroll_insurance_expense_spec.rb` (10). Updated for the new owner and payload, with
+unchanged expectations: the contract, routing, FS-D1 refresh and `expense_details` specs; comment-only edits in the
+`finance_sales` characterization and `branch_profitability` specs.
+
+**Verification (each step compared with the previous one by exact failure ID):**
+
+| Step | Focused Finance/Payroll set | Failures |
+|---|---|---|
+| M1 (§18.6) | 1,791 examples, 1 pending | 8 baseline IDs |
+| M2 | 1,800 examples, 1 pending | the same 8 |
+| M3 | 1,806 examples, 1 pending | the same 8 |
+| M4 | 1,820 examples, 1 pending (+14 = the new specs) | the same 8: 0 new, 0 gone |
+
+The 8 are the documented baseline IDs (`expense_policy_spec.rb:54`, `payroll_period_policy_spec.rb:217`,
+`payroll_review_approval_paths_spec.rb:45/58/79/98`, `sidebar_active_state_spec.rb:215/293`). **No new failure
+IDs**; no flaky ID was reclassified and the baseline files are unchanged.
+
+At M4, architecture + characterization + API characterization + security + API security: **708 examples,
+0 failures, 1 pending.** `zeitwerk:check` passes; RuboCop is clean on the 14 changed Ruby files; `git diff --check`
+is clean.
+
+**No database, schema, migration, route or API change** in M2–M4. No model moved. The locale key
+`payroll.insurance_expense_void_reason` is unchanged.
+
+**M5 evaluated as not needed.** M5 extracts operation services when business logic sits in controllers or in the
+wrong layer. After M4 every piece of this workflow is already a service in its owning domain (the cost in
+`Payroll::`, the expense in `Finance::`, the transitions in `Payroll::Approver` / `Reopener`), no controller holds
+insurance or expense-generation logic, and the only cross-domain call goes through the contract. There is nothing
+for M5 to move.
+
+**Follow-up for M8:** `module-boundaries.md` §14.1 A still says "Today `Payroll::InsuranceExpenseGenerator` is called
+inside `Payroll::Approver`"; it is outside this checkpoint's scope and should be updated with the final docs.
+
+**Next: M6** (boundary spec for the Expenses group, classifying the contract and the registration), then **M7**
+(`app/models/finance_sales/` plus initializer) and **M8**. M6 has not started.
