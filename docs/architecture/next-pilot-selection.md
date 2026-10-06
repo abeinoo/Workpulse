@@ -1520,7 +1520,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | 0 | M0 Fast inventory | M0 | This section + baseline file | `docs:` (this checkpoint) |
 | 1 | **Security precondition** | — (defect fix, like SEC-P3-1) | **Done:** SEC-M2-1 `28b2100`, plus SEC-M2-2 `ca66c43`, SEC-M2-3 + SEC-M2-9 `3d9127e` and SEC-M2-4 `a384319` (§5.1). SEC-M2-8 is still to be decided before M1 (CG-4) | `fix:` ×4 (done) |
 | 2 | M1 Characterization | M1 | **Done** (§13): CG-2 to CG-5 against the fixed code; default and random order | `test:` `1024ffb` |
-| 3 | M2 Boundary + M6 Physical + M7/M8 | M6 + M7 + M8 | New AP boundary spec (constants `BiometricDevice` / `BiometricPunchLog`, tables, allow-list: `Business` inverse, sidebar, `workspace_helper`, AP-internal writers) with a probe; `git mv` of the 2 models into the collapsed AP directory + initializer + location spec; verification + status section | `refactor:` (one commit, as in Pilot 3) |
+| 3 | M2 Boundary + M6 Physical + M7/M8 | M6 + M7 + M8 | **M6 done separately** (§14), per the M6-only approval; M7 + M8 remain. New AP boundary spec (constants `BiometricDevice` / `BiometricPunchLog`, tables, allow-list: `Business` inverse, sidebar, `workspace_helper`, AP-internal writers) with a probe; `git mv` of the 2 models into the collapsed AP directory + initializer + location spec; verification + status section | `refactor:` (one commit, as in Pilot 3) |
 
 **Database verification (M8):** not needed. No migration calls the constants, and no class names are stored.
 
@@ -1580,8 +1580,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 
 | # | Question |
 |---|---|
-| Q-M2-1 | Folder name for AP models: `app/models/attendance_payroll/` (consistent with `organization_access/`, `workforce/`)? It is needed before Pilot 1's physical step |
-| Q-M2-2 | SEC-M2-8: the punch-log viewing gate (`manage_devices`, or `view_attendance` + data scope)? |
+| Q-M2-1 | **Resolved** (§14): `BiometricDevice` and `BiometricPunchLog` are AP-owned. The M7 physical move uses the collapsed `app/models/attendance_payroll/`, keeping the constants top-level (no `AttendancePayroll::` namespace), as for Organization & Access and Workforce |
+| Q-M2-2 | **Resolved** (§14): `BiometricPunchLog` is AP-owned; its authorization and visibility belong to AP and use the existing attendance permission/scope model. No permission redesign now; SEC-M2-8 stays deferred exactly as documented (§5.2) |
 | Q-M2-3 | After SEC-M2-2 (now gated like `AttendanceRecordsController`): keep `Admin::AttendanceRecordsController`, or retire it in favour of `AttendanceRecordsController`? |
 | Q-M2-4 | SEC-M2-6: may a salary manager change their **own** salary (segregation of duties), and should `manage_salary_profiles` scope apply to the web path? |
 | Q-M2-5 | Employee-page salary and obligations cards (SEC-M2-5): gate them with AP policies inside the WF view (exception), or render them as an AP-contributed panel (UI composition, `module-boundaries.md` §12.1)? |
@@ -1595,9 +1595,10 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   * Security hardening: SEC-M2-1 `28b2100`, SEC-M2-2 `ca66c43`, SEC-M2-3 + SEC-M2-9 `3d9127e`, SEC-M2-4
     `a384319`; final security verification passed (no new failure IDs).
   * Pilot 1 M1 characterization: `1024ffb` (§13).
-* **Not started:** Pilot 1 M6/M7 (AP boundary spec, initializer, any model move) and M8.
+* **Pilot 1 M6 (boundary enforcement):** done (§14).
+* **Not started:** Pilot 1 M7 (initializer, location spec, model move) and M8.
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
-* **Before Pilot 1 M6/M7:** answers to Q-M2-1 (folder name) and Q-M2-2 (SEC-M2-8 punch-log gate).
+* **Q-M2-1 and Q-M2-2:** resolved (§14).
 
 ## 13. Pilot 1 — Biometric Device + PunchService: M1 characterization status (complete)
 
@@ -1659,3 +1660,88 @@ record and reports success, while the attendance stays invisible.
 
 **Next (not started, needs approval):** the fast-track M6 + M7 + M8 step (§8, row 3). It requires the Q-M2-1
 (folder name) and Q-M2-2 (SEC-M2-8) decisions first.
+
+## 14. Pilot 1 — Biometric Device + PunchService: M6 boundary enforcement status
+
+**Status:** M6 only.
+
+* **Done:** the boundary enforcement spec, `spec/architecture/attendance_payroll_biometric_boundary_spec.rb`, the
+  **first Attendance & Payroll boundary spec**.
+* **Not started:** M7, so no model moved, no initializer and no location spec. The location spec is created
+  together with the move in M7, as in Pilots 2 and 3.
+* **Unchanged:** production code, database, schema, routes and API.
+
+**Decisions (approved before M6):**
+
+* **Q-M2-1:** the four Pilot 1 classes are AP-owned. M7 moves the two models into the collapsed
+  `app/models/attendance_payroll/` and keeps the constants top-level (`BiometricDevice`, `BiometricPunchLog`).
+* **Q-M2-2:** punch-log authorization and visibility belong to AP and use the existing attendance permission/scope
+  model. SEC-M2-8 remains deferred (§5.2).
+
+**Guarded:**
+
+* the constants `BiometricDevice`, `BiometricPunchLog`, `PunchService` (`Attendance::PunchService`) and
+  `TimestampParser` (`Attendance::TimestampParser`);
+* the collections and tables `biometric_devices` and `biometric_punch_logs`.
+
+**Not guarded, deliberately:**
+
+* `BiometricDevicePolicy`;
+* route helpers (`admin_biometric_devices_path`, …);
+* the `users` attendance-channel flags (`allow_biometric_attendance`);
+* the `"biometric_device"` check-in source string;
+* `includes(:biometric_device)`;
+* `config/` (routes, locales), as in the existing boundary specs.
+
+**Reference inventory (repository evidence; comments excluded).** 24 files reference the guarded names. Every one is
+classified; there are no unclear references.
+
+| Classification | Files | Reason |
+|---|---|---|
+| 1. AP internal (allowed) | `app/models/biometric_device.rb`, `app/models/biometric_punch_log.rb` | The models |
+| 1. AP internal | `app/models/attendance_record.rb` | `has_many :biometric_punch_logs` (AP aggregate) |
+| 1. AP internal | `app/controllers/admin/biometric_devices_controller.rb`, `app/controllers/admin/biometric_punch_logs_controller.rb`, `app/views/admin/biometric_devices/` (5 files), `app/views/admin/biometric_punch_logs/` (2) | AP administration screens |
+| 1. AP internal | `app/controllers/api/v1/biometric_base_controller.rb`, `app/controllers/api/v1/punches_controller.rb` | Device-token realm and punch endpoint |
+| 1. AP internal | `app/controllers/api/v1/attendance_controller.rb` | AP mobile attendance; writes the mobile `rejected_not_allowed` punch log |
+| 1. AP internal | `app/services/attendance/punch_service.rb`, `timestamp_parser.rb`, `anomaly_detector.rb` | Pilot 1 services; the anomaly detector reads punch logs |
+| 2. Valid cross-domain read | — | None found |
+| 3. Documented exception | `app/models/business.rb` | Organization & Access inverse `has_many :biometric_devices / :biometric_punch_logs` (same treatment as D-WF6) |
+| 3. Documented exception | `app/views/layouts/_sidebar.html.erb`, `app/helpers/workspace_helper.rb` | UI shell navigation (admin path, label key, controller name) |
+| 4. Unexpected cross-domain dependency | — | **None** |
+| Not scanned | `config/routes.rb`, `config/locales/{en,ar}.yml` | Routing and i18n keys (`config/` is outside the scanned `app` / `lib`) |
+
+* **Workforce, User, Employee, Reporting, Finance & Sales, Inventory & Purchasing:** no references. `User` has no
+  association to these classes; punches reach employees through `BiometricPunchLog belongs_to :employee`, an AP →
+  OA reference.
+
+**Boundary object:** **none.** There is no cross-domain business caller (rule A/B), so the fast track holds: the
+standard M2–M5 steps are skipped.
+
+**Spec mechanics** (same as the Workforce boundary spec):
+
+* scans `app` / `lib` code with comments ignored;
+* reasoned allow-list of AP files and directories, plus the 3 exceptions;
+* stale-entry checks for both files and directories;
+* a regex example that pins what is and is not guarded.
+
+**Probe:** a temporary file planted in `app/services/dashboard/` calling `BiometricPunchLog` and
+`Attendance::PunchService` failed the spec. It was removed, and no file remains.
+
+**Verification:**
+
+* `spec/architecture`: 36 examples, 0 failures.
+* Architecture, all characterization, security and the Pilot 1 set together: 1,016 examples and 10 failures. They
+  are **the same 10 IDs as M1**:
+  * `api/v1/attendance_spec` ×7;
+  * `sidebar_active_state_spec:215/293`;
+  * `shift_assignment_spec:7`.
+
+  All are in the documented baselines, so there are **0 new failure IDs**.
+* `zeitwerk:check` passes; RuboCop reports no offenses; `git diff --check` is clean.
+
+**Next (needs approval):** M7 physical move and M8 verification:
+
+* `git mv` of the two models into `app/models/attendance_payroll/`;
+* a new `config/initializers/attendance_payroll_autoload.rb`;
+* an AP location spec;
+* the allow-list paths updated in the same commit.
