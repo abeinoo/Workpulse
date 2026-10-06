@@ -45,7 +45,9 @@ module Payroll
             from_status:    from,
             to_status:      "finalized"
           )
-          Payroll::InsuranceExpenseGenerator.call(period: @period, actor: @by)
+          # Finance effects of finalization (the Social Insurance expense) go
+          # through the Payroll-defined contract, inside this transaction.
+          Payroll::FinalizationEffects.period_finalized(period: @period, actor: @by)
         when "paid"
           settle_advances!
           @period.update!(status: "paid")

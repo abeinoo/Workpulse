@@ -57,9 +57,10 @@ module Payroll
         )
 
         # Leaving "finalized" means payroll may change before the next
-        # finalization, so its insurance Expense is voided now (FS-D1).
+        # finalization, so its effects (the insurance Expense) are reverted now
+        # (FS-D1) — through the Payroll-defined contract, inside this transaction.
         if to_status == "branch_review_completed"
-          Payroll::InsuranceExpenseGenerator.void_for(period: @period, actor: @by, reason: @reason)
+          Payroll::FinalizationEffects.period_reopened(period: @period, actor: @by, reason: @reason)
         end
       end
 
