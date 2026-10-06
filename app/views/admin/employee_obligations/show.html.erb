@@ -171,23 +171,25 @@
       </div>
     <% end %>
 
+    <%# Change actions follow the policy (one's own obligation: none, SEC-M2-10). %>
+    <% can_manage = policy(@obligation).update? %>
     <div class="form-actions">
-      <% if (@obligation.active? || @obligation.paused?) && !@obligation.payroll_locked? %>
+      <% if can_manage && (@obligation.active? || @obligation.paused?) && !@obligation.payroll_locked? %>
         <%= link_to t("forms.edit"), edit_admin_employee_obligation_path(@obligation), class: "btn btn-secondary" %>
       <% end %>
-      <% if @obligation.active? %>
+      <% if can_manage && @obligation.active? %>
         <%= button_to t("admin.employee_obligations.pause"),
               pause_admin_employee_obligation_path(@obligation),
               method: :patch,
               data: { turbo_confirm: t("admin.employee_obligations.pause_confirm") },
               class: "btn btn-warning" %>
-      <% elsif @obligation.paused? %>
+      <% elsif can_manage && @obligation.paused? %>
         <%= button_to t("admin.employee_obligations.resume"),
               resume_admin_employee_obligation_path(@obligation),
               method: :patch,
               class: "btn btn-primary" %>
       <% end %>
-      <% if @obligation.active? || @obligation.paused? %>
+      <% if can_manage && (@obligation.active? || @obligation.paused?) %>
         <%= button_to t("admin.employee_obligations.cancel"),
               cancel_admin_employee_obligation_path(@obligation),
               method: :patch,

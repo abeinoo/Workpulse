@@ -115,6 +115,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
 
   def update
     authorize @obligation
+    authorize_reassignment!
     if @obligation.payroll_locked?
       redirect_to admin_employee_obligation_path(@obligation),
                   alert: t("admin.employee_obligations.locked_for_edit")
@@ -226,8 +227,21 @@ class Admin::EmployeeObligationsController < Admin::BaseController
     nil
   end
 
+  # Only employees inside the actor's manage_obligations scope can be chosen
+  # (the same rule EmployeeObligationPolicy#create? enforces).
   def load_employees
-    @employees = current_user.business.users.active.order(:first_name, :last_name)
+    @employees = current_user.business.users.active
+                             .where(id: policy(EmployeeObligation).manageable_employee_ids)
+                             .order(:first_name, :last_name)
+  end
+
+  # Moving an obligation to another employee needs the same scope as creating
+  # one for that employee (SEC-M2-4 follow-up).
+  def authorize_reassignment!
+    target_id = params.dig(:employee_obligation, :user_id)
+    return if target_id.blank? || target_id.to_i == @obligation.user_id
+
+    authorize EmployeeObligation.new(business: current_user.business, user_id: target_id), :create?
   end
 
   def derive_installments_count(obligation)

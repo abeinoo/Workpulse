@@ -11,7 +11,9 @@ RSpec.describe "Security: payroll deduction (obligation) business boundaries", t
   let(:business) { create(:business) }
   let(:other)    { create(:business) }
   let!(:owner)   { create(:user, :owner, business: business) }
-  let(:manager)  { api_user_with(business, :view_employees, :manage_obligations) }
+  # Business-wide manage_obligations scope, so only the business boundary is under test
+  # (scope rules: employee_obligations_authorization_spec.rb).
+  let(:manager)  { api_user_with(business, :view_employees, :manage_obligations, scopes: { "manage_obligations" => "business" }) }
   let(:employee) { create(:user, business: business) }
   let(:foreign_employee) { create(:user, business: other) }
 
@@ -27,10 +29,12 @@ RSpec.describe "Security: payroll deduction (obligation) business boundaries", t
   describe "creating an obligation" do
     before { sign_in manager }
 
-    it "rejects a user_id of another business (422, nothing created)" do
+    # Refused by the policy (the foreign user is outside every manage_obligations
+    # scope) before the model's same-business validation is reached.
+    it "rejects a user_id of another business (nothing created)" do
       expect { post admin_employee_obligations_path, params: obligation_params(foreign_employee) }
         .not_to change(EmployeeObligation, :count)
-      expect(response).to have_http_status(:unprocessable_content)
+      expect(response).to redirect_to(root_path)
       expect(EmployeeObligation.where(user: foreign_employee)).to be_empty
     end
 
@@ -53,7 +57,7 @@ RSpec.describe "Security: payroll deduction (obligation) business boundaries", t
 
     it "rejects moving it to a user of another business" do
       patch admin_employee_obligation_path(obligation), params: { employee_obligation: { user_id: foreign_employee.id } }
-      expect(response).to have_http_status(:unprocessable_content)
+      expect(response).to redirect_to(root_path)
       expect(obligation.reload.user).to eq(employee)
     end
 

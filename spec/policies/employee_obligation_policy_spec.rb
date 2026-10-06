@@ -5,8 +5,11 @@ RSpec.describe EmployeeObligationPolicy, type: :model do
   let(:owner)    { create(:user, :super_admin, business: business) }
   let(:employee) { create(:user, business: business) }
 
+  # Business-wide scope configured explicitly: an unconfigured scope follows the
+  # hierarchy default, not the whole business (SEC-M2-11).
   let(:manage_obligations_role) do
-    create(:permission_role, permissions: %w[view_employees manage_obligations], business: business)
+    create(:permission_role, permissions: %w[view_employees manage_obligations], business: business,
+                             permission_scopes: { "manage_obligations" => "business" })
   end
   let(:manager_user) do
     create(:user, business: business, permission_role: manage_obligations_role)
