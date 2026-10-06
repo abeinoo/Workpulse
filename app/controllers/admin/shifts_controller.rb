@@ -1,19 +1,27 @@
 class Admin::ShiftsController < Admin::BaseController
+  # Every action authorizes with ShiftPolicy (SEC-M2-9): Admin::BaseController's
+  # gate admits view_employees, view_payroll …, and shift_params also writes
+  # penalty_rules_attributes, so changes require manage_shifts. The index keeps
+  # its own query (ShiftPolicy::Scope would hide inactive shifts).
   def index
+    authorize Shift
     @shifts = Shift.where(business_id: current_user.business_id).order(:name)
   end
 
   def show
     @shift = find_shift
+    authorize @shift
     @penalty_rules = @shift.penalty_rules.order(:threshold_minutes)
   end
 
   def new
     @shift = current_user.business.shifts.build
+    authorize @shift
   end
 
   def create
     @shift = current_user.business.shifts.build(shift_params)
+    authorize @shift
     if @shift.save
       redirect_to admin_shifts_path, notice: t("flash.shift_created")
     else
@@ -23,10 +31,12 @@ class Admin::ShiftsController < Admin::BaseController
 
   def edit
     @shift = find_shift
+    authorize @shift
   end
 
   def update
     @shift = find_shift
+    authorize @shift
     if @shift.update(shift_params)
       redirect_to admin_shifts_path, notice: t("flash.shift_updated")
     else
@@ -35,7 +45,9 @@ class Admin::ShiftsController < Admin::BaseController
   end
 
   def destroy
-    find_shift.destroy
+    @shift = find_shift
+    authorize @shift
+    @shift.destroy
     redirect_to admin_shifts_path, notice: t("flash.shift_removed")
   end
 
