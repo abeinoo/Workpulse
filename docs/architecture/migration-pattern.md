@@ -356,9 +356,14 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
 
 ## 14. Milestone 2 — Attendance & Payroll (application notes)
 
-**Status:** M0 done (at `c054fa3`) and security hardening done (SEC-M2-1, -2, -3, -4 and -9: `28b2100`,
-`ca66c43`, `3d9127e`, `a384319`). **Pilot 1 (Biometric Device + PunchService) has not started.** See
-`next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2. Nothing below changes the standard
+**Status:**
+
+* M0 done (at `c054fa3`).
+* Security hardening done (SEC-M2-1, -2, -3, -4 and -9: `28b2100`, `ca66c43`, `3d9127e`, `a384319`).
+* **Pilot 1 (Biometric Device + PunchService) M1 is complete** (`1024ffb`: 59 examples, 0 new failure IDs).
+* **M6/M7 have not started.**
+
+See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
 
 * **The fast track still applies, behind a security precondition.** Pilot 1 (Punch capture channel) has no
@@ -386,3 +391,12 @@ sequence (§3) or the rules (§5).
 * **A rescued 404 does not carry the signed-in test session into the next request.** In request specs, keep
   requests that end in a 404 one per example (Devise test sign-in + exceptions app); otherwise the follow-up
   request is redirected to sign-in and the spec tests nothing.
+* **M1 pins deferred security behaviour as-is, labelled with its finding ID.** Pilot 1 M1 pinned punch-log
+  visibility (deferred SEC-M2-8) as the current contract, with the ID in the spec. The later fix then changes a
+  known, named expectation instead of silently breaking an unlabelled one.
+* **Defects found by characterization are pinned, not fixed.** AP-D3 (a punch updates a soft-deleted attendance
+  record) is asserted as current behaviour and recorded as technical debt. Fixing it needs its own approved
+  `fix:` commit, outside the migration (the PERF-D2 precedent).
+* **Probe before asserting.** Edge behaviour (timestamp formats, spam-window membership, token override) was
+  observed with throwaway probes first, so every characterization expectation records observed behaviour, not
+  assumed behaviour.

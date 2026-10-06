@@ -1149,9 +1149,9 @@ There are no database, schema, migration, route or API changes.
 
 # Milestone 2 — Attendance & Payroll
 
-**Status:** M0 audit, Pilot 1 selection and **security hardening complete** (§5.1). **Pilot 1 implementation has
-not started:** no model has moved, no M1 characterization exists, and no schema, migration, route or API has
-changed. The only production changes are the five security fixes in §5.1, each in its own `fix:` commit. Milestone 1
+**Status:** M0 audit, Pilot 1 selection, **security hardening** (§5.1) and **Pilot 1 M1 characterization**
+(`1024ffb`, §13) are complete. **Pilot 1 M6/M7 have not started:** no model has moved, there is no AP boundary or
+location spec, and no schema, migration, route or API has changed. The only production changes are the five security fixes in §5.1, each in its own `fix:` commit. Milestone 1
 sections above are historical and unchanged.
 
 * **Branch:** `feature/milestone-2-attendance-payroll`, created from `origin/main` @ `c054fa3`.
@@ -1471,10 +1471,10 @@ employees outside the device's business (characterized). No AP code writes WF or
 | Gap | Status |
 |---|---|
 | CG-1 Device admin authorization matrix: `manage_devices` allowed, admin-gate-only permissions denied, owner allowed, cross-business 404, token visible only to authorized users | **Covered** by the SEC-M2-1 regression spec (`28b2100`) |
-| CG-2 Device CRUD + `regenerate_token` contract (redirects, flash, token changes, **old token rejected** by the punch API) | REQUIRED |
-| CG-3 Punch API negatives not yet pinned: unknown token (vs inactive), device of business B with employee of B only, duplicate or stale punch outcome | REQUIRED |
-| CG-4 Punch-log visibility: who may list and show logs, cross-business 404 on `show` | REQUIRED (after the SEC-M2-8 decision) |
-| CG-5 `destroy` nullifies logs (`dependent: :nullify`) | Optional |
+| CG-2 Device CRUD + `regenerate_token` contract (redirects, flash, token changes, **old token rejected** by the punch API) | **Covered** by M1 `1024ffb` (`biometric_device_spec`) |
+| CG-3 Punch API negatives not yet pinned: unknown token (vs inactive), device of business B with employee of B only, duplicate or stale punch outcome | **Covered** by M1 `1024ffb` (`punch_api_spec`, `biometric_device_spec`) |
+| CG-4 Punch-log visibility: who may list and show logs, cross-business 404 on `show` | **Covered as current behaviour** by M1 `1024ffb` (`biometric_punch_log_spec`). SEC-M2-8 is still deferred, so the pinned visibility is labelled as the deferred finding, not as desired behaviour |
+| CG-5 `destroy` nullifies logs (`dependent: :nullify`) | **Covered** by M1 `1024ffb` |
 
 ### 7.5 Migration complexity, boundary and physical move
 
@@ -1519,7 +1519,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 |---|---|---|---|---|
 | 0 | M0 Fast inventory | M0 | This section + baseline file | `docs:` (this checkpoint) |
 | 1 | **Security precondition** | — (defect fix, like SEC-P3-1) | **Done:** SEC-M2-1 `28b2100`, plus SEC-M2-2 `ca66c43`, SEC-M2-3 + SEC-M2-9 `3d9127e` and SEC-M2-4 `a384319` (§5.1). SEC-M2-8 is still to be decided before M1 (CG-4) | `fix:` ×4 (done) |
-| 2 | M1 Characterization | M1 | CG-2, CG-3, CG-4 against the fixed code; default and random order | `test:` |
+| 2 | M1 Characterization | M1 | **Done** (§13): CG-2 to CG-5 against the fixed code; default and random order | `test:` `1024ffb` |
 | 3 | M2 Boundary + M6 Physical + M7/M8 | M6 + M7 + M8 | New AP boundary spec (constants `BiometricDevice` / `BiometricPunchLog`, tables, allow-list: `Business` inverse, sidebar, `workspace_helper`, AP-internal writers) with a probe; `git mv` of the 2 models into the collapsed AP directory + initializer + location spec; verification + status section | `refactor:` (one commit, as in Pilot 3) |
 
 **Database verification (M8):** not needed. No migration calls the constants, and no class names are stored.
@@ -1573,6 +1573,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | TD-AP6 | `PayrollPeriodsController` (543 lines) holds orchestration that belongs in services; a prerequisite for P-8 |
 | TD-AP7 | `Api::V1::PayrollAdjustmentsController#create` authorizes the class; `same_business?` on a class passes only for owners, so non-owner managers are always denied (functional, not a leak) |
 | TD-AP8 | Deferred security follow-ups (§5.2): SEC-M2-5, -6, -7, -8, AP-D1, plus the SEC-M2-4 and SEC-M2-2 scope decisions |
+| **AP-D3** | **Known defect, found during Pilot 1 M1 characterization (§13).** When a work date's attendance record was soft-deleted (`deleted_at`), a later punch for that date updates the deleted record (`AttendanceRecord.find_or_initialize_by` has no `active` filter; the unique `(user_id, work_date)` index prevents a new row). The punch reports success while the attendance stays invisible (`AttendanceRecord.active` excludes it). It is **not a regression** caused by M1 (pre-existing production behaviour) and is **not classified as a security vulnerability**. **Pinned, not fixed:** `spec/characterization/attendance_payroll/punch_service_spec.rb`. A fix changes production behaviour and needs its own approved `fix:` commit |
 | Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1 (unchanged) |
 
 ## 11. Open architectural questions
@@ -1592,8 +1593,69 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Done:**
   * M0 audit, security audit and Pilot 1 selection (approved: Biometric Device + PunchService).
   * Security hardening: SEC-M2-1 `28b2100`, SEC-M2-2 `ca66c43`, SEC-M2-3 + SEC-M2-9 `3d9127e`, SEC-M2-4
-    `a384319`.
-* **Not started:** Pilot 1 (M1 characterization, AP boundary spec, initializer, any model move).
+    `a384319`; final security verification passed (no new failure IDs).
+  * Pilot 1 M1 characterization: `1024ffb` (§13).
+* **Not started:** Pilot 1 M6/M7 (AP boundary spec, initializer, any model move) and M8.
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
-* **Before Pilot 1 M1:** the final full verification run; answers to Q-M2-1 (folder name) and Q-M2-2 (SEC-M2-8
-  punch-log gate, part of CG-4).
+* **Before Pilot 1 M6/M7:** answers to Q-M2-1 (folder name) and Q-M2-2 (SEC-M2-8 punch-log gate).
+
+## 13. Pilot 1 — Biometric Device + PunchService: M1 characterization status (complete)
+
+**Status:** **COMPLETE.**
+
+* **Commit:** `1024ffb` "test: characterize attendance biometric flow".
+* **Production code:** unchanged at this step. No database, schema or migration changes, no models moved.
+* **M6/M7 have NOT started.**
+
+**Scope:**
+
+* **Characterized:** `BiometricDevice`, `BiometricPunchLog`, `Attendance::PunchService`,
+  `Attendance::TimestampParser`, and their directly owned controllers:
+  * `Admin::BiometricDevicesController`, `Admin::BiometricPunchLogsController`;
+  * `Api::V1::PunchesController` / `BiometricBaseController`;
+  * the mobile rejection log written by `Api::V1::AttendanceController`.
+* **Not expanded:** no other component was added.
+
+**Existing coverage (inventoried before writing specs; not duplicated):**
+
+* `punch_service_spec`: 38 examples.
+* `timestamp_parser_spec`: 25.
+* API `biometric_punch_spec`: 9.
+* `admin/biometric_punch_logs_spec`: 12.
+* SEC-M2-1 `biometric_devices_authorization_spec`: 15.
+
+**New characterization:** 59 examples in `spec/characterization/attendance_payroll/`. The folder name organizes
+specs only; it does not decide Q-M2-1.
+
+| File | Examples | What it pins |
+|---|---|---|
+| `biometric_device_spec.rb` | 19 | Model: token generated on create (a supplied token is ignored), unique tokens, `regenerate_token!`, name presence and per-business case-insensitive uniqueness, active default and scopes, logs detached on destroy. Admin: business forced to the actor's, token never assignable, 422 re-render, ordering, flashes. Punch API: unknown, deactivated, regenerated and deleted tokens → 401; `last_seen_at` touched only on success |
+| `biometric_punch_log_spec.rb` | 8 | `ACTIONS` / `SOURCES`, required fields, `success?` / `rejected?` table, scopes and recency, the mobile `rejected_not_allowed` log. Admin visibility **as-is** (SEC-M2-8 deferred): any admin-gate holder sees all business logs; users without an admin-gate permission are redirected; another business's log → 404 |
+| `punch_api_spec.rb` | 13 | `employee_code` before user id; inactive or blank employee → 404 without a log; employee checked before timestamp; missing or > 24 h future timestamp → 422; bare timestamps read in business-local time; check-in and check-out payloads; duplicate punch → 200 `rejected_spam`; unassigned employee → 422 + log; logged device, IP address and raw payload |
+| `punch_service_spec.rb` | 10 | Spam-window membership: other devices, mobile, `rejected_spam` and `rejected_not_allowed` count; `rejected_no_assignment` and `error` do not; symmetric; per business. A punch equal to the check-out is spam. Late check-in refinement (`late_minutes` reset, status kept until check-out). Rejection log shape. **AP-D3 pinned** |
+| `timestamp_parser_spec.rb` | 9 | Business-zone result, whitespace, `+HHMM` and fractional `Z`, date-only / time-only, slash and day-first formats, epoch seconds and impossible dates → `nil`, `api` / unknown sources, non-string input |
+
+**Verification:**
+
+* **Baseline before the new specs** (17 existing Pilot 1 files): 476 examples, 10 failures. All 10 IDs are in the
+  documented baselines:
+  * `api/v1/attendance_spec` ×7;
+  * `sidebar_active_state_spec:215/293`;
+  * `shift_assignment_spec:7`.
+* **After:** 535 examples. The **same 10 failing IDs**, so there are **0 new failure IDs**.
+* **Random order:** the 59 new examples pass in default order and with seeds 12345, 98765 and 63339.
+* **Wider run** (characterization, security and architecture): 578 examples, 0 failures, 1 pending (the existing
+  pinned API `waive?` example).
+* `zeitwerk:check` passes; RuboCop reports no offenses in the new files; `git diff --check` is clean.
+
+**Known defect found:** **AP-D3** (§10). A punch on a work date whose attendance record was soft-deleted updates that
+record and reports success, while the attendance stays invisible.
+
+* It is pre-existing behaviour, not a regression caused by M1.
+* It is not classified as a security vulnerability.
+* It is pinned, not fixed.
+
+**No new security vulnerability** was found during M1.
+
+**Next (not started, needs approval):** the fast-track M6 + M7 + M8 step (§8, row 3). It requires the Q-M2-1
+(folder name) and Q-M2-2 (SEC-M2-8) decisions first.
