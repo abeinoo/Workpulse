@@ -116,8 +116,8 @@
 
     <%# Existing rules (rendered server-side via fields_for) %>
     <div data-penalty-rules-target="rulesContainer">
-      <% shift.penalty_rules.each do |rule| %>
-        <%= f.fields_for :penalty_rules, rule do |rf| %>
+      <% shift.penalty_rules.each_with_index do |rule, index| %>
+        <%= f.fields_for :penalty_rules_attributes, rule, index: index do |rf| %>
           <div class="penalty-rule-row" data-rule-row>
             <%= rf.hidden_field :id %>
             <%= rf.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
