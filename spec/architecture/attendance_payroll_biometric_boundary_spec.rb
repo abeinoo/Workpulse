@@ -32,8 +32,8 @@ module ArchitectureSpecs
 
     # Attendance & Payroll-owned code (module-boundaries.md §6): uses Pilot 1 directly.
     ATTENDANCE_PAYROLL_FILES = {
-      "app/models/biometric_device.rb"                         => "the model itself (moves to app/models/attendance_payroll/ in M7)",
-      "app/models/biometric_punch_log.rb"                      => "the model itself (moves to app/models/attendance_payroll/ in M7)",
+      "app/models/attendance_payroll/biometric_device.rb"      => "the model itself (folder collapsed: top-level constant)",
+      "app/models/attendance_payroll/biometric_punch_log.rb"   => "the model itself (folder collapsed: top-level constant)",
       "app/models/attendance_record.rb"                        => "AP internal: has_many :biometric_punch_logs (punches that built the record)",
       "app/controllers/admin/biometric_devices_controller.rb"  => "AP device administration (BiometricDevicePolicy, manage_devices)",
       "app/controllers/admin/biometric_punch_logs_controller.rb" => "AP punch-log screens (visibility: SEC-M2-8, deferred)",

@@ -1149,9 +1149,10 @@ There are no database, schema, migration, route or API changes.
 
 # Milestone 2 — Attendance & Payroll
 
-**Status:** M0 audit, Pilot 1 selection, **security hardening** (§5.1) and **Pilot 1 M1 characterization**
-(`1024ffb`, §13) are complete. **Pilot 1 M6/M7 have not started:** no model has moved, there is no AP boundary or
-location spec, and no schema, migration, route or API has changed. The only production changes are the five security fixes in §5.1, each in its own `fix:` commit. Milestone 1
+**Status:** M0 audit, Pilot 1 selection, **security hardening** (§5.1) and Pilot 1 **M1** (`1024ffb`, §13), **M6**
+(`8eac847`, §14) and **M7** (§15) are complete. **M8 has not started.** No schema, migration, route or API has
+changed. The only production behaviour changes are the five security fixes in §5.1, each in its own `fix:` commit;
+M7 is a byte-identical file move plus an autoload collapse. Milestone 1
 sections above are historical and unchanged.
 
 * **Branch:** `feature/milestone-2-attendance-payroll`, created from `origin/main` @ `c054fa3`.
@@ -1596,7 +1597,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
     `a384319`; final security verification passed (no new failure IDs).
   * Pilot 1 M1 characterization: `1024ffb` (§13).
 * **Pilot 1 M6 (boundary enforcement):** done (§14).
-* **Not started:** Pilot 1 M7 (initializer, location spec, model move) and M8.
+* **Pilot 1 M7 (physical model move):** done (§15).
+* **Not started:** Pilot 1 M8 (final verification and close-out).
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
 
@@ -1745,3 +1747,68 @@ standard M2–M5 steps are skipped.
 * a new `config/initializers/attendance_payroll_autoload.rb`;
 * an AP location spec;
 * the allow-list paths updated in the same commit.
+
+## 15. Pilot 1 — Biometric Device + PunchService: M7 physical organization status
+
+**Status:** M7 only, done; **M8 has not started.** The commit is "refactor: organize attendance payroll biometric
+models" (its hash is reported in the M7 report; a commit cannot record its own hash).
+
+**Move** (`git mv`, **byte-identical**: same git blob before and after):
+
+* `app/models/biometric_device.rb` → `app/models/attendance_payroll/biometric_device.rb` (blob `d786f13`).
+* `app/models/biometric_punch_log.rb` → `app/models/attendance_payroll/biometric_punch_log.rb` (blob `659e0b1`).
+
+**Constants and tables (unchanged):**
+
+* `BiometricDevice` → `biometric_devices`; `BiometricPunchLog` → `biometric_punch_logs`. Both stay top-level.
+* There is no `AttendancePayroll` constant (`defined?(AttendancePayroll)` is `nil`), as decided in Q-M2-1.
+
+**Autoload:**
+
+* New `config/initializers/attendance_payroll_autoload.rb`, one line: it collapses `app/models/attendance_payroll`.
+* It mirrors `organization_access_autoload.rb` and `workforce_autoload.rb`. A new domain folder needs its own
+  collapse; there is no shared initializer to reuse.
+
+**Architecture specs:**
+
+* **Boundary spec** (`attendance_payroll_biometric_boundary_spec.rb`): only the two model allow-list paths changed,
+  to the new location. The M6 rules, exceptions and guarded names are unchanged.
+* **New location spec** (`attendance_payroll_model_location_spec.rb`, 10 examples) checks, for each model:
+  * it loads as a top-level constant from `app/models/attendance_payroll/`;
+  * the old top-level file is gone;
+  * its table is unchanged;
+  * it is not namespaced under `AttendancePayroll`.
+
+  It also checks that every association resolves the same classes: `Business`, `AttendanceRecord`, the device ↔
+  log pair, `employee` → `User`, `attendance_record`. And that Pundit still finds `BiometricDevicePolicy`.
+
+**References** (no code change needed; all resolve to the same top-level classes):
+
+* `Business` and `AttendanceRecord` associations;
+* the admin and API controllers;
+* `PunchService`, `TimestampParser`, `AnomalyDetector`;
+* the mobile `Api::V1::AttendanceController`;
+* the navigation helpers;
+* `BiometricDevicePolicy`.
+
+**Verification:**
+
+* `spec/architecture`: 46 examples, 0 failures.
+* **Relevant set:** architecture, all characterization, all security, `spec/services/attendance`, the Pilot 1 set,
+  attendance record model/policy/requests, user model, admin users, attendance imports, dashboard and
+  operations-dashboard policy.
+  * **Post-move:** 1,479 examples, 19 failures.
+  * **Same set at the pre-move commit `8eac847`** (temporary worktree, removed): 1,469 examples, 19 failures.
+  * The failing IDs are **identical**, and the +10 examples are the new location spec.
+* **Every failing ID is in the documented baselines:**
+  * `api/v1/attendance_spec` ×7;
+  * `check_in_service_spec` ×4;
+  * `operations_dashboard_policy_spec` ×3;
+  * `dashboard_spec` ×2;
+  * `sidebar_active_state_spec:215/293`;
+  * `shift_assignment_spec:7`.
+* `zeitwerk:check` passes (eager load resolves both from `app/models/attendance_payroll/`); RuboCop reports no
+  offenses; `git diff --check` is clean.
+
+**Database:** not touched. The constants and tables are unchanged, no migration calls the constants, and no class
+name is stored, so database verification is not needed (§8, M8).

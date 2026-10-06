@@ -361,7 +361,8 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
 * M0 done (at `c054fa3`).
 * Security hardening done (SEC-M2-1, -2, -3, -4 and -9: `28b2100`, `ca66c43`, `3d9127e`, `a384319`).
 * **Pilot 1 (Biometric Device + PunchService) M1 is complete** (`1024ffb`: 59 examples, 0 new failure IDs).
-* **M6/M7 have not started.**
+* M6 (`8eac847`) and M7 (models moved to the collapsed `app/models/attendance_payroll/`) are done; **M8 has not
+  started.**
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
