@@ -8,12 +8,17 @@
       <%= t("shifts.show.back") %>
     <% end %>
     <h1 class="page-title"><%= @shift.name %></h1>
-    <div class="page-header__actions">
-      <%= link_to t("shifts.edit_action"), edit_admin_shift_path(@shift), class: "btn btn-ghost btn-sm" %>
-      <%= button_to t("shifts.delete"), admin_shift_path(@shift), method: :delete,
-            class: "btn btn-danger btn-sm",
-            data: { turbo_confirm: t("shifts.confirm.delete", name: @shift.name) } %>
-    </div>
+    <% can_manage_shift = policy(@shift).update? %>
+    <% if can_manage_shift %>
+      <div class="page-header__actions">
+        <%= link_to t("shifts.edit_action"), edit_admin_shift_path(@shift), class: "btn btn-ghost btn-sm" %>
+        <% if policy(@shift).destroy? %>
+          <%= button_to t("shifts.delete"), admin_shift_path(@shift), method: :delete,
+                class: "btn btn-danger btn-sm",
+                data: { turbo_confirm: t("shifts.confirm.delete", name: @shift.name) } %>
+        <% end %>
+      </div>
+    <% end %>
   </div>
 
   <div class="info-card">
@@ -45,7 +50,9 @@
 
   <div class="page-header mt-8">
     <h2 class="section-title"><%= t("shifts.penalty_rules") %></h2>
-    <%= link_to t("shifts.add_penalty"), new_admin_shift_penalty_rule_path(@shift), class: "btn btn-ghost btn-sm" %>
+    <% if can_manage_shift %>
+      <%= link_to t("shifts.add_penalty"), new_admin_shift_penalty_rule_path(@shift), class: "btn btn-ghost btn-sm" %>
+    <% end %>
   </div>
 
   <% if @penalty_rules.any? %>
@@ -78,10 +85,14 @@
                 <% end %>
               </td>
               <td class="td-actions">
-                <%= link_to t("shifts.edit_action"), edit_admin_shift_penalty_rule_path(@shift, rule), class: "link-muted" %>
-                <%= button_to t("penalty_rules.delete"), admin_shift_penalty_rule_path(@shift, rule), method: :delete,
-                      class: "link-danger",
-                      data: { turbo_confirm: t("shifts.confirm.remove_penalty") } %>
+                <% if policy(rule).update? %>
+                  <%= link_to t("shifts.edit_action"), edit_admin_shift_penalty_rule_path(@shift, rule), class: "link-muted" %>
+                <% end %>
+                <% if policy(rule).destroy? %>
+                  <%= button_to t("penalty_rules.delete"), admin_shift_penalty_rule_path(@shift, rule), method: :delete,
+                        class: "link-danger",
+                        data: { turbo_confirm: t("shifts.confirm.remove_penalty") } %>
+                <% end %>
               </td>
             </tr>
           <% end %>
@@ -89,7 +100,7 @@
       </table>
     </div>
   <% else %>
-    <p class="text-muted"><%= t("shifts.show.no_rules") %> <%= link_to t("shifts.add_penalty"), new_admin_shift_penalty_rule_path(@shift), class: "link" %>.</p>
+    <p class="text-muted"><%= t("shifts.show.no_rules") %><% if can_manage_shift %> <%= link_to t("shifts.add_penalty"), new_admin_shift_penalty_rule_path(@shift), class: "link" %>.<% end %></p>
   <% end %>
 
 </div>

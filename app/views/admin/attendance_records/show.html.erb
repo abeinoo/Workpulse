@@ -95,6 +95,7 @@
     </div>
   <% end %>
 
+  <% if policy(@record).update? %>
   <h2 class="section-title mt-8"><%= t("admin.attendance_records.show.edit_record") %></h2>
   <p class="form-hint mb-4"><%= t("attendance.records.audit_notice") %></p>
   <%= form_with model: [:admin, @record], method: :patch, class: "form-card" do |f| %>
@@ -123,6 +124,7 @@
     <div class="form-actions">
       <%= f.submit t("attendance.records.save_changes"), class: "btn btn-primary" %>
     </div>
+  <% end %>
   <% end %>
 
 </div>

@@ -34,7 +34,7 @@ RSpec.describe Finance::Reports::BranchProfitability, type: :model do
     # never sets a period's branch_id (see PayrollPeriod#branch: "retained for
     # historical data; new periods always nil"). Branch attribution instead comes
     # from the employee's ShiftAssignment active during the period, same source
-    # Payroll::InsuranceExpenseGenerator already uses for its own payroll-derived cost.
+    # Payroll::EmployerInsuranceCost already uses for its own payroll-derived cost.
     period = create(:payroll_period, business: business, period_year: year, period_month: month)
     create(:payroll_entry, payroll_period: period, user: employee, base_salary: 5000, total_overtime: 300, total_bonuses: 200, net_salary: 5500)
     create(:shift_assignment, user: employee, branch: branch, effective_from: period_start - 1.month, effective_to: nil)
@@ -97,7 +97,7 @@ RSpec.describe Finance::Reports::BranchProfitability, type: :model do
   # is always nil on every period Payroll::PeriodGenerator creates (periods are
   # business-wide since the branch-membership refactor). The fixed query attributes
   # each PayrollEntry to a branch via the employee's ShiftAssignment during the
-  # period instead — the same source Payroll::InsuranceExpenseGenerator already
+  # period instead — the same source Payroll::EmployerInsuranceCost already
   # uses for its own payroll-derived cost.
   describe "salary cost attribution" do
     it "includes salary cost when payroll exists for the period" do

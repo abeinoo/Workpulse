@@ -1,18 +1,23 @@
 class Admin::BiometricDevicesController < Admin::BaseController
-  before_action :set_device, only: [:show, :edit, :update, :destroy, :regenerate_token]
+  before_action :set_device, only: [ :show, :edit, :update, :destroy, :regenerate_token ]
 
   def index
+    authorize BiometricDevice
     @devices = current_user.business.biometric_devices.order(:name)
   end
 
-  def show; end
+  def show
+    authorize @device
+  end
 
   def new
-    @device = BiometricDevice.new
+    @device = current_user.business.biometric_devices.build
+    authorize @device
   end
 
   def create
     @device = current_user.business.biometric_devices.build(device_params)
+    authorize @device
     if @device.save
       redirect_to admin_biometric_device_path(@device), notice: t("flash.biometric_device_created")
     else
@@ -20,9 +25,12 @@ class Admin::BiometricDevicesController < Admin::BaseController
     end
   end
 
-  def edit; end
+  def edit
+    authorize @device
+  end
 
   def update
+    authorize @device
     if @device.update(device_params)
       redirect_to admin_biometric_device_path(@device), notice: t("flash.biometric_device_updated")
     else
@@ -31,11 +39,13 @@ class Admin::BiometricDevicesController < Admin::BaseController
   end
 
   def destroy
+    authorize @device
     @device.destroy
     redirect_to admin_biometric_devices_path, notice: t("flash.biometric_device_deleted")
   end
 
   def regenerate_token
+    authorize @device
     @device.regenerate_token!
     redirect_to admin_biometric_device_path(@device), notice: t("flash.token_regenerated")
   end

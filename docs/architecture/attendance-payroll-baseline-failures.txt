@@ -1,0 +1,264 @@
+# Milestone 2 (Attendance & Payroll) — M0 baseline failing example IDs
+# Purpose: the reference list for every Milestone 2 step (security fixes, Pilot 1 M1/M6/M7/M8). After each step the
+# failing IDs of the relevant set are compared with this list (and permission-role-baseline-failures.txt for files
+# outside this set); any ID not listed is a new failure and stops the work. Contents are not edited to absorb new failures.
+# Used so far: SEC-M2-1/-2/-3/-9/-4 verification runs and Pilot 1 M1/M6/M7/M8 — 0 new deterministic failing IDs
+#   (next-pilot-selection.md, Milestone 2 §5.1 and §13–§16). One flaky ID observed at Pilot 1 M8: TD-OA1 (below).
+#   Pilot 2 (Employee Obligations) M0 → M8, incl. SEC-M2-10/-11 and AP-D4/AP-D5 — 0 new failing IDs, no flaky ID
+#   (next-pilot-selection.md, Milestone 2 §17). The failing-ID contents below are unchanged.
+#   Finance & Sales Expenses M0 + SEC-M2-12 / FS-D1 fixes — 0 new deterministic failing IDs; two flaky IDs
+#   observed and recorded after review: TD-FIN2, TD-FIN3 (below; next-pilot-selection.md, Milestone 2 §18).
+#   FS-D2 fix verification — 0 new deterministic failing IDs; two more browser-timing flakes recorded after review:
+#   a second TD-FIN3 example ([1:1]) and TD-FIN4 (below; next-pilot-selection.md, Milestone 2 §18.5).
+#   Finance & Sales Expenses M1 → M8 — 0 new deterministic failing IDs (next-pilot-selection.md §18.6–§18.8).
+#   Milestone 2 final gate (full suite, branch 9952d68 vs main c054fa3, seed 20261006) — 94/95 failing IDs shared
+#   with main; one branch-only browser-timing flake recorded after review: TD-FIN5 (below; §18.9).
+# Recorded at c054fa3 (origin/main) on feature/milestone-2-attendance-payroll, 2026-10-06, no code changes.
+# Relevant set: 140 spec files = Attendance & Payroll core (111) + Workforce↔AP request/insurance specs (19)
+#   + spec/architecture (4) + spec/requests/security (6). File list and reproducible
+#   command: the "# set" lines at the end of this file (summary in next-pilot-selection.md, Milestone 2 §9).
+# Result: 2634 examples, 52 failures, 1 pending. Compare later runs by ID, never by count.
+#
+# Every ID below is already in permission-role-baseline-failures.txt (recorded at 7c69c9e): 0 new failures.
+# permission-role baseline ID inside this set that PASSED at c054fa3 (date-dependent; treat as flaky, TD-AP1):
+flaky rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:208
+#
+# Deterministic pre-existing failures:
+rspec ./spec/models/employee_request_spec.rb:432
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:15
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:16
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:17
+rspec ./spec/policies/payroll_period_policy_spec.rb:217
+rspec ./spec/requests/adjustments_spec.rb:740
+rspec ./spec/requests/api/v1/attendance_spec.rb:101
+rspec ./spec/requests/api/v1/attendance_spec.rb:110
+rspec ./spec/requests/api/v1/attendance_spec.rb:138
+rspec ./spec/requests/api/v1/attendance_spec.rb:329
+rspec ./spec/requests/api/v1/attendance_spec.rb:337
+rspec ./spec/requests/api/v1/attendance_spec.rb:76
+rspec ./spec/requests/api/v1/attendance_spec.rb:88
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:110
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:118
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:125
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:131
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:164
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:170
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:175
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:181
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:186
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:100
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:115
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:130
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:142
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:150
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:155
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:169
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:174
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:187
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:206
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:211
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:216
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:231
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:268
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:73
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:79
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:88
+rspec ./spec/requests/dashboard_spec.rb:432
+rspec ./spec/requests/dashboard_spec.rb:460
+rspec ./spec/requests/payroll_review_approval_paths_spec.rb:45
+rspec ./spec/requests/payroll_review_approval_paths_spec.rb:58
+rspec ./spec/requests/payroll_review_approval_paths_spec.rb:79
+rspec ./spec/requests/payroll_review_approval_paths_spec.rb:98
+rspec ./spec/services/attendance/check_in_service_spec.rb:57
+rspec ./spec/services/attendance/check_in_service_spec.rb:66
+rspec ./spec/services/attendance/check_in_service_spec.rb:72
+rspec ./spec/services/attendance/check_in_service_spec.rb:78
+rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:198
+rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:253
+rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:264
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-OA1 (observed in the Pilot 1 M8 verification run at bea07f8; the file is
+# outside the 140-file M0 set and was added to the M8 set). Not caused by Milestone 2 work: no Milestone 2 commit
+# touched this spec, the PermissionRole controller/views or the user factory; no production regression. Not fixed.
+# Root cause (same as TD-PERF1 / TD-FIN1): Faker generated the user name "Unassigned O'Reilly"; the page
+# HTML-escapes the apostrophe, while the spec checks the plain-text name literally, so the failure depends on the
+# generated data. Passed 6/6 isolated reruns and 14/14 for the whole file, and passed in the M8 rerun.
+# Treat a failure of this ID as known-flaky (rerun to confirm), never as a new failure.
+flaky rspec ./spec/characterization/organization_access/permission_roles_spec.rb:28
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-FIN2 (observed in the Finance & Sales Expenses M0 baseline run at 40fcc5d).
+# Same root cause as TD-FIN1 / TD-PERF1 / TD-OA1: Faker generated the user name "Margurite O'Connell"; the page
+# HTML-escapes the apostrophe while the spec checks the plain-text name literally, so the failure depends on the
+# generated data. Passed 6/6 isolated reruns and 17/17 for the whole file. No Milestone 2 commit touched Finance
+# controllers, services, views, specs or the user factory; no production regression. Not fixed; spec unchanged.
+flaky rspec ./spec/requests/finance/reports_expense_details_spec.rb:84
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-FIN3 (observed in the FS-D1 verification run, before the FS-D1 commit).
+# Browser-timing race in a system (Selenium) spec: right after clicking "add row" on the new-expense form, the
+# spec reads the rows with all(...), which does not wait, so the new expense row may not exist yet (rows.first was
+# nil). Passed 6/6 isolated reruns and 4/4 for the whole file, passed in the M0 run, and passed in the post-commit
+# verification. Neither SEC-M2-12 nor FS-D1 changed any view or JavaScript, and this spec never submits the form.
+# ID as rspec prints it (the "equal" distribution example). Not fixed; spec unchanged.
+# The same race was later observed in the "percentage" example of the same distribution-method loop ([1:1]) during
+# the FS-D2 verification run: it failed once in 6 isolated reruns (with no code change involved), and the whole file
+# passed 4/4. FS-D2 does not touch the expense form. Recorded under TD-FIN3; spec unchanged.
+flaky rspec ./spec/system/finance/expense_duplicate_branch_spec.rb[1:2]
+flaky rspec ./spec/system/finance/expense_duplicate_branch_spec.rb[1:1]
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-FIN4 (observed in the FS-D2 verification run, before the FS-D2 commit).
+# Browser-timing race in a system (Selenium) spec: the payment of 400 was recorded (settled 400, remaining 600), but
+# the custody balance stayed 0 instead of -400, i.e. the "paid from balance" checkbox may not have been registered
+# before submit. Passed 6/6 isolated reruns and the whole file. No Milestone 2 commit touched Finance views,
+# JavaScript, the payment recorder, the payments controller or system specs. Not fixed; spec unchanged.
+flaky rspec ./spec/system/finance/expense_register_payment_spec.rb:27
+#
+# KNOWN FLAKY failure TD-FIN5 (observed in the Milestone 2 final full-suite gate on 9952d68; passed on main c054fa3
+# in the same-seed run). Browser-timing failure in a system (Selenium) spec: after the recipient's rejection, the
+# manager's DR page did not yet show #transfer-deposit-responsibility-button when asserted (Arabic, 430px). Passed
+# 6/6 isolated reruns and 3/3 whole-file reruns (17 examples). No Milestone 2 commit touched deposit-responsibility
+# or reconciliation code, views, JavaScript, helpers or layouts (the only locale change is the FS-D1 key).
+# Classified as flaky timing, not a milestone regression. Not fixed; spec unchanged.
+flaky rspec ./spec/system/finance/deposit_responsibility_transfer_spec.rb:208
+#
+# Relevant spec set (140 files). Reproduce with:
+#   bundle exec rspec $(grep '^# set ' docs/architecture/attendance-payroll-baseline-failures.txt | cut -d' ' -f3)
+# set spec/architecture/permission_role_boundary_spec.rb
+# set spec/architecture/permission_role_location_spec.rb
+# set spec/architecture/workforce_catalog_boundary_spec.rb
+# set spec/architecture/workforce_model_location_spec.rb
+# set spec/models/advance_spec.rb
+# set spec/models/attendance_adjustment_spec.rb
+# set spec/models/attendance_record_spec.rb
+# set spec/models/employee_obligation_spec.rb
+# set spec/models/employee_request_spec.rb
+# set spec/models/obligation_deduction_spec.rb
+# set spec/models/obligation_postponement_spec.rb
+# set spec/models/payroll_adjustment_spec.rb
+# set spec/models/payroll_entry_spec.rb
+# set spec/models/payroll_line_item_spec.rb
+# set spec/models/payroll_period_spec.rb
+# set spec/models/penalty_rule_spec.rb
+# set spec/models/salary_profile_spec.rb
+# set spec/policies/attendance_record_policy_spec.rb
+# set spec/policies/employee_obligation_policy_spec.rb
+# set spec/policies/employee_request_policy_spec.rb
+# set spec/policies/operations_dashboard_policy_spec.rb
+# set spec/policies/payroll_adjustment_policy_spec.rb
+# set spec/policies/payroll_entry_policy_spec.rb
+# set spec/policies/payroll_line_item_policy_spec.rb
+# set spec/policies/payroll_period_policy_spec.rb
+# set spec/policies/salary_profile_policy_spec.rb
+# set spec/requests/adjustments_spec.rb
+# set spec/requests/admin/attendance_imports_spec.rb
+# set spec/requests/admin/biometric_punch_logs_spec.rb
+# set spec/requests/admin/employee_insurance_profiles_spec.rb
+# set spec/requests/admin/employee_obligations_spec.rb
+# set spec/requests/api/v1/attendance_spec.rb
+# set spec/requests/api/v1/characterization/biometric_punch_spec.rb
+# set spec/requests/api/v1/characterization/management_spec.rb
+# set spec/requests/api/v1/characterization/payroll_spec.rb
+# set spec/requests/api/v1/characterization/self_service_spec.rb
+# set spec/requests/api/v1/employee_request_scope_spec.rb
+# set spec/requests/api/v1/employee_requests_spec.rb
+# set spec/requests/api/v1/payroll_adjustments_spec.rb
+# set spec/requests/api/v1/payroll_visibility_spec.rb
+# set spec/requests/api/v1/payroll_waive_scope_spec.rb
+# set spec/requests/api/v1/security/cross_business_authorization_spec.rb
+# set spec/requests/api/v1/standard_contract/advances_spec.rb
+# set spec/requests/attendance_performance_workspace_navigation_spec.rb
+# set spec/requests/attendance_records_spec.rb
+# set spec/requests/bulk_adjustments_spec.rb
+# set spec/requests/dashboard_spec.rb
+# set spec/requests/employee_request_attendance_window_spec.rb
+# set spec/requests/employee_request_check_out_order_spec.rb
+# set spec/requests/employee_request_resulting_duration_spec.rb
+# set spec/requests/employee_request_review_changes_spec.rb
+# set spec/requests/employee_request_reviewer_datetime_spec.rb
+# set spec/requests/employee_request_reviewer_visibility_spec.rb
+# set spec/requests/employee_requests_spec.rb
+# set spec/requests/payroll_addition_cancellation_spec.rb
+# set spec/requests/payroll_bank_transfer_export_spec.rb
+# set spec/requests/payroll_deduction_waiver_spec.rb
+# set spec/requests/payroll_needs_review_spec.rb
+# set spec/requests/payroll_overtime_override_visibility_spec.rb
+# set spec/requests/payroll_overtime_recalculation_spec.rb
+# set spec/requests/payroll_review_approval_paths_spec.rb
+# set spec/requests/security/organization_access_scope_hierarchy_spec.rb
+# set spec/requests/security/organization_access_security_spec.rb
+# set spec/requests/security/organization_access_view_and_role_scope_spec.rb
+# set spec/requests/security/performance_cross_business_spec.rb
+# set spec/requests/security/shift_assignment_create_business_scope_spec.rb
+# set spec/requests/security/shift_assignment_resource_business_scope_spec.rb
+# set spec/scenarios/multi_branch_payroll_cycle_spec.rb
+# set spec/services/adjustments/bulk_create_service_spec.rb
+# set spec/services/adjustments/bulk_review_spec.rb
+# set spec/services/adjustments/selectable_periods_spec.rb
+# set spec/services/attendance/adjustment_service_spec.rb
+# set spec/services/attendance/anomaly_detector_spec.rb
+# set spec/services/attendance/bulk_manual_entry_service_spec.rb
+# set spec/services/attendance/check_in_service_spec.rb
+# set spec/services/attendance/check_out_service_spec.rb
+# set spec/services/attendance/csv_importer_spec.rb
+# set spec/services/attendance/historical_backfill_spec.rb
+# set spec/services/attendance/manual_entry_service_spec.rb
+# set spec/services/attendance/manual_records_csv_parser_spec.rb
+# set spec/services/attendance/penalty_calculator_spec.rb
+# set spec/services/attendance/punch_service_spec.rb
+# set spec/services/attendance/punch_window_spec.rb
+# set spec/services/attendance/record_deleter_spec.rb
+# set spec/services/attendance/record_recomputer_spec.rb
+# set spec/services/attendance/status_backfill_spec.rb
+# set spec/services/attendance/time_calculator_spec.rb
+# set spec/services/attendance/timestamp_parser_spec.rb
+# set spec/services/employee/performance_scorer_spec.rb
+# set spec/services/payroll/addition_cancellation_persistence_spec.rb
+# set spec/services/payroll/addition_canceller_spec.rb
+# set spec/services/payroll/adjustment_applier_spec.rb
+# set spec/services/payroll/adjustment_approval_spec.rb
+# set spec/services/payroll/adjustment_editor_spec.rb
+# set spec/services/payroll/advance_deductor_spec.rb
+# set spec/services/payroll/advance_period_isolation_spec.rb
+# set spec/services/payroll/anomaly_detector_spec.rb
+# set spec/services/payroll/auto_generator_spec.rb
+# set spec/services/payroll/branch_membership_shift_based_spec.rb
+# set spec/services/payroll/branch_review_completer_spec.rb
+# set spec/services/payroll/bulk_deduction_waiver_spec.rb
+# set spec/services/payroll/bulk_entry_review_clearer_spec.rb
+# set spec/services/payroll/bulk_overtime_overrider_spec.rb
+# set spec/services/payroll/deduction_waiver_persistence_spec.rb
+# set spec/services/payroll/deduction_waiver_spec.rb
+# set spec/services/payroll/entry_calculator_mid_month_spec.rb
+# set spec/services/payroll/entry_calculator_simulation_spec.rb
+# set spec/services/payroll/entry_calculator_spec.rb
+# set spec/services/payroll/entry_recalculator_spec.rb
+# set spec/services/payroll/entry_review_clearer_spec.rb
+# set spec/services/payroll/line_item_reviewer_spec.rb
+# set spec/services/payroll/obligation_deductor_spec.rb
+# set spec/services/payroll/obligation_editor_spec.rb
+# set spec/services/payroll/obligation_installment_postponer_spec.rb
+# set spec/services/payroll/overtime_overrider_spec.rb
+# set spec/services/payroll/overtime_recalculator_spec.rb
+# set spec/services/payroll/period_financial_summary_spec.rb
+# set spec/services/payroll/period_generator_spec.rb
+# set spec/services/payroll/permission_applier_spec.rb
+# set spec/services/payroll/regenerator_addition_cancellation_spec.rb
+# set spec/services/payroll/regenerator_deduction_waiver_spec.rb
+# set spec/services/payroll/regenerator_overtime_override_spec.rb
+# set spec/services/payroll/regenerator_penalty_waiver_spec.rb
+# set spec/services/payroll/snapshot_service_spec.rb
+# set spec/services/reports/bank_transfer_csv_exporter_spec.rb
+# set spec/services/reports/payroll_csv_exporter_spec.rb
+# set spec/services/reports/payroll_deduction_waiver_reporting_spec.rb
+# set spec/services/reports/payroll_summary_spec.rb
+# set spec/services/requests/approver_spec.rb
+# set spec/services/requests/bulk_payment_service_spec.rb
+# set spec/services/requests/canceller_spec.rb
+# set spec/services/requests/punch_correction_applier_spec.rb
+# set spec/services/requests/punch_correction_window_guard_spec.rb
+# set spec/services/salary/advance_eligibility_calculator_spec.rb
+# set spec/services/salary/daily_rate_calculator_spec.rb
+# set spec/services/salary/overtime_calculator_spec.rb
+# set spec/services/salary/profile_updater_spec.rb
+# set spec/system/admin/employee_obligations_index_spec.rb
+# set spec/system/employee_request_attendance_window_spec.rb
+# set spec/system/employee_request_review_changes_spec.rb

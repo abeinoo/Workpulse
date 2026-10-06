@@ -115,6 +115,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
 
   def update
     authorize @obligation
+    authorize_reassignment!
     if @obligation.payroll_locked?
       redirect_to admin_employee_obligation_path(@obligation),
                   alert: t("admin.employee_obligations.locked_for_edit")
@@ -141,7 +142,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   def pause
     authorize @obligation
     if @obligation.active?
-      @obligation.update!(status: :paused)
+      change_status_and_refresh_payroll!(:paused)
       redirect_to admin_employee_obligation_path(@obligation),
                   notice: t("admin.employee_obligations.paused")
     else
@@ -153,7 +154,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   def resume
     authorize @obligation
     if @obligation.paused?
-      @obligation.update!(status: :active)
+      change_status_and_refresh_payroll!(:active)
       redirect_to admin_employee_obligation_path(@obligation),
                   notice: t("admin.employee_obligations.resumed")
     else
@@ -165,7 +166,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   def cancel
     authorize @obligation
     if @obligation.active? || @obligation.paused?
-      @obligation.update!(status: :cancelled)
+      change_status_and_refresh_payroll!(:cancelled)
       redirect_to admin_employee_obligation_path(@obligation),
                   notice: t("admin.employee_obligations.cancelled")
     else
@@ -195,6 +196,17 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   end
 
   private
+
+  # Only active obligations are deducted (Payroll::ObligationDeductor), so a
+  # status change must rebuild the employee's open (non-finalized) payroll
+  # entries too — otherwise a draft keeps deducting a paused/cancelled
+  # obligation, or misses a resumed one (AP-D4). Atomic with the change.
+  def change_status_and_refresh_payroll!(status)
+    ActiveRecord::Base.transaction do
+      @obligation.update!(status: status)
+      Payroll::EntryRecalculator.recalculate_all_open_periods_for(user: @obligation.user, triggered_by: current_user)
+    end
+  end
 
   def set_obligation
     @obligation = policy_scope(EmployeeObligation).find(params[:id])
@@ -226,8 +238,21 @@ class Admin::EmployeeObligationsController < Admin::BaseController
     nil
   end
 
+  # Only employees inside the actor's manage_obligations scope can be chosen
+  # (the same rule EmployeeObligationPolicy#create? enforces).
   def load_employees
-    @employees = current_user.business.users.active.order(:first_name, :last_name)
+    @employees = current_user.business.users.active
+                             .where(id: policy(EmployeeObligation).manageable_employee_ids)
+                             .order(:first_name, :last_name)
+  end
+
+  # Moving an obligation to another employee needs the same scope as creating
+  # one for that employee (SEC-M2-4 follow-up).
+  def authorize_reassignment!
+    target_id = params.dig(:employee_obligation, :user_id)
+    return if target_id.blank? || target_id.to_i == @obligation.user_id
+
+    authorize EmployeeObligation.new(business: current_user.business, user_id: target_id), :create?
   end
 
   def derive_installments_count(obligation)

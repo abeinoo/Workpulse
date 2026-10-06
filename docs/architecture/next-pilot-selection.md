@@ -1144,3 +1144,1392 @@ A probe confirmed the spec flags new access. The location spec now covers all 7 
 * Q-P3-1 (`Employee::PerformanceScorer` ownership) remains open.
 
 There are no database, schema, migration, route or API changes.
+
+---
+
+# Milestone 2 — Attendance & Payroll
+
+**Status:** M0 audit, **security hardening** (§5.1, §17), **Pilot 1 (Biometric Device + PunchService)** and
+**Pilot 2 (Employee Obligations)** are **COMPLETE**:
+
+* Pilot 1: M1 `1024ffb` (§13), M6 `8eac847` (§14), M7 `bea07f8` (§15), M8 (§16).
+* Pilot 2: §17.
+* **Milestone 2 — Finance & Sales Expenses (Pilot 3):** **COMPLETE** (§18, close-out §18.8). Standard path: M1
+  `98edd8e`, M2 `4b94668`, M3 `d009f0d`, M4 `0ca2dc5`, M5 not needed, M6 `ddaceb1`, M7 `ee47554`, M8 docs. Cycle
+  F3 eliminated; FS-D3 recorded as open debt (§10).
+* **Milestone 2 final gate (full suite vs `main`):** passed after review (§18.9). **Milestone 2 is READY FOR PR**
+  (not created, not pushed, not merged).
+
+No schema, migration, route or API has changed. The only production behaviour changes are:
+
+* the security fixes: §5.1, plus SEC-M2-10/-11 and the SEC-M2-4 follow-up in §17;
+* the payroll-correctness fixes AP-D4 and AP-D5 (§17);
+* SEC-M2-12 and the FS-D1 / FS-D2 correctness fixes (§18).
+
+Each is in its own `fix:` commit; every M7 is a byte-identical file move. Milestone 1
+sections above are historical and unchanged.
+
+* **Branch:** `feature/milestone-2-attendance-payroll`, created from `origin/main` @ `c054fa3`.
+* **Audit date:** 2026-10-06.
+* **Baseline file:** `attendance-payroll-baseline-failures.txt`.
+* **Source of truth:** `module-boundaries.md` §6 (Attendance & Payroll, "AP") and §12–§14. Discrepancies are in §3.3.
+
+## 1. Executive summary
+
+* **Inventory:** AP spans 19 models, 72 services, 29 controllers, 11 policies, 1 job and 1 rake file (§2).
+* **Security first:** the audit found **six confirmed security defects** (§5; four High, two Medium) and two code-evident
+  scope gaps. Three are admin controllers in AP with **no authorization call at all**. Following the Pilot 3
+  precedent (SEC-P3-1), each must be fixed in its own approved commit before any pilot that touches it.
+  **Update:** all High findings are now **fixed** (SEC-M2-1, -2, -3, -4), plus **SEC-M2-9**, which was found while
+  fixing SEC-M2-3 (§5.1). The Medium/Low findings remain deferred (§5.2).
+* **Coupling:** AP has real cross-domain callers in most groups: Workforce requests, the payroll → Finance expense,
+  and readers in Reporting, Workforce and Inventory & Purchasing.
+* **Selected Pilot 1 (approved):** **Biometric Device + PunchService**, the punch capture channel (§7). It is
+  the only cohesive AP group with **zero cross-domain code callers** and **zero baseline failures**. It already has a
+  characterized device API.
+* **Precondition:** Pilot 1 was blocked until **SEC-M2-1** (device administration without a permission check) was
+  fixed. That is **done** (`28b2100`), so Pilot 1 qualifies for the fast track (M0 → M1 → M6 → M7 → M8). It has
+  **not started**.
+
+## 2. Domain inventory (repository evidence at `c054fa3`)
+
+Counted from the file list the dependency scan used: 131 AP files, 13,739 lines (models, services, controllers,
+policies, job; views excluded).
+
+### 2.1 Attendance
+
+| Area | Code |
+|---|---|
+| Models | `AttendanceRecord` (96 lines), `AttendanceAdjustment` (12), `AttendanceImportLog` (28), `BiometricDevice` (26), `BiometricPunchLog` (36; logs **both** biometric punches and mobile rejections, `SOURCES = biometric mobile`), `PenaltyRule` (43) |
+| Services `attendance/` (20) | `punch_service`, `check_in_service`, `check_out_service`, `manual_entry_service`, `bulk_manual_entry_service`, `adjustment_service`, `record_deleter`, `record_recomputer`, `time_calculator`, `penalty_calculator`, `punch_window`, `duration_check`, `geolocation_validator`, `timestamp_parser`, `anomaly_detector`, `daily_stats`, `csv_importer`, `manual_records_csv_parser`, `historical_backfill`, `status_backfill` |
+| Reports | `Reports::AttendanceSummary` |
+| Web controllers | `AttendanceController`, `AttendanceRecordsController` (362 lines), `Admin::AttendanceRecordsController` (a legacy duplicate path, §5), `Admin::AttendanceImportsController`, `Admin::BiometricDevicesController`, `Admin::BiometricPunchLogsController`, `Admin::PenaltyRulesController` |
+| API | `Api::V1::AttendanceController` (mobile check-in/out/today), `Api::V1::PunchesController < BiometricBaseController` (device-token realm), `Api::V1::AttendanceRecordsController`, `Api::V1::PenaltyRulesController`, `Api::V1::Reports::AttendanceController` |
+| Policies | `AttendanceRecordPolicy`, `AttendanceImportLogPolicy`, `PenaltyRulePolicy`. **No `BiometricDevicePolicy` / `BiometricPunchLogPolicy` exists** |
+| Jobs / tasks | `lib/tasks/attendance.rake` (`Attendance::HistoricalBackfill`) |
+| `users` columns (AP stewardship) | `allow_mobile_attendance`, `allow_biometric_attendance` |
+
+### 2.2 Payroll
+
+| Area | Code |
+|---|---|
+| Models | `PayrollPeriod` (70), `PayrollEntry` (195), `PayrollLineItem` (148), `PayrollAdjustment` (183), `PayrollAdjustmentEdit` (10), `PayrollAuditLog` (44), `PayrollSnapshot` (30), `PayrollPeriodBranchReview` (12), `SalaryProfile` (43), `Advance` (26), `EmployeeObligation` (368), `ObligationDeduction` (25), `ObligationPostponement` (26) |
+| Services `payroll/` (38) | Lifecycle (`period_generator`, `auto_generator`, `regenerator`, `draft_regenerator`, `entry_calculator`, `entry_recalculator`, `submit_for_review`, `branch_review_completer`, `changes_requester`, `approver`, `reopener`, `snapshot_service`); corrections (`overtime_overrider`, `bulk_overtime_overrider`, `overtime_recalculator`, `deduction_waiver(_persistence)`, `bulk_deduction_waiver`, `addition_canceller`, `addition_cancellation_persistence`, `line_item_reviewer`, `entry_review_clearer`, `bulk_entry_review_clearer`); adjustments (`adjustment_applier`, `adjustment_approval`, `adjustment_editor`, `adjustment_remover`); deductions (`advance_deductor`, `obligation_deductor`, `obligation_editor`, `obligation_installment_postponer`); request effects (`permission_applier`, `punch_correction_applier`); insight (`anomaly_detector`, `recommendation_engine`, `insights_presenter`, `period_financial_summary`); **`insurance_expense_generator`** (writes Finance & Sales) |
+| `salary/` (4) | `advance_eligibility_calculator`, `daily_rate_calculator`, `overtime_calculator`, `profile_updater` |
+| `adjustments/` (5) | `bulk_create_service`, `bulk_csv_parser`, `bulk_review`, `selectable_periods`, `summary_data` |
+| Reports | `Reports::PayrollSummary`, `PayrollCsvExporter`, `BankTransferCsvExporter` |
+| Web controllers | `PayrollPeriodsController` (543 lines), `PayrollEntriesController`, `PayrollLineItemsController`, `PayrollAdjustmentsController`, `PayrollDashboardController`, `AdjustmentsController` (299), `BulkAdjustmentsController` (215), `Admin::SalaryProfilesController`, `Admin::EmployeeObligationsController` |
+| API | `Api::V1::{PayrollPeriods,PayrollEntries,PayrollLineItems,PayrollAdjustments,SalaryProfiles,Advances}Controller`, `Api::V1::Reports::PayrollController` |
+| Policies | `PayrollPeriodPolicy`, `PayrollEntryPolicy`, `PayrollLineItemPolicy`, `PayrollAdjustmentPolicy`, `PayrollDashboardPolicy`, `SalaryProfilePolicy`, `AdvancePolicy`, `EmployeeObligationPolicy` |
+| Jobs | `Payroll::AutoGenerateJob` (`config/recurring.yml`) |
+| Not in a web/API surface | `Advance` has no web controller; it is created only by `Requests::Approver#pay` (Workforce) |
+
+### 2.3 Workforce code that touches AP
+
+| Workforce code | AP touch |
+|---|---|
+| `Requests::Approver` | `approve_standard` → `Payroll::PermissionApplier`; `pay` → **`Advance.create!`** (`Requests::BulkPaymentService` routes through `pay`) |
+| `Requests::PunchCorrectionApplier` | **`AttendanceRecord#save!`** + `Attendance::RecordRecomputer` + `Payroll::PunchCorrectionApplier` |
+| `Requests::Canceller` | **`PayrollLineItem` destroy/update/create** (two paths) **and `AttendanceRecord#save!`** + `RecordRecomputer` |
+| `Requests::PunchCorrectionAssessment` | reads `Attendance::PunchWindow`, `DurationCheck`, recomputes an unsaved copy |
+| `EmployeeRequest` model | `has_one :advance`; `left_joins(:advance)` priority SQL; `within_advance_limit` → `Salary::AdvanceEligibilityCalculator` |
+| `EmployeeRequestsController` + views | `AttendanceRecord` lookups, `Salary::AdvanceEligibilityCalculator`, `Attendance::DurationCheck` |
+| `Employee::InsuranceProfileUpdater` | → `Payroll::EntryRecalculator.recalculate_all_open_periods_for` |
+| `Admin::EmployeeInsuranceProfilesController` | reads `PayrollPeriod` |
+| `Admin::UsersController#show` + view | **salary profile card** and **active obligations card** (§5 SEC-M2-5) |
+| `ShiftAssignment#has_attendance_records?`, `ShiftAssignmentsController` (raw SQL `EXISTS … attendance_records`) | read attendance |
+| `Shift has_many :penalty_rules` + `accepts_nested_attributes_for` (`Admin::ShiftsController` permits `penalty_rules_attributes`), `admin/shifts/_form` | **writes `penalty_rules`** |
+| `Employee::PerformanceScorer` | Workforce namespace, scores `AttendanceRecord`; called by `Payroll::RecommendationEngine` and the operations dashboard (Q-P3-1) |
+
+## 3. Ownership analysis
+
+### 3.1 Groups
+
+| Group | Current owner (by code location) | Intended owner | Tables | Main entry points | Major dependencies |
+|---|---|---|---|---|---|
+| **Punch capture channel** | AP | AP | `biometric_devices`, `biometric_punch_logs` | `admin/biometric_devices`, `admin/biometric_punch_logs`, `api/v1/punches` (device realm), mobile rejection log in `api/v1/attendance` | `Attendance::PunchService` → `AttendanceRecord`; `Shifts::AssignmentResolver` (WF read); `Business` inverse (OA) |
+| **Attendance records & adjustments** | AP | AP | `attendance_records`, `attendance_adjustments`, `attendance_import_logs` | `attendance`, `attendance_records`, `admin/attendance_records`, `admin/attendance_imports`, API attendance/records/reports | WF requests write it; Reporting reads it heavily; drives payroll regeneration |
+| **Penalty rules** | AP model, edited via WF `Shift` | AP | `penalty_rules` | `admin/shifts/:id/penalty_rules`, `api/v1/shifts/:id/penalty_rules`, shift form nested attributes | Attached to WF `Shift` by FK; consumed by `PenaltyCalculator` / `TimeCalculator` |
+| **Salary configuration** | AP | AP | `salary_profiles` | `admin/users/:id/salary_profiles`, `api/v1/users/:id/salary_profiles` | Read by WF employee page; triggers `EntryRecalculator` |
+| **Obligations** | AP | AP | `employee_obligations`, `obligation_deductions`, `obligation_postponements` | `admin/employee_obligations` | Read by WF employee page; consumed by `ObligationDeductor` in entry calculation |
+| **Advances** | AP model, written by WF | AP | `advances` | `api/v1/advances` (read), `Requests::Approver#pay` (write) | WF ↔ AP cycle (§4.3) |
+| **Payroll adjustments** | AP | AP | `payroll_adjustments`, `payroll_adjustment_edits` | `adjustments`, `bulk_adjustments`, `payroll_adjustments`, API | Applied as `PayrollLineItem`s (payroll core); `application_helper` reads a constant |
+| **Payroll core** | AP | AP | `payroll_periods`, `payroll_entries`, `payroll_line_items`, `payroll_snapshots`, `payroll_audit_logs`, `payroll_period_branch_reviews` | `payroll_periods` (543-line controller), entries, line items, dashboard, API, `Payroll::AutoGenerateJob` | **Writes Finance & Sales** (insurance expense); read by Reporting, Finance reports and Laundry |
+
+### 3.2 Workforce vs Attendance & Payroll boundary (confirmed by code)
+
+| Concept | Owner | Evidence |
+|---|---|---|
+| Employee, `Department`, `JobTitle` | **WF** (M1, unchanged) | AP only reads `users` rows; no AP code reads department or job title |
+| `Shift`, `ShiftRuleProfile`, `ShiftTemplate(Entry)` | **WF** | AP reads them through `ShiftAssignment` / `Shifts::AssignmentResolver` (20 AP files); none is written by AP |
+| `ShiftAssignment`, scheduling, `BranchMembership` | **WF** | AP reads only `current`, `active_on`, `user_ids_for_branches`, `branch_ids_for_users`, `branch_names_by_user`, `branch_ids_by_user`; it never writes them |
+| `EmployeeRequest` (workflow) | **WF** | Request lifecycle, approvals and self-approval live in `Requests::*`. Its *effects* (advances, attendance and line-item changes) are AP data |
+| `PenaltyRule` | **AP** | Only consumed by penalty and time calculation. The shift form is a UI composition (`module-boundaries.md` §14.2 #9) |
+| `Advance` | **AP** | Deducted and settled by payroll |
+| `Employee::PerformanceScorer` | **Unclear (G)** | Workforce namespace, AP data (Q-P3-1, still open) |
+
+Workforce-owned concepts stay in Workforce. Nothing in this milestone moves a shift, assignment, request,
+department or job-title concept into AP.
+
+### 3.3 Discrepancies vs `module-boundaries.md`
+
+| # | Document says | Code shows |
+|---|---|---|
+| DS-1 | §12.2/§14.2 #1: `InsuranceExpenseGenerator` "writes `expenses`" | It writes `expenses`, **`expense_categories`** (`find_or_create_by!`) and **`expense_allocations`**, and calls `Finance::NumberSequencer` |
+| DS-2 | §14.2 #4: `Requests::Canceller` restores `PayrollLineItem` | It **also writes `AttendanceRecord`** (punch-correction rollback, `save!` + recompute) |
+| DS-3 | §14.2 #2: `pay` and `BulkPaymentService` stamp advances paid | `BulkPaymentService` calls `Requests::Approver.pay`; there is **one** `Advance.create!` site |
+| DS-4 | §12.2 WF → AP lists requests, insurance, salary display and request validation | Undocumented upward reads also exist: `ShiftAssignment#has_attendance_records?`, `ShiftAssignmentsController` raw SQL on `attendance_records`, `Admin::EmployeeInsuranceProfilesController` → `PayrollPeriod`, and the **obligations card** on the employee page |
+| DS-5 | §6 lists AP policies | There is no policy for biometric devices or punch logs, and three AP admin controllers call no `authorize` (§5) |
+| DS-6 | §3.2: the attendance-channel flags are AP-stewarded | Confirmed (`PunchesController`, `Api::V1::AttendanceController`); still an open confirmation in §20.2 |
+| DS-7 | — | Two different "branch members" paths inside AP: `EmployeeObligation.for_branch` uses `BranchMembership`, and `PayrollAdjustment.for_branch` uses `ShiftAssignment.current` directly |
+| DS-8 | §6: `BiometricPunchLog` is device data | It is the punch log for **both** channels (`source: biometric | mobile`); the mobile API writes rejection rows |
+
+## 4. Cross-domain dependency audit
+
+**Counting rule:** a dependency is a distinct (source file → target domain) code edge. Comment-only matches are
+excluded; for example, the `Advance` matches in `api/list_query.rb`, `purchase_request*` and
+`recurring_expense_generator` are prose. Raw reference lines are given where useful.
+
+### 4.1 Summary
+
+| Class | Meaning | Count | Detail |
+|---|---|---|---|
+| **A** | Internal to AP | 11 regeneration call sites + the Attendance ↔ Payroll internal cycle | Attendance → `DraftRegenerator` / `EntryRecalculator` from 5 attendance services, 2 salary-profile controllers, `Salary::ProfileUpdater`, 2 obligation services, and `DraftRegenerator` itself |
+| **B** | Read-only dependency | **36 file edges** | AP → WF reads: 24 files / 30 lines (allowed direction). Reporting → AP: 6 files. Inventory & Purchasing → AP: 1 (`Laundry::LaundryCostSummaryReport`). WF → AP reads (upward): 5 code files (`EmployeeRequestsController`, `EmployeeRequest`, `ShiftAssignment`, `ShiftAssignmentsController`, `Admin::EmployeeInsuranceProfilesController`) |
+| **C** | Valid documented exception | **16** | OA inverse `has_many` ×11 (`User` 5, `Business` 4, `Branch` 2); WF `Shift has_many :penalty_rules` (association only); FS `Expense belongs_to :source_payroll_period`; UI shell (`_sidebar`, `workspace_helper`, `application_helper` `PayrollAdjustment::POSITIVE_TYPES`) |
+| **D** | Cross-domain business operation | **4** | WF → AP service calls: `Requests::Approver` → `Payroll::PermissionApplier`; `Requests::PunchCorrectionApplier` → `Payroll::PunchCorrectionApplier`; `Requests::Canceller` → `Attendance::RecordRecomputer`; `Employee::InsuranceProfileUpdater` → `Payroll::EntryRecalculator` |
+| **E** | Direct cross-domain write | **5 write paths, 7 tables** | WF → AP: (1) `Requests::Approver#pay` → `advances`; (2) `Requests::Canceller` → `payroll_line_items` + `attendance_records`; (3) `Requests::PunchCorrectionApplier` → `attendance_records`; (4) `Shift` nested attributes → `penalty_rules`. AP → FS: (5) `Payroll::InsuranceExpenseGenerator` → `expenses`, `expense_categories`, `expense_allocations` |
+| **F** | Circular dependency (cross-domain) | **3** | (1) **WF ↔ AP requests/advances:** WF writes `advances` / line items / attendance; AP reads `EmployeeRequest.approved_minutes`, pending advance requests, `Advance belongs_to :employee_request`. (2) **WF ↔ AP shift assignment/attendance:** AP reads `ShiftAssignment` everywhere; WF reads `attendance_records` to decide editability. (3) **AP ↔ FS:** AP writes expenses; FS references `source_payroll_period` and reads `PayrollEntry` in its reports |
+| **G** | Unclear ownership | **3** | `Employee::PerformanceScorer` (Q-P3-1); attendance-channel flags on `users` (§20.2); AP services under the generic `reports/` namespace plus the AP partial `shared/_adjustment_already_paid_section` |
+
+**Totals:**
+
+* **Cross-domain dependencies (B–E, F and G excluded):** 61 (36 + 16 + 4 + 5).
+* **Requiring future work (D + E):** 9.
+* **Circular:** 3 cross-domain, plus 1 internal (Attendance ↔ Payroll, already documented in `module-boundaries.md` §13).
+* **Direct cross-domain writes:** 5.
+
+Reproduce: the AP file list and grep patterns used are recorded in §9.
+
+### 4.2 Pairs requested for special attention
+
+| Edge | Finding |
+|---|---|
+| Workforce → AP | Reads (5 files), 4 business operations (D), 4 direct writes (E #1–#4). The main cluster is `Requests::*` |
+| AP → Workforce | 24 files / 30 lines, all reads (assignments, resolver, approved request minutes, performance scorer); **no AP writes into WF or OA tables** (verified by write-pattern scan) |
+| AP → Finance & Sales | 1 service, 3 FS tables, inside `Payroll::Approver#finalize` (E #5) |
+| Employee Requests → AP | E #1–#3 and D #1–#3 |
+| Attendance → Payroll | Internal (A): 11 recalculation call sites; attendance changes refresh open payroll entries |
+| Payroll → Finance | E #5 only. No salary-payment or advance-disbursement Finance record exists |
+| Payroll → Workforce | Reads only: `ShiftAssignment` branch attribution (5 files), `EmployeeRequest.approved_minutes`, `Employee::PerformanceScorer` |
+
+## 5. Security audit
+
+**Status:** SEC-M2-1, -2, -3, -4 and -9 are **fixed** (§5.1). SEC-M2-5, -6, -7 and -8 and AP-D1 are **deferred**
+(§5.2). The table below is the original M0 record, kept unchanged as evidence; SEC-M2-9 was added when it was found.
+
+These findings **block** any pilot that touches the affected path. Following the SEC-P3-1 precedent, each is
+fixed in its own approved commit before characterization (`migration-pattern.md` §4, Pilot 3 lessons).
+
+Each was proven with a throwaway request probe that is **not** in the repository, run on the transactional test
+database. The probe actor holds only `view_employees` unless stated otherwise.
+
+| ID | Severity | Path | Defect | Proof |
+|---|---|---|---|---|
+| **SEC-M2-1** | **High** | `Admin::BiometricDevicesController` (all actions) | **No `authorize` call, and no policy exists.** The gate is `Admin::BaseController#require_admin_access!`, which accepts any of 13 permissions (including `view_employees`, `view_attendance` and `view_payroll`; the default branch-manager and area-manager roles hold all three). Such a user can **read a device token, regenerate it, and create or destroy devices**. A token authenticates `POST /api/v1/attendance/punch` for **any active employee of the business** (24-hour window). That is attendance falsification, and through it payroll. The intended permission is `manage_devices` (the sidebar gate) | Token shown (200), regenerated (changed), device created |
+| **SEC-M2-2** | **High** | `Admin::AttendanceRecordsController#update` (`PATCH /admin/attendance_records/:id`) | **No `authorize`**, and the lookup is business-wide with no data scope. Any admin-gate holder can rewrite check-in/check-out of any employee **including their own** (`Attendance::AdjustmentService`, which checks no permission) and so change pay. The policy-based path (`AttendanceRecordsController`, `manage_attendance`) is bypassed | Another employee's record changed; the actor's **own** record changed |
+| **SEC-M2-3** | **High** | `Admin::PenaltyRulesController` (new/create/edit/update/destroy) | **No `authorize`.** `PenaltyRulePolicy` requires `manage_shifts`, but it is never called. Any admin-gate holder can create, edit or delete penalty rules on any shift in the business, changing payroll deductions | Rule created (0 → 1) |
+| **SEC-M2-4** | **High** (cross-business) | `Admin::EmployeeObligationsController#create` | `user_id` comes from params with **no business check** (and `EmployeeObligation` has no same-business validation), and no `manage_obligations` data-scope check. An obligation can be created in business A for a user of **business B**. `Payroll::ObligationDeductor` selects obligations by user only (`for_user`), so **business B's payroll would deduct it** | Created; `obligation.business` = A, `user.business` = B. Deduction effect is code-evident (`obligation_deductor.rb:27-31`) |
+| **SEC-M2-5** | Medium | `admin/users#show` (salary card, active obligations card) | The page is authorized by `UserPolicy#show?` (`view_employees` + employee scope) only. It renders **base salary, salary type, overtime multiplier and salary history** without `SalaryProfilePolicy#show?` (`manage_salary_profiles` / `view_payroll` / own), and obligations without `manage_obligations`. Default roles pair `view_employees` with `view_payroll`, so this is exposed through custom roles | Salary visible with `view_employees` (business scope) and **no** `view_payroll` |
+| **SEC-M2-6** | Medium | `Admin::SalaryProfilesController#create/update` | The employee is looked up business-wide (`current_user.business.users.find`), and the policy ignores the `manage_salary_profiles` scope (a scopable permission). A holder scoped to **self** created profiles for **themselves**, another employee and the **owner**. Self-salary changes have no segregation-of-duties guard | 3/3 created |
+| SEC-M2-7 | Medium (code-evident, not probed) | `AdvancePolicy::Scope`, `SalaryProfilePolicy::Scope` | Any `view_payroll` holder gets **business-wide** advances and salary profiles. The configured `view_payroll` scope is ignored, unlike `PayrollEntryPolicy` / `PayrollLineItemPolicy`, which honour it. Exposed via `GET /api/v1/advances` | Code reading |
+| **SEC-M2-9** | **High** (found while fixing SEC-M2-3, not in the M0 scan) | `Admin::ShiftsController` (all actions) | **No `authorize`** although `ShiftPolicy` requires `manage_shifts` for create/update/destroy. `shift_params` permits `penalty_rules_attributes`, so the SEC-M2-3 fix alone would have left penalty rules writable through `PATCH /admin/shifts/:id`. Any admin-gate holder could also create, edit or delete shifts (times drive lateness and overtime) | `view_employees`-only user added a 999 penalty rule through the shift form, changed a shift's start time, created and deleted shifts |
+| SEC-M2-8 | Low–Medium (code-evident) | `Admin::BiometricPunchLogsController` | No `authorize`; business-wide punch logs (employee, time, IP address) for any admin-gate holder, with no data scope | Code reading |
+
+### 5.1 Security hardening before Pilot 1 (fixed)
+
+**Why these are separate from the migration:** a security fix changes behaviour (who may do what), while a migration
+step must be behaviour-preserving and mechanical (`migration-pattern.md` §9: never mix defect fixes with migration
+steps). Each fix is therefore its own `fix:` commit:
+
+* It is fixed **before** Pilot 1's characterization, so M1 pins the corrected behaviour, not the vulnerable one.
+* It can be reviewed and reverted independently.
+* It is never mixed into the later `refactor:` move commit.
+
+Shared rules:
+
+* No new permission and no new authorization mechanism: existing policies (or one new policy using an existing
+  permission) are called with Pundit `authorize` / `policy_scope`.
+* Lookups stay inside `current_user.business` (another business → 404).
+* No route, API, schema or migration change.
+
+**Proof that each spec catches its defect:** every regression spec was run against the previous code, where its
+attack cases fail, and against the fix, where all pass.
+
+| ID | What was wrong | Fix | Commit | Regression coverage | Valid behaviour preserved |
+|---|---|---|---|---|---|
+| **SEC-M2-1** | `Admin::BiometricDevicesController` had no policy. Any admin-gate holder (`view_employees`, `view_attendance`, `view_payroll`, …) could list devices, read or regenerate a device token, and create, edit or delete devices. A token authenticates the punch API for any employee of the business | New `BiometricDevicePolicy`: every action (index/show/new/create/edit/update/destroy/regenerate_token) requires the existing `manage_devices` permission within the device's business; `authorize` in every action | `28b2100` | `spec/requests/security/biometric_devices_authorization_spec.rb` (15): every action denied without `manage_devices` (token never rendered); the full lifecycle with `manage_devices`; cross-business 404 for view/update/regenerate/delete; owner access | A `manage_devices` holder and the owner keep the full lifecycle; the device list shows only the business's devices; the punch API and its characterization are unchanged |
+| **SEC-M2-2** | `PATCH /admin/attendance_records/:id` had no policy and a business-wide lookup. Any admin-gate holder could rewrite any employee's — or their own — check-in/check-out (pay is recalculated). Index and show ignored the data scope | `Admin::AttendanceRecordsController` now uses `policy_scope(AttendanceRecord)` + `AttendanceRecordPolicy`, exactly like the policy-based `AttendanceRecordsController`: business + `view_attendance` data scope for the lookup, `manage_attendance` for the change. The edit form renders only when `update?` is allowed. The non-admin `PATCH /attendance_records/:id` was already protected and is unchanged | `ca66c43` | `spec/requests/security/admin_attendance_records_authorization_spec.rb` (9; 5 fail on the old code): no change without `manage_attendance` (other employee and own record); business-scope manager can change; branch scope limits change and listing to the managed branch (other branch → 404); another business's record → 404 even for the owner | Same-business, in-scope `manage_attendance` holders change records exactly as before; viewers still see in-scope records (read-only) |
+| **SEC-M2-3** | `Admin::PenaltyRulesController` called no policy. Any admin-gate holder could create, edit or delete payroll penalty rules | Every action (new/create/edit/update/destroy) authorizes with the existing `PenaltyRulePolicy` (`manage_shifts`); rules are reachable only through a shift of the actor's business | `3d9127e` (with SEC-M2-9) | `spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb` (26 in total; 13 fail on the old code): forms/create/update/delete denied for `view_shifts` and `view_employees`-only users; `manage_shifts` lifecycle; foreign shift/rule → 404, including a foreign rule through an own shift's URL | `manage_shifts` holders and the owner create, update and delete rules as before |
+| **SEC-M2-9** | `Admin::ShiftsController` called no policy. Shifts, and penalty rules via `penalty_rules_attributes`, were writable by any admin-gate holder | Every action authorizes with the existing `ShiftPolicy` (view: `view_shifts`/`manage_shifts`/`assign_shifts`; change: `manage_shifts`). The index keeps its own query (`ShiftPolicy::Scope` would hide inactive shifts). The admin shift pages render change actions only when the policy allows them | `3d9127e` (with SEC-M2-3) | Same spec: the demonstrated attack (`view_employees`-only `PATCH /admin/shifts/:id` with a new name/time or with nested rules added, changed or removed) is denied; create (with nested rules), update, destroy and the forms are denied; `view_shifts` is read-only; `manage_shifts` create/update (incl. nested rules)/delete; another business's shift → 404 | `manage_shifts` holders keep shift + nested penalty-rule editing; `view_shifts` / `assign_shifts` holders keep read access |
+| **SEC-M2-4** | `EmployeeObligation` (a payroll deduction) accepted a `user_id` of another business, and `Payroll::ObligationDeductor` selected obligations by user only, so business B's payroll would deduct an obligation recorded in business A | `EmployeeObligation` validates that `user` and `created_by` belong to its business (SEC-P3-1 pattern; validated only when a reference changes, so existing rows are not re-validated). This covers create (422) and update via `Payroll::ObligationEditor` (422). `ObligationDeductor` applies only obligations of the period's business, so a foreign row created before the fix is never deducted. The factory defaults to same-business references | `a384319` | `spec/requests/security/employee_obligations_business_scope_spec.rb` (9; the 4 attack cases fail on the old code): foreign `user_id` rejected on create and update (nothing created or changed); model rejects a foreign user and creator; a legacy foreign obligation is not deducted | Same-business create and edit still work; a same-business obligation is still deducted (asserted); the employee picker is unchanged |
+
+**Verification of the hardening (focused sets; the full suite has not been run yet):**
+
+* **After SEC-M2-3 + SEC-M2-9:** 1,263 examples.
+* **After SEC-M2-4:** 1,668 examples.
+* **Comparison:** every failing ID is in `attendance-payroll-baseline-failures.txt` /
+  `permission-role-baseline-failures.txt`, so there are **0 new failures**.
+* `zeitwerk:check` passes, `git diff --check` is clean, and RuboCop reports no offenses in any changed file. The
+  project-wide count is 370, all pre-existing; `c054fa3` had 372, and SEC-M2-1 fixed 2 on a touched line.
+
+**Final state of the attendance-admin surface:** every AP admin controller now calls `authorize` except
+`Admin::BiometricPunchLogsController` (SEC-M2-8, read-only, deferred). `Admin::DashboardController` (a read-only
+overview) also has none; it is outside this hardening.
+
+### 5.2 Deferred findings (recorded follow-up, not fixed)
+
+| ID | Severity | Item | Why deferred / follow-up |
+|---|---|---|---|
+| SEC-M2-5 | Medium | Employee page shows salary and obligations without the AP policies | Needs Q-M2-5 (AP policy gate in the WF view vs AP-contributed panel) |
+| SEC-M2-6 | Medium | Salary-profile create/update ignores the `manage_salary_profiles` scope; self-salary changes allowed | Needs Q-M2-4 (segregation-of-duties rule) |
+| SEC-M2-7 | Medium | Advance and salary-profile scopes ignore the configured `view_payroll` scope | Needs a scope decision; fix before P-3 / P-6 |
+| SEC-M2-8 | Low–Medium | Punch logs visible business-wide to any admin-gate holder | Needs Q-M2-2; it is in Pilot 1's scope (CG-4), so it should be decided before Pilot 1's M1 |
+| AP-D1 | Defect (not security) | `GET /api/v1/users/:id/salary_profiles` raises `NoMethodError` for callers without salary/payroll permission | Fix with SEC-M2-6/7 (same policy) |
+| SEC-M2-4 follow-up | Medium (product decision) | Obligation creation is not limited to the creator's `manage_obligations` data scope; the employee picker is intentionally business-wide | Decide with P-2 (Obligations) |
+| SEC-M2-2 follow-up | Low (product decision) | Admin and web attendance updates both use the `view_attendance` scope for the lookup (not the `manage_attendance` scope), and allow a `manage_attendance` holder to edit their own record — the existing web-path rule, kept for parity | Decide with P-7 (Attendance records) |
+
+**Related defects (not security):**
+
+* **AP-D1:** `GET /api/v1/users/:id/salary_profiles` raises `NoMethodError` (`SalaryProfilePolicy#viewable?` →
+  `own_record?` on the **class**) for any caller without `manage_salary_profiles` / `view_payroll`. This breaks the
+  CLAUDE.md rule on class records. Proven by probe.
+* **AP-D2:** `Api::V1::PayrollLineItemsController#waive` calls the removed `waive?` (already pinned as D1 in the
+  API characterization; a baseline failure).
+
+**Checked and found sound:** web payroll period, entry, line-item and adjustment lookups all go through
+`policy_scope` with per-action policies. `Adjustments::BulkCreateService` enforces `allowed_user_ids`.
+`PayrollAdjustment` validates the same business. The device API rejects inactive devices, a missing token and
+employees outside the device's business (characterized). No AP code writes WF or OA tables.
+
+## 6. Candidate pilot groups (scored with `migration-pattern.md` §12; 1 = best, 3 = worst)
+
+| Criterion (weight) | P-1 Punch capture | P-2 Obligations | P-3 Salary config | P-4 Penalty rules | P-5 Payroll adjustments | P-6 Advances | P-7 Attendance records | P-8 Payroll core |
+|---|---|---|---|---|---|---|---|---|
+| Coupling (3) | 1 | 2 | 2 | 2 | 2 | 3 | 3 | 3 |
+| Callers (2) | 1 | 1 | 2 | 2 | 2 | 2 | 3 | 3 |
+| Cross-domain deps (3) | 1 (OA inverse, UI shell) | 2 (WF profile card) | 2 (WF profile card) | 3 (WF nested write, E #4) | 2 (helper, Reporting) | 3 (E #1, cycle F1) | 3 (E #2–#3, F2, Reporting) | 3 (E #5, F3) |
+| Security risk (3) | 3 → **2 after SEC-M2-1** | 3 (SEC-M2-4) | 3 (SEC-M2-5/6/7) | 3 (SEC-M2-3) | 2 | 2 (SEC-M2-7) | 3 (SEC-M2-2) | 2 |
+| Criticality (2) | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 |
+| Coverage (2) | 1 (API characterized + 84 service/admin examples) | 1 | 2 | 2 | 2 | 2 | 1 | 1 |
+| Database (2) | 1 | 1 | 1 | 1 | 1 | 1 | 2 | 2 |
+| Cycles (3) | 1 | 1 | 1 | 2 | 1 | 3 | 3 | 3 |
+| Size (1) | 1 (2 models, 565 lines) | 2 (3 models, 1,053 lines) | 1 | 1 | 2 | 1 | 3 | 3 |
+| Rollback (2) | 1 | 1 | 1 | 2 | 1 | 2 | 2 | 2 |
+| Baseline noise (1) | 1 (0 failures) | 1 (0) | 2 (AP-D1) | 1 | 2 (`adjustments_spec:740`) | 3 (eligibility ×3) | 3 (API attendance ×7, check-in ×4) | 3 (visibility ×9, waive ×17, approval ×4) |
+| **Weighted total** | **31** after SEC-M2-1 (34 before) | 41 | 45 | 52 | 43 | 57 | 64 | 61 |
+
+**Disqualifiers:**
+
+* **P-6 Advances, P-7 Attendance records, P-8 Payroll core:** each sits on an unresolved cross-domain cycle (F1, F2
+  and F3).
+* **P-4 Penalty rules:** needs a boundary for the WF `Shift` nested write, so standard M2–M5 apply.
+* **P-2, P-3, P-4:** each carries an open security defect whose fix needs a product decision (data-scope rules,
+  self-salary segregation of duties).
+
+## 7. Selected Pilot 1 — Biometric Device + PunchService (punch capture channel)
+
+**Approved.** Not started.
+
+### 7.1 Exact scope
+
+| Kind | Items |
+|---|---|
+| Models | `BiometricDevice`, `BiometricPunchLog` |
+| Tables | `biometric_devices`, `biometric_punch_logs` |
+| Controllers | `Admin::BiometricDevicesController`, `Admin::BiometricPunchLogsController`, `Api::V1::BiometricBaseController`, `Api::V1::PunchesController` |
+| Services | `Attendance::PunchService`, `Attendance::TimestampParser` (already in `app/services/attendance/`, so no move is needed) |
+| Policies | `BiometricDevicePolicy` (added by the SEC-M2-1 fix, `28b2100`, not by the pilot). There is no punch-log policy yet (SEC-M2-8 deferred) |
+| Jobs / queries | None. The punch-log filtering query lives in the admin controller |
+| Views | `app/views/admin/biometric_devices/`, `app/views/admin/biometric_punch_logs/` (7 files) |
+| Specs | `requests/api/v1/characterization/biometric_punch_spec.rb` (9), `services/attendance/punch_service_spec.rb` (38), `timestamp_parser_spec.rb` (25), `requests/admin/biometric_punch_logs_spec.rb` (12); also exercised by `anomaly_detector_spec`, `csv_importer_spec`, `historical_backfill_spec`, `request_logging_spec`, `sidebar_active_state_spec` |
+
+**Not included:**
+
+* `AttendanceRecord` (P-7; `PunchService` writes it, an internal AP edge).
+* `Attendance::AnomalyDetector` (reads punch logs, internal).
+* The mobile check-in path in `Api::V1::AttendanceController` (internal writer of rejection logs).
+* The `users` attendance-channel flags (G).
+
+### 7.2 Dependencies (M0 fast inventory)
+
+| Kind | Finding |
+|---|---|
+| Internal (AP) | `AttendanceRecord has_many :biometric_punch_logs`; `PunchService` → `AttendanceRecord`; `AnomalyDetector` and the mobile API read or write `BiometricPunchLog` |
+| Cross-domain code callers | **None** |
+| Cross-domain references | `Business has_many :biometric_devices / :biometric_punch_logs` (OA inverse, C); `_sidebar` and `workspace_helper` navigation (UI shell, C); `PunchService` → `Shifts::AssignmentResolver` (AP → WF read, allowed) |
+| Direct cross-domain writes | **None** |
+| Circular dependencies | **None** |
+| Database | 0 migrations call the constants (only the two `Create*` migrations); no STI or polymorphic type stores the class names (no `log_audit`, no attachments) |
+
+### 7.3 Security risk
+
+* It was **High** at M0 (SEC-M2-1, SEC-M2-8), because the device token is a credential that writes
+  payroll-relevant data.
+* **SEC-M2-1 is fixed** (`28b2100`); SEC-M2-8 is deferred (read-only).
+* The remaining risk is Medium. That leaves an external-hardware authentication realm that is already characterized (401
+  without token, 401 inactive, header alternative, web session ignored, 404 for a foreign employee, 422 for
+  timestamp, window and channel).
+
+### 7.4 Characterization gaps (M1, after the security fix)
+
+| Gap | Status |
+|---|---|
+| CG-1 Device admin authorization matrix: `manage_devices` allowed, admin-gate-only permissions denied, owner allowed, cross-business 404, token visible only to authorized users | **Covered** by the SEC-M2-1 regression spec (`28b2100`) |
+| CG-2 Device CRUD + `regenerate_token` contract (redirects, flash, token changes, **old token rejected** by the punch API) | **Covered** by M1 `1024ffb` (`biometric_device_spec`) |
+| CG-3 Punch API negatives not yet pinned: unknown token (vs inactive), device of business B with employee of B only, duplicate or stale punch outcome | **Covered** by M1 `1024ffb` (`punch_api_spec`, `biometric_device_spec`) |
+| CG-4 Punch-log visibility: who may list and show logs, cross-business 404 on `show` | **Covered as current behaviour** by M1 `1024ffb` (`biometric_punch_log_spec`). SEC-M2-8 is still deferred, so the pinned visibility is labelled as the deferred finding, not as desired behaviour |
+| CG-5 `destroy` nullifies logs (`dependent: :nullify`) | **Covered** by M1 `1024ffb` |
+
+### 7.5 Migration complexity, boundary and physical move
+
+* **Complexity:** low (SEC-M2-1 is fixed). The move is byte-identical and keeps the constants and tables.
+* **Boundary objects:** **not needed** (no cross-domain caller; rule A/B).
+* **Physical move (M7):** appropriate. This would be the **first AP collapsed directory**, so it needs:
+  * the Q-M2-1 naming decision;
+  * a new `config/initializers/attendance_payroll_autoload.rb`;
+  * an AP boundary spec and an AP location spec (both new, following the Workforce pattern).
+
+### 7.6 Why this is the best first pilot
+
+* It is the only AP group with **no cross-domain caller, no cross-domain write, no cycle and no baseline failure**.
+* It is already characterized at the API level (the previous selection's C3).
+* It is a real business boundary (the capture channel), not a size pick. It establishes AP's enforcement spec and
+  collapsed directory for every later group.
+* The previous objection to C3 (it preceded Workforce, §19 order) no longer applies, because Workforce has moved.
+
+### 7.7 Why the others wait
+
+| Group | Reason to wait |
+|---|---|
+| P-2 Obligations | Strong runner-up. It waits for the SEC-M2-4 fix (cross-business plus the scope rule decision) and for a decision on the WF employee-page obligations card (exception vs UI composition). **Recommended Pilot 2** |
+| P-3 Salary configuration | SEC-M2-5/6/7 and AP-D1 must be fixed first; the self-salary segregation-of-duties rule needs a product decision |
+| P-4 Penalty rules | SEC-M2-3, plus the WF `Shift` nested-attributes write (E #4) needs an interface step (standard M2–M5) |
+| P-5 Payroll adjustments | Bound to `PayrollLineItem` (payroll core) through `AdjustmentApplier`; best migrated with or after the payroll core |
+| P-6 Advances | WF ↔ AP cycle F1; needs the `employee_request.*` contract (`module-boundaries.md` §14.1 B) |
+| P-7 Attendance records | SEC-M2-2, cycle F2, WF writes (E #2–#3), 11 baseline failures |
+| P-8 Payroll core | AP → FS write (E #5, cycle F3), largest controller, 30 baseline failures; last |
+
+## 8. Fast-track decision and expected sequence
+
+**Decision: fast track, gated by a security precondition.** M0 found no cross-domain code callers for P-1, so no
+boundary or interface is required. M2–M5 are **skipped on evidence**:
+
+* no cross-domain caller (M2/M3);
+* the services are already in `app/services/attendance/` (M4);
+* the device controllers hold no business rules beyond CRUD (M5). The missing authorization is a **defect fix**,
+  not an M5 refactor.
+
+| Order | Fast-track step | Standard IDs | Content | Commit |
+|---|---|---|---|---|
+| 0 | M0 Fast inventory | M0 | This section + baseline file | `docs:` (this checkpoint) |
+| 1 | **Security precondition** | — (defect fix, like SEC-P3-1) | **Done:** SEC-M2-1 `28b2100`, plus SEC-M2-2 `ca66c43`, SEC-M2-3 + SEC-M2-9 `3d9127e` and SEC-M2-4 `a384319` (§5.1). SEC-M2-8 is still to be decided before M1 (CG-4) | `fix:` ×4 (done) |
+| 2 | M1 Characterization | M1 | **Done** (§13): CG-2 to CG-5 against the fixed code; default and random order | `test:` `1024ffb` |
+| 3 | M2 Boundary + M6 Physical + M7/M8 | M6 + M7 + M8 | **M6 done separately** (§14), per the M6-only approval; M7 + M8 remain. New AP boundary spec (constants `BiometricDevice` / `BiometricPunchLog`, tables, allow-list: `Business` inverse, sidebar, `workspace_helper`, AP-internal writers) with a probe; `git mv` of the 2 models into the collapsed AP directory + initializer + location spec; verification + status section | `refactor:` (one commit, as in Pilot 3) |
+
+**Database verification (M8):** not needed. No migration calls the constants, and no class names are stored.
+
+**Other security fixes:**
+
+* SEC-M2-2, -3, -4 and -9 are fixed (§5.1).
+* SEC-M2-5 to -8 and AP-D1 are deferred (§5.2). Each must be scheduled as a separately approved `fix:` commit before
+  the pilot that touches it.
+
+## 9. Test baseline (Step 9)
+
+* **Recorded:** 2026-10-06, at `c054fa3`, with no code changes. The file list and the full failing-ID list are in
+  `attendance-payroll-baseline-failures.txt`.
+* **Set:** 140 spec files:
+  * AP core (111): AP models/policies, `spec/services/{attendance,payroll,salary,adjustments}`, AP reports,
+    `employee/performance_scorer`, AP request/API/characterization/standard-contract/system specs,
+    `scenarios/multi_branch_payroll_cycle`, `dashboard_spec`;
+  * Workforce ↔ AP (19): `services/requests`, `employee_request*`, `api/v1/employee_request*`,
+    `admin/employee_insurance_profiles`;
+  * `spec/architecture` (4);
+  * `spec/requests/security` (6).
+* **Result:** 2,634 examples, **52 failures**, 1 pending.
+* **ID comparison:** all 52 are already in `permission-role-baseline-failures.txt`, so there are **0 new failures**.
+
+| File | Failing IDs | Note |
+|---|---|---|
+| `requests/api/v1/payroll_waive_scope_spec.rb` | 17 | Pre-existing (AP-D2 family) |
+| `requests/api/v1/payroll_visibility_spec.rb` | 9 | Pre-existing |
+| `requests/api/v1/attendance_spec.rb` | 7 | Pre-existing |
+| `services/attendance/check_in_service_spec.rb` | 4 | Business-day boundary |
+| `requests/payroll_review_approval_paths_spec.rb` | 4 | Pre-existing |
+| `services/salary/advance_eligibility_calculator_spec.rb` | 3 | Date-dependent; `:208` passed today (flaky, TD-AP1) |
+| `policies/operations_dashboard_policy_spec.rb` | 3 | Pre-existing |
+| `requests/dashboard_spec.rb` | 2 | Pre-existing |
+| `requests/adjustments_spec.rb`, `policies/payroll_period_policy_spec.rb`, `models/employee_request_spec.rb` | 1 each | Pre-existing (`employee_request_spec:432` is date-dependent) |
+
+* **Pilot 1 scope files have 0 failing IDs.**
+* **Architecture and security specs:** all green.
+* **Not run:** the full suite, migrations and any destructive task.
+
+## 10. Known technical debt (recorded, not fixed)
+
+| ID | Item |
+|---|---|
+| TD-AP1 | Date-dependent advance-eligibility and employee-request specs (`advance_eligibility_calculator_spec:198/208/253/264`, `employee_request_spec:432`) |
+| TD-AP2 | Biometric device create / regenerate-token / destroy write **no audit log** (audit-first rule); a behaviour change, so it needs its own decision |
+| TD-AP3 | `Admin::AttendanceRecordsController` duplicates `AttendanceRecordsController`. Since SEC-M2-2 it uses the same policy; it remains to decide whether the legacy path should exist (Q-M2-3) |
+| TD-AP4 | `SalaryProfile` `update` edits the active profile in place (CLAUDE.md "corrections are append-only"); the API restricts the fields, the web path does not |
+| TD-AP5 | Two branch-membership paths inside AP (DS-7) |
+| TD-AP6 | `PayrollPeriodsController` (543 lines) holds orchestration that belongs in services; a prerequisite for P-8 |
+| TD-AP7 | `Api::V1::PayrollAdjustmentsController#create` authorizes the class; `same_business?` on a class passes only for owners, so non-owner managers are always denied (functional, not a leak) |
+| TD-AP8 | Deferred security follow-ups (§5.2): SEC-M2-5, -6, -7, -8, AP-D1, plus the SEC-M2-4 and SEC-M2-2 scope decisions |
+| **AP-D3** | **Known defect, found during Pilot 1 M1 characterization (§13).** When a work date's attendance record was soft-deleted (`deleted_at`), a later punch for that date updates the deleted record (`AttendanceRecord.find_or_initialize_by` has no `active` filter; the unique `(user_id, work_date)` index prevents a new row). The punch reports success while the attendance stays invisible (`AttendanceRecord.active` excludes it). It is **not a regression** caused by M1 (pre-existing production behaviour) and is **not classified as a security vulnerability**. **Pinned, not fixed:** `spec/characterization/attendance_payroll/punch_service_spec.rb`. A fix changes production behaviour and needs its own approved `fix:` commit |
+| **TD-OA1** | **Flaky test-data failure** (same treatment as TD-PERF1 / TD-FIN1), observed in the Pilot 1 M8 verification run: `spec/characterization/organization_access/permission_roles_spec.rb:28`. Faker generated the user name "Unassigned O'Reilly"; the page HTML-escapes the apostrophe while the spec checks the plain-text name literally. Pre-existing and data-dependent: it passed 6/6 isolated reruns and 14/14 for the whole file, and passed in the M8 rerun. Milestone 2 touched neither the PermissionRole controller/views nor the user factory, so there is no production regression. Recorded as `flaky` in `attendance-payroll-baseline-failures.txt`; not fixed |
+| **AP-D4** | **Fixed** in `6177e8b` before Pilot 2 M1 (§17): pause and cancel did not rebuild open payroll, so the draft kept deducting the obligation |
+| **AP-D5** | **Fixed** in `b6d4526` before Pilot 2 M1 (§17): reassignment left the previous employee's draft deduction, a double deduction |
+| **TD-AP9** | Obligation pause / resume / cancel change status in `Admin::EmployeeObligationsController`, with no service, no audit log and no reason captured (CLAUDE.md "never bypass services", "every financial action must generate an audit event", "destructive actions require a reason"). The AP-D4 fix added only the atomic open-payroll rebuild. A fix changes behaviour and needs its own approved commit |
+| **TD-AP10** | The obligation installment-count rule is duplicated (`Admin::EmployeeObligationsController#derive_installments_count` and `Payroll::ObligationEditor#derive_installments_count`), and create-time derivations (remaining balance, count, business, creator) live in the controller |
+| **TD-AP11** | Obligation money arithmetic uses `Float` (`EmployeeObligation#installment_for_period`, `#installment_schedule`, `#repaid_amount`, `#percent_repaid`, `#final_installment_amount`; the controller and editor count derivations). The columns are `decimal(12,2)`, but CLAUDE.md requires no floats for money |
+| **TD-AP12** | `employee_obligations.remaining_amount` is a stored, mutable balance kept in step by `ObligationDeduction` before_create / before_destroy callbacks (`repay!` / `restore!`), not derived from the deduction rows. CLAUDE.md: "do not store a separate balance column that drifts from the ledger". No drift was observed; a redesign is a separate decision |
+| **FS-D1** | **Fixed** in `f88e022` before Expenses M1 (§18): reopening a finalized payroll left the insurance Expense active, so re-finalizing kept the stale amount |
+| **TD-FIN2** | **Flaky test-data failure** (TD-FIN1 pattern): `spec/requests/finance/reports_expense_details_spec.rb:84`. Faker name "Margurite O'Connell" is HTML-escaped while the spec checks plain text. 6/6 isolated, 17/17 file. Recorded as `flaky` in `attendance-payroll-baseline-failures.txt`; spec unchanged |
+| **FS-D2** | **Fixed** in `94c4dce` before Expenses M1 (§18.5): the insurance generator looked the "Social Insurance" category up case-sensitively, so an existing "social insurance" category made payroll finalization fail |
+| **TD-FIN3** | **Flaky browser-timing failure**: `spec/system/finance/expense_duplicate_branch_spec.rb[1:2]` and, in the same distribution-method loop, `[1:1]`. Right after "add row", `all(...)` does not wait, so the new row may not exist yet. `[1:2]`: 6/6 isolated, passed at M0 and after the FS-D1 commit. `[1:1]`: failed once in 6 isolated reruns with no code change involved; the whole file passed 4/4. No view/JS changed. Recorded as `flaky`; spec unchanged |
+| **TD-FIN4** | **Flaky browser-timing failure**: `spec/system/finance/expense_register_payment_spec.rb:27`. The payment was recorded but the custody balance stayed 0 instead of −400, i.e. the "paid from balance" checkbox may not have been registered before submit. 6/6 isolated, whole file passed; no Finance view/JS/payment code changed. Recorded as `flaky`; spec unchanged |
+| **FS-D3** | **Open defect, found in Pilot 3 M8 (§18.8)**, the FS-D2 pattern in Finance-internal POS code outside the migrated insurance path: `Finance::PosImports::ExpenseGenerator` (`app/services/finance/pos_imports/expense_generator.rb:35`) finds the "Payment Gateway Fees" category with a case-sensitive `find_or_create_by!`, while `ExpenseCategory` names are unique per business case-insensitively. An existing "payment gateway fees" category makes the create fail ("Name has already been taken"); `Importer` raises `ExpenseGenerationFailed` and the whole POS import rolls back. Proven with a throwaway probe (exact case reused; different case → `ok: false`). Not security. Needs its own approved `fix:` commit (case-insensitive lookup, as in FS-D2) with a regression spec; not fixed |
+| **TD-FIN5** | **Flaky browser-timing failure** (TD-FIN3 / TD-FIN4 treatment), found in the Milestone 2 final full-suite gate (§18.9): `spec/system/finance/deposit_responsibility_transfer_spec.rb:208`. After the recipient's rejection, the manager's DR page did not yet show `#transfer-deposit-responsibility-button` when asserted (Arabic, 430px). Failed on the branch, passed on `main` in the same-seed run; 6/6 isolated, 3/3 whole file; no deposit-responsibility / reconciliation code, view, JS, helper or layout changed in Milestone 2. Recorded as `flaky` in `attendance-payroll-baseline-failures.txt`; spec unchanged |
+| Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1, TD-ST1, R-L4 (unchanged) |
+
+## 11. Open architectural questions
+
+| # | Question |
+|---|---|
+| Q-M2-1 | **Resolved** (§14): `BiometricDevice` and `BiometricPunchLog` are AP-owned. The M7 physical move uses the collapsed `app/models/attendance_payroll/`, keeping the constants top-level (no `AttendancePayroll::` namespace), as for Organization & Access and Workforce |
+| Q-M2-2 | **Resolved** (§14): `BiometricPunchLog` is AP-owned; its authorization and visibility belong to AP and use the existing attendance permission/scope model. No permission redesign now; SEC-M2-8 stays deferred exactly as documented (§5.2) |
+| Q-M2-3 | After SEC-M2-2 (now gated like `AttendanceRecordsController`): keep `Admin::AttendanceRecordsController`, or retire it in favour of `AttendanceRecordsController`? |
+| Q-M2-4 | SEC-M2-6: may a salary manager change their **own** salary (segregation of duties), and should `manage_salary_profiles` scope apply to the web path? |
+| Q-M2-5 | Employee-page salary and obligations cards (SEC-M2-5): gate them with AP policies inside the WF view (exception), or render them as an AP-contributed panel (UI composition, `module-boundaries.md` §12.1)? |
+| Q-M2-6 | Should `BiometricPunchLog` be documented as the channel-neutral "punch log" (DS-8)? Naming only; the constant stays |
+| Q-P3-1 | `Employee::PerformanceScorer` ownership (carried over) |
+
+## 12. Status
+
+* **Done:**
+  * M0 audit, security audit and Pilot 1 selection (approved: Biometric Device + PunchService).
+  * Security hardening: SEC-M2-1 `28b2100`, SEC-M2-2 `ca66c43`, SEC-M2-3 + SEC-M2-9 `3d9127e`, SEC-M2-4
+    `a384319`; final security verification passed (no new failure IDs).
+  * Pilot 1 M1 characterization: `1024ffb` (§13).
+* **Pilot 1 M6 (boundary enforcement):** done (§14).
+* **Pilot 1 M7 (physical model move):** done (§15).
+* **Pilot 1 M8 (final verification and close-out):** done. **Pilot 1 is COMPLETE** (§16).
+* **Pilot 2 (Employee Obligations):** **COMPLETE** (§17).
+* **Milestone 2 — Finance & Sales Expenses (Pilot 3):** **COMPLETE** (§18, close-out §18.8). SEC-M2-12
+  (`6b4d300`), FS-D1 (`f88e022`) and FS-D2 (`94c4dce`) fixed; M1 `98edd8e`, M2 `4b94668`, M3 `d009f0d`, M4 `0ca2dc5`,
+  M6 `ddaceb1`, M7 `ee47554`, M8 docs; M5 not needed. FS-D3 open (§10). No next pilot selected.
+* **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
+* **Q-M2-1 and Q-M2-2:** resolved (§14).
+
+## 13. Pilot 1 — Biometric Device + PunchService: M1 characterization status (complete)
+
+**Status:** **COMPLETE.**
+
+* **Commit:** `1024ffb` "test: characterize attendance biometric flow".
+* **Production code:** unchanged at this step. No database, schema or migration changes, no models moved.
+* **M6/M7 have NOT started.**
+
+**Scope:**
+
+* **Characterized:** `BiometricDevice`, `BiometricPunchLog`, `Attendance::PunchService`,
+  `Attendance::TimestampParser`, and their directly owned controllers:
+  * `Admin::BiometricDevicesController`, `Admin::BiometricPunchLogsController`;
+  * `Api::V1::PunchesController` / `BiometricBaseController`;
+  * the mobile rejection log written by `Api::V1::AttendanceController`.
+* **Not expanded:** no other component was added.
+
+**Existing coverage (inventoried before writing specs; not duplicated):**
+
+* `punch_service_spec`: 38 examples.
+* `timestamp_parser_spec`: 25.
+* API `biometric_punch_spec`: 9.
+* `admin/biometric_punch_logs_spec`: 12.
+* SEC-M2-1 `biometric_devices_authorization_spec`: 15.
+
+**New characterization:** 59 examples in `spec/characterization/attendance_payroll/`. The folder name organizes
+specs only; it does not decide Q-M2-1.
+
+| File | Examples | What it pins |
+|---|---|---|
+| `biometric_device_spec.rb` | 19 | Model: token generated on create (a supplied token is ignored), unique tokens, `regenerate_token!`, name presence and per-business case-insensitive uniqueness, active default and scopes, logs detached on destroy. Admin: business forced to the actor's, token never assignable, 422 re-render, ordering, flashes. Punch API: unknown, deactivated, regenerated and deleted tokens → 401; `last_seen_at` touched only on success |
+| `biometric_punch_log_spec.rb` | 8 | `ACTIONS` / `SOURCES`, required fields, `success?` / `rejected?` table, scopes and recency, the mobile `rejected_not_allowed` log. Admin visibility **as-is** (SEC-M2-8 deferred): any admin-gate holder sees all business logs; users without an admin-gate permission are redirected; another business's log → 404 |
+| `punch_api_spec.rb` | 13 | `employee_code` before user id; inactive or blank employee → 404 without a log; employee checked before timestamp; missing or > 24 h future timestamp → 422; bare timestamps read in business-local time; check-in and check-out payloads; duplicate punch → 200 `rejected_spam`; unassigned employee → 422 + log; logged device, IP address and raw payload |
+| `punch_service_spec.rb` | 10 | Spam-window membership: other devices, mobile, `rejected_spam` and `rejected_not_allowed` count; `rejected_no_assignment` and `error` do not; symmetric; per business. A punch equal to the check-out is spam. Late check-in refinement (`late_minutes` reset, status kept until check-out). Rejection log shape. **AP-D3 pinned** |
+| `timestamp_parser_spec.rb` | 9 | Business-zone result, whitespace, `+HHMM` and fractional `Z`, date-only / time-only, slash and day-first formats, epoch seconds and impossible dates → `nil`, `api` / unknown sources, non-string input |
+
+**Verification:**
+
+* **Baseline before the new specs** (17 existing Pilot 1 files): 476 examples, 10 failures. All 10 IDs are in the
+  documented baselines:
+  * `api/v1/attendance_spec` ×7;
+  * `sidebar_active_state_spec:215/293`;
+  * `shift_assignment_spec:7`.
+* **After:** 535 examples. The **same 10 failing IDs**, so there are **0 new failure IDs**.
+* **Random order:** the 59 new examples pass in default order and with seeds 12345, 98765 and 63339.
+* **Wider run** (characterization, security and architecture): 578 examples, 0 failures, 1 pending (the existing
+  pinned API `waive?` example).
+* `zeitwerk:check` passes; RuboCop reports no offenses in the new files; `git diff --check` is clean.
+
+**Known defect found:** **AP-D3** (§10). A punch on a work date whose attendance record was soft-deleted updates that
+record and reports success, while the attendance stays invisible.
+
+* It is pre-existing behaviour, not a regression caused by M1.
+* It is not classified as a security vulnerability.
+* It is pinned, not fixed.
+
+**No new security vulnerability** was found during M1.
+
+**Next (not started, needs approval):** the fast-track M6 + M7 + M8 step (§8, row 3). It requires the Q-M2-1
+(folder name) and Q-M2-2 (SEC-M2-8) decisions first.
+
+## 14. Pilot 1 — Biometric Device + PunchService: M6 boundary enforcement status
+
+**Status:** M6 only.
+
+* **Done:** the boundary enforcement spec, `spec/architecture/attendance_payroll_biometric_boundary_spec.rb`, the
+  **first Attendance & Payroll boundary spec**.
+* **Not started:** M7, so no model moved, no initializer and no location spec. The location spec is created
+  together with the move in M7, as in Pilots 2 and 3.
+* **Unchanged:** production code, database, schema, routes and API.
+
+**Decisions (approved before M6):**
+
+* **Q-M2-1:** the four Pilot 1 classes are AP-owned. M7 moves the two models into the collapsed
+  `app/models/attendance_payroll/` and keeps the constants top-level (`BiometricDevice`, `BiometricPunchLog`).
+* **Q-M2-2:** punch-log authorization and visibility belong to AP and use the existing attendance permission/scope
+  model. SEC-M2-8 remains deferred (§5.2).
+
+**Guarded:**
+
+* the constants `BiometricDevice`, `BiometricPunchLog`, `PunchService` (`Attendance::PunchService`) and
+  `TimestampParser` (`Attendance::TimestampParser`);
+* the collections and tables `biometric_devices` and `biometric_punch_logs`.
+
+**Not guarded, deliberately:**
+
+* `BiometricDevicePolicy`;
+* route helpers (`admin_biometric_devices_path`, …);
+* the `users` attendance-channel flags (`allow_biometric_attendance`);
+* the `"biometric_device"` check-in source string;
+* `includes(:biometric_device)`;
+* `config/` (routes, locales), as in the existing boundary specs.
+
+**Reference inventory (repository evidence; comments excluded).** 24 files reference the guarded names. Every one is
+classified; there are no unclear references.
+
+| Classification | Files | Reason |
+|---|---|---|
+| 1. AP internal (allowed) | `app/models/biometric_device.rb`, `app/models/biometric_punch_log.rb` | The models |
+| 1. AP internal | `app/models/attendance_record.rb` | `has_many :biometric_punch_logs` (AP aggregate) |
+| 1. AP internal | `app/controllers/admin/biometric_devices_controller.rb`, `app/controllers/admin/biometric_punch_logs_controller.rb`, `app/views/admin/biometric_devices/` (5 files), `app/views/admin/biometric_punch_logs/` (2) | AP administration screens |
+| 1. AP internal | `app/controllers/api/v1/biometric_base_controller.rb`, `app/controllers/api/v1/punches_controller.rb` | Device-token realm and punch endpoint |
+| 1. AP internal | `app/controllers/api/v1/attendance_controller.rb` | AP mobile attendance; writes the mobile `rejected_not_allowed` punch log |
+| 1. AP internal | `app/services/attendance/punch_service.rb`, `timestamp_parser.rb`, `anomaly_detector.rb` | Pilot 1 services; the anomaly detector reads punch logs |
+| 2. Valid cross-domain read | — | None found |
+| 3. Documented exception | `app/models/business.rb` | Organization & Access inverse `has_many :biometric_devices / :biometric_punch_logs` (same treatment as D-WF6) |
+| 3. Documented exception | `app/views/layouts/_sidebar.html.erb`, `app/helpers/workspace_helper.rb` | UI shell navigation (admin path, label key, controller name) |
+| 4. Unexpected cross-domain dependency | — | **None** |
+| Not scanned | `config/routes.rb`, `config/locales/{en,ar}.yml` | Routing and i18n keys (`config/` is outside the scanned `app` / `lib`) |
+
+* **Workforce, User, Employee, Reporting, Finance & Sales, Inventory & Purchasing:** no references. `User` has no
+  association to these classes; punches reach employees through `BiometricPunchLog belongs_to :employee`, an AP →
+  OA reference.
+
+**Boundary object:** **none.** There is no cross-domain business caller (rule A/B), so the fast track holds: the
+standard M2–M5 steps are skipped.
+
+**Spec mechanics** (same as the Workforce boundary spec):
+
+* scans `app` / `lib` code with comments ignored;
+* reasoned allow-list of AP files and directories, plus the 3 exceptions;
+* stale-entry checks for both files and directories;
+* a regex example that pins what is and is not guarded.
+
+**Probe:** a temporary file planted in `app/services/dashboard/` calling `BiometricPunchLog` and
+`Attendance::PunchService` failed the spec. It was removed, and no file remains.
+
+**Verification:**
+
+* `spec/architecture`: 36 examples, 0 failures.
+* Architecture, all characterization, security and the Pilot 1 set together: 1,016 examples and 10 failures. They
+  are **the same 10 IDs as M1**:
+  * `api/v1/attendance_spec` ×7;
+  * `sidebar_active_state_spec:215/293`;
+  * `shift_assignment_spec:7`.
+
+  All are in the documented baselines, so there are **0 new failure IDs**.
+* `zeitwerk:check` passes; RuboCop reports no offenses; `git diff --check` is clean.
+
+**Next (needs approval):** M7 physical move and M8 verification:
+
+* `git mv` of the two models into `app/models/attendance_payroll/`;
+* a new `config/initializers/attendance_payroll_autoload.rb`;
+* an AP location spec;
+* the allow-list paths updated in the same commit.
+
+## 15. Pilot 1 — Biometric Device + PunchService: M7 physical organization status
+
+**Status:** M7 only, done; **M8 has not started.** The commit is "refactor: organize attendance payroll biometric
+models" (its hash is reported in the M7 report; a commit cannot record its own hash).
+
+**Move** (`git mv`, **byte-identical**: same git blob before and after):
+
+* `app/models/biometric_device.rb` → `app/models/attendance_payroll/biometric_device.rb` (blob `d786f13`).
+* `app/models/biometric_punch_log.rb` → `app/models/attendance_payroll/biometric_punch_log.rb` (blob `659e0b1`).
+
+**Constants and tables (unchanged):**
+
+* `BiometricDevice` → `biometric_devices`; `BiometricPunchLog` → `biometric_punch_logs`. Both stay top-level.
+* There is no `AttendancePayroll` constant (`defined?(AttendancePayroll)` is `nil`), as decided in Q-M2-1.
+
+**Autoload:**
+
+* New `config/initializers/attendance_payroll_autoload.rb`, one line: it collapses `app/models/attendance_payroll`.
+* It mirrors `organization_access_autoload.rb` and `workforce_autoload.rb`. A new domain folder needs its own
+  collapse; there is no shared initializer to reuse.
+
+**Architecture specs:**
+
+* **Boundary spec** (`attendance_payroll_biometric_boundary_spec.rb`): only the two model allow-list paths changed,
+  to the new location. The M6 rules, exceptions and guarded names are unchanged.
+* **New location spec** (`attendance_payroll_model_location_spec.rb`, 10 examples) checks, for each model:
+  * it loads as a top-level constant from `app/models/attendance_payroll/`;
+  * the old top-level file is gone;
+  * its table is unchanged;
+  * it is not namespaced under `AttendancePayroll`.
+
+  It also checks that every association resolves the same classes: `Business`, `AttendanceRecord`, the device ↔
+  log pair, `employee` → `User`, `attendance_record`. And that Pundit still finds `BiometricDevicePolicy`.
+
+**References** (no code change needed; all resolve to the same top-level classes):
+
+* `Business` and `AttendanceRecord` associations;
+* the admin and API controllers;
+* `PunchService`, `TimestampParser`, `AnomalyDetector`;
+* the mobile `Api::V1::AttendanceController`;
+* the navigation helpers;
+* `BiometricDevicePolicy`.
+
+**Verification:**
+
+* `spec/architecture`: 46 examples, 0 failures.
+* **Relevant set:** architecture, all characterization, all security, `spec/services/attendance`, the Pilot 1 set,
+  attendance record model/policy/requests, user model, admin users, attendance imports, dashboard and
+  operations-dashboard policy.
+  * **Post-move:** 1,479 examples, 19 failures.
+  * **Same set at the pre-move commit `8eac847`** (temporary worktree, removed): 1,469 examples, 19 failures.
+  * The failing IDs are **identical**, and the +10 examples are the new location spec.
+* **Every failing ID is in the documented baselines:**
+  * `api/v1/attendance_spec` ×7;
+  * `check_in_service_spec` ×4;
+  * `operations_dashboard_policy_spec` ×3;
+  * `dashboard_spec` ×2;
+  * `sidebar_active_state_spec:215/293`;
+  * `shift_assignment_spec:7`.
+* `zeitwerk:check` passes (eager load resolves both from `app/models/attendance_payroll/`); RuboCop reports no
+  offenses; `git diff --check` is clean.
+
+**Database:** not touched. The constants and tables are unchanged, no migration calls the constants, and no class
+name is stored, so database verification is not needed (§8, M8).
+
+## 16. Pilot 1 — Attendance & Payroll Biometric (Biometric Device + PunchService): COMPLETE
+
+**Status: COMPLETE** (M8 close-out).
+
+**Sequence (fast track):**
+
+| Step | Result | Commit |
+|---|---|---|
+| M0 inventory + baseline | Done (§1–§9; `attendance-payroll-baseline-failures.txt`) | `3d746a3` (docs) |
+| Security precondition | SEC-M2-1, SEC-M2-2, SEC-M2-3 + SEC-M2-9, SEC-M2-4 fixed | `28b2100`, `ca66c43`, `3d9127e`, `a384319` |
+| M1 characterization | Done: 59 examples (§13) | `1024ffb` |
+| M2–M5 | **Skipped on evidence:** no cross-domain business caller (M0, confirmed by the M6 inventory), services already in `app/services/attendance/`, no business rules in controllers to extract | — |
+| M6 boundary enforcement | Done (§14): first AP boundary spec, no unexpected dependency, no boundary object | `8eac847` |
+| M7 physical move | Done (§15): byte-identical `git mv` into the collapsed `app/models/attendance_payroll/` | `bea07f8` |
+| M8 verification + docs | Done (this section) | this commit |
+
+**Final state:**
+
+* `BiometricDevice` and `BiometricPunchLog` load as top-level constants from `app/models/attendance_payroll/`. The
+  old top-level files are gone, there is no `AttendancePayroll` constant, and the tables `biometric_devices` and
+  `biometric_punch_logs` are unchanged.
+* **No semantic model change:** only physical organization (same git blobs).
+* No database, schema or migration change, and no API or route change.
+* **The Attendance & Payroll collapsed-folder pattern is validated:** one-line
+  `config/initializers/attendance_payroll_autoload.rb`, as for Organization & Access and Workforce.
+
+**M8 verification:**
+
+* **Location:** confirmed by the location spec and a runtime check. The constants, source paths and table names
+  match, `defined?(AttendancePayroll)` is `nil`, and both tables exist.
+* **Architecture:** 46 examples, 0 failures.
+
+  | Spec | Examples |
+  |---|---|
+  | AP boundary | 4 |
+  | AP location | 10 |
+  | PermissionRole boundary | 3 |
+  | PermissionRole location | 4 |
+  | Workforce boundary | 3 |
+  | Workforce location | 22 |
+
+  * The Organization & Access and Workforce architecture specs are unchanged since `c054fa3`.
+  * The only change to the AP allow-list since M6 is the two model paths (the move); no rule or exception was
+    weakened, and every documented exception remains.
+* **Security:**
+  * `spec/requests/security`: 193 examples, 0 failures. This includes SEC-M2-1 (15), SEC-M2-2 (9),
+    SEC-M2-3 + SEC-M2-9 (26), SEC-M2-4 (9), and the Organization & Access and Workforce (performance,
+    shift-assignment) security specs.
+  * `spec/requests/api/v1/security`: 24 examples, 0 failures.
+* **Characterization** (all, including API and the Pilot 1 specs): 329 examples, 0 failures, 1 pending (the
+  existing pinned API `waive?` example).
+* **Final verification set:** 182 spec files — the 140-file M0 set, plus:
+  * architecture, characterization, API characterization and security specs;
+  * the Pilot 1 set;
+  * attendance / payroll / salary / reports services;
+  * shift, penalty-rule and obligation specs;
+  * admin users and the user model.
+
+  Result: **3,489 examples, 59 failures, 1 pending.**
+* **Comparison by ID:**
+  * **All 52 IDs** in `attendance-payroll-baseline-failures.txt` still fail as recorded, and none started passing.
+  * The other 7 are in `permission-role-baseline-failures.txt`: `shift_assignment_spec:7`,
+    `shift_templates_spec:204`, `permission_matrix_verification_spec:502/508/556`,
+    `sidebar_active_state_spec:215/293`.
+  * **0 new failure IDs.**
+* **TD-OA1:** in the first M8 run (60 failures), `permission_roles_spec.rb:28` failed outside every baseline. It was
+  investigated, found to be data-dependent (§10), and recorded as `flaky` after review. It passed in the rerun.
+  It is the only flaky ID observed.
+* `zeitwerk:check` passes; RuboCop reports no offenses (10 Pilot 1 Ruby files; 22 Milestone 2 Ruby files);
+  `git diff --check` is clean.
+
+**Carried forward (not fixed):**
+
+* **AP-D3:** known defect, pinned, not fixed (§10).
+* **SEC-M2-8:** deferred, as documented (§5.2), together with SEC-M2-5/-6/-7 and AP-D1.
+* **TD-OA1:** flaky (§10).
+* **No new security findings** in M1–M8.
+
+**Next:** Pilot 1 is complete. **Pilot 2 has not started**; it requires a separate selection and review step.
+§7.7 records P-2 Obligations as the M0 runner-up, but that is input to the selection, not a decision.
+
+## 17. Pilot 2 — Employee Obligations: COMPLETE
+
+**Status: COMPLETE.**
+
+* **Path:** M0 → M1 → M6 → M7 → M8, plus a security precondition and two payroll-correctness fixes before M1.
+* **Pilot 2 commits** (all local on `feature/milestone-2-attendance-payroll`, none pushed): `869cadd`, `6177e8b`,
+  `b6d4526`, `c255f5e`, `9298ced`, `77239ce`, and this docs commit.
+* **Not changed:** database, schema, migration, route, API and permission model.
+
+### 17.1 Sequence
+
+| Step | Result | Commit |
+|---|---|---|
+| M0 inventory + baseline | Done (§17.2); selected over the other candidates on evidence (§17.6) | — (recorded here) |
+| Security precondition | SEC-M2-10, SEC-M2-11 and the SEC-M2-4 follow-up fixed **before M1** | `869cadd` |
+| Payroll-correctness precondition | AP-D4 and AP-D5 fixed **before M1** (not security; correctness) | `6177e8b`, `b6d4526` |
+| M1 characterization | 24 examples, no new defect (§17.4) | `c255f5e` |
+| M2–M5 | **Skipped on evidence** (§17.5) | — |
+| M6 boundary enforcement | 20 references classified; no boundary object (§17.4) | `9298ced` |
+| M7 physical move | 3 models into the collapsed `app/models/attendance_payroll/` (§17.4) | `77239ce` |
+| M8 verification + docs | This section | this commit |
+
+### 17.2 M0 — Employee Obligations
+
+* **Inventory:**
+  * **Models:** `EmployeeObligation`, `ObligationDeduction`, `ObligationPostponement`.
+  * **Tables:** `employee_obligations`, `obligation_deductions`, `obligation_postponements`, with `decimal(12,2)`
+    money columns.
+  * **Controller and policy:** `Admin::EmployeeObligationsController`, `EmployeeObligationPolicy`.
+  * **Services:** `Payroll::ObligationEditor`, `Payroll::ObligationInstallmentPostponer`,
+    `Payroll::ObligationDeductor`.
+  * **UI:** 5 admin views.
+  * **None:** no API, no job.
+* **Ownership:** Attendance & Payroll (`module-boundaries.md` §6).
+* **Dependencies (verified against the branch, not assumed from the earlier audit):**
+  * **Reads:** Organization & Access (`EmployeeScope`, users, branches) and Workforce (`BranchMembership`,
+    `ShiftAssignment`), all in the allowed direction.
+  * **Documented exceptions:** the `Business` / `User` inverse associations and the Workforce employee-page
+    obligations card (SEC-M2-5).
+  * **Writes:** no cross-domain writes.
+  * **Cycles:** no cross-domain cycle. The obligations ↔ payroll-core coupling is **internal to Attendance &
+    Payroll**: payroll calls the deductor, snapshot callbacks update the balance, and the obligation services call
+    `EntryRecalculator`.
+  * **Finance:** Finance reports read only the payroll column `PayrollEntry#obligations_deducted`.
+* **Security found in M0:** SEC-M2-10, SEC-M2-11 and the SEC-M2-4 follow-up (§17.3).
+* **Payroll defects found in M0:** AP-D4 and AP-D5 (§17.3).
+* **Technical debt found in M0:** TD-AP9 to TD-AP12 (§10).
+* **Baseline** (108 spec files at `869cadd`): 1,831 examples, 33 failures, 1 pending. All 33 IDs are in the
+  documented baseline files (§17.5).
+
+### 17.3 Security and correctness fixes (Milestone 2)
+
+| ID | Fixed in | Before M1 of | What |
+|---|---|---|---|
+| SEC-M2-1 | `28b2100` | Pilot 1 | Biometric device administration requires `manage_devices` (§5.1) |
+| SEC-M2-2 | `ca66c43` | Pilot 1 | Admin attendance-record changes use the attendance policy and data scope (§5.1) |
+| SEC-M2-3 + SEC-M2-9 | `3d9127e` | Pilot 1 | Penalty-rule and shift administration authorize every action (§5.1) |
+| SEC-M2-4 | `a384319` | Pilot 1 | An obligation's user and creator must belong to its business; payroll deducts only the period's business (§5.1) |
+| **SEC-M2-10** | `869cadd` | **Pilot 2** | A `manage_obligations` holder can no longer pause, resume, cancel, edit (e.g. turn auto-deduct off) or postpone **their own** obligation; the owner is the only exception |
+| **SEC-M2-11** | `869cadd` | **Pilot 2** | An unconfigured `manage_obligations` scope follows the hierarchy default (`EmployeeScope#relation` + own records), like the other payroll policies, instead of the whole business |
+| **SEC-M2-4 follow-up** | `869cadd` | **Pilot 2** | Create, and reassignment on update, require the target employee to be in the actor's effective `manage_obligations` scope; the employee picker offers only those employees |
+| **AP-D4** | `6177e8b` | **Pilot 2** | Pause / resume / cancel rebuild the employee's open payroll entries atomically with the status change (correctness, not security) |
+| **AP-D5** | `b6d4526` | **Pilot 2** | Reassignment removes the obligation's open snapshots and rebuilds both employees' open entries, so there is no double deduction and no entry is created (correctness, not security) |
+
+* **Documented behaviour change (SEC-M2-11):** a user whose `manage_obligations` scope is unset now reaches only
+  their branch/area hierarchy. Business-wide obligation managers need the business scope configured explicitly.
+* **Regression specs:**
+  * `spec/requests/security/employee_obligations_authorization_spec.rb` (22);
+  * `employee_obligations_business_scope_spec.rb` (9);
+  * `spec/requests/payroll_obligation_lifecycle_spec.rb` (7);
+  * `payroll_obligation_reassignment_spec.rb` (6).
+
+### 17.4 M1, M6, M7
+
+* **M1** (`c255f5e`): 24 characterization examples in `spec/characterization/attendance_payroll/`. **No new
+  defect** — every probed behaviour was correct, and nothing broken was pinned.
+
+  | File | Examples | Covers |
+  |---|---|---|
+  | `employee_obligation_lifecycle_spec.rb` | 9 | Transitions and refusals; atomic rebuild and rollback |
+  | `employee_obligation_payroll_spec.rb` | 7 | Final installment and completion; reopen on recalculation; non-deductible states; no double deduction; finalized period untouched |
+  | `employee_obligation_admin_spec.rb` | 8 | Create/edit derivations and 422s; show page; area and self scopes |
+
+* **M6** (`9298ced`): `spec/architecture/attendance_payroll_obligation_boundary_spec.rb` (8).
+  * **Guarded:** the 3 constants, their collections/tables and the 3 obligation services.
+  * **Classified:** **20 references**:
+    * **16 AP-internal:** the 3 models, the controller, 5 views, 3 services, and the payroll core that consumes
+      obligation results (`PayrollPeriod`, `EntryCalculator`, `EntryRecalculator`, `PeriodGenerator`).
+    * **4 documented exceptions:** the `Business` / `User` inverses, the Workforce employee-page card and the
+      sidebar.
+  * **Unexpected dependencies, cross-domain writes, circular dependencies:** none.
+  * **No boundary object required.**
+  * **Proof:** self-tests plus a planted probe (removed).
+* **M7** (`77239ce`):
+  * **Move:** `git mv` of the 3 models into `app/models/attendance_payroll/`. The renames are 100%, the blobs are
+    unchanged and the old top-level files are gone.
+  * **Unchanged:** the constants stay top-level and the tables are unchanged. There is no `AttendancePayroll`
+    constant and no behaviour, database or API change.
+  * **Folder:** reuses the existing collapse in `config/initializers/attendance_payroll_autoload.rb` from Pilot 1;
+    no new initializer.
+  * **Location spec:** `spec/architecture/attendance_payroll_obligation_model_location_spec.rb` (15) covers the
+    location, constants, tables, associations, policy, scope and the deductor's snapshot class.
+  * **Boundary spec:** only the model paths changed.
+  * **Pattern validated:** the collapsed-folder pattern now holds for two AP groups (5 models).
+
+### 17.5 Path decision and M8 verification
+
+* **Why fast track (evidence-based):**
+  * M0 found no cross-domain caller, write or cycle, so there was no need for a boundary or interface (M2) or
+    caller routing (M3).
+  * The services were already in the AP `Payroll::` namespace, so no M4.
+  * M6 classified every reference and confirmed this.
+  * **M5:** its condition was technically met (lifecycle rules in the controller, the duplicated count rule). The
+    real need, though, is a service with audit, a reason and recalculation, which **changes behaviour**. It was
+    therefore recorded as technical debt (TD-AP9 / TD-AP10), not done inside the migration. The behavioural part
+    that affected money, the missing payroll rebuild, was fixed separately as AP-D4.
+* **M8 final set:** 115 spec files — the 108-file M0 set, plus all architecture, characterization, security and
+  API security specs, and the AP-D4/AP-D5 regression specs.
+
+  Result: **1,891 examples, 33 failures, 1 pending.**
+
+  | Group | Examples | Failures |
+  |---|---|---|
+  | Architecture | 69 | 0 |
+  | Characterization (with API) | 353 | 0 (1 pending) |
+  | Obligation characterization | 24 | 0 |
+  | Obligation security | 31 | 0 |
+  | AP-D4 / AP-D5 regression | 13 | 0 |
+  | Security + API security | 239 | 0 |
+
+* **Comparison by ID:** the 33 failing IDs are **identical** to the Pilot 2 M0 run and to the M7 run. None is
+  new and none disappeared. All are **known baseline failures**:
+  * `payroll_period_policy_spec:217`;
+  * `api/v1/payroll_visibility_spec` ×9;
+  * `api/v1/payroll_waive_scope_spec` ×17;
+  * `payroll_review_approval_paths_spec` ×4 (all in `attendance-payroll-baseline-failures.txt`);
+  * `sidebar_active_state_spec:215/293` (in `permission-role-baseline-failures.txt`).
+
+  No flaky ID appeared.
+* `zeitwerk:check` passes; RuboCop reports no offenses in the 16 Pilot 2 Ruby files; `git diff --check` is clean.
+  The working tree is clean, and nothing in `db/`, routes or API controllers changed.
+
+### 17.6 Candidate choice (M0)
+
+Employee Obligations was selected over the other candidates as the only fast-track-eligible group whose security
+issues were all fixed:
+
+* **Penalty rules:** the Workforce `Shift` nested-attributes write needs an interface (standard path).
+* **Salary configuration:** SEC-M2-5 / -6 / -7 and AP-D1 are open.
+* **Payroll adjustments:** larger, bound to the payroll core, with a baseline failure in its own spec.
+* **Advances, attendance records, payroll core:** cross-domain cycles or writes.
+
+### 17.7 Remaining items after Pilot 2 (none fixed by this close-out)
+
+| Item | Status | Notes |
+|---|---|---|
+| SEC-M2-1, -2, -3, -4, -9, -10, -11; SEC-M2-4 follow-up | **Fixed** | §5.1, §17.3 |
+| AP-D4, AP-D5 | **Fixed** | §17.3 |
+| SEC-M2-5 | **Deferred** (security, Medium) | Employee page shows salary and obligations without the AP policies. Needs Q-M2-5 |
+| SEC-M2-6 | **Deferred** (security, Medium) | Salary-profile scope; self-salary changes. Needs Q-M2-4 |
+| SEC-M2-7 | **Deferred** (security, Medium) | Advance and salary-profile scopes ignore the `view_payroll` scope |
+| SEC-M2-8 | **Deferred** (security, Low–Medium) | Punch-log visibility, business-wide for the admin gate. Pinned in Pilot 1 M1 |
+| SEC-M2-4 follow-up — obligation scope decision | **Resolved** by `869cadd` | Create and reassignment respect the effective scope (was a product decision) |
+| SEC-M2-2 follow-up — attendance edit lookup | **Product decision** (open) | Admin and web attendance edits use the `view_attendance` scope for lookup and allow editing one's own record |
+| AP-D3 | **Known defect** (pinned, not fixed) | A punch updates a soft-deleted attendance record |
+| AP-D1 | **Known defect** (deferred with SEC-M2-6/-7) | API salary-profile index raises `NoMethodError` |
+| AP-D2 | **Known baseline failure** | API line-item `waive?` (pinned in API characterization) |
+| TD-AP9 | **Technical debt** | Obligation lifecycle in the controller: no service, audit or reason |
+| TD-AP10 | **Technical debt** | Duplicated installment-count rule; create derivations in the controller |
+| TD-AP11 | **Technical debt** | Float money arithmetic in the obligation model / controller / editor |
+| TD-AP12 | **Technical debt** | Stored, callback-maintained `remaining_amount` balance |
+| TD-AP1 – TD-AP8 | **Technical debt** | §10 |
+| TD-OA1, TD-PERF1, TD-FIN1 | **Known flaky baseline failures** | Faker apostrophe names |
+| MIG-1, MIG-2 | **Technical debt** (database phase) | Migration history defects; never part of a domain move |
+| TD-ST1 | **Technical debt** | ShiftTemplate branch-requirement inconsistency (Workforce) |
+| R-L4 | **Known defect** (out of scope) | `lib/tasks/attendance.rake` queries a non-existent `permission_roles.role` column |
+| Baseline failures (52 AP + 7 permission-role) | **Known baseline failures** | Unchanged by Pilot 2 |
+
+### 17.8 Next pilot
+
+**Not selected and not started.** It needs a separate selection and review step.
+
+* §6 and §17.6 list the remaining candidates.
+* Any suggestion there is a **recommendation only**, not a selection.
+
+## 18. Milestone 2 — Finance & Sales Expenses: M0 and preconditions
+
+**Status:** **COMPLETE** (close-out §18.8). M0 done; the preconditions are fixed; M1 `98edd8e` (§18.6); M2
+`4b94668`, M3 `d009f0d`, M4 `0ca2dc5` (§18.7); **M5 evaluated as not needed**; M6 `ddaceb1`, M7 `ee47554` and M8
+(§18.8). No next pilot is selected.
+
+* **Path (approved):** the **standard path**, M0 → preconditions → M1 → M2 → M3 → M4 → (M5 only if needed) → M6 →
+  M7 → M8.
+* **Model folder for M7:** `app/models/finance_sales/`.
+* **Decided M2 approach:** an Attendance & Payroll-defined finalization-effect contract that Finance & Sales
+  implements and registers. It is synchronous and runs inside the existing finalization transaction: no event bus,
+  HTTP or asynchronous work.
+
+### 18.1 M0 summary (audit at `40fcc5d`)
+
+* **Scope and ownership:** Finance & Sales owns all 8 models:
+  * `Expense`, `ExpenseAllocation`, `ExpenseCategory`, `ExpenseType`, `ExpenseTag`, `ExpenseTagging`,
+    `RecurringExpense`, `RecurringExpenseAllocation`;
+  * their 6 `finance/` controllers;
+  * `Finance::{ExpenseApproval, ExpensePaymentRecorder, RecurringExpenseGenerator, AllocationCalculator}`;
+  * 5 policies and `Finance::GenerateDueRecurringExpensesJob`.
+
+  `Finance::NumberSequencer` and the settlement code are shared Finance & Sales services.
+* **References:** 49 external files.
+
+  | Class | Count | What |
+  |---|---|---|
+  | FS-internal | 22 | |
+  | Reporting reads | 20 | |
+  | Documented exceptions | 4 | OA inverses and the permission catalogue; the IP laundry cost report |
+  | UI | 2 | |
+  | Cross-domain write | **1** | `Payroll::InsuranceExpenseGenerator`, AP → FS, inside `Payroll::Approver`'s finalization transaction; it writes `expenses`, `expense_categories` (find-or-create) and `expense_allocations`, and uses `Finance::NumberSequencer` |
+  | Unexpected | 0 | |
+
+* **Cycle:** **F3 (AP ↔ FS)** is confirmed. No new cycle.
+* **Database:** no schema change is needed. The stored class names (`audit_logs`, `financial_settlements`, Active
+  Storage) keep the constant `Expense`.
+* **Coverage gaps for M1:**
+  * the insurance integration end-to-end;
+  * category / type / tag administration and isolation;
+  * the recurring-expense controller, `generate` action and scope;
+  * list visibility by branch and owner scope, and cross-business 404;
+  * per-business number sequencing;
+  * payment failure and rollback paths.
+
+### 18.2 Preconditions fixed before M1
+
+| Item | Kind | Commit | Fix | Regression spec |
+|---|---|---|---|---|
+| **SEC-M2-12** | Security (cross-business reference) | `6b4d300` | An expense could be tagged with another business's `ExpenseTag` (the foreign tag name rendered; the other business could no longer delete its tag). `Finance::ExpensesController` now refuses any non-business tag id with 422 before assignment (nothing saved or attached); `ExpenseTagging` validates the tag's business as a backstop. No new permission | `spec/requests/security/expense_tags_business_scope_spec.rb` (7; 5 fail on the old code) |
+| **FS-D1** | Money correctness | `f88e022` | Reopening a finalized payroll left the insurance Expense active, so re-finalizing kept the stale amount. `Payroll::Reopener` (finalized → branch_review_completed, in its transaction) now calls `Payroll::InsuranceExpenseGenerator.void_for`, which voids the active expense; re-finalizing creates a new expense from the latest payroll | `spec/services/payroll/insurance_expense_refresh_spec.rb` (9; 6 fail on the old code) |
+| **TD-FIN2** | Flaky test (recorded) | — (this checkpoint) | Faker apostrophe name (§10) | — |
+| **TD-FIN3** | Flaky test (recorded) | — (this checkpoint) | Browser-timing race after "add row" (§10) | — |
+
+**FS-D1 decision: void plus status "cancelled".**
+
+* Finance reports, the dashboard and the laundry cost report count expenses by `status = "approved"` and never
+  check `voided_at`. Voiding alone would therefore have counted the old **and** the new expense.
+* On reopen, the insurance expense therefore gets `voided_at`, `voided_by` and `void_reason`
+  ("Payroll period reopened: <reason>", en + ar), **and** `status: "cancelled"`. All four are already in
+  `Expense::SYSTEM_GENERATED_MUTABLE_ATTRIBUTES`; an `insurance_expense_voided` audit log is written.
+* Kept unchanged: history (never edited or deleted), the generator's idempotency guard, the zero-total behaviour,
+  single/split allocation, finalization rollback, and the paid → finalized reopen (no void).
+* The AP → FS write stays in one place (`Payroll::InsuranceExpenseGenerator`) for the M2 contract.
+
+### 18.3 Verification and baseline
+
+* **Focused set after both fixes** (133 files: the Expenses M0 set, all payroll services and requests, the payroll
+  period policy, and both regression specs; it includes all security, characterization and architecture specs):
+  **1,745 examples, 8 failures, 1 pending**. All 8 are documented baseline IDs:
+  * `expense_policy_spec:54`;
+  * `payroll_period_policy_spec:217`;
+  * `payroll_review_approval_paths_spec` ×4;
+  * `sidebar_active_state_spec:215/293`.
+
+  TD-FIN2 and TD-FIN3 passed in that run. **0 new failure IDs.**
+
+  | Group | Examples | Failures |
+  |---|---|---|
+  | Architecture | 69 | 0 |
+  | Security + API security | 246 | 0 |
+  | Characterization | 353 | 0 (1 pending) |
+
+* `zeitwerk:check` passes; RuboCop reports no offenses in the 6 changed Ruby files; `git diff --check` is clean.
+* No schema, migration, route or API change. The only non-Ruby change in the fixes is one en/ar locale key.
+
+### 18.4 Next
+
+**M1 is ready to start, after approval.** Its scope is the gaps in §18.1, characterizing the behaviour **after**
+SEC-M2-12 and FS-D1.
+
+### 18.5 FS-D2 and the pre-M1 checkpoint
+
+**FS-D2 (correctness, not security) is fixed in `94c4dce`.** It was found while probing for M1.
+
+* **What was wrong:**
+  * Expense category names are unique per business regardless of case, through a model validation and a unique
+    index on `lower(name)`.
+  * But `Payroll::InsuranceExpenseGenerator` looked "Social Insurance" up with a case-sensitive
+    `find_or_create_by!`.
+  * A business that already had, say, "social insurance" therefore could not finalize payroll: the create was
+    rejected and `Payroll::Approver` rolled the finalization back.
+* **The fix:** the lookup is case-insensitive and scoped to the period's business. An existing category is reused
+  whatever its capitalisation; otherwise the canonical "Social Insurance" category is created. No schema change; no
+  other category behaviour changed.
+* **Regression spec:** `spec/services/payroll/insurance_expense_category_spec.rb` (6). The 3 capitalisation cases
+  fail on the old code. The other 3 (canonical category reused, canonical created, another business's category
+  never reused) pass both ways.
+
+**Flaky tests recorded after review** (§10, `attendance-payroll-baseline-failures.txt`; specs unchanged):
+
+* **TD-FIN3** now also covers `expense_duplicate_branch_spec.rb[1:1]`, the same "add row" race in the same loop.
+* **TD-FIN4:** `expense_register_payment_spec.rb:27`, the "paid from balance" checkbox race before submit.
+
+**Verification at `94c4dce`:**
+
+* FS-D2 spec: 6/0.
+* Focused Payroll/Finance set (the 133-file §18.3 set plus the FS-D2 spec): **1,751 examples, 9 failures,
+  1 pending.**
+  * 8 are the documented baseline IDs, unchanged: `expense_policy_spec:54`, `payroll_period_policy_spec:217`,
+    `payroll_review_approval_paths_spec` ×4 and `sidebar_active_state_spec:215/293`.
+  * 1 is TD-FIN2 (flaky).
+  * **No unexplained failure IDs.**
+* `zeitwerk:check` passes; RuboCop is clean; `git diff --check` is clean.
+* No schema, migration, route or API change.
+
+**Status:** all pre-M1 items are resolved (SEC-M2-12, FS-D1, FS-D2, TD-FIN2, TD-FIN3, TD-FIN4). **Expenses M1 is
+ready and has not started.**
+
+### 18.6 M1 characterization (complete)
+
+**Status: COMPLETE**, commit `98edd8e` "test: characterize finance sales expenses".
+
+* **Production code:** unchanged in this step. No database, schema, migration, route or API change; no model moved.
+* **Not done:** no boundary spec and no initializer.
+
+**New characterization: 40 examples in `spec/characterization/finance_sales/`.** The folder name organizes specs
+only.
+
+| File | Examples | What it pins |
+|---|---|---|
+| `insurance_expense_spec.rb` | 7 | The payroll Social Insurance expense: approved, system-generated, dated at period end, created/approved by the actor, `direct` and not linked to a balance, no settlements, an `insurance_expense_generated` audit. Edit/delete raise `ReadOnlyRecord`. Only insured entries count. An unassigned employee goes to the business's first branch. An existing (even inactive) category is reused. The business's `EXP-` sequence continues. Nothing is created on the paid transition |
+| `expense_catalog_admin_spec.rb` | 11 | Categories/types/tags. `view_expenses` is view-only and `manage_*` creates; users without a finance permission are kept out. Names are case-insensitively unique per business, and the same name may exist in another business. A type under a foreign category → 422; a foreign category → 404. Deleting a category with expenses, or a tag in use, is refused. The types `options` JSON returns active types, ordered, as `id`/`name`, and is empty for a foreign category |
+| `recurring_expenses_admin_spec.rb` | 9 | A branch-scoped create is attributed to the actor; an out-of-scope branch is refused; another branch → 404; invalid → 422. `generate` creates a pending, system-generated expense and advances the schedule. `view_expenses` alone is read-only (no update / generate / delete). A foreign template → 404. Deleting a template keeps the generated expenses, detached |
+| `expense_visibility_spec.rb` | 7 | A branch manager lists only the managed branch; the owner sees the business but not another business; another branch / business show → 404. A draft can be submitted. An editor may change a pending but not an approved expense. Only drafts are deleted |
+| `number_sequencer_spec.rb` | 4 | Per-business, per-kind prefixes (`EXP-` / `BRQ-`); continues after the highest prefixed number (other numbers ignored); independent businesses; an unknown kind → `KeyError` |
+| `expense_report_consumers_spec.rb` | 2 | `ExpenseSummary` / `ExpenseTrend` count status `approved` only. The insurance expense counts while active, and only its replacement counts after reopen/re-finalize (FS-D1) |
+
+**Intentionally reused (not duplicated):**
+
+* the Expense model (13), policy (25) and approval service (22) specs;
+* payments: request (17), recorder (13) and payment-type (14) specs;
+* allocations (17 + 10), approve/reject (8) and cancel (4);
+* the recurring generator (9) and job (4);
+* the Finance system and report specs;
+* the SEC-M2-12 (7), FS-D1 (9) and FS-D2 (6) regression specs.
+
+**Findings:** no new security finding and no new defect. Every probed behaviour was correct; nothing broken was
+pinned.
+
+**Verification:**
+
+* **New specs:** 40/0 in default order, with seeds 12345, 98765 and 2468, and file by file.
+* **Focused Finance/Payroll set** (the 133-file §18.3 set, plus the FS-D2 spec and the new specs): **1,791 examples,
+  8 failures, 1 pending.** Exactly the documented baseline IDs:
+  * `expense_policy_spec.rb:54`;
+  * `payroll_period_policy_spec.rb:217`;
+  * `payroll_review_approval_paths_spec.rb:45/58/79/98`;
+  * `sidebar_active_state_spec.rb:215/293`.
+
+  **No new failure IDs.** The pre-M1 run (1,751 examples) had the same 8 IDs plus TD-FIN2.
+* **TD-FIN2** (flaky) **passed** in this run, as a known flaky ID may. TD-FIN3 and TD-FIN4 also passed.
+
+  | Group | Examples | Failures |
+  |---|---|---|
+  | Architecture | 69 | 0 |
+  | Security + API security | 246 | 0 |
+  | All characterization (with API) | 393 | 0 (1 pending) |
+
+* `zeitwerk:check` passes; RuboCop is clean on the 6 new files; `git diff --check` is clean.
+
+**Path decision after M1: the standard path is kept.**
+
+M1 did not change the dependency evidence:
+
+* `Payroll::InsuranceExpenseGenerator` still writes Finance & Sales data (`expenses`, `expense_categories`,
+  `expense_allocations`) inside payroll finalization.
+* Since FS-D1 it also voids the expense when payroll is reopened.
+* Cycle F3 (AP ↔ FS) therefore remains.
+
+M2–M5 remain required as approved in M0. The fast path (M1 → M6 → M7 → M8) was considered and **not** adopted,
+because skipping them would leave a real cross-domain write unresolved. The next steps are:
+
+* **M2:** an Attendance & Payroll-defined finalization/reopen-effect contract, implemented and registered by Finance
+  & Sales. It is synchronous and runs inside the existing transactions.
+* **M3:** route `Payroll::Approver` and `Payroll::Reopener` through it.
+* **M4:** move the expense-building and void code into `Finance::`.
+* **M5:** only if needed.
+* Then **M6** (boundary spec), **M7** (`app/models/finance_sales/` plus initializer) and **M8**.
+
+At this checkpoint M2–M8 had not started. M2–M4 are now complete (§18.7).
+
+### 18.7 M2–M4: contract, routing and relocation (complete)
+
+M2 and M3 were committed without a docs checkpoint, as instructed; they are recorded here with M4.
+
+| Step | Commit | What |
+|---|---|---|
+| **M2** | `4b94668` | `Payroll::FinalizationEffects` (Attendance & Payroll contract: `OPERATIONS`, `register` checks every operation, `NotRegistered` instead of a silent skip). `Finance::PayrollFinalizationEffects` implements it, delegating to the then-existing generator; registered in `config/initializers/payroll_finalization_effects.rb` (`to_prepare`). Contract spec `spec/services/payroll/finalization_effects_spec.rb` |
+| **M3** | `d009f0d` | `Payroll::Approver` (→ `finalized`) and `Payroll::Reopener` (`finalized` → `branch_review_completed`) call the contract, inside their existing transactions; the paid transition and paid → finalized reopen trigger nothing, as before. Routing spec `spec/services/payroll/finalization_effects_routing_spec.rb` |
+| **M4** | `0ca2dc5` | The insurance-expense logic is relocated by owner and `Payroll::InsuranceExpenseGenerator` is removed (below) |
+
+**M4 decision: split per `module-boundaries.md` §14.1 A** (approved before implementation). The generator mixed a
+payroll read with Finance writes. Moving it whole into `Finance::` would have made Finance read payroll entries and
+shift assignments, inverting the dependency instead of removing it. Instead:
+
+* **Attendance & Payroll owns the employer insurance calculation:** `Payroll::EmployerInsuranceCost.for(period)`
+  returns `total` and `by_branch` (`{branch_id => amount}`): insured entries only, attributed via the Workforce
+  `ShiftAssignment.branch_ids_by_user` read, falling back to the business's first branch. Read-only.
+* **Finance & Sales owns the expense:** `Finance::PayrollInsuranceExpense` creates it (idempotent while an active
+  expense exists, nothing for a zero total), reuses the "Social Insurance" category case-insensitively (FS-D2),
+  sets a single branch or a percentage split with exact amounts and rounding absorbed by the last row, numbers it
+  via `Finance::NumberSequencer`, voids it on reopen (`voided_at` / `voided_by` / `void_reason` plus `status:
+  "cancelled"`, FS-D1) and writes the `insurance_expense_generated` / `insurance_expense_voided` audits.
+* **Final contract signature:**
+
+  ```ruby
+  Payroll::FinalizationEffects.period_finalized(period:, actor:,
+                                                employer_insurance_total:, employer_insurance_by_branch:)
+  Payroll::FinalizationEffects.period_reopened(period:, actor:, reason:)
+  ```
+
+  `Payroll::Approver` computes the cost inside its transaction just before the call.
+  `Finance::PayrollFinalizationEffects` stays the registered adapter, forwarding to
+  `Finance::PayrollInsuranceExpense.record(period:, actor:, total:, by_branch:)` / `.void_for(period:, actor:, reason:)`.
+* **`Payroll::InsuranceExpenseGenerator` is removed,** with no compatibility wrapper: every reference was migrated.
+  Only provenance comments name it (the two new services and their specs).
+* **One recorded nuance:** the cost is now computed before Finance's idempotency check, so it also runs on a call
+  that creates nothing. It is read-only; observable behaviour is unchanged.
+
+**Cycle F3 (AP ↔ FS) is eliminated.**
+
+* Attendance & Payroll code (`app/services/payroll`, `app/models/attendance_payroll`) has no non-comment reference
+  to `Finance::`, `Expense*` or `NumberSequencer`; it reaches Finance only through its own contract and the
+  boot-time registration.
+* Finance's only reference to Attendance & Payroll is the period handed to it (id, `period_end`) and the
+  `source_payroll_period` foreign key, an allowed FS → AP direction. Source-scan examples pin both sides: the
+  contract is free of Finance references, and `Finance::PayrollInsuranceExpense` reads no payroll entries or shift
+  assignments.
+* No allow-list exception was added; no new cross-domain dependency was found.
+
+**Specs:** new `spec/services/payroll/employer_insurance_cost_spec.rb` (4) and
+`spec/services/finance/payroll_insurance_expense_spec.rb` (10). Updated for the new owner and payload, with
+unchanged expectations: the contract, routing, FS-D1 refresh and `expense_details` specs; comment-only edits in the
+`finance_sales` characterization and `branch_profitability` specs.
+
+**Verification (each step compared with the previous one by exact failure ID):**
+
+| Step | Focused Finance/Payroll set | Failures |
+|---|---|---|
+| M1 (§18.6) | 1,791 examples, 1 pending | 8 baseline IDs |
+| M2 | 1,800 examples, 1 pending | the same 8 |
+| M3 | 1,806 examples, 1 pending | the same 8 |
+| M4 | 1,820 examples, 1 pending (+14 = the new specs) | the same 8: 0 new, 0 gone |
+
+The 8 are the documented baseline IDs (`expense_policy_spec.rb:54`, `payroll_period_policy_spec.rb:217`,
+`payroll_review_approval_paths_spec.rb:45/58/79/98`, `sidebar_active_state_spec.rb:215/293`). **No new failure
+IDs**; no flaky ID was reclassified and the baseline files are unchanged.
+
+At M4, architecture + characterization + API characterization + security + API security: **708 examples,
+0 failures, 1 pending.** `zeitwerk:check` passes; RuboCop is clean on the 14 changed Ruby files; `git diff --check`
+is clean.
+
+**No database, schema, migration, route or API change** in M2–M4. No model moved. The locale key
+`payroll.insurance_expense_void_reason` is unchanged.
+
+**M5 evaluated as not needed.** M5 extracts operation services when business logic sits in controllers or in the
+wrong layer. After M4 every piece of this workflow is already a service in its owning domain (the cost in
+`Payroll::`, the expense in `Finance::`, the transitions in `Payroll::Approver` / `Reopener`), no controller holds
+insurance or expense-generation logic, and the only cross-domain call goes through the contract. There is nothing
+for M5 to move.
+
+**Follow-up for M8:** `module-boundaries.md` §14.1 A still says "Today `Payroll::InsuranceExpenseGenerator` is called
+inside `Payroll::Approver`"; it is outside this checkpoint's scope and should be updated with the final docs.
+
+At this checkpoint M6 had not started; M6–M8 are recorded in §18.8.
+
+### 18.8 M6–M8: boundary, physical move and close-out — Pilot 3 COMPLETE
+
+**M6 — boundary enforcement (`ddaceb1`).** `spec/architecture/finance_sales_expense_boundary_spec.rb` (20 examples),
+built on the post-M4 dependency graph (1,113 `app/` + `lib/` files scanned; 59 with guarded references; 149
+Attendance & Payroll files with **0** Finance references).
+
+* **Expenses group:** the 8 models, their Finance services and job, `.expenses`-style collections, association
+  macros and the `expense_*` tables may be used only by:
+  * **Finance & Sales:** `app/{controllers,services,views,jobs}/finance/`, the 8 models, `custody_transaction.rb`,
+    `financial_settlement.rb`, `pos_import.rb`, `expense_policy.rb`, `recurring_expense_policy.rb`;
+  * **Reporting (read-only, `module-boundaries.md` §9):** `app/services/finance/dashboard/`,
+    `app/views/finance/dashboard/`, `finance/dashboard_controller.rb`, `finance/dashboard_filters.rb`,
+    `finance/reports/expense_sources.rb`;
+  * **4 exceptions:** `Business` and `Branch` (Organization & Access inverses), `workspace_helper.rb` (Finance
+    workspace nav, `policy(Expense …)`), `Laundry::LaundryCostSummaryReport` (IP read of approved expenses;
+    read-only, target Reporting).
+
+  Reporting and the laundry report are checked for writes. The allow-list and directories must each still be needed
+  (this removed `app/policies/finance/`). The M0 permission-catalogue exception is no longer needed: permission
+  names, route helpers, `t(...)` keys and `expenses:` metric keys are not guarded.
+* **Payroll insurance path:** Attendance & Payroll names no `Finance::`, expense internal or `NumberSequencer`; the
+  Approver / Reopener go through `Payroll::FinalizationEffects`; only `config/initializers/
+  payroll_finalization_effects.rb` names `Finance::PayrollFinalizationEffects`, which is the registered handler;
+  the Finance side reads no payroll entries, line items or shift assignments; `Payroll::EmployerInsuranceCost`
+  keeps the calculation and only AP code calls it; `Expense#source_payroll_period` (FS → AP) stays valid.
+* **Probes:** forbidden references planted on disk (a Payroll service calling `Finance::PayrollInsuranceExpense` and
+  `Finance::NumberSequencer`; a `ShiftAssignment` read in the Finance service; an Inventory service using
+  `expense_categories`; a write under `finance/dashboard/`; another domain naming the contract implementation) each
+  failed the spec and were removed. The dashboard-write probe first passed — the read-only check covered only
+  listed files — and the check was fixed to cover the Reporting directories before the commit.
+
+**M7 — physical move (`ee47554`).** The 8 Expenses models (`Expense`, `ExpenseAllocation`, `ExpenseCategory`,
+`ExpenseType`, `ExpenseTag`, `ExpenseTagging`, `RecurringExpense`, `RecurringExpenseAllocation`) moved with `git mv`
+from `app/models/` to `app/models/finance_sales/`: recorded as renames, SHA-256 identical. Only these 8 (the M0
+scope, all associated with each other); the custody, settlement, POS, reconciliation and sales models stay.
+
+* **Initializer (approved before creation):** `config/initializers/finance_sales_autoload.rb`, a one-line collapse
+  like the other three domains. No `FinanceSales` namespace; constants stay top-level; tables and stored type names
+  (`polymorphic_name`) unchanged.
+* **`spec/architecture/finance_sales_expense_model_location_spec.rb`** (34 examples): location, no top-level file,
+  table and type name, no namespace, 32 named associations resolve the same classes, and a sweep of every
+  non-polymorphic association in the app.
+* The M6 allow-list only followed the 8 new paths.
+
+**M8 — final verification (on `ee47554`).**
+
+| Run | Result |
+|---|---|
+| Final Pilot 3 set (the §18.3 133-file set + all architecture, characterization, API characterization, security and API security + FS-D1/FS-D2 regressions + contract, routing, M4 and both FS architecture specs) | **1,874 examples, 8 failures, 1 pending** |
+| Architecture | 123 examples, 0 failures |
+| Security + API security | 246 examples, 0 failures |
+| Characterization + API characterization | 393 examples, 0 failures, 1 pending |
+| `spec/characterization/finance_sales` | 40 examples, 0 failures |
+
+* **Failures:** exactly the 8 deterministic baseline IDs — `expense_policy_spec.rb:54`,
+  `payroll_period_policy_spec.rb:217`, `payroll_review_approval_paths_spec.rb:45/58/79/98`,
+  `sidebar_active_state_spec.rb:215/293`. **No new failure IDs.**
+* **Comparison by step:** M1 1,791 / M2 1,800 / M3 1,806 / M4 1,820 / M6 1,840 / M7 1,874 / M8 1,874 examples; the
+  same 8 IDs every time. In the M6 and M7 runs `permission_roles_spec.rb:28` also failed: the documented flaky
+  **TD-OA1** (Faker "Member O'Connell" / "Unassigned O'Hara"; 8/8 and 6/6 isolated passes); it passed at M8.
+* **Documented flaky IDs (unchanged):** TD-OA1, TD-FIN1, TD-FIN2, TD-FIN3 (`[1:1]`, `[1:2]`), TD-FIN4, TD-PERF1.
+  `attendance-payroll-baseline-failures.txt` is unchanged.
+* `zeitwerk:check` passes; RuboCop clean on the 35 Ruby files changed since M0 (`40fcc5d`); `git diff --check`
+  clean.
+
+**Confirmed at close-out:**
+
+* No database, schema or migration change; no route or API change. Since M0 the only `config/` changes are the two
+  approved initializers and the FS-D1 void-reason locale key (en + ar).
+* Production behaviour changed only through the separately approved `fix:` commits (SEC-M2-12, FS-D1, FS-D2); M2–M4
+  preserved behaviour (same failure IDs, unchanged expectations); M7 is a byte-identical move.
+* No new cross-domain dependency and no new boundary exception beyond the four classified in M6; cycle F3 is
+  eliminated.
+* No `FinanceSales` namespace; the 8 models are top-level constants; the Organization & Access, Workforce and
+  Attendance & Payroll collapse initializers are unchanged and their location specs pass.
+
+**Pilot 3 summary.**
+
+* **Preconditions:** SEC-M2-12 (`6b4d300`, cross-business expense tags); FS-D1 (`f88e022`, reopen voids and cancels
+  the insurance expense); FS-D2 (`94c4dce`, case-insensitive "Social Insurance" category).
+* **Dependency inversion (M2 → M4):** the AP → FS write became an AP-defined, FS-implemented contract (M2), the
+  callers were routed through it (M3), and the logic was split by data ownership (M4): Payroll computes the employer
+  insurance cost, Finance owns the expense. `Payroll::InsuranceExpenseGenerator` is gone.
+* **M5 not needed:** after M4 every part is a service in its owning domain and no controller holds the logic.
+
+**Technical debt from this pilot:**
+
+* **FS-D3 (open, §10):** the POS fee category lookup is case-sensitive — the FS-D2 defect in
+  `Finance::PosImports::ExpenseGenerator`; it can block POS imports. Found in M8 by searching for the fixed pattern;
+  recorded, not fixed (approved).
+* **TD-FIN2, TD-FIN3, TD-FIN4:** flaky specs recorded during the pilot (§10).
+* **Docs follow-up:** `module-boundaries.md` §14.1 A still describes `Payroll::InsuranceExpenseGenerator` as today's
+  behaviour; it was outside this close-out's scope.
+* **Accepted nuance (not debt):** `Payroll::EmployerInsuranceCost` runs before Finance's idempotency check, so it
+  also runs on a call that creates nothing; it is read-only.
+
+**Pilot 3 (Finance & Sales Expenses) is COMPLETE.** Nothing was pushed or merged; `main` stays at `c054fa3`. No next
+pilot is selected.
+
+### 18.9 Milestone 2 final gate — full suite vs `main` (READY FOR PR)
+
+Run after the milestone review, as its recommended next action. Same seed (20261006) on both sides; `main` was run
+in a temporary scratch worktree (removed afterwards). No code, spec or schema was changed for the gate.
+
+| | Branch @ `9952d68` | `main` @ `c054fa3` |
+|---|---|---|
+| Spec files | 561 | 527 |
+| Examples | 7,818 | 7,459 |
+| Failures | 95 | 95 |
+| Pending | 1 | 1 |
+| Errors outside examples | none | none |
+
+The branch's extra 34 files / 359 examples are Milestone 2's new characterization, regression and architecture
+specs.
+
+**Comparison by exact failure ID:**
+
+* **94 of 95 failing IDs are identical on the branch and `main`:**
+  * **86** are in the documented baseline files (`permission-role-`, `department-job-title-` and
+    `attendance-payroll-baseline-failures.txt`);
+  * **8** are in no baseline file but fail on `main` too, so they pre-date the milestone; the older baseline files
+    were recorded at earlier commits or over narrower sets. They are not added to the baseline files:
+    `spec/services/inventory/imports/stock_issue_importer_spec.rb:143`,
+    `spec/system/finance/expense_amount_distribution_spec.rb:28`,
+    `spec/system/inventory/purchase_request_form_spec.rb:94`, `:116`, `:141`, `:160`, `[1:1]`, `[1:2]`.
+* **1 `main`-only ID:** `spec/system/finance/expense_register_payment_spec.rb:27`, the documented flaky **TD-FIN4**
+  (it passed on the branch).
+* **1 branch-only ID:** `spec/system/finance/deposit_responsibility_transfer_spec.rb:208`, recorded after review as
+  the flaky **TD-FIN5** (§10): a browser assertion right after a page action; 6/6 isolated and 3/3 whole-file
+  passes; Milestone 2 changed no related code, view, JavaScript, helper or layout. Not a milestone regression.
+* No expected change from a completed pilot appears among the failures, and no ID differs in Attendance & Payroll,
+  Organization & Access, Workforce, or API characterization / security.
+
+**Result: no genuinely new failure.** **Milestone 2 (security hardening, Pilots 1–3) is READY FOR PR.** The PR is not
+created; nothing is pushed or merged; `main` stays at `c054fa3`. No next pilot is selected.

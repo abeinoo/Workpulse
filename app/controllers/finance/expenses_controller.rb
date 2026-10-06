@@ -44,7 +44,9 @@ class Finance::ExpensesController < Finance::BaseController
     auto_assign_expense_branch(@expense)
     authorize @expense
 
-    if save_expense
+    if foreign_expense_tags_submitted?
+      reject_foreign_expense_tags(:new)
+    elsif save_expense
       redirect_to finance_expense_path(@expense), notice: t("finance.expenses.created")
     else
       load_options
@@ -61,6 +63,10 @@ class Finance::ExpensesController < Finance::BaseController
   def update
     @expense = find_expense
     authorize @expense, :update?
+    # Checked before assign_attributes: tag ids are written immediately on a
+    # persisted expense.
+    return reject_foreign_expense_tags(:edit) if foreign_expense_tags_submitted?
+
     @expense.assign_attributes(expense_params)
 
     if save_expense
@@ -184,6 +190,26 @@ class Finance::ExpensesController < Finance::BaseController
       expense_allocations_attributes: [ :id, :branch_id, :allocation_percentage, :allocated_amount, :_destroy ]
     )
     permitted[:branch_id] = nil if permitted[:branch_id] == "shared"
+    if permitted.key?(:expense_tag_ids)
+      permitted[:expense_tag_ids] = current_user.business.expense_tags.where(id: submitted_expense_tag_ids).pluck(:id)
+    end
     permitted
+  end
+
+  # Tag ids from the form, minus the blank placeholder that clears the selection.
+  def submitted_expense_tag_ids
+    Array(params.dig(:expense, :expense_tag_ids)).reject(&:blank?).map(&:to_i).uniq
+  end
+
+  # Any submitted tag that is not one of this business's tags (SEC-M2-12).
+  def foreign_expense_tags_submitted?
+    ids = submitted_expense_tag_ids
+    ids.any? && current_user.business.expense_tags.where(id: ids).count != ids.size
+  end
+
+  def reject_foreign_expense_tags(template)
+    @expense.errors.add(:expense_tags, :invalid)
+    load_options
+    render template, status: :unprocessable_entity
   end
 end

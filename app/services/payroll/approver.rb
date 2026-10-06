@@ -45,7 +45,14 @@ module Payroll
             from_status:    from,
             to_status:      "finalized"
           )
-          Payroll::InsuranceExpenseGenerator.call(period: @period, actor: @by)
+          # Finance effects of finalization (the Social Insurance expense) go
+          # through the Payroll-defined contract, inside this transaction. The
+          # employer insurance cost is computed here, from payroll's own data.
+          insurance = Payroll::EmployerInsuranceCost.for(@period)
+          Payroll::FinalizationEffects.period_finalized(
+            period: @period, actor: @by,
+            employer_insurance_total: insurance.total, employer_insurance_by_branch: insurance.by_branch
+          )
         when "paid"
           settle_advances!
           @period.update!(status: "paid")

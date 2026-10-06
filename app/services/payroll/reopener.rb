@@ -55,6 +55,13 @@ module Payroll
           to_status:      to_status,
           metadata:       { reason: @reason }.to_json
         )
+
+        # Leaving "finalized" means payroll may change before the next
+        # finalization, so its effects (the insurance Expense) are reverted now
+        # (FS-D1) — through the Payroll-defined contract, inside this transaction.
+        if to_status == "branch_review_completed"
+          Payroll::FinalizationEffects.period_reopened(period: @period, actor: @by, reason: @reason)
+        end
       end
 
       Result.new(success: true, period: @period)

@@ -1,8 +1,10 @@
 FactoryBot.define do
   factory :employee_obligation do
-    association :user
     association :business
-    association :created_by, factory: :user
+    # Same-business defaults: SEC-M2-4 rejects references to another business.
+    # Cross-business scenarios must pass the foreign records explicitly.
+    user       { association :user, business: business }
+    created_by { association :user, business: business }
 
     obligation_type    { "cash_loan" }
     sequence(:title)   { |n| "Loan #{n}" }

@@ -24,10 +24,13 @@ module Payroll
     end
 
     def call
+      # Only the period's business: an obligation recorded under another
+      # business is never deducted from this payroll (SEC-M2-4).
       obligations = EmployeeObligation
                       .active
                       .auto_deductible
                       .for_user(@user)
+                      .where(business_id: @period.business_id)
                       .covering_period(@period)
                       .order(created_at: :asc)
 

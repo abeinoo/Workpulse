@@ -351,3 +351,133 @@ The pattern works per **component inside a domain**. It does not change the doma
 
 The sequence and rules are consistent with `module-boundaries.md` §18 (interaction rules, notably rule 18 "moves are
 mechanical") and §19 (dependency order). No new top-level domains are introduced.
+
+---
+
+## 14. Milestone 2 — Attendance & Payroll (application notes)
+
+**Status:**
+
+* M0 done (at `c054fa3`).
+* Security hardening done (SEC-M2-1, -2, -3, -4 and -9: `28b2100`, `ca66c43`, `3d9127e`, `a384319`).
+* **Pilot 1 (Biometric Device + PunchService) M1 is complete** (`1024ffb`: 59 examples, 0 new failure IDs).
+* **Pilot 1 is COMPLETE:** M6 `8eac847`, M7 `bea07f8` (models moved to the collapsed
+  `app/models/attendance_payroll/`), M8 done.
+* **Pilot 2 (Employee Obligations) is COMPLETE:**
+  * security precondition `869cadd`;
+  * AP-D4 / AP-D5 fixes `6177e8b` / `b6d4526`;
+  * M1 `c255f5e`, M6 `9298ced`, M7 `77239ce`, M8 docs.
+  * See `next-pilot-selection.md` §17.
+* **Milestone 2 — Finance & Sales Expenses** is selected (standard path). M0 is done; SEC-M2-12 (`6b4d300`),
+  FS-D1 (`f88e022`) and FS-D2 (`94c4dce`) are fixed; **M1 is complete** (`98edd8e`). The standard path is kept
+  (the AP → FS write and cycle F3 remained). **M2 `4b94668`, M3 `d009f0d` and M4 `0ca2dc5` are complete:** the
+  AP-defined, FS-implemented `Payroll::FinalizationEffects` contract carries the payroll-computed insurance cost,
+  Finance owns the expense, `Payroll::InsuranceExpenseGenerator` is removed and **cycle F3 is eliminated**. M5 was
+  evaluated as not needed. M6 `ddaceb1` (boundary), M7 `ee47554` (8 models into the collapsed
+  `app/models/finance_sales/`) and M8 are done: **Pilot 3 is COMPLETE** (`next-pilot-selection.md` §18.8). FS-D3
+  is recorded as open debt.
+
+See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
+sequence (§3) or the rules (§5).
+
+* **The fast track still applies, behind a security precondition.** Pilot 1 (Punch capture channel) has no
+  cross-domain callers, so its plan is M0 → security fix → M1 → (M6 + M7 + M8). The fix is a separately approved
+  `fix:` commit, not a migration step (the Pilot 3 / SEC-P3-1 rule).
+* **Extra M0 check for every AP group.** A policy existing does not prove that it is called:
+  * List each controller's `authorize` / `policy_scope` calls, and treat a controller with **none** as a security
+    finding.
+  * `Admin::BaseController#require_admin_access!` accepts 13 permissions (including `view_*`), so it is **not**
+    an authorization rule for any single action.
+* **M0 security probes stay out of the repository.** Proving a defect with a throwaway request spec run from a
+  scratch location (transactional test DB) gives evidence without adding specs before M1.
+* **The first AP physical move creates the domain's collapsed directory and initializer.** As with Workforce
+  (§2), the AP boundary and location specs are created once and extended by later AP groups.
+* **Security hardening is a phase between M0 and M1, never part of a migration step.**
+  * **Why separate:** a fix changes behaviour; a migration step must not (§9).
+  * **Commit order:** the fixes land as their own `fix:` commits, one per finding, or one for findings that cannot
+    be closed apart. They come **before** M1, so characterization pins the corrected behaviour.
+  * **Pre-fix proof:** every regression spec is run once against the pre-fix code, so its attack cases are proven to
+    fail before the fix.
+* **Fix the whole write surface, not only the reported controller.** Fixing SEC-M2-3 (penalty-rule controller)
+  exposed SEC-M2-9: the same records were writable through another controller's nested attributes
+  (`Shift` → `penalty_rules_attributes`). When closing an authorization gap, list every path that writes the same
+  table (nested attributes, services, other controllers) before declaring it closed.
+* **A rescued 404 does not carry the signed-in test session into the next request.** In request specs, keep
+  requests that end in a 404 one per example (Devise test sign-in + exceptions app); otherwise the follow-up
+  request is redirected to sign-in and the spec tests nothing.
+* **M1 pins deferred security behaviour as-is, labelled with its finding ID.** Pilot 1 M1 pinned punch-log
+  visibility (deferred SEC-M2-8) as the current contract, with the ID in the spec. The later fix then changes a
+  known, named expectation instead of silently breaking an unlabelled one.
+* **Defects found by characterization are pinned, not fixed.** AP-D3 (a punch updates a soft-deleted attendance
+  record) is asserted as current behaviour and recorded as technical debt. Fixing it needs its own approved
+  `fix:` commit, outside the migration (the PERF-D2 precedent).
+* **Probe before asserting.** Edge behaviour (timestamp formats, spam-window membership, token override) was
+  observed with throwaway probes first, so every characterization expectation records observed behaviour, not
+  assumed behaviour.
+* **Fast track validated for Attendance & Payroll (Pilot 1).**
+  * **When:** a component with **no cross-domain business callers, no cross-domain writes and no circular
+    dependencies**.
+  * **Sequence:** M0 → M1 → M6 → M7 → M8, the same as both Workforce pilots.
+  * **M2–M5:** skipped only because evidence proved them unnecessary. The M0 inventory found no cross-domain
+    caller, and the M6 reference classification confirmed it; the services were already in their domain
+    namespace, and no business rule sat in a controller.
+  * **Not a shortcut:** if M0 or M6 finds a real cross-domain caller, the standard M2–M5 steps apply.
+* **M6 comes before M7, in separate commits.**
+  * **Why:** boundary enforcement classifies every reference while the files are still in their old place, so a
+    physical move cannot hide an unknown cross-domain dependency.
+  * **Effect on M7:** M7 then only updates the allow-list paths, and its failing-ID comparison against the
+    pre-move commit proves the move changed nothing.
+  * Pilot 1 did M6 alone (`8eac847`), then M7 (`bea07f8`).
+* **The collapsed-folder pattern now holds for three domains.** Organization & Access, Workforce and Attendance &
+  Payroll each use one one-line collapse initializer per domain folder, with top-level constants and unchanged
+  tables.
+* **Faker apostrophe names are a recurring flaky-test cause** (TD-PERF1, TD-FIN1, TD-OA1). A new failure ID
+  outside the baseline still stops the work, as `§7` requires. Investigate it, prove it is data-dependent with
+  isolated reruns and an untouched code path, then record it as `flaky` with a TD ID **after review**. Never
+  rewrite the spec to hide it inside a migration step.
+* **Pilot 2 confirmed the fast track for a money sub-area coupled to its own domain's core.**
+  * **The coupling:** Employee Obligations are coupled both ways to the payroll core. Payroll deducts them, and the
+    obligation services rebuild payroll.
+  * **Why the fast track still fit:** that coupling is internal to Attendance & Payroll. M6 lists it as AP-internal
+    allow-list entries, not exceptions, so no boundary object was needed.
+* **Correctness defects found in M0 are fixed before M1, like security defects**, when they affect money:
+  * AP-D4 and AP-D5 got their own `fix:` commits and regression specs.
+  * M1 then characterized the corrected behaviour instead of pinning broken payroll.
+  * Defects with no financial impact can still be pinned (the AP-D3 / PERF-D2 precedent).
+* **A met M5 condition does not force M5.** When the needed change is behavioural (audit, reason, recalculation), it
+  is recorded as technical debt or fixed in a separate `fix:` commit. M5 inside a migration may only move logic
+  without changing behaviour.
+* **Reuse the domain's existing collapse.** The second AP group needed no new initializer: one per domain folder,
+  however many groups move into it.
+* **Break a cross-domain cycle by splitting the service by data ownership, not by moving it whole** (Finance &
+  Sales Expenses M4).
+  * **The trap:** a service that reads the caller's data and writes the callee's data cannot simply move to the
+    callee. Moving `Payroll::InsuranceExpenseGenerator` into `Finance::` unchanged would have made Finance read
+    payroll entries and shift assignments, reversing the cycle instead of removing it.
+  * **The rule:** the caller computes what it owns and passes it as plain data in the contract
+    (`employer_insurance_total`, `employer_insurance_by_branch`); the callee owns every write (records, category,
+    allocations, numbering, void, audit). Check it with a source scan on both sides.
+* **M2 → M3 → M4 as three small commits keeps each step provable.** M2 added the contract with an adapter that
+  delegates to the old code; M3 routed the callers; M4 moved the logic. Each step kept the same failure IDs, and M4
+  only had to change stub targets and payloads in specs, never expectations.
+* **Remove the old class in M4 when nothing references it.** No compatibility wrapper without a concrete caller
+  that needs it; leave a one-line provenance comment in the new code instead.
+* **M5 is evaluated, not assumed.** Once M4 leaves every piece as a service in its owning domain and no controller
+  holds the logic, record M5 as not needed with that evidence.
+* **Guard what a name means, not the bare word** (Finance & Sales Expenses M6). `expenses` is also a profitability
+  metric key and a local variable, so the boundary guards constants, `.expenses`-style collection calls,
+  association macros and the multi-word table names, and ignores `t(...)` keys. Pin both sides with self-tests:
+  real references must match, policies / routes / permissions / metric keys must not.
+* **A read-only exception needs a write check over its whole area.** The Reporting read-only check first covered
+  only listed files, and a write planted in a new file under `finance/dashboard/` passed. Probe every rule with a
+  planted file, including new files in allowed directories.
+* **A domain's first physical move creates its collapse initializer, approved before it is written** (Pilot 3 M7).
+  Without the collapse, Zeitwerk expects a namespace, which a move must not introduce. In the location spec, sweep
+  every non-polymorphic association in the app, not only a hand-written list.
+* **Move the pilot's associated group, not the whole domain.** M7 moved the 8 Expenses models the pilot scoped;
+  other Finance & Sales models wait for their own pilot.
+* **After fixing a defect, search for the same pattern elsewhere.** FS-D2 (case-sensitive `find_or_create_by!` on a
+  case-insensitively unique name) recurred in POS fee generation (FS-D3). A sibling outside the pilot's path is
+  recorded as debt and fixed in its own approved `fix:` commit, never inside a migration step.
+* **A documented flaky ID is compared against the documented baseline,** not only against the previous run: TD-OA1
+  appeared in M6/M7 and passed at M8, with the same Faker-apostrophe cause and isolated passes each time.
