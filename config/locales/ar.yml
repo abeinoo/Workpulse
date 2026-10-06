@@ -647,6 +647,7 @@ ar:
     col_net: "الصافي"
 
   payroll:
+    insurance_expense_void_reason: "أُعيد فتح فترة الرواتب: %{reason}"
     base_salary: "الراتب الأساسي"
     overtime: "العمل الإضافي"
     deductions: "الخصومات"

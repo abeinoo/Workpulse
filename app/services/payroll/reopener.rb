@@ -55,6 +55,12 @@ module Payroll
           to_status:      to_status,
           metadata:       { reason: @reason }.to_json
         )
+
+        # Leaving "finalized" means payroll may change before the next
+        # finalization, so its insurance Expense is voided now (FS-D1).
+        if to_status == "branch_review_completed"
+          Payroll::InsuranceExpenseGenerator.void_for(period: @period, actor: @by, reason: @reason)
+        end
       end
 
       Result.new(success: true, period: @period)

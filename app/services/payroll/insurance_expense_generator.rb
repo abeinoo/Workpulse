@@ -22,6 +22,16 @@ module Payroll
       new(period: period, actor: actor).call
     end
 
+    # Called by Payroll::Reopener when a finalized period is reopened (FS-D1):
+    # the active insurance Expense no longer reflects the payroll, so it is
+    # voided — kept as history, never edited or deleted — and the next
+    # finalization generates a fresh one from the latest payroll values.
+    # Status becomes "cancelled" as well, because Finance reports count
+    # expenses by status, not by voided_at.
+    def self.void_for(period:, actor:, reason:)
+      new(period: period, actor: actor).void_active!(reason: reason)
+    end
+
     def initialize(period:, actor:)
       @period = period
       @actor  = actor
@@ -38,6 +48,21 @@ module Payroll
       expense = build_employer_expense(@period.business, insured_entries, employer_total)
 
       Result.new(ok: true, expense: expense)
+    end
+
+    def void_active!(reason:)
+      Expense.where(source_payroll_period: @period, voided_at: nil).find_each do |expense|
+        previous_status = expense.status
+        expense.update!(
+          voided_at:    Time.current,
+          voided_by_id: @actor.id,
+          void_reason:  I18n.t("payroll.insurance_expense_void_reason", reason: reason),
+          status:       "cancelled"
+        )
+        log_audit(actor: @actor, auditable: expense, action: "insurance_expense_voided",
+                  changes:  { status: [ previous_status, "cancelled" ] },
+                  metadata: { payroll_period_id: @period.id, amount: expense.amount.to_s, reason: reason })
+      end
     end
 
     private

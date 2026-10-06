@@ -644,6 +644,7 @@ en:
     col_net: "Net"
 
   payroll:
+    insurance_expense_void_reason: "Payroll period reopened: %{reason}"
     base_salary: "Base salary"
     overtime: "Overtime"
     deductions: "Deductions"
