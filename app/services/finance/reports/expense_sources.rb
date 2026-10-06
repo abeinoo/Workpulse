@@ -131,7 +131,7 @@ module Finance
 
       # PayrollPeriod has been business-wide (no branch scoping) since the
       # branch-membership refactor — the correct source of "which branch was
-      # this salary earned at" is the same one Payroll::InsuranceExpenseGenerator
+      # this salary earned at" is the same one Payroll::EmployerInsuranceCost
       # already uses to attribute its own payroll-derived cost (employer
       # insurance) back to a branch: ShiftAssignment.branch_ids_by_user,
       # resolved over the period's own date range (historical, not the

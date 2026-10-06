@@ -1,6 +1,6 @@
 require "rails_helper"
 
-# Milestone 2 — Finance & Sales Expenses, M3: Payroll::Approver and
+# Milestone 2 — Finance & Sales Expenses, M3 (payload added in M4): Payroll::Approver and
 # Payroll::Reopener reach Finance only through the Payroll-defined
 # Payroll::FinalizationEffects contract, inside their own transactions.
 # End-to-end behaviour (expense created / voided / re-created, rollback) stays
@@ -21,8 +21,9 @@ RSpec.describe "Payroll finalization effects routing (M3)" do
 
       def initialize = @calls = []
 
-      def period_finalized(period:, actor:)
-        @calls << [ :period_finalized, period, actor, ActiveRecord::Base.connection.open_transactions ]
+      def period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:)
+        @calls << [ :period_finalized, period, actor, ActiveRecord::Base.connection.open_transactions,
+                    employer_insurance_total, employer_insurance_by_branch ]
       end
 
       def period_reopened(period:, actor:, reason:)
@@ -39,20 +40,31 @@ RSpec.describe "Payroll finalization effects routing (M3)" do
     Payroll::FinalizationEffects.instance_variable_set(:@handler, original)
   end
 
+  # The payload is computed by payroll from its own insured entries.
+  let(:insured_user) { create(:user, business: business) }
+
+  before do
+    create(:payroll_entry, payroll_period: period, user: insured_user, insured: true, employer_insurance_amount: 100)
+  end
+
   def advance = Payroll::Approver.advance(period: period.reload, by: owner)
   def reopen  = Payroll::Reopener.call(period: period.reload, by: owner, reason: "Correct insurance")
 
   it "finalization calls period_finalized through the contract, inside the Approver transaction" do
-    allow(Payroll::InsuranceExpenseGenerator).to receive(:call)
+    allow(Finance::PayrollInsuranceExpense).to receive(:record)
+    create(:shift_assignment, user: insured_user, branch: branch, shift: create(:shift, :fixed_time, business: business),
+                              effective_from: Date.new(2026, 1, 1))
     outer = ActiveRecord::Base.connection.open_transactions
 
     with_handler(handler) { expect(advance).to be_success }
 
     expect(handler.calls.size).to eq(1)
-    operation, called_period, actor, depth = handler.calls.first
+    operation, called_period, actor, depth, total, by_branch = handler.calls.first
     expect([ operation, called_period, actor ]).to eq([ :period_finalized, period, owner ])
     expect(depth).to be > outer
-    expect(Payroll::InsuranceExpenseGenerator).not_to have_received(:call)
+    expect(total).to eq(100)
+    expect(by_branch).to eq(branch.id => 100)
+    expect(Finance::PayrollInsuranceExpense).not_to have_received(:record)
   end
 
   it "the paid transition triggers no effect" do
@@ -66,7 +78,7 @@ RSpec.describe "Payroll finalization effects routing (M3)" do
 
   it "reopening a finalized period calls period_reopened with the reason, inside the Reopener transaction" do
     period.update_columns(status: "finalized")
-    allow(Payroll::InsuranceExpenseGenerator).to receive(:void_for)
+    allow(Finance::PayrollInsuranceExpense).to receive(:void_for)
     outer = ActiveRecord::Base.connection.open_transactions
 
     with_handler(handler) { expect(reopen).to be_success }
@@ -74,7 +86,7 @@ RSpec.describe "Payroll finalization effects routing (M3)" do
     operation, called_period, actor, reason, depth = handler.calls.sole
     expect([ operation, called_period, actor, reason ]).to eq([ :period_reopened, period, owner, "Correct insurance" ])
     expect(depth).to be > outer
-    expect(Payroll::InsuranceExpenseGenerator).not_to have_received(:void_for)
+    expect(Finance::PayrollInsuranceExpense).not_to have_received(:void_for)
   end
 
   it "reopening a paid period back to finalized triggers no effect" do

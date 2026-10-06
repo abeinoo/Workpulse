@@ -97,7 +97,9 @@ RSpec.describe Finance::Reports::ExpenseDetails, type: :model do
       entry = PayrollEntry.find_by!(payroll_period: period, user: employee)
       entry.update!(insured: true, employer_insurance_amount: 300)
 
-      generated = Payroll::InsuranceExpenseGenerator.call(period: period, actor: actor)
+      cost      = Payroll::EmployerInsuranceCost.for(period)
+      generated = Finance::PayrollInsuranceExpense.record(period: period, actor: actor,
+                                                          total: cost.total, by_branch: cost.by_branch)
       expect(generated).to be_ok
       expect(generated.expense).to be_present
 

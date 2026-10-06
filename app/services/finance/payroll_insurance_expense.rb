@@ -1,33 +1,35 @@
-module Payroll
-  # Called once, inside Payroll::Approver's "finalized" transition — the payroll
-  # approval point of no return. Sums the employer share across the period's
-  # insured entries and, if positive, creates one system-generated Expense for
-  # it — never touches net salary, purely a P&L record (Social Insurance
-  # Expense). The employee share is already applied as a payroll deduction by
-  # Payroll::EntryCalculator; nothing further happens to it here.
+module Finance
+  # The Social Insurance Expense that records a finalized payroll period's
+  # employer insurance cost, and its void when the period is reopened (FS-D1).
+  # Reached only through Payroll::FinalizationEffects (implemented by
+  # Finance::PayrollFinalizationEffects); Payroll supplies the cost as data
+  # (total + {branch_id => amount}), so this service reads no payroll entries
+  # or shift assignments.
   #
-  # No liability or settlement record is created — the Expense itself, via the
-  # existing Expense approval/void workflow, is the entire feature. Idempotent:
-  # a period can have at most one active (non-voided) system-generated
-  # insurance Expense, enforced by a partial unique index on
-  # expenses.source_payroll_period_id.
-  class InsuranceExpenseGenerator
+  # Purely a P&L record — never touches net salary; the employee share is
+  # applied as a payroll deduction by Payroll::EntryCalculator. No liability
+  # or settlement record is created. Idempotent: a period has at most one
+  # active (non-voided) insurance Expense, enforced by a partial unique index
+  # on expenses.source_payroll_period_id.
+  #
+  # Moved unchanged from Payroll::InsuranceExpenseGenerator (Milestone 2 —
+  # Finance & Sales Expenses, M4).
+  class PayrollInsuranceExpense
     include AuditLoggable
 
     EXPENSE_CATEGORY_NAME = "Social Insurance".freeze
 
     Result = Struct.new(:ok, :expense, :error, keyword_init: true) { def ok? = ok }
 
-    def self.call(period:, actor:)
-      new(period: period, actor: actor).call
+    def self.record(period:, actor:, total:, by_branch:)
+      new(period: period, actor: actor).record(total: total, by_branch: by_branch)
     end
 
-    # Called by Payroll::Reopener when a finalized period is reopened (FS-D1):
-    # the active insurance Expense no longer reflects the payroll, so it is
-    # voided — kept as history, never edited or deleted — and the next
-    # finalization generates a fresh one from the latest payroll values.
-    # Status becomes "cancelled" as well, because Finance reports count
-    # expenses by status, not by voided_at.
+    # The active insurance Expense no longer reflects the payroll once the
+    # period is reopened, so it is voided — kept as history, never edited or
+    # deleted — and the next finalization records a fresh one. Status becomes
+    # "cancelled" as well, because Finance reports count expenses by status,
+    # not by voided_at.
     def self.void_for(period:, actor:, reason:)
       new(period: period, actor: actor).void_active!(reason: reason)
     end
@@ -37,15 +39,11 @@ module Payroll
       @actor  = actor
     end
 
-    def call
+    def record(total:, by_branch:)
       return Result.new(ok: true) if Expense.where(source_payroll_period: @period, voided_at: nil).exists?
+      return Result.new(ok: true) if total <= 0
 
-      insured_entries = @period.payroll_entries.where(insured: true)
-      employer_total   = insured_entries.sum(:employer_insurance_amount)
-
-      return Result.new(ok: true) if employer_total <= 0
-
-      expense = build_employer_expense(@period.business, insured_entries, employer_total)
+      expense = build_employer_expense(@period.business, total, by_branch)
 
       Result.new(ok: true, expense: expense)
     end
@@ -70,15 +68,13 @@ module Payroll
     # Expense requires either a specific branch_id, or (when branch-less) a
     # full percentage/amount split across branches via expense_allocations —
     # there's no "unscoped, no split" option (see Expense#normalize_branch_mode).
-    # Payroll itself is business-wide (no branch scoping), so we derive branch
-    # attribution from where the insured employees actually worked during the
-    # period, splitting the employer contribution proportionally when they
-    # span more than one branch. This mirrors Finance::RecurringExpenseGenerator's
-    # use of AllocationCalculator for shared templates.
-    def build_employer_expense(business, insured_entries, employer_total)
+    # Payroll is business-wide, so the cost arrives already attributed to the
+    # branches where the insured employees worked; a single branch is recorded
+    # directly, several are split proportionally. This mirrors
+    # Finance::RecurringExpenseGenerator's use of AllocationCalculator for
+    # shared templates.
+    def build_employer_expense(business, employer_total, branch_totals)
       category = insurance_category(business)
-
-      branch_totals = employer_total_by_branch(insured_entries)
 
       expense = business.expenses.build(
         expense_category:      category,
@@ -133,25 +129,6 @@ module Payroll
         end
         running_pct += pct
         expense.expense_allocations.build(branch_id: branch_id, allocated_amount: amount, allocation_percentage: pct)
-      end
-    end
-
-    # {branch_id => employer_contribution_sum} for the insured entries, keyed by
-    # each employee's branch during the period (latest-effective assignment
-    # wins — see ShiftAssignment.branch_ids_by_user). Employees with no shift
-    # assignment during the period (or if the business has no branches at all)
-    # fall back to the business's first branch so attribution never blocks
-    # expense creation — this is cost bookkeeping, not a physical-location claim.
-    def employer_total_by_branch(insured_entries)
-      rows = insured_entries.pluck(:user_id, :employer_insurance_amount)
-      branch_by_user = ShiftAssignment.branch_ids_by_user(
-        rows.map(&:first), from: @period.period_start, to: @period.period_end
-      )
-      fallback_branch_id = @period.business.branches.order(:id).pick(:id)
-
-      rows.each_with_object(Hash.new(0)) do |(user_id, amount), totals|
-        branch_id = branch_by_user[user_id] || fallback_branch_id
-        totals[branch_id] += amount if branch_id
       end
     end
   end

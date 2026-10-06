@@ -93,7 +93,9 @@ RSpec.describe "Payroll insurance expense after reopen (FS-D1)" do
     reopen!
     finalize!
 
-    expect { Payroll::InsuranceExpenseGenerator.call(period: period, actor: owner) }.not_to change(Expense, :count)
+    cost = Payroll::EmployerInsuranceCost.for(period)
+    expect { Finance::PayrollInsuranceExpense.record(period: period, actor: owner, total: cost.total, by_branch: cost.by_branch) }
+      .not_to change(Expense, :count)
     expect(active_expenses.count).to eq(1)
   end
 
@@ -111,7 +113,7 @@ RSpec.describe "Payroll insurance expense after reopen (FS-D1)" do
   it "rolls the re-finalization back when expense creation fails" do
     finalize!
     reopen!
-    allow(Payroll::InsuranceExpenseGenerator).to receive(:call).and_raise(ActiveRecord::RecordInvalid.new(Expense.new))
+    allow(Finance::PayrollInsuranceExpense).to receive(:record).and_raise(ActiveRecord::RecordInvalid.new(Expense.new))
 
     result = Payroll::Approver.advance(period: period.reload, by: owner)
 
@@ -122,7 +124,7 @@ RSpec.describe "Payroll insurance expense after reopen (FS-D1)" do
 
   it "rolls the reopen back when the void fails (the expense stays active)" do
     finalize!
-    allow(Payroll::InsuranceExpenseGenerator).to receive(:void_for).and_raise(ActiveRecord::RecordInvalid.new(Expense.new))
+    allow(Finance::PayrollInsuranceExpense).to receive(:void_for).and_raise(ActiveRecord::RecordInvalid.new(Expense.new))
 
     result = Payroll::Reopener.call(period: period.reload, by: owner, reason: "Correct insurance")
 

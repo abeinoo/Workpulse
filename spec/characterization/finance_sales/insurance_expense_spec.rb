@@ -2,8 +2,9 @@ require "rails_helper"
 
 # Characterization (Milestone 2 — Finance & Sales Expenses, M1) — CURRENT shape
 # of the system-generated Social Insurance Expense that payroll finalization
-# creates (Payroll::Approver → Payroll::InsuranceExpenseGenerator, the AP → FS
-# write the M2 contract will route). Reopen/void/re-finalize, split allocation,
+# creates (Payroll::Approver → Payroll::FinalizationEffects →
+# Finance::PayrollInsuranceExpense since M4; the AP → FS write the M2 contract
+# routes). Reopen/void/re-finalize, split allocation,
 # idempotency and rollback are in spec/services/payroll/insurance_expense_refresh_spec.rb
 # (FS-D1); category capitalisation in insurance_expense_category_spec.rb (FS-D2).
 RSpec.describe "Characterization: payroll insurance expense" do

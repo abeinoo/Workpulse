@@ -2,8 +2,10 @@ require "rails_helper"
 
 # Milestone 2 — Finance & Sales Expenses, M2: the Attendance & Payroll
 # contract Payroll::FinalizationEffects and its Finance & Sales
-# implementation Finance::PayrollFinalizationEffects (delegating to the
-# existing Payroll::InsuranceExpenseGenerator). Callers are routed in M3.
+# implementation Finance::PayrollFinalizationEffects (M2; callers routed in
+# M3). Since M4 the expense lives in Finance::PayrollInsuranceExpense and
+# Payroll passes the employer insurance cost as data
+# (Payroll::EmployerInsuranceCost).
 RSpec.describe Payroll::FinalizationEffects do
   let(:business) { create(:business) }
   let(:owner)    { create(:user, :owner, business: business) }
@@ -28,6 +30,14 @@ RSpec.describe Payroll::FinalizationEffects do
 
   def active_expenses = Expense.where(source_payroll_period: period, voided_at: nil)
 
+  def cost = Payroll::EmployerInsuranceCost.for(period)
+
+  def finalized!
+    described_class.period_finalized(period: period, actor: owner,
+                                     employer_insurance_total: cost.total,
+                                     employer_insurance_by_branch: cost.by_branch)
+  end
+
   describe "registration" do
     it "has the Finance & Sales implementation registered at boot" do
       expect(described_class.handler).to equal(Finance::PayrollFinalizationEffects)
@@ -42,8 +52,7 @@ RSpec.describe Payroll::FinalizationEffects do
 
     it "raises NotRegistered instead of silently skipping when no handler is registered" do
       with_handler(nil) do
-        expect { described_class.period_finalized(period: period, actor: owner) }
-          .to raise_error(described_class::NotRegistered)
+        expect { finalized! }.to raise_error(described_class::NotRegistered)
       end
     end
   end
@@ -53,11 +62,12 @@ RSpec.describe Payroll::FinalizationEffects do
 
     it "passes each operation to the handler with its arguments and returns its result" do
       with_handler(handler) do
-        expect(described_class.period_finalized(period: period, actor: owner)).to eq(:finalized_result)
+        expect(finalized!).to eq(:finalized_result)
         expect(described_class.period_reopened(period: period, actor: owner, reason: "Fix")).to eq(:reopened_result)
       end
 
-      expect(handler).to have_received(:period_finalized).with(period: period, actor: owner)
+      expect(handler).to have_received(:period_finalized)
+        .with(period: period, actor: owner, employer_insurance_total: 100, employer_insurance_by_branch: { branch.id => 100 })
       expect(handler).to have_received(:period_reopened).with(period: period, actor: owner, reason: "Fix")
     end
 
@@ -65,29 +75,30 @@ RSpec.describe Payroll::FinalizationEffects do
       allow(handler).to receive(:period_finalized).and_raise(ActiveRecord::RecordInvalid.new(Expense.new))
 
       with_handler(handler) do
-        expect { described_class.period_finalized(period: period, actor: owner) }.to raise_error(ActiveRecord::RecordInvalid)
+        expect { finalized! }.to raise_error(ActiveRecord::RecordInvalid)
       end
     end
   end
 
-  describe "Finance::PayrollFinalizationEffects (delegating implementation)" do
-    it "delegates to the existing generator, unchanged" do
-      allow(Payroll::InsuranceExpenseGenerator).to receive(:call).and_call_original
-      allow(Payroll::InsuranceExpenseGenerator).to receive(:void_for).and_call_original
+  describe "Finance::PayrollFinalizationEffects (implementation)" do
+    it "hands the payload to Finance::PayrollInsuranceExpense" do
+      allow(Finance::PayrollInsuranceExpense).to receive(:record).and_call_original
+      allow(Finance::PayrollInsuranceExpense).to receive(:void_for).and_call_original
 
-      described_class.period_finalized(period: period, actor: owner)
+      finalized!
       described_class.period_reopened(period: period, actor: owner, reason: "Fix")
 
-      expect(Payroll::InsuranceExpenseGenerator).to have_received(:call).with(period: period, actor: owner)
-      expect(Payroll::InsuranceExpenseGenerator).to have_received(:void_for).with(period: period, actor: owner, reason: "Fix")
+      expect(Finance::PayrollInsuranceExpense).to have_received(:record)
+        .with(period: period, actor: owner, total: 100, by_branch: { branch.id => 100 })
+      expect(Finance::PayrollInsuranceExpense).to have_received(:void_for).with(period: period, actor: owner, reason: "Fix")
     end
 
     it "creates the insurance expense on finalization, idempotently, and voids it on reopen" do
-      result = described_class.period_finalized(period: period, actor: owner)
+      result = finalized!
       expect(result).to be_ok
       expect(active_expenses.sole).to have_attributes(amount: 100, status: "approved", source_payroll_period_id: period.id)
 
-      expect { described_class.period_finalized(period: period, actor: owner) }.not_to change(Expense, :count)
+      expect { finalized! }.not_to change(Expense, :count)
 
       described_class.period_reopened(period: period, actor: owner, reason: "Fix")
       expect(active_expenses).to be_empty
@@ -96,7 +107,7 @@ RSpec.describe Payroll::FinalizationEffects do
 
     it "writes inside the caller's transaction (a rollback leaves no expense)" do
       ActiveRecord::Base.transaction do
-        described_class.period_finalized(period: period, actor: owner)
+        finalized!
         expect(active_expenses.count).to eq(1)
         raise ActiveRecord::Rollback
       end

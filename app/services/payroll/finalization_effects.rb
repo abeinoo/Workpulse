@@ -14,8 +14,12 @@ module Payroll
   # asynchronous work.
   #
   # A handler must respond to:
-  #   period_finalized(period:, actor:)          — after the period becomes "finalized"
-  #   period_reopened(period:, actor:, reason:)  — after it leaves "finalized" for review
+  #   period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:)
+  #     — after the period becomes "finalized"; the employer insurance cost is
+  #       passed as data ({branch_id => amount}, Payroll::EmployerInsuranceCost)
+  #       so the handler never reads payroll entries itself (§14.1 A)
+  #   period_reopened(period:, actor:, reason:)
+  #     — after it leaves "finalized" for review
   module FinalizationEffects
     OPERATIONS = %i[period_finalized period_reopened].freeze
 
@@ -35,8 +39,10 @@ module Payroll
         @handler || raise(NotRegistered, "No Payroll::FinalizationEffects handler is registered")
       end
 
-      def period_finalized(period:, actor:)
-        handler.period_finalized(period: period, actor: actor)
+      def period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:)
+        handler.period_finalized(period: period, actor: actor,
+                                 employer_insurance_total: employer_insurance_total,
+                                 employer_insurance_by_branch: employer_insurance_by_branch)
       end
 
       def period_reopened(period:, actor:, reason:)
