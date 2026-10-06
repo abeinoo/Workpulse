@@ -76,9 +76,7 @@ module Payroll
     # span more than one branch. This mirrors Finance::RecurringExpenseGenerator's
     # use of AllocationCalculator for shared templates.
     def build_employer_expense(business, insured_entries, employer_total)
-      category = business.expense_categories.find_or_create_by!(name: EXPENSE_CATEGORY_NAME) do |c|
-        c.active = true
-      end
+      category = insurance_category(business)
 
       branch_totals = employer_total_by_branch(insured_entries)
 
@@ -107,6 +105,14 @@ module Payroll
       log_audit(actor: @actor, auditable: expense, action: "insurance_expense_generated",
                 metadata: { payroll_period_id: @period.id, employer_total: employer_total.to_s })
       expense
+    end
+
+    # Category names are unique per business regardless of case, so an existing
+    # "social insurance" must be reused — a case-sensitive find_or_create_by!
+    # missed it and the create failed, blocking payroll finalization (FS-D2).
+    def insurance_category(business)
+      business.expense_categories.find_by("LOWER(name) = ?", EXPENSE_CATEGORY_NAME.downcase) ||
+        business.expense_categories.create!(name: EXPENSE_CATEGORY_NAME, active: true)
     end
 
     # Builds allocations with amounts taken directly from branch_totals (already
