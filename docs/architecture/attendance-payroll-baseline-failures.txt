@@ -6,6 +6,8 @@
 #   (next-pilot-selection.md, Milestone 2 §5.1 and §13–§16). One flaky ID observed at Pilot 1 M8: TD-OA1 (below).
 #   Pilot 2 (Employee Obligations) M0 → M8, incl. SEC-M2-10/-11 and AP-D4/AP-D5 — 0 new failing IDs, no flaky ID
 #   (next-pilot-selection.md, Milestone 2 §17). The failing-ID contents below are unchanged.
+#   Finance & Sales Expenses M0 + SEC-M2-12 / FS-D1 fixes — 0 new deterministic failing IDs; two flaky IDs
+#   observed and recorded after review: TD-FIN2, TD-FIN3 (below; next-pilot-selection.md, Milestone 2 §18).
 # Recorded at c054fa3 (origin/main) on feature/milestone-2-attendance-payroll, 2026-10-06, no code changes.
 # Relevant set: 140 spec files = Attendance & Payroll core (111) + Workforce↔AP request/insurance specs (19)
 #   + spec/architecture (4) + spec/requests/security (6). File list and reproducible
@@ -78,6 +80,21 @@ rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:264
 # generated data. Passed 6/6 isolated reruns and 14/14 for the whole file, and passed in the M8 rerun.
 # Treat a failure of this ID as known-flaky (rerun to confirm), never as a new failure.
 flaky rspec ./spec/characterization/organization_access/permission_roles_spec.rb:28
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-FIN2 (observed in the Finance & Sales Expenses M0 baseline run at 40fcc5d).
+# Same root cause as TD-FIN1 / TD-PERF1 / TD-OA1: Faker generated the user name "Margurite O'Connell"; the page
+# HTML-escapes the apostrophe while the spec checks the plain-text name literally, so the failure depends on the
+# generated data. Passed 6/6 isolated reruns and 17/17 for the whole file. No Milestone 2 commit touched Finance
+# controllers, services, views, specs or the user factory; no production regression. Not fixed; spec unchanged.
+flaky rspec ./spec/requests/finance/reports_expense_details_spec.rb:84
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-FIN3 (observed in the FS-D1 verification run, before the FS-D1 commit).
+# Browser-timing race in a system (Selenium) spec: right after clicking "add row" on the new-expense form, the
+# spec reads the rows with all(...), which does not wait, so the new expense row may not exist yet (rows.first was
+# nil). Passed 6/6 isolated reruns and 4/4 for the whole file, passed in the M0 run, and passed in the post-commit
+# verification. Neither SEC-M2-12 nor FS-D1 changed any view or JavaScript, and this spec never submits the form.
+# ID as rspec prints it (the "equal" distribution example). Not fixed; spec unchanged.
+flaky rspec ./spec/system/finance/expense_duplicate_branch_spec.rb[1:2]
 #
 # Relevant spec set (140 files). Reproduce with:
 #   bundle exec rspec $(grep '^# set ' docs/architecture/attendance-payroll-baseline-failures.txt | cut -d' ' -f3)

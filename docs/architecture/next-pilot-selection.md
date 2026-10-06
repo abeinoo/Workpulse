@@ -1154,12 +1154,14 @@ There are no database, schema, migration, route or API changes.
 
 * Pilot 1: M1 `1024ffb` (§13), M6 `8eac847` (§14), M7 `bea07f8` (§15), M8 (§16).
 * Pilot 2: §17.
-* The next pilot has not been selected.
+* **Milestone 2 — Finance & Sales Expenses:** selected; M0 done and its preconditions (SEC-M2-12, FS-D1) fixed;
+  **M1 ready, not started** (§18).
 
 No schema, migration, route or API has changed. The only production behaviour changes are:
 
 * the security fixes: §5.1, plus SEC-M2-10/-11 and the SEC-M2-4 follow-up in §17;
-* the payroll-correctness fixes AP-D4 and AP-D5 (§17).
+* the payroll-correctness fixes AP-D4 and AP-D5 (§17);
+* SEC-M2-12 and the FS-D1 correctness fix (§18).
 
 Each is in its own `fix:` commit; every M7 is a byte-identical file move. Milestone 1
 sections above are historical and unchanged.
@@ -1591,6 +1593,9 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | **TD-AP10** | The obligation installment-count rule is duplicated (`Admin::EmployeeObligationsController#derive_installments_count` and `Payroll::ObligationEditor#derive_installments_count`), and create-time derivations (remaining balance, count, business, creator) live in the controller |
 | **TD-AP11** | Obligation money arithmetic uses `Float` (`EmployeeObligation#installment_for_period`, `#installment_schedule`, `#repaid_amount`, `#percent_repaid`, `#final_installment_amount`; the controller and editor count derivations). The columns are `decimal(12,2)`, but CLAUDE.md requires no floats for money |
 | **TD-AP12** | `employee_obligations.remaining_amount` is a stored, mutable balance kept in step by `ObligationDeduction` before_create / before_destroy callbacks (`repay!` / `restore!`), not derived from the deduction rows. CLAUDE.md: "do not store a separate balance column that drifts from the ledger". No drift was observed; a redesign is a separate decision |
+| **FS-D1** | **Fixed** in `f88e022` before Expenses M1 (§18): reopening a finalized payroll left the insurance Expense active, so re-finalizing kept the stale amount |
+| **TD-FIN2** | **Flaky test-data failure** (TD-FIN1 pattern): `spec/requests/finance/reports_expense_details_spec.rb:84`. Faker name "Margurite O'Connell" is HTML-escaped while the spec checks plain text. 6/6 isolated, 17/17 file. Recorded as `flaky` in `attendance-payroll-baseline-failures.txt`; spec unchanged |
+| **TD-FIN3** | **Flaky browser-timing failure**: `spec/system/finance/expense_duplicate_branch_spec.rb[1:2]`. Right after "add row", `all(...)` does not wait, so the new row may not exist yet. 6/6 isolated, 4/4 file, passed at M0 and after the FS-D1 commit; no view/JS changed. Recorded as `flaky`; spec unchanged |
 | Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1, TD-ST1, R-L4 (unchanged) |
 
 ## 11. Open architectural questions
@@ -1616,7 +1621,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Pilot 1 M7 (physical model move):** done (§15).
 * **Pilot 1 M8 (final verification and close-out):** done. **Pilot 1 is COMPLETE** (§16).
 * **Pilot 2 (Employee Obligations):** **COMPLETE** (§17).
-* **Not started:** the next pilot. It needs its own selection and review step.
+* **Milestone 2 — Finance & Sales Expenses:** selected (§18). M0 done; SEC-M2-12 (`6b4d300`) and FS-D1
+  (`f88e022`) fixed; **M1 ready, not started**.
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
 
@@ -2096,3 +2102,92 @@ issues were all fixed:
 
 * §6 and §17.6 list the remaining candidates.
 * Any suggestion there is a **recommendation only**, not a selection.
+
+## 18. Milestone 2 — Finance & Sales Expenses: M0 and preconditions
+
+**Status:** selected; **M0 done; the M0 preconditions are fixed; M1 is ready and has not started.**
+
+* **Path (approved):** the **standard path**, M0 → preconditions → M1 → M2 → M3 → M4 → (M5 only if needed) → M6 →
+  M7 → M8.
+* **Model folder for M7:** `app/models/finance_sales/`.
+* **Decided M2 approach:** an Attendance & Payroll-defined finalization-effect contract that Finance & Sales
+  implements and registers. It is synchronous and runs inside the existing finalization transaction: no event bus,
+  HTTP or asynchronous work.
+
+### 18.1 M0 summary (audit at `40fcc5d`)
+
+* **Scope and ownership:** Finance & Sales owns all 8 models:
+  * `Expense`, `ExpenseAllocation`, `ExpenseCategory`, `ExpenseType`, `ExpenseTag`, `ExpenseTagging`,
+    `RecurringExpense`, `RecurringExpenseAllocation`;
+  * their 6 `finance/` controllers;
+  * `Finance::{ExpenseApproval, ExpensePaymentRecorder, RecurringExpenseGenerator, AllocationCalculator}`;
+  * 5 policies and `Finance::GenerateDueRecurringExpensesJob`.
+
+  `Finance::NumberSequencer` and the settlement code are shared Finance & Sales services.
+* **References:** 49 external files.
+
+  | Class | Count | What |
+  |---|---|---|
+  | FS-internal | 22 | |
+  | Reporting reads | 20 | |
+  | Documented exceptions | 4 | OA inverses and the permission catalogue; the IP laundry cost report |
+  | UI | 2 | |
+  | Cross-domain write | **1** | `Payroll::InsuranceExpenseGenerator`, AP → FS, inside `Payroll::Approver`'s finalization transaction; it writes `expenses`, `expense_categories` (find-or-create) and `expense_allocations`, and uses `Finance::NumberSequencer` |
+  | Unexpected | 0 | |
+
+* **Cycle:** **F3 (AP ↔ FS)** is confirmed. No new cycle.
+* **Database:** no schema change is needed. The stored class names (`audit_logs`, `financial_settlements`, Active
+  Storage) keep the constant `Expense`.
+* **Coverage gaps for M1:**
+  * the insurance integration end-to-end;
+  * category / type / tag administration and isolation;
+  * the recurring-expense controller, `generate` action and scope;
+  * list visibility by branch and owner scope, and cross-business 404;
+  * per-business number sequencing;
+  * payment failure and rollback paths.
+
+### 18.2 Preconditions fixed before M1
+
+| Item | Kind | Commit | Fix | Regression spec |
+|---|---|---|---|---|
+| **SEC-M2-12** | Security (cross-business reference) | `6b4d300` | An expense could be tagged with another business's `ExpenseTag` (the foreign tag name rendered; the other business could no longer delete its tag). `Finance::ExpensesController` now refuses any non-business tag id with 422 before assignment (nothing saved or attached); `ExpenseTagging` validates the tag's business as a backstop. No new permission | `spec/requests/security/expense_tags_business_scope_spec.rb` (7; 5 fail on the old code) |
+| **FS-D1** | Money correctness | `f88e022` | Reopening a finalized payroll left the insurance Expense active, so re-finalizing kept the stale amount. `Payroll::Reopener` (finalized → branch_review_completed, in its transaction) now calls `Payroll::InsuranceExpenseGenerator.void_for`, which voids the active expense; re-finalizing creates a new expense from the latest payroll | `spec/services/payroll/insurance_expense_refresh_spec.rb` (9; 6 fail on the old code) |
+| **TD-FIN2** | Flaky test (recorded) | — (this checkpoint) | Faker apostrophe name (§10) | — |
+| **TD-FIN3** | Flaky test (recorded) | — (this checkpoint) | Browser-timing race after "add row" (§10) | — |
+
+**FS-D1 decision: void plus status "cancelled".**
+
+* Finance reports, the dashboard and the laundry cost report count expenses by `status = "approved"` and never
+  check `voided_at`. Voiding alone would therefore have counted the old **and** the new expense.
+* On reopen, the insurance expense therefore gets `voided_at`, `voided_by` and `void_reason`
+  ("Payroll period reopened: <reason>", en + ar), **and** `status: "cancelled"`. All four are already in
+  `Expense::SYSTEM_GENERATED_MUTABLE_ATTRIBUTES`; an `insurance_expense_voided` audit log is written.
+* Kept unchanged: history (never edited or deleted), the generator's idempotency guard, the zero-total behaviour,
+  single/split allocation, finalization rollback, and the paid → finalized reopen (no void).
+* The AP → FS write stays in one place (`Payroll::InsuranceExpenseGenerator`) for the M2 contract.
+
+### 18.3 Verification and baseline
+
+* **Focused set after both fixes** (133 files: the Expenses M0 set, all payroll services and requests, the payroll
+  period policy, and both regression specs; it includes all security, characterization and architecture specs):
+  **1,745 examples, 8 failures, 1 pending**. All 8 are documented baseline IDs:
+  * `expense_policy_spec:54`;
+  * `payroll_period_policy_spec:217`;
+  * `payroll_review_approval_paths_spec` ×4;
+  * `sidebar_active_state_spec:215/293`.
+
+  TD-FIN2 and TD-FIN3 passed in that run. **0 new failure IDs.**
+
+  | Group | Examples | Failures |
+  |---|---|---|
+  | Architecture | 69 | 0 |
+  | Security + API security | 246 | 0 |
+  | Characterization | 353 | 0 (1 pending) |
+
+* `zeitwerk:check` passes; RuboCop reports no offenses in the 6 changed Ruby files; `git diff --check` is clean.
+* No schema, migration, route or API change. The only non-Ruby change in the fixes is one en/ar locale key.
+
+### 18.4 Next
+
+**M1 is ready to start, after approval.** Its scope is the gaps in §18.1, characterizing the behaviour **after**
+SEC-M2-12 and FS-D1.
