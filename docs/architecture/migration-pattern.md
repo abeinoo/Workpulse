@@ -363,7 +363,12 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
 * **Pilot 1 (Biometric Device + PunchService) M1 is complete** (`1024ffb`: 59 examples, 0 new failure IDs).
 * **Pilot 1 is COMPLETE:** M6 `8eac847`, M7 `bea07f8` (models moved to the collapsed
   `app/models/attendance_payroll/`), M8 done.
-* **Pilot 2 has not started**; it needs its own selection and review step.
+* **Pilot 2 (Employee Obligations) is COMPLETE:**
+  * security precondition `869cadd`;
+  * AP-D4 / AP-D5 fixes `6177e8b` / `b6d4526`;
+  * M1 `c255f5e`, M6 `9298ced`, M7 `77239ce`, M8 docs.
+  * See `next-pilot-selection.md` §17.
+* **The next pilot has not been selected.**
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
@@ -423,3 +428,17 @@ sequence (§3) or the rules (§5).
   outside the baseline still stops the work, as `§7` requires. Investigate it, prove it is data-dependent with
   isolated reruns and an untouched code path, then record it as `flaky` with a TD ID **after review**. Never
   rewrite the spec to hide it inside a migration step.
+* **Pilot 2 confirmed the fast track for a money sub-area coupled to its own domain's core.**
+  * **The coupling:** Employee Obligations are coupled both ways to the payroll core. Payroll deducts them, and the
+    obligation services rebuild payroll.
+  * **Why the fast track still fit:** that coupling is internal to Attendance & Payroll. M6 lists it as AP-internal
+    allow-list entries, not exceptions, so no boundary object was needed.
+* **Correctness defects found in M0 are fixed before M1, like security defects**, when they affect money:
+  * AP-D4 and AP-D5 got their own `fix:` commits and regression specs.
+  * M1 then characterized the corrected behaviour instead of pinning broken payroll.
+  * Defects with no financial impact can still be pinned (the AP-D3 / PERF-D2 precedent).
+* **A met M5 condition does not force M5.** When the needed change is behavioural (audit, reason, recalculation), it
+  is recorded as technical debt or fixed in a separate `fix:` commit. M5 inside a migration may only move logic
+  without changing behaviour.
+* **Reuse the domain's existing collapse.** The second AP group needed no new initializer: one per domain folder,
+  however many groups move into it.

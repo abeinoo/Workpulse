@@ -1149,14 +1149,19 @@ There are no database, schema, migration, route or API changes.
 
 # Milestone 2 — Attendance & Payroll
 
-**Status:** M0 audit, Pilot 1 selection, **security hardening** (§5.1) and **Pilot 1 (Biometric Device +
-PunchService) are COMPLETE**:
+**Status:** M0 audit, **security hardening** (§5.1, §17), **Pilot 1 (Biometric Device + PunchService)** and
+**Pilot 2 (Employee Obligations)** are **COMPLETE**:
 
-* M1 `1024ffb` (§13), M6 `8eac847` (§14), M7 `bea07f8` (§15), M8 (§16).
-* Pilot 2 has not started.
+* Pilot 1: M1 `1024ffb` (§13), M6 `8eac847` (§14), M7 `bea07f8` (§15), M8 (§16).
+* Pilot 2: §17.
+* The next pilot has not been selected.
 
-No schema, migration, route or API has changed. The only production behaviour changes are the five security fixes in §5.1, each in its own `fix:` commit;
-M7 is a byte-identical file move plus an autoload collapse. Milestone 1
+No schema, migration, route or API has changed. The only production behaviour changes are:
+
+* the security fixes: §5.1, plus SEC-M2-10/-11 and the SEC-M2-4 follow-up in §17;
+* the payroll-correctness fixes AP-D4 and AP-D5 (§17).
+
+Each is in its own `fix:` commit; every M7 is a byte-identical file move. Milestone 1
 sections above are historical and unchanged.
 
 * **Branch:** `feature/milestone-2-attendance-payroll`, created from `origin/main` @ `c054fa3`.
@@ -1580,7 +1585,13 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | TD-AP8 | Deferred security follow-ups (§5.2): SEC-M2-5, -6, -7, -8, AP-D1, plus the SEC-M2-4 and SEC-M2-2 scope decisions |
 | **AP-D3** | **Known defect, found during Pilot 1 M1 characterization (§13).** When a work date's attendance record was soft-deleted (`deleted_at`), a later punch for that date updates the deleted record (`AttendanceRecord.find_or_initialize_by` has no `active` filter; the unique `(user_id, work_date)` index prevents a new row). The punch reports success while the attendance stays invisible (`AttendanceRecord.active` excludes it). It is **not a regression** caused by M1 (pre-existing production behaviour) and is **not classified as a security vulnerability**. **Pinned, not fixed:** `spec/characterization/attendance_payroll/punch_service_spec.rb`. A fix changes production behaviour and needs its own approved `fix:` commit |
 | **TD-OA1** | **Flaky test-data failure** (same treatment as TD-PERF1 / TD-FIN1), observed in the Pilot 1 M8 verification run: `spec/characterization/organization_access/permission_roles_spec.rb:28`. Faker generated the user name "Unassigned O'Reilly"; the page HTML-escapes the apostrophe while the spec checks the plain-text name literally. Pre-existing and data-dependent: it passed 6/6 isolated reruns and 14/14 for the whole file, and passed in the M8 rerun. Milestone 2 touched neither the PermissionRole controller/views nor the user factory, so there is no production regression. Recorded as `flaky` in `attendance-payroll-baseline-failures.txt`; not fixed |
-| Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1 (unchanged) |
+| **AP-D4** | **Fixed** in `6177e8b` before Pilot 2 M1 (§17): pause and cancel did not rebuild open payroll, so the draft kept deducting the obligation |
+| **AP-D5** | **Fixed** in `b6d4526` before Pilot 2 M1 (§17): reassignment left the previous employee's draft deduction, a double deduction |
+| **TD-AP9** | Obligation pause / resume / cancel change status in `Admin::EmployeeObligationsController`, with no service, no audit log and no reason captured (CLAUDE.md "never bypass services", "every financial action must generate an audit event", "destructive actions require a reason"). The AP-D4 fix added only the atomic open-payroll rebuild. A fix changes behaviour and needs its own approved commit |
+| **TD-AP10** | The obligation installment-count rule is duplicated (`Admin::EmployeeObligationsController#derive_installments_count` and `Payroll::ObligationEditor#derive_installments_count`), and create-time derivations (remaining balance, count, business, creator) live in the controller |
+| **TD-AP11** | Obligation money arithmetic uses `Float` (`EmployeeObligation#installment_for_period`, `#installment_schedule`, `#repaid_amount`, `#percent_repaid`, `#final_installment_amount`; the controller and editor count derivations). The columns are `decimal(12,2)`, but CLAUDE.md requires no floats for money |
+| **TD-AP12** | `employee_obligations.remaining_amount` is a stored, mutable balance kept in step by `ObligationDeduction` before_create / before_destroy callbacks (`repay!` / `restore!`), not derived from the deduction rows. CLAUDE.md: "do not store a separate balance column that drifts from the ledger". No drift was observed; a redesign is a separate decision |
+| Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1, TD-ST1, R-L4 (unchanged) |
 
 ## 11. Open architectural questions
 
@@ -1604,7 +1615,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Pilot 1 M6 (boundary enforcement):** done (§14).
 * **Pilot 1 M7 (physical model move):** done (§15).
 * **Pilot 1 M8 (final verification and close-out):** done. **Pilot 1 is COMPLETE** (§16).
-* **Not started:** Pilot 2. The next pilot needs its own selection and review step.
+* **Pilot 2 (Employee Obligations):** **COMPLETE** (§17).
+* **Not started:** the next pilot. It needs its own selection and review step.
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
 
@@ -1899,3 +1911,188 @@ name is stored, so database verification is not needed (§8, M8).
 
 **Next:** Pilot 1 is complete. **Pilot 2 has not started**; it requires a separate selection and review step.
 §7.7 records P-2 Obligations as the M0 runner-up, but that is input to the selection, not a decision.
+
+## 17. Pilot 2 — Employee Obligations: COMPLETE
+
+**Status: COMPLETE.**
+
+* **Path:** M0 → M1 → M6 → M7 → M8, plus a security precondition and two payroll-correctness fixes before M1.
+* **Pilot 2 commits** (all local on `feature/milestone-2-attendance-payroll`, none pushed): `869cadd`, `6177e8b`,
+  `b6d4526`, `c255f5e`, `9298ced`, `77239ce`, and this docs commit.
+* **Not changed:** database, schema, migration, route, API and permission model.
+
+### 17.1 Sequence
+
+| Step | Result | Commit |
+|---|---|---|
+| M0 inventory + baseline | Done (§17.2); selected over the other candidates on evidence (§17.6) | — (recorded here) |
+| Security precondition | SEC-M2-10, SEC-M2-11 and the SEC-M2-4 follow-up fixed **before M1** | `869cadd` |
+| Payroll-correctness precondition | AP-D4 and AP-D5 fixed **before M1** (not security; correctness) | `6177e8b`, `b6d4526` |
+| M1 characterization | 24 examples, no new defect (§17.4) | `c255f5e` |
+| M2–M5 | **Skipped on evidence** (§17.5) | — |
+| M6 boundary enforcement | 20 references classified; no boundary object (§17.4) | `9298ced` |
+| M7 physical move | 3 models into the collapsed `app/models/attendance_payroll/` (§17.4) | `77239ce` |
+| M8 verification + docs | This section | this commit |
+
+### 17.2 M0 — Employee Obligations
+
+* **Inventory:**
+  * **Models:** `EmployeeObligation`, `ObligationDeduction`, `ObligationPostponement`.
+  * **Tables:** `employee_obligations`, `obligation_deductions`, `obligation_postponements`, with `decimal(12,2)`
+    money columns.
+  * **Controller and policy:** `Admin::EmployeeObligationsController`, `EmployeeObligationPolicy`.
+  * **Services:** `Payroll::ObligationEditor`, `Payroll::ObligationInstallmentPostponer`,
+    `Payroll::ObligationDeductor`.
+  * **UI:** 5 admin views.
+  * **None:** no API, no job.
+* **Ownership:** Attendance & Payroll (`module-boundaries.md` §6).
+* **Dependencies (verified against the branch, not assumed from the earlier audit):**
+  * **Reads:** Organization & Access (`EmployeeScope`, users, branches) and Workforce (`BranchMembership`,
+    `ShiftAssignment`), all in the allowed direction.
+  * **Documented exceptions:** the `Business` / `User` inverse associations and the Workforce employee-page
+    obligations card (SEC-M2-5).
+  * **Writes:** no cross-domain writes.
+  * **Cycles:** no cross-domain cycle. The obligations ↔ payroll-core coupling is **internal to Attendance &
+    Payroll**: payroll calls the deductor, snapshot callbacks update the balance, and the obligation services call
+    `EntryRecalculator`.
+  * **Finance:** Finance reports read only the payroll column `PayrollEntry#obligations_deducted`.
+* **Security found in M0:** SEC-M2-10, SEC-M2-11 and the SEC-M2-4 follow-up (§17.3).
+* **Payroll defects found in M0:** AP-D4 and AP-D5 (§17.3).
+* **Technical debt found in M0:** TD-AP9 to TD-AP12 (§10).
+* **Baseline** (108 spec files at `869cadd`): 1,831 examples, 33 failures, 1 pending. All 33 IDs are in the
+  documented baseline files (§17.5).
+
+### 17.3 Security and correctness fixes (Milestone 2)
+
+| ID | Fixed in | Before M1 of | What |
+|---|---|---|---|
+| SEC-M2-1 | `28b2100` | Pilot 1 | Biometric device administration requires `manage_devices` (§5.1) |
+| SEC-M2-2 | `ca66c43` | Pilot 1 | Admin attendance-record changes use the attendance policy and data scope (§5.1) |
+| SEC-M2-3 + SEC-M2-9 | `3d9127e` | Pilot 1 | Penalty-rule and shift administration authorize every action (§5.1) |
+| SEC-M2-4 | `a384319` | Pilot 1 | An obligation's user and creator must belong to its business; payroll deducts only the period's business (§5.1) |
+| **SEC-M2-10** | `869cadd` | **Pilot 2** | A `manage_obligations` holder can no longer pause, resume, cancel, edit (e.g. turn auto-deduct off) or postpone **their own** obligation; the owner is the only exception |
+| **SEC-M2-11** | `869cadd` | **Pilot 2** | An unconfigured `manage_obligations` scope follows the hierarchy default (`EmployeeScope#relation` + own records), like the other payroll policies, instead of the whole business |
+| **SEC-M2-4 follow-up** | `869cadd` | **Pilot 2** | Create, and reassignment on update, require the target employee to be in the actor's effective `manage_obligations` scope; the employee picker offers only those employees |
+| **AP-D4** | `6177e8b` | **Pilot 2** | Pause / resume / cancel rebuild the employee's open payroll entries atomically with the status change (correctness, not security) |
+| **AP-D5** | `b6d4526` | **Pilot 2** | Reassignment removes the obligation's open snapshots and rebuilds both employees' open entries, so there is no double deduction and no entry is created (correctness, not security) |
+
+* **Documented behaviour change (SEC-M2-11):** a user whose `manage_obligations` scope is unset now reaches only
+  their branch/area hierarchy. Business-wide obligation managers need the business scope configured explicitly.
+* **Regression specs:**
+  * `spec/requests/security/employee_obligations_authorization_spec.rb` (22);
+  * `employee_obligations_business_scope_spec.rb` (9);
+  * `spec/requests/payroll_obligation_lifecycle_spec.rb` (7);
+  * `payroll_obligation_reassignment_spec.rb` (6).
+
+### 17.4 M1, M6, M7
+
+* **M1** (`c255f5e`): 24 characterization examples in `spec/characterization/attendance_payroll/`. **No new
+  defect** — every probed behaviour was correct, and nothing broken was pinned.
+
+  | File | Examples | Covers |
+  |---|---|---|
+  | `employee_obligation_lifecycle_spec.rb` | 9 | Transitions and refusals; atomic rebuild and rollback |
+  | `employee_obligation_payroll_spec.rb` | 7 | Final installment and completion; reopen on recalculation; non-deductible states; no double deduction; finalized period untouched |
+  | `employee_obligation_admin_spec.rb` | 8 | Create/edit derivations and 422s; show page; area and self scopes |
+
+* **M6** (`9298ced`): `spec/architecture/attendance_payroll_obligation_boundary_spec.rb` (8).
+  * **Guarded:** the 3 constants, their collections/tables and the 3 obligation services.
+  * **Classified:** **20 references**:
+    * **16 AP-internal:** the 3 models, the controller, 5 views, 3 services, and the payroll core that consumes
+      obligation results (`PayrollPeriod`, `EntryCalculator`, `EntryRecalculator`, `PeriodGenerator`).
+    * **4 documented exceptions:** the `Business` / `User` inverses, the Workforce employee-page card and the
+      sidebar.
+  * **Unexpected dependencies, cross-domain writes, circular dependencies:** none.
+  * **No boundary object required.**
+  * **Proof:** self-tests plus a planted probe (removed).
+* **M7** (`77239ce`):
+  * **Move:** `git mv` of the 3 models into `app/models/attendance_payroll/`. The renames are 100%, the blobs are
+    unchanged and the old top-level files are gone.
+  * **Unchanged:** the constants stay top-level and the tables are unchanged. There is no `AttendancePayroll`
+    constant and no behaviour, database or API change.
+  * **Folder:** reuses the existing collapse in `config/initializers/attendance_payroll_autoload.rb` from Pilot 1;
+    no new initializer.
+  * **Location spec:** `spec/architecture/attendance_payroll_obligation_model_location_spec.rb` (15) covers the
+    location, constants, tables, associations, policy, scope and the deductor's snapshot class.
+  * **Boundary spec:** only the model paths changed.
+  * **Pattern validated:** the collapsed-folder pattern now holds for two AP groups (5 models).
+
+### 17.5 Path decision and M8 verification
+
+* **Why fast track (evidence-based):**
+  * M0 found no cross-domain caller, write or cycle, so there was no need for a boundary or interface (M2) or
+    caller routing (M3).
+  * The services were already in the AP `Payroll::` namespace, so no M4.
+  * M6 classified every reference and confirmed this.
+  * **M5:** its condition was technically met (lifecycle rules in the controller, the duplicated count rule). The
+    real need, though, is a service with audit, a reason and recalculation, which **changes behaviour**. It was
+    therefore recorded as technical debt (TD-AP9 / TD-AP10), not done inside the migration. The behavioural part
+    that affected money, the missing payroll rebuild, was fixed separately as AP-D4.
+* **M8 final set:** 115 spec files — the 108-file M0 set, plus all architecture, characterization, security and
+  API security specs, and the AP-D4/AP-D5 regression specs.
+
+  Result: **1,891 examples, 33 failures, 1 pending.**
+
+  | Group | Examples | Failures |
+  |---|---|---|
+  | Architecture | 69 | 0 |
+  | Characterization (with API) | 353 | 0 (1 pending) |
+  | Obligation characterization | 24 | 0 |
+  | Obligation security | 31 | 0 |
+  | AP-D4 / AP-D5 regression | 13 | 0 |
+  | Security + API security | 239 | 0 |
+
+* **Comparison by ID:** the 33 failing IDs are **identical** to the Pilot 2 M0 run and to the M7 run. None is
+  new and none disappeared. All are **known baseline failures**:
+  * `payroll_period_policy_spec:217`;
+  * `api/v1/payroll_visibility_spec` ×9;
+  * `api/v1/payroll_waive_scope_spec` ×17;
+  * `payroll_review_approval_paths_spec` ×4 (all in `attendance-payroll-baseline-failures.txt`);
+  * `sidebar_active_state_spec:215/293` (in `permission-role-baseline-failures.txt`).
+
+  No flaky ID appeared.
+* `zeitwerk:check` passes; RuboCop reports no offenses in the 16 Pilot 2 Ruby files; `git diff --check` is clean.
+  The working tree is clean, and nothing in `db/`, routes or API controllers changed.
+
+### 17.6 Candidate choice (M0)
+
+Employee Obligations was selected over the other candidates as the only fast-track-eligible group whose security
+issues were all fixed:
+
+* **Penalty rules:** the Workforce `Shift` nested-attributes write needs an interface (standard path).
+* **Salary configuration:** SEC-M2-5 / -6 / -7 and AP-D1 are open.
+* **Payroll adjustments:** larger, bound to the payroll core, with a baseline failure in its own spec.
+* **Advances, attendance records, payroll core:** cross-domain cycles or writes.
+
+### 17.7 Remaining items after Pilot 2 (none fixed by this close-out)
+
+| Item | Status | Notes |
+|---|---|---|
+| SEC-M2-1, -2, -3, -4, -9, -10, -11; SEC-M2-4 follow-up | **Fixed** | §5.1, §17.3 |
+| AP-D4, AP-D5 | **Fixed** | §17.3 |
+| SEC-M2-5 | **Deferred** (security, Medium) | Employee page shows salary and obligations without the AP policies. Needs Q-M2-5 |
+| SEC-M2-6 | **Deferred** (security, Medium) | Salary-profile scope; self-salary changes. Needs Q-M2-4 |
+| SEC-M2-7 | **Deferred** (security, Medium) | Advance and salary-profile scopes ignore the `view_payroll` scope |
+| SEC-M2-8 | **Deferred** (security, Low–Medium) | Punch-log visibility, business-wide for the admin gate. Pinned in Pilot 1 M1 |
+| SEC-M2-4 follow-up — obligation scope decision | **Resolved** by `869cadd` | Create and reassignment respect the effective scope (was a product decision) |
+| SEC-M2-2 follow-up — attendance edit lookup | **Product decision** (open) | Admin and web attendance edits use the `view_attendance` scope for lookup and allow editing one's own record |
+| AP-D3 | **Known defect** (pinned, not fixed) | A punch updates a soft-deleted attendance record |
+| AP-D1 | **Known defect** (deferred with SEC-M2-6/-7) | API salary-profile index raises `NoMethodError` |
+| AP-D2 | **Known baseline failure** | API line-item `waive?` (pinned in API characterization) |
+| TD-AP9 | **Technical debt** | Obligation lifecycle in the controller: no service, audit or reason |
+| TD-AP10 | **Technical debt** | Duplicated installment-count rule; create derivations in the controller |
+| TD-AP11 | **Technical debt** | Float money arithmetic in the obligation model / controller / editor |
+| TD-AP12 | **Technical debt** | Stored, callback-maintained `remaining_amount` balance |
+| TD-AP1 – TD-AP8 | **Technical debt** | §10 |
+| TD-OA1, TD-PERF1, TD-FIN1 | **Known flaky baseline failures** | Faker apostrophe names |
+| MIG-1, MIG-2 | **Technical debt** (database phase) | Migration history defects; never part of a domain move |
+| TD-ST1 | **Technical debt** | ShiftTemplate branch-requirement inconsistency (Workforce) |
+| R-L4 | **Known defect** (out of scope) | `lib/tasks/attendance.rake` queries a non-existent `permission_roles.role` column |
+| Baseline failures (52 AP + 7 permission-role) | **Known baseline failures** | Unchanged by Pilot 2 |
+
+### 17.8 Next pilot
+
+**Not selected and not started.** It needs a separate selection and review step.
+
+* §6 and §17.6 list the remaining candidates.
+* Any suggestion there is a **recommendation only**, not a selection.

@@ -3,7 +3,9 @@
 # failing IDs of the relevant set are compared with this list (and permission-role-baseline-failures.txt for files
 # outside this set); any ID not listed is a new failure and stops the work. Contents are not edited to absorb new failures.
 # Used so far: SEC-M2-1/-2/-3/-9/-4 verification runs and Pilot 1 M1/M6/M7/M8 — 0 new deterministic failing IDs
-#   (next-pilot-selection.md, Milestone 2 §5.1 and §13–§16). One flaky ID observed at M8: TD-OA1 (below).
+#   (next-pilot-selection.md, Milestone 2 §5.1 and §13–§16). One flaky ID observed at Pilot 1 M8: TD-OA1 (below).
+#   Pilot 2 (Employee Obligations) M0 → M8, incl. SEC-M2-10/-11 and AP-D4/AP-D5 — 0 new failing IDs, no flaky ID
+#   (next-pilot-selection.md, Milestone 2 §17). The failing-ID contents below are unchanged.
 # Recorded at c054fa3 (origin/main) on feature/milestone-2-attendance-payroll, 2026-10-06, no code changes.
 # Relevant set: 140 spec files = Attendance & Payroll core (111) + Workforce↔AP request/insurance specs (19)
 #   + spec/architecture (4) + spec/requests/security (6). File list and reproducible
