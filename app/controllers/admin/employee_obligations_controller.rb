@@ -142,7 +142,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   def pause
     authorize @obligation
     if @obligation.active?
-      @obligation.update!(status: :paused)
+      change_status_and_refresh_payroll!(:paused)
       redirect_to admin_employee_obligation_path(@obligation),
                   notice: t("admin.employee_obligations.paused")
     else
@@ -154,7 +154,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   def resume
     authorize @obligation
     if @obligation.paused?
-      @obligation.update!(status: :active)
+      change_status_and_refresh_payroll!(:active)
       redirect_to admin_employee_obligation_path(@obligation),
                   notice: t("admin.employee_obligations.resumed")
     else
@@ -166,7 +166,7 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   def cancel
     authorize @obligation
     if @obligation.active? || @obligation.paused?
-      @obligation.update!(status: :cancelled)
+      change_status_and_refresh_payroll!(:cancelled)
       redirect_to admin_employee_obligation_path(@obligation),
                   notice: t("admin.employee_obligations.cancelled")
     else
@@ -196,6 +196,17 @@ class Admin::EmployeeObligationsController < Admin::BaseController
   end
 
   private
+
+  # Only active obligations are deducted (Payroll::ObligationDeductor), so a
+  # status change must rebuild the employee's open (non-finalized) payroll
+  # entries too — otherwise a draft keeps deducting a paused/cancelled
+  # obligation, or misses a resumed one (AP-D4). Atomic with the change.
+  def change_status_and_refresh_payroll!(status)
+    ActiveRecord::Base.transaction do
+      @obligation.update!(status: status)
+      Payroll::EntryRecalculator.recalculate_all_open_periods_for(user: @obligation.user, triggered_by: current_user)
+    end
+  end
 
   def set_obligation
     @obligation = policy_scope(EmployeeObligation).find(params[:id])
