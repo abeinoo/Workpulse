@@ -52,14 +52,14 @@ module ArchitectureSpecs
 
     # Finance & Sales models and policies outside a finance/ folder (module-boundaries.md §10).
     FINANCE_SALES_FILES = {
-      "app/models/expense.rb"                      => "the model itself",
-      "app/models/expense_allocation.rb"           => "the model itself",
-      "app/models/expense_category.rb"             => "the model itself",
-      "app/models/expense_type.rb"                 => "the model itself",
-      "app/models/expense_tag.rb"                  => "the model itself",
-      "app/models/expense_tagging.rb"              => "the model itself",
-      "app/models/recurring_expense.rb"            => "the model itself",
-      "app/models/recurring_expense_allocation.rb" => "the model itself",
+      "app/models/finance_sales/expense.rb"                      => "the model itself",
+      "app/models/finance_sales/expense_allocation.rb"           => "the model itself",
+      "app/models/finance_sales/expense_category.rb"             => "the model itself",
+      "app/models/finance_sales/expense_type.rb"                 => "the model itself",
+      "app/models/finance_sales/expense_tag.rb"                  => "the model itself",
+      "app/models/finance_sales/expense_tagging.rb"              => "the model itself",
+      "app/models/finance_sales/recurring_expense.rb"            => "the model itself",
+      "app/models/finance_sales/recurring_expense_allocation.rb" => "the model itself",
       "app/models/custody_transaction.rb"          => "FS custody: belongs_to :expense (expense paid from custody)",
       "app/models/financial_settlement.rb"         => "FS settlements: Expense is a settleable type",
       "app/models/pos_import.rb"                   => "FS sales: has_many :generated_expenses (POS fee expenses)",
@@ -202,7 +202,7 @@ RSpec.describe "Architecture: Finance & Sales expense boundary" do
   describe "self-tests" do
     it "allows Finance & Sales, Reporting and documented exceptions, and rejects any other domain" do
       expect(boundary.allowed?("app/services/finance/expense_approval.rb")).to be(true)
-      expect(boundary.allowed?("app/models/expense.rb")).to be(true)
+      expect(boundary.allowed?("app/models/finance_sales/expense.rb")).to be(true)
       expect(boundary.allowed?("app/views/finance/dashboard/_kpi_cards.html.erb")).to be(true)
       expect(boundary.reporting?("app/views/finance/dashboard/_kpi_cards.html.erb")).to be(true)
       expect(boundary.allowed?("app/models/business.rb")).to be(true)
