@@ -1154,9 +1154,9 @@ There are no database, schema, migration, route or API changes.
 
 * Pilot 1: M1 `1024ffb` (§13), M6 `8eac847` (§14), M7 `bea07f8` (§15), M8 (§16).
 * Pilot 2: §17.
-* **Milestone 2 — Finance & Sales Expenses:** selected; M0 done; the preconditions SEC-M2-12 and FS-D1, plus FS-D2
-  (found while probing for M1), are fixed. **M1 complete** (`98edd8e`); next is **M2** on the standard path; M2–M8
-  not started (§18.6).
+* **Milestone 2 — Finance & Sales Expenses (Pilot 3):** **COMPLETE** (§18, close-out §18.8). Standard path: M1
+  `98edd8e`, M2 `4b94668`, M3 `d009f0d`, M4 `0ca2dc5`, M5 not needed, M6 `ddaceb1`, M7 `ee47554`, M8 docs. Cycle
+  F3 eliminated; FS-D3 recorded as open debt (§10).
 
 No schema, migration, route or API has changed. The only production behaviour changes are:
 
@@ -1599,6 +1599,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | **FS-D2** | **Fixed** in `94c4dce` before Expenses M1 (§18.5): the insurance generator looked the "Social Insurance" category up case-sensitively, so an existing "social insurance" category made payroll finalization fail |
 | **TD-FIN3** | **Flaky browser-timing failure**: `spec/system/finance/expense_duplicate_branch_spec.rb[1:2]` and, in the same distribution-method loop, `[1:1]`. Right after "add row", `all(...)` does not wait, so the new row may not exist yet. `[1:2]`: 6/6 isolated, passed at M0 and after the FS-D1 commit. `[1:1]`: failed once in 6 isolated reruns with no code change involved; the whole file passed 4/4. No view/JS changed. Recorded as `flaky`; spec unchanged |
 | **TD-FIN4** | **Flaky browser-timing failure**: `spec/system/finance/expense_register_payment_spec.rb:27`. The payment was recorded but the custody balance stayed 0 instead of −400, i.e. the "paid from balance" checkbox may not have been registered before submit. 6/6 isolated, whole file passed; no Finance view/JS/payment code changed. Recorded as `flaky`; spec unchanged |
+| **FS-D3** | **Open defect, found in Pilot 3 M8 (§18.8)**, the FS-D2 pattern in Finance-internal POS code outside the migrated insurance path: `Finance::PosImports::ExpenseGenerator` (`app/services/finance/pos_imports/expense_generator.rb:35`) finds the "Payment Gateway Fees" category with a case-sensitive `find_or_create_by!`, while `ExpenseCategory` names are unique per business case-insensitively. An existing "payment gateway fees" category makes the create fail ("Name has already been taken"); `Importer` raises `ExpenseGenerationFailed` and the whole POS import rolls back. Proven with a throwaway probe (exact case reused; different case → `ok: false`). Not security. Needs its own approved `fix:` commit (case-insensitive lookup, as in FS-D2) with a regression spec; not fixed |
 | Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1, TD-ST1, R-L4 (unchanged) |
 
 ## 11. Open architectural questions
@@ -1624,8 +1625,9 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Pilot 1 M7 (physical model move):** done (§15).
 * **Pilot 1 M8 (final verification and close-out):** done. **Pilot 1 is COMPLETE** (§16).
 * **Pilot 2 (Employee Obligations):** **COMPLETE** (§17).
-* **Milestone 2 — Finance & Sales Expenses:** selected (§18). M0 done; SEC-M2-12 (`6b4d300`), FS-D1 (`f88e022`)
-  and FS-D2 (`94c4dce`) fixed; **M1 complete** (`98edd8e`, §18.6). Next: M2 (standard path); M2–M8 not started.
+* **Milestone 2 — Finance & Sales Expenses (Pilot 3):** **COMPLETE** (§18, close-out §18.8). SEC-M2-12
+  (`6b4d300`), FS-D1 (`f88e022`) and FS-D2 (`94c4dce`) fixed; M1 `98edd8e`, M2 `4b94668`, M3 `d009f0d`, M4 `0ca2dc5`,
+  M6 `ddaceb1`, M7 `ee47554`, M8 docs; M5 not needed. FS-D3 open (§10). No next pilot selected.
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
 
@@ -2108,8 +2110,9 @@ issues were all fixed:
 
 ## 18. Milestone 2 — Finance & Sales Expenses: M0 and preconditions
 
-**Status:** selected; M0 done; the preconditions are fixed; **M1 complete** (`98edd8e`, §18.6); **M2 `4b94668`,
-M3 `d009f0d` and M4 `0ca2dc5` complete** (§18.7). **M5 evaluated as not needed.** **Next: M6** (not started).
+**Status:** **COMPLETE** (close-out §18.8). M0 done; the preconditions are fixed; M1 `98edd8e` (§18.6); M2
+`4b94668`, M3 `d009f0d`, M4 `0ca2dc5` (§18.7); **M5 evaluated as not needed**; M6 `ddaceb1`, M7 `ee47554` and M8
+(§18.8). No next pilot is selected.
 
 * **Path (approved):** the **standard path**, M0 → preconditions → M1 → M2 → M3 → M4 → (M5 only if needed) → M6 →
   M7 → M8.
@@ -2390,5 +2393,103 @@ for M5 to move.
 **Follow-up for M8:** `module-boundaries.md` §14.1 A still says "Today `Payroll::InsuranceExpenseGenerator` is called
 inside `Payroll::Approver`"; it is outside this checkpoint's scope and should be updated with the final docs.
 
-**Next: M6** (boundary spec for the Expenses group, classifying the contract and the registration), then **M7**
-(`app/models/finance_sales/` plus initializer) and **M8**. M6 has not started.
+At this checkpoint M6 had not started; M6–M8 are recorded in §18.8.
+
+### 18.8 M6–M8: boundary, physical move and close-out — Pilot 3 COMPLETE
+
+**M6 — boundary enforcement (`ddaceb1`).** `spec/architecture/finance_sales_expense_boundary_spec.rb` (20 examples),
+built on the post-M4 dependency graph (1,113 `app/` + `lib/` files scanned; 59 with guarded references; 149
+Attendance & Payroll files with **0** Finance references).
+
+* **Expenses group:** the 8 models, their Finance services and job, `.expenses`-style collections, association
+  macros and the `expense_*` tables may be used only by:
+  * **Finance & Sales:** `app/{controllers,services,views,jobs}/finance/`, the 8 models, `custody_transaction.rb`,
+    `financial_settlement.rb`, `pos_import.rb`, `expense_policy.rb`, `recurring_expense_policy.rb`;
+  * **Reporting (read-only, `module-boundaries.md` §9):** `app/services/finance/dashboard/`,
+    `app/views/finance/dashboard/`, `finance/dashboard_controller.rb`, `finance/dashboard_filters.rb`,
+    `finance/reports/expense_sources.rb`;
+  * **4 exceptions:** `Business` and `Branch` (Organization & Access inverses), `workspace_helper.rb` (Finance
+    workspace nav, `policy(Expense …)`), `Laundry::LaundryCostSummaryReport` (IP read of approved expenses;
+    read-only, target Reporting).
+
+  Reporting and the laundry report are checked for writes. The allow-list and directories must each still be needed
+  (this removed `app/policies/finance/`). The M0 permission-catalogue exception is no longer needed: permission
+  names, route helpers, `t(...)` keys and `expenses:` metric keys are not guarded.
+* **Payroll insurance path:** Attendance & Payroll names no `Finance::`, expense internal or `NumberSequencer`; the
+  Approver / Reopener go through `Payroll::FinalizationEffects`; only `config/initializers/
+  payroll_finalization_effects.rb` names `Finance::PayrollFinalizationEffects`, which is the registered handler;
+  the Finance side reads no payroll entries, line items or shift assignments; `Payroll::EmployerInsuranceCost`
+  keeps the calculation and only AP code calls it; `Expense#source_payroll_period` (FS → AP) stays valid.
+* **Probes:** forbidden references planted on disk (a Payroll service calling `Finance::PayrollInsuranceExpense` and
+  `Finance::NumberSequencer`; a `ShiftAssignment` read in the Finance service; an Inventory service using
+  `expense_categories`; a write under `finance/dashboard/`; another domain naming the contract implementation) each
+  failed the spec and were removed. The dashboard-write probe first passed — the read-only check covered only
+  listed files — and the check was fixed to cover the Reporting directories before the commit.
+
+**M7 — physical move (`ee47554`).** The 8 Expenses models (`Expense`, `ExpenseAllocation`, `ExpenseCategory`,
+`ExpenseType`, `ExpenseTag`, `ExpenseTagging`, `RecurringExpense`, `RecurringExpenseAllocation`) moved with `git mv`
+from `app/models/` to `app/models/finance_sales/`: recorded as renames, SHA-256 identical. Only these 8 (the M0
+scope, all associated with each other); the custody, settlement, POS, reconciliation and sales models stay.
+
+* **Initializer (approved before creation):** `config/initializers/finance_sales_autoload.rb`, a one-line collapse
+  like the other three domains. No `FinanceSales` namespace; constants stay top-level; tables and stored type names
+  (`polymorphic_name`) unchanged.
+* **`spec/architecture/finance_sales_expense_model_location_spec.rb`** (34 examples): location, no top-level file,
+  table and type name, no namespace, 32 named associations resolve the same classes, and a sweep of every
+  non-polymorphic association in the app.
+* The M6 allow-list only followed the 8 new paths.
+
+**M8 — final verification (on `ee47554`).**
+
+| Run | Result |
+|---|---|
+| Final Pilot 3 set (the §18.3 133-file set + all architecture, characterization, API characterization, security and API security + FS-D1/FS-D2 regressions + contract, routing, M4 and both FS architecture specs) | **1,874 examples, 8 failures, 1 pending** |
+| Architecture | 123 examples, 0 failures |
+| Security + API security | 246 examples, 0 failures |
+| Characterization + API characterization | 393 examples, 0 failures, 1 pending |
+| `spec/characterization/finance_sales` | 40 examples, 0 failures |
+
+* **Failures:** exactly the 8 deterministic baseline IDs — `expense_policy_spec.rb:54`,
+  `payroll_period_policy_spec.rb:217`, `payroll_review_approval_paths_spec.rb:45/58/79/98`,
+  `sidebar_active_state_spec.rb:215/293`. **No new failure IDs.**
+* **Comparison by step:** M1 1,791 / M2 1,800 / M3 1,806 / M4 1,820 / M6 1,840 / M7 1,874 / M8 1,874 examples; the
+  same 8 IDs every time. In the M6 and M7 runs `permission_roles_spec.rb:28` also failed: the documented flaky
+  **TD-OA1** (Faker "Member O'Connell" / "Unassigned O'Hara"; 8/8 and 6/6 isolated passes); it passed at M8.
+* **Documented flaky IDs (unchanged):** TD-OA1, TD-FIN1, TD-FIN2, TD-FIN3 (`[1:1]`, `[1:2]`), TD-FIN4, TD-PERF1.
+  `attendance-payroll-baseline-failures.txt` is unchanged.
+* `zeitwerk:check` passes; RuboCop clean on the 35 Ruby files changed since M0 (`40fcc5d`); `git diff --check`
+  clean.
+
+**Confirmed at close-out:**
+
+* No database, schema or migration change; no route or API change. Since M0 the only `config/` changes are the two
+  approved initializers and the FS-D1 void-reason locale key (en + ar).
+* Production behaviour changed only through the separately approved `fix:` commits (SEC-M2-12, FS-D1, FS-D2); M2–M4
+  preserved behaviour (same failure IDs, unchanged expectations); M7 is a byte-identical move.
+* No new cross-domain dependency and no new boundary exception beyond the four classified in M6; cycle F3 is
+  eliminated.
+* No `FinanceSales` namespace; the 8 models are top-level constants; the Organization & Access, Workforce and
+  Attendance & Payroll collapse initializers are unchanged and their location specs pass.
+
+**Pilot 3 summary.**
+
+* **Preconditions:** SEC-M2-12 (`6b4d300`, cross-business expense tags); FS-D1 (`f88e022`, reopen voids and cancels
+  the insurance expense); FS-D2 (`94c4dce`, case-insensitive "Social Insurance" category).
+* **Dependency inversion (M2 → M4):** the AP → FS write became an AP-defined, FS-implemented contract (M2), the
+  callers were routed through it (M3), and the logic was split by data ownership (M4): Payroll computes the employer
+  insurance cost, Finance owns the expense. `Payroll::InsuranceExpenseGenerator` is gone.
+* **M5 not needed:** after M4 every part is a service in its owning domain and no controller holds the logic.
+
+**Technical debt from this pilot:**
+
+* **FS-D3 (open, §10):** the POS fee category lookup is case-sensitive — the FS-D2 defect in
+  `Finance::PosImports::ExpenseGenerator`; it can block POS imports. Found in M8 by searching for the fixed pattern;
+  recorded, not fixed (approved).
+* **TD-FIN2, TD-FIN3, TD-FIN4:** flaky specs recorded during the pilot (§10).
+* **Docs follow-up:** `module-boundaries.md` §14.1 A still describes `Payroll::InsuranceExpenseGenerator` as today's
+  behaviour; it was outside this close-out's scope.
+* **Accepted nuance (not debt):** `Payroll::EmployerInsuranceCost` runs before Finance's idempotency check, so it
+  also runs on a call that creates nothing; it is read-only.
+
+**Pilot 3 (Finance & Sales Expenses) is COMPLETE.** Nothing was pushed or merged; `main` stays at `c054fa3`. No next
+pilot is selected.

@@ -373,7 +373,9 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
   (the AP → FS write and cycle F3 remained). **M2 `4b94668`, M3 `d009f0d` and M4 `0ca2dc5` are complete:** the
   AP-defined, FS-implemented `Payroll::FinalizationEffects` contract carries the payroll-computed insurance cost,
   Finance owns the expense, `Payroll::InsuranceExpenseGenerator` is removed and **cycle F3 is eliminated**. M5 was
-  evaluated as not needed; **M6 is next** (`next-pilot-selection.md` §18.7).
+  evaluated as not needed. M6 `ddaceb1` (boundary), M7 `ee47554` (8 models into the collapsed
+  `app/models/finance_sales/`) and M8 are done: **Pilot 3 is COMPLETE** (`next-pilot-selection.md` §18.8). FS-D3
+  is recorded as open debt.
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
@@ -462,3 +464,20 @@ sequence (§3) or the rules (§5).
   that needs it; leave a one-line provenance comment in the new code instead.
 * **M5 is evaluated, not assumed.** Once M4 leaves every piece as a service in its owning domain and no controller
   holds the logic, record M5 as not needed with that evidence.
+* **Guard what a name means, not the bare word** (Finance & Sales Expenses M6). `expenses` is also a profitability
+  metric key and a local variable, so the boundary guards constants, `.expenses`-style collection calls,
+  association macros and the multi-word table names, and ignores `t(...)` keys. Pin both sides with self-tests:
+  real references must match, policies / routes / permissions / metric keys must not.
+* **A read-only exception needs a write check over its whole area.** The Reporting read-only check first covered
+  only listed files, and a write planted in a new file under `finance/dashboard/` passed. Probe every rule with a
+  planted file, including new files in allowed directories.
+* **A domain's first physical move creates its collapse initializer, approved before it is written** (Pilot 3 M7).
+  Without the collapse, Zeitwerk expects a namespace, which a move must not introduce. In the location spec, sweep
+  every non-polymorphic association in the app, not only a hand-written list.
+* **Move the pilot's associated group, not the whole domain.** M7 moved the 8 Expenses models the pilot scoped;
+  other Finance & Sales models wait for their own pilot.
+* **After fixing a defect, search for the same pattern elsewhere.** FS-D2 (case-sensitive `find_or_create_by!` on a
+  case-insensitively unique name) recurred in POS fee generation (FS-D3). A sibling outside the pilot's path is
+  recorded as debt and fixed in its own approved `fix:` commit, never inside a migration step.
+* **A documented flaky ID is compared against the documented baseline,** not only against the previous run: TD-OA1
+  appeared in M6/M7 and passed at M8, with the same Faker-apostrophe cause and isolated passes each time.
