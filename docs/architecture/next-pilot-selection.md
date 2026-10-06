@@ -1155,7 +1155,8 @@ There are no database, schema, migration, route or API changes.
 * Pilot 1: M1 `1024ffb` (§13), M6 `8eac847` (§14), M7 `bea07f8` (§15), M8 (§16).
 * Pilot 2: §17.
 * **Milestone 2 — Finance & Sales Expenses:** selected; M0 done; the preconditions SEC-M2-12 and FS-D1, plus FS-D2
-  (found while probing for M1), are fixed. **M1 ready, not started** (§18).
+  (found while probing for M1), are fixed. **M1 complete** (`98edd8e`); next is **M2** on the standard path; M2–M8
+  not started (§18.6).
 
 No schema, migration, route or API has changed. The only production behaviour changes are:
 
@@ -1624,7 +1625,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Pilot 1 M8 (final verification and close-out):** done. **Pilot 1 is COMPLETE** (§16).
 * **Pilot 2 (Employee Obligations):** **COMPLETE** (§17).
 * **Milestone 2 — Finance & Sales Expenses:** selected (§18). M0 done; SEC-M2-12 (`6b4d300`), FS-D1 (`f88e022`)
-  and FS-D2 (`94c4dce`) fixed; **M1 ready, not started**.
+  and FS-D2 (`94c4dce`) fixed; **M1 complete** (`98edd8e`, §18.6). Next: M2 (standard path); M2–M8 not started.
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
 
@@ -2107,7 +2108,8 @@ issues were all fixed:
 
 ## 18. Milestone 2 — Finance & Sales Expenses: M0 and preconditions
 
-**Status:** selected; **M0 done; the M0 preconditions are fixed; M1 is ready and has not started.**
+**Status:** selected; M0 done; the preconditions are fixed; **M1 complete** (`98edd8e`, §18.6). **Next: M2.** M2–M8
+have not started.
 
 * **Path (approved):** the **standard path**, M0 → preconditions → M1 → M2 → M3 → M4 → (M5 only if needed) → M6 →
   M7 → M8.
@@ -2231,3 +2233,76 @@ SEC-M2-12 and FS-D1.
 
 **Status:** all pre-M1 items are resolved (SEC-M2-12, FS-D1, FS-D2, TD-FIN2, TD-FIN3, TD-FIN4). **Expenses M1 is
 ready and has not started.**
+
+### 18.6 M1 characterization (complete)
+
+**Status: COMPLETE**, commit `98edd8e` "test: characterize finance sales expenses".
+
+* **Production code:** unchanged in this step. No database, schema, migration, route or API change; no model moved.
+* **Not done:** no boundary spec and no initializer.
+
+**New characterization: 40 examples in `spec/characterization/finance_sales/`.** The folder name organizes specs
+only.
+
+| File | Examples | What it pins |
+|---|---|---|
+| `insurance_expense_spec.rb` | 7 | The payroll Social Insurance expense: approved, system-generated, dated at period end, created/approved by the actor, `direct` and not linked to a balance, no settlements, an `insurance_expense_generated` audit. Edit/delete raise `ReadOnlyRecord`. Only insured entries count. An unassigned employee goes to the business's first branch. An existing (even inactive) category is reused. The business's `EXP-` sequence continues. Nothing is created on the paid transition |
+| `expense_catalog_admin_spec.rb` | 11 | Categories/types/tags. `view_expenses` is view-only and `manage_*` creates; users without a finance permission are kept out. Names are case-insensitively unique per business, and the same name may exist in another business. A type under a foreign category → 422; a foreign category → 404. Deleting a category with expenses, or a tag in use, is refused. The types `options` JSON returns active types, ordered, as `id`/`name`, and is empty for a foreign category |
+| `recurring_expenses_admin_spec.rb` | 9 | A branch-scoped create is attributed to the actor; an out-of-scope branch is refused; another branch → 404; invalid → 422. `generate` creates a pending, system-generated expense and advances the schedule. `view_expenses` alone is read-only (no update / generate / delete). A foreign template → 404. Deleting a template keeps the generated expenses, detached |
+| `expense_visibility_spec.rb` | 7 | A branch manager lists only the managed branch; the owner sees the business but not another business; another branch / business show → 404. A draft can be submitted. An editor may change a pending but not an approved expense. Only drafts are deleted |
+| `number_sequencer_spec.rb` | 4 | Per-business, per-kind prefixes (`EXP-` / `BRQ-`); continues after the highest prefixed number (other numbers ignored); independent businesses; an unknown kind → `KeyError` |
+| `expense_report_consumers_spec.rb` | 2 | `ExpenseSummary` / `ExpenseTrend` count status `approved` only. The insurance expense counts while active, and only its replacement counts after reopen/re-finalize (FS-D1) |
+
+**Intentionally reused (not duplicated):**
+
+* the Expense model (13), policy (25) and approval service (22) specs;
+* payments: request (17), recorder (13) and payment-type (14) specs;
+* allocations (17 + 10), approve/reject (8) and cancel (4);
+* the recurring generator (9) and job (4);
+* the Finance system and report specs;
+* the SEC-M2-12 (7), FS-D1 (9) and FS-D2 (6) regression specs.
+
+**Findings:** no new security finding and no new defect. Every probed behaviour was correct; nothing broken was
+pinned.
+
+**Verification:**
+
+* **New specs:** 40/0 in default order, with seeds 12345, 98765 and 2468, and file by file.
+* **Focused Finance/Payroll set** (the 133-file §18.3 set, plus the FS-D2 spec and the new specs): **1,791 examples,
+  8 failures, 1 pending.** Exactly the documented baseline IDs:
+  * `expense_policy_spec.rb:54`;
+  * `payroll_period_policy_spec.rb:217`;
+  * `payroll_review_approval_paths_spec.rb:45/58/79/98`;
+  * `sidebar_active_state_spec.rb:215/293`.
+
+  **No new failure IDs.** The pre-M1 run (1,751 examples) had the same 8 IDs plus TD-FIN2.
+* **TD-FIN2** (flaky) **passed** in this run, as a known flaky ID may. TD-FIN3 and TD-FIN4 also passed.
+
+  | Group | Examples | Failures |
+  |---|---|---|
+  | Architecture | 69 | 0 |
+  | Security + API security | 246 | 0 |
+  | All characterization (with API) | 393 | 0 (1 pending) |
+
+* `zeitwerk:check` passes; RuboCop is clean on the 6 new files; `git diff --check` is clean.
+
+**Path decision after M1: the standard path is kept.**
+
+M1 did not change the dependency evidence:
+
+* `Payroll::InsuranceExpenseGenerator` still writes Finance & Sales data (`expenses`, `expense_categories`,
+  `expense_allocations`) inside payroll finalization.
+* Since FS-D1 it also voids the expense when payroll is reopened.
+* Cycle F3 (AP ↔ FS) therefore remains.
+
+M2–M5 remain required as approved in M0. The fast path (M1 → M6 → M7 → M8) was considered and **not** adopted,
+because skipping them would leave a real cross-domain write unresolved. The next steps are:
+
+* **M2:** an Attendance & Payroll-defined finalization/reopen-effect contract, implemented and registered by Finance
+  & Sales. It is synchronous and runs inside the existing transactions.
+* **M3:** route `Payroll::Approver` and `Payroll::Reopener` through it.
+* **M4:** move the expense-building and void code into `Finance::`.
+* **M5:** only if needed.
+* Then **M6** (boundary spec), **M7** (`app/models/finance_sales/` plus initializer) and **M8**.
+
+**M2–M8 have not started.**

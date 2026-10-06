@@ -369,7 +369,8 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
   * M1 `c255f5e`, M6 `9298ced`, M7 `77239ce`, M8 docs.
   * See `next-pilot-selection.md` §17.
 * **Milestone 2 — Finance & Sales Expenses** is selected (standard path). M0 is done; SEC-M2-12 (`6b4d300`),
-  FS-D1 (`f88e022`) and FS-D2 (`94c4dce`) are fixed; M1 is ready, not started (`next-pilot-selection.md` §18).
+  FS-D1 (`f88e022`) and FS-D2 (`94c4dce`) are fixed; **M1 is complete** (`98edd8e`). The standard path is kept
+  (the AP → FS write and cycle F3 remain), so **M2 is next**; M2–M8 not started (`next-pilot-selection.md` §18.6).
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
