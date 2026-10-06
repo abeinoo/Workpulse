@@ -351,3 +351,38 @@ The pattern works per **component inside a domain**. It does not change the doma
 
 The sequence and rules are consistent with `module-boundaries.md` §18 (interaction rules, notably rule 18 "moves are
 mechanical") and §19 (dependency order). No new top-level domains are introduced.
+
+---
+
+## 14. Milestone 2 — Attendance & Payroll (application notes)
+
+**Status:** M0 done (at `c054fa3`) and security hardening done (SEC-M2-1, -2, -3, -4 and -9: `28b2100`,
+`ca66c43`, `3d9127e`, `a384319`). **Pilot 1 (Biometric Device + PunchService) has not started.** See
+`next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2. Nothing below changes the standard
+sequence (§3) or the rules (§5).
+
+* **The fast track still applies, behind a security precondition.** Pilot 1 (Punch capture channel) has no
+  cross-domain callers, so its plan is M0 → security fix → M1 → (M6 + M7 + M8). The fix is a separately approved
+  `fix:` commit, not a migration step (the Pilot 3 / SEC-P3-1 rule).
+* **Extra M0 check for every AP group.** A policy existing does not prove that it is called:
+  * List each controller's `authorize` / `policy_scope` calls, and treat a controller with **none** as a security
+    finding.
+  * `Admin::BaseController#require_admin_access!` accepts 13 permissions (including `view_*`), so it is **not**
+    an authorization rule for any single action.
+* **M0 security probes stay out of the repository.** Proving a defect with a throwaway request spec run from a
+  scratch location (transactional test DB) gives evidence without adding specs before M1.
+* **The first AP physical move creates the domain's collapsed directory and initializer.** As with Workforce
+  (§2), the AP boundary and location specs are created once and extended by later AP groups.
+* **Security hardening is a phase between M0 and M1, never part of a migration step.**
+  * **Why separate:** a fix changes behaviour; a migration step must not (§9).
+  * **Commit order:** the fixes land as their own `fix:` commits, one per finding, or one for findings that cannot
+    be closed apart. They come **before** M1, so characterization pins the corrected behaviour.
+  * **Pre-fix proof:** every regression spec is run once against the pre-fix code, so its attack cases are proven to
+    fail before the fix.
+* **Fix the whole write surface, not only the reported controller.** Fixing SEC-M2-3 (penalty-rule controller)
+  exposed SEC-M2-9: the same records were writable through another controller's nested attributes
+  (`Shift` → `penalty_rules_attributes`). When closing an authorization gap, list every path that writes the same
+  table (nested attributes, services, other controllers) before declaring it closed.
+* **A rescued 404 does not carry the signed-in test session into the next request.** In request specs, keep
+  requests that end in a 404 one per example (Devise test sign-in + exceptions app); otherwise the follow-up
+  request is redirected to sign-in and the spec tests nothing.
