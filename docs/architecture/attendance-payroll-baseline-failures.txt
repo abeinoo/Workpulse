@@ -8,6 +8,8 @@
 #   (next-pilot-selection.md, Milestone 2 §17). The failing-ID contents below are unchanged.
 #   Finance & Sales Expenses M0 + SEC-M2-12 / FS-D1 fixes — 0 new deterministic failing IDs; two flaky IDs
 #   observed and recorded after review: TD-FIN2, TD-FIN3 (below; next-pilot-selection.md, Milestone 2 §18).
+#   FS-D2 fix verification — 0 new deterministic failing IDs; two more browser-timing flakes recorded after review:
+#   a second TD-FIN3 example ([1:1]) and TD-FIN4 (below; next-pilot-selection.md, Milestone 2 §18.5).
 # Recorded at c054fa3 (origin/main) on feature/milestone-2-attendance-payroll, 2026-10-06, no code changes.
 # Relevant set: 140 spec files = Attendance & Payroll core (111) + Workforce↔AP request/insurance specs (19)
 #   + spec/architecture (4) + spec/requests/security (6). File list and reproducible
@@ -94,7 +96,18 @@ flaky rspec ./spec/requests/finance/reports_expense_details_spec.rb:84
 # nil). Passed 6/6 isolated reruns and 4/4 for the whole file, passed in the M0 run, and passed in the post-commit
 # verification. Neither SEC-M2-12 nor FS-D1 changed any view or JavaScript, and this spec never submits the form.
 # ID as rspec prints it (the "equal" distribution example). Not fixed; spec unchanged.
+# The same race was later observed in the "percentage" example of the same distribution-method loop ([1:1]) during
+# the FS-D2 verification run: it failed once in 6 isolated reruns (with no code change involved), and the whole file
+# passed 4/4. FS-D2 does not touch the expense form. Recorded under TD-FIN3; spec unchanged.
 flaky rspec ./spec/system/finance/expense_duplicate_branch_spec.rb[1:2]
+flaky rspec ./spec/system/finance/expense_duplicate_branch_spec.rb[1:1]
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-FIN4 (observed in the FS-D2 verification run, before the FS-D2 commit).
+# Browser-timing race in a system (Selenium) spec: the payment of 400 was recorded (settled 400, remaining 600), but
+# the custody balance stayed 0 instead of -400, i.e. the "paid from balance" checkbox may not have been registered
+# before submit. Passed 6/6 isolated reruns and the whole file. No Milestone 2 commit touched Finance views,
+# JavaScript, the payment recorder, the payments controller or system specs. Not fixed; spec unchanged.
+flaky rspec ./spec/system/finance/expense_register_payment_spec.rb:27
 #
 # Relevant spec set (140 files). Reproduce with:
 #   bundle exec rspec $(grep '^# set ' docs/architecture/attendance-payroll-baseline-failures.txt | cut -d' ' -f3)

@@ -1154,14 +1154,14 @@ There are no database, schema, migration, route or API changes.
 
 * Pilot 1: M1 `1024ffb` (§13), M6 `8eac847` (§14), M7 `bea07f8` (§15), M8 (§16).
 * Pilot 2: §17.
-* **Milestone 2 — Finance & Sales Expenses:** selected; M0 done and its preconditions (SEC-M2-12, FS-D1) fixed;
-  **M1 ready, not started** (§18).
+* **Milestone 2 — Finance & Sales Expenses:** selected; M0 done; the preconditions SEC-M2-12 and FS-D1, plus FS-D2
+  (found while probing for M1), are fixed. **M1 ready, not started** (§18).
 
 No schema, migration, route or API has changed. The only production behaviour changes are:
 
 * the security fixes: §5.1, plus SEC-M2-10/-11 and the SEC-M2-4 follow-up in §17;
 * the payroll-correctness fixes AP-D4 and AP-D5 (§17);
-* SEC-M2-12 and the FS-D1 correctness fix (§18).
+* SEC-M2-12 and the FS-D1 / FS-D2 correctness fixes (§18).
 
 Each is in its own `fix:` commit; every M7 is a byte-identical file move. Milestone 1
 sections above are historical and unchanged.
@@ -1595,7 +1595,9 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | **TD-AP12** | `employee_obligations.remaining_amount` is a stored, mutable balance kept in step by `ObligationDeduction` before_create / before_destroy callbacks (`repay!` / `restore!`), not derived from the deduction rows. CLAUDE.md: "do not store a separate balance column that drifts from the ledger". No drift was observed; a redesign is a separate decision |
 | **FS-D1** | **Fixed** in `f88e022` before Expenses M1 (§18): reopening a finalized payroll left the insurance Expense active, so re-finalizing kept the stale amount |
 | **TD-FIN2** | **Flaky test-data failure** (TD-FIN1 pattern): `spec/requests/finance/reports_expense_details_spec.rb:84`. Faker name "Margurite O'Connell" is HTML-escaped while the spec checks plain text. 6/6 isolated, 17/17 file. Recorded as `flaky` in `attendance-payroll-baseline-failures.txt`; spec unchanged |
-| **TD-FIN3** | **Flaky browser-timing failure**: `spec/system/finance/expense_duplicate_branch_spec.rb[1:2]`. Right after "add row", `all(...)` does not wait, so the new row may not exist yet. 6/6 isolated, 4/4 file, passed at M0 and after the FS-D1 commit; no view/JS changed. Recorded as `flaky`; spec unchanged |
+| **FS-D2** | **Fixed** in `94c4dce` before Expenses M1 (§18.5): the insurance generator looked the "Social Insurance" category up case-sensitively, so an existing "social insurance" category made payroll finalization fail |
+| **TD-FIN3** | **Flaky browser-timing failure**: `spec/system/finance/expense_duplicate_branch_spec.rb[1:2]` and, in the same distribution-method loop, `[1:1]`. Right after "add row", `all(...)` does not wait, so the new row may not exist yet. `[1:2]`: 6/6 isolated, passed at M0 and after the FS-D1 commit. `[1:1]`: failed once in 6 isolated reruns with no code change involved; the whole file passed 4/4. No view/JS changed. Recorded as `flaky`; spec unchanged |
+| **TD-FIN4** | **Flaky browser-timing failure**: `spec/system/finance/expense_register_payment_spec.rb:27`. The payment was recorded but the custody balance stayed 0 instead of −400, i.e. the "paid from balance" checkbox may not have been registered before submit. 6/6 isolated, whole file passed; no Finance view/JS/payment code changed. Recorded as `flaky`; spec unchanged |
 | Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1, TD-ST1, R-L4 (unchanged) |
 
 ## 11. Open architectural questions
@@ -1621,8 +1623,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Pilot 1 M7 (physical model move):** done (§15).
 * **Pilot 1 M8 (final verification and close-out):** done. **Pilot 1 is COMPLETE** (§16).
 * **Pilot 2 (Employee Obligations):** **COMPLETE** (§17).
-* **Milestone 2 — Finance & Sales Expenses:** selected (§18). M0 done; SEC-M2-12 (`6b4d300`) and FS-D1
-  (`f88e022`) fixed; **M1 ready, not started**.
+* **Milestone 2 — Finance & Sales Expenses:** selected (§18). M0 done; SEC-M2-12 (`6b4d300`), FS-D1 (`f88e022`)
+  and FS-D2 (`94c4dce`) fixed; **M1 ready, not started**.
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
 
@@ -2191,3 +2193,41 @@ issues were all fixed:
 
 **M1 is ready to start, after approval.** Its scope is the gaps in §18.1, characterizing the behaviour **after**
 SEC-M2-12 and FS-D1.
+
+### 18.5 FS-D2 and the pre-M1 checkpoint
+
+**FS-D2 (correctness, not security) is fixed in `94c4dce`.** It was found while probing for M1.
+
+* **What was wrong:**
+  * Expense category names are unique per business regardless of case, through a model validation and a unique
+    index on `lower(name)`.
+  * But `Payroll::InsuranceExpenseGenerator` looked "Social Insurance" up with a case-sensitive
+    `find_or_create_by!`.
+  * A business that already had, say, "social insurance" therefore could not finalize payroll: the create was
+    rejected and `Payroll::Approver` rolled the finalization back.
+* **The fix:** the lookup is case-insensitive and scoped to the period's business. An existing category is reused
+  whatever its capitalisation; otherwise the canonical "Social Insurance" category is created. No schema change; no
+  other category behaviour changed.
+* **Regression spec:** `spec/services/payroll/insurance_expense_category_spec.rb` (6). The 3 capitalisation cases
+  fail on the old code. The other 3 (canonical category reused, canonical created, another business's category
+  never reused) pass both ways.
+
+**Flaky tests recorded after review** (§10, `attendance-payroll-baseline-failures.txt`; specs unchanged):
+
+* **TD-FIN3** now also covers `expense_duplicate_branch_spec.rb[1:1]`, the same "add row" race in the same loop.
+* **TD-FIN4:** `expense_register_payment_spec.rb:27`, the "paid from balance" checkbox race before submit.
+
+**Verification at `94c4dce`:**
+
+* FS-D2 spec: 6/0.
+* Focused Payroll/Finance set (the 133-file §18.3 set plus the FS-D2 spec): **1,751 examples, 9 failures,
+  1 pending.**
+  * 8 are the documented baseline IDs, unchanged: `expense_policy_spec:54`, `payroll_period_policy_spec:217`,
+    `payroll_review_approval_paths_spec` ×4 and `sidebar_active_state_spec:215/293`.
+  * 1 is TD-FIN2 (flaky).
+  * **No unexplained failure IDs.**
+* `zeitwerk:check` passes; RuboCop is clean; `git diff --check` is clean.
+* No schema, migration, route or API change.
+
+**Status:** all pre-M1 items are resolved (SEC-M2-12, FS-D1, FS-D2, TD-FIN2, TD-FIN3, TD-FIN4). **Expenses M1 is
+ready and has not started.**
