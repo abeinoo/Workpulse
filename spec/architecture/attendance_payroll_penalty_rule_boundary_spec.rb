@@ -39,7 +39,7 @@ module ArchitectureSpecs
 
     # Attendance & Payroll-owned code (module-boundaries.md §6).
     ATTENDANCE_PAYROLL_FILES = {
-      "app/models/penalty_rule.rb"                       => "the model itself",
+      "app/models/attendance_payroll/penalty_rule.rb"    => "the model itself (folder collapsed: top-level constant)",
       "app/controllers/admin/penalty_rules_controller.rb" => "AP penalty-rule administration (PenaltyRulePolicy)",
       "app/controllers/api/v1/penalty_rules_controller.rb" => "AP penalty-rule API (ShiftPolicy)",
       "app/services/attendance/penalty_calculator.rb"    => "AP penalty calculation",
