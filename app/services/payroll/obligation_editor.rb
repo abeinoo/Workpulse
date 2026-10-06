@@ -33,14 +33,34 @@ module Payroll
 
       before = obligation.slice(:start_month, :start_year, :end_month, :end_year,
                                  :total_amount, :installment_amount)
+      previous_user = obligation.user
       periods = affected_periods(obligation)
 
       unless obligation.update(@attrs.merge(installments_count: derive_installments_count(obligation)))
         return err(obligation, obligation.errors.full_messages.to_sentence)
       end
 
+      # Reassigned to another employee (AP-D5): the previous employee's open
+      # entries must lose the deduction and the new employee's must gain it.
+      # The obligation's open snapshots (none can be finalized/paid here — see
+      # payroll_locked? above) are removed first, restoring the balance, then
+      # both employees are rebuilt, each only where they already have an entry.
+      reassigned = obligation.user_id != previous_user.id
+      users      = [ obligation.user ]
+      if reassigned
+        users << previous_user
+        periods = (periods + affected_periods(obligation)).uniq(&:id)
+        obligation.obligation_deductions.joins(:payroll_period)
+                  .where.not(payroll_periods: { status: EmployeeObligation::LOCKING_PERIOD_STATUSES })
+                  .destroy_all
+      end
+
       periods.sort_by { |p| [ p.period_year, p.period_month ] }.each do |period|
-        Payroll::EntryRecalculator.call(user: obligation.user, period: period, triggered_by: @actor)
+        users.each do |user|
+          next if reassigned && !period.payroll_entries.exists?(user_id: user.id)
+
+          Payroll::EntryRecalculator.call(user: user, period: period, triggered_by: @actor)
+        end
       end
 
       after   = obligation.slice(:start_month, :start_year, :end_month, :end_year,
