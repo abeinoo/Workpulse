@@ -37,9 +37,9 @@ module ArchitectureSpecs
 
     # Attendance & Payroll-owned code (module-boundaries.md §6).
     ATTENDANCE_PAYROLL_FILES = {
-      "app/models/employee_obligation.rb"                        => "the model itself (moves to app/models/attendance_payroll/ in M7)",
-      "app/models/obligation_deduction.rb"                       => "the model itself (moves to app/models/attendance_payroll/ in M7)",
-      "app/models/obligation_postponement.rb"                    => "the model itself (moves to app/models/attendance_payroll/ in M7)",
+      "app/models/attendance_payroll/employee_obligation.rb"     => "the model itself (folder collapsed: top-level constant)",
+      "app/models/attendance_payroll/obligation_deduction.rb"    => "the model itself (folder collapsed: top-level constant)",
+      "app/models/attendance_payroll/obligation_postponement.rb" => "the model itself (folder collapsed: top-level constant)",
       "app/controllers/admin/employee_obligations_controller.rb" => "AP obligation administration (EmployeeObligationPolicy)",
       "app/services/payroll/obligation_editor.rb"                => "AP obligation service",
       "app/services/payroll/obligation_installment_postponer.rb" => "AP obligation service",
