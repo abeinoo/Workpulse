@@ -1157,6 +1157,8 @@ There are no database, schema, migration, route or API changes.
 * **Milestone 2 — Finance & Sales Expenses (Pilot 3):** **COMPLETE** (§18, close-out §18.8). Standard path: M1
   `98edd8e`, M2 `4b94668`, M3 `d009f0d`, M4 `0ca2dc5`, M5 not needed, M6 `ddaceb1`, M7 `ee47554`, M8 docs. Cycle
   F3 eliminated; FS-D3 recorded as open debt (§10).
+* **Milestone 2 final gate (full suite vs `main`):** passed after review (§18.9). **Milestone 2 is READY FOR PR**
+  (not created, not pushed, not merged).
 
 No schema, migration, route or API has changed. The only production behaviour changes are:
 
@@ -1600,6 +1602,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | **TD-FIN3** | **Flaky browser-timing failure**: `spec/system/finance/expense_duplicate_branch_spec.rb[1:2]` and, in the same distribution-method loop, `[1:1]`. Right after "add row", `all(...)` does not wait, so the new row may not exist yet. `[1:2]`: 6/6 isolated, passed at M0 and after the FS-D1 commit. `[1:1]`: failed once in 6 isolated reruns with no code change involved; the whole file passed 4/4. No view/JS changed. Recorded as `flaky`; spec unchanged |
 | **TD-FIN4** | **Flaky browser-timing failure**: `spec/system/finance/expense_register_payment_spec.rb:27`. The payment was recorded but the custody balance stayed 0 instead of −400, i.e. the "paid from balance" checkbox may not have been registered before submit. 6/6 isolated, whole file passed; no Finance view/JS/payment code changed. Recorded as `flaky`; spec unchanged |
 | **FS-D3** | **Open defect, found in Pilot 3 M8 (§18.8)**, the FS-D2 pattern in Finance-internal POS code outside the migrated insurance path: `Finance::PosImports::ExpenseGenerator` (`app/services/finance/pos_imports/expense_generator.rb:35`) finds the "Payment Gateway Fees" category with a case-sensitive `find_or_create_by!`, while `ExpenseCategory` names are unique per business case-insensitively. An existing "payment gateway fees" category makes the create fail ("Name has already been taken"); `Importer` raises `ExpenseGenerationFailed` and the whole POS import rolls back. Proven with a throwaway probe (exact case reused; different case → `ok: false`). Not security. Needs its own approved `fix:` commit (case-insensitive lookup, as in FS-D2) with a regression spec; not fixed |
+| **TD-FIN5** | **Flaky browser-timing failure** (TD-FIN3 / TD-FIN4 treatment), found in the Milestone 2 final full-suite gate (§18.9): `spec/system/finance/deposit_responsibility_transfer_spec.rb:208`. After the recipient's rejection, the manager's DR page did not yet show `#transfer-deposit-responsibility-button` when asserted (Arabic, 430px). Failed on the branch, passed on `main` in the same-seed run; 6/6 isolated, 3/3 whole file; no deposit-responsibility / reconciliation code, view, JS, helper or layout changed in Milestone 2. Recorded as `flaky` in `attendance-payroll-baseline-failures.txt`; spec unchanged |
 | Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1, TD-ST1, R-L4 (unchanged) |
 
 ## 11. Open architectural questions
@@ -2493,3 +2496,40 @@ scope, all associated with each other); the custody, settlement, POS, reconcilia
 
 **Pilot 3 (Finance & Sales Expenses) is COMPLETE.** Nothing was pushed or merged; `main` stays at `c054fa3`. No next
 pilot is selected.
+
+### 18.9 Milestone 2 final gate — full suite vs `main` (READY FOR PR)
+
+Run after the milestone review, as its recommended next action. Same seed (20261006) on both sides; `main` was run
+in a temporary scratch worktree (removed afterwards). No code, spec or schema was changed for the gate.
+
+| | Branch @ `9952d68` | `main` @ `c054fa3` |
+|---|---|---|
+| Spec files | 561 | 527 |
+| Examples | 7,818 | 7,459 |
+| Failures | 95 | 95 |
+| Pending | 1 | 1 |
+| Errors outside examples | none | none |
+
+The branch's extra 34 files / 359 examples are Milestone 2's new characterization, regression and architecture
+specs.
+
+**Comparison by exact failure ID:**
+
+* **94 of 95 failing IDs are identical on the branch and `main`:**
+  * **86** are in the documented baseline files (`permission-role-`, `department-job-title-` and
+    `attendance-payroll-baseline-failures.txt`);
+  * **8** are in no baseline file but fail on `main` too, so they pre-date the milestone; the older baseline files
+    were recorded at earlier commits or over narrower sets. They are not added to the baseline files:
+    `spec/services/inventory/imports/stock_issue_importer_spec.rb:143`,
+    `spec/system/finance/expense_amount_distribution_spec.rb:28`,
+    `spec/system/inventory/purchase_request_form_spec.rb:94`, `:116`, `:141`, `:160`, `[1:1]`, `[1:2]`.
+* **1 `main`-only ID:** `spec/system/finance/expense_register_payment_spec.rb:27`, the documented flaky **TD-FIN4**
+  (it passed on the branch).
+* **1 branch-only ID:** `spec/system/finance/deposit_responsibility_transfer_spec.rb:208`, recorded after review as
+  the flaky **TD-FIN5** (§10): a browser assertion right after a page action; 6/6 isolated and 3/3 whole-file
+  passes; Milestone 2 changed no related code, view, JavaScript, helper or layout. Not a milestone regression.
+* No expected change from a completed pilot appears among the failures, and no ID differs in Attendance & Payroll,
+  Organization & Access, Workforce, or API characterization / security.
+
+**Result: no genuinely new failure.** **Milestone 2 (security hardening, Pilots 1–3) is READY FOR PR.** The PR is not
+created; nothing is pushed or merged; `main` stays at `c054fa3`. No next pilot is selected.

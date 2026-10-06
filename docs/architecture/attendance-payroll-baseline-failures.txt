@@ -10,6 +10,9 @@
 #   observed and recorded after review: TD-FIN2, TD-FIN3 (below; next-pilot-selection.md, Milestone 2 §18).
 #   FS-D2 fix verification — 0 new deterministic failing IDs; two more browser-timing flakes recorded after review:
 #   a second TD-FIN3 example ([1:1]) and TD-FIN4 (below; next-pilot-selection.md, Milestone 2 §18.5).
+#   Finance & Sales Expenses M1 → M8 — 0 new deterministic failing IDs (next-pilot-selection.md §18.6–§18.8).
+#   Milestone 2 final gate (full suite, branch 9952d68 vs main c054fa3, seed 20261006) — 94/95 failing IDs shared
+#   with main; one branch-only browser-timing flake recorded after review: TD-FIN5 (below; §18.9).
 # Recorded at c054fa3 (origin/main) on feature/milestone-2-attendance-payroll, 2026-10-06, no code changes.
 # Relevant set: 140 spec files = Attendance & Payroll core (111) + Workforce↔AP request/insurance specs (19)
 #   + spec/architecture (4) + spec/requests/security (6). File list and reproducible
@@ -108,6 +111,14 @@ flaky rspec ./spec/system/finance/expense_duplicate_branch_spec.rb[1:1]
 # before submit. Passed 6/6 isolated reruns and the whole file. No Milestone 2 commit touched Finance views,
 # JavaScript, the payment recorder, the payments controller or system specs. Not fixed; spec unchanged.
 flaky rspec ./spec/system/finance/expense_register_payment_spec.rb:27
+#
+# KNOWN FLAKY failure TD-FIN5 (observed in the Milestone 2 final full-suite gate on 9952d68; passed on main c054fa3
+# in the same-seed run). Browser-timing failure in a system (Selenium) spec: after the recipient's rejection, the
+# manager's DR page did not yet show #transfer-deposit-responsibility-button when asserted (Arabic, 430px). Passed
+# 6/6 isolated reruns and 3/3 whole-file reruns (17 examples). No Milestone 2 commit touched deposit-responsibility
+# or reconciliation code, views, JavaScript, helpers or layouts (the only locale change is the FS-D1 key).
+# Classified as flaky timing, not a milestone regression. Not fixed; spec unchanged.
+flaky rspec ./spec/system/finance/deposit_responsibility_transfer_spec.rb:208
 #
 # Relevant spec set (140 files). Reproduce with:
 #   bundle exec rspec $(grep '^# set ' docs/architecture/attendance-payroll-baseline-failures.txt | cut -d' ' -f3)
