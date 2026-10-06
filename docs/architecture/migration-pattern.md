@@ -361,8 +361,9 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
 * M0 done (at `c054fa3`).
 * Security hardening done (SEC-M2-1, -2, -3, -4 and -9: `28b2100`, `ca66c43`, `3d9127e`, `a384319`).
 * **Pilot 1 (Biometric Device + PunchService) M1 is complete** (`1024ffb`: 59 examples, 0 new failure IDs).
-* M6 (`8eac847`) and M7 (models moved to the collapsed `app/models/attendance_payroll/`) are done; **M8 has not
-  started.**
+* **Pilot 1 is COMPLETE:** M6 `8eac847`, M7 `bea07f8` (models moved to the collapsed
+  `app/models/attendance_payroll/`), M8 done.
+* **Pilot 2 has not started**; it needs its own selection and review step.
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
@@ -401,3 +402,24 @@ sequence (§3) or the rules (§5).
 * **Probe before asserting.** Edge behaviour (timestamp formats, spam-window membership, token override) was
   observed with throwaway probes first, so every characterization expectation records observed behaviour, not
   assumed behaviour.
+* **Fast track validated for Attendance & Payroll (Pilot 1).**
+  * **When:** a component with **no cross-domain business callers, no cross-domain writes and no circular
+    dependencies**.
+  * **Sequence:** M0 → M1 → M6 → M7 → M8, the same as both Workforce pilots.
+  * **M2–M5:** skipped only because evidence proved them unnecessary. The M0 inventory found no cross-domain
+    caller, and the M6 reference classification confirmed it; the services were already in their domain
+    namespace, and no business rule sat in a controller.
+  * **Not a shortcut:** if M0 or M6 finds a real cross-domain caller, the standard M2–M5 steps apply.
+* **M6 comes before M7, in separate commits.**
+  * **Why:** boundary enforcement classifies every reference while the files are still in their old place, so a
+    physical move cannot hide an unknown cross-domain dependency.
+  * **Effect on M7:** M7 then only updates the allow-list paths, and its failing-ID comparison against the
+    pre-move commit proves the move changed nothing.
+  * Pilot 1 did M6 alone (`8eac847`), then M7 (`bea07f8`).
+* **The collapsed-folder pattern now holds for three domains.** Organization & Access, Workforce and Attendance &
+  Payroll each use one one-line collapse initializer per domain folder, with top-level constants and unchanged
+  tables.
+* **Faker apostrophe names are a recurring flaky-test cause** (TD-PERF1, TD-FIN1, TD-OA1). A new failure ID
+  outside the baseline still stops the work, as `§7` requires. Investigate it, prove it is data-dependent with
+  isolated reruns and an untouched code path, then record it as `flaky` with a TD ID **after review**. Never
+  rewrite the spec to hide it inside a migration step.

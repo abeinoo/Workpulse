@@ -2,7 +2,8 @@
 # Purpose: the reference list for every Milestone 2 step (security fixes, Pilot 1 M1/M6/M7/M8). After each step the
 # failing IDs of the relevant set are compared with this list (and permission-role-baseline-failures.txt for files
 # outside this set); any ID not listed is a new failure and stops the work. Contents are not edited to absorb new failures.
-# Used so far: SEC-M2-1/-2/-3/-9/-4 verification runs — 0 new failing IDs (next-pilot-selection.md, Milestone 2 §5.1).
+# Used so far: SEC-M2-1/-2/-3/-9/-4 verification runs and Pilot 1 M1/M6/M7/M8 — 0 new deterministic failing IDs
+#   (next-pilot-selection.md, Milestone 2 §5.1 and §13–§16). One flaky ID observed at M8: TD-OA1 (below).
 # Recorded at c054fa3 (origin/main) on feature/milestone-2-attendance-payroll, 2026-10-06, no code changes.
 # Relevant set: 140 spec files = Attendance & Payroll core (111) + Workforce↔AP request/insurance specs (19)
 #   + spec/architecture (4) + spec/requests/security (6). File list and reproducible
@@ -66,6 +67,15 @@ rspec ./spec/services/attendance/check_in_service_spec.rb:78
 rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:198
 rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:253
 rspec ./spec/services/salary/advance_eligibility_calculator_spec.rb:264
+#
+# KNOWN PRE-EXISTING FLAKY failure TD-OA1 (observed in the Pilot 1 M8 verification run at bea07f8; the file is
+# outside the 140-file M0 set and was added to the M8 set). Not caused by Milestone 2 work: no Milestone 2 commit
+# touched this spec, the PermissionRole controller/views or the user factory; no production regression. Not fixed.
+# Root cause (same as TD-PERF1 / TD-FIN1): Faker generated the user name "Unassigned O'Reilly"; the page
+# HTML-escapes the apostrophe, while the spec checks the plain-text name literally, so the failure depends on the
+# generated data. Passed 6/6 isolated reruns and 14/14 for the whole file, and passed in the M8 rerun.
+# Treat a failure of this ID as known-flaky (rerun to confirm), never as a new failure.
+flaky rspec ./spec/characterization/organization_access/permission_roles_spec.rb:28
 #
 # Relevant spec set (140 files). Reproduce with:
 #   bundle exec rspec $(grep '^# set ' docs/architecture/attendance-payroll-baseline-failures.txt | cut -d' ' -f3)

@@ -1149,9 +1149,13 @@ There are no database, schema, migration, route or API changes.
 
 # Milestone 2 — Attendance & Payroll
 
-**Status:** M0 audit, Pilot 1 selection, **security hardening** (§5.1) and Pilot 1 **M1** (`1024ffb`, §13), **M6**
-(`8eac847`, §14) and **M7** (§15) are complete. **M8 has not started.** No schema, migration, route or API has
-changed. The only production behaviour changes are the five security fixes in §5.1, each in its own `fix:` commit;
+**Status:** M0 audit, Pilot 1 selection, **security hardening** (§5.1) and **Pilot 1 (Biometric Device +
+PunchService) are COMPLETE**:
+
+* M1 `1024ffb` (§13), M6 `8eac847` (§14), M7 `bea07f8` (§15), M8 (§16).
+* Pilot 2 has not started.
+
+No schema, migration, route or API has changed. The only production behaviour changes are the five security fixes in §5.1, each in its own `fix:` commit;
 M7 is a byte-identical file move plus an autoload collapse. Milestone 1
 sections above are historical and unchanged.
 
@@ -1575,6 +1579,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | TD-AP7 | `Api::V1::PayrollAdjustmentsController#create` authorizes the class; `same_business?` on a class passes only for owners, so non-owner managers are always denied (functional, not a leak) |
 | TD-AP8 | Deferred security follow-ups (§5.2): SEC-M2-5, -6, -7, -8, AP-D1, plus the SEC-M2-4 and SEC-M2-2 scope decisions |
 | **AP-D3** | **Known defect, found during Pilot 1 M1 characterization (§13).** When a work date's attendance record was soft-deleted (`deleted_at`), a later punch for that date updates the deleted record (`AttendanceRecord.find_or_initialize_by` has no `active` filter; the unique `(user_id, work_date)` index prevents a new row). The punch reports success while the attendance stays invisible (`AttendanceRecord.active` excludes it). It is **not a regression** caused by M1 (pre-existing production behaviour) and is **not classified as a security vulnerability**. **Pinned, not fixed:** `spec/characterization/attendance_payroll/punch_service_spec.rb`. A fix changes production behaviour and needs its own approved `fix:` commit |
+| **TD-OA1** | **Flaky test-data failure** (same treatment as TD-PERF1 / TD-FIN1), observed in the Pilot 1 M8 verification run: `spec/characterization/organization_access/permission_roles_spec.rb:28`. Faker generated the user name "Unassigned O'Reilly"; the page HTML-escapes the apostrophe while the spec checks the plain-text name literally. Pre-existing and data-dependent: it passed 6/6 isolated reruns and 14/14 for the whole file, and passed in the M8 rerun. Milestone 2 touched neither the PermissionRole controller/views nor the user factory, so there is no production regression. Recorded as `flaky` in `attendance-payroll-baseline-failures.txt`; not fixed |
 | Existing | AP-D2 (`waive?`), MIG-1, MIG-2, TD-FIN1, TD-PERF1 (unchanged) |
 
 ## 11. Open architectural questions
@@ -1598,7 +1603,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   * Pilot 1 M1 characterization: `1024ffb` (§13).
 * **Pilot 1 M6 (boundary enforcement):** done (§14).
 * **Pilot 1 M7 (physical model move):** done (§15).
-* **Not started:** Pilot 1 M8 (final verification and close-out).
+* **Pilot 1 M8 (final verification and close-out):** done. **Pilot 1 is COMPLETE** (§16).
+* **Not started:** Pilot 2. The next pilot needs its own selection and review step.
 * **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
 
@@ -1812,3 +1818,84 @@ models" (its hash is reported in the M7 report; a commit cannot record its own h
 
 **Database:** not touched. The constants and tables are unchanged, no migration calls the constants, and no class
 name is stored, so database verification is not needed (§8, M8).
+
+## 16. Pilot 1 — Attendance & Payroll Biometric (Biometric Device + PunchService): COMPLETE
+
+**Status: COMPLETE** (M8 close-out).
+
+**Sequence (fast track):**
+
+| Step | Result | Commit |
+|---|---|---|
+| M0 inventory + baseline | Done (§1–§9; `attendance-payroll-baseline-failures.txt`) | `3d746a3` (docs) |
+| Security precondition | SEC-M2-1, SEC-M2-2, SEC-M2-3 + SEC-M2-9, SEC-M2-4 fixed | `28b2100`, `ca66c43`, `3d9127e`, `a384319` |
+| M1 characterization | Done: 59 examples (§13) | `1024ffb` |
+| M2–M5 | **Skipped on evidence:** no cross-domain business caller (M0, confirmed by the M6 inventory), services already in `app/services/attendance/`, no business rules in controllers to extract | — |
+| M6 boundary enforcement | Done (§14): first AP boundary spec, no unexpected dependency, no boundary object | `8eac847` |
+| M7 physical move | Done (§15): byte-identical `git mv` into the collapsed `app/models/attendance_payroll/` | `bea07f8` |
+| M8 verification + docs | Done (this section) | this commit |
+
+**Final state:**
+
+* `BiometricDevice` and `BiometricPunchLog` load as top-level constants from `app/models/attendance_payroll/`. The
+  old top-level files are gone, there is no `AttendancePayroll` constant, and the tables `biometric_devices` and
+  `biometric_punch_logs` are unchanged.
+* **No semantic model change:** only physical organization (same git blobs).
+* No database, schema or migration change, and no API or route change.
+* **The Attendance & Payroll collapsed-folder pattern is validated:** one-line
+  `config/initializers/attendance_payroll_autoload.rb`, as for Organization & Access and Workforce.
+
+**M8 verification:**
+
+* **Location:** confirmed by the location spec and a runtime check. The constants, source paths and table names
+  match, `defined?(AttendancePayroll)` is `nil`, and both tables exist.
+* **Architecture:** 46 examples, 0 failures.
+
+  | Spec | Examples |
+  |---|---|
+  | AP boundary | 4 |
+  | AP location | 10 |
+  | PermissionRole boundary | 3 |
+  | PermissionRole location | 4 |
+  | Workforce boundary | 3 |
+  | Workforce location | 22 |
+
+  * The Organization & Access and Workforce architecture specs are unchanged since `c054fa3`.
+  * The only change to the AP allow-list since M6 is the two model paths (the move); no rule or exception was
+    weakened, and every documented exception remains.
+* **Security:**
+  * `spec/requests/security`: 193 examples, 0 failures. This includes SEC-M2-1 (15), SEC-M2-2 (9),
+    SEC-M2-3 + SEC-M2-9 (26), SEC-M2-4 (9), and the Organization & Access and Workforce (performance,
+    shift-assignment) security specs.
+  * `spec/requests/api/v1/security`: 24 examples, 0 failures.
+* **Characterization** (all, including API and the Pilot 1 specs): 329 examples, 0 failures, 1 pending (the
+  existing pinned API `waive?` example).
+* **Final verification set:** 182 spec files — the 140-file M0 set, plus:
+  * architecture, characterization, API characterization and security specs;
+  * the Pilot 1 set;
+  * attendance / payroll / salary / reports services;
+  * shift, penalty-rule and obligation specs;
+  * admin users and the user model.
+
+  Result: **3,489 examples, 59 failures, 1 pending.**
+* **Comparison by ID:**
+  * **All 52 IDs** in `attendance-payroll-baseline-failures.txt` still fail as recorded, and none started passing.
+  * The other 7 are in `permission-role-baseline-failures.txt`: `shift_assignment_spec:7`,
+    `shift_templates_spec:204`, `permission_matrix_verification_spec:502/508/556`,
+    `sidebar_active_state_spec:215/293`.
+  * **0 new failure IDs.**
+* **TD-OA1:** in the first M8 run (60 failures), `permission_roles_spec.rb:28` failed outside every baseline. It was
+  investigated, found to be data-dependent (§10), and recorded as `flaky` after review. It passed in the rerun.
+  It is the only flaky ID observed.
+* `zeitwerk:check` passes; RuboCop reports no offenses (10 Pilot 1 Ruby files; 22 Milestone 2 Ruby files);
+  `git diff --check` is clean.
+
+**Carried forward (not fixed):**
+
+* **AP-D3:** known defect, pinned, not fixed (§10).
+* **SEC-M2-8:** deferred, as documented (§5.2), together with SEC-M2-5/-6/-7 and AP-D1.
+* **TD-OA1:** flaky (§10).
+* **No new security findings** in M1–M8.
+
+**Next:** Pilot 1 is complete. **Pilot 2 has not started**; it requires a separate selection and review step.
+§7.7 records P-2 Obligations as the M0 runner-up, but that is input to the selection, not a decision.
