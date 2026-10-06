@@ -1159,8 +1159,9 @@ There are no database, schema, migration, route or API changes.
   F3 eliminated; FS-D3 recorded as open debt (§10).
 * **Milestone 2 final gate (full suite vs `main`):** passed after review (§18.9). **Milestone 2 is READY FOR PR**
   (not created, not pushed, not merged).
-* **Pilot 4 — Attendance & Payroll Penalty Rules:** **M0 done** on `feature/pilot-4-penalty-rules` (from `b28110f`);
-  standard path recommended; M1 not started (§19).
+* **Pilot 4 — Attendance & Payroll Penalty Rules:** on `feature/pilot-4-penalty-rules` (from `b28110f`): M0
+  `b73fc34`, M1 `3efb46b`, M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M5 not needed, **M6 done** (§19.11); M7 and
+  M8 not started.
 
 No schema, migration, route or API has changed. The only production behaviour changes are:
 
@@ -2538,8 +2539,8 @@ created; nothing is pushed or merged; `main` stays at `c054fa3`. No next pilot i
 
 ## 19. Pilot 4 — Attendance & Payroll Penalty Rules: M0
 
-**Status:** M0 done (inventory, dependency audit, security probes, baseline) at `b28110f` on
-`feature/pilot-4-penalty-rules`. **No production code, spec or schema change. M1 not started.**
+**Status:** M0 done at `b28110f` (recorded in `b73fc34`); M1–M4 and M6 done, M5 not needed (§19.11). M7 and M8
+not started. All on `feature/pilot-4-penalty-rules`, not pushed.
 
 ### 19.1 Scope and ownership
 
@@ -2700,4 +2701,77 @@ The approved P-4 assumptions hold:
 * **M5:** decide on evidence after M4 (TD-P4-4 could be served by the M2 interface).
 * **Out of scope:** the employee-request consumers (WF ↔ AP request cycle) stay documented exceptions.
 
-**M1 readiness:** ready to start once approved; it should fill gaps 1–5 (§19.7). M1 has **not** started.
+**M1 readiness (at M0):** ready to start once approved; it should fill gaps 1–5 (§19.7). M1–M6 are recorded in
+§19.11.
+
+### 19.11 M1–M6: characterization, contract, routing, relocation and boundary
+
+| Step | Commit | What |
+|---|---|---|
+| **M1** | `3efb46b` | 33 characterization examples in `spec/characterization/attendance_payroll/` for gaps 1–5: API writes (17), shift-form nested writes, cascade delete, P4-D1 and no-audit (11), live evaluation (5) |
+| **M2** | `40e5ed0` | `Shifts::PenaltyRuleSettings` (Workforce contract, `assign(shift:, rows:)`), `Attendance::ShiftPenaltyRules` (AP implementation, delegating to nested attributes), `config/initializers/shift_penalty_rule_settings.rb` |
+| **M3** | `4d7ae92` | `Admin::ShiftsController` stages the permitted rule rows (plain hashes, submitted order) only through the contract; same call order and transaction |
+| **M4** | `a2ae7aa` | Row staging moved into `Attendance::ShiftPenaltyRules`; `Shift` drops `accepts_nested_attributes_for` and declares `autosave: true`; the form uses `fields_for :penalty_rules_attributes, …, index:` — markup byte-identical (edit, new, both 422 re-renders) |
+| **M5** | — | **Not needed** (decision review after M4): no business rule sits in a controller or view or exists twice; the AP rule controllers do plain persistence (TD-P4-4), and the value a service would add — audit (TD-P4-1) — is a behaviour change for its own `fix:` |
+| **M6** | this commit | `spec/architecture/attendance_payroll_penalty_rule_boundary_spec.rb` (18 examples) |
+
+**Decision at M2 (approved): the contract is Workforce-defined and AP-implemented.** The brief asked for an AP-owned
+interface called by Workforce, but Workforce is upstream of AP (`module-boundaries.md` §12.1; §18 rule 5): a WF → AP
+call would have kept the cycle as a service call. As with Pilot 3's `Payroll::FinalizationEffects`, the upstream
+domain defines the need and the downstream domain implements it, wired at boot so neither names the other.
+Authorization stays with the caller (`ShiftPolicy`, `manage_shifts`); isolation does not depend on it (an id outside
+the shift raises `RecordNotFound` → 404).
+
+**P4-D1 (known defect, pinned in M1, not fixed):** `Admin::ShiftsController#destroy` ignores the result of
+`@shift.destroy`; a shift with assignments is kept (`restrict_with_error`) but the redirect says "shift removed". No
+data harm. Needs its own approved `fix:`.
+
+**M6 — reference classification** (1,115 `app/` + `lib/` files; 52 code lines in 25 files):
+
+| Class | Files |
+|---|---|
+| AP internal (11 + `app/views/admin/penalty_rules/`) | `penalty_rule.rb`; admin and API penalty-rule controllers; `attendance/{penalty_calculator, time_calculator, record_recomputer, status_backfill, shift_penalty_rules}.rb`; `payroll/{entry_calculator, permission_applier, punch_correction_applier}.rb` |
+| WF lifecycle association | `shift.rb`: exactly `has_many :penalty_rules, dependent: :destroy, autosave: true` — rules live and die with their shift (the M0 `dependent: :destroy` question: kept as a classified lifecycle exception; a shift with assignments cannot be deleted); autosave persists the contract-staged rows in the shift's save; no nested attributes |
+| Read-only display (UI / API composition) | WF shift form (`admin/shifts/_form`: staged rows and `PenaltyRule::RULE_TYPES` / `DEDUCTION_TYPES`), admin shift page (controller `#show` + view), employee shift page (`ShiftsController` + view), API shift show |
+| OA branch staff view | `admin/branches_controller.rb` (`shift: :penalty_rules` preload) and `admin/branches/_shifts.html.erb` (`.shift.penalty_rules.size`) — see below |
+| Documented request exceptions (§14.2 #3 / #4) | `requests/canceller.rb` (`Attendance::PenaltyCalculator`), `requests/punch_correction_applier.rb` (preload) — read-only on rules |
+| UI shell | `workspace_helper.rb` (navigation lists `admin/penalty_rules`) |
+| Composition root | `config/initializers/shift_penalty_rule_settings.rb` |
+
+**Branch staff rule count — decision: an explicit, read-only exception.** The OA branch staff view reads the WF
+shift assignments (the documented OA → WF branch-staff-view exception, `module-boundaries.md` §12.2) and, through the
+shift, counts its rules. It writes nothing and adds no new dependency path; it is resolved together with that OA →
+WF exception, not in this pilot. The spec allows it exactly two shapes — the preload and `.size` — so it cannot grow
+silently.
+
+**What the spec enforces:**
+
+* Penalty-rule internals (`PenaltyRule`, `penalty_rules`, `PenaltyCalculator`, `ShiftPenaltyRules`) only in AP files
+  and the classified exceptions; tight allow-list and directory checks.
+* Read, request and UI-shell exceptions write no penalty rule; the branch staff view keeps its two read shapes; `Shift`
+  keeps exactly the lifecycle association (and no nested attributes).
+* Workforce code (shift, assignment, template, rule-profile, request and other WF globs): no `ShiftPenaltyRules`, no
+  `PenaltyRule` beyond its two option lists, no nested-attributes mechanism and no penalty-rule writes; the shift
+  controller stages through the contract; the contract names nothing from AP; only the composition root and AP name
+  the implementation, which is the registered handler.
+
+**Planted probes** (real files, then removed / reverted): a Workforce service calling `PenaltyRule.create!` and
+`Attendance::ShiftPenaltyRules`; an Inventory service counting `shift.penalty_rules`; `destroy_all` added to the
+employee shift page; a widened read (`each`) in the branch staff view; `accepts_nested_attributes_for` re-added to
+`Shift`. Six rules failed as expected; the spec is green again with the probes removed.
+
+**Verification (seed 20261006):**
+
+| Run | Result |
+|---|---|
+| Pilot 4 specs (M1–M4 + M6) | 84 examples, 0 failures (M1–M4 also with seeds 12345 / 98765) |
+| Focused Pilot 4 set + Pilot 4 specs | 1,838 examples, **26 failures**, 1 pending — exactly the IDs in `attendance-payroll-penalty-rules-baseline-failures.txt`; none new, none gone |
+| Architecture | 141 examples, 0 failures |
+| Security + API security | 246 examples, 0 failures |
+| Characterization + API characterization | 426 examples, 0 failures, 1 pending |
+
+`zeitwerk:check` passes; RuboCop and `git diff --check` clean. No production code, schema, route or API change in
+M6.
+
+**Open for M8:** the header comment of `spec/services/shifts/penalty_rule_settings_spec.rb` still describes the M2
+delegating implementation (comment only). Technical debt TD-P4-1 – TD-P4-4 and P4-D1 unchanged.
