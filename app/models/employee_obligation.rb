@@ -41,6 +41,10 @@ class EmployeeObligation < ApplicationRecord
   validate  :remaining_within_total
   validate  :installment_not_exceeding_total
   validate  :installment_count_consistent
+  # The employee and creator must belong to the obligation's business; a
+  # request-supplied user_id is never trusted just because the user exists
+  # (SEC-M2-4 — ObligationDeductor deducts by user).
+  validate  :references_in_same_business, if: :references_changed?
 
   scope :for_user,       ->(user)     { where(user: user) }
   scope :for_business,   ->(business) { where(business: business) }
@@ -325,6 +329,16 @@ class EmployeeObligation < ApplicationRecord
   end
 
   private
+
+  def references_changed?
+    will_save_change_to_user_id? || will_save_change_to_business_id? || will_save_change_to_created_by_id?
+  end
+
+  def references_in_same_business
+    { user: user, created_by: created_by }.each do |attribute, record|
+      errors.add(attribute, :invalid) if record && record.business_id != business_id
+    end
+  end
 
   def end_period_after_start
     unless end_year.present? && end_month.present?
