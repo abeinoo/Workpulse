@@ -1,0 +1,118 @@
+# Pilot 4 (Attendance & Payroll — Penalty Rules) — M0 baseline failing example IDs
+# Purpose: the reference list for every Pilot 4 step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs elsewhere (attendance-payroll-baseline-failures.txt) keep their treatment.
+# Recorded at b28110f on feature/pilot-4-penalty-rules, 2026-10-06, no code changes, seed 20261006.
+# Set: 78 spec files (penalty-rule, shift and penalty-consumer specs; spec/services/attendance; security, API
+#   characterization and API security; spec/architecture). Reproduce with:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/attendance-payroll-penalty-rules-baseline-failures.txt | cut -d' ' -f3)
+# Result: 1754 examples, 26 failures, 1 pending.
+# All 26 IDs are already in a documented baseline file and also fail on main @ c054fa3 (Milestone 2 final gate):
+#   payroll_waive_scope_spec ×17 (AP-D2 family), check_in_service_spec ×4, permission_matrix_verification_spec ×3,
+#   shift_assignment_spec:7, shift_templates_spec:204. None is in a penalty-rule spec.
+#
+rspec ./spec/models/shift_assignment_spec.rb:7
+rspec ./spec/requests/admin/shift_templates_spec.rb:204
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:100
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:115
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:130
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:142
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:150
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:155
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:169
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:174
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:187
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:206
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:211
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:216
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:231
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:268
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:73
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:79
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:88
+rspec ./spec/requests/permission_matrix_verification_spec.rb:502
+rspec ./spec/requests/permission_matrix_verification_spec.rb:508
+rspec ./spec/requests/permission_matrix_verification_spec.rb:556
+rspec ./spec/services/attendance/check_in_service_spec.rb:57
+rspec ./spec/services/attendance/check_in_service_spec.rb:66
+rspec ./spec/services/attendance/check_in_service_spec.rb:72
+rspec ./spec/services/attendance/check_in_service_spec.rb:78
+#
+# set spec/architecture/attendance_payroll_biometric_boundary_spec.rb
+# set spec/architecture/attendance_payroll_model_location_spec.rb
+# set spec/architecture/attendance_payroll_obligation_boundary_spec.rb
+# set spec/architecture/attendance_payroll_obligation_model_location_spec.rb
+# set spec/architecture/finance_sales_expense_boundary_spec.rb
+# set spec/architecture/finance_sales_expense_model_location_spec.rb
+# set spec/architecture/permission_role_boundary_spec.rb
+# set spec/architecture/permission_role_location_spec.rb
+# set spec/architecture/workforce_catalog_boundary_spec.rb
+# set spec/architecture/workforce_model_location_spec.rb
+# set spec/helpers/shift_assignment_helper_spec.rb
+# set spec/models/payroll_line_item_spec.rb
+# set spec/models/penalty_rule_spec.rb
+# set spec/models/shift_assignment_spec.rb
+# set spec/models/shift_rule_profile_spec.rb
+# set spec/models/shift_spec.rb
+# set spec/models/shift_template_entry_spec.rb
+# set spec/models/shift_template_spec.rb
+# set spec/policies/payroll_line_item_policy_spec.rb
+# set spec/policies/shift_assignment_policy_spec.rb
+# set spec/policies/shift_rule_profile_policy_spec.rb
+# set spec/policies/shift_template_policy_spec.rb
+# set spec/requests/admin/shift_rule_profiles_spec.rb
+# set spec/requests/admin/shift_templates_spec.rb
+# set spec/requests/api/v1/characterization/authentication_spec.rb
+# set spec/requests/api/v1/characterization/biometric_punch_spec.rb
+# set spec/requests/api/v1/characterization/management_spec.rb
+# set spec/requests/api/v1/characterization/payroll_spec.rb
+# set spec/requests/api/v1/characterization/self_service_spec.rb
+# set spec/requests/api/v1/payroll_waive_scope_spec.rb
+# set spec/requests/api/v1/security/cross_business_authorization_spec.rb
+# set spec/requests/permission_matrix_verification_spec.rb
+# set spec/requests/security/admin_attendance_records_authorization_spec.rb
+# set spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+# set spec/requests/security/biometric_devices_authorization_spec.rb
+# set spec/requests/security/employee_obligations_authorization_spec.rb
+# set spec/requests/security/employee_obligations_business_scope_spec.rb
+# set spec/requests/security/expense_tags_business_scope_spec.rb
+# set spec/requests/security/organization_access_scope_hierarchy_spec.rb
+# set spec/requests/security/organization_access_security_spec.rb
+# set spec/requests/security/organization_access_view_and_role_scope_spec.rb
+# set spec/requests/security/performance_cross_business_spec.rb
+# set spec/requests/security/shift_assignment_create_business_scope_spec.rb
+# set spec/requests/security/shift_assignment_resource_business_scope_spec.rb
+# set spec/requests/shift_assignments_spec.rb
+# set spec/scenarios/multi_branch_payroll_cycle_spec.rb
+# set spec/services/attendance/adjustment_service_spec.rb
+# set spec/services/attendance/anomaly_detector_spec.rb
+# set spec/services/attendance/bulk_manual_entry_service_spec.rb
+# set spec/services/attendance/check_in_service_spec.rb
+# set spec/services/attendance/check_out_service_spec.rb
+# set spec/services/attendance/csv_importer_spec.rb
+# set spec/services/attendance/historical_backfill_spec.rb
+# set spec/services/attendance/manual_entry_service_spec.rb
+# set spec/services/attendance/manual_records_csv_parser_spec.rb
+# set spec/services/attendance/penalty_calculator_spec.rb
+# set spec/services/attendance/punch_service_spec.rb
+# set spec/services/attendance/punch_window_spec.rb
+# set spec/services/attendance/record_deleter_spec.rb
+# set spec/services/attendance/record_recomputer_spec.rb
+# set spec/services/attendance/status_backfill_spec.rb
+# set spec/services/attendance/time_calculator_spec.rb
+# set spec/services/attendance/timestamp_parser_spec.rb
+# set spec/services/payroll/addition_cancellation_persistence_spec.rb
+# set spec/services/payroll/addition_canceller_spec.rb
+# set spec/services/payroll/branch_membership_shift_based_spec.rb
+# set spec/services/payroll/entry_calculator_simulation_spec.rb
+# set spec/services/payroll/entry_calculator_spec.rb
+# set spec/services/payroll/entry_recalculator_spec.rb
+# set spec/services/payroll/line_item_reviewer_spec.rb
+# set spec/services/payroll/period_financial_summary_spec.rb
+# set spec/services/payroll/permission_applier_spec.rb
+# set spec/services/payroll/regenerator_penalty_waiver_spec.rb
+# set spec/services/requests/canceller_spec.rb
+# set spec/services/requests/punch_correction_applier_spec.rb
+# set spec/services/shifts/assignment_eligibility_spec.rb
+# set spec/services/shifts/assignment_resolver_spec.rb
+# set spec/system/shift_assignment_coverage_branch_spec.rb
