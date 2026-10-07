@@ -9,10 +9,9 @@
 #
 # Some modules (Laundry) grant permissions to shift-assigned staff who are not
 # branch/area managers at all — for those, pass include_shift_assignments:
-# true so "branch"/"area" also resolve from the user's active ShiftAssignment
-# (mirrors BranchMembership.current_branch_ids and
-# Finance::BaseController#auto_assign_expense_branch's
-# `shift_assignments.active_on(Date.current)` pattern). This is opt-in per
+# true so "branch"/"area" also resolve from the user's current branch membership
+# (their active ShiftAssignments, read through the
+# OrganizationAccess::MembershipProvider contract). This is opt-in per
 # caller — existing management-based callers (Finance) are unaffected unless
 # they explicitly ask for it.
 #
@@ -76,11 +75,11 @@ class BranchScope
 
   def business_ids = @user.business.branches.pluck(:id)
 
-  # Every branch the user is currently, actively shift-assigned to — a user
-  # can hold more than one active ShiftAssignment (e.g. covering shifts at
-  # two branches at once), so this is a set, not a single branch.
+  # Every branch the user currently belongs to — a user can hold more than one
+  # active ShiftAssignment (e.g. covering shifts at two branches at once), so
+  # this is a set, not a single branch. Read through the membership contract.
   def shift_assignment_branch_ids
-    ShiftAssignment.current.where(user_id: @user.id).distinct.pluck(:branch_id).compact
+    OrganizationAccess::MembershipProvider.current_branch_ids(@user)
   end
 
   # "Area" for a shift-assigned (non-manager) user: every branch sharing an

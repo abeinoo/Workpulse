@@ -1640,7 +1640,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M6 `3fd9ba2`, M7 `a3b6463`, M8 `ce3ce00`; M5 not needed. P4-D1 open
   (§19.11).
 * **Pilot 5 — Organization & Access ↔ Workforce membership contract:** on `feature/pilot-5-membership-contract`
-  (from `main` @ `3be2816`): M0 done (read-only), M1 `114f771`, **M2 done** (§20.3); M3 not started.
+  (from `main` @ `3be2816`): M0 done (read-only), M1 `114f771`, M2 `69031c1`, **M3 done** (§20.4); M4 not started.
 * **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
@@ -2873,10 +2873,10 @@ failure ID with the `main` @ `c054fa3` run of §18.9 (`main` has not moved since
   file; not changed in docs-only cleanups). `module-boundaries.md` and the stale status lines here were synchronised
   with Pilots 3–4 in the docs-only consistency cleanup that follows this gate.
 
-## 20. Pilot 5 — Organization & Access ↔ Workforce membership contract: M0–M2
+## 20. Pilot 5 — Organization & Access ↔ Workforce membership contract: M0–M3
 
-**Status:** M0 (read-only, at `3be2816`), M1 (`114f771`) and **M2 (contract)** done on
-`feature/pilot-5-membership-contract`. **M3 not started:** no caller uses the contract yet. No schema, route or API
+**Status:** M0 (read-only, at `3be2816`), M1 (`114f771`), M2 (`69031c1`) and **M3 (caller routing)** done on
+`feature/pilot-5-membership-contract`. **M4 not started**; boundary enforcement (M6) not done. No schema, route or API
 change.
 
 ### 20.1 M0 summary
@@ -2960,5 +2960,29 @@ failures, 0 pending** — exactly the M0 IDs, none new, none gone. RuboCop clean
 * **Verification (seed 20261006):** M2 10 / 0 (also seeds 12345 / 98765); M1 51 / 0; focused set + Pilot 5 specs
   **1,616 examples, 33 failures** — exactly the baseline IDs. `zeitwerk:check`, RuboCop and `git diff --check` clean.
 
-**Next (not started): M3** — route `EmployeeScope#members_in` (`employee_scope.rb:134`) and `BranchScope`'s
-shift-assignment branch ids (`branch_scope.rb:83`) through `OrganizationAccess::MembershipProvider`.
+**At M2, M3 was next:** routing `EmployeeScope#members_in` and `BranchScope`'s shift-assignment branch ids through
+`OrganizationAccess::MembershipProvider` — done in §20.4.
+
+### 20.4 M3 — routing the two membership callers
+
+* `EmployeeScope#members_in` (`app/services/employee_scope.rb`) takes its member ids from
+  `OrganizationAccess::MembershipProvider.current_member_ids(ids)` — still used as `IN (subquery)` under
+  `EmployeeScope.base` (business isolation unchanged); was `BranchMembership.current_member_ids`.
+* `BranchScope#shift_assignment_branch_ids` (`app/services/branch_scope.rb`) takes the user's membership branches from
+  `OrganizationAccess::MembershipProvider.current_branch_ids(user)`; the duplicate direct
+  `ShiftAssignment.current.where(user_id:)…` query is removed (it was identical to `BranchMembership.current_branch_ids`).
+  The area expansion, `include_shift_assignments` opt-in and the public API are unchanged.
+* **Dependency after M3:** Organization & Access scope code → `OrganizationAccess::MembershipProvider` (its own
+  contract) only; Workforce `Workforce::MembershipProvider` → `BranchMembership` → `ShiftAssignment`. Neither scope file
+  names `BranchMembership` or `ShiftAssignment` in code. Enforcement across the codebase is M6.
+* **Specs:** `spec/services/organization_access/membership_routing_spec.rb` (9). A planted provider proves the routing
+  (members / branches follow the provider, not shift assignments; area expansion uses its branches; business isolation
+  still filters its ids; the contract is not consulted for business scope, no branches, or without
+  `include_shift_assignments`); with the registered Workforce provider the results and the `IN (subquery)` SQL are as
+  before; a source check of both scope files. The M2 contract spec's header comment now points to M3.
+* **Verification (seed 20261006):** M3 9 / 0 (also seeds 12345 / 98765); M2 10 / 0; M1 51 / 0; existing scope specs
+  (`employee_scope`, `branch_scope`, shift-based membership, Laundry scope requests) 70 / 0; focused set + Pilot 5 specs
+  **1,625 examples, 33 failures** — exactly the baseline IDs. `zeitwerk:check`, RuboCop and `git diff --check` clean.
+  No behaviour change.
+
+**Next (not started):** M4 (expected to be unnecessary — the logic already sits in its owner) and M6 enforcement.

@@ -2,8 +2,10 @@ require "rails_helper"
 
 # Pilot 5 — membership contract, M2: the Organization & Access contract
 # OrganizationAccess::MembershipProvider and its Workforce implementation
-# Workforce::MembershipProvider (delegating to BranchMembership). No caller is
-# routed yet (M3); membership semantics stay pinned by
+# Workforce::MembershipProvider (delegating to BranchMembership). EmployeeScope
+# and BranchScope are routed through it in M3
+# (spec/services/organization_access/membership_routing_spec.rb); membership
+# semantics stay pinned by
 # spec/characterization/organization_access/branch_membership_spec.rb.
 RSpec.describe OrganizationAccess::MembershipProvider do
   let(:business) { create(:business) }
