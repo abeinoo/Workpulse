@@ -7,6 +7,8 @@
 #   characterization and API security; spec/architecture). Reproduce with:
 #   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/attendance-payroll-penalty-rules-baseline-failures.txt | cut -d' ' -f3)
 # Result: 1754 examples, 26 failures, 1 pending.
+# Used: Pilot 4 M1–M8 (next-pilot-selection.md §19.11–§19.12) — 0 new failing IDs, none gone, no flaky ID. Final M8
+#   verification at a3b6463 (this set + the 9 Pilot 4 spec files): 1844 examples, the same 26 failures, 1 pending.
 # All 26 IDs are already in a documented baseline file and also fail on main @ c054fa3 (Milestone 2 final gate):
 #   payroll_waive_scope_spec ×17 (AP-D2 family), check_in_service_spec ×4, permission_matrix_verification_spec ×3,
 #   shift_assignment_spec:7, shift_templates_spec:204. None is in a penalty-rule spec.

@@ -376,6 +376,10 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
   evaluated as not needed. M6 `ddaceb1` (boundary), M7 `ee47554` (8 models into the collapsed
   `app/models/finance_sales/`) and M8 are done: **Pilot 3 is COMPLETE** (`next-pilot-selection.md` §18.8). FS-D3
   is recorded as open debt.
+* **Pilot 4 (Attendance & Payroll Penalty Rules) is COMPLETE** (standard path, `feature/pilot-4-penalty-rules`):
+  M0 `b73fc34`, M1 `3efb46b`, M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M5 not needed, M6 `3fd9ba2`, M7 `a3b6463`,
+  M8 docs. The WF `Shift` nested write into AP `penalty_rules` is inverted through the Workforce-defined
+  `Shifts::PenaltyRuleSettings` contract (`next-pilot-selection.md` §19.11–§19.12).
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
@@ -481,3 +485,24 @@ sequence (§3) or the rules (§5).
   recorded as debt and fixed in its own approved `fix:` commit, never inside a migration step.
 * **A documented flaky ID is compared against the documented baseline,** not only against the previous run: TD-OA1
   appeared in M6/M7 and passed at M8, with the same Faker-apostrophe cause and isolated passes each time.
+* **The contract's owner follows the dependency graph, not the brief** (Pilot 4 M2). When an upstream domain
+  (Workforce) needs behaviour that a downstream domain (Attendance & Payroll) owns, the upstream domain defines the
+  contract and the downstream implements it, wired at boot (`module-boundaries.md` §12.1, §18 rule 5) — the same shape as Pilot 3 with the roles
+  reversed. A downstream-owned interface called from upstream only turns a model write into a service call and keeps
+  the cycle. Check the requested ownership against `module-boundaries.md` §12.1 before writing code, and ask when they
+  disagree.
+* **Replacing `accepts_nested_attributes_for` without changing behaviour** (Pilot 4 M4): stage rows on the
+  association in the owning domain and declare `autosave: true` on the inverse association (what nested attributes
+  enabled), so validation, errors on the parent, `_destroy` and the single transaction stay as they were; keep the form's
+  field names with `fields_for :<name>_attributes, record, index:`. Prove it with before/after HTML snapshots of the
+  form, including the 422 re-renders.
+* **Decide each optional step with a short evidence review** (Pilot 4 M5, M7): M5 was not needed (no rule in a
+  controller or view, nothing duplicated; audit is behavioural); M7 was done because the domain folder and collapse
+  already existed and only one allow-list path depended on the file. Neither "the pattern has the step" nor "it is
+  optional" is a reason on its own.
+* **An unexpected read can be an explicit exception when it is pinned to its shape** (Pilot 4 M6): the branch staff
+  view's rule count rides on an already documented exception, so the spec allows exactly its two read shapes (preload
+  and `.size`) instead of the whole file, and a widened read fails.
+* **Commit the focused set with its baseline** (applied from the milestone review): Pilot 4's 78-file set and its
+  rerun command live in `attendance-payroll-penalty-rules-baseline-failures.txt`, so every step's comparison was
+  reproducible from the repository.

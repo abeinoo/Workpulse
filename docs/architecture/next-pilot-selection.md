@@ -1159,9 +1159,9 @@ There are no database, schema, migration, route or API changes.
   F3 eliminated; FS-D3 recorded as open debt (§10).
 * **Milestone 2 final gate (full suite vs `main`):** passed after review (§18.9). **Milestone 2 is READY FOR PR**
   (not created, not pushed, not merged).
-* **Pilot 4 — Attendance & Payroll Penalty Rules:** on `feature/pilot-4-penalty-rules` (from `b28110f`): M0
-  `b73fc34`, M1 `3efb46b`, M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M5 not needed, **M6 done** (§19.11); M7 and
-  M8 not started.
+* **Pilot 4 — Attendance & Payroll Penalty Rules:** **COMPLETE** on `feature/pilot-4-penalty-rules` (from
+  `b28110f`, not pushed): M0 `b73fc34`, M1 `3efb46b`, M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M5 not needed, M6
+  `3fd9ba2`, M7 `a3b6463`, M8 docs (§19.12). The WF ↔ AP Shift / PenaltyRule write is inverted; P4-D1 open.
 
 No schema, migration, route or API has changed. The only production behaviour changes are:
 
@@ -2539,8 +2539,8 @@ created; nothing is pushed or merged; `main` stays at `c054fa3`. No next pilot i
 
 ## 19. Pilot 4 — Attendance & Payroll Penalty Rules: M0
 
-**Status:** M0 done at `b28110f` (recorded in `b73fc34`); M1–M4 and M6 done, M5 not needed (§19.11). M7 and M8
-not started. All on `feature/pilot-4-penalty-rules`, not pushed.
+**Status:** **COMPLETE** (close-out §19.12). M0 at `b28110f` (recorded in `b73fc34`); M1–M4 and M6 (§19.11); M5
+not needed; M7 and M8 (§19.12). All on `feature/pilot-4-penalty-rules`, not pushed or merged.
 
 ### 19.1 Scope and ownership
 
@@ -2713,7 +2713,7 @@ The approved P-4 assumptions hold:
 | **M3** | `4d7ae92` | `Admin::ShiftsController` stages the permitted rule rows (plain hashes, submitted order) only through the contract; same call order and transaction |
 | **M4** | `a2ae7aa` | Row staging moved into `Attendance::ShiftPenaltyRules`; `Shift` drops `accepts_nested_attributes_for` and declares `autosave: true`; the form uses `fields_for :penalty_rules_attributes, …, index:` — markup byte-identical (edit, new, both 422 re-renders) |
 | **M5** | — | **Not needed** (decision review after M4): no business rule sits in a controller or view or exists twice; the AP rule controllers do plain persistence (TD-P4-4), and the value a service would add — audit (TD-P4-1) — is a behaviour change for its own `fix:` |
-| **M6** | this commit | `spec/architecture/attendance_payroll_penalty_rule_boundary_spec.rb` (18 examples) |
+| **M6** | `3fd9ba2` | `spec/architecture/attendance_payroll_penalty_rule_boundary_spec.rb` (18 examples) |
 
 **Decision at M2 (approved): the contract is Workforce-defined and AP-implemented.** The brief asked for an AP-owned
 interface called by Workforce, but Workforce is upstream of AP (`module-boundaries.md` §12.1; §18 rule 5): a WF → AP
@@ -2775,3 +2775,67 @@ M6.
 
 **Open for M8:** the header comment of `spec/services/shifts/penalty_rule_settings_spec.rb` still describes the M2
 delegating implementation (comment only). Technical debt TD-P4-1 – TD-P4-4 and P4-D1 unchanged.
+
+### 19.12 M7–M8: physical move and close-out — Pilot 4 COMPLETE
+
+**M7 — physical move (`a3b6463`).** Decided by a readiness review after M6 (M7 is optional; the reason was not
+"the pattern has an M7"): `PenaltyRule` was the only pilot-completed AP model outside the domain folder, the folder
+and its collapse already existed, and nothing depends on the file path except one allow-list entry.
+
+* `git mv app/models/penalty_rule.rb app/models/attendance_payroll/penalty_rule.rb` — recorded as a rename, SHA-256
+  identical. The existing `attendance_payroll_autoload.rb` collapse covers it; no new initializer.
+* The constant stays top-level `PenaltyRule` (no `AttendancePayroll::PenaltyRule`); the table stays `penalty_rules`;
+  no migration names the model (`20260507000008_create_penalty_rules.rb` names only its migration class); no stored
+  type names (no attachments, audit or polymorphic rows); the factory is unaffected.
+* The M6 boundary allow-list only follows the new path.
+* `spec/architecture/attendance_payroll_penalty_rule_model_location_spec.rb` (6 examples): location, no top-level
+  file, table, no namespace, `PenaltyRule#shift` ↔ `Shift#penalty_rules` resolve the same classes, and the
+  association options are exactly `dependent: :destroy, autosave: true`.
+
+**M5 — not needed (decision review after M4).** Evidence: no business rule sits in a controller or view or exists
+twice (rules are model validations; the shift form's JavaScript only mirrors the hour-based rule-type hint); the AP
+penalty-rule controllers do plain persistence (TD-P4-4), inside AP, so a service would not move any boundary; the value
+a service would add — audit (TD-P4-1) — is a behaviour change for its own `fix:` (the Pilot 2 rule). M6 classified
+everything that remained.
+
+**M8 — final verification (on `a3b6463`, seed 20261006).**
+
+| Run | Result |
+|---|---|
+| Pilot 4 specs (M1–M4, M6, M7: 9 files) | **90 examples, 0 failures** |
+| Focused Pilot 4 set (78 files) + Pilot 4 specs | **1,844 examples, 26 failures, 1 pending** |
+| Architecture | 147 examples, 0 failures |
+| Security + API security | 246 examples, 0 failures |
+| Characterization + API characterization | 426 examples, 0 failures, 1 pending |
+
+* **Failures:** exactly the 26 IDs in `attendance-payroll-penalty-rules-baseline-failures.txt` — none new, none gone
+  (17 `payroll_waive_scope_spec`, 4 `check_in_service_spec`, 3 `permission_matrix_verification_spec`,
+  `shift_assignment_spec:7`, `shift_templates_spec:204`; all also fail on `main` @ `c054fa3`). The same 26 at every
+  step: M0 1,754 / M1 1,787 / M2 1,798 / M3 1,808 / M4 1,820 / M6 1,838 / M7–M8 1,844 examples. No flaky ID appeared.
+* `zeitwerk:check` passes; RuboCop clean on the 15 Ruby files changed since `b28110f`; `git diff --check` clean.
+
+**Confirmed at close-out:**
+
+* No database, schema, migration, route or API change since `b28110f`; the only `config/` change is the approved
+  composition root `config/initializers/shift_penalty_rule_settings.rb`.
+* Production behaviour unchanged: M1 pinned it, M2–M4 kept every M1 example and the form markup (byte-identical
+  edit / new / 422 HTML) unchanged, M7 is a byte-identical move. P4-D1 stays pinned and unfixed.
+* No security regression (security suites green; isolation pinned by M1 and the contract specs) and no unexpected
+  cross-domain dependency: every reference is classified in §19.11 and enforced by the M6 spec; the branch staff
+  rule count is an explicit read-only exception limited to its two read shapes.
+
+**Pilot 4 summary.**
+
+* **Inversion:** the WF `Shift` nested-attributes write into AP `penalty_rules` (§14.2 #9) became the Workforce-defined
+  `Shifts::PenaltyRuleSettings` contract implemented by AP `Attendance::ShiftPenaltyRules` (wired at boot); `Shift`
+  keeps only the classified lifecycle association (`dependent: :destroy, autosave: true`).
+* **Path:** standard — M0, M1, M2, M3, M4, M6, M7, M8; M5 not needed.
+* **Remaining (unchanged, not fixed):** P4-D1 (misleading "shift removed" notice when deletion is restricted);
+  TD-P4-1 (no audit on rule changes), TD-P4-2 (Float penalty money), TD-P4-3 (rules not effective-dated), TD-P4-4
+  (AP rule controllers write directly, legacy API shape); the employee-request consumers (§14.2 #3 / #4) and the
+  OA branch staff read (with the OA → WF exception); the stale header comment of
+  `spec/services/shifts/penalty_rule_settings_spec.rb` (still describes the M2 delegating implementation; comment
+  only, left unchanged as this close-out is docs-only).
+
+**Pilot 4 (Attendance & Payroll Penalty Rules) is COMPLETE.** Nothing was pushed or merged; `main` stays at
+`c054fa3`. No next pilot is selected.
