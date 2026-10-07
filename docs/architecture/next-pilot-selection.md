@@ -5,7 +5,8 @@
 * **Pilot 2, Workforce Department + JobTitle:** COMPLETE and pushed (`cafb6f6`, `b872d7a`, `0aa0066`).
 * **Pilot 3, Workforce Performance:** COMPLETE and pushed (`8c1e2df`, `309fcc4`, `d7e83ca`, `ae74dcc`). It is on
   `origin/feature/api-foundation` at `ae74dcc`.
-* **Pilot 4:** not selected.
+* **Pilot 4 (Milestone 1 numbering):** not selected — Milestone 1 ended after Pilot 3. Milestone 2 numbers its own
+  pilots from 1 (see "Milestone 2 — Attendance & Payroll" below); its Pilot 4 is Penalty Rules (§19).
 
 §1–§11 below are the original candidate analysis (at `c1aac8b`), kept as history.
 
@@ -1157,10 +1158,11 @@ There are no database, schema, migration, route or API changes.
 * **Milestone 2 — Finance & Sales Expenses (Pilot 3):** **COMPLETE** (§18, close-out §18.8). Standard path: M1
   `98edd8e`, M2 `4b94668`, M3 `d009f0d`, M4 `0ca2dc5`, M5 not needed, M6 `ddaceb1`, M7 `ee47554`, M8 docs. Cycle
   F3 eliminated; FS-D3 recorded as open debt (§10).
-* **Milestone 2 final gate (full suite vs `main`):** passed after review (§18.9). **Milestone 2 is READY FOR PR**
-  (not created, not pushed, not merged).
+* **Milestone 2 final gate (full suite vs `main`):** passed after review at `b28110f` (§18.9) and again with Pilot 4
+  at `ce3ce00` (§19.13). **Milestone 2 (security hardening, Pilots 1–4) is READY FOR PR** from
+  `feature/milestone-2-attendance-payroll` once Pilot 4 is fast-forwarded into it (PR not created, not merged).
 * **Pilot 4 — Attendance & Payroll Penalty Rules:** **COMPLETE** on `feature/pilot-4-penalty-rules` (from
-  `b28110f`, not pushed): M0 `b73fc34`, M1 `3efb46b`, M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M5 not needed, M6
+  `b28110f`; to be fast-forwarded into the milestone branch): M0 `b73fc34`, M1 `3efb46b`, M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M5 not needed, M6
   `3fd9ba2`, M7 `a3b6463`, M8 docs (§19.12). The WF ↔ AP Shift / PenaltyRule write is inverted; P4-D1 open.
 
 No schema, migration, route or API has changed. The only production behaviour changes are:
@@ -1633,8 +1635,13 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Pilot 2 (Employee Obligations):** **COMPLETE** (§17).
 * **Milestone 2 — Finance & Sales Expenses (Pilot 3):** **COMPLETE** (§18, close-out §18.8). SEC-M2-12
   (`6b4d300`), FS-D1 (`f88e022`) and FS-D2 (`94c4dce`) fixed; M1 `98edd8e`, M2 `4b94668`, M3 `d009f0d`, M4 `0ca2dc5`,
-  M6 `ddaceb1`, M7 `ee47554`, M8 docs; M5 not needed. FS-D3 open (§10). No next pilot selected.
-* **Not pushed:** all commits are local on `feature/milestone-2-attendance-payroll`.
+  M6 `ddaceb1`, M7 `ee47554`, M8 docs; M5 not needed. FS-D3 open (§10).
+* **Pilot 4 — Attendance & Payroll Penalty Rules:** **COMPLETE** (§19, close-out §19.12). M0 `b73fc34`, M1 `3efb46b`,
+  M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M6 `3fd9ba2`, M7 `a3b6463`, M8 `ce3ce00`; M5 not needed. P4-D1 open
+  (§19.11). No next pilot selected.
+* **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
+  gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
+  to be included in the milestone branch before the PR (§19.13).
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
 
 ## 13. Pilot 1 — Biometric Device + PunchService: M1 characterization status (complete)
@@ -2839,3 +2846,27 @@ everything that remained.
 
 **Pilot 4 (Attendance & Payroll Penalty Rules) is COMPLETE.** Nothing was pushed or merged; `main` stays at
 `c054fa3`. No next pilot is selected.
+
+### 19.13 Milestone 2 pre-PR gate with Pilot 4 (READY FOR PR)
+
+Read-only milestone review after Pilot 4, including a full-suite run at `ce3ce00` (seed 20261006) compared by exact
+failure ID with the `main` @ `c054fa3` run of §18.9 (`main` has not moved since).
+
+| | `ce3ce00` (Pilots 1–4) | `b28110f` (§18.9) | `main` `c054fa3` (§18.9) |
+|---|---|---|---|
+| Spec files | 570 | 561 | 527 |
+| Examples | 7,908 | 7,818 | 7,459 |
+| Failures / pending | 94 / 1 | 95 / 1 | 95 / 1 |
+
+* **All 94 failing IDs at `ce3ce00` also fail on `main`.** The only `main`-only ID is
+  `spec/system/finance/expense_register_payment_spec.rb:27` (TD-FIN4, documented flaky). Compared with `b28110f`, the
+  IDs are the same except TD-FIN5 (`deposit_responsibility_transfer_spec.rb:208`), which passed this time. **No new
+  failure ID**; no baseline file changed.
+* `origin/main` is an ancestor of `b28110f` and `ce3ce00`: the PR is a conflict-free fast-forward. Every production
+  change since `main` maps to a documented `fix:` or pilot commit; no `db/`, migration, route, API or Gemfile change.
+* **Branch for the PR:** `feature/milestone-2-attendance-payroll`, after fast-forwarding it to the Pilot 4 close-out
+  (it is at `b28110f`, which does not contain Pilot 4).
+* **Documentation follow-ups (non-blocking):** the header comment of
+  `spec/services/shifts/penalty_rule_settings_spec.rb` still describes the M2 delegating implementation (a spec
+  file; not changed in docs-only cleanups). `module-boundaries.md` and the stale status lines here were synchronised
+  with Pilots 3–4 in the docs-only consistency cleanup that follows this gate.
