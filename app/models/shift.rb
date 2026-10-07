@@ -1,11 +1,10 @@
 class Shift < ApplicationRecord
   belongs_to :business
-  has_many :penalty_rules,     dependent: :destroy
+  # Penalty rules are owned by Attendance & Payroll; the shift form stages them
+  # through Shifts::PenaltyRuleSettings. autosave: staged rules are validated and
+  # saved (or destroyed) with the shift, in its transaction.
+  has_many :penalty_rules,     dependent: :destroy, autosave: true
   has_many :shift_assignments, dependent: :restrict_with_error
-
-  accepts_nested_attributes_for :penalty_rules,
-                                allow_destroy: true,
-                                reject_if:     :all_blank
 
   SHIFT_TYPES = %w[fixed_time hour_based].freeze
 

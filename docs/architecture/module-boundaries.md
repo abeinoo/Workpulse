@@ -1,6 +1,7 @@
 # WorkPulse — Six-Domain Architecture (Module Boundaries)
 
-**Status:** Target architecture, partially implemented (as of `ae74dcc` on `feature/api-foundation`).
+**Status:** Target architecture, partially implemented (Milestone 1 as of `ae74dcc` on `feature/api-foundation`;
+Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selection.md` "Milestone 2").
 
 * The six-domain model below remains the **target**.
 * **API infrastructure exists:** `/api/v1` standard contract (errors, pagination, filtering, serialization, request
@@ -9,8 +10,14 @@
   `app/services/organization_access/`); see `permission-role-migration-plan.md`.
 * **Workforce is partially migrated:** `Department`, `JobTitle` and the Performance evaluation group are in
   `app/models/workforce/`; see `next-pilot-selection.md`.
-* **Attendance & Payroll, Inventory & Purchasing, Finance & Sales and Reporting are not yet migrated.**
-* The cross-domain violations recorded in §12.2 remain until their owning steps.
+* **Attendance & Payroll is partially migrated (Milestone 2):** the biometric punch channel, Employee Obligations and
+  Penalty Rules (`app/models/attendance_payroll/`), with boundary specs; `Payroll::FinalizationEffects` (AP-defined
+  contract) and `Attendance::ShiftPenaltyRules` (implementation of the WF `Shifts::PenaltyRuleSettings` contract).
+* **Finance & Sales is partially migrated (Milestone 2):** the Expenses group (`app/models/finance_sales/`), with a
+  boundary spec; it implements `Payroll::FinalizationEffects` (`Finance::PayrollFinalizationEffects`).
+* **Inventory & Purchasing and Reporting are not yet migrated.**
+* The cross-domain violations recorded in §12.2 remain until their owning steps; those resolved in Milestone 2 are
+  marked there and in §14.2.
 
 **Original code baseline (for the analysis below):** branch `feature/api-foundation` @ `a4e9a96`.
 **Decisions applied:** six top-level domains; ownership decisions 1–12 of the ownership-resolution review
@@ -331,6 +338,13 @@ An upstream domain never calls or writes into a downstream domain.
 | WF request validation/effects need attendance & payroll facts (AP) | WF defines **`RequestEligibility`** and **`RequestEffects`** contracts and publishes `employee_request.*` events; AP implements/subscribes |
 | WF employee page shows salary (AP) | UI composition: AP contributes the salary panel (infrastructure-level view composition), WF does not read AP |
 | IP laundry cost report reads payroll/assignments (AP/WF) | The cross-domain labour-cost part moves to **Reporting** |
+| WF shift form edits penalty rules (AP) | **Implemented (Milestone 2, Pilot 4):** WF defines `Shifts::PenaltyRuleSettings`; AP implements it (`Attendance::ShiftPenaltyRules`), registered at boot in `config/initializers/shift_penalty_rule_settings.rb`. WF code references only its own contract |
+
+The FS → AP payroll financial effect (Workflow A, §14.1) is implemented the same way (Milestone 2): AP defines
+`Payroll::FinalizationEffects` — called synchronously inside the finalization / reopen transaction, carrying the
+payroll-computed employer insurance cost — and FS implements it (`Finance::PayrollFinalizationEffects`), registered at
+boot in `config/initializers/payroll_finalization_effects.rb`. Such boot-registered contracts are the in-process form
+of rules 4–5 of §18.
 
 ### 12.2 Current state vs target (measured)
 
@@ -348,7 +362,8 @@ An upstream domain never calls or writes into a downstream domain.
 | OA → WF (`EmployeeScope`/`BranchScope` → `BranchMembership`; branch staff view) | 7 / 3 | **Violation** → membership contract (inversion) |
 | OA → FS/IP/AP (inverse `has_many`; `WorkspaceHelper`; branch form writes `pos_terminals`) | model + 2 files | **Violation** → move inverse associations to owning domains; navigation registry (infrastructure); terminals edited through FS |
 | WF → AP (request writes, insurance recalculation, salary display, request validation reads) | 19 / 9 | **Violation** → events + WF-defined contracts + UI composition |
-| AP → FS (`Payroll::InsuranceExpenseGenerator` writes `expenses`) | 1 service | **Violation** → `payroll.period_finalized` consumed by FS |
+| ~~AP → FS (`Payroll::InsuranceExpenseGenerator` writes `expenses`)~~ | — | **Resolved (Milestone 2, Pilot 3):** generator removed; AP calls only its `Payroll::FinalizationEffects` contract, FS implements it (cycle F3 eliminated) |
+| ~~WF → AP penalty-rule write (`Shift` nested attributes, §14.2 #9)~~ | — | **Resolved (Milestone 2, Pilot 4):** WF `Shifts::PenaltyRuleSettings` contract, AP implementation; `Shift` keeps only the inverse lifecycle association (`dependent: :destroy, autosave: true`), a classified exception |
 | IP → FS (goods-receipt settlement/void call `FinancialSettlementService`; custody accounts as funding source) | 6 / 6 | **Violation of direction** → `goods_receipt.*` events; settlement workflow owned by FS |
 | IP → AP / IP → WF (`Laundry::LaundryCostSummaryReport`) | 1 file | **Violation** → labour-cost aggregation moves to Reporting |
 
@@ -367,6 +382,10 @@ An upstream domain never calls or writes into a downstream domain.
 
 After these resolutions the target graph (§12.1) is **acyclic**.
 
+**Milestone 2 progress:** the AP ↔ FS insurance-expense cycle (F3 in `next-pilot-selection.md`) is **eliminated**
+(Pilot 3). The WF ↔ AP penalty-rule write is inverted (Pilot 4); the WF ↔ AP employee-request cycle above and the
+`Shift has_many :penalty_rules` lifecycle association remain, documented and enforced by boundary specs.
+
 ## 14. Cross-Domain Workflows and Writes
 
 **Rule:** a domain must not directly write to another domain's internal tables. To cause a state change in another
@@ -383,8 +402,11 @@ Attendance & Payroll: period finalized (Payroll::Approver)
   → event payroll.period_finalized { period, business, employer_insurance_cost_by_branch, … }
 Finance & Sales: records the system expense(s) (idempotent per period — existing partial unique index)
 ```
-Today `Payroll::InsuranceExpenseGenerator` is called inside `Payroll::Approver` at `finalized` and writes `expenses`
-directly. `payroll.period_paid` and `advance.paid` are reserved for future financial records; **no Finance record is
+**Implemented (Milestone 2, Pilot 3)** as the AP-defined, FS-implemented contract `Payroll::FinalizationEffects`
+(synchronous, inside the finalization / reopen transaction): `Payroll::Approver` computes the employer insurance cost
+(`Payroll::EmployerInsuranceCost`) and calls `period_finalized`; `Payroll::Reopener` calls `period_reopened`, which
+voids the expense; FS records it (`Finance::PayrollInsuranceExpense`). `Payroll::InsuranceExpenseGenerator` no longer
+exists. `payroll.period_paid` and `advance.paid` are reserved for future financial records; **no Finance record is
 created for salary payment or advance disbursement today** (Reporting computes payroll cost from payroll entries).
 
 **B. Advance request**
@@ -433,7 +455,7 @@ Today the approval creates a `users` row without a password (§3.2).
 
 | # | Current behaviour | Owner of data | Why it exists | Desired interaction | Interface vs event | Migration risk |
 |---|---|---|---|---|---|---|
-| 1 | `Payroll::InsuranceExpenseGenerator` creates `Expense` at finalization | FS | Employer insurance cost | Workflow A | **Event** `payroll.period_finalized` (transactional handler) | Medium — idempotency index must keep working; finalization must not succeed without the expense |
+| 1 | **Resolved (Milestone 2, Pilot 3).** Was: `Payroll::InsuranceExpenseGenerator` creates `Expense` at finalization; now FS creates / voids it through `Payroll::FinalizationEffects` | FS | Employer insurance cost | Workflow A | **Event** `payroll.period_finalized` (transactional handler) | Medium — idempotency index must keep working; finalization must not succeed without the expense |
 | 2 | `Requests::Approver` creates `Advance`; `pay` / `BulkPaymentService` stamp paid | AP | Advance ledger | Workflow B | **Event** `employee_request.approved/paid` | Medium — approval + advance must stay atomic or idempotent |
 | 3 | `Requests::PunchCorrectionApplier` updates `AttendanceRecord` (+ payroll via AP service) | AP | Correction changes punches and pay | Workflow C | **Event** `employee_request.approved` | High — snapshot/restore semantics |
 | 4 | `Requests::Canceller` restores/creates `PayrollLineItem` (287 lines) | AP | Undo permission effects | Workflow C | **Event** `employee_request.cancelled` | High — characterize first |
@@ -441,7 +463,7 @@ Today the approval creates a `users` row without a password (§3.2).
 | 6 | Goods receipt approval/settlement/void call `FinancialSettlementService`; custody accounts chosen as funding | FS | Paying suppliers | Workflow D | **Event** `goods_receipt.*` + FS-owned settlement UI | Medium–high — today transactional with the receipt |
 | 7 | `admin/users` form and onboarding approval write account fields (`email`, `phone_number`, `active`, `permission_role_id`) together with employee fields | OA (account columns) | One combined form; onboarding creates the record | WF edits employee fields; account fields via OA interface | **Interface** (`create_account_for`, `assign_role`, `deactivate`) | Medium — central table and form |
 | 8 | `admin/branches` form writes `pos_terminals` (nested attributes) | FS | Terminals are edited on the branch form | FS owns terminal editing (UI may stay embedded) | **Interface** | Low |
-| 9 | Shift form / shift routes write `penalty_rules` (nested attributes, `admin/penalty_rules`, `api/v1/penalty_rules`) | AP | Penalty rules configured per shift | AP owns penalty-rule editing (UI may stay embedded) | **Interface** | Low–medium (API paths stay as they are) |
+| 9 | **Resolved for the shift form (Milestone 2, Pilot 4).** Was: Shift form wrote `penalty_rules` through nested attributes; now it stages rows through the WF `Shifts::PenaltyRuleSettings` contract (AP implementation). `admin/penalty_rules` and `api/v1/penalty_rules` are AP controllers | AP | Penalty rules configured per shift | AP owns penalty-rule editing (UI may stay embedded) | **Interface** | Low–medium (API paths stay as they are) |
 | 10 | `admin/users` assigns `assigned_warehouse_ids` (`WarehouseAssignment`) | IP | Warehouse access set on the user form | IP owns warehouse-access editing | **Interface** | Low |
 | 11 | Attendance services call `Payroll::DraftRegenerator` | AP | Keep drafts current | Internal to AP | Internal event | Low |
 | 12 | `Finance::PosImports::ExpenseGenerator` creates fee expenses | FS | Card fees | Internal to FS | Internal | Low |
