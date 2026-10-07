@@ -53,6 +53,7 @@ class Product < ApplicationRecord
   validate :not_own_parent,          if: :parent_product_id?
   validate :default_supplier_in_same_business, if: :default_supplier_id?
   validate :brand_in_same_business,            if: :brand_id?
+  validate :product_category_in_same_business, if: :product_category_id?
 
   # Parent must not itself be a child — enforces max depth = 1.
   def parent_depth_constraint
@@ -79,6 +80,13 @@ class Product < ApplicationRecord
     return if brand.nil? || business_id.nil?
 
     errors.add(:brand, :invalid) if brand.business_id != business_id
+  end
+
+  # The category must belong to the product's business (SEC-P6-5).
+  def product_category_in_same_business
+    return if product_category.nil? || business_id.nil?
+
+    errors.add(:product_category, :invalid) if product_category.business_id != business_id
   end
 
   # Force parent products to non-tracking before every save.
