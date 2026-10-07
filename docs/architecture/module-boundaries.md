@@ -7,7 +7,9 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
 * **API infrastructure exists:** `/api/v1` standard contract (errors, pagination, filtering, serialization, request
   tracing, login rate limiting); see `docs/api/`.
 * **Organization & Access is partially migrated:** the `PermissionRole` pilot (`app/models/organization_access/`,
-  `app/services/organization_access/`); see `permission-role-migration-plan.md`.
+  `app/services/organization_access/`); see `permission-role-migration-plan.md`. Since Pilot 5 the access scopes read
+  branch membership through `OrganizationAccess::MembershipProvider` (implemented by `Workforce::MembershipProvider`);
+  see `next-pilot-selection.md` §20.
 * **Workforce is partially migrated:** `Department`, `JobTitle` and the Performance evaluation group are in
   `app/models/workforce/`; see `next-pilot-selection.md`.
 * **Attendance & Payroll is partially migrated (Milestone 2):** the biometric punch channel, Employee Obligations and
@@ -132,7 +134,7 @@ property); no behaviour change is part of this document.
 9. **Policies.** `branch`, `permission_role` (+ access rules consumed by every domain's policies).
 10. **Routes / API.** Devise routes, `/admin/branches`, `/admin/settings`, `/admin/permission_roles` (+ `assign_user`/`remove_user`), `/admin/users/:id/password`, `/admin/users/:id/toggle_active`, `/admin/users/:id/transfer_ownership`, `/profile/password`, `/preferences/locale`, `/locale`; `POST /api/v1/auth/login`, `DELETE /api/v1/auth/logout`. Declared but unimplemented: `/api/v1/businesses`, `/api/v1/branches`, `/api/v1/users`.
 11. **Business rules.** Owner has all permissions; permission groups/dependencies; scope resolution; inactive accounts cannot sign in; login by email or phone; creator ≠ approver (`Approvals::SelfApproval`, used by WF, FS and IP approvals); owner cannot be deactivated (`admin/users#toggle_active`); business timezone/currency.
-12. **Dependencies.** None on other domains in the target design. Today: `EmployeeScope`/`BranchScope` read `ShiftAssignment` via `BranchMembership` (WF); `admin/branches` shows staff; `Branch` nested-writes `pos_terminals` (FS); inverse `has_many` on `Business`/`Branch`/`User`. Resolutions in §12–§14.
+12. **Dependencies.** None on other domains in the target design. Today: `EmployeeScope`/`BranchScope` read branch membership only through OA's `OrganizationAccess::MembershipProvider` contract (Pilot 5); classified exceptions remain: `admin/branches` shows staff, the API login payload's `checkin_branch_ids`, and `User`/`Branch has_many :shift_assignments` plus `User#effective_shift_assignment_on`; `Branch` nested-writes `pos_terminals` (FS); inverse `has_many` on `Business`/`Branch`/`User`. Resolutions in §12–§14.
 13. **Owns.** Businesses, business-settings storage, branches, user-account columns, permission roles, user audit log.
 14. **May read.** Branch membership through the **membership contract** (defined by OA, implemented by WF — dependency inversion).
 15. **Must NOT directly modify.** Employee profile columns, `shift_assignments`, `pos_terminals`, any other domain's tables.
@@ -334,7 +336,7 @@ An upstream domain never calls or writes into a downstream domain.
 
 | Need | Resolution |
 |---|---|
-| OA access scopes need branch membership (WF) | OA defines a **membership contract**; WF provides the implementation (registered at boot). OA code references only its own contract |
+| OA access scopes need branch membership (WF) | **Implemented (Pilot 5):** OA defines `OrganizationAccess::MembershipProvider` (`current_branch_ids`, `current_member_ids`); WF implements it (`Workforce::MembershipProvider` → `BranchMembership`), registered at boot in `config/initializers/organization_access_membership_provider.rb`. `EmployeeScope` / `BranchScope` reference only the contract (enforced by `spec/architecture/organization_access_membership_boundary_spec.rb`) |
 | WF request validation/effects need attendance & payroll facts (AP) | WF defines **`RequestEligibility`** and **`RequestEffects`** contracts and publishes `employee_request.*` events; AP implements/subscribes |
 | WF employee page shows salary (AP) | UI composition: AP contributes the salary panel (infrastructure-level view composition), WF does not read AP |
 | IP laundry cost report reads payroll/assignments (AP/WF) | The cross-domain labour-cost part moves to **Reporting** |
@@ -359,7 +361,8 @@ of rules 4–5 of §18.
 | FS → AP (model: `Expense.source_payroll_period`) | 1 association | **Allowed** (reference) |
 | FS → IP (model: polymorphic `GoodsReceipt`; custody account page) | 3 / 1 + associations | **Allowed** as reference + read interface |
 | FS → WF (`TillHandoversController` → `ShiftAssignment`) | 1 file | **Allowed** via read interface |
-| OA → WF (`EmployeeScope`/`BranchScope` → `BranchMembership`; branch staff view) | 7 / 3 | **Violation** → membership contract (inversion) |
+| OA → WF (`EmployeeScope`/`BranchScope` → `BranchMembership`) | — | **Resolved (Pilot 5):** through the OA-defined membership contract |
+| OA → WF (branch staff view, API login `checkin_branch_ids`, `User` helper / inverse associations) | 4 files | **Classified exceptions** (Pilot 5 M6, shape-pinned); targets: Reporting / composition, session payload via WF interface, User / Employee stewardship |
 | OA → FS/IP/AP (inverse `has_many`; `WorkspaceHelper`; branch form writes `pos_terminals`) | model + 2 files | **Violation** → move inverse associations to owning domains; navigation registry (infrastructure); terminals edited through FS |
 | WF → AP (request writes, insurance recalculation, salary display, request validation reads) | 19 / 9 | **Violation** → events + WF-defined contracts + UI composition |
 | ~~AP → FS (`Payroll::InsuranceExpenseGenerator` writes `expenses`)~~ | — | **Resolved (Milestone 2, Pilot 3):** generator removed; AP calls only its `Payroll::FinalizationEffects` contract, FS implements it (cycle F3 eliminated) |
@@ -384,7 +387,9 @@ After these resolutions the target graph (§12.1) is **acyclic**.
 
 **Milestone 2 progress:** the AP ↔ FS insurance-expense cycle (F3 in `next-pilot-selection.md`) is **eliminated**
 (Pilot 3). The WF ↔ AP penalty-rule write is inverted (Pilot 4); the WF ↔ AP employee-request cycle above and the
-`Shift has_many :penalty_rules` lifecycle association remain, documented and enforced by boundary specs.
+`Shift has_many :penalty_rules` lifecycle association remain, documented and enforced by boundary specs. The OA ↔ WF
+access-scope edge is inverted through the membership contract (Pilot 5); four OA → WF read / lifecycle exceptions
+remain, classified and enforced (`next-pilot-selection.md` §20.5).
 
 ## 14. Cross-Domain Workflows and Writes
 

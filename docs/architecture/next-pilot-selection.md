@@ -1640,8 +1640,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M6 `3fd9ba2`, M7 `a3b6463`, M8 `ce3ce00`; M5 not needed. P4-D1 open
   (§19.11).
 * **Pilot 5 — Organization & Access ↔ Workforce membership contract:** on `feature/pilot-5-membership-contract`
-  (from `main` @ `3be2816`): M0 done (read-only), M1 `114f771`, M2 `69031c1`, M3 `5d6b454`, M4 not needed, **M6
-  done** (§20.5); M7 recommended not needed; M8 not started.
+  **COMPLETE** (from `main` @ `3be2816`, not pushed): M0 done (read-only), M1 `114f771`, M2 `69031c1`, M3 `5d6b454`,
+  M4 / M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs (§20.6). No next pilot started.
 * **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
@@ -2874,11 +2874,11 @@ failure ID with the `main` @ `c054fa3` run of §18.9 (`main` has not moved since
   file; not changed in docs-only cleanups). `module-boundaries.md` and the stale status lines here were synchronised
   with Pilots 3–4 in the docs-only consistency cleanup that follows this gate.
 
-## 20. Pilot 5 — Organization & Access ↔ Workforce membership contract: M0–M6
+## 20. Pilot 5 — Organization & Access ↔ Workforce membership contract
 
-**Status:** M0 (read-only, at `3be2816`), M1 (`114f771`), M2 (`69031c1`), M3 (`5d6b454`) and **M6 (boundary
-enforcement)** done on `feature/pilot-5-membership-contract`; M4 not needed (read-only review); M7 recommended not
-needed (§20.5); **M8 not started**. No schema, route or API change.
+**Status: COMPLETE** (close-out §20.6) on `feature/pilot-5-membership-contract`: M0 (read-only, at `3be2816`), M1
+`114f771`, M2 `69031c1`, M3 `5d6b454`, M4 not needed, M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs. No schema,
+migration, route or API change.
 
 ### 20.1 M0 summary
 
@@ -3029,10 +3029,76 @@ macros (comments, `t(...)` keys and the `include_shift_assignments` keyword are 
   architecture 159 / 0; focused set + Pilot 5 specs **1,637 examples, 33 failures** — exactly the baseline IDs.
   `zeitwerk:check`, RuboCop and `git diff --check` clean.
 
-**M7 readiness — recommended NOT NEEDED (not executed; for approval).** No model is in scope (M7 is a physical model
+**M7 — NOT NEEDED** (readiness review after M6; approved, not executed). No model is in scope (M7 is a physical model
 move). The contract and its implementation already live in their owners' service namespaces
 (`app/services/organization_access/`, `app/services/workforce/`). Moving `EmployeeScope`, `BranchScope` or
 `BranchMembership` into those namespaced (non-collapsible) folders would rename their constants (67, 31 and 35 code
 references), which M7 forbids, for no boundary gain — ownership is expressed by the contract and enforced by M6.
 
-**Next (not started): M8** — final verification and close-out.
+**At M6, next was:** M8 — see §20.6.
+
+### 20.6 M8 — final verification and close-out — Pilot 5 COMPLETE
+
+| Step | Result |
+|---|---|
+| M0 | COMPLETE — read-only inventory, ownership, semantics, security map, baseline (§20.1) |
+| M1 | COMPLETE — `114f771`, 51 characterization examples (§20.2) |
+| M2 | COMPLETE — `69031c1`, `OrganizationAccess::MembershipProvider` + `Workforce::MembershipProvider` + boot wiring (§20.3) |
+| M3 | COMPLETE — `5d6b454`, `EmployeeScope` / `BranchScope` routed; duplicate `BranchScope` query removed (§20.4) |
+| M4 | NOT NEEDED — no logic in a non-owning domain (§20.5) |
+| M5 | NOT NEEDED — no business rule in a controller or view; the change is a read-side inversion |
+| M6 | COMPLETE — `1b5cd65`, boundary spec, four classified exceptions, planted probes (§20.5) |
+| M7 | NOT NEEDED — no model in scope; moving the services would rename constants (§20.5) |
+| M8 | COMPLETE — this close-out |
+
+**Final architectural result.**
+
+* Organization & Access owns the membership contract (`app/services/organization_access/membership_provider.rb`);
+  Workforce owns the implementation (`app/services/workforce/membership_provider.rb` → `BranchMembership` →
+  `ShiftAssignment`); `config/initializers/organization_access_membership_provider.rb` is the only bridge.
+* `EmployeeScope` and `BranchScope` consume only the contract; no membership implementation name remains on the
+  Organization & Access scope path (enforced, no exception).
+* The four exceptions are intentional and documented (§20.5): `User` (inverse association + stewardship helper),
+  `Branch` (inverse association), the admin branch staff view and the API login `checkin_branch_ids` (read-only).
+* The OA ↔ WF access-scope dependency is inverted; `module-boundaries.md` (§4 item 12, §12.1, §12.2, §13) is synced.
+
+**Final verification (on `1b5cd65`, seed 20261006).**
+
+| Run | Result |
+|---|---|
+| M1 characterization / M2 contract / M3 routing / M6 boundary | 51 / 10 / 9 / 12 examples, 0 failures (all 82 also with seeds 12345 and 98765) |
+| Architecture + Organization & Access characterization + security + API security | 574 examples, 0 failures |
+| Focused baseline (80 files) + Pilot 5 specs | **1,637 examples, 33 failures** |
+
+* **Failures:** exactly the 33 IDs in `organization-access-membership-baseline-failures.txt` — none new, none gone
+  (`payroll_waive_scope_spec` ×17, `payroll_visibility_spec` ×9, `operations_dashboard_policy_spec:15/16/17`,
+  `dashboard_spec:432/460`, `payroll_period_policy_spec:217`, `expense_policy_spec:54`; all also fail on `main`).
+* `zeitwerk:check` passes; RuboCop clean on the 11 Ruby files changed since `main`; `git diff --check` clean.
+* **No database, schema, migration, route or API change**; production behaviour unchanged (M1 pins it; M2 adds
+  delegation only; M3 keeps the same SQL and results; M6 is specs and docs).
+
+**Remaining known limitations (recorded, not fixed):**
+
+* The four classified OA → WF exceptions (branch staff view, login payload, `User` helper and associations).
+* Membership uses `Date.current` of the current `Time.zone`, not `BusinessDay.current` (pinned in M1).
+* `BranchMembership.current_member_ids` is not business-scoped; isolation is `EmployeeScope.base` (pinned).
+* `PayrollEntryPolicy::Scope` omits the viewer's own entry on the hierarchy path (pinned asymmetry).
+* About 20 downstream readers compute "current membership" directly from `ShiftAssignment` instead of
+  `BranchMembership` (allowed direction; a separate consolidation).
+* `BranchMembership.manager_ids` has no caller.
+* The API scope specs `payroll_waive_scope_spec` / `payroll_visibility_spec` still fail on `main` for non-scope reasons
+  (AP-D2; response shape).
+
+**Pilot 5 (Organization & Access ↔ Workforce membership contract) is COMPLETE.** Nothing was pushed or merged; `main`
+stays at `3be2816`.
+
+### 20.7 Pilot 6 recommendation (not started)
+
+**Inventory & Purchasing — Supplier**, as a fast-track pilot (M0 → M1 → M6 → M7 → M8 unless M0 finds a cross-domain
+caller). Evidence from the Milestone 2 closeout review: Inventory & Purchasing is the only domain never piloted;
+Supplier's 19 external code files are almost all inside the domain (cross-domain only the `Business` inverse
+association and the workspace navigation); 0 baseline failures; no open security finding. It validates the pattern in
+the fifth domain at low risk before the high-risk Workforce ↔ Attendance & Payroll request cycle (Advances, P-6) or the
+Inventory & Purchasing ↔ Finance & Sales settlement cycle. Before selecting it officially: a fresh M0 reference scan,
+security probes of the supplier screens, a check of how purchase requests and goods receipts depend on suppliers, and
+a focused baseline committed with its set. Integrating Pilot 5 into `main` (PR) should come first.
