@@ -380,6 +380,10 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
   M0 `b73fc34`, M1 `3efb46b`, M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M5 not needed, M6 `3fd9ba2`, M7 `a3b6463`,
   M8 docs. The WF `Shift` nested write into AP `penalty_rules` is inverted through the Workforce-defined
   `Shifts::PenaltyRuleSettings` contract (`next-pilot-selection.md` §19.11–§19.12).
+* **Pilot 5 (Organization & Access ↔ Workforce membership contract) is COMPLETE** (standard path,
+  `feature/pilot-5-membership-contract`): M1 `114f771`, M2 `69031c1`, M3 `5d6b454`, M6 `1b5cd65`, M8 docs; M4, M5 and
+  M7 not needed. The access scopes read membership only through the OA-defined `OrganizationAccess::MembershipProvider`
+  (Workforce implementation), with four classified exceptions (`next-pilot-selection.md` §20).
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
@@ -506,3 +510,12 @@ sequence (§3) or the rules (§5).
 * **Commit the focused set with its baseline** (applied from the milestone review): Pilot 4's 78-file set and its
   rerun command live in `attendance-payroll-penalty-rules-baseline-failures.txt`, so every step's comparison was
   reproducible from the repository.
+* **Verify an earlier review's dependency claims in code before planning** (Pilot 5 M0): the closeout review said both
+  scopes called `BranchMembership`; `BranchScope` in fact queried `ShiftAssignment` directly, duplicating it. The
+  M3 routing then removed a duplicate instead of only re-pointing a call.
+* **Keep a contract's return shape when performance depends on it** (Pilot 5 M2): `current_member_ids` returns a
+  chainable relation used as `IN (subquery)`; pin the shape (type, model, `select_values`, identical SQL) in M1 and the
+  contract spec, so routing cannot quietly materialize id lists.
+* **Prove routing with a planted provider, not equal output** (Pilot 5 M3): swapping the registered provider for a fake
+  whose answers differ from the real data shows the caller actually goes through the contract; equal results alone
+  would also pass with a direct query.

@@ -1638,7 +1638,13 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   M6 `ddaceb1`, M7 `ee47554`, M8 docs; M5 not needed. FS-D3 open (§10).
 * **Pilot 4 — Attendance & Payroll Penalty Rules:** **COMPLETE** (§19, close-out §19.12). M0 `b73fc34`, M1 `3efb46b`,
   M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M6 `3fd9ba2`, M7 `a3b6463`, M8 `ce3ce00`; M5 not needed. P4-D1 open
-  (§19.11). No next pilot selected.
+  (§19.11).
+* **Pilot 5 — Organization & Access ↔ Workforce membership contract:** on `feature/pilot-5-membership-contract`
+  **COMPLETE** (from `main` @ `3be2816`, not pushed): M0 done (read-only), M1 `114f771`, M2 `69031c1`, M3 `5d6b454`,
+  M4 / M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs (§20.6).
+* **Pilot 6 — Inventory & Purchasing Supplier:** **COMPLETE** on the same branch (on top of Pilot 5, not pushed): M0,
+  security unblock (SEC-P6-1 – SEC-P6-6 fixed), M1 `bfbb88b`, M2 – M5 not needed, M6 `b34d959`, M7 `3348fbf`, M8 docs
+  (§21.8). No next pilot started.
 * **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
@@ -2870,3 +2876,447 @@ failure ID with the `main` @ `c054fa3` run of §18.9 (`main` has not moved since
   `spec/services/shifts/penalty_rule_settings_spec.rb` still describes the M2 delegating implementation (a spec
   file; not changed in docs-only cleanups). `module-boundaries.md` and the stale status lines here were synchronised
   with Pilots 3–4 in the docs-only consistency cleanup that follows this gate.
+
+## 20. Pilot 5 — Organization & Access ↔ Workforce membership contract
+
+**Status: COMPLETE** (close-out §20.6) on `feature/pilot-5-membership-contract`: M0 (read-only, at `3be2816`), M1
+`114f771`, M2 `69031c1`, M3 `5d6b454`, M4 not needed, M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs. No schema,
+migration, route or API change.
+
+### 20.1 M0 summary
+
+* **Scope:** `EmployeeScope`, `BranchScope` (Organization & Access, `module-boundaries.md` §15) and `BranchMembership`
+  (Workforce; "implements OA's membership contract"). All three are top-level services in `app/services/`; none has a
+  table, association, callback or validation.
+* **The OA → WF edges (verified in code; the closeout review was half right):**
+  * `EmployeeScope#members_in` → `BranchMembership.current_member_ids` → `ShiftAssignment.user_ids_for_branches`
+    (`app/services/employee_scope.rb:134`);
+  * `BranchScope#shift_assignment_branch_ids` → `ShiftAssignment.current` **directly**, duplicating
+    `BranchMembership.current_branch_ids` (`app/services/branch_scope.rb:83`), only with `include_shift_assignments:
+    true` (Laundry / Towel policies and `Laundry::BaseController`).
+* **Callers:** `EmployeeScope` — 33 code lines (17 policies incl. `ApplicationPolicy#filter_by_data_scope`, 9
+  controllers, 1 view, `Finance::DashboardFilters`); `BranchScope` — 17 (`ApplicationPolicy` helpers, 7 policies, 7
+  controllers/services). Other `BranchMembership` callers are WF-internal or AP → WF reads. `BranchMembership.manager_ids`
+  has no caller.
+* **Out of this pilot's contract (classified, not changed):** the OA branch staff view (`admin/branches_controller`,
+  direct `ShiftAssignment`), `User#effective_shift_assignment_on` → `Shifts::AssignmentResolver` (User / Employee
+  stewardship), `User` / `Branch has_many :shift_assignments` (inverse associations).
+* **Security:** no new finding. OA-S1 – OA-S8 are fixed (OA-S8: `UserPolicy#in_management_scope?`). Business isolation
+  rests on `EmployeeScope.base` / `user.business.branches` and the OA-S7 manager validation; no open product decision
+  changes scope semantics (SEC-M2-6 / -7 and the SEC-M2-2 follow-up concern which scope particular AP consumers apply).
+* **Decision: READY FOR M1** (ownership documented; dependency real; direction documented: OA defines, WF implements —
+  `module-boundaries.md` §12.1, §4 item 14; `organization-access-migration-readiness.md` names it `MembershipProvider`).
+
+### 20.2 M1 — characterization
+
+Three new files in `spec/characterization/organization_access/` (51 examples), complementing — not repeating —
+`spec/services/employee_scope_spec.rb` (26), `spec/services/branch_scope_spec.rb` (15) and `access_contracts_spec` (16):
+
+| File | Examples | What it pins |
+|---|---|---|
+| `branch_membership_spec.rb` | 16 | `current_branch_ids` / `current_member_ids` (no direct spec existed): regular and `temporary_coverage`, several branches, expired / future, inclusive bounds, nil branch, inactive users; the **return shape** (a chainable `ShiftAssignment` relation selecting `user_id`, used as `IN (subquery)`); the primitive is **not business-scoped**; the day boundary; `manager_ids` |
+| `membership_scopes_spec.rb` | 21 | `BranchScope` shift path ≡ `BranchMembership.current_branch_ids` (branch, area expansion incl. via coverage, de-duplication with management, business isolation, default / self); `EmployeeScope` over membership (coverage, several branches, inactive, other business, working ≠ managing, no role, owner with an explicit scope); `ApplicationPolicy` helpers with every scope value, aliases, unknown / `default` fallbacks, self inclusion, opt-in shift assignments, write-scope checks |
+| `membership_scope_consumers_spec.rb` | 14 | One real `Pundit.policy_scope!` consumer per domain: `UserPolicy::Scope` (WF), `PayrollEntryPolicy::Scope` (AP), `ExpensePolicy::Scope` (FS, management only), `TowelTransferPolicy::Scope` (IP / Laundry, shift assignments) — standing in for the API scope specs that fail on `main` for unrelated reasons |
+
+**Behaviour pinned as-is (findings, not changed):**
+
+* **Day boundary:** membership uses `Date.current` of the current `Time.zone` — the business timezone inside web
+  requests (`ApplicationController#set_business_timezone`), UTC elsewhere (jobs, console) — and ignores
+  `business_day_start_hour` (not `BusinessDay.current`). A later change is a separate approved `fix:`.
+* **The membership primitive is not business-scoped:** `current_member_ids` returns any user assigned to the branch;
+  isolation comes from `EmployeeScope.base` (pinned).
+* **Coverage is membership:** a `temporary_coverage` assignment makes the covering employee visible to the covered
+  branch's managers and gives shift-assigned staff that branch (and its area) in Laundry scopes.
+* **Inactive users** are included by the primitive and the scopes; callers add `.active`.
+* **Own-record asymmetry:** `PayrollEntryPolicy::Scope` omits the viewer's own entry on the hierarchy path (no
+  configured scope) but includes it with a configured scope; `UserPolicy::Scope` includes self on both paths.
+* **Owner:** `EmployeeScope#for_scope` applies a named scope literally even for the owner; owners get `"business"`
+  from `User#scope_for`, so policies never hit that case.
+* **`BranchMembership.manager_ids`** works but has no production caller.
+
+**Verification (seed 20261006):** new specs 51 / 0 (also with seeds 12345 and 98765); focused set (80 files, recorded
+with its rerun command in `organization-access-membership-baseline-failures.txt`) + new specs: **1,606 examples, 33
+failures, 0 pending** — exactly the M0 IDs, none new, none gone. RuboCop clean on the new files.
+
+### 20.3 M2 — membership contract
+
+* **Contract (Organization & Access):** `OrganizationAccess::MembershipProvider`
+  (`app/services/organization_access/membership_provider.rb`) — the readiness name. Same shape as
+  `Payroll::FinalizationEffects`: `OPERATIONS`, `register` (checks both operations), `NotRegistered` instead of
+  resolving to no members, and two operations:
+  * `current_branch_ids(user)` → `Array<Integer>` of the user's current branch memberships;
+  * `current_member_ids(branch_ids)` → a chainable `ActiveRecord::Relation` selecting `user_id`, used as
+    `WHERE id IN (subquery)`, never materialized.
+
+  It names nothing from Workforce and adds no business filtering, date change, authorization decision, scope level or
+  `manager_ids`.
+* **Implementation (Workforce):** `Workforce::MembershipProvider` (`app/services/workforce/membership_provider.rb`),
+  delegating unchanged to `BranchMembership`. It opens the `Workforce::` service boundary in `app/services/workforce/`,
+  which `migration-pattern.md` §13 reserves for the first real cross-domain caller.
+* **Wiring:** `config/initializers/organization_access_membership_provider.rb` registers the implementation at boot
+  (`to_prepare`), so neither domain names the other — the Pilot 3 / Pilot 4 pattern with Organization & Access as the
+  defining (upstream) domain.
+* **Specs:** `spec/services/organization_access/membership_provider_spec.rb` (10): registration, incomplete provider,
+  `NotRegistered`, dispatch and error propagation; through the implementation — regular / coverage / several branches,
+  expired / future excluded, the relation's type, model, `select_values` and SQL identical to `BranchMembership`'s, use
+  as `IN (subquery)`, the unchanged `Date.current` boundary; and a source check that the contract names no Workforce
+  constant.
+* **Verification (seed 20261006):** M2 10 / 0 (also seeds 12345 / 98765); M1 51 / 0; focused set + Pilot 5 specs
+  **1,616 examples, 33 failures** — exactly the baseline IDs. `zeitwerk:check`, RuboCop and `git diff --check` clean.
+
+**At M2, M3 was next:** routing `EmployeeScope#members_in` and `BranchScope`'s shift-assignment branch ids through
+`OrganizationAccess::MembershipProvider` — done in §20.4.
+
+### 20.4 M3 — routing the two membership callers
+
+* `EmployeeScope#members_in` (`app/services/employee_scope.rb`) takes its member ids from
+  `OrganizationAccess::MembershipProvider.current_member_ids(ids)` — still used as `IN (subquery)` under
+  `EmployeeScope.base` (business isolation unchanged); was `BranchMembership.current_member_ids`.
+* `BranchScope#shift_assignment_branch_ids` (`app/services/branch_scope.rb`) takes the user's membership branches from
+  `OrganizationAccess::MembershipProvider.current_branch_ids(user)`; the duplicate direct
+  `ShiftAssignment.current.where(user_id:)…` query is removed (it was identical to `BranchMembership.current_branch_ids`).
+  The area expansion, `include_shift_assignments` opt-in and the public API are unchanged.
+* **Dependency after M3:** Organization & Access scope code → `OrganizationAccess::MembershipProvider` (its own
+  contract) only; Workforce `Workforce::MembershipProvider` → `BranchMembership` → `ShiftAssignment`. Neither scope file
+  names `BranchMembership` or `ShiftAssignment` in code. Enforcement across the codebase is M6.
+* **Specs:** `spec/services/organization_access/membership_routing_spec.rb` (9). A planted provider proves the routing
+  (members / branches follow the provider, not shift assignments; area expansion uses its branches; business isolation
+  still filters its ids; the contract is not consulted for business scope, no branches, or without
+  `include_shift_assignments`); with the registered Workforce provider the results and the `IN (subquery)` SQL are as
+  before; a source check of both scope files. The M2 contract spec's header comment now points to M3.
+* **Verification (seed 20261006):** M3 9 / 0 (also seeds 12345 / 98765); M2 10 / 0; M1 51 / 0; existing scope specs
+  (`employee_scope`, `branch_scope`, shift-based membership, Laundry scope requests) 70 / 0; focused set + Pilot 5 specs
+  **1,625 examples, 33 failures** — exactly the baseline IDs. `zeitwerk:check`, RuboCop and `git diff --check` clean.
+  No behaviour change.
+
+**At M3, next was:** M4 and M6 — see §20.5.
+
+### 20.5 M4 review, M6 boundary enforcement and M7 readiness
+
+**M4 — not needed** (read-only review at `5d6b454`). After M3 the scopes keep only Organization & Access logic
+(hierarchy, scope resolution, aliases, permission precedence, business isolation, management ids, area expansion over
+`Branch` data); `BranchMembership` (Workforce) is the single owner of membership for the access-scope path; nothing
+sits in a non-owning domain. Moving `BranchMembership` into `app/services/workforce/` would only rename its constant.
+
+**M6 — `spec/architecture/organization_access_membership_boundary_spec.rb` (12 examples).** Forbidden names:
+`BranchMembership`, `ShiftAssignment`, `Workforce::`, `Shifts::`, `.shift_assignments`, shift-assignment association
+macros (comments, `t(...)` keys and the `include_shift_assignments` keyword are not dependencies).
+
+* **Strict, no exception:** `employee_scope.rb`, `branch_scope.rb` and the contract
+  (`organization_access/membership_provider.rb`); both scopes read membership through their own contract.
+* **Rest of Organization & Access** (46 files: scopes, `organization_access/`, `approvals/`, `Business` / `Branch` /
+  `User` / `UserAuditLog` / `PermissionRole`, branch / role / settings admin, web and API sessions, registrations,
+  locale, preferences, profile, their policies and views): only the classified exceptions, each limited to its exact
+  current lines:
+
+  | File | Class | Allowed lines |
+  |---|---|---|
+  | `app/models/user.rb` | E + F | `has_many :shift_assignments, dependent: :destroy` (inverse; documented User cascade); `Shifts::AssignmentResolver.for(...)` in `#effective_shift_assignment_on` (User / Employee stewardship helper) |
+  | `app/models/branch.rb` | E | `has_many :shift_assignments, dependent: :nullify` |
+  | `app/controllers/admin/branches_controller.rb` | F (read-only) | Branch staff view `#show`: current employees (`ShiftAssignment.user_ids_for_branches([ @branch.id ])`, twice) and `@branch.shift_assignments.current` — a cross-domain dashboard (target: Reporting / composition) |
+  | `app/controllers/api/v1/sessions_controller.rb` | F (read-only) | Login payload `checkin_branch_ids: ShiftAssignment.current…` — the documented mixed OA / WF / AP session payload (`module-boundaries.md` §17); API unchanged |
+
+  Read exceptions must stay write-free; every exception must still be needed.
+* **Composition:** only `config/initializers/organization_access_membership_provider.rb` and `app/services/workforce/`
+  name `Workforce::MembershipProvider`; it is the registered provider and implements both operations; it stays a
+  delegation to `BranchMembership` and names no Organization & Access scope.
+* **Classification of the rest (not enforced here):** downstream readers of `BranchMembership` / `ShiftAssignment` in
+  Attendance & Payroll, Finance & Sales, Inventory & Purchasing and Reporting are allowed (B); `BranchMembership`,
+  `Workforce::MembershipProvider`, `ShiftAssignmentsController`, `Performance::ReviewAnalytics` are Workforce-internal
+  (C); the initializer is wiring (D); specs are test-only (G). **No violation (H) found.**
+* **Planted probes:** self-tests stub planted lines (BranchMembership / ShiftAssignment in each scope, `Workforce::` in
+  the contract, a `destroy_all` beside an allowed read, a membership read in another Organization & Access file; and
+  that comments / i18n keys / the keyword are ignored). On disk, the same kinds of references were added to the real
+  files plus a Reporting service naming `Workforce::MembershipProvider`: four rules failed as expected; reverted, green.
+* **Verification (seed 20261006):** Pilot 5 specs (M1 + M2 + M3 + M6) 82 / 0 (also seeds 12345 / 98765); all
+  architecture 159 / 0; focused set + Pilot 5 specs **1,637 examples, 33 failures** — exactly the baseline IDs.
+  `zeitwerk:check`, RuboCop and `git diff --check` clean.
+
+**M7 — NOT NEEDED** (readiness review after M6; approved, not executed). No model is in scope (M7 is a physical model
+move). The contract and its implementation already live in their owners' service namespaces
+(`app/services/organization_access/`, `app/services/workforce/`). Moving `EmployeeScope`, `BranchScope` or
+`BranchMembership` into those namespaced (non-collapsible) folders would rename their constants (67, 31 and 35 code
+references), which M7 forbids, for no boundary gain — ownership is expressed by the contract and enforced by M6.
+
+**At M6, next was:** M8 — see §20.6.
+
+### 20.6 M8 — final verification and close-out — Pilot 5 COMPLETE
+
+| Step | Result |
+|---|---|
+| M0 | COMPLETE — read-only inventory, ownership, semantics, security map, baseline (§20.1) |
+| M1 | COMPLETE — `114f771`, 51 characterization examples (§20.2) |
+| M2 | COMPLETE — `69031c1`, `OrganizationAccess::MembershipProvider` + `Workforce::MembershipProvider` + boot wiring (§20.3) |
+| M3 | COMPLETE — `5d6b454`, `EmployeeScope` / `BranchScope` routed; duplicate `BranchScope` query removed (§20.4) |
+| M4 | NOT NEEDED — no logic in a non-owning domain (§20.5) |
+| M5 | NOT NEEDED — no business rule in a controller or view; the change is a read-side inversion |
+| M6 | COMPLETE — `1b5cd65`, boundary spec, four classified exceptions, planted probes (§20.5) |
+| M7 | NOT NEEDED — no model in scope; moving the services would rename constants (§20.5) |
+| M8 | COMPLETE — this close-out |
+
+**Final architectural result.**
+
+* Organization & Access owns the membership contract (`app/services/organization_access/membership_provider.rb`);
+  Workforce owns the implementation (`app/services/workforce/membership_provider.rb` → `BranchMembership` →
+  `ShiftAssignment`); `config/initializers/organization_access_membership_provider.rb` is the only bridge.
+* `EmployeeScope` and `BranchScope` consume only the contract; no membership implementation name remains on the
+  Organization & Access scope path (enforced, no exception).
+* The four exceptions are intentional and documented (§20.5): `User` (inverse association + stewardship helper),
+  `Branch` (inverse association), the admin branch staff view and the API login `checkin_branch_ids` (read-only).
+* The OA ↔ WF access-scope dependency is inverted; `module-boundaries.md` (§4 item 12, §12.1, §12.2, §13) is synced.
+
+**Final verification (on `1b5cd65`, seed 20261006).**
+
+| Run | Result |
+|---|---|
+| M1 characterization / M2 contract / M3 routing / M6 boundary | 51 / 10 / 9 / 12 examples, 0 failures (all 82 also with seeds 12345 and 98765) |
+| Architecture + Organization & Access characterization + security + API security | 574 examples, 0 failures |
+| Focused baseline (80 files) + Pilot 5 specs | **1,637 examples, 33 failures** |
+
+* **Failures:** exactly the 33 IDs in `organization-access-membership-baseline-failures.txt` — none new, none gone
+  (`payroll_waive_scope_spec` ×17, `payroll_visibility_spec` ×9, `operations_dashboard_policy_spec:15/16/17`,
+  `dashboard_spec:432/460`, `payroll_period_policy_spec:217`, `expense_policy_spec:54`; all also fail on `main`).
+* `zeitwerk:check` passes; RuboCop clean on the 11 Ruby files changed since `main`; `git diff --check` clean.
+* **No database, schema, migration, route or API change**; production behaviour unchanged (M1 pins it; M2 adds
+  delegation only; M3 keeps the same SQL and results; M6 is specs and docs).
+
+**Remaining known limitations (recorded, not fixed):**
+
+* The four classified OA → WF exceptions (branch staff view, login payload, `User` helper and associations).
+* Membership uses `Date.current` of the current `Time.zone`, not `BusinessDay.current` (pinned in M1).
+* `BranchMembership.current_member_ids` is not business-scoped; isolation is `EmployeeScope.base` (pinned).
+* `PayrollEntryPolicy::Scope` omits the viewer's own entry on the hierarchy path (pinned asymmetry).
+* About 20 downstream readers compute "current membership" directly from `ShiftAssignment` instead of
+  `BranchMembership` (allowed direction; a separate consolidation).
+* `BranchMembership.manager_ids` has no caller.
+* The API scope specs `payroll_waive_scope_spec` / `payroll_visibility_spec` still fail on `main` for non-scope reasons
+  (AP-D2; response shape).
+
+**Pilot 5 (Organization & Access ↔ Workforce membership contract) is COMPLETE.** Nothing was pushed or merged; `main`
+stays at `3be2816`.
+
+### 20.7 Pilot 6 recommendation (not started)
+
+**Inventory & Purchasing — Supplier**, as a fast-track pilot (M0 → M1 → M6 → M7 → M8 unless M0 finds a cross-domain
+caller). Evidence from the Milestone 2 closeout review: Inventory & Purchasing is the only domain never piloted;
+Supplier's 19 external code files are almost all inside the domain (cross-domain only the `Business` inverse
+association and the workspace navigation); 0 baseline failures; no open security finding. It validates the pattern in
+the fifth domain at low risk before the high-risk Workforce ↔ Attendance & Payroll request cycle (Advances, P-6) or the
+Inventory & Purchasing ↔ Finance & Sales settlement cycle. Before selecting it officially: a fresh M0 reference scan,
+security probes of the supplier screens, a check of how purchase requests and goods receipts depend on suppliers, and
+a focused baseline committed with its set. Integrating Pilot 5 into `main` (PR) should come first.
+
+## 21. Pilot 6 — Inventory & Purchasing Supplier
+
+**Status: COMPLETE** (close-out §21.8): M0 (read-only, at `7f4f422`), security unblock (six `fix:` commits), M1
+`bfbb88b`, M2 – M5 not needed, M6 `b34d959`, M7 `3348fbf`, M8 docs. All on `feature/pilot-5-membership-contract`, on
+top of Pilot 5, not pushed or merged. No schema, migration, route or API change.
+
+### 21.1 M0 — ownership and dependencies
+
+* **Ownership confirmed: Inventory & Purchasing.** `Supplier` (`app/models/supplier.rb` at M0 — moved in M7 to
+  `app/models/inventory_purchasing/supplier.rb`, §21.7; table `suppliers`):
+  `belongs_to :business`, `has_many :goods_receipts, dependent: :restrict_with_error`; name / mobile / coordinate
+  validations; no `active` / archive or soft-delete column. Administered by `Inventory::SuppliersController` (full CRUD)
+  behind the inventory gate and `SupplierPolicy` (read: `view_inventory` / `manage_inventory`; write:
+  `manage_inventory` / `manage_suppliers`; scope: business). Routes `resources :suppliers` and the supplier-purchases
+  report; no API, job or serializer.
+* **No meaningful cross-domain business dependency.** Every consumer is internal to Inventory & Purchasing
+  (inventory controllers, services, views, `PurchaseRequest`, `GoodsReceipt`, `Product`, the inventory reports, four
+  Stimulus controllers). Outside the domain only: the Organization & Access inverse `Business has_many :suppliers`,
+  the `manage_suppliers` permission in the catalogue, and the workspace navigation. Finance & Sales does not read
+  `Supplier` (the finance dashboard's supplier block is a disabled placeholder). No cycle runs through `Supplier`; the
+  Inventory & Purchasing ↔ Finance & Sales settlement cycle runs through `GoodsReceipt` / `PurchaseRequest` /
+  `PurchaseRequestAdvance`, where the supplier is only data.
+* **Purchase Requests and Goods Receipts are internal consumers.** Purchase requests own supplier selection
+  (`belongs_to :supplier` required, `supplier_in_same_business`, one request per supplier in
+  `Inventory::PurchaseRequestCreator`). Goods receipts reference the supplier (optional; inherited from and required to
+  match a purchase request) and never write it. `Supplier` owns no purchasing behaviour.
+
+### 21.2 Security unblock — SEC-P6-1 to SEC-P6-6 resolved
+
+Each fix is its own commit with a regression spec in `spec/requests/security/` whose attack cases fail on the previous
+code; all mirror the existing `supplier_in_same_business` validation style.
+
+| ID | Severity | Found | Fix | Commit |
+|---|---|---|---|---|
+| SEC-P6-1 | High | M0 | `GoodsReceipt#supplier_in_same_business` — a standalone receipt could reference another business's supplier (polluting and blocking its deletion) | `7f4f893` |
+| SEC-P6-2 | Medium | M0 | `Product#default_supplier_in_same_business` | `7d62798` |
+| SEC-P6-3 | Low–Medium | M0 | The supplier page's recent receipts come from `GoodsReceiptPolicy::Scope` (business + accessible warehouses) instead of `Supplier#goods_receipts` — no new authorization logic | `2b69891` |
+| SEC-P6-4 | Medium | M1 | `Product#brand_in_same_business` | `4c021d6` |
+| SEC-P6-5 | Medium | M1 | `Product#product_category_in_same_business` | `a690d7e` |
+| SEC-P6-6 | High | M1 | `Product#parent_product_in_same_business` — a foreign parent used to be written by `propagate_non_tracking_to_parent` (after_save → `force_non_tracking!`, switching off its stock tracking). The validation aborts the save before any callback; the regression spec compares the victim's full row before and after | `35fb7d5` |
+
+### 21.3 M1 — characterization
+
+Three files in `spec/characterization/inventory_purchasing/` (42 examples), complementing the existing purchase-request,
+goods-receipt, report and M0/M1 security specs:
+
+| File | Examples | What it pins |
+|---|---|---|
+| `supplier_admin_spec.rb` | 20 | CRUD (ordering, validations, duplicate names allowed, `business_id` ignored), the permission matrix (`view_inventory` read-only; `manage_inventory`, `manage_suppliers`, owner full; reports-only and no-permission users refused), cross-business 404s, delete rules incl. **P6-D1** |
+| `product_references_spec.rb` | 8 | Same-business brand / category / parent accepted; another business's brand, category and parent **refused** (SEC-P6-4/5/6, the victim untouched); a foreign warehouse setting refused (already isolated) |
+| `supplier_purchasing_spec.rb` | 14 | Purchase-request supplier rules (required, same business, creator grouping, missing / foreign supplier), receipt rules (optional, must match the request, never writes the supplier), `Supplier`'s structure (only `business` / `goods_receipts`, no callbacks, one method), supplier / purchases / low-stock reports inside the business and the requested warehouses |
+
+**Known defect — P6-D1 (correctness, non-blocking, pinned, not fixed):** deleting a supplier referenced by a product's
+default or by a purchase request raises `ActiveRecord::InvalidForeignKey` (a 500) instead of a refusal — `Supplier`
+declares only `has_many :goods_receipts, dependent: :restrict_with_error`. Two examples in `supplier_admin_spec.rb`
+assert the current behaviour; a fix needs its own approved `fix:`.
+
+**Pre-existing baseline failures (not Pilot 6, not to be fixed here):** `spec/requests/inventory/barcode_labels_spec.rb:36`
+and `spec/requests/inventory/products_barcode_spec.rb:50` fail on `main` too and are listed in
+`permission-role-baseline-failures.txt`; they appear when the wider product / barcode specs are run, outside the
+focused Pilot 6 set.
+
+### 21.4 Verification (M1 close, seed 20261006)
+
+| Run | Result |
+|---|---|
+| Original M0 focused baseline (60 files: supplier / purchase-request / goods-receipt / inventory request, policy, model, service and system specs, `spec/architecture`, `spec/requests/security`) | **783 examples, 0 failures** |
+| Expanded M1 set (+ 13 M0 security regressions + 42 M1 examples) | **838 / 0** |
+| Full Pilot 6 set (+ 13 M1 security regressions) | **851 / 0** |
+| Architecture + security + API security | **431 / 0** |
+| Three-seed check (20261006, 12345, 98765) | M1 42 / 0; M0 regressions 13 / 0; M1 regressions 13 / 0 under every seed |
+
+`zeitwerk:check`, RuboCop and `git diff --check` clean. No new failure.
+
+### 21.5 Migration path
+
+* **M2 – M5 NOT NEEDED** (M1 evidence): no cross-domain caller, no cycle and no cross-domain write through `Supplier`; a
+  contract would add nothing; no business rule sits in a controller or another domain.
+* **Fast-track M6** — done in §21.6.
+* **M7 is a separate decision:** it would be the first physical move into `app/models/inventory_purchasing/` and need a
+  new collapse initializer, approved before it is written.
+
+### 21.6 M6 — Supplier boundary enforcement (and M7 readiness)
+
+**Fresh scan** (1,117 `app/` + `lib/` files; code lines only — comments and `t(...)` keys ignored): 182 code lines
+reference `Supplier`, `SupplierPolicy`, `suppliers`, `supplier_id` or `default_supplier`, all inside Inventory &
+Purchasing — `app/controllers|views|services/inventory/`, `Supplier`, `Product`, `PurchaseRequest`, `GoodsReceipt`,
+`SupplierPolicy`, `InventoryHelper`. `Product → Supplier`, `PurchaseRequest → Supplier` and `GoodsReceipt → Supplier` are
+internal relationships, not cross-domain edges. **No code outside the domain writes a supplier**, and no Workforce,
+Attendance & Payroll, Finance & Sales or Reporting code references one (the finance dashboard's supplier block, the
+purchase-request-advance files and `Finance::Dashboard::Capabilities` mention suppliers only in comments). No API.
+
+**Intentional exceptions** (classified, shape-pinned):
+
+| File | Line | Direction / kind | Why allowed |
+|---|---|---|---|
+| `app/models/business.rb` | 41 | OA → IP, lifecycle | `has_many :suppliers, dependent: :destroy` — the Organization & Access inverse association (documented OA inverse pattern) |
+| `app/helpers/workspace_helper.rb` | 158 | UI shell → IP, navigation | The Suppliers menu entry, gated by `policy(Supplier).index?` (the icon key and the `"suppliers"` controller mapping are names, not references) |
+| `PermissionRole` catalogue | — | OA, authorization metadata | `manage_suppliers` (depends on `view_inventory`) — a permission name, not a `Supplier` reference; checked by the spec |
+
+**Boundary spec:** `spec/architecture/inventory_purchasing_supplier_boundary_spec.rb` (19 examples). It pins explicit
+ownership (model, `Inventory::SuppliersController < Inventory::BaseController`, `SupplierPolicy`); rejects any supplier
+reference (constant, policy, controller, collection incl. receiver-less `suppliers.…`, association macros,
+`default_supplier`, `supplier_id`) outside an explicit Inventory & Purchasing allow-list and the two shape-pinned
+exceptions; rejects supplier writes outside the domain; checks Organization & Access, Workforce, Attendance & Payroll,
+Finance & Sales and Reporting code one by one; keeps the allow-list tight; and checks the permission entry and the
+`Business` inverse association. Route helpers, i18n keys, the permission name and comments are not flagged.
+
+**Planted probes:** stubbed self-tests (a supplier read in each of the five domains; a supplier write; a widened
+`Business` exception; harmless references not flagged; the internal Product / PurchaseRequest / GoodsReceipt
+relationships). On disk, supplier reads added to real files of each other domain, a `Supplier.create!` in Finance and a
+receiver-less `suppliers.destroy_all` in `Business` failed seven rules as expected; reverted, green. (The probe exposed
+that a receiver-less `suppliers.…` call was not matched; the pattern was widened before commit.)
+
+**Production code:** none changed in M6. The six security fixes stay intact (their regression specs pass).
+
+**Verification (seed 20261006):** boundary spec 19 / 0; M1 characterization 42 / 0 and the 26 Pilot 6 security
+regression examples 26 / 0 (also seeds 12345 / 98765); full Pilot 6 set **851 / 0**; architecture + security + API
+security (now incl. the boundary spec) **450 / 0**; `zeitwerk:check`, RuboCop and `git diff --check` clean. P6-D1 stays
+pinned; the barcode baseline IDs are untouched.
+
+**M7 readiness — NEEDED** (read-only review at M6; approved and executed in §21.7). The smallest sensible move is `Supplier` alone:
+`app/models/supplier.rb` → `app/models/inventory_purchasing/supplier.rb` (byte-identical), with a new one-line collapse
+initializer `config/initializers/inventory_purchasing_autoload.rb` (the first Inventory & Purchasing model folder —
+approval needed before it is written), a location spec, and the one allow-list path in the boundary spec. The constant
+stays top-level `Supplier` (62 code references unchanged), the table stays `suppliers`, associations resolve by name
+(`Product#default_supplier` uses `class_name: "Supplier"`), and nothing references the model file path. No
+`InventoryPurchasing` constant exists, and the collapse avoids clashing with the `Inventory::` controller / service
+namespace. `Product`, `PurchaseRequest` and `GoodsReceipt` should stay where they are: they are not this pilot's scope
+and carry their own cross-domain edges (receipt / advance settlement with Finance & Sales) for later pilots.
+
+### 21.7 M7 — physical move (`3348fbf`)
+
+* `git mv app/models/supplier.rb app/models/inventory_purchasing/supplier.rb` — recorded as a 100 % rename, SHA-256
+  identical. The new one-line `config/initializers/inventory_purchasing_autoload.rb` (approved; the first Inventory &
+  Purchasing model folder, the Workforce pattern) collapses the folder: the constant stays top-level `Supplier` (no
+  `InventoryPurchasing::Supplier`, no clash with the `Inventory::` controller / service namespace), the table stays
+  `suppliers`, and every association resolves the same class. No caller changed.
+* `spec/architecture/inventory_purchasing_supplier_model_location_spec.rb` (6): location, no top-level file, table, no
+  namespace / `Inventory::` untouched, associations (`Business#suppliers`, `Product#default_supplier`,
+  `PurchaseRequest#supplier`, `GoodsReceipt#supplier`, `Supplier#business`, `#goods_receipts`), basic behaviour.
+* Only the paths followed the move: the M6 boundary spec's allow-list entry and ownership check, and the M1 structure
+  check (`supplier_purchasing_spec`).
+* **Why M7 was needed:** `Supplier` is the first Inventory & Purchasing model given its domain folder, matching
+  Organization & Access, Workforce, Attendance & Payroll and Finance & Sales; the top-level constant made it a pure
+  physical move. `Product`, `PurchaseRequest` and `GoodsReceipt` were intentionally **not** moved: they are outside
+  this pilot and carry their own concerns (receipt / advance settlement with Finance & Sales) for later pilots.
+
+### 21.8 M8 — close-out — Pilot 6 COMPLETE
+
+| Step | Result |
+|---|---|
+| M0 | COMPLETE — ownership, dependencies, security probes, baseline (§21.1) |
+| Security unblock | COMPLETE — SEC-P6-1 – SEC-P6-6 (§21.2) |
+| M1 | COMPLETE — `bfbb88b`, 42 characterization examples (§21.3) |
+| M2 – M5 | NOT NEEDED (§21.5) |
+| M6 | COMPLETE — `b34d959`, boundary spec (§21.6) |
+| M7 | COMPLETE — `3348fbf`, `Supplier` into `app/models/inventory_purchasing/` (§21.7) |
+| M8 | COMPLETE — this close-out |
+
+**Final architecture.** Inventory & Purchasing owns `Supplier` (`app/models/inventory_purchasing/supplier.rb`,
+top-level constant `Supplier`, table `suppliers`, collapsed by `inventory_purchasing_autoload.rb`). Its consumers —
+`Product`, `PurchaseRequest`, `GoodsReceipt`, `SupplierPolicy`, the inventory controllers, services and reports — are
+all Inventory & Purchasing concerns. There is no meaningful cross-domain Supplier caller. The intentional external
+references are: `Business#suppliers` (Organization & Access lifecycle / inverse association), the workspace navigation
+entry (UI composition) and the `manage_suppliers` permission (authorization metadata) — enforced by the M6 boundary
+spec.
+
+**Why M2 – M5 were not needed:** no meaningful cross-domain Supplier caller, no Supplier cycle, no cross-domain
+Supplier write, no useful contract boundary, and the business logic was already owned by Inventory & Purchasing.
+
+**Security — all six findings resolved** (regression specs in `spec/requests/security/`, each failing on the previous
+code): SEC-P6-1 goods receipt → supplier isolation `7f4f893`; SEC-P6-2 product → default supplier `7d62798`; SEC-P6-3
+supplier receipt summary scoped by `GoodsReceiptPolicy::Scope` `2b69891`; SEC-P6-4 product → brand `4c021d6`;
+SEC-P6-5 product → product category `a690d7e`; **SEC-P6-6 product → parent product `35fb7d5` — the High case**,
+because the old behaviour wrote into another business's product (`force_non_tracking!` switched off its stock
+tracking).
+
+**Known correctness debt — P6-D1 (NON-BLOCKING, pinned, not fixed):** deleting a supplier referenced by a product's
+`default_supplier` or by a purchase request's `supplier` raises `ActiveRecord::InvalidForeignKey` and surfaces as a 500.
+Pinned by two examples in `supplier_admin_spec.rb`; left for a future decision.
+
+**Flaky test — TD-P6-1 (unrelated to Pilot 6; spec unchanged):** `spec/requests/inventory/goods_receipt_settlements_spec.rb:63`
+failed once in a full Pilot 6 run during M7; the immediate same-seed re-run passed (851 / 0), it passed 6 / 6 in
+isolation and 3 / 3 by file, and it passed in the M8 run. It asserts users' full names in the rendered HTML — the
+Faker-apostrophe pattern of TD-OA1 / TD-FIN1 / TD-FIN2. Pilot 6 did not modify that spec or the receipt-settlement code.
+Not a Pilot 6 regression.
+
+**Pre-existing baseline (not Pilot 6):** `barcode_labels_spec.rb:36` and `products_barcode_spec.rb:50` fail on `main`
+too (listed in `permission-role-baseline-failures.txt`); untouched.
+
+**Final verification (on `3348fbf`, seed 20261006):**
+
+| Run | Result |
+|---|---|
+| Full Pilot 6 focused set | **851 / 0** |
+| M1 characterization / security regressions / M6 boundary / M7 location | 42 / 0, 26 / 0, 19 / 0, 6 / 0 — each also with seeds 12345 and 98765 |
+| Architecture + security + API security | **456 / 0** (450 + the 6 location examples) |
+
+`zeitwerk:check`, RuboCop and `git diff --check` clean. `module-boundaries.md` status header synced (Inventory &
+Purchasing partially migrated).
+
+**Pilot 6 (Inventory & Purchasing — Supplier) is COMPLETE.** Nothing pushed or merged; `main` stays at `3be2816`.
+
+### 21.9 Next-pilot recommendation (not started)
+
+Before another pilot: open the PR integrating Pilots 5 and 6 (and their security fixes) into `main`, and consider the
+CI repair (the workflow still runs no RSpec). Then the strongest candidate is **Inventory & Purchasing — product
+catalogue (`Brand`, `ProductCategory`)**, fast-track: the domain folder and collapse now exist, Pilot 6 already
+characterized and isolated `Product`'s references to both, and both are business-scoped with `restrict_with_error` on
+products. A fresh M0 must classify the few references outside `inventory/` (the workspace navigation, and possible name
+matches in `finance/daily_reconciliations_controller.rb` and `finance/reports/expense_sources.rb`) and probe their admin
+screens. The higher-value, higher-risk alternatives remain the Workforce ↔ Attendance & Payroll request cycle
+(Advances) and the Inventory & Purchasing ↔ Finance & Sales settlement cycle.

@@ -1,7 +1,8 @@
 # Single authoritative resolver for "which employees can this user access?"
 #
 # Branch membership is shift-driven: an employee belongs to a branch while they
-# hold an active ShiftAssignment to it (see BranchMembership). Management is the
+# hold an active ShiftAssignment to it. It is Workforce data, read only through
+# the OrganizationAccess::MembershipProvider contract. Management is the
 # branch's branch_manager_id / area_manager_id. There is no direct
 # employee→manager ownership and no UserBranch membership.
 #
@@ -124,13 +125,13 @@ class EmployeeScope
     base
   end
 
-  # Employees (excluding self) currently assigned to any of `branch_ids` via an
-  # active ShiftAssignment. The single shift-driven membership primitive every
-  # scope is built on.
+  # Employees (excluding self) currently belonging to any of `branch_ids`. The
+  # single membership primitive every scope is built on; the member ids come from
+  # the OrganizationAccess::MembershipProvider contract as a subquery.
   def members_in(branch_ids)
     ids = branch_ids.uniq
     return User.none unless ids.any?
 
-    base.where(User.arel_table[:id].in(BranchMembership.current_member_ids(ids).arel))
+    base.where(User.arel_table[:id].in(OrganizationAccess::MembershipProvider.current_member_ids(ids).arel))
   end
 end

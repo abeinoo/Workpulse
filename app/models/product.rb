@@ -49,8 +49,15 @@ class Product < ApplicationRecord
   # in this one unit; never mix e.g. kg and g on the same product.
   UNITS_OF_MEASURE = %w[pieces kg g l ml].freeze
   validates :unit_of_measure, inclusion: { in: UNITS_OF_MEASURE }
+  # Validations run before every save callback, so a refused cross-business
+  # parent never reaches propagate_non_tracking_to_parent (after_save →
+  # parent_product.force_non_tracking!) — SEC-P6-6.
+  validate :parent_product_in_same_business, if: :parent_product_id?
   validate :parent_depth_constraint, if: :parent_product_id?
   validate :not_own_parent,          if: :parent_product_id?
+  validate :default_supplier_in_same_business, if: :default_supplier_id?
+  validate :brand_in_same_business,            if: :brand_id?
+  validate :product_category_in_same_business, if: :product_category_id?
 
   # Parent must not itself be a child — enforces max depth = 1.
   def parent_depth_constraint
@@ -62,6 +69,35 @@ class Product < ApplicationRecord
 
   def not_own_parent
     errors.add(:parent_product_id, :circular) if parent_product_id == id
+  end
+
+  # The parent must belong to the product's business (SEC-P6-6).
+  def parent_product_in_same_business
+    return if parent_product.nil? || business_id.nil?
+
+    errors.add(:parent_product, :invalid) if parent_product.business_id != business_id
+  end
+
+  # The default supplier must belong to the product's business (SEC-P6-2) —
+  # the PurchaseRequest / GoodsReceipt supplier_in_same_business rule.
+  def default_supplier_in_same_business
+    return if default_supplier.nil? || business_id.nil?
+
+    errors.add(:default_supplier, :invalid) if default_supplier.business_id != business_id
+  end
+
+  # The brand must belong to the product's business (SEC-P6-4).
+  def brand_in_same_business
+    return if brand.nil? || business_id.nil?
+
+    errors.add(:brand, :invalid) if brand.business_id != business_id
+  end
+
+  # The category must belong to the product's business (SEC-P6-5).
+  def product_category_in_same_business
+    return if product_category.nil? || business_id.nil?
+
+    errors.add(:product_category, :invalid) if product_category.business_id != business_id
   end
 
   # Force parent products to non-tracking before every save.

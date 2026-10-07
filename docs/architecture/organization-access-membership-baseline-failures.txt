@@ -1,0 +1,129 @@
+# Pilot 5 (Organization & Access ↔ Workforce membership contract) — M0 baseline failing example IDs
+# Purpose: the reference list for every Pilot 5 step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs elsewhere keep their treatment.
+# Recorded at 3be2816 (main) on feature/pilot-5-membership-contract, 2026-10-07, no code changes, seed 20261006.
+# Set: 80 spec files (scope / membership / policy / security / API security / Organization & Access
+#   characterization / architecture specs, plus scope-dependent request specs). Reproduce with:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/organization-access-membership-baseline-failures.txt | cut -d' ' -f3)
+# Result at M0: 1555 examples, 33 failures, 0 pending. All 33 IDs are in a documented baseline file and also fail
+#   on main: payroll_waive_scope_spec x17 (AP-D2: PayrollLineItemPolicy#waive? undefined), payroll_visibility_spec x9
+#   (response shape: nil data / malformed CSV, not scope semantics), operations_dashboard_policy_spec:15/16/17,
+#   dashboard_spec:432/460, payroll_period_policy_spec:217, expense_policy_spec:54.
+# Used: M1 (this set + the 3 new spec/characterization/organization_access/*membership* files): 1606 examples,
+#   the same 33 failures, 0 pending.
+#
+rspec ./spec/policies/expense_policy_spec.rb:54
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:15
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:16
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:17
+rspec ./spec/policies/payroll_period_policy_spec.rb:217
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:110
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:118
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:125
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:131
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:164
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:170
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:175
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:181
+rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:186
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:100
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:115
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:130
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:142
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:150
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:155
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:169
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:174
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:187
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:206
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:211
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:216
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:231
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:268
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:73
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:79
+rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:88
+rspec ./spec/requests/dashboard_spec.rb:432
+rspec ./spec/requests/dashboard_spec.rb:460
+#
+# set spec/architecture/attendance_payroll_biometric_boundary_spec.rb
+# set spec/architecture/attendance_payroll_model_location_spec.rb
+# set spec/architecture/attendance_payroll_obligation_boundary_spec.rb
+# set spec/architecture/attendance_payroll_obligation_model_location_spec.rb
+# set spec/architecture/attendance_payroll_penalty_rule_boundary_spec.rb
+# set spec/architecture/attendance_payroll_penalty_rule_model_location_spec.rb
+# set spec/architecture/finance_sales_expense_boundary_spec.rb
+# set spec/architecture/finance_sales_expense_model_location_spec.rb
+# set spec/architecture/permission_role_boundary_spec.rb
+# set spec/architecture/permission_role_location_spec.rb
+# set spec/architecture/workforce_catalog_boundary_spec.rb
+# set spec/architecture/workforce_model_location_spec.rb
+# set spec/characterization/organization_access/access_contracts_spec.rb
+# set spec/characterization/organization_access/account_management_spec.rb
+# set spec/characterization/organization_access/api_session_permissions_spec.rb
+# set spec/characterization/organization_access/branches_and_settings_spec.rb
+# set spec/characterization/organization_access/effective_permissions_spec.rb
+# set spec/characterization/organization_access/permission_grants_spec.rb
+# set spec/characterization/organization_access/permission_groups_spec.rb
+# set spec/characterization/organization_access/permission_roles_spec.rb
+# set spec/characterization/organization_access/web_session_spec.rb
+# set spec/models/permission_role_spec.rb
+# set spec/policies/attendance_record_policy_spec.rb
+# set spec/policies/bank_dispute_policy_spec.rb
+# set spec/policies/branch_policy_spec.rb
+# set spec/policies/daily_reconciliation_policy_spec.rb
+# set spec/policies/deposit_responsibility_transfer_policy_spec.rb
+# set spec/policies/employee_data_request_policy_spec.rb
+# set spec/policies/employee_insurance_profile_policy_spec.rb
+# set spec/policies/employee_obligation_policy_spec.rb
+# set spec/policies/employee_request_policy_spec.rb
+# set spec/policies/expense_policy_spec.rb
+# set spec/policies/finance/dashboard_policy_spec.rb
+# set spec/policies/goods_receipt_policy_spec.rb
+# set spec/policies/goods_receipt_settlement_policy_spec.rb
+# set spec/policies/inventory_void_policy_spec.rb
+# set spec/policies/operations_dashboard_policy_spec.rb
+# set spec/policies/payroll_adjustment_policy_spec.rb
+# set spec/policies/payroll_entry_policy_spec.rb
+# set spec/policies/payroll_line_item_policy_spec.rb
+# set spec/policies/payroll_period_policy_spec.rb
+# set spec/policies/permission_role_policy_spec.rb
+# set spec/policies/purchase_request_policy_spec.rb
+# set spec/policies/salary_profile_policy_spec.rb
+# set spec/policies/shift_assignment_policy_spec.rb
+# set spec/policies/shift_rule_profile_policy_spec.rb
+# set spec/policies/shift_template_policy_spec.rb
+# set spec/policies/stock_count_policy_spec.rb
+# set spec/policies/stock_issue_policy_spec.rb
+# set spec/policies/till_deposit_policy_spec.rb
+# set spec/policies/till_handover_policy_spec.rb
+# set spec/policies/user_policy_spec.rb
+# set spec/requests/api/v1/employee_request_scope_spec.rb
+# set spec/requests/api/v1/payroll_visibility_spec.rb
+# set spec/requests/api/v1/payroll_waive_scope_spec.rb
+# set spec/requests/api/v1/security/cross_business_authorization_spec.rb
+# set spec/requests/dashboard_spec.rb
+# set spec/requests/employee_request_reviewer_visibility_spec.rb
+# set spec/requests/finance/daily_reconciliations_historical_shift_assignment_spec.rb
+# set spec/requests/finance/temporary_branch_coverage_spec.rb
+# set spec/requests/finance/temporary_coverage_full_overlap_scenario_spec.rb
+# set spec/requests/laundry/permission_scope_spec.rb
+# set spec/requests/laundry/towel_transfers_and_batches_spec.rb
+# set spec/requests/security/admin_attendance_records_authorization_spec.rb
+# set spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+# set spec/requests/security/biometric_devices_authorization_spec.rb
+# set spec/requests/security/employee_obligations_authorization_spec.rb
+# set spec/requests/security/employee_obligations_business_scope_spec.rb
+# set spec/requests/security/expense_tags_business_scope_spec.rb
+# set spec/requests/security/organization_access_scope_hierarchy_spec.rb
+# set spec/requests/security/organization_access_security_spec.rb
+# set spec/requests/security/organization_access_view_and_role_scope_spec.rb
+# set spec/requests/security/performance_cross_business_spec.rb
+# set spec/requests/security/shift_assignment_create_business_scope_spec.rb
+# set spec/requests/security/shift_assignment_resource_business_scope_spec.rb
+# set spec/requests/till_refunds_spec.rb
+# set spec/scenarios/multi_branch_payroll_cycle_spec.rb
+# set spec/services/branch_scope_spec.rb
+# set spec/services/employee_scope_spec.rb
+# set spec/services/payroll/branch_membership_shift_based_spec.rb

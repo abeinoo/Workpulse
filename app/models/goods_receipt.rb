@@ -56,6 +56,7 @@ class GoodsReceipt < ApplicationRecord
   validate  :funding_source_matches_kind
   validate  :funding_source_type_whitelisted
   validate  :purchase_request_supplier_matches
+  validate  :supplier_in_same_business
 
   scope :for_business,  ->(business)     { where(business: business) }
   scope :recent,        -> { order(received_on: :desc, id: :desc) }
@@ -143,6 +144,15 @@ class GoodsReceipt < ApplicationRecord
 
     errors.add(:supplier, :must_match_purchase_request) if supplier_id != purchase_request.supplier_id
     errors.add(:purchase_request, :invalid) if purchase_request.business_id != business_id
+  end
+
+  # The supplier must belong to the receipt's business on every path, with or
+  # without a Purchase Request (SEC-P6-1) — the PurchaseRequest rule of the
+  # same name.
+  def supplier_in_same_business
+    return if supplier.nil? || business_id.nil?
+
+    errors.add(:supplier, :invalid) if supplier.business_id != business_id
   end
 
   # has_many_attached can't use the Attachable.validates_attachment helper
