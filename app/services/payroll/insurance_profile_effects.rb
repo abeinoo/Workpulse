@@ -13,7 +13,18 @@ module Payroll
       Payroll::EntryRecalculator.recalculate_all_open_periods_for(user: user, triggered_by: actor)
     end
 
-    # The same periods profile_changed recalculates, described for the form.
+    # The same periods profile_changed recalculates, described for the form:
+    #   :none      — the employee has never appeared in any payroll period
+    #   :active    — exactly one non-finalized period (draft / under_review /
+    #                branch_review_completed) has an entry for them; finalized
+    #                history is irrelevant here
+    #   :mixed     — more than one non-finalized period at once (e.g. next
+    #                month's draft generated before this month's review
+    #                finished) — ambiguous which one to name
+    #   :finalized — every period they appear in is finalized / paid; nothing
+    #                open to reflect the change into
+    # Informational only: the insurance snapshot rule itself is
+    # Payroll::EntryCalculator#resolve_insurance_snapshot.
     def payroll_notice_for(user:)
       periods = PayrollPeriod.where(id: user.payroll_entries.select(:payroll_period_id))
       active  = periods.reject(&:locked?)

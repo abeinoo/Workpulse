@@ -10,6 +10,8 @@
 # Results: M0 (main 4655d18, 27 files + spec/architecture) 626 examples, 0 failures; after the security unblock
 #   (+ 2 files) 641 / 0, 0 pending; M1 (+ 3 files, 44 examples) 685 / 0, 0 pending.
 # Used: M2 (this set + spec/services/employee/insurance_profile_effects_spec.rb, 16): 701 / 0, 0 pending.
+# Used: M3 (+ spec/services/employee/insurance_profile_effects_routing_spec.rb, 8): 709 / 0 under seeds 20261006,
+#   12345 and 98765.
 # No failing IDs.
 #
 # set spec/architecture

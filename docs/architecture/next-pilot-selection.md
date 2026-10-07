@@ -3566,9 +3566,9 @@ synced (Inventory & Purchasing: `Supplier`, `Brand`, `ProductCategory`).
 
 ## 23. Pilot 8 — Workforce Employee Insurance Profile
 
-**Status: M2 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
-security unblock `8c0cdc8`, `d100b38`; M1 characterization `85b7966`; M2 contract (§23.6). M3 – M8 not started. No
-schema, migration, route or API change.
+**Status: M3 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
+security unblock `8c0cdc8`, `d100b38`; M1 characterization `85b7966`; M2 contract `68f6c05` (§23.6); M3 routing (§23.7).
+M4 – M8 not started. No schema, migration, route or API change.
 
 ### 23.1 M0 — selection and ownership
 
@@ -3669,9 +3669,8 @@ propagates errors; in M3 the updater calls `profile_changed` from where it calls
 existing `rescue` (same log message), so every M1 example keeps passing unchanged. The Attendance & Payroll read of the
 profile (`EntryCalculator#resolve_insurance_snapshot`, edge 3) stays as it is — the allowed direction.
 
-**Callers not changed in M2:** `Employee::InsuranceProfileUpdater` still calls `Payroll::EntryRecalculator` and the
-controller still computes the notice itself; the implementation duplicates the notice rule until M3 routes the
-controller.
+**Callers not changed in M2:** `Employee::InsuranceProfileUpdater` still called `Payroll::EntryRecalculator` and the
+controller still computed the notice itself (the implementation duplicated the notice rule) until M3 (§23.7).
 
 **Spec:** `spec/services/employee/insurance_profile_effects_spec.rb` (16) — registration (implementation registered at
 boot, incomplete handler rejected, `NotRegistered`), dispatch (user and actor passed unchanged, `nil` returned, errors
@@ -3686,3 +3685,30 @@ contract + M1 under seeds 12345 / 98765 60 / 0. `zeitwerk:check`, RuboCop and `g
 
 **M3 (next, not started):** route `Employee::InsuranceProfileUpdater#recalculate_open_periods` and
 `Admin::EmployeeInsuranceProfilesController#set_payroll_notice` through the contract; no behaviour change.
+
+### 23.7 M3 — routing the two Workforce callers
+
+| Caller | Before | After |
+|---|---|---|
+| `Employee::InsuranceProfileUpdater#recalculate_open_periods` | `Payroll::EntryRecalculator.recalculate_all_open_periods_for(user:, triggered_by: @actor)` | `Employee::InsuranceProfileEffects.profile_changed(user:, actor: @actor)` — same place (after the transaction), same `rescue` and log message |
+| `Admin::EmployeeInsuranceProfilesController#set_payroll_notice` | `PayrollPeriod` / `@employee.payroll_entries` / `locked?` rule inline | `@payroll_insurance_notice = Employee::InsuranceProfileEffects.payroll_notice_for(user: @employee)` |
+
+Neither file names `Payroll::`, `PayrollPeriod`, `PayrollEntry`, `payroll_entries` or `EntryRecalculator` any more; the
+notice rule (and its explanation) lives only in `Payroll::InsuranceProfileEffects`. Edge 1 and edge 2 of §23.3 now go
+through the Workforce contract; edge 3 (`EntryCalculator` reads the profile) and the OA inverses are unchanged.
+Contract, authorization, audit, `EntryCalculator`, routes and schema unchanged.
+
+**Spec:** `spec/services/employee/insurance_profile_effects_routing_spec.rb` (8; 6 fail on the pre-M3 callers) — a
+successful save calls `profile_changed` once with the employee and actor after the profile and audit are committed
+(no transaction open beyond the test's own); through the registered implementation the recalculation call and
+arguments are unchanged; a failed save never calls it; a raising handler (and `NotRegistered`) is rescued with the
+same log line, profile and audit kept, `ok: true`; the edit form and the re-rendered update form render whatever notice
+the contract returns, for the edited employee; neither caller names Attendance & Payroll.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** Pilot 8 set + contract + routing 709 / 0 (701 + 8); M1
+characterization 44 / 0; contract + routing 24 / 0; `spec/requests/security` 263 / 0 (SEC-P8-1 / SEC-P8-2 unchanged);
+`spec/architecture` 226 / 0; Pilot 4 / Milestone 2 contract specs 47 / 0. `zeitwerk:check`, RuboCop and
+`git diff --check` clean.
+
+**Next:** M4 / M5 not needed (the payroll logic already lives in Attendance & Payroll; the updater is already a
+service). M6 boundary enforcement is ready.

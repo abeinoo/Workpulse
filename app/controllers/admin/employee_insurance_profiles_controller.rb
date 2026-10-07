@@ -36,33 +36,11 @@ class Admin::EmployeeInsuranceProfilesController < Admin::BaseController
   end
 
   # Which payroll periods this edit could affect, so the view can show a
-  # context-aware notice instead of a static hint. Read-only — does not
-  # change what payroll actually does with the insurance snapshot (see
-  # Payroll::EntryCalculator#resolve_insurance_snapshot for the real rule).
-  #
-  #   :none     — employee has never appeared in any payroll period
-  #   :active   — exactly one non-finalized period (draft/under_review/
-  #               branch_review_completed) has an entry for them; any
-  #               already-finalized history is irrelevant noise
-  #   :finalized — every period they appear in is finalized/paid; nothing
-  #               currently open to reflect the change into
-  #   :mixed    — more than one non-finalized period exists at once
-  #               (e.g. next month's draft generated before this month's
-  #               review finished) — ambiguous which one to name specifically
+  # context-aware notice instead of a static hint. Read-only. Payroll answers
+  # through the Workforce contract Employee::InsuranceProfileEffects:
+  # :none / :active / :mixed / :finalized (see the contract for their meaning).
   def set_payroll_notice
-    periods = PayrollPeriod.where(id: @employee.payroll_entries.select(:payroll_period_id))
-    active  = periods.reject(&:locked?)
-
-    @payroll_insurance_notice =
-      if periods.none?
-        :none
-      elsif active.size > 1
-        :mixed
-      elsif active.size == 1
-        :active
-      else
-        :finalized
-      end
+    @payroll_insurance_notice = Employee::InsuranceProfileEffects.payroll_notice_for(user: @employee)
   end
 
   def profile_params

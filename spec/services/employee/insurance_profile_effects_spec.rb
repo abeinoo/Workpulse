@@ -3,9 +3,9 @@ require "rails_helper"
 # Pilot 8 — Employee Insurance Profile, M2: the Workforce contract
 # Employee::InsuranceProfileEffects and its Attendance & Payroll implementation
 # Payroll::InsuranceProfileEffects. Employee::InsuranceProfileUpdater and
-# Admin::EmployeeInsuranceProfilesController are routed through the contract in
-# M3; until then they keep their direct calls, and the behaviour stays pinned by
-# spec/characterization/workforce/employee_insurance_profile_*_spec.rb.
+# Admin::EmployeeInsuranceProfilesController are routed through the contract
+# since M3 (insurance_profile_effects_routing_spec.rb); the behaviour stays
+# pinned by spec/characterization/workforce/employee_insurance_*_spec.rb.
 RSpec.describe Employee::InsuranceProfileEffects do
   let(:business) { create(:business) }
   let(:employee) { create(:user, business: business) }
@@ -124,7 +124,7 @@ RSpec.describe Employee::InsuranceProfileEffects do
     end
   end
 
-  describe "parity with the current edit-form notice (the controller is routed in M3)", type: :request do
+  describe "parity with the edit-form notice", type: :request do
     it "the contract and the edit form agree in every state" do
       sign_in create(:user, :owner, business: business)
       states = {
