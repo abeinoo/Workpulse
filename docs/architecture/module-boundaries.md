@@ -17,7 +17,10 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
   contract) and `Attendance::ShiftPenaltyRules` (implementation of the WF `Shifts::PenaltyRuleSettings` contract).
 * **Finance & Sales is partially migrated (Milestone 2):** the Expenses group (`app/models/finance_sales/`), with a
   boundary spec; it implements `Payroll::FinalizationEffects` (`Finance::PayrollFinalizationEffects`).
-* **Inventory & Purchasing and Reporting are not yet migrated.**
+* **Inventory & Purchasing is partially migrated (Pilot 6):** `Supplier` lives in the collapsed
+  `app/models/inventory_purchasing/` (top-level constant unchanged), with a boundary spec; see
+  `next-pilot-selection.md` §21.
+* **Reporting is not yet migrated.**
 * The cross-domain violations recorded in §12.2 remain until their owning steps; those resolved in Milestone 2 are
   marked there and in §14.2.
 

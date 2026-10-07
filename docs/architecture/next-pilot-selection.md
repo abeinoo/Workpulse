@@ -1642,9 +1642,9 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Pilot 5 — Organization & Access ↔ Workforce membership contract:** on `feature/pilot-5-membership-contract`
   **COMPLETE** (from `main` @ `3be2816`, not pushed): M0 done (read-only), M1 `114f771`, M2 `69031c1`, M3 `5d6b454`,
   M4 / M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs (§20.6).
-* **Pilot 6 — Inventory & Purchasing Supplier:** on the same branch (on top of Pilot 5, not pushed): M0 done, security
-  unblock (SEC-P6-1 – SEC-P6-6 fixed), M1 `bfbb88b`, M2 – M5 not needed, **M6 COMPLETE** (§21.6); M7 recommended
-  (needs approval of a new collapse initializer); M8 not started.
+* **Pilot 6 — Inventory & Purchasing Supplier:** **COMPLETE** on the same branch (on top of Pilot 5, not pushed): M0,
+  security unblock (SEC-P6-1 – SEC-P6-6 fixed), M1 `bfbb88b`, M2 – M5 not needed, M6 `b34d959`, M7 `3348fbf`, M8 docs
+  (§21.8). No next pilot started.
 * **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
@@ -3106,16 +3106,16 @@ Inventory & Purchasing ↔ Finance & Sales settlement cycle. Before selecting it
 security probes of the supplier screens, a check of how purchase requests and goods receipts depend on suppliers, and
 a focused baseline committed with its set. Integrating Pilot 5 into `main` (PR) should come first.
 
-## 21. Pilot 6 — Inventory & Purchasing Supplier: M0, security unblock, M1 and M6
+## 21. Pilot 6 — Inventory & Purchasing Supplier
 
-**Status:** M0 COMPLETE (read-only, at `7f4f422`); security unblock COMPLETE (six `fix:` commits); M1 COMPLETE
-(`bfbb88b`); M2 – M5 NOT NEEDED; **M6 COMPLETE** (§21.6); M7 recommended, not started (§21.6); M8 not started. All on
-`feature/pilot-5-membership-contract`, on top of Pilot 5, not pushed or merged. No schema, migration, route or API
-change.
+**Status: COMPLETE** (close-out §21.8): M0 (read-only, at `7f4f422`), security unblock (six `fix:` commits), M1
+`bfbb88b`, M2 – M5 not needed, M6 `b34d959`, M7 `3348fbf`, M8 docs. All on `feature/pilot-5-membership-contract`, on
+top of Pilot 5, not pushed or merged. No schema, migration, route or API change.
 
 ### 21.1 M0 — ownership and dependencies
 
-* **Ownership confirmed: Inventory & Purchasing.** `Supplier` (`app/models/supplier.rb`, table `suppliers`):
+* **Ownership confirmed: Inventory & Purchasing.** `Supplier` (`app/models/supplier.rb` at M0 — moved in M7 to
+  `app/models/inventory_purchasing/supplier.rb`, §21.7; table `suppliers`):
   `belongs_to :business`, `has_many :goods_receipts, dependent: :restrict_with_error`; name / mobile / coordinate
   validations; no `active` / archive or soft-delete column. Administered by `Inventory::SuppliersController` (full CRUD)
   behind the inventory gate and `SupplierPolicy` (read: `view_inventory` / `manage_inventory`; write:
@@ -3227,7 +3227,7 @@ regression examples 26 / 0 (also seeds 12345 / 98765); full Pilot 6 set **851 / 
 security (now incl. the boundary spec) **450 / 0**; `zeitwerk:check`, RuboCop and `git diff --check` clean. P6-D1 stays
 pinned; the barcode baseline IDs are untouched.
 
-**M7 readiness — recommended NEEDED (read-only; not executed).** The smallest sensible move is `Supplier` alone:
+**M7 readiness — NEEDED** (read-only review at M6; approved and executed in §21.7). The smallest sensible move is `Supplier` alone:
 `app/models/supplier.rb` → `app/models/inventory_purchasing/supplier.rb` (byte-identical), with a new one-line collapse
 initializer `config/initializers/inventory_purchasing_autoload.rb` (the first Inventory & Purchasing model folder —
 approval needed before it is written), a location spec, and the one allow-list path in the boundary spec. The constant
@@ -3236,3 +3236,87 @@ stays top-level `Supplier` (62 code references unchanged), the table stays `supp
 `InventoryPurchasing` constant exists, and the collapse avoids clashing with the `Inventory::` controller / service
 namespace. `Product`, `PurchaseRequest` and `GoodsReceipt` should stay where they are: they are not this pilot's scope
 and carry their own cross-domain edges (receipt / advance settlement with Finance & Sales) for later pilots.
+
+### 21.7 M7 — physical move (`3348fbf`)
+
+* `git mv app/models/supplier.rb app/models/inventory_purchasing/supplier.rb` — recorded as a 100 % rename, SHA-256
+  identical. The new one-line `config/initializers/inventory_purchasing_autoload.rb` (approved; the first Inventory &
+  Purchasing model folder, the Workforce pattern) collapses the folder: the constant stays top-level `Supplier` (no
+  `InventoryPurchasing::Supplier`, no clash with the `Inventory::` controller / service namespace), the table stays
+  `suppliers`, and every association resolves the same class. No caller changed.
+* `spec/architecture/inventory_purchasing_supplier_model_location_spec.rb` (6): location, no top-level file, table, no
+  namespace / `Inventory::` untouched, associations (`Business#suppliers`, `Product#default_supplier`,
+  `PurchaseRequest#supplier`, `GoodsReceipt#supplier`, `Supplier#business`, `#goods_receipts`), basic behaviour.
+* Only the paths followed the move: the M6 boundary spec's allow-list entry and ownership check, and the M1 structure
+  check (`supplier_purchasing_spec`).
+* **Why M7 was needed:** `Supplier` is the first Inventory & Purchasing model given its domain folder, matching
+  Organization & Access, Workforce, Attendance & Payroll and Finance & Sales; the top-level constant made it a pure
+  physical move. `Product`, `PurchaseRequest` and `GoodsReceipt` were intentionally **not** moved: they are outside
+  this pilot and carry their own concerns (receipt / advance settlement with Finance & Sales) for later pilots.
+
+### 21.8 M8 — close-out — Pilot 6 COMPLETE
+
+| Step | Result |
+|---|---|
+| M0 | COMPLETE — ownership, dependencies, security probes, baseline (§21.1) |
+| Security unblock | COMPLETE — SEC-P6-1 – SEC-P6-6 (§21.2) |
+| M1 | COMPLETE — `bfbb88b`, 42 characterization examples (§21.3) |
+| M2 – M5 | NOT NEEDED (§21.5) |
+| M6 | COMPLETE — `b34d959`, boundary spec (§21.6) |
+| M7 | COMPLETE — `3348fbf`, `Supplier` into `app/models/inventory_purchasing/` (§21.7) |
+| M8 | COMPLETE — this close-out |
+
+**Final architecture.** Inventory & Purchasing owns `Supplier` (`app/models/inventory_purchasing/supplier.rb`,
+top-level constant `Supplier`, table `suppliers`, collapsed by `inventory_purchasing_autoload.rb`). Its consumers —
+`Product`, `PurchaseRequest`, `GoodsReceipt`, `SupplierPolicy`, the inventory controllers, services and reports — are
+all Inventory & Purchasing concerns. There is no meaningful cross-domain Supplier caller. The intentional external
+references are: `Business#suppliers` (Organization & Access lifecycle / inverse association), the workspace navigation
+entry (UI composition) and the `manage_suppliers` permission (authorization metadata) — enforced by the M6 boundary
+spec.
+
+**Why M2 – M5 were not needed:** no meaningful cross-domain Supplier caller, no Supplier cycle, no cross-domain
+Supplier write, no useful contract boundary, and the business logic was already owned by Inventory & Purchasing.
+
+**Security — all six findings resolved** (regression specs in `spec/requests/security/`, each failing on the previous
+code): SEC-P6-1 goods receipt → supplier isolation `7f4f893`; SEC-P6-2 product → default supplier `7d62798`; SEC-P6-3
+supplier receipt summary scoped by `GoodsReceiptPolicy::Scope` `2b69891`; SEC-P6-4 product → brand `4c021d6`;
+SEC-P6-5 product → product category `a690d7e`; **SEC-P6-6 product → parent product `35fb7d5` — the High case**,
+because the old behaviour wrote into another business's product (`force_non_tracking!` switched off its stock
+tracking).
+
+**Known correctness debt — P6-D1 (NON-BLOCKING, pinned, not fixed):** deleting a supplier referenced by a product's
+`default_supplier` or by a purchase request's `supplier` raises `ActiveRecord::InvalidForeignKey` and surfaces as a 500.
+Pinned by two examples in `supplier_admin_spec.rb`; left for a future decision.
+
+**Flaky test — TD-P6-1 (unrelated to Pilot 6; spec unchanged):** `spec/requests/inventory/goods_receipt_settlements_spec.rb:63`
+failed once in a full Pilot 6 run during M7; the immediate same-seed re-run passed (851 / 0), it passed 6 / 6 in
+isolation and 3 / 3 by file, and it passed in the M8 run. It asserts users' full names in the rendered HTML — the
+Faker-apostrophe pattern of TD-OA1 / TD-FIN1 / TD-FIN2. Pilot 6 did not modify that spec or the receipt-settlement code.
+Not a Pilot 6 regression.
+
+**Pre-existing baseline (not Pilot 6):** `barcode_labels_spec.rb:36` and `products_barcode_spec.rb:50` fail on `main`
+too (listed in `permission-role-baseline-failures.txt`); untouched.
+
+**Final verification (on `3348fbf`, seed 20261006):**
+
+| Run | Result |
+|---|---|
+| Full Pilot 6 focused set | **851 / 0** |
+| M1 characterization / security regressions / M6 boundary / M7 location | 42 / 0, 26 / 0, 19 / 0, 6 / 0 — each also with seeds 12345 and 98765 |
+| Architecture + security + API security | **456 / 0** (450 + the 6 location examples) |
+
+`zeitwerk:check`, RuboCop and `git diff --check` clean. `module-boundaries.md` status header synced (Inventory &
+Purchasing partially migrated).
+
+**Pilot 6 (Inventory & Purchasing — Supplier) is COMPLETE.** Nothing pushed or merged; `main` stays at `3be2816`.
+
+### 21.9 Next-pilot recommendation (not started)
+
+Before another pilot: open the PR integrating Pilots 5 and 6 (and their security fixes) into `main`, and consider the
+CI repair (the workflow still runs no RSpec). Then the strongest candidate is **Inventory & Purchasing — product
+catalogue (`Brand`, `ProductCategory`)**, fast-track: the domain folder and collapse now exist, Pilot 6 already
+characterized and isolated `Product`'s references to both, and both are business-scoped with `restrict_with_error` on
+products. A fresh M0 must classify the few references outside `inventory/` (the workspace navigation, and possible name
+matches in `finance/daily_reconciliations_controller.rb` and `finance/reports/expense_sources.rb`) and probe their admin
+screens. The higher-value, higher-risk alternatives remain the Workforce ↔ Attendance & Payroll request cycle
+(Advances) and the Inventory & Purchasing ↔ Finance & Sales settlement cycle.
