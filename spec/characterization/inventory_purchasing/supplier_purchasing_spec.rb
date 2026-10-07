@@ -112,7 +112,7 @@ RSpec.describe "Characterization: Supplier in purchasing" do
       expect(Supplier.reflect_on_all_associations.map(&:name)).to contain_exactly(:business, :goods_receipts)
       expect(Supplier.reflect_on_association(:goods_receipts).options).to include(dependent: :restrict_with_error)
 
-      code = File.read(Rails.root.join("app/models/supplier.rb"))
+      code = File.read(Rails.root.join("app/models/inventory_purchasing/supplier.rb"))
       expect(code).not_to match(/\b(?:before|after|around)_\w+/)
       expect(code.scan(/^\s*def (\w+\??)/).flatten).to eq([ "map_location?" ])
     end

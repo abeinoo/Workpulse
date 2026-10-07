@@ -50,7 +50,7 @@ module ArchitectureSpecs
     ].freeze
 
     INVENTORY_PURCHASING_FILES = {
-      "app/models/supplier.rb"         => "the model itself",
+      "app/models/inventory_purchasing/supplier.rb" => "the model itself (folder collapsed: top-level constant, M7)",
       "app/models/product.rb"          => "IP: default supplier (same-business validated, SEC-P6-2)",
       "app/models/purchase_request.rb" => "IP: purchase requests own supplier selection",
       "app/models/goods_receipt.rb"    => "IP: receipts reference the supplier (same-business validated, SEC-P6-1)",
@@ -137,7 +137,7 @@ RSpec.describe "Architecture: Inventory & Purchasing Supplier boundary" do
 
   it "Supplier ownership is explicit: model, policy and controller live in Inventory & Purchasing" do
     expect(Supplier.name).to eq("Supplier") # resolving the constant triggers the autoload
-    expect(Object.const_source_location("Supplier").first).to eq(Rails.root.join("app/models/supplier.rb").to_s)
+    expect(Object.const_source_location("Supplier").first).to eq(Rails.root.join("app/models/inventory_purchasing/supplier.rb").to_s)
     expect(Inventory::SuppliersController.ancestors).to include(Inventory::BaseController)
     expect(Pundit::PolicyFinder.new(Supplier).policy).to eq(SupplierPolicy)
   end
