@@ -26,9 +26,13 @@ class Admin::EmployeeInsuranceProfilesController < Admin::BaseController
     @employee = current_user.business.users.find(params[:user_id])
   end
 
+  # A standalone unsaved profile, never @employee.build_employee_insurance_profile:
+  # User has_one :employee_insurance_profile, dependent: :destroy, so building
+  # through the association deletes an existing profile the policy scope did
+  # not return — before authorization runs (SEC-P8-1).
   def set_profile
     @profile = policy_scope(EmployeeInsuranceProfile).find_by(user: @employee) ||
-               @employee.build_employee_insurance_profile(business: @employee.business)
+               EmployeeInsuranceProfile.new(user: @employee, business: @employee.business)
   end
 
   # Which payroll periods this edit could affect, so the view can show a
