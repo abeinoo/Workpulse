@@ -1638,7 +1638,9 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   M6 `ddaceb1`, M7 `ee47554`, M8 docs; M5 not needed. FS-D3 open (§10).
 * **Pilot 4 — Attendance & Payroll Penalty Rules:** **COMPLETE** (§19, close-out §19.12). M0 `b73fc34`, M1 `3efb46b`,
   M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M6 `3fd9ba2`, M7 `a3b6463`, M8 `ce3ce00`; M5 not needed. P4-D1 open
-  (§19.11). No next pilot selected.
+  (§19.11).
+* **Pilot 5 — Organization & Access ↔ Workforce membership contract:** M0 done (read-only, recorded here), **M1
+  done** on `feature/pilot-5-membership-contract` (from `main` @ `3be2816`); M2 not started (§20).
 * **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
@@ -2870,3 +2872,66 @@ failure ID with the `main` @ `c054fa3` run of §18.9 (`main` has not moved since
   `spec/services/shifts/penalty_rule_settings_spec.rb` still describes the M2 delegating implementation (a spec
   file; not changed in docs-only cleanups). `module-boundaries.md` and the stale status lines here were synchronised
   with Pilots 3–4 in the docs-only consistency cleanup that follows this gate.
+
+## 20. Pilot 5 — Organization & Access ↔ Workforce membership contract: M0–M1
+
+**Status:** M0 (read-only, at `3be2816`) and **M1 (characterization)** done on `feature/pilot-5-membership-contract`.
+**M2 not started.** No production code, schema, route or API change.
+
+### 20.1 M0 summary
+
+* **Scope:** `EmployeeScope`, `BranchScope` (Organization & Access, `module-boundaries.md` §15) and `BranchMembership`
+  (Workforce; "implements OA's membership contract"). All three are top-level services in `app/services/`; none has a
+  table, association, callback or validation.
+* **The OA → WF edges (verified in code; the closeout review was half right):**
+  * `EmployeeScope#members_in` → `BranchMembership.current_member_ids` → `ShiftAssignment.user_ids_for_branches`
+    (`app/services/employee_scope.rb:134`);
+  * `BranchScope#shift_assignment_branch_ids` → `ShiftAssignment.current` **directly**, duplicating
+    `BranchMembership.current_branch_ids` (`app/services/branch_scope.rb:83`), only with `include_shift_assignments:
+    true` (Laundry / Towel policies and `Laundry::BaseController`).
+* **Callers:** `EmployeeScope` — 33 code lines (17 policies incl. `ApplicationPolicy#filter_by_data_scope`, 9
+  controllers, 1 view, `Finance::DashboardFilters`); `BranchScope` — 17 (`ApplicationPolicy` helpers, 7 policies, 7
+  controllers/services). Other `BranchMembership` callers are WF-internal or AP → WF reads. `BranchMembership.manager_ids`
+  has no caller.
+* **Out of this pilot's contract (classified, not changed):** the OA branch staff view (`admin/branches_controller`,
+  direct `ShiftAssignment`), `User#effective_shift_assignment_on` → `Shifts::AssignmentResolver` (User / Employee
+  stewardship), `User` / `Branch has_many :shift_assignments` (inverse associations).
+* **Security:** no new finding. OA-S1 – OA-S8 are fixed (OA-S8: `UserPolicy#in_management_scope?`). Business isolation
+  rests on `EmployeeScope.base` / `user.business.branches` and the OA-S7 manager validation; no open product decision
+  changes scope semantics (SEC-M2-6 / -7 and the SEC-M2-2 follow-up concern which scope particular AP consumers apply).
+* **Decision: READY FOR M1** (ownership documented; dependency real; direction documented: OA defines, WF implements —
+  `module-boundaries.md` §12.1, §4 item 14; `organization-access-migration-readiness.md` names it `MembershipProvider`).
+
+### 20.2 M1 — characterization
+
+Three new files in `spec/characterization/organization_access/` (51 examples), complementing — not repeating —
+`spec/services/employee_scope_spec.rb` (26), `spec/services/branch_scope_spec.rb` (15) and `access_contracts_spec` (16):
+
+| File | Examples | What it pins |
+|---|---|---|
+| `branch_membership_spec.rb` | 16 | `current_branch_ids` / `current_member_ids` (no direct spec existed): regular and `temporary_coverage`, several branches, expired / future, inclusive bounds, nil branch, inactive users; the **return shape** (a chainable `ShiftAssignment` relation selecting `user_id`, used as `IN (subquery)`); the primitive is **not business-scoped**; the day boundary; `manager_ids` |
+| `membership_scopes_spec.rb` | 21 | `BranchScope` shift path ≡ `BranchMembership.current_branch_ids` (branch, area expansion incl. via coverage, de-duplication with management, business isolation, default / self); `EmployeeScope` over membership (coverage, several branches, inactive, other business, working ≠ managing, no role, owner with an explicit scope); `ApplicationPolicy` helpers with every scope value, aliases, unknown / `default` fallbacks, self inclusion, opt-in shift assignments, write-scope checks |
+| `membership_scope_consumers_spec.rb` | 14 | One real `Pundit.policy_scope!` consumer per domain: `UserPolicy::Scope` (WF), `PayrollEntryPolicy::Scope` (AP), `ExpensePolicy::Scope` (FS, management only), `TowelTransferPolicy::Scope` (IP / Laundry, shift assignments) — standing in for the API scope specs that fail on `main` for unrelated reasons |
+
+**Behaviour pinned as-is (findings, not changed):**
+
+* **Day boundary:** membership uses `Date.current` of the current `Time.zone` — the business timezone inside web
+  requests (`ApplicationController#set_business_timezone`), UTC elsewhere (jobs, console) — and ignores
+  `business_day_start_hour` (not `BusinessDay.current`). A later change is a separate approved `fix:`.
+* **The membership primitive is not business-scoped:** `current_member_ids` returns any user assigned to the branch;
+  isolation comes from `EmployeeScope.base` (pinned).
+* **Coverage is membership:** a `temporary_coverage` assignment makes the covering employee visible to the covered
+  branch's managers and gives shift-assigned staff that branch (and its area) in Laundry scopes.
+* **Inactive users** are included by the primitive and the scopes; callers add `.active`.
+* **Own-record asymmetry:** `PayrollEntryPolicy::Scope` omits the viewer's own entry on the hierarchy path (no
+  configured scope) but includes it with a configured scope; `UserPolicy::Scope` includes self on both paths.
+* **Owner:** `EmployeeScope#for_scope` applies a named scope literally even for the owner; owners get `"business"`
+  from `User#scope_for`, so policies never hit that case.
+* **`BranchMembership.manager_ids`** works but has no production caller.
+
+**Verification (seed 20261006):** new specs 51 / 0 (also with seeds 12345 and 98765); focused set (80 files, recorded
+with its rerun command in `organization-access-membership-baseline-failures.txt`) + new specs: **1,606 examples, 33
+failures, 0 pending** — exactly the M0 IDs, none new, none gone. RuboCop clean on the new files.
+
+**Next (not started): M2** — an OA-defined membership contract with a WF implementation registered at boot (§20.1),
+then M3 routing of the two edges. See §20.1 for the expected path; nothing beyond M1 is implemented.
