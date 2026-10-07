@@ -1,0 +1,41 @@
+# Pilot 7 (Inventory & Purchasing — Product Catalogue: Brand, ProductCategory) — baseline failing example IDs
+# Purpose: the reference list for every Pilot 7 step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs keep their treatment: TD-P6-1
+# (spec/requests/inventory/goods_receipt_settlements_spec.rb:63, next-pilot-selection.md §21.8) may appear.
+# Recorded at 067fa00 on feature/pilot-5-membership-contract (same tree as origin/main 24f1573), 2026-10-07, before
+#   any Pilot 7 spec was added, no code changes, seed 20261006.
+# Set: 6 spec directories (Inventory & Purchasing characterization, security regressions, architecture, inventory
+#   request and service specs, policies). Reproduce with:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/inventory-purchasing-product-catalogue-baseline-failures.txt | cut -d' ' -f3)
+# Result at M0 and before M1: 2045 examples, 14 failures, 0 pending (M0's first run also had TD-P6-1; its
+#   same-seed re-run did not).
+# Used: M1 (the same directories, now including the 4 new Pilot 7 characterization files, 75 examples):
+#   2120 examples, the same 14 failures, 0 pending (one run also showed TD-P6-1 — a Faker apostrophe name,
+#   "O'Connell", HTML-escaped in the page; the same-seed re-run passed).
+# All 14 IDs fail on main too and are already documented: permission-role-baseline-failures.txt (stock_count_poster
+#   x6, barcode_labels:36, products_barcode:50, operations_dashboard_policy x3, payroll_period_policy:217,
+#   expense_policy:54); stock_issue_importer_spec:143 fails on main and is listed in next-pilot-selection.md §18.9.
+#   None touches Brand or ProductCategory.
+#
+# set spec/characterization/inventory_purchasing
+# set spec/requests/security
+# set spec/architecture
+# set spec/requests/inventory
+# set spec/services/inventory
+# set spec/policies
+#
+rspec ./spec/policies/expense_policy_spec.rb:54
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:15
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:16
+rspec ./spec/policies/operations_dashboard_policy_spec.rb:17
+rspec ./spec/policies/payroll_period_policy_spec.rb:217
+rspec ./spec/requests/inventory/barcode_labels_spec.rb:36
+rspec ./spec/requests/inventory/products_barcode_spec.rb:50
+rspec ./spec/services/inventory/imports/stock_issue_importer_spec.rb:143
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:25
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:37
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:50
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:55
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:63
+rspec ./spec/services/inventory/stock_count_poster_spec.rb:76
