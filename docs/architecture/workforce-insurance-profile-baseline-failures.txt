@@ -12,6 +12,7 @@
 # Used: M2 (this set + spec/services/employee/insurance_profile_effects_spec.rb, 16): 701 / 0, 0 pending.
 # Used: M3 (+ spec/services/employee/insurance_profile_effects_routing_spec.rb, 8): 709 / 0 under seeds 20261006,
 #   12345 and 98765.
+# Used: M6 (spec/architecture now includes the boundary spec, 22): 731 / 0 under seeds 20261006, 12345 and 98765.
 # No failing IDs.
 #
 # set spec/architecture

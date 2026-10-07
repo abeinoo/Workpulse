@@ -3566,9 +3566,10 @@ synced (Inventory & Purchasing: `Supplier`, `Brand`, `ProductCategory`).
 
 ## 23. Pilot 8 — Workforce Employee Insurance Profile
 
-**Status: M3 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
-security unblock `8c0cdc8`, `d100b38`; M1 characterization `85b7966`; M2 contract `68f6c05` (§23.6); M3 routing (§23.7).
-M4 – M8 not started. No schema, migration, route or API change.
+**Status: M6 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
+security unblock `8c0cdc8`, `d100b38`; M1 characterization `85b7966`; M2 contract `68f6c05` (§23.6); M3 routing
+`ca8a05f` (§23.7); M4 / M5 not needed; M6 boundary spec (§23.8). M7 – M8 not started. No schema, migration, route or
+API change.
 
 ### 23.1 M0 — selection and ownership
 
@@ -3712,3 +3713,42 @@ characterization 44 / 0; contract + routing 24 / 0; `spec/requests/security` 263
 
 **Next:** M4 / M5 not needed (the payroll logic already lives in Attendance & Payroll; the updater is already a
 service). M6 boundary enforcement is ready.
+
+### 23.8 M6 — Workforce employee insurance profile boundary
+
+`spec/architecture/workforce_employee_insurance_profile_boundary_spec.rb` (22 examples; the source-scanning style of the
+Pilot 4 – 7 boundary specs — comments, ERB comments and `t(...)` keys ignored):
+
+| Rule | Enforced |
+|---|---|
+| 1 | Workforce insurance-profile code — the model, `Employee::InsuranceProfileUpdater`, the contract, `Admin::EmployeeInsuranceProfilesController`, `EmployeeInsuranceProfilePolicy`, `app/views/admin/employee_insurance_profiles/`, and the Social Insurance section of `admin/users/show.html.erb` (from its `<%# Social Insurance %>` marker to the next section) — names no `Payroll::` / `Attendance::` constant (`EntryRecalculator`, the contract implementation, …), `PayrollPeriod` / `PayrollEntry` / `PayrollLineItem`, `payroll_periods` / `payroll_entries` / `payroll_line_items`, or `locked?` — the references removed in M3. `Employee::InsuranceProfileEffects` is allowed |
+| 2 | The two M3 callers call the contract exactly once each: the updater `profile_changed(`, the controller `payroll_notice_for(` |
+| 3 | `Payroll::InsuranceProfileEffects` is named only by `config/initializers/employee_insurance_profile_effects.rb` (`app/`, `lib/`, `config/` scanned) |
+| 4 | Outside Workforce, `EmployeeInsuranceProfile` / `employee_insurance_profile(s)` appears only at three exact line shapes: `business.rb` `has_many :employee_insurance_profiles, dependent: :destroy` and `user.rb` `has_one :employee_insurance_profile, dependent: :destroy` (Organization & Access lifecycle), and `payroll/entry_calculator.rb` `profile = @user.employee_insurance_profile` (the Attendance & Payroll snapshot read — the allowed direction, not a contract) |
+| 5 | Nothing outside Workforce writes the profile (class writers, `employee_insurance_profile(&).update/save/destroy/…`, collection builders, `build_employee_insurance_profile`, assignment; `profile.update/save/…` counted only in files that name the insurance profile) |
+| — | Allow-lists tight (files exist, every exception shape still matches, the card section is found); the OA associations are lifecycle-only (`dependent: :destroy`, nothing else) |
+
+Not scanned: the employee page's salary card (`SalaryProfile` — the separate, documented WF → AP salary-display edge,
+SEC-M2-5), route helpers, i18n keys, permission names, JavaScript, `config/` (other than rule 3).
+
+**Probes.** In-spec self-tests (stubbed file reads): `Payroll::EntryRecalculator`, `Payroll::InsuranceProfileEffects`,
+`PayrollPeriod`, `PayrollEntry`, `payroll_entries`, `locked?` and an `Attendance::` service planted in each caller are
+caught; a payroll query planted in the card section is caught but not in the salary section; the contract itself is
+allowed; a swapped contract operation, the implementation named elsewhere, a widened lifecycle line, a write next to the
+payroll read (incl. `&.`), and a new reference from another domain are caught; route helpers, i18n keys, comments and the
+`@payroll_insurance_notice` variable are not. **Physical probes** (temporary, removed with `git checkout` / `rm`):
+`Payroll::EntryRecalculator` appended to the updater, `PayrollPeriod` to the controller,
+`employee_insurance_profile&.update` to `user.rb`, and a Finance service naming `Payroll::InsuranceProfileEffects` — 4
+rule examples failed, each listing its probe line (the first run also exposed that `&.` writes were missed; the write
+pattern now covers them). After cleanup: 22 / 0, no probe code left.
+
+No production code changed in M6; no new dependency found. `module-boundaries.md`: §5 dependencies, §12.1 inversion
+table, §12.2 WF → AP row and §14.2 #5 record the resolved edge.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** boundary 22 / 0; Pilot 8 set + contract + routing 731 / 0
+(709 + 22); M1 44 / 0; contract + routing 24 / 0; `spec/requests/security` 263 / 0; `spec/architecture` 248 / 0 (226 + 22);
+Pilot 4 / Milestone 2 contract specs 47 / 0. `zeitwerk:check`, RuboCop, `git diff --check` clean.
+
+**M7 (next, not started):** `EmployeeInsuranceProfile` → `app/models/workforce/` (collapsed by `workforce_autoload.rb`,
+top-level constant and table unchanged); rule 1's model path and the Pilot 4 spec's `WORKFORCE_GLOBS` entry then need
+the new path.
