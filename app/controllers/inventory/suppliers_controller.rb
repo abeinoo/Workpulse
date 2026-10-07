@@ -7,7 +7,9 @@ class Inventory::SuppliersController < Inventory::BaseController
   def show
     @supplier = find_supplier
     authorize @supplier
-    @recent_receipts = @supplier.goods_receipts.recent.includes(:warehouse).limit(10)
+    # Only receipts the viewer may see — same business and warehouse scope as
+    # the receipts themselves (SEC-P6-3).
+    @recent_receipts = policy_scope(GoodsReceipt).where(supplier: @supplier).recent.includes(:warehouse).limit(10)
   end
 
   def new
