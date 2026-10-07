@@ -1643,7 +1643,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   **COMPLETE** (from `main` @ `3be2816`, not pushed): M0 done (read-only), M1 `114f771`, M2 `69031c1`, M3 `5d6b454`,
   M4 / M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs (§20.6).
 * **Pilot 6 — Inventory & Purchasing Supplier:** on the same branch (on top of Pilot 5, not pushed): M0 done, security
-  unblock (SEC-P6-1 – SEC-P6-6 fixed), **M1 COMPLETE** (§21); M2 – M5 not needed; next: fast-track M6 (not started).
+  unblock (SEC-P6-1 – SEC-P6-6 fixed), M1 `bfbb88b`, M2 – M5 not needed, **M6 COMPLETE** (§21.6); M7 recommended
+  (needs approval of a new collapse initializer); M8 not started.
 * **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
@@ -3105,12 +3106,12 @@ Inventory & Purchasing ↔ Finance & Sales settlement cycle. Before selecting it
 security probes of the supplier screens, a check of how purchase requests and goods receipts depend on suppliers, and
 a focused baseline committed with its set. Integrating Pilot 5 into `main` (PR) should come first.
 
-## 21. Pilot 6 — Inventory & Purchasing Supplier: M0, security unblock and M1
+## 21. Pilot 6 — Inventory & Purchasing Supplier: M0, security unblock, M1 and M6
 
-**Status:** M0 COMPLETE (read-only, at `7f4f422`); security unblock COMPLETE (six `fix:` commits); **M1 COMPLETE**
-(characterization commit "test: close out supplier characterization"). All on `feature/pilot-5-membership-contract`,
-on top of Pilot 5, not pushed or merged. **M2 – M5 NOT NEEDED; fast-track M6 is the recommended next phase (not
-started).** No schema, migration, route or API change.
+**Status:** M0 COMPLETE (read-only, at `7f4f422`); security unblock COMPLETE (six `fix:` commits); M1 COMPLETE
+(`bfbb88b`); M2 – M5 NOT NEEDED; **M6 COMPLETE** (§21.6); M7 recommended, not started (§21.6); M8 not started. All on
+`feature/pilot-5-membership-contract`, on top of Pilot 5, not pushed or merged. No schema, migration, route or API
+change.
 
 ### 21.1 M0 — ownership and dependencies
 
@@ -3183,7 +3184,55 @@ focused Pilot 6 set.
 
 * **M2 – M5 NOT NEEDED** (M1 evidence): no cross-domain caller, no cycle and no cross-domain write through `Supplier`; a
   contract would add nothing; no business rule sits in a controller or another domain.
-* **Next: fast-track M6** — boundary enforcement for `Supplier` (and its internal consumers) against other domains,
-  with the Organization & Access inverse association and the workspace navigation as classified exceptions.
+* **Fast-track M6** — done in §21.6.
 * **M7 is a separate decision:** it would be the first physical move into `app/models/inventory_purchasing/` and need a
   new collapse initializer, approved before it is written.
+
+### 21.6 M6 — Supplier boundary enforcement (and M7 readiness)
+
+**Fresh scan** (1,117 `app/` + `lib/` files; code lines only — comments and `t(...)` keys ignored): 182 code lines
+reference `Supplier`, `SupplierPolicy`, `suppliers`, `supplier_id` or `default_supplier`, all inside Inventory &
+Purchasing — `app/controllers|views|services/inventory/`, `Supplier`, `Product`, `PurchaseRequest`, `GoodsReceipt`,
+`SupplierPolicy`, `InventoryHelper`. `Product → Supplier`, `PurchaseRequest → Supplier` and `GoodsReceipt → Supplier` are
+internal relationships, not cross-domain edges. **No code outside the domain writes a supplier**, and no Workforce,
+Attendance & Payroll, Finance & Sales or Reporting code references one (the finance dashboard's supplier block, the
+purchase-request-advance files and `Finance::Dashboard::Capabilities` mention suppliers only in comments). No API.
+
+**Intentional exceptions** (classified, shape-pinned):
+
+| File | Line | Direction / kind | Why allowed |
+|---|---|---|---|
+| `app/models/business.rb` | 41 | OA → IP, lifecycle | `has_many :suppliers, dependent: :destroy` — the Organization & Access inverse association (documented OA inverse pattern) |
+| `app/helpers/workspace_helper.rb` | 158 | UI shell → IP, navigation | The Suppliers menu entry, gated by `policy(Supplier).index?` (the icon key and the `"suppliers"` controller mapping are names, not references) |
+| `PermissionRole` catalogue | — | OA, authorization metadata | `manage_suppliers` (depends on `view_inventory`) — a permission name, not a `Supplier` reference; checked by the spec |
+
+**Boundary spec:** `spec/architecture/inventory_purchasing_supplier_boundary_spec.rb` (19 examples). It pins explicit
+ownership (model, `Inventory::SuppliersController < Inventory::BaseController`, `SupplierPolicy`); rejects any supplier
+reference (constant, policy, controller, collection incl. receiver-less `suppliers.…`, association macros,
+`default_supplier`, `supplier_id`) outside an explicit Inventory & Purchasing allow-list and the two shape-pinned
+exceptions; rejects supplier writes outside the domain; checks Organization & Access, Workforce, Attendance & Payroll,
+Finance & Sales and Reporting code one by one; keeps the allow-list tight; and checks the permission entry and the
+`Business` inverse association. Route helpers, i18n keys, the permission name and comments are not flagged.
+
+**Planted probes:** stubbed self-tests (a supplier read in each of the five domains; a supplier write; a widened
+`Business` exception; harmless references not flagged; the internal Product / PurchaseRequest / GoodsReceipt
+relationships). On disk, supplier reads added to real files of each other domain, a `Supplier.create!` in Finance and a
+receiver-less `suppliers.destroy_all` in `Business` failed seven rules as expected; reverted, green. (The probe exposed
+that a receiver-less `suppliers.…` call was not matched; the pattern was widened before commit.)
+
+**Production code:** none changed in M6. The six security fixes stay intact (their regression specs pass).
+
+**Verification (seed 20261006):** boundary spec 19 / 0; M1 characterization 42 / 0 and the 26 Pilot 6 security
+regression examples 26 / 0 (also seeds 12345 / 98765); full Pilot 6 set **851 / 0**; architecture + security + API
+security (now incl. the boundary spec) **450 / 0**; `zeitwerk:check`, RuboCop and `git diff --check` clean. P6-D1 stays
+pinned; the barcode baseline IDs are untouched.
+
+**M7 readiness — recommended NEEDED (read-only; not executed).** The smallest sensible move is `Supplier` alone:
+`app/models/supplier.rb` → `app/models/inventory_purchasing/supplier.rb` (byte-identical), with a new one-line collapse
+initializer `config/initializers/inventory_purchasing_autoload.rb` (the first Inventory & Purchasing model folder —
+approval needed before it is written), a location spec, and the one allow-list path in the boundary spec. The constant
+stays top-level `Supplier` (62 code references unchanged), the table stays `suppliers`, associations resolve by name
+(`Product#default_supplier` uses `class_name: "Supplier"`), and nothing references the model file path. No
+`InventoryPurchasing` constant exists, and the collapse avoids clashing with the `Inventory::` controller / service
+namespace. `Product`, `PurchaseRequest` and `GoodsReceipt` should stay where they are: they are not this pilot's scope
+and carry their own cross-domain edges (receipt / advance settlement with Finance & Sales) for later pilots.
