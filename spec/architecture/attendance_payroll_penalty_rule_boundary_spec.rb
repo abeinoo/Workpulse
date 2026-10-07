@@ -142,7 +142,7 @@ module ArchitectureSpecs
     # Workforce code (module-boundaries.md §5 / §10).
     WORKFORCE_GLOBS = %w[
       app/models/workforce/**/*.rb
-      app/models/{shift,shift_assignment,shift_template,shift_template_entry,shift_rule_profile,employee_request,employee_insurance_profile}.rb
+      app/models/{shift,shift_assignment,shift_template,shift_template_entry,shift_rule_profile,employee_request}.rb
       app/services/{shifts,scheduling,requests,employee,employee_data_requests,performance}/**/*.rb
       app/controllers/{shifts,shift_assignments,employee_requests}_controller.rb
       app/controllers/admin/{shifts,shift_templates,shift_rule_profiles,departments,job_titles,employee_insurance_profiles}_controller.rb

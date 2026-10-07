@@ -1,7 +1,9 @@
 class EmployeeInsuranceProfilePolicy < ApplicationPolicy
   def show?    = viewable?
-  def create?  = can?(:manage_employee_insurance)
-  def update?  = can?(:manage_employee_insurance)
+  # The employee must be inside the actor's insurance scope — the same employees
+  # Scope#resolve shows (SEC-P8-2).
+  def create?  = can?(:manage_employee_insurance) && employee_in_scope?
+  def update?  = create?
   def destroy? = false
 
   # Whether the employer contribution amount may be shown to this user —
@@ -36,5 +38,16 @@ class EmployeeInsuranceProfilePolicy < ApplicationPolicy
 
   def own_record?
     record.user_id == user.id
+  end
+
+  # Mirrors Scope#resolve: the configured manage_employee_insurance scope, else
+  # the view_employee_insurance scope, else the manager hierarchy; one's own
+  # profile is always included.
+  def employee_in_scope?
+    return true if record.is_a?(Class) || own_record?
+
+    EmployeeScope.new(user).for_permissions(:manage_employee_insurance, :view_employee_insurance)
+                 .where(business_id: user.business_id)
+                 .exists?(id: record.user_id)
   end
 end

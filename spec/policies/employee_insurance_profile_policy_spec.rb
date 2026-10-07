@@ -68,9 +68,12 @@ RSpec.describe EmployeeInsuranceProfilePolicy, type: :model do
   end
 
   describe "create?/update?" do
-    it "permits a role with manage_employee_insurance" do
+    # No scope configured → the manager hierarchy, as in Scope (SEC-P8-2).
+    it "permits a role with manage_employee_insurance for an employee in its scope, not outside it" do
       manager = create(:user, business: business, permission_role: unscoped_manage_role)
+      branch_a.update_column(:branch_manager_id, manager.id)
       expect(subject.new(manager, profile_a).update?).to be true
+      expect(subject.new(manager, profile_b).update?).to be false
     end
 
     it "denies a view-only role" do

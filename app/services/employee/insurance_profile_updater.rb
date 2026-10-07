@@ -53,10 +53,11 @@ module Employee
 
     # An insurance change should be reflected in every currently editable
     # period, not just the next full generation — mirrors the
-    # attendance-triggered recalculation path. Never allowed to fail the
-    # insurance profile change itself.
+    # attendance-triggered recalculation path. Payroll owns that, behind the
+    # Workforce contract Employee::InsuranceProfileEffects. Called after the
+    # commit; never allowed to fail the insurance profile change itself.
     def recalculate_open_periods(user)
-      Payroll::EntryRecalculator.recalculate_all_open_periods_for(user: user, triggered_by: @actor)
+      Employee::InsuranceProfileEffects.profile_changed(user: user, actor: @actor)
     rescue => e
       Rails.logger.error("[Employee::InsuranceProfileUpdater] payroll recalc failed user=#{user.id}: #{e.class}: #{e.message}")
     end
