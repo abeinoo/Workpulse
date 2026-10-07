@@ -1639,8 +1639,8 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 * **Pilot 4 — Attendance & Payroll Penalty Rules:** **COMPLETE** (§19, close-out §19.12). M0 `b73fc34`, M1 `3efb46b`,
   M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M6 `3fd9ba2`, M7 `a3b6463`, M8 `ce3ce00`; M5 not needed. P4-D1 open
   (§19.11).
-* **Pilot 5 — Organization & Access ↔ Workforce membership contract:** M0 done (read-only, recorded here), **M1
-  done** on `feature/pilot-5-membership-contract` (from `main` @ `3be2816`); M2 not started (§20).
+* **Pilot 5 — Organization & Access ↔ Workforce membership contract:** on `feature/pilot-5-membership-contract`
+  (from `main` @ `3be2816`): M0 done (read-only), M1 `114f771`, **M2 done** (§20.3); M3 not started.
 * **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
@@ -2873,10 +2873,11 @@ failure ID with the `main` @ `c054fa3` run of §18.9 (`main` has not moved since
   file; not changed in docs-only cleanups). `module-boundaries.md` and the stale status lines here were synchronised
   with Pilots 3–4 in the docs-only consistency cleanup that follows this gate.
 
-## 20. Pilot 5 — Organization & Access ↔ Workforce membership contract: M0–M1
+## 20. Pilot 5 — Organization & Access ↔ Workforce membership contract: M0–M2
 
-**Status:** M0 (read-only, at `3be2816`) and **M1 (characterization)** done on `feature/pilot-5-membership-contract`.
-**M2 not started.** No production code, schema, route or API change.
+**Status:** M0 (read-only, at `3be2816`), M1 (`114f771`) and **M2 (contract)** done on
+`feature/pilot-5-membership-contract`. **M3 not started:** no caller uses the contract yet. No schema, route or API
+change.
 
 ### 20.1 M0 summary
 
@@ -2933,5 +2934,31 @@ Three new files in `spec/characterization/organization_access/` (51 examples), c
 with its rerun command in `organization-access-membership-baseline-failures.txt`) + new specs: **1,606 examples, 33
 failures, 0 pending** — exactly the M0 IDs, none new, none gone. RuboCop clean on the new files.
 
-**Next (not started): M2** — an OA-defined membership contract with a WF implementation registered at boot (§20.1),
-then M3 routing of the two edges. See §20.1 for the expected path; nothing beyond M1 is implemented.
+### 20.3 M2 — membership contract
+
+* **Contract (Organization & Access):** `OrganizationAccess::MembershipProvider`
+  (`app/services/organization_access/membership_provider.rb`) — the readiness name. Same shape as
+  `Payroll::FinalizationEffects`: `OPERATIONS`, `register` (checks both operations), `NotRegistered` instead of
+  resolving to no members, and two operations:
+  * `current_branch_ids(user)` → `Array<Integer>` of the user's current branch memberships;
+  * `current_member_ids(branch_ids)` → a chainable `ActiveRecord::Relation` selecting `user_id`, used as
+    `WHERE id IN (subquery)`, never materialized.
+
+  It names nothing from Workforce and adds no business filtering, date change, authorization decision, scope level or
+  `manager_ids`.
+* **Implementation (Workforce):** `Workforce::MembershipProvider` (`app/services/workforce/membership_provider.rb`),
+  delegating unchanged to `BranchMembership`. It opens the `Workforce::` service boundary in `app/services/workforce/`,
+  which `migration-pattern.md` §13 reserves for the first real cross-domain caller.
+* **Wiring:** `config/initializers/organization_access_membership_provider.rb` registers the implementation at boot
+  (`to_prepare`), so neither domain names the other — the Pilot 3 / Pilot 4 pattern with Organization & Access as the
+  defining (upstream) domain.
+* **Specs:** `spec/services/organization_access/membership_provider_spec.rb` (10): registration, incomplete provider,
+  `NotRegistered`, dispatch and error propagation; through the implementation — regular / coverage / several branches,
+  expired / future excluded, the relation's type, model, `select_values` and SQL identical to `BranchMembership`'s, use
+  as `IN (subquery)`, the unchanged `Date.current` boundary; and a source check that the contract names no Workforce
+  constant.
+* **Verification (seed 20261006):** M2 10 / 0 (also seeds 12345 / 98765); M1 51 / 0; focused set + Pilot 5 specs
+  **1,616 examples, 33 failures** — exactly the baseline IDs. `zeitwerk:check`, RuboCop and `git diff --check` clean.
+
+**Next (not started): M3** — route `EmployeeScope#members_in` (`employee_scope.rb:134`) and `BranchScope`'s
+shift-assignment branch ids (`branch_scope.rb:83`) through `OrganizationAccess::MembershipProvider`.
