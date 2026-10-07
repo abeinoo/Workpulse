@@ -1641,7 +1641,9 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   (§19.11).
 * **Pilot 5 — Organization & Access ↔ Workforce membership contract:** on `feature/pilot-5-membership-contract`
   **COMPLETE** (from `main` @ `3be2816`, not pushed): M0 done (read-only), M1 `114f771`, M2 `69031c1`, M3 `5d6b454`,
-  M4 / M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs (§20.6). No next pilot started.
+  M4 / M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs (§20.6).
+* **Pilot 6 — Inventory & Purchasing Supplier:** on the same branch (on top of Pilot 5, not pushed): M0 done, security
+  unblock (SEC-P6-1 – SEC-P6-6 fixed), **M1 COMPLETE** (§21); M2 – M5 not needed; next: fast-track M6 (not started).
 * **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
@@ -3102,3 +3104,86 @@ the fifth domain at low risk before the high-risk Workforce ↔ Attendance & Pay
 Inventory & Purchasing ↔ Finance & Sales settlement cycle. Before selecting it officially: a fresh M0 reference scan,
 security probes of the supplier screens, a check of how purchase requests and goods receipts depend on suppliers, and
 a focused baseline committed with its set. Integrating Pilot 5 into `main` (PR) should come first.
+
+## 21. Pilot 6 — Inventory & Purchasing Supplier: M0, security unblock and M1
+
+**Status:** M0 COMPLETE (read-only, at `7f4f422`); security unblock COMPLETE (six `fix:` commits); **M1 COMPLETE**
+(characterization commit "test: close out supplier characterization"). All on `feature/pilot-5-membership-contract`,
+on top of Pilot 5, not pushed or merged. **M2 – M5 NOT NEEDED; fast-track M6 is the recommended next phase (not
+started).** No schema, migration, route or API change.
+
+### 21.1 M0 — ownership and dependencies
+
+* **Ownership confirmed: Inventory & Purchasing.** `Supplier` (`app/models/supplier.rb`, table `suppliers`):
+  `belongs_to :business`, `has_many :goods_receipts, dependent: :restrict_with_error`; name / mobile / coordinate
+  validations; no `active` / archive or soft-delete column. Administered by `Inventory::SuppliersController` (full CRUD)
+  behind the inventory gate and `SupplierPolicy` (read: `view_inventory` / `manage_inventory`; write:
+  `manage_inventory` / `manage_suppliers`; scope: business). Routes `resources :suppliers` and the supplier-purchases
+  report; no API, job or serializer.
+* **No meaningful cross-domain business dependency.** Every consumer is internal to Inventory & Purchasing
+  (inventory controllers, services, views, `PurchaseRequest`, `GoodsReceipt`, `Product`, the inventory reports, four
+  Stimulus controllers). Outside the domain only: the Organization & Access inverse `Business has_many :suppliers`,
+  the `manage_suppliers` permission in the catalogue, and the workspace navigation. Finance & Sales does not read
+  `Supplier` (the finance dashboard's supplier block is a disabled placeholder). No cycle runs through `Supplier`; the
+  Inventory & Purchasing ↔ Finance & Sales settlement cycle runs through `GoodsReceipt` / `PurchaseRequest` /
+  `PurchaseRequestAdvance`, where the supplier is only data.
+* **Purchase Requests and Goods Receipts are internal consumers.** Purchase requests own supplier selection
+  (`belongs_to :supplier` required, `supplier_in_same_business`, one request per supplier in
+  `Inventory::PurchaseRequestCreator`). Goods receipts reference the supplier (optional; inherited from and required to
+  match a purchase request) and never write it. `Supplier` owns no purchasing behaviour.
+
+### 21.2 Security unblock — SEC-P6-1 to SEC-P6-6 resolved
+
+Each fix is its own commit with a regression spec in `spec/requests/security/` whose attack cases fail on the previous
+code; all mirror the existing `supplier_in_same_business` validation style.
+
+| ID | Severity | Found | Fix | Commit |
+|---|---|---|---|---|
+| SEC-P6-1 | High | M0 | `GoodsReceipt#supplier_in_same_business` — a standalone receipt could reference another business's supplier (polluting and blocking its deletion) | `7f4f893` |
+| SEC-P6-2 | Medium | M0 | `Product#default_supplier_in_same_business` | `7d62798` |
+| SEC-P6-3 | Low–Medium | M0 | The supplier page's recent receipts come from `GoodsReceiptPolicy::Scope` (business + accessible warehouses) instead of `Supplier#goods_receipts` — no new authorization logic | `2b69891` |
+| SEC-P6-4 | Medium | M1 | `Product#brand_in_same_business` | `4c021d6` |
+| SEC-P6-5 | Medium | M1 | `Product#product_category_in_same_business` | `a690d7e` |
+| SEC-P6-6 | High | M1 | `Product#parent_product_in_same_business` — a foreign parent used to be written by `propagate_non_tracking_to_parent` (after_save → `force_non_tracking!`, switching off its stock tracking). The validation aborts the save before any callback; the regression spec compares the victim's full row before and after | `35fb7d5` |
+
+### 21.3 M1 — characterization
+
+Three files in `spec/characterization/inventory_purchasing/` (42 examples), complementing the existing purchase-request,
+goods-receipt, report and M0/M1 security specs:
+
+| File | Examples | What it pins |
+|---|---|---|
+| `supplier_admin_spec.rb` | 20 | CRUD (ordering, validations, duplicate names allowed, `business_id` ignored), the permission matrix (`view_inventory` read-only; `manage_inventory`, `manage_suppliers`, owner full; reports-only and no-permission users refused), cross-business 404s, delete rules incl. **P6-D1** |
+| `product_references_spec.rb` | 8 | Same-business brand / category / parent accepted; another business's brand, category and parent **refused** (SEC-P6-4/5/6, the victim untouched); a foreign warehouse setting refused (already isolated) |
+| `supplier_purchasing_spec.rb` | 14 | Purchase-request supplier rules (required, same business, creator grouping, missing / foreign supplier), receipt rules (optional, must match the request, never writes the supplier), `Supplier`'s structure (only `business` / `goods_receipts`, no callbacks, one method), supplier / purchases / low-stock reports inside the business and the requested warehouses |
+
+**Known defect — P6-D1 (correctness, non-blocking, pinned, not fixed):** deleting a supplier referenced by a product's
+default or by a purchase request raises `ActiveRecord::InvalidForeignKey` (a 500) instead of a refusal — `Supplier`
+declares only `has_many :goods_receipts, dependent: :restrict_with_error`. Two examples in `supplier_admin_spec.rb`
+assert the current behaviour; a fix needs its own approved `fix:`.
+
+**Pre-existing baseline failures (not Pilot 6, not to be fixed here):** `spec/requests/inventory/barcode_labels_spec.rb:36`
+and `spec/requests/inventory/products_barcode_spec.rb:50` fail on `main` too and are listed in
+`permission-role-baseline-failures.txt`; they appear when the wider product / barcode specs are run, outside the
+focused Pilot 6 set.
+
+### 21.4 Verification (M1 close, seed 20261006)
+
+| Run | Result |
+|---|---|
+| Original M0 focused baseline (60 files: supplier / purchase-request / goods-receipt / inventory request, policy, model, service and system specs, `spec/architecture`, `spec/requests/security`) | **783 examples, 0 failures** |
+| Expanded M1 set (+ 13 M0 security regressions + 42 M1 examples) | **838 / 0** |
+| Full Pilot 6 set (+ 13 M1 security regressions) | **851 / 0** |
+| Architecture + security + API security | **431 / 0** |
+| Three-seed check (20261006, 12345, 98765) | M1 42 / 0; M0 regressions 13 / 0; M1 regressions 13 / 0 under every seed |
+
+`zeitwerk:check`, RuboCop and `git diff --check` clean. No new failure.
+
+### 21.5 Migration path
+
+* **M2 – M5 NOT NEEDED** (M1 evidence): no cross-domain caller, no cycle and no cross-domain write through `Supplier`; a
+  contract would add nothing; no business rule sits in a controller or another domain.
+* **Next: fast-track M6** — boundary enforcement for `Supplier` (and its internal consumers) against other domains,
+  with the Organization & Access inverse association and the workspace navigation as classified exceptions.
+* **M7 is a separate decision:** it would be the first physical move into `app/models/inventory_purchasing/` and need a
+  new collapse initializer, approved before it is written.
