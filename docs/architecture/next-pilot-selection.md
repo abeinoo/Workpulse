@@ -3566,10 +3566,9 @@ synced (Inventory & Purchasing: `Supplier`, `Brand`, `ProductCategory`).
 
 ## 23. Pilot 8 — Workforce Employee Insurance Profile
 
-**Status: M7 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
-security unblock `8c0cdc8`, `d100b38`; M1 characterization `85b7966`; M2 contract `68f6c05` (§23.6); M3 routing
-`ca8a05f` (§23.7); M4 / M5 not needed; M6 boundary spec `7d9156a` (§23.8); M7 physical move (§23.9). M8 not started.
-No schema, migration, route or API change.
+**Status: COMPLETE** (close-out §23.10): M0 (read-only, at `main` `4655d18`), security unblock `8c0cdc8` / `d100b38`,
+M1 `85b7966`, M2 `68f6c05`, M3 `ca8a05f`, M4 / M5 not needed, M6 `7d9156a`, M7 `cb6dcf0`, M8 docs — on
+`fix/pilot-8-insurance-security`, not pushed or merged. No schema, migration, route, API or Booking change.
 
 ### 23.1 M0 — selection and ownership
 
@@ -3774,3 +3773,60 @@ A planted payroll reference in the moved model failed rule 1 of the boundary spe
 8 set + contract + routing 735 / 0; M1 44 / 0; contract + routing 24 / 0; `spec/requests/security` 263 / 0;
 `spec/architecture` 252 / 0 (248 + 4); Pilot 4 / Milestone 2 contract specs 47 / 0. `zeitwerk:check`, RuboCop,
 `git diff --check` clean. `module-boundaries.md` status header lists `EmployeeInsuranceProfile` under Workforce.
+
+### 23.10 M8 — close-out — Pilot 8 COMPLETE
+
+| Step | Result |
+|---|---|
+| M0 | COMPLETE — candidate selection (§23.1); found SEC-P8-1 / SEC-P8-2 → NOT READY |
+| Security unblock | COMPLETE — SEC-P8-1 `8c0cdc8` (High), SEC-P8-2 `d100b38` (Medium) |
+| M1 | COMPLETE — `85b7966`, 44 characterization examples (§23.2) |
+| M2 | COMPLETE — `68f6c05`, Workforce contract `Employee::InsuranceProfileEffects` (§23.6) |
+| M3 | COMPLETE — `ca8a05f`, both Workforce callers routed through it (§23.7) |
+| M4 / M5 | NOT NEEDED — payroll logic already in Attendance & Payroll; the updater already a service |
+| M6 | COMPLETE — `7d9156a`, boundary spec (§23.8) |
+| M7 | COMPLETE — `cb6dcf0`, `EmployeeInsuranceProfile` → `app/models/workforce/` (§23.9) |
+| M8 | COMPLETE — this close-out |
+
+**Final architecture.** Workforce owns `EmployeeInsuranceProfile` (`app/models/workforce/employee_insurance_profile.rb`,
+top-level constant, table `employee_insurance_profiles`), `Employee::InsuranceProfileUpdater`,
+`Admin::EmployeeInsuranceProfilesController`, `EmployeeInsuranceProfilePolicy`, the insurance form and the employee
+page's Social Insurance card, and the contract `Employee::InsuranceProfileEffects` (`profile_changed`,
+`payroll_notice_for`). Attendance & Payroll implements the contract (`Payroll::InsuranceProfileEffects`, registered in
+`config/initializers/employee_insurance_profile_effects.rb`) and keeps reading the profile for its snapshot
+(`Payroll::EntryCalculator#resolve_insurance_snapshot`, the allowed direction). Organization & Access keeps the
+lifecycle associations `Business#employee_insurance_profiles` and `User#employee_insurance_profile`. Enforced by
+`workforce_employee_insurance_profile_boundary_spec.rb` (22) and `workforce_model_location_spec.rb`.
+
+```
+Workforce ── Employee::InsuranceProfileEffects (WF contract) ──▶ Attendance & Payroll (Payroll::InsuranceProfileEffects)
+Attendance & Payroll ── EntryCalculator reads EmployeeInsuranceProfile ──▶ Workforce   (allowed read)
+Organization & Access ── Business / User has_many / has_one (dependent: :destroy) ──▶ Workforce   (lifecycle)
+```
+
+**Cycle reduction:** of the Workforce → Attendance & Payroll edges in `module-boundaries.md` §14.2, #5 (insurance
+recalculation) and the insurance form's payroll read are resolved; #2 – #4 (advances, punch correction, request
+cancellation) and the salary display remain.
+
+**Final verification (on `cb6dcf0`):**
+
+| Run | Result |
+|---|---|
+| Pilot 8 set (`workforce-insurance-profile-baseline-failures.txt`) + contract + routing, seeds 20261006 / 12345 / 98765 | **735 / 0** under each |
+| Boundary + Workforce location | 48 / 0 under each seed |
+| M1 characterization / contract + routing / SEC-P8 regressions | 44 / 0, 24 / 0, 15 / 0 under each seed |
+| `spec/requests/security` / `spec/architecture` | 263 / 0, 252 / 0 under each seed |
+| Full suite (seed 20261006) | 8309 examples, 95 failures, 1 pending — 87 in the documented baseline files; 7 listed in §18.9 as failing on `main` (`expense_amount_distribution_spec:28`, `purchase_request_form_spec` ×6); 1 **TD-OA1** (`permission_roles_spec.rb:28`, Faker apostrophe name HTML-escaped; passes alone). None touches Pilot 8 code |
+
+`zeitwerk:check`, RuboCop (18 Ruby files changed since `main`) and `git diff --check` clean.
+
+**Known debt (pinned / recorded, not fixed):**
+
+* **P8-D1 (security, Low–Medium):** the employee-page card is gated by `EmployeeInsuranceProfilePolicy#show?`
+  (permission only), not the insurance scope — pinned in `employee_insurance_profile_admin_spec.rb`.
+* `Employee::InsuranceProfileUpdater` does no authorization itself; its only caller authorizes first (pinned in M1).
+* SEC-M2-5 / -6 / -7 and AP-D1 (salary and advances) remain open, outside this pilot.
+* TD-OA1 remains known flaky debt.
+
+**Pilot 8 (Workforce — Employee Insurance Profile) is COMPLETE.** Nothing pushed or merged; the seven commits plus this
+close-out sit on `fix/pilot-8-insurance-security` on top of `main` `4655d18`.
