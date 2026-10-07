@@ -3563,3 +3563,85 @@ all catalogue logic was already in Inventory & Purchasing.
 synced (Inventory & Purchasing: `Supplier`, `Brand`, `ProductCategory`).
 
 **Pilot 7 (Inventory & Purchasing — Product Catalogue) is COMPLETE.** Nothing pushed or merged.
+
+## 23. Pilot 8 — Workforce Employee Insurance Profile
+
+**Status: M1 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
+security unblock `8c0cdc8`, `d100b38`; M1 characterization. M2 – M8 not started. No schema, migration, route or API
+change.
+
+### 23.1 M0 — selection and ownership
+
+* **Why this candidate:** the Workforce ↔ Attendance & Payroll cycle is the largest remaining one
+  (`module-boundaries.md` §12.2 / §14.2 #2 – #5); its smallest separable edge is #5 —
+  `Employee::InsuranceProfileUpdater` commands `Payroll::EntryRecalculator`. Advances (#2) and the request effects
+  (#3, #4) carry open security / product decisions (SEC-M2-7, SEC-M2-2) and high atomicity risk; the Inventory &
+  Purchasing ↔ Finance & Sales settlement (#6) has grown to ~24 files and moves money; POS terminals (#8), warehouse
+  access (#10) and the laundry labour-cost report touch no cycle or little.
+* **Ownership: Workforce** (`module-boundaries.md` §5, §10.1): `EmployeeInsuranceProfile` (table
+  `employee_insurance_profiles`), `Employee::InsuranceProfileUpdater`, `Admin::EmployeeInsuranceProfilesController`,
+  `EmployeeInsuranceProfilePolicy`, the employee-page Social Insurance card. Attendance & Payroll only reads it
+  (`Payroll::EntryCalculator` snapshot).
+* **Security blockers (M0, both fixed before M1):**
+
+| ID | Severity | Finding | Fix | Commit |
+|---|---|---|---|---|
+| SEC-P8-1 | High | `GET …/employee_insurance_profile/edit` by any same-business admin-gate user outside the insurance scope **deleted** the employee's profile (no audit): `set_profile` fell back to `@employee.build_employee_insurance_profile`, and `User has_one :employee_insurance_profile, dependent: :destroy` removes the existing row when building | A standalone unsaved `EmployeeInsuranceProfile.new(user:, business:)` | `8c0cdc8` |
+| SEC-P8-2 | Medium | A `manage_employee_insurance` holder scoped to self / branch could create or update any same-business employee's profile (`create?/update?` checked only the flag) | `create?/update?` require the employee inside the same insurance scope `Scope#resolve` uses (`EmployeeScope#for_permissions(:manage_employee_insurance, :view_employee_insurance)`, own profile included); one existing policy example that assumed "no scope = any employee" adjusted | `d100b38` |
+
+Regression specs: `spec/requests/security/employee_insurance_profile_deletion_spec.rb` (5; 3 fail on the old code),
+`employee_insurance_profile_scope_spec.rb` (10; 5 fail on the old code).
+
+### 23.2 M1 — characterization
+
+Three files in `spec/characterization/workforce/` (44 examples), complementing the existing updater, request, policy,
+`EntryCalculator` / `EntryRecalculator` specs and the two security specs:
+
+| File | Examples | What it pins |
+|---|---|---|
+| `employee_insurance_profile_lifecycle_spec.rb` | 19 | Model: defaults (not insured, zero amounts), start date required only when insured, amounts ≥ 0, end ≥ start (same day allowed), contributions zeroed when not insured, one profile per employee (+ unique index), `covers_period?` window, associations and the OA inverses. Updater: create (business from the employee, `created_by` the actor, all attributes), update in place (`created_by` kept), switching to not insured, audits `insurance_profile_created` / `_updated` with before / after of six fields (notes excluded), an invalid change → `ok: false`, nothing saved, audited or recalculated; another business's employee → `ok: false` (RecordNotFound); the updater does no authorization (callers authorize); the recalculation call (`recalculate_all_open_periods_for(user:, triggered_by:)`, once per successful save, even unchanged; after the commit — a raising recalculation leaves profile and audit, logs, `ok: true`) |
+| `employee_insurance_profile_admin_spec.rb` | 16 | Update → redirect to the employee page with the notice, all permitted fields, `business_id` / `user_id` / `created_by_id` ignored, invalid → 422 nothing saved, edit form values; the card: manager sees status, both contributions, dates, number, Edit; open end → "—", no number row; view-only sees no employer contribution and no Edit; no profile / not insured → "Not insured."; no insurance permission → no card; Edit per scope (branch: own branch only; self: never on another page; business: everyone); **P8-D1**; cross-business 404s |
+| `employee_insurance_payroll_snapshot_spec.rb` | 9 | `EntryCalculator` reads the profile: insured + both amounts + number snapshotted; one `insurance_deduction` line item of −employee amount sourced from the profile; only the employee amount reduces net salary; no profile / not insured / coverage after / before the period → not insured, zeros, no number, no item; partial overlap → full amounts (no proration); the profile is never written |
+
+**Known debt — P8-D1 (security, Low–Medium, pinned, not fixed):** the employee-page card is gated by
+`EmployeeInsuranceProfilePolicy#show?`, which checks only the permission (`viewable?`), not the insurance scope. A
+user who can open an employee's page (`view_employees` scope) but whose insurance scope excludes that employee still
+sees the card and amounts — a manager also the employer contribution. Read-only; a fix needs its own approved `fix:`.
+
+### 23.3 Current dependency edges (classified, unchanged in M1)
+
+| # | Edge | Kind | Where |
+|---|---|---|---|
+| 1 | Workforce → Attendance & Payroll | **Business write (command)** — recalculates open payroll entries | `employee/insurance_profile_updater.rb:59` → `Payroll::EntryRecalculator.recalculate_all_open_periods_for` |
+| 2 | Workforce → Attendance & Payroll | **Business read** (UI) — which payroll periods an edit affects (notice) | `admin/employee_insurance_profiles_controller.rb` `set_payroll_notice` (`PayrollPeriod`, `@employee.payroll_entries`, `locked?`) |
+| 3 | Attendance & Payroll → Workforce | **Business read** (allowed direction) — snapshot at entry generation | `payroll/entry_calculator.rb` `resolve_insurance_snapshot` (`@user.employee_insurance_profile`, `covers_period?`) |
+| 4 | Organization & Access → Workforce | **Lifecycle association** | `business.rb:77` `has_many :employee_insurance_profiles, dependent: :destroy` |
+| 5 | Organization & Access → Workforce | **Lifecycle association** | `user.rb:50` `has_one :employee_insurance_profile, dependent: :destroy` |
+| — | Workforce UI | **UI / read concern** | `admin/users/show.html.erb` card (P8-D1) |
+
+### 23.4 Verification (seed 20261006)
+
+| Run | Result |
+|---|---|
+| M0 set (`main`) | 626 / 0 |
+| After the security unblock (`workforce-insurance-profile-baseline-failures.txt` set before M1) | 641 / 0 |
+| + M1 (44) | **685 / 0**, 0 pending |
+| M1 files, seeds 20261006 / 12345 / 98765 | 44 / 0 under each |
+| `spec/requests/security` | 263 / 0 |
+| `spec/architecture` | 226 / 0 |
+
+`zeitwerk:check` and RuboCop clean.
+
+### 23.5 Migration path (M1 evidence)
+
+* **M2 NEEDED:** a Workforce-defined contract for the payroll effect of an insurance change (edge 1) and the
+  payroll-notice query (edge 2), implemented by Attendance & Payroll and registered at boot (the Pilot 4
+  `Shifts::PenaltyRuleSettings` pattern). Its contract must keep: call after the profile and audit are committed, once
+  per successful save, never on a failed save, a raising implementation never fails the change.
+* **M3 NEEDED:** route the updater and the controller notice through the contract.
+* **M4 / M5 NOT NEEDED (expected):** the recalculation logic is already in Attendance & Payroll; the updater is already a
+  service.
+* **M6 NEEDED:** boundary spec — Workforce reaches Attendance & Payroll only through the contract; Attendance & Payroll
+  may read the profile (edge 3); OA inverses shape-pinned.
+* **M7 NEEDED:** `EmployeeInsuranceProfile` → `app/models/workforce/` (collapsed, top-level constant).
+* **M8 NEEDED.**

@@ -1,0 +1,46 @@
+# Pilot 8 (Workforce — Employee Insurance Profile) — baseline failing example IDs
+# Purpose: the reference list for every Pilot 8 step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs elsewhere keep their treatment.
+# Recorded on fix/pilot-8-insurance-security at d100b38 (main 4655d18 + the SEC-P8-1 / SEC-P8-2 fixes), 2026-10-07,
+#   seed 20261006.
+# Set: every spec file that mentions insurance / InsuranceProfile / EntryRecalculator (M0 scan), spec/architecture,
+#   the two SEC-P8 regression specs and the three Pilot 8 characterization files. Reproduce with:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/workforce-insurance-profile-baseline-failures.txt | cut -d' ' -f3)
+# Results: M0 (main 4655d18, 27 files + spec/architecture) 626 examples, 0 failures; after the security unblock
+#   (+ 2 files) 641 / 0, 0 pending; M1 (+ 3 files, 44 examples) 685 / 0, 0 pending.
+# No failing IDs.
+#
+# set spec/architecture
+# set spec/architecture/attendance_payroll_penalty_rule_boundary_spec.rb
+# set spec/architecture/finance_sales_expense_boundary_spec.rb
+# set spec/characterization/attendance_payroll/employee_obligation_lifecycle_spec.rb
+# set spec/characterization/attendance_payroll/employee_obligation_payroll_spec.rb
+# set spec/characterization/attendance_payroll/penalty_rule_live_evaluation_spec.rb
+# set spec/characterization/finance_sales/expense_report_consumers_spec.rb
+# set spec/characterization/finance_sales/insurance_expense_spec.rb
+# set spec/characterization/finance_sales/number_sequencer_spec.rb
+# set spec/characterization/workforce/employee_insurance_payroll_snapshot_spec.rb
+# set spec/characterization/workforce/employee_insurance_profile_admin_spec.rb
+# set spec/characterization/workforce/employee_insurance_profile_lifecycle_spec.rb
+# set spec/models/payroll_line_item_spec.rb
+# set spec/policies/employee_insurance_profile_policy_spec.rb
+# set spec/requests/admin/employee_insurance_profiles_spec.rb
+# set spec/requests/security/employee_insurance_profile_deletion_spec.rb
+# set spec/requests/security/employee_insurance_profile_scope_spec.rb
+# set spec/services/attendance/adjustment_service_spec.rb
+# set spec/services/attendance/record_deleter_spec.rb
+# set spec/services/employee/insurance_profile_updater_spec.rb
+# set spec/services/finance/payroll_insurance_expense_spec.rb
+# set spec/services/finance/reports/expense_details_spec.rb
+# set spec/services/payroll/deduction_waiver_spec.rb
+# set spec/services/payroll/employer_insurance_cost_spec.rb
+# set spec/services/payroll/entry_calculator_spec.rb
+# set spec/services/payroll/entry_recalculator_spec.rb
+# set spec/services/payroll/finalization_effects_routing_spec.rb
+# set spec/services/payroll/finalization_effects_spec.rb
+# set spec/services/payroll/insurance_expense_category_spec.rb
+# set spec/services/payroll/insurance_expense_refresh_spec.rb
+# set spec/services/payroll/overtime_recalculator_spec.rb
+# set spec/services/payroll/period_financial_summary_spec.rb
+# set spec/services/salary/profile_updater_spec.rb
