@@ -13,6 +13,8 @@
 # Used: M3 (+ spec/services/employee/insurance_profile_effects_routing_spec.rb, 8): 709 / 0 under seeds 20261006,
 #   12345 and 98765.
 # Used: M6 (spec/architecture now includes the boundary spec, 22): 731 / 0 under seeds 20261006, 12345 and 98765.
+# Used: M7 (spec/architecture includes the extended Workforce location spec, + 4): 735 / 0 under seeds 20261006,
+#   12345 and 98765.
 # No failing IDs.
 #
 # set spec/architecture

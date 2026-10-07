@@ -3566,10 +3566,10 @@ synced (Inventory & Purchasing: `Supplier`, `Brand`, `ProductCategory`).
 
 ## 23. Pilot 8 — Workforce Employee Insurance Profile
 
-**Status: M6 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
+**Status: M7 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
 security unblock `8c0cdc8`, `d100b38`; M1 characterization `85b7966`; M2 contract `68f6c05` (§23.6); M3 routing
-`ca8a05f` (§23.7); M4 / M5 not needed; M6 boundary spec (§23.8). M7 – M8 not started. No schema, migration, route or
-API change.
+`ca8a05f` (§23.7); M4 / M5 not needed; M6 boundary spec `7d9156a` (§23.8); M7 physical move (§23.9). M8 not started.
+No schema, migration, route or API change.
 
 ### 23.1 M0 — selection and ownership
 
@@ -3752,3 +3752,25 @@ Pilot 4 / Milestone 2 contract specs 47 / 0. `zeitwerk:check`, RuboCop, `git dif
 **M7 (next, not started):** `EmployeeInsuranceProfile` → `app/models/workforce/` (collapsed by `workforce_autoload.rb`,
 top-level constant and table unchanged); rule 1's model path and the Pilot 4 spec's `WORKFORCE_GLOBS` entry then need
 the new path.
+
+### 23.9 M7 — physical move
+
+`git mv app/models/employee_insurance_profile.rb app/models/workforce/employee_insurance_profile.rb` (`R100`,
+byte-identical). The existing `config/initializers/workforce_autoload.rb` collapse (Department / JobTitle, Performance)
+covers it: the constant stays top-level `EmployeeInsuranceProfile` (`Workforce::EmployeeInsuranceProfile` is not
+defined — `Workforce` exists only as the service namespace of `Workforce::MembershipProvider`), the table stays
+`employee_insurance_profiles`; `User#employee_insurance_profile` and `Business#employee_insurance_profiles` resolve the
+same class. No reference was rewritten; no migration, schema, route, service, contract or policy change.
+
+Path-only spec updates: the Pilot 8 boundary spec's `WORKFORCE_FILES` model path (rules unchanged); the Pilot 4
+penalty-rule spec's `WORKFORCE_GLOBS` drops `employee_insurance_profile` from its `app/models/{…}.rb` list — the model is
+now covered by its `app/models/workforce/**/*.rb` glob (verified: the new path is scanned, the old is not).
+`spec/architecture/workforce_model_location_spec.rb` (the shared Workforce location spec, as for the earlier Workforce
+moves) gains `EmployeeInsuranceProfile => "employee_insurance_profiles"` (top-level constant from the folder, table, not
+namespaced under `Workforce`), the `User` / `Business` association classes, and old-file-gone / new-file-present.
+A planted payroll reference in the moved model failed rule 1 of the boundary spec; restored byte-identical.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** Workforce location 26 / 0 (22 + 4); boundary 22 / 0; Pilot
+8 set + contract + routing 735 / 0; M1 44 / 0; contract + routing 24 / 0; `spec/requests/security` 263 / 0;
+`spec/architecture` 252 / 0 (248 + 4); Pilot 4 / Milestone 2 contract specs 47 / 0. `zeitwerk:check`, RuboCop,
+`git diff --check` clean. `module-boundaries.md` status header lists `EmployeeInsuranceProfile` under Workforce.

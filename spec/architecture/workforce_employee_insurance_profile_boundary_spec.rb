@@ -45,7 +45,7 @@ module ArchitectureSpecs
 
     # Workforce insurance-profile code (module-boundaries.md §5 / §10).
     WORKFORCE_FILES = {
-      "app/models/employee_insurance_profile.rb"                       => "the model",
+      "app/models/workforce/employee_insurance_profile.rb"             => "the model (folder collapsed: top-level constant, M7)",
       "app/services/employee/insurance_profile_updater.rb"             => "the single write path (M3 caller: profile_changed)",
       CONTRACT_FILE                                                    => "the Workforce contract",
       "app/controllers/admin/employee_insurance_profiles_controller.rb" => "the insurance form (M3 caller: payroll_notice_for)",

@@ -10,7 +10,8 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
   `app/services/organization_access/`); see `permission-role-migration-plan.md`. Since Pilot 5 the access scopes read
   branch membership through `OrganizationAccess::MembershipProvider` (implemented by `Workforce::MembershipProvider`);
   see `next-pilot-selection.md` §20.
-* **Workforce is partially migrated:** `Department`, `JobTitle` and the Performance evaluation group are in
+* **Workforce is partially migrated:** `Department`, `JobTitle`, the Performance evaluation group and
+  `EmployeeInsuranceProfile` (Pilot 8, behind the `Employee::InsuranceProfileEffects` contract) are in
   `app/models/workforce/`; see `next-pilot-selection.md`.
 * **Attendance & Payroll is partially migrated (Milestone 2):** the biometric punch channel, Employee Obligations and
   Penalty Rules (`app/models/attendance_payroll/`), with boundary specs; `Payroll::FinalizationEffects` (AP-defined
