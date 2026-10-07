@@ -3320,3 +3320,246 @@ products. A fresh M0 must classify the few references outside `inventory/` (the 
 matches in `finance/daily_reconciliations_controller.rb` and `finance/reports/expense_sources.rb`) and probe their admin
 screens. The higher-value, higher-risk alternatives remain the Workforce ↔ Attendance & Payroll request cycle
 (Advances) and the Inventory & Purchasing ↔ Finance & Sales settlement cycle.
+
+## 22. Pilot 7 — Inventory & Purchasing Product Catalogue (`Brand`, `ProductCategory`)
+
+**Status: COMPLETE** (close-out §22.7): M0 (read-only, at `067fa00`), M1 characterization, production data check,
+M2 – M5 not needed, M6 boundary spec, M7 physical move, M8 close-out — one commit on
+`feature/pilot-5-membership-contract`, not pushed or merged. No schema, migration, route or API change.
+
+### 22.1 M0 — ownership and dependencies
+
+* **Ownership confirmed: Inventory & Purchasing.** `Brand` and `ProductCategory` (`app/models/brand.rb`,
+  `app/models/product_category.rb`; tables `brands`, `product_categories`) each `belongs_to :business` and
+  `has_many :products, dependent: :restrict_with_error`; name required (≤ 120) and unique per business ignoring case
+  (model validation + unique index on `(business_id, lower(name))`); `ProductCategory` adds `description` and `active`.
+  No callbacks, archive or soft delete. Administered only by `Inventory::BrandsController` /
+  `Inventory::ProductCategoriesController` (no show action) behind the inventory gate and `BrandPolicy` /
+  `ProductCategoryPolicy` (read: `view_inventory` / `manage_inventory`; write: `manage_inventory` / `manage_products`;
+  scope: business). No API, job or serializer.
+* **No cross-domain business dependency and no cycle.** Outside Inventory & Purchasing only: the Organization & Access
+  inverse `Business has_many :brands / :product_categories, dependent: :destroy` (lifecycle), the workspace navigation
+  and the inventory settings hub (UI), and one Reporting read-only display — `Finance::Reports::ExpenseSources` shows a
+  consumed product's category name. The suspected match in `finance/daily_reconciliations_controller.rb` (§21.9) no
+  longer exists; other hits are false positives ("brand new", CSS `--brand` / `__brand` classes, expense categories).
+* **Security: no blocker.** Cross-business edit / update / delete are 404s, lists stay inside the business,
+  `business_id` is not permitted, and the Pilot 6 product validations (SEC-P6-4/5/6) are in force. The product CSV
+  import finds or creates brands and categories only in the importing business.
+
+### 22.2 M1 — characterization
+
+Four files in `spec/characterization/inventory_purchasing/` (75 examples). Product → brand / category / parent
+isolation is **not duplicated**: it stays pinned by `product_references_spec.rb` (Pilot 6 M1) and the regression specs
+`product_brand_`, `product_category_` and `product_parent_business_scope_spec.rb` (SEC-P6-4/5/6 — the parent spec
+compares the victim product's full row, proving the validation stops the save before
+`propagate_non_tracking_to_parent` can write it).
+
+| File | Examples | What it pins |
+|---|---|---|
+| `brand_admin_spec.rb` | 23 | CRUD (ordering, product counts, redirects / notices, 422 on blank, > 120 or case-insensitive duplicate names, the same name in another business allowed, `business_id` ignored on create and update), restrict-on-delete (used brand kept with the error as the alert, archived products included), the permission matrix (`view_inventory` read-only incl. the forms; `manage_inventory`, `manage_products`, owner full; reports-only and no-permission users refused; `manage_products` requires `view_inventory`), cross-business 404s, model structure and the unique index, **P7-D2** |
+| `product_category_admin_spec.rb` | 24 | The same for categories, plus description (free text, optional) and the active flag (default on, editable, deactivation keeps products assigned, status badge on the list) |
+| `product_catalogue_usage_spec.rb` | 13 | Product form selectors (own brands; own **active** categories, plus the product's own inactive one on edit), the model does not refuse an inactive category, product-list filters (own brands / active categories; a foreign brand or category id shows nothing), product page display, the six routes per resource (no show) and the settings hub, both models' associations / lack of own callbacks / current location |
+| `product_catalogue_import_spec.rb` | 15 | `ProductImporter` resolution: exact-name reuse (spaces stripped), creation once per name, inactive category reused as is, never another business's record of the same name, blank → none; the import screen resolves inside the user's business; a `view_inventory`-only user cannot import; **P7-D1** |
+
+**Known defect — P7-D1 (correctness, Medium, non-blocking, pinned, not fixed):** `ProductImporter` looks brands and
+categories up case-sensitively (`find_or_create_by!(name:)`) while their names are unique case-insensitively. A name
+differing only in case from an existing one (or from an earlier row of the same file — "Acme" then "acme") fails with
+`ActiveRecord::RecordInvalid`, which neither the importer nor the controller rescues: the whole import is rolled back
+(nothing saved, which is safe) and Rails maps the error to **422** — production shows the generic `public/422.html`
+page, with no import result and no row-level message. (M0 had expected a 500; the M1 characterization shows 422.)
+Five examples pin it; a fix needs its own approved `fix:`.
+
+**Known defect — P7-D2 (UI, Low, non-blocking, pinned, not fixed; found in M1):** the six success notices
+`inventory.brands.created / updated / destroyed` and `inventory.product_categories.created / updated / destroyed` have
+no translation in `en` or `ar`, so after a successful create, update or delete the flash reads
+"Translation missing: en.inventory.brands.created". Two examples pin it; a fix (locale keys only) needs its own
+approved `fix:`.
+
+**Data check recommended before M6/M7 (read-only, production):** products linked to another business's brand,
+category or parent before the Pilot 6 fixes would still exist — they would count on that brand's / category's list
+and block its deletion. `Product.joins(:brand).where("brands.business_id <> products.business_id").count`, and the
+same for `product_category` and `parent_product`, should be 0.
+
+### 22.3 Verification (M1, seed 20261006)
+
+| Run | Result |
+|---|---|
+| Focused baseline before M1 (6 directories, `inventory-purchasing-product-catalogue-baseline-failures.txt`) | 2045 examples, **14 failures** (all known), 0 pending |
+| Same set after M1 (+ 75) | 2120 examples, **the same 14 IDs**, 0 pending — one run also showed TD-P6-1 (a Faker apostrophe name HTML-escaped); the same-seed re-run passed |
+| New M1 characterization, seeds 20261006 / 12345 / 98765 | 75 / 0 under each |
+| Security regressions (`spec/requests/security`) + `product_references_spec.rb` | 256 / 0 |
+
+RuboCop clean on the new files. No new failure ID.
+
+### 22.4 Migration path (M1 evidence)
+
+* **M2 – M5 NOT NEEDED:** no cross-domain caller or write, no cycle, no contract would add anything, no business rule
+  sits outside Inventory & Purchasing, and the CRUD has no financial state.
+* **M6 NEEDED (fast-track) — done in §22.5:** a boundary spec — catalogue writes only inside Inventory & Purchasing; allow-list the
+  Organization & Access inverse, the navigation / settings hub and the Reporting read.
+* **M7 NEEDED:** move both models into the existing `app/models/inventory_purchasing/` collapse (top-level constants
+  kept) with a location spec; `product_catalogue_usage_spec.rb`'s location example is updated then (path only).
+* **M8 NEEDED:** close-out. P7-D1 and P7-D2 stay separate decisions.
+
+**Production data check (done before M6):** products linked to another business's brand, category or parent: **0 / 0 / 0**.
+
+### 22.5 M6 — product catalogue boundary enforcement (and M7 readiness)
+
+**Fresh scan** (1,117 `app/` + `lib/` files; code lines only — comments, ERB comments and `t(...)` keys ignored): 67
+code lines in 22 files reference `Brand` / `ProductCategory`, their policies or controllers, a brand / category
+association, collection or column (41 brand, 31 category). 62 lines in 19 files are inside Inventory & Purchasing —
+`app/controllers|views|services/inventory/`, `Brand`, `ProductCategory`, `Product`, `BrandPolicy`,
+`ProductCategoryPolicy`. `Product → Brand / ProductCategory` and `ProductImporter`'s find-or-create are internal; all 16
+catalogue writes are inside the domain. **No code outside the domain writes a brand or a category** — directly, through
+a business collection, by assignment, through nested attributes, callbacks, bulk operations or imports (none exist
+outside). No Workforce or Attendance & Payroll reference; `Product` outside the folders is only Laundry (Inventory &
+Purchasing, no catalogue use), i18n labels on the home dashboard and the products nav entry. `db/seeds.rb` creates
+brands and categories (development seed data, outside `app/` / `lib/`). The `category.save / update / destroy` lines
+in `finance/expense_categories_controller.rb` are Finance's `ExpenseCategory` (false positive).
+
+**`Finance::Reports::ExpenseSources` re-verified — Reporting, read-only.** Despite its `finance/` path it is the
+cross-domain cost aggregation behind Branch Profitability and Expense Details (payroll from Attendance & Payroll,
+consumption from Inventory & Purchasing via `Inventory::ConsumptionLedger`, expenses from Finance & Sales, laundry
+costs); `module-boundaries.md` §9 names it as Reporting. Its two catalogue lines preload and read a consumed product's
+category name (`includes(:product_category)`, `product&.product_category&.name`) for `finance/reports/_inventory_rows`,
+which renders only that string. No save / update / destroy, no callback. Allowed as a read-only exception.
+
+**Classified exceptions** (`spec/architecture/inventory_purchasing_product_catalogue_boundary_spec.rb`, each pinned to
+its exact line shape; writes are never excepted):
+
+| File | Kind | Shape |
+|---|---|---|
+| `app/models/business.rb` | Lifecycle (Organization & Access inverse association) | `has_many :brands, dependent: :destroy`, `has_many :product_categories, dependent: :destroy` |
+| `app/helpers/workspace_helper.rb` | Navigation (UI shell) | the inventory Settings entry gated by `policy(ProductCategory).index? \|\| policy(Brand).index? \|\| …` |
+| `app/services/finance/reports/expense_sources.rb` | Reporting read | the `includes(:product_category)` preload and the category name |
+
+Not guarded (not business dependencies): route helpers, i18n keys, the `view_inventory` / `manage_inventory` /
+`manage_products` permissions (metadata; `manage_products` requires `view_inventory`, asserted), comments, CSS class
+names (`--brand`, `__brand`), prose ("brand new"), JavaScript, `config/`, `db/seeds.rb`, specs and docs.
+
+**Prohibited outside Inventory & Purchasing:** `Brand.` / `ProductCategory.` `create | new | insert | upsert | update |
+delete | destroy | find_or_create_by | …`; `business.brands.` / `.product_categories.` `create | build | …`;
+`brand.` / `product_category.` `update | save | destroy | delete | assign_attributes | touch | …` (so `update_columns`
+too); assignment through a receiver (`product.brand = …`, `product.product_category_id = …`); `brand:` /
+`product_category:` attributes passed to a write; and `category.save / update / destroy` in any file that names the
+catalogue.
+
+**Spec** (31 examples): ownership (models, policies, controllers under the inventory gate); no unexpected reference
+outside the domain; no write outside the domain (exceptions included); one check per other domain (Organization &
+Access, Workforce, Attendance & Payroll, Finance & Sales, Reporting); allow-list and exception shapes tight (stale
+entries and unused shapes fail); the Reporting exception read-only; permission metadata; the lifecycle associations.
+Self-tests: a catalogue read planted in each of the five domains; ten planted writes (`Brand.create!`, `brand.update!`,
+`brand.destroy!`, `ProductCategory.create!`, `category.update!`, `category.destroy!`, `business.brands.create!`,
+`product.brand =`, `Product.create!(product_category: …)`, `brand.update_columns`); widened OA and Reporting
+exceptions; harmless references; Product / ProductImporter internal.
+
+**Physical planted probes** (temporary, removed): `app/services/finance/p7_m6_probe.rb` (`Brand.create!`,
+`brand.update!`, `brand.destroy!`, `ProductCategory.create!`, `category.update!`, `category.destroy!`),
+`app/services/payroll/p7_m6_probe.rb` (`business.product_categories.create!`), `brands.destroy_all` appended to
+`business.rb` and `product.product_category.update!` appended to `expense_sources.rb`. With them the spec failed 4
+examples (reference rule, write rule, Finance & Sales and Attendance & Payroll checks) and listed each probe line; the
+first run also flagged a local `brand = Brand.find(id)` as a write, so assignment now needs a receiver. After removal
+(files deleted, the two models restored from git): 31 / 0, no probe code left.
+
+**Verification (seed 20261006):**
+
+| Run | Result |
+|---|---|
+| M6 boundary spec, seeds 20261006 / 12345 / 98765 | 31 / 0 under each |
+| M1 characterization (4 files) | 75 / 0 |
+| Security (`spec/requests/security`) + `product_references_spec.rb` | 256 / 0 |
+| `spec/architecture` | 215 / 0 |
+| Pilot 7 focused set (baseline file's 6 directories) | 2151 examples, **the same 14 baseline IDs**, 0 pending; no TD-P6-1 |
+
+`zeitwerk:check` and RuboCop clean. No new failure ID.
+
+**M7 readiness (assessment only, nothing moved):** `app/models/inventory_purchasing/` is already collapsed by
+`config/initializers/inventory_purchasing_autoload.rb`, so `brand.rb` and `product_category.rb` can move there keeping
+the top-level constants `Brand` / `ProductCategory`. Neither model sets `table_name` (tables `brands` /
+`product_categories` unchanged), so no migration. No code references `InventoryPurchasing::Brand` or
+`InventoryPurchasing::ProductCategory`. Path updates needed at M7: `INVENTORY_PURCHASING_FILES` in the M6 spec and the
+location example in `product_catalogue_usage_spec.rb`; add a location spec like Supplier's.
+
+### 22.6 M7 — physical move
+
+`Brand` and `ProductCategory` moved with `git mv` (both detected as `R100`, byte-identical):
+`app/models/brand.rb` → `app/models/inventory_purchasing/brand.rb`, `app/models/product_category.rb` →
+`app/models/inventory_purchasing/product_category.rb`. The existing `config/initializers/inventory_purchasing_autoload.rb`
+(Pilot 6) already collapses the folder, so no new initializer: the constants stay top-level `Brand` / `ProductCategory`,
+there is no `InventoryPurchasing::Brand` / `::ProductCategory` (no `InventoryPurchasing` constant at all), tables stay
+`brands` / `product_categories` (no `table_name` set), associations, validations and scopes unchanged. No migration, no
+`db/` change.
+
+Path-only updates: `INVENTORY_PURCHASING_FILES` in the M6 boundary spec (rules unchanged) and the location example in
+`product_catalogue_usage_spec.rb`. New `spec/architecture/inventory_purchasing_product_catalogue_model_location_spec.rb`
+(11 examples, the Supplier pattern): each model loads as a top-level constant from the folder, the old file is gone, the
+table is kept, no `InventoryPurchasing` / `Inventory::` constant, controllers stay `Inventory::`, every association
+resolves the same class, behaviour kept (business scoping, case-insensitive uniqueness, the active scope, restrict on
+products). A planted probe re-run after the path update (`Brand.create!` and `ProductCategory.find(id).destroy!` in a
+temporary Finance service) failed 3 boundary examples; removed afterwards.
+
+**Verification:**
+
+| Run | Result |
+|---|---|
+| Location + M6 boundary, seeds 20261006 / 12345 / 98765 | 42 / 0 under each |
+| M1 characterization, seeds 20261006 / 12345 / 98765 | 75 / 0 under each |
+| Security (`spec/requests/security`) + `product_references_spec.rb` | 256 / 0 |
+| `spec/architecture` | 226 / 0 |
+| Pilot 7 focused set (seed 20261006) | 2162 examples, **the same 14 baseline IDs**, 0 pending; no TD-P6-1 |
+
+`zeitwerk:check`, RuboCop on the changed files (12, no offenses) and `git diff --check` clean.
+
+### 22.7 M8 — close-out — Pilot 7 COMPLETE
+
+| Step | Result |
+|---|---|
+| M0 | COMPLETE — ownership, dependencies, security probes, baseline (§22.1) |
+| M1 | COMPLETE — 4 characterization files, 75 examples (§22.2 – §22.3) |
+| Production data check | COMPLETE — cross-business product → brand / category / parent links: 0 / 0 / 0 |
+| M2 – M5 | NOT NEEDED (§22.4) |
+| M6 | COMPLETE — boundary spec, 31 examples (§22.5) |
+| M7 | COMPLETE — `Brand`, `ProductCategory` into `app/models/inventory_purchasing/`, location spec (§22.6) |
+| M8 | COMPLETE — this close-out |
+
+**Final architecture.** Inventory & Purchasing owns `Brand` (`app/models/inventory_purchasing/brand.rb`, table
+`brands`) and `ProductCategory` (`app/models/inventory_purchasing/product_category.rb`, table `product_categories`),
+next to `Supplier`; top-level constants, collapsed by `inventory_purchasing_autoload.rb`, no `InventoryPurchasing`
+namespace. Their consumers — `Product`, `Inventory::Imports::ProductImporter`, `BrandPolicy`, `ProductCategoryPolicy`,
+the inventory controllers, views and services — are Inventory & Purchasing concerns. The intentional external
+references are `Business#brands` / `#product_categories` (Organization & Access lifecycle), the inventory Settings
+navigation entry (UI) and the Reporting read in `Finance::Reports::ExpenseSources` (category name) — enforced by the
+M6 boundary spec, which also forbids any catalogue write outside the domain.
+
+**Why M2 – M5 were not needed:** no cross-domain catalogue caller or write, no cycle, no useful contract boundary, and
+all catalogue logic was already in Inventory & Purchasing.
+
+**Security:** the Pilot 6 protections remain in force and green — product → brand (SEC-P6-4), product → category
+(SEC-P6-5), product → parent product (SEC-P6-6, the victim row unchanged); no new finding in Pilot 7.
+
+**Known debt (pinned, not fixed; each needs its own approved `fix:`):**
+
+* **P7-D1 (Medium, correctness):** `ProductImporter`'s exact-case brand / category lookup conflicts with their
+  case-insensitive uniqueness — a name differing only in case raises `ActiveRecord::RecordInvalid`, the import rolls
+  back, and the user gets Rails' generic 422 page.
+* **P7-D2 (Low, UI):** the English and Arabic success notices for brand and category create / update / delete are
+  missing ("Translation missing: …").
+* **Baseline:** the 14 IDs in `inventory-purchasing-product-catalogue-baseline-failures.txt` are untouched.
+* **TD-P6-1** (flaky, `goods_receipt_settlements_spec.rb:63`) stays known debt; it appeared once in M0 and once in M1
+  (both passed on same-seed re-runs), not in M6 – M8.
+
+**Final verification:**
+
+| Run | Result |
+|---|---|
+| Pilot 7 focused set, seeds 20261006 / 12345 / 98765 | 2162 examples, **the same 14 baseline IDs** under each, 0 pending, no TD-P6-1 |
+| Location + boundary | 42 / 0 |
+| M1 characterization | 75 / 0 |
+| Security (`spec/requests/security`) + `product_references_spec.rb` | 256 / 0 (product-reference subset 21 / 0) |
+| `spec/architecture` | 226 / 0 |
+| Planted probe (`business.brands.create!` in a temporary Payroll service) | 3 boundary failures; removed → 31 / 0 |
+
+`zeitwerk:check`, RuboCop on the changed files and `git diff --check` clean. `module-boundaries.md` status header
+synced (Inventory & Purchasing: `Supplier`, `Brand`, `ProductCategory`).
+
+**Pilot 7 (Inventory & Purchasing — Product Catalogue) is COMPLETE.** Nothing pushed or merged.
