@@ -3566,9 +3566,9 @@ synced (Inventory & Purchasing: `Supplier`, `Brand`, `ProductCategory`).
 
 ## 23. Pilot 8 — Workforce Employee Insurance Profile
 
-**Status: M1 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
-security unblock `8c0cdc8`, `d100b38`; M1 characterization. M2 – M8 not started. No schema, migration, route or API
-change.
+**Status: M2 COMPLETE** (on `fix/pilot-8-insurance-security`, not pushed or merged). M0 read-only at `main` `4655d18`;
+security unblock `8c0cdc8`, `d100b38`; M1 characterization `85b7966`; M2 contract (§23.6). M3 – M8 not started. No
+schema, migration, route or API change.
 
 ### 23.1 M0 — selection and ownership
 
@@ -3645,3 +3645,44 @@ sees the card and amounts — a manager also the employer contribution. Read-onl
   may read the profile (edge 3); OA inverses shape-pinned.
 * **M7 NEEDED:** `EmployeeInsuranceProfile` → `app/models/workforce/` (collapsed, top-level constant).
 * **M8 NEEDED.**
+
+### 23.6 M2 — Workforce contract `Employee::InsuranceProfileEffects`
+
+**Decision: one contract, two operations.** The edit-form notice and the recalculation describe the same thing — the
+payroll an insurance change affects. The notice's open periods (not `locked?`, i.e. not finalized / paid, with an entry
+for the employee) are exactly the periods `Payroll::EntryRecalculator.recalculate_all_open_periods_for` re-derives. A
+preview and its application of one effect; not a general payroll facade, nothing else added.
+
+| | |
+|---|---|
+| Contract (Workforce) | `Employee::InsuranceProfileEffects` — `app/services/employee/insurance_profile_effects.rb`; names nothing from Attendance & Payroll (asserted by its spec) |
+| `profile_changed(user:, actor:)` | `user`: the employee (`User`), `actor`: the `User` who saved the profile. Returns `nil` — nothing crosses back. Handler errors propagate; the caller isolates them |
+| `payroll_notice_for(user:)` | Returns a `Symbol` in `NOTICES = %i[none active mixed finalized]` — the value the edit view already renders. Anything else (a payroll record, a relation, a String, `nil`) raises `ArgumentError`, so no Attendance & Payroll object crosses the contract |
+| Registration | `register(handler)` rejects a handler missing either operation; no handler → `NotRegistered` (a `StandardError`), never a silent skip |
+| Implementation (Attendance & Payroll) | `Payroll::InsuranceProfileEffects` — `app/services/payroll/insurance_profile_effects.rb`: `profile_changed` = `Payroll::EntryRecalculator.recalculate_all_open_periods_for(user:, triggered_by: actor)`; `payroll_notice_for` = the controller's current `set_payroll_notice` rule, unchanged |
+| Wiring | `config/initializers/employee_insurance_profile_effects.rb` (`to_prepare`, the Pilot 4 composition-root pattern) |
+
+**Synchronous, after commit, failure isolated — kept, not moved into the contract.** No job or event bus: M1 pins a
+synchronous call made after the profile and its audit are committed, once per successful save, with a raising
+recalculation logged by the updater and the change still `ok: true`. The contract therefore only dispatches and
+propagates errors; in M3 the updater calls `profile_changed` from where it calls the recalculator today, inside its
+existing `rescue` (same log message), so every M1 example keeps passing unchanged. The Attendance & Payroll read of the
+profile (`EntryCalculator#resolve_insurance_snapshot`, edge 3) stays as it is — the allowed direction.
+
+**Callers not changed in M2:** `Employee::InsuranceProfileUpdater` still calls `Payroll::EntryRecalculator` and the
+controller still computes the notice itself; the implementation duplicates the notice rule until M3 routes the
+controller.
+
+**Spec:** `spec/services/employee/insurance_profile_effects_spec.rb` (16) — registration (implementation registered at
+boot, incomplete handler rejected, `NotRegistered`), dispatch (user and actor passed unchanged, `nil` returned, errors
+propagate, notice passed through, non-notice return values rejected), the implementation (open periods recalculated,
+locked untouched; same call and arguments as the updater's; the four notices; other employees ignored), parity with
+the edit form's notice in every state, and no Attendance & Payroll name in the contract.
+
+**Verification (seed 20261006):** Pilot 8 set + the contract spec 701 / 0 (685 + 16); M1 characterization 44 / 0;
+`spec/requests/security` 263 / 0; `spec/architecture` 226 / 0; Pilot 4 / Milestone 2 contract specs
+(`penalty_rule_settings`, `shift_penalty_rules`, `finalization_effects(_routing)`, the penalty-rule shift form) 47 / 0;
+contract + M1 under seeds 12345 / 98765 60 / 0. `zeitwerk:check`, RuboCop and `git diff --check` clean.
+
+**M3 (next, not started):** route `Employee::InsuranceProfileUpdater#recalculate_open_periods` and
+`Admin::EmployeeInsuranceProfilesController#set_payroll_notice` through the contract; no behaviour change.
