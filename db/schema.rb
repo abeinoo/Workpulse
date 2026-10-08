@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_02_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -632,10 +632,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_100000) do
     t.datetime "reviewed_at"
     t.integer "reviewed_by_id"
     t.string "status", default: "pending", null: false
+    t.bigint "submitted_by_id"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["cancelled_by_id"], name: "index_employee_requests_on_cancelled_by_id"
     t.index ["reviewed_by_id"], name: "index_employee_requests_on_reviewed_by_id"
+    t.index ["submitted_by_id"], name: "index_employee_requests_on_submitted_by_id"
     t.index ["user_id", "request_type", "requested_for_date"], name: "idx_on_user_id_request_type_requested_for_date_bed206bfdf"
     t.index ["user_id"], name: "index_employee_requests_on_user_id"
   end
@@ -2557,6 +2559,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_02_100000) do
   add_foreign_key "employee_requests", "users"
   add_foreign_key "employee_requests", "users", column: "cancelled_by_id"
   add_foreign_key "employee_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "employee_requests", "users", column: "submitted_by_id"
   add_foreign_key "evaluation_criteria", "evaluation_templates"
   add_foreign_key "evaluation_templates", "businesses"
   add_foreign_key "evaluation_templates", "departments"

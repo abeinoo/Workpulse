@@ -7,7 +7,9 @@ class EmployeeRequestPolicy < ApplicationPolicy
   # The requester must also be inside the approver's scope (SEC-P9-1) — resolved
   # like create? (approve_requests → view_requests → view_employees), so a
   # narrower approve_requests scope is not widened by view_requests.
-  def approve? = can?(:approve_requests) && !own_request? && reviewable_employee?
+  # Nor may the user who SUBMITTED the request (an approver who created it on
+  # the employee's behalf) approve or reject it (SEC-P10-1).
+  def approve? = can?(:approve_requests) && !own_request? && !own_submission? && reviewable_employee?
   def reject?  = approve?
   # Reviewer-only validation details on the show page (attendance-window check,
   # shift span, resulting work duration, duration warnings, confirmation). Same
@@ -70,6 +72,11 @@ class EmployeeRequestPolicy < ApplicationPolicy
 
   def own_request?
     record.user_id == user.id
+  end
+
+  # NULL submitted_by (legacy requests) is never treated as a submission by anyone.
+  def own_submission?
+    record.respond_to?(:submitted_by_id) && record.submitted_by_id.present? && record.submitted_by_id == user.id
   end
 
   def reviewable_employee? = in_approver_scope?(record.user_id)

@@ -20,7 +20,7 @@ module Api
         req = current_user.employee_requests.new(request_params)
         authorize req
 
-        if req.save
+        if Requests::Submitter.call(request: req, actor: current_user)
           render_success(request_json(req), status: :created)
         else
           render_error("Failed to submit request", errors: req.errors.full_messages)
