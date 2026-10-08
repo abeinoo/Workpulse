@@ -183,10 +183,13 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       expect(subject.new(manager, approved).cancel?).to be true
     end
 
-    it "permits a pay_advances holder to cancel an approved request" do
+    # pay_advances reaches salary advance requests only (inside its scope).
+    it "permits a pay_advances holder to cancel an approved salary advance, not an approved permission" do
       accountant = create(:user, :accountant, business: business)
-      approved = create(:employee_request, :approved, user: employee)
-      expect(subject.new(accountant, approved).cancel?).to be true
+      advance    = create(:employee_request, :salary_advance, :approved, user: employee)
+      permission = create(:employee_request, :approved, user: employee)
+      expect(subject.new(accountant, advance).cancel?).to be true
+      expect(subject.new(accountant, permission).cancel?).to be false
     end
 
     it "does NOT permit cancelling a rejected request" do

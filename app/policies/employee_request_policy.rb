@@ -22,15 +22,18 @@ class EmployeeRequestPolicy < ApplicationPolicy
 
   # Employees cancel their own pending requests.
   # Authorized reviewers can cancel pending or approved requests on behalf of the
-  # business (e.g. before payroll runs): approve_requests holders for their own
-  # requests and for employees inside their approver scope (SEC-P9-1);
-  # pay_advances holders business-wide (unchanged — not scoped here).
+  # business (e.g. before payroll runs):
+  # * approve_requests holders — any request type, their own or an employee in
+  #   their approver scope (SEC-P9-1);
+  # * pay_advances holders — salary advance requests only, their own or an
+  #   employee in their pay_advances scope. It never reaches permissions or punch
+  #   corrections, nor widens the approve_requests scope.
   def cancel?
     return false unless record.status.in?(%w[pending approved])
     return true  if own_request? && record.pending?
     return false unless same_business?(record.user)
 
-    (can?(:approve_requests) && (own_request? || reviewable_employee?)) || can?(:pay_advances)
+    approver_cancel? || advance_payer_cancel?
   end
 
   def create?
@@ -71,9 +74,18 @@ class EmployeeRequestPolicy < ApplicationPolicy
 
   def reviewable_employee? = in_approver_scope?(record.user_id)
 
-  def in_approver_scope?(user_id)
-    EmployeeScope.new(user)
-                 .for_permissions(:approve_requests, :view_requests, :view_employees)
-                 .exists?(id: user_id)
+  def in_approver_scope?(user_id) = employee_in_scope?(user_id, :approve_requests, :view_requests, :view_employees)
+
+  def approver_cancel? = can?(:approve_requests) && (own_request? || reviewable_employee?)
+
+  def advance_payer_cancel?
+    record.salary_advance? && can?(:pay_advances) &&
+      (own_request? || employee_in_scope?(record.user_id, :pay_advances, :view_requests, :view_employees))
+  end
+
+  # EmployeeScope resolves the first permission with a configured data scope
+  # (most-specific first), else the manager hierarchy.
+  def employee_in_scope?(user_id, *permissions)
+    EmployeeScope.new(user).for_permissions(*permissions).exists?(id: user_id)
   end
 end
