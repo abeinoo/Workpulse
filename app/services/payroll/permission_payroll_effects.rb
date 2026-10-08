@@ -1,13 +1,15 @@
 module Payroll
   # Attendance & Payroll implementation of the Workforce
   # Requests::PermissionPayrollEffects contract (registered in
-  # config/initializers/request_permission_payroll_effects.rb).
+  # config/initializers/request_permission_payroll_effects.rb):
   #
-  # permission_approved is the existing PermissionApplier (adjusts the penalty
-  # line of an open period, or does nothing). permission_cancelled still
-  # delegates to the revert that lives in Workforce today
-  # (Requests::Canceller.revert_permission_payroll) — Pilot 9 M4 moves that logic
-  # here; until then the behaviour is exactly the current one.
+  #   permission_approved  → Payroll::PermissionApplier (adjusts the penalty line
+  #                          of an open period, or does nothing)
+  #   permission_cancelled → Payroll::PermissionReverter (restores the full
+  #                          penalty; :reverted, or :refused for a finalized / paid
+  #                          period)
+  #
+  # Calls nothing in Workforce.
   module PermissionPayrollEffects
     module_function
 
@@ -16,7 +18,7 @@ module Payroll
     end
 
     def permission_cancelled(request:)
-      Requests::Canceller.revert_permission_payroll(request)
+      Payroll::PermissionReverter.call(request)
     end
   end
 end

@@ -3833,9 +3833,10 @@ close-out sit on `fix/pilot-8-insurance-security` on top of `main` `4655d18`.
 
 ## 24. Pilot 9 — Workforce Request Permission Payroll Effects (late / early-leave permissions)
 
-**Status: M3-A COMPLETE** (on `fix/pilot-9-request-scope`, not pushed or merged). M0 read-only at `main` `a9f8ff3`;
+**Status: M4 COMPLETE** (on `fix/pilot-9-request-scope`, not pushed or merged). M0 read-only at `main` `a9f8ff3`;
 security unblock `09957e9`, `0512fc6`; M1 characterization `c0cd7ff`; M2 contract `27fe23a` (§24.5); M3-A approval
-routing (§24.6). M3-B (cancellation routing) + M4, M6 – M8 not started. No schema, migration, route or API change.
+routing `2d55172` (§24.6); M3-B + M4 cancellation routing and relocation (§24.7). M6 – M8 not started. No schema,
+migration, route or API change.
 
 ### 24.1 M0 — selection
 
@@ -4003,3 +4004,60 @@ is caught. 6 of the 11 fail on the pre-M3 approver.
 Pilot 9 security + policy 67 / 0; request-area set (seed 20261006) 1622 examples with the same 27 baseline IDs.
 `zeitwerk:check` and `git diff --check` clean; RuboCop clean on the new specs (the 8 `Layout/SpaceInsideArrayLiteralBrackets`
 offenses in `approver.rb` pre-date M3 and are on untouched lines — left as is).
+
+### 24.7 M3-B + M4 — cancellation routed, revert moved into Attendance & Payroll
+
+Landed together so there is never a Workforce → Attendance & Payroll → Workforce loop. The boundary is now one-way:
+
+```
+Workforce  Requests::Approver#approve_standard ─┐
+           Requests::Canceller#cancel ──────────┤ Requests::PermissionPayrollEffects (WF contract)
+                                                ▼
+A&P        Payroll::PermissionPayrollEffects ── permission_approved  → Payroll::PermissionApplier
+                                             └─ permission_cancelled → Payroll::PermissionReverter (new)
+```
+
+| Change | Detail |
+|---|---|
+| **New `app/services/payroll/permission_reverter.rb`** | `Payroll::PermissionReverter.call(request)` — line-for-line port of `Requests::Canceller#rollback_permission`: attendance record → covering period (any status, by request month) → `:refused` if finalized / paid → entry → raw minutes (CURRENT attendance) → full penalty via `Salary::DailyRateCalculator` + `Attendance::PenaltyCalculator` → line updated (`permission_minutes: nil`) / recreated ("Late arrival / Early leave <date>") / destroyed (zero) → `recalculate_totals!` → `:reverted`. No-ops (not a permission, no attendance, no period, no entry, zero minutes) → `:reverted`. No rescue: an invalid line raises `ActiveRecord::RecordInvalid`. Never writes attendance |
+| `Payroll::PermissionPayrollEffects#permission_cancelled` | `Payroll::PermissionReverter.call(request)` (was: delegation to `Requests::Canceller.revert_permission_payroll`). Calls nothing in Workforce |
+| `Requests::Canceller#rollback_approval_effects` | late / early leave → `revert_permission_payroll_effect`: `Requests::PermissionPayrollEffects.permission_cancelled(request: @request)` at the same point, inside the same cancel transaction; `:refused` → `err(I18n.t("requests.errors.cannot_cancel_finalized"))` (the existing result: rollback, request stays approved, no cancel audit), `:reverted` → `ok` |
+| **Removed from `Requests::Canceller`** | `rollback_permission`, the M2 bridge `self.revert_permission_payroll` / `#revert_permission_payroll`, `PermissionRevertFailed`, the error-text matching |
+
+**Result semantics unchanged:** only the locked-period condition maps to `:refused`. An invalid penalty line used to be
+rescued inside `rollback_permission` and returned as `err(messages)`; it now raises out of the reverter, the cancel
+transaction rolls back, and `Requests::Canceller#cancel`'s existing `rescue ActiveRecord::RecordInvalid` returns the same
+`err(messages)` — identical result for the caller. Any other error propagates, as before.
+
+**Shared helpers — decision: duplicate, do not move.** `covering_period`, `daily_rate_for` and `compute_penalty` are
+also used by the punch-correction rollback (`rollback_punch_correction`, `rollback_punch_payroll`,
+`restore_penalty_line_item`), so they stay in `Requests::Canceller` unchanged, now serving punch correction only. The
+reverter has its own private copies (~25 lines). Moving them to a shared Attendance & Payroll owner would have required
+touching punch correction; leaving the reverter calling the Workforce copies would have created Attendance & Payroll →
+Workforce. **Debt:** the duplication goes when the punch-correction pilot moves its rollback to Attendance & Payroll.
+
+**Boundary note.** `Requests::Canceller` still names Attendance & Payroll (`AttendanceRecord`, `PayrollPeriod`,
+`PayrollEntry`, `Salary::` / `Attendance::` calculators, `Attendance::RecordRecomputer`) — but only in the
+punch-correction rollback (§14.2 #3, out of this pilot). The boundary spec pins that: such references are allowed only
+inside the six punch-correction methods.
+
+**Specs:** new `spec/services/payroll/permission_reverter_spec.rb` (16: open → restored `:reverted`; finalized / paid
+`:refused` and untouched; no period / no entry / no attendance `:reverted`; early-leave line restored, late line
+untouched; deleted line recreated; zero penalty deletes; zero minutes no-op; totals recalculated; current attendance
+minutes; attendance never written; RecordInvalid propagates; non-permission no-op; the contract passes the same
+request). Routing spec (12, was 7): cancellation calls the contract once with the same request inside the transaction
+before the status change, for both types; `:refused` → `cannot_cancel_finalized`, request approved, no audit;
+RecordInvalid → same failed result; unexpected error → rollback; pending / advance / punch cancellations never call it.
+Contract spec: the bridge example replaced (any other failure raises, never `:refused`). Boundary spec (13, was 4):
+no permission internals in either caller; canceller's Attendance & Payroll names only inside punch-correction methods;
+approver names no payroll model; each caller calls its operation once; the implementation may use its own models but
+never `Requests::` / lifecycle calls / status writes; bridge and `rollback_permission` gone (source + reflection);
+punch-correction methods present; planted probes. Pilot 4 penalty-rule boundary: `permission_reverter.rb` added to its
+Attendance & Payroll allow-list (it names `Attendance::PenaltyCalculator`), the canceller's reason narrowed to the punch
+rollback. Against the pre-M4 canceller / implementation the new examples fail 11 of 41.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** reverter + routing + contract + boundary 56 / 0; M1 53 / 0
+(unchanged); permission-effects core 220 / 0; punch-correction specs (19 files) 407 examples, 1 failure — the documented
+baseline `employee_request_spec.rb:432`; `spec/architecture` + `spec/requests/security` 558 / 0 (549 + 9); Pilot 9
+security + policy 67 / 0; request-area set (seed 20261006) 1622 examples with the same 27 baseline IDs. `zeitwerk:check`,
+RuboCop (8 changed files) and `git diff --check` clean.

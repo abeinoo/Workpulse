@@ -7,9 +7,9 @@ module Requests
   #   approved → cancelled  (all types)  — side-effects reversed per type:
   #
   #     salary_advance   : no rollback — Advance is only created on pay, not approve
-  #     late_permission  : restores the PayrollLineItem penalty amount (or recreates
-  #                        it when PermissionApplier deleted it entirely)
-  #     early_leave      : same as late_permission for early_leave_penalty items
+  #     late_permission  : the payroll effect is reverted by Attendance & Payroll
+  #     early_leave        through the Workforce contract Requests::PermissionPayrollEffects
+  #                        (refused while the payroll period is finalized / paid)
   #     punch_correction : restores check_in_at/out + sources on AttendanceRecord,
   #                        recomputes the record, and re-propagates to open payroll
   #
@@ -22,21 +22,6 @@ module Requests
 
     Result = Struct.new(:success, :request, :error, keyword_init: true) do
       def success? = success
-    end
-
-    # Raised by revert_permission_payroll when the revert fails for a reason
-    # other than locked payroll (an invalid penalty line); carries the messages.
-    class PermissionRevertFailed < StandardError; end
-
-    # Temporary seam (Pilot 9 M2): Payroll::PermissionPayrollEffects — the
-    # Attendance & Payroll implementation of Requests::PermissionPayrollEffects —
-    # delegates #permission_cancelled here until M4 moves the permission revert
-    # into Attendance & Payroll. Runs the unchanged #rollback_permission for the
-    # request and answers in the contract's terms: :reverted (including nothing
-    # to revert) or :refused (finalized / paid period); raises
-    # PermissionRevertFailed otherwise. Nothing is cancelled or audited here.
-    def self.revert_permission_payroll(request)
-      new(request: request, cancelled_by: nil, reason: nil).revert_permission_payroll
     end
 
     def self.cancel(request:, cancelled_by:, reason:)
@@ -89,14 +74,6 @@ module Requests
       err(e.record.errors.full_messages.join(", "))
     end
 
-    def revert_permission_payroll
-      result = rollback_permission
-      return :reverted if result.success?
-      return :refused  if result.error == I18n.t("requests.errors.cannot_cancel_finalized")
-
-      raise PermissionRevertFailed, result.error
-    end
-
     private
 
     def cancellable_status?
@@ -107,75 +84,23 @@ module Requests
       case @request.request_type
       when "salary_advance"    then ok   # Advance only created at pay step
       when "late_permission",
-           "early_leave"       then rollback_permission
+           "early_leave"       then revert_permission_payroll_effect
       when "punch_correction"  then rollback_punch_correction
       else ok
       end
     end
 
-    # ── Permission rollback (late_permission / early_leave) ───────────────────
+    # ── Permission payroll effect (late_permission / early_leave) ──────────────
     #
-    # PermissionApplier may have modified or deleted a PayrollLineItem when the
-    # request was approved. EntryCalculator may also have generated the entry
-    # with a reduced penalty if payroll was built after approval.
-    # Either way, we recalculate the full penalty from the attendance record
-    # and restore (or recreate) the line item.
-    def rollback_permission
-      attendance = AttendanceRecord.find_by(user: @request.user,
-                                            work_date: @request.requested_for_date)
-      return ok unless attendance
-
-      period = covering_period
-      return ok unless period  # no period → PermissionApplier never ran
-
-      if period.finalized? || period.paid?
-        return err(I18n.t("requests.errors.cannot_cancel_finalized"))
+    # Attendance & Payroll reverts it through the Workforce contract, inside this
+    # cancel transaction. :refused (the payroll period is finalized or paid)
+    # keeps the request approved, as before; an invalid line item raises
+    # ActiveRecord::RecordInvalid, which #cancel turns into the same failed Result.
+    def revert_permission_payroll_effect
+      case Requests::PermissionPayrollEffects.permission_cancelled(request: @request)
+      when :refused then err(I18n.t("requests.errors.cannot_cancel_finalized"))
+      else ok
       end
-
-      entry = PayrollEntry.find_by(payroll_period: period, user: @request.user)
-      return ok unless entry  # entry not yet generated → no line items to reverse
-
-      item_type   = @request.late_permission? ? "late_penalty" : "early_leave_penalty"
-      raw_minutes = @request.late_permission? ? attendance.late_minutes.to_i
-                                              : attendance.early_leave_minutes.to_i
-
-      return ok if raw_minutes == 0  # no penalty existed; nothing to restore
-
-      daily_rate  = daily_rate_for(entry)
-      full_amount = compute_penalty(attendance, daily_rate, item_type, raw_minutes)
-
-      line_item = entry.payroll_line_items.find_by(
-        source_type: "AttendanceRecord",
-        source_id:   attendance.id,
-        item_type:   item_type
-      )
-
-      if full_amount.round(2) == 0.0
-        line_item&.destroy!
-      elsif line_item
-        line_item.update!(
-          amount:             full_amount.round(2),
-          original_minutes:   raw_minutes,
-          permission_minutes: nil
-        )
-      else
-        # PermissionApplier deleted the item (penalty → 0 after permission) or
-        # EntryCalculator omitted it because effective minutes were 0 — recreate.
-        type_label = @request.late_permission? ? "Late arrival" : "Early leave"
-        entry.payroll_line_items.create!(
-          item_type:        item_type,
-          amount:           full_amount.round(2),
-          description:      "#{type_label} #{attendance.work_date}",
-          source_type:      "AttendanceRecord",
-          source_id:        attendance.id,
-          original_minutes: raw_minutes
-        )
-      end
-
-      entry.recalculate_totals!
-      ok
-    rescue ActiveRecord::RecordInvalid => e
-      err(e.record.errors.full_messages.join(", "))
     end
 
     # ── Punch correction rollback ─────────────────────────────────────────────

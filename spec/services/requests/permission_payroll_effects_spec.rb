@@ -1,11 +1,11 @@
 require "rails_helper"
 
-# Pilot 9 — Request Permission Payroll Effects, M2: the Workforce contract
+# Pilot 9 — Request Permission Payroll Effects, M2 / M4: the Workforce contract
 # Requests::PermissionPayrollEffects and its Attendance & Payroll implementation
-# Payroll::PermissionPayrollEffects (approval → PermissionApplier; cancellation
-# delegating to Requests::Canceller.revert_permission_payroll until M4).
-# Requests::Approver and Requests::Canceller are routed through the contract in
-# M3; the behaviour stays pinned by
+# Payroll::PermissionPayrollEffects (approval → PermissionApplier; cancellation →
+# PermissionReverter since M4). Requests::Approver (M3-A) and Requests::Canceller
+# (M3-B) are routed through the contract (permission_payroll_effects_routing_spec.rb);
+# the behaviour stays pinned by
 # spec/characterization/workforce/request_permission_payroll_effects_spec.rb.
 RSpec.describe Requests::PermissionPayrollEffects do
   around { |ex| travel_to(Time.zone.local(2026, 7, 15, 12, 0, 0)) { ex.run } }
@@ -164,12 +164,14 @@ RSpec.describe Requests::PermissionPayrollEffects do
       expect(line.reload.amount).to eq(-100.0)
     end
 
-    it "any other revert failure raises (Requests::Canceller::PermissionRevertFailed with the messages)" do
-      allow_any_instance_of(Requests::Canceller).to receive(:rollback_permission)
-        .and_return(Requests::Canceller::Result.new(success: false, error: "Amount is invalid"))
+    it "any other revert failure raises (never mapped to :refused)" do
+      req = permission(40)
+      described_class.permission_approved(request: req)
+      allow(Payroll::PermissionReverter).to receive(:call).and_call_original
+      allow(Attendance::PenaltyCalculator).to receive(:calculate).and_raise(StandardError, "boom")
 
-      expect { described_class.permission_cancelled(request: permission(40)) }
-        .to raise_error(Requests::Canceller::PermissionRevertFailed, "Amount is invalid")
+      expect { described_class.permission_cancelled(request: req) }.to raise_error(StandardError, "boom")
+      expect(Payroll::PermissionReverter).to have_received(:call).with(req)
     end
   end
 

@@ -1,13 +1,11 @@
 require "rails_helper"
 
-# Pilot 9 — Request Permission Payroll Effects, M3-A: Requests::Approver
-# reaches the permission's payroll effect only through the Workforce contract
-# Requests::PermissionPayrollEffects instead of naming Payroll::PermissionApplier.
-# The behaviour is unchanged and stays pinned by
+# Pilot 9 — Request Permission Payroll Effects, M3-A / M3-B: Requests::Approver
+# and Requests::Canceller reach the permission's payroll effect only through the
+# Workforce contract Requests::PermissionPayrollEffects (approval since M3-A;
+# cancellation since M3-B, landed with M4, which moved the revert into Attendance
+# & Payroll). The behaviour is unchanged and stays pinned by
 # spec/characterization/workforce/request_permission_payroll_effects_spec.rb.
-#
-# Cancellation is intentionally NOT routed yet (M3-B lands with M4): the
-# canceller still runs rollback_permission itself and never calls the contract.
 RSpec.describe "Request permission payroll effects → Requests::PermissionPayrollEffects routing" do
   let(:contract) { Requests::PermissionPayrollEffects }
   let(:business) { create(:business) }
@@ -98,14 +96,77 @@ RSpec.describe "Request permission payroll effects → Requests::PermissionPayro
     end
   end
 
-  describe "Requests::Canceller — not routed in M3-A" do
-    it "cancelling an approved permission does not call the contract (rollback_permission still runs in Workforce)" do
-      handler = double("handler", permission_approved: nil, permission_cancelled: :reverted)
+  describe "Requests::Canceller#cancel → permission_cancelled (M3-B)" do
+    def cancel(req) = Requests::Canceller.cancel(request: req, cancelled_by: reviewer, reason: "routing")
+
+    %i[late_permission early_leave].each do |type|
+      it "#{type}: calls the contract once with the same request inside the cancel transaction, before the status change" do
+        req  = request_of(type, :approved)
+        seen = nil
+        depth = ActiveRecord::Base.connection.open_transactions
+        handler = Module.new do
+          define_singleton_method(:permission_approved) { |request:| nil }
+          define_singleton_method(:permission_cancelled) do |request:|
+            seen = { request: request, status: request.reload.status,
+                     in_transaction: ActiveRecord::Base.connection.open_transactions > depth }
+            :reverted
+          end
+        end
+
+        result = with_handler(handler) { cancel(req) }
+
+        expect(result).to be_success
+        expect(seen).to eq(request: req, status: "approved", in_transaction: true)
+        expect(req.reload.status).to eq("cancelled")
+        expect(audits(req)).to eq([ "cancel" ])
+      end
+    end
+
+    it ":refused keeps the request approved with the cannot_cancel_finalized error and no cancel audit" do
+      handler = double("handler", permission_approved: nil, permission_cancelled: :refused)
       req = request_of(:late_permission, :approved)
 
-      result = with_handler(handler) { Requests::Canceller.cancel(request: req, cancelled_by: reviewer, reason: "routing") }
+      result = with_handler(handler) { cancel(req) }
 
-      expect(result).to be_success
+      expect(result).not_to be_success
+      expect(result.error).to eq(I18n.t("requests.errors.cannot_cancel_finalized"))
+      expect(req.reload.status).to eq("approved")
+      expect(audits(req)).to be_empty
+    end
+
+    it "an invalid line item (RecordInvalid) gives the same failed result as before: messages, request approved, no audit" do
+      handler = double("handler", permission_approved: nil)
+      invalid = PayrollLineItem.new.tap { |li| li.errors.add(:amount, "is invalid") }
+      allow(handler).to receive(:permission_cancelled).and_raise(ActiveRecord::RecordInvalid.new(invalid))
+      req = request_of(:early_leave, :approved)
+
+      result = with_handler(handler) { cancel(req) }
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Amount is invalid")
+      expect(req.reload.status).to eq("approved")
+      expect(audits(req)).to be_empty
+    end
+
+    it "an unexpected error propagates and the cancel transaction rolls back" do
+      handler = double("handler", permission_approved: nil)
+      allow(handler).to receive(:permission_cancelled).and_raise(StandardError, "boom")
+      req = request_of(:late_permission, :approved)
+
+      with_handler(handler) { expect { cancel(req) }.to raise_error(StandardError, "boom") }
+      expect(req.reload.status).to eq("approved")
+      expect(audits(req)).to be_empty
+    end
+
+    it "pending permissions, salary advances and punch corrections never call it" do
+      handler = double("handler", permission_approved: nil, permission_cancelled: :reverted)
+      allow(Requests::PunchCorrectionApplier).to receive(:call)
+
+      with_handler(handler) do
+        cancel(request_of(:late_permission, :pending))
+        cancel(request_of(:salary_advance, :approved))
+        cancel(request_of(:punch_correction, :pending))
+      end
       expect(handler).not_to have_received(:permission_cancelled)
     end
   end
