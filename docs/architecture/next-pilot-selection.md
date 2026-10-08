@@ -4182,3 +4182,63 @@ unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed
 `module-boundaries.md`: status header, §12.1 inversion table, §12.2 WF → AP row and §14.2 #4 represent the final state.
 
 **Pilot 9 (Workforce — Request Permission Payroll Effects) is COMPLETE.** Nothing pushed or merged.
+
+## 25. Pilot 10 — Punch Correction payroll / attendance effects
+
+**Status: M0 + unblock done — READY FOR M1** (uncommitted, on `fix/pilot-10-request-submitter`, branched from the Pilot 9
+branch `72a3464` because Pilot 9 is not yet on `main`). M1 – M8 not started; no contract, no code moved.
+
+### 25.1 M0 — findings (read-only)
+
+* **What punch correction does.** Approve (`Requests::Approver#approve_punch_correction`, one transaction): request →
+  approved + `approved_punch_at` → `Requests::PunchCorrectionApplier` (Workforce) snapshots the record's punches onto the
+  request (`original_*`), sets the corrected punch (`admin_manual`), saves, `Attendance::RecordRecomputer`, saves, then
+  `Payroll::PunchCorrectionApplier` (open period only) updates / deletes the EXISTING late / early-leave lines and
+  recalculates totals — it never creates a line; the approve audit (with attendance metadata) after commit. Cancel
+  (`Requests::Canceller`, one transaction): `rollback_punch_correction` (refused without a record or for a finalized /
+  paid period) restores the snapshot and recomputes, `rollback_punch_payroll` updates / RECREATES / deletes the lines.
+  `Requests::PunchCorrectionAssessment` reads the attendance window, record, a projected recompute and duration check.
+* **Ownership today.** Workforce owns the request lifecycle — and also performs the Attendance & Payroll writes
+  (attendance mutation in `Requests::PunchCorrectionApplier`; attendance + payroll restore in the canceller's six punch
+  methods). Attendance & Payroll owns `Payroll::PunchCorrectionApplier`, the attendance services and payroll models. No
+  code-level A&P → Workforce dependency; the snapshot is attendance data stored on the Workforce request table.
+* **Risks recorded.** Approval adjusts only existing penalty lines (no line creation; worked / overtime / absence not
+  re-derived — every other attendance mutation uses `Payroll::EntryRecalculator`); apply never creates lines while the
+  revert does; no record → approval refused (unlike permissions); the shared helpers duplicated with Pilot 9's
+  `Payroll::PermissionReverter`.
+* **SEC-M2-2:** fixed in `ca66c43` (not reproduced). Its follow-up (attendance edits use the `view_attendance` lookup scope
+  and allow editing one's own record) is still an open product decision on a different path — not in the punch flow.
+* **Blockers found:** SEC-P10-1 and the locked-period approval gap (below).
+
+### 25.2 Unblock — product decisions applied
+
+| Item | Finding | Resolution |
+|---|---|---|
+| **SEC-P10-1** (Medium) | An approver could create a request on behalf of an employee and approve it themselves: `Approvals::SelfApproval` compared the approver only with `user_id`, requests recorded no submitter, and creation was not audited (reproduced: a punch correction rewrote attendance; the audit showed only `approve` by the same actor) | New nullable `employee_requests.submitted_by_id` (FK → users, indexed; migration `20261008100000`). `Requests::Submitter` (new) is the single creation path for web and API: sets `submitted_by` to the signed-in user (never from params), saves and writes a `create` audit (`request_type`, `for_user_id`, `submitted_by_id`, `on_behalf`) in one transaction. `EmployeeRequestPolicy#approve?` / `#reject?` and `Requests::Approver#self_approval?` refuse the employee **and** the submitter |
+| Locked-period approval (product decision) | Approving a punch correction in a finalized / paid period rewrote attendance while payroll stayed frozen, and the cancel was then refused — a permanent mismatch | `Requests::PunchCorrectionApplier` refuses (`requests.errors.cannot_approve_finalized`, en + ar) when the request month's payroll period is `locked?` (finalized or paid), after the existing missing-record check and before any write; it runs inside the approver's existing transaction, which rolls the approval back — request pending, no `approved_punch_at`, no snapshot, attendance / payroll untouched, no approve audit |
+
+**Submitter data.** `user_id` = whom the request is for; `submitted_by_id` = who created it (equal for self-requests).
+Existing rows stay NULL — creation was never audited, so there is no reliable source to backfill from — and are read as
+"submitter unknown": the self-approval rule keeps its previous, employee-only meaning for them. New rows always get a
+submitter (`Requests::Submitter`; the model defaults it to the employee for any other creation path, e.g. seeds).
+**Residual:** a legacy PENDING request created on behalf of someone may still be approved by its (unrecorded) creator;
+it disappears as those requests are decided. **Migration run on the TEST database only** — run `bin/rails db:migrate` on
+development / production as part of deployment.
+
+**Atomicity preserved:** no new transaction; the guard is the first step of the applier inside the approver's
+transaction; the approve audit is still written only after commit. Permissions (Pilot 9) are unaffected by the guard.
+
+**Specs:** `spec/requests/security/employee_request_submitter_spec.rb` (11 — submitter and audit for self / on-behalf /
+API, mass assignment ignored, employee cannot self-approve, submitter cannot approve or reject (web + service), another
+approver can, legacy NULL rule, branch scope, cross-business 404; the 2 on-behalf self-approval examples fail on the old
+authorization). `spec/requests/security/punch_correction_locked_period_spec.rb` (10 — finalized / paid refused with the
+error, every state unchanged, web alert; open period and no period unchanged; missing record message first; permissions
+unaffected; the 6 locked examples fail without the guard).
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** SEC-P10-1 11 / 0; locked period 10 / 0; punch-correction
+specs (17 files) 382 / 1 — the documented `employee_request_spec.rb:432`; request security + policy 124 / 0; Pilot 9
+M1 + contract + routing + reverter + boundary 120 / 0; Pilot 9 core 220 / 0; `spec/architecture` + `spec/requests/security`
+590 / 0 (569 + 21); request-area set 1622 examples with the same 27 baseline IDs. M0 re-check: SEC-P10-1 not reproduced
+(on-behalf creation records the approver; the same approver's approval is refused; attendance untouched); locked-period
+approval blocked. `zeitwerk:check`, RuboCop (new / fully changed files clean; the controller and approver keep their
+pre-existing 4 / 8 layout offenses on untouched lines) and `git diff --check` clean.

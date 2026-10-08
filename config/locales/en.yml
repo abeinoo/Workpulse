@@ -1282,6 +1282,7 @@ en:
       cannot_cancel_paid: "Paid requests cannot be cancelled."
       cannot_cancel: "This request cannot be cancelled."
       cannot_cancel_finalized: "This request cannot be cancelled because the payroll period has already been finalized or paid."
+      cannot_approve_finalized: "This punch correction cannot be approved because the payroll period has already been finalized or paid."
       no_attendance_record: "No attendance record was found for this request date."
 
   approvals:
