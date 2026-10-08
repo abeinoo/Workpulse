@@ -167,7 +167,8 @@ module Requests
         response_note: @response_note
       )
 
-      Payroll::PermissionApplier.call(@request)
+      # The permission's payroll effect, through the Workforce contract (Pilot 9 M3).
+      Requests::PermissionPayrollEffects.permission_approved(request: @request)
 
       log_audit(
         actor:     @reviewed_by,

@@ -3833,9 +3833,9 @@ close-out sit on `fix/pilot-8-insurance-security` on top of `main` `4655d18`.
 
 ## 24. Pilot 9 — Workforce Request Permission Payroll Effects (late / early-leave permissions)
 
-**Status: M2 COMPLETE** (on `fix/pilot-9-request-scope`, not pushed or merged). M0 read-only at `main` `a9f8ff3`;
-security unblock `09957e9`, `0512fc6`; M1 characterization `c0cd7ff`; M2 contract (§24.5). M3 – M8 not started. No
-schema, migration, route or API change.
+**Status: M3-A COMPLETE** (on `fix/pilot-9-request-scope`, not pushed or merged). M0 read-only at `main` `a9f8ff3`;
+security unblock `09957e9`, `0512fc6`; M1 characterization `c0cd7ff`; M2 contract `27fe23a` (§24.5); M3-A approval
+routing (§24.6). M3-B (cancellation routing) + M4, M6 – M8 not started. No schema, migration, route or API change.
 
 ### 24.1 M0 — selection
 
@@ -3969,3 +3969,37 @@ nothing to revert, `PermissionRevertFailed` for any other failure), no Attendanc
 + contract 192 / 0 (177 + 15); `spec/architecture` + `spec/requests/security` 545 / 0; request-area set (seed
 20261006) 1622 examples with the same 27 baseline IDs; Pilot 9 security + policy specs 67 / 0. `zeitwerk:check`,
 RuboCop and `git diff --check` clean.
+
+### 24.6 M3-A — approval routed through the contract (cancellation deliberately not)
+
+| Caller | Before | After |
+|---|---|---|
+| `Requests::Approver#approve_standard` | `Payroll::PermissionApplier.call(@request)` | `Requests::PermissionPayrollEffects.permission_approved(request: @request)` — same place: after `@request.update!(approved)`, before `log_audit("approve")`, no transaction |
+
+The registered implementation (`Payroll::PermissionPayrollEffects`) runs `Payroll::PermissionApplier` with the same
+request, so every M1 example is unchanged. Salary-advance approvals take the same `approve_standard` path and call the
+contract (a no-op there, as before); punch-correction approval (`approve_punch_correction`) and rejection never call
+it. `Requests::Approver` no longer names `Payroll::PermissionApplier` (it still creates `Advance` in `pay` — the
+advances edge, outside this pilot).
+
+**Cancellation is intentionally NOT routed (M3-B lands with M4).** `Requests::Canceller#cancel` /
+`#rollback_permission` are unchanged and never call `permission_cancelled`. Routing them now would make Workforce call
+Attendance & Payroll (`Payroll::PermissionPayrollEffects#permission_cancelled`), which still delegates back to
+Workforce (`Requests::Canceller.revert_permission_payroll`, the M2 seam) — a temporary cycle. M4 moves the revert into
+Attendance & Payroll; M3-B then routes the canceller (mapping `PermissionRevertFailed` to today's `err(messages)`) and
+removes the seam. The seam stays in place, unused by the normal cancellation flow.
+
+**Specs:** `spec/services/requests/permission_payroll_effects_routing_spec.rb` (7) — for both permission types the
+contract is called once with the same request, after the approval is saved and before the audit, and
+`PermissionApplier` is not called directly; the registered implementation still runs `PermissionApplier` with the
+request; a contract error propagates (request approved, no audit); advance approval calls it, punch-correction approval
+and rejection do not; cancellation does not call the contract. `spec/architecture/workforce_request_permission_payroll_boundary_spec.rb`
+(4) — the approver names neither `PermissionApplier` nor the implementation and calls `permission_approved` exactly
+once; the contract names nothing from Attendance & Payroll while the implementation keeps its applier; a planted probe
+is caught. 6 of the 11 fail on the pre-M3 approver.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** routing + boundary 11 / 0; M1 53 / 0; contract + M1
+68 / 0; permission-effects core 199 / 0 (192 + 7); `spec/architecture` + `spec/requests/security` 549 / 0 (545 + 4);
+Pilot 9 security + policy 67 / 0; request-area set (seed 20261006) 1622 examples with the same 27 baseline IDs.
+`zeitwerk:check` and `git diff --check` clean; RuboCop clean on the new specs (the 8 `Layout/SpaceInsideArrayLiteralBrackets`
+offenses in `approver.rb` pre-date M3 and are on untouched lines — left as is).
