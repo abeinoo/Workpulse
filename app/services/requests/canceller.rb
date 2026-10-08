@@ -24,6 +24,21 @@ module Requests
       def success? = success
     end
 
+    # Raised by revert_permission_payroll when the revert fails for a reason
+    # other than locked payroll (an invalid penalty line); carries the messages.
+    class PermissionRevertFailed < StandardError; end
+
+    # Temporary seam (Pilot 9 M2): Payroll::PermissionPayrollEffects — the
+    # Attendance & Payroll implementation of Requests::PermissionPayrollEffects —
+    # delegates #permission_cancelled here until M4 moves the permission revert
+    # into Attendance & Payroll. Runs the unchanged #rollback_permission for the
+    # request and answers in the contract's terms: :reverted (including nothing
+    # to revert) or :refused (finalized / paid period); raises
+    # PermissionRevertFailed otherwise. Nothing is cancelled or audited here.
+    def self.revert_permission_payroll(request)
+      new(request: request, cancelled_by: nil, reason: nil).revert_permission_payroll
+    end
+
     def self.cancel(request:, cancelled_by:, reason:)
       new(request: request, cancelled_by: cancelled_by, reason: reason).cancel
     end
@@ -72,6 +87,14 @@ module Requests
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
+    end
+
+    def revert_permission_payroll
+      result = rollback_permission
+      return :reverted if result.success?
+      return :refused  if result.error == I18n.t("requests.errors.cannot_cancel_finalized")
+
+      raise PermissionRevertFailed, result.error
     end
 
     private
