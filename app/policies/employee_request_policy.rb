@@ -4,8 +4,11 @@ class EmployeeRequestPolicy < ApplicationPolicy
   # Self-approval is blocked: an approver may not approve or reject a request they
   # themselves submitted — another authorized approver must review it. Gates the UI
   # buttons (views read policy.approve?/reject?) and the controller `authorize`.
-  def approve? = can?(:approve_requests) && !own_request?
-  def reject?  = can?(:approve_requests) && !own_request?
+  # The requester must also be inside the approver's scope (SEC-P9-1) — resolved
+  # like create? (approve_requests → view_requests → view_employees), so a
+  # narrower approve_requests scope is not widened by view_requests.
+  def approve? = can?(:approve_requests) && !own_request? && reviewable_employee?
+  def reject?  = approve?
   # Reviewer-only validation details on the show page (attendance-window check,
   # shift span, resulting work duration, duration warnings, confirmation). Same
   # people who may approve — independent of status, so the details stay visible
@@ -18,13 +21,16 @@ class EmployeeRequestPolicy < ApplicationPolicy
   def new?     = create?
 
   # Employees cancel their own pending requests.
-  # Authorized reviewers (approve_requests or pay_advances) can cancel pending
-  # or approved requests on behalf of the business (e.g. before payroll runs).
+  # Authorized reviewers can cancel pending or approved requests on behalf of the
+  # business (e.g. before payroll runs): approve_requests holders for their own
+  # requests and for employees inside their approver scope (SEC-P9-1);
+  # pay_advances holders business-wide (unchanged — not scoped here).
   def cancel?
     return false unless record.status.in?(%w[pending approved])
     return true  if own_request? && record.pending?
+    return false unless same_business?(record.user)
 
-    (can?(:approve_requests) || can?(:pay_advances)) && same_business?(record.user)
+    (can?(:approve_requests) && (own_request? || reviewable_employee?)) || can?(:pay_advances)
   end
 
   def create?
@@ -37,9 +43,7 @@ class EmployeeRequestPolicy < ApplicationPolicy
     # (approve_requests → view_requests → view_employees), not just direct reports.
     return false unless can?(:approve_requests)
 
-    EmployeeScope.new(user)
-                 .for_permissions(:approve_requests, :view_requests, :view_employees)
-                 .exists?(id: effective_user.id)
+    in_approver_scope?(effective_user.id)
   end
 
   class Scope < ApplicationPolicy::Scope
@@ -63,5 +67,13 @@ class EmployeeRequestPolicy < ApplicationPolicy
 
   def own_request?
     record.user_id == user.id
+  end
+
+  def reviewable_employee? = in_approver_scope?(record.user_id)
+
+  def in_approver_scope?(user_id)
+    EmployeeScope.new(user)
+                 .for_permissions(:approve_requests, :view_requests, :view_employees)
+                 .exists?(id: user_id)
   end
 end
