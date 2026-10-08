@@ -3833,10 +3833,10 @@ close-out sit on `fix/pilot-8-insurance-security` on top of `main` `4655d18`.
 
 ## 24. Pilot 9 — Workforce Request Permission Payroll Effects (late / early-leave permissions)
 
-**Status: M4 COMPLETE** (on `fix/pilot-9-request-scope`, not pushed or merged). M0 read-only at `main` `a9f8ff3`;
+**Status: M6 COMPLETE** (on `fix/pilot-9-request-scope`, not pushed or merged). M0 read-only at `main` `a9f8ff3`;
 security unblock `09957e9`, `0512fc6`; M1 characterization `c0cd7ff`; M2 contract `27fe23a` (§24.5); M3-A approval
-routing `2d55172` (§24.6); M3-B + M4 cancellation routing and relocation (§24.7). M6 – M8 not started. No schema,
-migration, route or API change.
+routing `2d55172` (§24.6); M3-B + M4 `2663590` (§24.7); M6 boundary enforcement (§24.8). M7 not needed (no model moves
+in scope); M8 not started. No schema, migration, route or API change.
 
 ### 24.1 M0 — selection
 
@@ -4061,3 +4061,50 @@ rollback. Against the pre-M4 canceller / implementation the new examples fail 11
 baseline `employee_request_spec.rb:432`; `spec/architecture` + `spec/requests/security` 558 / 0 (549 + 9); Pilot 9
 security + policy 67 / 0; request-area set (seed 20261006) 1622 examples with the same 27 baseline IDs. `zeitwerk:check`,
 RuboCop (8 changed files) and `git diff --check` clean.
+
+### 24.8 M6 — the permission payroll boundary, enforced
+
+`spec/architecture/workforce_request_permission_payroll_boundary_spec.rb` (24 examples, was 13; the source-scanning
+style of the earlier boundary specs, full-line comments ignored):
+
+| Rule | Enforced |
+|---|---|
+| Permission path | `Requests::Approver#approve_standard` and `Requests::Canceller#cancel`, `#rollback_approval_effects`, `#revert_permission_payroll_effect` (method-level) name nothing from Attendance & Payroll: no `Payroll::PermissionApplier` / `PermissionReverter` / `PermissionPayrollEffects`, `PayrollPeriod`, `PayrollEntry`, `PayrollLineItem`, `AttendanceRecord`, `Attendance::PenaltyCalculator`, `Salary::DailyRateCalculator`, `Attendance::RecordRecomputer`, or any other `Payroll::` / `Attendance::` / `Salary::` constant; the methods must still exist |
+| Callers | neither caller names the applier, reverter or implementation anywhere; the approver names no payroll model; each calls the contract exactly once (`permission_approved` / `permission_cancelled`) |
+| **Punch-correction exception** | `Requests::Canceller` may name Attendance & Payroll ONLY inside `rollback_punch_correction`, `rollback_punch_payroll`, `restore_penalty_line_item`, `covering_period`, `daily_rate_for`, `compute_penalty` (the legacy punch-correction rollback, §14.2 #3); anywhere else in the class fails. The exception is per method, not per class, and the methods must still exist |
+| A&P → Workforce | `payroll/permission_payroll_effects.rb`, `permission_reverter.rb`, `permission_applier.rb`: no `Requests::`, no `EmployeeRequest` constant, no `approve` / `reject` / `cancel` / `pay` call, no `update!(status: …)` or `status =` — they only read the request they are handed |
+| Contract | `Requests::PermissionPayrollEffects` names no `Payroll` / `Attendance::` / `Salary::` and no payroll or attendance model |
+| Naming | `Requests::PermissionPayrollEffects` only in the two callers, the contract and the composition root; `Payroll::PermissionPayrollEffects` only in itself and the composition root; the applier and the reverter only in the implementation |
+| Removed | the M2 bridge (`revert_permission_payroll`, `PermissionRevertFailed`) and `rollback_permission` stay gone (source + reflection) |
+
+**Probes.** In-spec (stubbed reads): the eight M6 probes — `PermissionApplier` in the approver, `PermissionReverter` in
+the canceller, `PayrollPeriod` / `PayrollLineItem` / `AttendanceRecord` in the canceller's permission method, the
+implementation naming `Requests::Canceller`, the reverter mutating the request (`update!(status:)`, `status =`,
+`EmployeeRequest`), the contract naming `Payroll::` — each caught; a payroll reference inside the punch-correction
+rollback is not a violation. **Physical probes** (temporary, restored with `git checkout`): the applier added to
+`approve_standard`, `PayrollLineItem` to the canceller's permission method, `Requests::Canceller` to the implementation,
+`PayrollPeriod` to the contract — 6 rule examples failed, each naming its line; after restore 24 / 0.
+
+**Repository scan (app / lib / config):** the three permission classes appear only where allowed — the callers use the
+contract (`approver.rb:171`, `canceller.rb:100`), the implementation names the applier and the reverter, the
+composition root wires it. In Workforce request code the remaining Attendance & Payroll names are: `canceller.rb` ×9
+(all inside the punch-correction methods — allowed legacy), `punch_correction_applier.rb` ×2 and
+`punch_correction_assessment.rb` ×2 (the punch-correction services — legacy, §14.2 #3), `employee_requests_controller.rb`
+:78 / :320 (punch-correction attendance reads — legacy read edge), `views/employee_requests/_resulting_duration.html.erb`
+:3 (inside an ERB comment — documentation). The general payroll models (`PayrollPeriod` 51 files, `PayrollEntry` 32,
+`PayrollLineItem` 27, `AttendanceRecord` 40) are otherwise Attendance & Payroll's own code, Reporting reads and other
+documented edges outside this pilot. **No unexpected violation.**
+
+**Final boundary.** Workforce reaches the payroll effect of late / early-leave permissions only through its own
+contract; Attendance & Payroll implements it and never calls Workforce request services or lifecycle methods. No
+reverse dependency; no direct Workforce → Attendance & Payroll implementation dependency in the permission path.
+**Remaining debt:** the punch-correction rollback in `Requests::Canceller` (and its helpers, duplicated by
+`Payroll::PermissionReverter`) — for a future punch-correction pilot. `module-boundaries.md` §12.2 (WF → AP row) and
+§14.2 #4 record the resolved permission half.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** boundary 24 / 0; routing + contract + reverter 43 / 0;
+M1 53 / 0; permission-effects core 220 / 0; `spec/architecture` + `spec/requests/security` 569 / 0 (558 + 11); Pilot 9
+security + policy 67 / 0; punch-correction specs 418 examples (the 407 punch examples + the 11 new boundary examples,
+whose file mentions punch correction), 1 failure — the documented `employee_request_spec.rb:432`; `spec/services/payroll`
+558 / 0; request-area set (seed 20261006) 1622 examples with the same 27 baseline IDs. `zeitwerk:check`, RuboCop and
+`git diff --check` clean.

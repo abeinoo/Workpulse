@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # Boundary for Pilot 9 — Workforce Request Permission Payroll Effects (M3-A,
-# M3-B + M4; see docs/architecture/next-pilot-selection.md §24). M6 completes it.
+# M3-B + M4, completed in M6; see docs/architecture/next-pilot-selection.md §24).
 #
 # Workforce (Requests::Approver, Requests::Canceller) reaches the payroll effect
 # of a late / early-leave permission only through the Workforce contract
@@ -41,8 +41,39 @@ module ArchitectureSpecs
       covering_period daily_rate_for compute_penalty
     ].freeze
 
-    # Attendance & Payroll must not call back into Workforce's request lifecycle.
-    WORKFORCE_CALLBACK = /\bRequests::\w+|\.(?:approve|reject|cancel|pay)[!(\s]|\bupdate!?\(\s*status:/
+    # The permission path inside the Workforce callers (methods introduced or
+    # routed by this pilot). Nothing from Attendance & Payroll may appear here.
+    PERMISSION_PATH = {
+      APPROVER  => %w[approve_standard],
+      CANCELLER => %w[cancel rollback_approval_effects revert_permission_payroll_effect]
+    }.freeze
+
+    # The forbidden list of the permission path (any Attendance & Payroll constant
+    # is covered by ATTENDANCE_PAYROLL; these are named for the record).
+    PERMISSION_PATH_FORBIDDEN = /
+      \b(?:Payroll::PermissionApplier|Payroll::PermissionReverter|Payroll::PermissionPayrollEffects
+        |PayrollPeriod|PayrollEntry|PayrollLineItem|AttendanceRecord
+        |Attendance::PenaltyCalculator|Salary::DailyRateCalculator|Attendance::RecordRecomputer)\b
+      | \b(?:Payroll|Attendance|Salary)::\w+
+    /x
+
+    # Where the permission classes may be named at all (app/, lib/, config/).
+    PERMISSION_CLASS_NAMERS = {
+      /\bRequests::PermissionPayrollEffects\b/ => [ APPROVER, CANCELLER, CONTRACT_FILE,
+                                                    "config/initializers/request_permission_payroll_effects.rb" ],
+      /\bPayroll::PermissionPayrollEffects\b/  => [ "app/services/payroll/permission_payroll_effects.rb",
+                                                    "config/initializers/request_permission_payroll_effects.rb" ],
+      /\bPayroll::PermissionApplier\b/         => [ "app/services/payroll/permission_payroll_effects.rb" ],
+      /\bPayroll::PermissionReverter\b/        => [ "app/services/payroll/permission_payroll_effects.rb" ]
+    }.freeze
+
+    # Attendance & Payroll must not call back into Workforce's request lifecycle:
+    # no Requests:: service, no EmployeeRequest constant, no lifecycle call, no
+    # status write. (Reading the request it is handed — user, type predicates,
+    # dates, minutes — is the contract.)
+    WORKFORCE_CALLBACK = /\bRequests::\w+|\bEmployeeRequest\b|\.(?:approve|reject|cancel|pay)[!(\s]|\bupdate!?\(\s*status:|\bstatus\s*=(?!=)/
+
+    CONTRACT_FORBIDDEN = /\bPayroll\b|\b(?:Attendance|Salary)::|\b(?:PayrollPeriod|PayrollEntry|PayrollLineItem|AttendanceRecord)\b/
 
     REMOVED = /\b(?:revert_permission_payroll|PermissionRevertFailed|rollback_permission)\b/
 
@@ -76,8 +107,19 @@ module ArchitectureSpecs
       end
     end
 
-    def source_files
-      Dir.glob(Rails.root.join("{app,lib}/**/*.{rb,erb,rake}")).map { |f| f.delete_prefix("#{Rails.root}/") }
+    def permission_path_violations
+      PERMISSION_PATH.flat_map do |path, methods|
+        owners = method_of_line(path)
+        code_lines(path).filter_map do |line, number|
+          next unless methods.include?(owners[number]) && line.match?(PERMISSION_PATH_FORBIDDEN)
+
+          "#{path}:#{number} (#{owners[number]}): #{line.strip}"
+        end
+      end
+    end
+
+    def source_files(root = "{app,lib}")
+      Dir.glob(Rails.root.join("#{root}/**/*.{rb,erb,rake}")).map { |f| f.delete_prefix("#{Rails.root}/") }
     end
   end
 end
@@ -97,6 +139,15 @@ RSpec.describe "Architecture: Workforce request permission payroll boundary" do
         Requests::Canceller may name Attendance & Payroll only in #{boundary::PUNCH_CORRECTION_METHODS.join(', ')}:
         #{leaks.join("\n")}
       MSG
+    end
+
+    it "A. the permission path (approve_standard; cancel, rollback_approval_effects, revert_permission_payroll_effect) names nothing from Attendance & Payroll" do
+      violations = boundary.permission_path_violations
+      expect(violations).to be_empty, "The permission path must go through Requests::PermissionPayrollEffects:\n#{violations.join("\n")}"
+
+      found = boundary::PERMISSION_PATH.flat_map { |path, methods| methods.map { |m| [ path, m ] } }
+                                       .reject { |path, m| boundary.method_of_line(path).value?(m) }
+      expect(found).to be_empty, "Permission-path methods no longer found: #{found.inspect}"
     end
 
     it "A. the approver names no permission payroll internals and no payroll model" do
@@ -122,8 +173,17 @@ RSpec.describe "Architecture: Workforce request permission payroll boundary" do
       expect(callbacks).to be_empty, "Attendance & Payroll must not call Workforce:\n#{callbacks.join("\n")}"
     end
 
-    it "the contract names nothing from Attendance & Payroll" do
-      expect(boundary.matches_in(boundary::CONTRACT_FILE, /\bPayroll\b|\bAttendance::|\bSalary::/)).to be_empty
+    it "the contract names nothing from Attendance & Payroll (no Payroll / Attendance / Salary, no payroll or attendance model)" do
+      expect(boundary.matches_in(boundary::CONTRACT_FILE, boundary::CONTRACT_FORBIDDEN)).to be_empty
+    end
+
+    it "the permission classes are named only by the callers, the contract, the implementation and the composition root" do
+      files = boundary.source_files + boundary.source_files("config")
+      boundary::PERMISSION_CLASS_NAMERS.each do |pattern, allowed|
+        namers = files.select { |path| boundary.matches_in(path, pattern).any? } - [ boundary::CONTRACT_FILE ] -
+                 %w[app/services/payroll/permission_applier.rb app/services/payroll/permission_reverter.rb]
+        expect(namers - allowed).to be_empty, "#{pattern.source} named in: #{(namers - allowed).join(', ')}"
+      end
     end
   end
 
@@ -178,6 +238,55 @@ RSpec.describe "Architecture: Workforce request permission payroll boundary" do
       plant("app/services/payroll/permission_reverter.rb", "Requests::Canceller.cancel(request: request, cancelled_by: nil, reason: nil)\n" \
                                                             "request.update!(status: \"cancelled\")\n")
       expect(boundary.matches_in("app/services/payroll/permission_reverter.rb", boundary::WORKFORCE_CALLBACK).size).to eq(2)
+    end
+
+    describe "the eight M6 probes" do
+      cancel_with = ->(body) { "module Requests\n  class Canceller\n    def revert_permission_payroll_effect\n      #{body}\n    end\n  end\nend\n" }
+
+      it "1. PermissionApplier in the approver" do
+        plant(boundary::APPROVER, "    def approve_standard\n      Payroll::PermissionApplier.call(@request)\n    end\n")
+        expect(boundary.permission_path_violations).not_to be_empty
+        expect(boundary.matches_in(boundary::APPROVER, boundary::PERMISSION_INTERNALS)).not_to be_empty
+      end
+
+      it "2. PermissionReverter in the canceller" do
+        plant(boundary::CANCELLER, cancel_with.call("Payroll::PermissionReverter.call(@request)"))
+        expect(boundary.permission_path_violations).not_to be_empty
+        expect(boundary.matches_in(boundary::CANCELLER, boundary::PERMISSION_INTERNALS)).not_to be_empty
+      end
+
+      {
+        "3. PayrollPeriod"   => "PayrollPeriod.find_by(business: @request.user.business)",
+        "4. PayrollLineItem" => "PayrollLineItem.where(source_id: 1).destroy_all",
+        "5. AttendanceRecord" => "AttendanceRecord.find_by(user: @request.user)"
+      }.each do |label, code|
+        it "#{label} in permission-specific Workforce code" do
+          plant(boundary::CANCELLER, cancel_with.call(code))
+          expect(boundary.permission_path_violations).to include(a_string_including("(revert_permission_payroll_effect)"))
+          expect(boundary.canceller_leaks).not_to be_empty
+        end
+      end
+
+      it "6. the Attendance & Payroll implementation referencing Requests::Canceller" do
+        plant("app/services/payroll/permission_payroll_effects.rb", "Requests::Canceller.new(request: request, cancelled_by: nil, reason: nil)\n")
+        expect(boundary.matches_in("app/services/payroll/permission_payroll_effects.rb", boundary::WORKFORCE_CALLBACK)).not_to be_empty
+      end
+
+      it "7. the Attendance & Payroll implementation mutating the request lifecycle" do
+        plant("app/services/payroll/permission_reverter.rb", "request.update!(status: \"cancelled\")\nrequest.status = \"approved\"\nEmployeeRequest.find(1)\n")
+        expect(boundary.matches_in("app/services/payroll/permission_reverter.rb", boundary::WORKFORCE_CALLBACK).size).to eq(3)
+      end
+
+      it "8. the contract referencing Payroll::" do
+        plant(boundary::CONTRACT_FILE, "Payroll::PermissionApplier.call(request)\nPayrollEntry.first\n")
+        expect(boundary.matches_in(boundary::CONTRACT_FILE, boundary::CONTRACT_FORBIDDEN).size).to eq(2)
+      end
+
+      it "and passes without them: the punch-correction rollback is not a permission-path violation" do
+        plant(boundary::CANCELLER, "module Requests\n  class Canceller\n    def rollback_punch_payroll(record)\n      PayrollEntry.find_by(user: 1)\n    end\n  end\nend\n")
+        expect(boundary.permission_path_violations.grep(/\A#{Regexp.escape(boundary::CANCELLER)}/)).to be_empty
+        expect(boundary.canceller_leaks).to be_empty
+      end
     end
 
     it "catches the bridge planted back" do
