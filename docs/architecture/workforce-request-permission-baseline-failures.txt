@@ -8,7 +8,8 @@
 #   services, the PermissionApplier spec — 62 files — plus the Pilot 9 characterization file (M1). Reproduce with:
 #   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/workforce-request-permission-baseline-failures.txt | cut -d' ' -f3)
 # Results: M0 1569 examples, 27 failures; security unblock 1569 / same 27; M1 (+ 53) 1622 / same 27;
-#   M2 (this set; the contract spec runs with it) 1622 / same 27.
+#   M2 (this set; the contract spec runs with it) 1622 / same 27; M3-A, M3-B + M4, M6 1622 / same 27;
+#   M8 close-out (on cc8fe42) 1622 / same 27 under seeds 20261006, 12345 and 98765.
 # All 27 IDs are in earlier documented baseline files (payroll_waive_scope x17 = AP-D2, advance eligibility x4,
 #   permission_matrix_verification x3, sidebar_active_state x2, shift_assignment_spec:7); none in the permission flow.
 #

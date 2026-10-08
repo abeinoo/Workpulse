@@ -12,10 +12,14 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
   see `next-pilot-selection.md` §20.
 * **Workforce is partially migrated:** `Department`, `JobTitle`, the Performance evaluation group and
   `EmployeeInsuranceProfile` (Pilot 8, behind the `Employee::InsuranceProfileEffects` contract) are in
-  `app/models/workforce/`; see `next-pilot-selection.md`.
+  `app/models/workforce/`; see `next-pilot-selection.md`. Since Pilot 9 the `EmployeeRequest` lifecycle reaches the
+  payroll effect of late / early-leave permissions only through the WF contract `Requests::PermissionPayrollEffects`
+  (punch correction still direct — legacy exception).
 * **Attendance & Payroll is partially migrated (Milestone 2):** the biometric punch channel, Employee Obligations and
   Penalty Rules (`app/models/attendance_payroll/`), with boundary specs; `Payroll::FinalizationEffects` (AP-defined
-  contract) and `Attendance::ShiftPenaltyRules` (implementation of the WF `Shifts::PenaltyRuleSettings` contract).
+  contract) and `Attendance::ShiftPenaltyRules` (implementation of the WF `Shifts::PenaltyRuleSettings` contract);
+  `Payroll::InsuranceProfileEffects` (Pilot 8) and `Payroll::PermissionPayrollEffects` → `PermissionApplier` /
+  `PermissionReverter` (Pilot 9) implement WF contracts.
 * **Finance & Sales is partially migrated (Milestone 2):** the Expenses group (`app/models/finance_sales/`), with a
   boundary spec; it implements `Payroll::FinalizationEffects` (`Finance::PayrollFinalizationEffects`).
 * **Inventory & Purchasing is partially migrated (Pilots 6 and 7):** `Supplier`, `Brand` and `ProductCategory` live
@@ -346,6 +350,7 @@ An upstream domain never calls or writes into a downstream domain.
 | IP laundry cost report reads payroll/assignments (AP/WF) | The cross-domain labour-cost part moves to **Reporting** |
 | WF shift form edits penalty rules (AP) | **Implemented (Milestone 2, Pilot 4):** WF defines `Shifts::PenaltyRuleSettings`; AP implements it (`Attendance::ShiftPenaltyRules`), registered at boot in `config/initializers/shift_penalty_rule_settings.rb`. WF code references only its own contract |
 | WF insurance profile change must update payroll; the insurance form shows which payroll it affects (AP) | **Implemented (Pilot 8):** WF defines `Employee::InsuranceProfileEffects` (`profile_changed`, `payroll_notice_for` → `:none`/`:active`/`:mixed`/`:finalized`); AP implements it (`Payroll::InsuranceProfileEffects`), registered at boot in `config/initializers/employee_insurance_profile_effects.rb`. Synchronous, called after the profile is committed; a failure is logged and never fails the change. AP still reads the profile itself for its snapshot (allowed direction). Enforced by `spec/architecture/workforce_employee_insurance_profile_boundary_spec.rb` |
+| WF late / early-leave permission approval and cancellation must update payroll (AP) | **Implemented (Pilot 9):** WF owns the `EmployeeRequest` lifecycle and defines `Requests::PermissionPayrollEffects` (`permission_approved(request:)` → `nil`; `permission_cancelled(request:)` → `:reverted` / `:refused`, `:refused` only for a finalized / paid period, called inside the cancel transaction). AP owns the effect: `Payroll::PermissionPayrollEffects` → `Payroll::PermissionApplier` (approval) / `Payroll::PermissionReverter` (cancellation), registered at boot in `config/initializers/request_permission_payroll_effects.rb`; it never calls WF request services. Enforced by `spec/architecture/workforce_request_permission_payroll_boundary_spec.rb`. **Legacy exception:** the punch-correction rollback in `Requests::Canceller` still names AP, allowed only in its six methods |
 
 The FS → AP payroll financial effect (Workflow A, §14.1) is implemented the same way (Milestone 2): AP defines
 `Payroll::FinalizationEffects` — called synchronously inside the finalization / reopen transaction, carrying the
