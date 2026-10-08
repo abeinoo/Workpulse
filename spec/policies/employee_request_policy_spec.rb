@@ -92,9 +92,12 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       expect(subject.new(manager, request).approve?).to be true
     end
 
-    it "permits any user with approve_requests at the policy level — scope handles isolation" do
+    # SEC-P9-1: the requester must be inside the approver's scope (approve_requests
+    # → view_requests → view_employees, else the manager hierarchy).
+    it "denies an approver whose scope does not include the requester (another branch's manager)" do
       other_manager = create(:user, :branch_manager, business: business)
-      expect(subject.new(other_manager, request).approve?).to be true
+      expect(subject.new(other_manager, request).approve?).to be false
+      expect(subject.new(other_manager, request).reject?).to be false
     end
 
     it "denies employee" do
@@ -106,10 +109,12 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       expect(subject.new(manager, own_request).approve?).to be false
     end
 
-    it "still permits another approver to approve that request" do
-      own_request   = create(:employee_request, user: manager)
-      other_manager = create(:user, :branch_manager, business: business)
-      expect(subject.new(other_manager, own_request).approve?).to be true
+    it "still permits another approver (with the requester in scope) to approve that request" do
+      own_request = create(:employee_request, user: manager)
+      role = create(:permission_role, business: business, permissions: %w[view_requests approve_requests],
+                                      permission_scopes: { "approve_requests" => "business" })
+      other_approver = create(:user, business: business, permission_role: role)
+      expect(subject.new(other_approver, own_request).approve?).to be true
     end
   end
 
@@ -173,15 +178,18 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       expect(subject.new(employee, approved).cancel?).to be false
     end
 
-    it "permits an approver (approve_requests) to cancel an approved request business-wide" do
+    it "permits an approver (approve_requests) to cancel an approved request of an employee in scope" do
       approved = create(:employee_request, :approved, user: employee)
       expect(subject.new(manager, approved).cancel?).to be true
     end
 
-    it "permits a pay_advances holder to cancel an approved request" do
+    # pay_advances reaches salary advance requests only (inside its scope).
+    it "permits a pay_advances holder to cancel an approved salary advance, not an approved permission" do
       accountant = create(:user, :accountant, business: business)
-      approved = create(:employee_request, :approved, user: employee)
-      expect(subject.new(accountant, approved).cancel?).to be true
+      advance    = create(:employee_request, :salary_advance, :approved, user: employee)
+      permission = create(:employee_request, :approved, user: employee)
+      expect(subject.new(accountant, advance).cancel?).to be true
+      expect(subject.new(accountant, permission).cancel?).to be false
     end
 
     it "does NOT permit cancelling a rejected request" do

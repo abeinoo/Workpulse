@@ -4,8 +4,13 @@ class EmployeeRequestPolicy < ApplicationPolicy
   # Self-approval is blocked: an approver may not approve or reject a request they
   # themselves submitted — another authorized approver must review it. Gates the UI
   # buttons (views read policy.approve?/reject?) and the controller `authorize`.
-  def approve? = can?(:approve_requests) && !own_request?
-  def reject?  = can?(:approve_requests) && !own_request?
+  # The requester must also be inside the approver's scope (SEC-P9-1) — resolved
+  # like create? (approve_requests → view_requests → view_employees), so a
+  # narrower approve_requests scope is not widened by view_requests.
+  # Nor may the user who SUBMITTED the request (an approver who created it on
+  # the employee's behalf) approve or reject it (SEC-P10-1).
+  def approve? = can?(:approve_requests) && !own_request? && !own_submission? && reviewable_employee?
+  def reject?  = approve?
   # Reviewer-only validation details on the show page (attendance-window check,
   # shift span, resulting work duration, duration warnings, confirmation). Same
   # people who may approve — independent of status, so the details stay visible
@@ -18,13 +23,19 @@ class EmployeeRequestPolicy < ApplicationPolicy
   def new?     = create?
 
   # Employees cancel their own pending requests.
-  # Authorized reviewers (approve_requests or pay_advances) can cancel pending
-  # or approved requests on behalf of the business (e.g. before payroll runs).
+  # Authorized reviewers can cancel pending or approved requests on behalf of the
+  # business (e.g. before payroll runs):
+  # * approve_requests holders — any request type, their own or an employee in
+  #   their approver scope (SEC-P9-1);
+  # * pay_advances holders — salary advance requests only, their own or an
+  #   employee in their pay_advances scope. It never reaches permissions or punch
+  #   corrections, nor widens the approve_requests scope.
   def cancel?
     return false unless record.status.in?(%w[pending approved])
     return true  if own_request? && record.pending?
+    return false unless same_business?(record.user)
 
-    (can?(:approve_requests) || can?(:pay_advances)) && same_business?(record.user)
+    approver_cancel? || advance_payer_cancel?
   end
 
   def create?
@@ -37,9 +48,7 @@ class EmployeeRequestPolicy < ApplicationPolicy
     # (approve_requests → view_requests → view_employees), not just direct reports.
     return false unless can?(:approve_requests)
 
-    EmployeeScope.new(user)
-                 .for_permissions(:approve_requests, :view_requests, :view_employees)
-                 .exists?(id: effective_user.id)
+    in_approver_scope?(effective_user.id)
   end
 
   class Scope < ApplicationPolicy::Scope
@@ -63,5 +72,27 @@ class EmployeeRequestPolicy < ApplicationPolicy
 
   def own_request?
     record.user_id == user.id
+  end
+
+  # NULL submitted_by (legacy requests) is never treated as a submission by anyone.
+  def own_submission?
+    record.respond_to?(:submitted_by_id) && record.submitted_by_id.present? && record.submitted_by_id == user.id
+  end
+
+  def reviewable_employee? = in_approver_scope?(record.user_id)
+
+  def in_approver_scope?(user_id) = employee_in_scope?(user_id, :approve_requests, :view_requests, :view_employees)
+
+  def approver_cancel? = can?(:approve_requests) && (own_request? || reviewable_employee?)
+
+  def advance_payer_cancel?
+    record.salary_advance? && can?(:pay_advances) &&
+      (own_request? || employee_in_scope?(record.user_id, :pay_advances, :view_requests, :view_employees))
+  end
+
+  # EmployeeScope resolves the first permission with a configured data scope
+  # (most-specific first), else the manager hierarchy.
+  def employee_in_scope?(user_id, *permissions)
+    EmployeeScope.new(user).for_permissions(*permissions).exists?(id: user_id)
   end
 end

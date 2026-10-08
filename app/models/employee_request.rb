@@ -1,5 +1,9 @@
 class EmployeeRequest < ApplicationRecord
   belongs_to :user
+  # Who created / submitted the request — the employee themselves, or an
+  # approver acting on their behalf (user_id is who it is FOR). NULL only on
+  # requests created before it was recorded (legacy, SEC-P10-1).
+  belongs_to :submitted_by,  class_name: "User", optional: true
   belongs_to :reviewed_by,   class_name: "User", optional: true
   belongs_to :cancelled_by,  class_name: "User", optional: true
   has_one    :advance, dependent: :destroy
@@ -39,6 +43,10 @@ class EmployeeRequest < ApplicationRecord
 
   before_validation :default_proposed_date, if: :punch_correction?
   before_save :derive_affects_payroll
+  # A request created without an explicit submitter was submitted by the
+  # employee themselves. On-behalf creation sets the submitter explicitly
+  # (Requests::Submitter); it is never taken from request params.
+  before_validation :default_submitted_by, on: :create
 
   # Review-queue display priority: pending first, then approved, then rejected,
   # then any remaining status (e.g. paid). Drives the default index ordering so
@@ -191,6 +199,10 @@ class EmployeeRequest < ApplicationRecord
   # (e.g. a check-out after midnight) must set proposed_date explicitly.
   def default_proposed_date
     self.proposed_date ||= requested_for_date
+  end
+
+  def default_submitted_by
+    self.submitted_by ||= user
   end
 
   # affects_payroll drives EntryCalculator exemptions; only duration-based types apply.

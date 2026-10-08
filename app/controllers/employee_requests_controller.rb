@@ -120,7 +120,7 @@ class EmployeeRequestsController < ApplicationController
       end
     end
 
-    if @window_warning.nil? && @request.save
+    if @window_warning.nil? && Requests::Submitter.call(request: @request, actor: current_user)
       redirect_to employee_requests_path, notice: t("flash.request_submitted")
     else
       @for_user              = @request.user unless @request.user == current_user

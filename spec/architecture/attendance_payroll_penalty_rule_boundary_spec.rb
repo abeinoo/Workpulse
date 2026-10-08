@@ -49,6 +49,7 @@ module ArchitectureSpecs
       "app/services/attendance/shift_penalty_rules.rb"   => "AP implementation of Shifts::PenaltyRuleSettings",
       "app/services/payroll/entry_calculator.rb"         => "AP payroll: penalty line items",
       "app/services/payroll/permission_applier.rb"       => "AP payroll: permission penalty adjustment",
+      "app/services/payroll/permission_reverter.rb"      => "AP payroll: permission penalty restore on cancellation (Pilot 9 M4)",
       "app/services/payroll/punch_correction_applier.rb" => "AP payroll: punch-correction penalty adjustment"
     }.freeze
 
@@ -79,7 +80,9 @@ module ArchitectureSpecs
     # (module-boundaries.md §14.2 #3 / #4); outside this pilot. They compute
     # penalties and preload rules but never write penalty_rules.
     REQUEST_EXCEPTION_FILES = {
-      "app/services/requests/canceller.rb"               => "§14.2 #4: restores penalty line items via Attendance::PenaltyCalculator",
+      "app/services/requests/canceller.rb"               => "§14.2 #3: the punch-correction rollback restores penalty line items via " \
+                                                            "Attendance::PenaltyCalculator (the permission revert moved to " \
+                                                            "Payroll::PermissionReverter, Pilot 9 M4)",
       "app/services/requests/punch_correction_applier.rb" => "§14.2 #3: preloads rules for the corrected record"
     }.freeze
 

@@ -3830,3 +3830,415 @@ cancellation) and the salary display remain.
 
 **Pilot 8 (Workforce — Employee Insurance Profile) is COMPLETE.** Nothing pushed or merged; the seven commits plus this
 close-out sit on `fix/pilot-8-insurance-security` on top of `main` `4655d18`.
+
+## 24. Pilot 9 — Workforce Request Permission Payroll Effects (late / early-leave permissions)
+
+**Status: COMPLETE** (close-out §24.9): M0 (read-only, at `main` `a9f8ff3`), security unblock `09957e9` / `0512fc6`,
+M1 `c0cd7ff`, M2 `27fe23a`, M3-A `2d55172`, M3-B + M4 `2663590`, M6 `cc8fe42`, M7 not needed, M8 docs — on
+`fix/pilot-9-request-scope`, not pushed or merged. No schema, migration, route, API or Booking change.
+
+### 24.1 M0 — selection
+
+* **Why this candidate:** after Pilot 8 the Workforce ↔ Attendance & Payroll request cycle is the largest remaining one
+  (`module-boundaries.md` §14.2 #2 – #4). Its smallest write edge is the payroll effect of late / early-leave
+  permissions: approval calls `Payroll::PermissionApplier` (`requests/approver.rb`), while cancellation rewrites payroll
+  line items inside Workforce (`Requests::Canceller#rollback_permission`). Deferred: advances (SEC-M2-7 product
+  decision, eligibility baseline noise), punch correction (high risk, after this pilot), the Inventory & Purchasing ↔
+  Finance & Sales settlement (~1,067 lines, money, two-way: `FinancialSettlement` names `GoodsReceipt` /
+  `PurchaseRequestAdvance` constants), the laundry labour-cost report (ready, but no cycle), POS terminals / warehouse
+  access (low value). `PurchaseRequestAdvance` is missing from `module-boundaries.md` §10 (Inventory & Purchasing in
+  practice).
+* **Security unblock (both fixed before M1):**
+
+| ID | Severity | Finding | Fix | Commit |
+|---|---|---|---|---|
+| SEC-P9-1 | Medium | `EmployeeRequestPolicy#approve?` / `#reject?` / `#cancel?` ignored the configured `approve_requests` scope (requests are found through the broader `view_requests` scope) | The requester must be inside `EmployeeScope#for_permissions(:approve_requests, :view_requests, :view_employees)` (as `create?`); approvers may still cancel their own approved request | `09957e9` |
+| (follow-up, product decision) | Medium | A `pay_advances` holder could cancel ANY request type business-wide, ignoring the `pay_advances` scope, and bypass the `approve_requests` scope | `pay_advances` cancels `salary_advance?` requests only, own or inside `for_permissions(:pay_advances, :view_requests, :view_employees)` | `0512fc6` |
+
+Regression specs: `spec/requests/security/employee_request_approve_scope_spec.rb` (13; 5 fail on the old code),
+`employee_request_pay_advances_cancel_spec.rb` (17; 10 fail on `09957e9`).
+
+### 24.2 M1 — characterization
+
+`spec/characterization/workforce/request_permission_payroll_effects_spec.rb` (53 examples: 26 per permission type via
+shared definitions, plus one request-level policy check), complementing `permission_applier_spec`, `canceller_spec`,
+`approver_spec` and the security specs. Fixture: one attendance record carrying both a 40-minute late arrival (rule
+> 15 min → 25 % of the 400 daily rate = −100) and a 120-minute early leave (> 30 min → 50 % = −200), each with its
+penalty line. Disabling the applier or the rollback fails 14 examples each.
+
+**Observed behaviour (pinned):**
+
+| Area | Current behaviour |
+|---|---|
+| Approval flow | `Requests::Approver#approve_standard`: `request.update!(approved)` → `Payroll::PermissionApplier.call(request)` → `log_audit("approve")`, **no surrounding transaction** |
+| Approval effect | Only an EXISTING `late_penalty` / `early_leave_penalty` line of the attendance record (`source_type: "AttendanceRecord"`) in an OPEN period (`period_month` / `period_year` of the work date, not finalized / paid) of an existing entry is changed: effective = `original_minutes` (else attendance minutes) − approved minutes; amount re-derived with `Salary::DailyRateCalculator` + `Attendance::PenaltyCalculator`; zero → line destroyed, else updated (`original_minutes`, `permission_minutes`); `entry.recalculate_totals!` (flags `needs_review`). Over the threshold the amount is unchanged (flat rule) but the minutes are recorded |
+| Approval no-ops | Finalized / paid period, no period, no entry, no attendance record, no matching line → request approved, payroll untouched; never creates an entry or line |
+| Same-day re-approval | A second approved permission replaces the first (recomputed from `original_minutes` − the new minutes), not cumulative |
+| Other line | A late permission never touches the early-leave line of the same record, and vice versa |
+| Audit | Request audit only (`approve`, `cancel`); no `AuditLog` / `PayrollAuditLog` row for the line change |
+| Approval failure | An applier error is not rescued: the request is already approved (committed), no `approve` audit, payroll unchanged, the error propagates (500) |
+| Cancellation flow | `Requests::Canceller#cancel`: one transaction — `rollback_permission` → `request.update!(cancelled)` → `log_audit("cancel")`; a rollback error result → `ActiveRecord::Rollback`, request stays approved |
+| Rollback effect | Re-derives the FULL penalty from the CURRENT attendance minutes (not the line's `original_minutes`): line updated (`permission_minutes: nil`), recreated (description "Late arrival / Early leave <date>") if destroyed, or destroyed if now zero; `recalculate_totals!`; attendance record untouched |
+| Rollback refusal | Covering period (any status, by request month) finalized / paid → `requests.errors.cannot_cancel_finalized`, request approved, payroll and audit unchanged |
+| Rollback no-ops | No attendance record, no period, no entry, zero raw minutes → cancelled, payroll untouched |
+| Rollback failure | An exception is not rescued, but the transaction rolls back: request approved, no `cancel` audit |
+| Generation | `Payroll::EntryCalculator` subtracts `EmployeeRequest.approved_minutes` (first approved, `affects_payroll`) when the entry is generated after approval; cancelling then restores the full penalty |
+| Policy | The effect path is behind `EmployeeRequestPolicy` (an out-of-scope approver cannot trigger it) |
+
+**Shared helpers:** `rollback_permission` uses `covering_period`, `daily_rate_for` (`Salary::DailyRateCalculator`) and
+`compute_penalty` (`Attendance::PenaltyCalculator`), which `rollback_punch_correction` / `rollback_punch_payroll` also
+use — punch correction stays out of scope; the helpers must keep serving it.
+
+**Direct Workforce → Attendance & Payroll references in this flow:** `requests/approver.rb` → `Payroll::PermissionApplier`;
+`requests/canceller.rb#rollback_permission` → `AttendanceRecord`, `PayrollPeriod`, `PayrollEntry`, `PayrollLineItem`
+(find / create / update / destroy), `entry.recalculate_totals!`, `Salary::DailyRateCalculator`,
+`Attendance::PenaltyCalculator`.
+
+**Risky / surprising (pinned, not changed):** approval is not atomic with its payroll effect; apply uses the line's
+`original_minutes` but rollback the current attendance minutes (an attendance edit between them changes the restored
+amount); re-approval replaces rather than accumulates while generation counts only the first approved request;
+`affects_payroll` gates generation but not apply / rollback (always true for these types today).
+
+### 24.3 Verification (M1, seed 20261006)
+
+| Run | Result |
+|---|---|
+| M1 characterization, seeds 20261006 / 12345 / 98765 | 53 / 0 under each |
+| Permission-effects core | 177 / 0 |
+| Request-area set (`workforce-request-permission-baseline-failures.txt`) | 1622 examples, **the same 27 baseline IDs** (1569 + 53) |
+| `spec/architecture` + `spec/requests/security` | 545 / 0 |
+| Request policy + Pilot 9 security specs | 67 / 0 |
+
+`zeitwerk:check`, RuboCop and `git diff --check` clean.
+
+### 24.4 Migration path (M1 evidence)
+
+* **M2 NEEDED:** a Workforce-defined contract for the payroll effect of a permission request — applied on approval,
+  reverted on cancellation (returning a refusal for a locked period, inside the cancel transaction) — implemented by
+  Attendance & Payroll.
+* **M3 NEEDED:** route `approve_standard` and `rollback_permission` through it.
+* **M4 NEEDED:** the revert logic (`rollback_permission` and its use of the shared helpers) moves into Attendance &
+  Payroll; the punch-correction rollback keeps its own copy until its own pilot.
+* **M6 NEEDED**; **M7** likely not needed (no model moves in scope); **M8 NEEDED.**
+
+### 24.5 M2 — Workforce contract `Requests::PermissionPayrollEffects`
+
+**Owner: Workforce.** The request and its lifecycle (approve, cancel) are Workforce's; the payroll it affects is
+Attendance & Payroll's. Named in Workforce's request namespace (`app/services/requests/`, next to `Approver` /
+`Canceller`), as Pilot 4 (`Shifts::PenaltyRuleSettings`) and Pilot 8 (`Employee::InsuranceProfileEffects`) named theirs
+after their callers' namespace.
+
+| | |
+|---|---|
+| `permission_approved(request:)` | `request`: the just-approved `EmployeeRequest`. Brings the payroll in line with the approved minutes, or does nothing (not a permission; no open period, entry, attendance record or penalty line). **No refusal** — approval is never blocked by payroll, as today. Returns `nil` |
+| `permission_cancelled(request:)` | Called inside the cancel transaction. Returns a `Symbol` in `CANCEL_RESULTS = %i[reverted refused]`: `:reverted` — reverted, or nothing to revert; `:refused` — the affected payroll is locked (finalized / paid), the caller keeps the request approved. Any other value raises `ArgumentError`, so no payroll record crosses the contract. Unexpected failures raise (normal refusal is not an exception) |
+| No `actor` | Neither `PermissionApplier` nor `rollback_permission` uses one; the caller writes the `approve` / `cancel` audit. Not added for symmetry |
+| Registration | `register` rejects a handler missing an operation; no handler → `NotRegistered` (a `StandardError`). Wired in `config/initializers/request_permission_payroll_effects.rb` (`to_prepare`) |
+| Implementation (Attendance & Payroll) | `Payroll::PermissionPayrollEffects`: `permission_approved` → `Payroll::PermissionApplier.call(request)`; `permission_cancelled` → delegates to `Requests::Canceller.revert_permission_payroll(request)` (below) |
+
+**Why no Attendance & Payroll model is exposed:** Workforce needs only a decision (applied / reverted / refused), not
+payroll state. Periods, entries, lines, attendance records and the two calculators stay behind the implementation; the
+contract source names none of them (asserted).
+
+**Design issue — temporary reverse delegation (Pilot 3 M2 precedent).** The revert logic is still the private
+`Requests::Canceller#rollback_permission` (Workforce) until M4. So that the Attendance & Payroll implementation exists
+without moving code, `Requests::Canceller` gained a behaviour-neutral public seam, `revert_permission_payroll(request)`:
+it runs the unchanged `rollback_permission` and maps its result — success → `:reverted`; the
+`requests.errors.cannot_cancel_finalized` error → `:refused`; any other error (an invalid penalty line, today returned as
+`err(messages)`) → raises `Requests::Canceller::PermissionRevertFailed` with the messages. Nothing is cancelled or audited
+there; `Requests::Canceller#cancel` still calls `rollback_permission` directly. Consequence for sequencing: routing the
+canceller (M3) before M4 would make Workforce call Attendance & Payroll which calls back into Workforce — M3 should
+route the approver and, for the canceller, land together with M4 (or M4 first), and map `PermissionRevertFailed` back to
+the current `err(messages)` result.
+
+**Shared helpers (for M4):** `covering_period`, `daily_rate_for` (`Salary::DailyRateCalculator`) and `compute_penalty`
+(`Attendance::PenaltyCalculator`) serve both `rollback_permission` and the punch-correction rollback; M4 must leave the
+punch-correction copy working (out of scope). The contract exposes none of them.
+
+**Callers not changed:** `Requests::Approver#approve_standard` still calls `Payroll::PermissionApplier` directly;
+`Requests::Canceller#rollback_approval_effects` still calls `rollback_permission`.
+
+**Spec:** `spec/services/requests/permission_payroll_effects_spec.rb` (15) — registration (implementation registered,
+incomplete handler rejected, `NotRegistered`), dispatch (request passed unchanged, approval returns `nil`, cancellation
+returns `:reverted` / `:refused` only, payroll records / strings / booleans / `nil` rejected, errors propagate), the
+implementation (approval = `PermissionApplier`, no-op for a locked period or an advance; cancellation `:reverted` and
+restored for an open period without cancelling or auditing the request, `:refused` for finalized / paid, `:reverted` with
+nothing to revert, `PermissionRevertFailed` for any other failure), no Attendance & Payroll names in the contract.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** contract + M1 68 / 0 (15 + 53); permission-effects core
++ contract 192 / 0 (177 + 15); `spec/architecture` + `spec/requests/security` 545 / 0; request-area set (seed
+20261006) 1622 examples with the same 27 baseline IDs; Pilot 9 security + policy specs 67 / 0. `zeitwerk:check`,
+RuboCop and `git diff --check` clean.
+
+### 24.6 M3-A — approval routed through the contract (cancellation deliberately not)
+
+| Caller | Before | After |
+|---|---|---|
+| `Requests::Approver#approve_standard` | `Payroll::PermissionApplier.call(@request)` | `Requests::PermissionPayrollEffects.permission_approved(request: @request)` — same place: after `@request.update!(approved)`, before `log_audit("approve")`, no transaction |
+
+The registered implementation (`Payroll::PermissionPayrollEffects`) runs `Payroll::PermissionApplier` with the same
+request, so every M1 example is unchanged. Salary-advance approvals take the same `approve_standard` path and call the
+contract (a no-op there, as before); punch-correction approval (`approve_punch_correction`) and rejection never call
+it. `Requests::Approver` no longer names `Payroll::PermissionApplier` (it still creates `Advance` in `pay` — the
+advances edge, outside this pilot).
+
+**Cancellation is intentionally NOT routed (M3-B lands with M4).** `Requests::Canceller#cancel` /
+`#rollback_permission` are unchanged and never call `permission_cancelled`. Routing them now would make Workforce call
+Attendance & Payroll (`Payroll::PermissionPayrollEffects#permission_cancelled`), which still delegates back to
+Workforce (`Requests::Canceller.revert_permission_payroll`, the M2 seam) — a temporary cycle. M4 moves the revert into
+Attendance & Payroll; M3-B then routes the canceller (mapping `PermissionRevertFailed` to today's `err(messages)`) and
+removes the seam. The seam stays in place, unused by the normal cancellation flow.
+
+**Specs:** `spec/services/requests/permission_payroll_effects_routing_spec.rb` (7) — for both permission types the
+contract is called once with the same request, after the approval is saved and before the audit, and
+`PermissionApplier` is not called directly; the registered implementation still runs `PermissionApplier` with the
+request; a contract error propagates (request approved, no audit); advance approval calls it, punch-correction approval
+and rejection do not; cancellation does not call the contract. `spec/architecture/workforce_request_permission_payroll_boundary_spec.rb`
+(4) — the approver names neither `PermissionApplier` nor the implementation and calls `permission_approved` exactly
+once; the contract names nothing from Attendance & Payroll while the implementation keeps its applier; a planted probe
+is caught. 6 of the 11 fail on the pre-M3 approver.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** routing + boundary 11 / 0; M1 53 / 0; contract + M1
+68 / 0; permission-effects core 199 / 0 (192 + 7); `spec/architecture` + `spec/requests/security` 549 / 0 (545 + 4);
+Pilot 9 security + policy 67 / 0; request-area set (seed 20261006) 1622 examples with the same 27 baseline IDs.
+`zeitwerk:check` and `git diff --check` clean; RuboCop clean on the new specs (the 8 `Layout/SpaceInsideArrayLiteralBrackets`
+offenses in `approver.rb` pre-date M3 and are on untouched lines — left as is).
+
+### 24.7 M3-B + M4 — cancellation routed, revert moved into Attendance & Payroll
+
+Landed together so there is never a Workforce → Attendance & Payroll → Workforce loop. The boundary is now one-way:
+
+```
+Workforce  Requests::Approver#approve_standard ─┐
+           Requests::Canceller#cancel ──────────┤ Requests::PermissionPayrollEffects (WF contract)
+                                                ▼
+A&P        Payroll::PermissionPayrollEffects ── permission_approved  → Payroll::PermissionApplier
+                                             └─ permission_cancelled → Payroll::PermissionReverter (new)
+```
+
+| Change | Detail |
+|---|---|
+| **New `app/services/payroll/permission_reverter.rb`** | `Payroll::PermissionReverter.call(request)` — line-for-line port of `Requests::Canceller#rollback_permission`: attendance record → covering period (any status, by request month) → `:refused` if finalized / paid → entry → raw minutes (CURRENT attendance) → full penalty via `Salary::DailyRateCalculator` + `Attendance::PenaltyCalculator` → line updated (`permission_minutes: nil`) / recreated ("Late arrival / Early leave <date>") / destroyed (zero) → `recalculate_totals!` → `:reverted`. No-ops (not a permission, no attendance, no period, no entry, zero minutes) → `:reverted`. No rescue: an invalid line raises `ActiveRecord::RecordInvalid`. Never writes attendance |
+| `Payroll::PermissionPayrollEffects#permission_cancelled` | `Payroll::PermissionReverter.call(request)` (was: delegation to `Requests::Canceller.revert_permission_payroll`). Calls nothing in Workforce |
+| `Requests::Canceller#rollback_approval_effects` | late / early leave → `revert_permission_payroll_effect`: `Requests::PermissionPayrollEffects.permission_cancelled(request: @request)` at the same point, inside the same cancel transaction; `:refused` → `err(I18n.t("requests.errors.cannot_cancel_finalized"))` (the existing result: rollback, request stays approved, no cancel audit), `:reverted` → `ok` |
+| **Removed from `Requests::Canceller`** | `rollback_permission`, the M2 bridge `self.revert_permission_payroll` / `#revert_permission_payroll`, `PermissionRevertFailed`, the error-text matching |
+
+**Result semantics unchanged:** only the locked-period condition maps to `:refused`. An invalid penalty line used to be
+rescued inside `rollback_permission` and returned as `err(messages)`; it now raises out of the reverter, the cancel
+transaction rolls back, and `Requests::Canceller#cancel`'s existing `rescue ActiveRecord::RecordInvalid` returns the same
+`err(messages)` — identical result for the caller. Any other error propagates, as before.
+
+**Shared helpers — decision: duplicate, do not move.** `covering_period`, `daily_rate_for` and `compute_penalty` are
+also used by the punch-correction rollback (`rollback_punch_correction`, `rollback_punch_payroll`,
+`restore_penalty_line_item`), so they stay in `Requests::Canceller` unchanged, now serving punch correction only. The
+reverter has its own private copies (~25 lines). Moving them to a shared Attendance & Payroll owner would have required
+touching punch correction; leaving the reverter calling the Workforce copies would have created Attendance & Payroll →
+Workforce. **Debt:** the duplication goes when the punch-correction pilot moves its rollback to Attendance & Payroll.
+
+**Boundary note.** `Requests::Canceller` still names Attendance & Payroll (`AttendanceRecord`, `PayrollPeriod`,
+`PayrollEntry`, `Salary::` / `Attendance::` calculators, `Attendance::RecordRecomputer`) — but only in the
+punch-correction rollback (§14.2 #3, out of this pilot). The boundary spec pins that: such references are allowed only
+inside the six punch-correction methods.
+
+**Specs:** new `spec/services/payroll/permission_reverter_spec.rb` (16: open → restored `:reverted`; finalized / paid
+`:refused` and untouched; no period / no entry / no attendance `:reverted`; early-leave line restored, late line
+untouched; deleted line recreated; zero penalty deletes; zero minutes no-op; totals recalculated; current attendance
+minutes; attendance never written; RecordInvalid propagates; non-permission no-op; the contract passes the same
+request). Routing spec (12, was 7): cancellation calls the contract once with the same request inside the transaction
+before the status change, for both types; `:refused` → `cannot_cancel_finalized`, request approved, no audit;
+RecordInvalid → same failed result; unexpected error → rollback; pending / advance / punch cancellations never call it.
+Contract spec: the bridge example replaced (any other failure raises, never `:refused`). Boundary spec (13, was 4):
+no permission internals in either caller; canceller's Attendance & Payroll names only inside punch-correction methods;
+approver names no payroll model; each caller calls its operation once; the implementation may use its own models but
+never `Requests::` / lifecycle calls / status writes; bridge and `rollback_permission` gone (source + reflection);
+punch-correction methods present; planted probes. Pilot 4 penalty-rule boundary: `permission_reverter.rb` added to its
+Attendance & Payroll allow-list (it names `Attendance::PenaltyCalculator`), the canceller's reason narrowed to the punch
+rollback. Against the pre-M4 canceller / implementation the new examples fail 11 of 41.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** reverter + routing + contract + boundary 56 / 0; M1 53 / 0
+(unchanged); permission-effects core 220 / 0; punch-correction specs (19 files) 407 examples, 1 failure — the documented
+baseline `employee_request_spec.rb:432`; `spec/architecture` + `spec/requests/security` 558 / 0 (549 + 9); Pilot 9
+security + policy 67 / 0; request-area set (seed 20261006) 1622 examples with the same 27 baseline IDs. `zeitwerk:check`,
+RuboCop (8 changed files) and `git diff --check` clean.
+
+### 24.8 M6 — the permission payroll boundary, enforced
+
+`spec/architecture/workforce_request_permission_payroll_boundary_spec.rb` (24 examples, was 13; the source-scanning
+style of the earlier boundary specs, full-line comments ignored):
+
+| Rule | Enforced |
+|---|---|
+| Permission path | `Requests::Approver#approve_standard` and `Requests::Canceller#cancel`, `#rollback_approval_effects`, `#revert_permission_payroll_effect` (method-level) name nothing from Attendance & Payroll: no `Payroll::PermissionApplier` / `PermissionReverter` / `PermissionPayrollEffects`, `PayrollPeriod`, `PayrollEntry`, `PayrollLineItem`, `AttendanceRecord`, `Attendance::PenaltyCalculator`, `Salary::DailyRateCalculator`, `Attendance::RecordRecomputer`, or any other `Payroll::` / `Attendance::` / `Salary::` constant; the methods must still exist |
+| Callers | neither caller names the applier, reverter or implementation anywhere; the approver names no payroll model; each calls the contract exactly once (`permission_approved` / `permission_cancelled`) |
+| **Punch-correction exception** | `Requests::Canceller` may name Attendance & Payroll ONLY inside `rollback_punch_correction`, `rollback_punch_payroll`, `restore_penalty_line_item`, `covering_period`, `daily_rate_for`, `compute_penalty` (the legacy punch-correction rollback, §14.2 #3); anywhere else in the class fails. The exception is per method, not per class, and the methods must still exist |
+| A&P → Workforce | `payroll/permission_payroll_effects.rb`, `permission_reverter.rb`, `permission_applier.rb`: no `Requests::`, no `EmployeeRequest` constant, no `approve` / `reject` / `cancel` / `pay` call, no `update!(status: …)` or `status =` — they only read the request they are handed |
+| Contract | `Requests::PermissionPayrollEffects` names no `Payroll` / `Attendance::` / `Salary::` and no payroll or attendance model |
+| Naming | `Requests::PermissionPayrollEffects` only in the two callers, the contract and the composition root; `Payroll::PermissionPayrollEffects` only in itself and the composition root; the applier and the reverter only in the implementation |
+| Removed | the M2 bridge (`revert_permission_payroll`, `PermissionRevertFailed`) and `rollback_permission` stay gone (source + reflection) |
+
+**Probes.** In-spec (stubbed reads): the eight M6 probes — `PermissionApplier` in the approver, `PermissionReverter` in
+the canceller, `PayrollPeriod` / `PayrollLineItem` / `AttendanceRecord` in the canceller's permission method, the
+implementation naming `Requests::Canceller`, the reverter mutating the request (`update!(status:)`, `status =`,
+`EmployeeRequest`), the contract naming `Payroll::` — each caught; a payroll reference inside the punch-correction
+rollback is not a violation. **Physical probes** (temporary, restored with `git checkout`): the applier added to
+`approve_standard`, `PayrollLineItem` to the canceller's permission method, `Requests::Canceller` to the implementation,
+`PayrollPeriod` to the contract — 6 rule examples failed, each naming its line; after restore 24 / 0.
+
+**Repository scan (app / lib / config):** the three permission classes appear only where allowed — the callers use the
+contract (`approver.rb:171`, `canceller.rb:100`), the implementation names the applier and the reverter, the
+composition root wires it. In Workforce request code the remaining Attendance & Payroll names are: `canceller.rb` ×9
+(all inside the punch-correction methods — allowed legacy), `punch_correction_applier.rb` ×2 and
+`punch_correction_assessment.rb` ×2 (the punch-correction services — legacy, §14.2 #3), `employee_requests_controller.rb`
+:78 / :320 (punch-correction attendance reads — legacy read edge), `views/employee_requests/_resulting_duration.html.erb`
+:3 (inside an ERB comment — documentation). The general payroll models (`PayrollPeriod` 51 files, `PayrollEntry` 32,
+`PayrollLineItem` 27, `AttendanceRecord` 40) are otherwise Attendance & Payroll's own code, Reporting reads and other
+documented edges outside this pilot. **No unexpected violation.**
+
+**Final boundary.** Workforce reaches the payroll effect of late / early-leave permissions only through its own
+contract; Attendance & Payroll implements it and never calls Workforce request services or lifecycle methods. No
+reverse dependency; no direct Workforce → Attendance & Payroll implementation dependency in the permission path.
+**Remaining debt:** the punch-correction rollback in `Requests::Canceller` (and its helpers, duplicated by
+`Payroll::PermissionReverter`) — for a future punch-correction pilot. `module-boundaries.md` §12.2 (WF → AP row) and
+§14.2 #4 record the resolved permission half.
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** boundary 24 / 0; routing + contract + reverter 43 / 0;
+M1 53 / 0; permission-effects core 220 / 0; `spec/architecture` + `spec/requests/security` 569 / 0 (558 + 11); Pilot 9
+security + policy 67 / 0; punch-correction specs 418 examples (the 407 punch examples + the 11 new boundary examples,
+whose file mentions punch correction), 1 failure — the documented `employee_request_spec.rb:432`; `spec/services/payroll`
+558 / 0; request-area set (seed 20261006) 1622 examples with the same 27 baseline IDs. `zeitwerk:check`, RuboCop and
+`git diff --check` clean.
+
+### 24.9 M8 — close-out — Pilot 9 COMPLETE
+
+**Scope:** the payroll effect of Workforce late-permission and early-leave requests (approval and cancellation).
+**Not included:** punch correction, advances, `pay_advances` authorization beyond the unblock decision, salary
+configuration, other payroll flows.
+
+| Step | Result |
+|---|---|
+| M0 | COMPLETE — candidate selection, dependency map, SEC-P9-1 found → NOT READY (§24.1) |
+| Security unblock | COMPLETE — SEC-P9-1 `09957e9` (approve / reject / cancel respect the `approve_requests` scope); `0512fc6` (product decision: `pay_advances` cancels `salary_advance?` requests only, within its own scope) |
+| M1 | COMPLETE — `c0cd7ff`, 53 characterization examples (§24.2) |
+| M2 | COMPLETE — `27fe23a`, Workforce contract `Requests::PermissionPayrollEffects` (§24.5) |
+| M3-A | COMPLETE — `2d55172`, approval routed through the contract (§24.6) |
+| M3-B + M4 | COMPLETE — `2663590`, cancellation routed and the revert moved into `Payroll::PermissionReverter`; temporary M2 bridge removed (§24.7) |
+| M6 | COMPLETE — `cc8fe42`, boundary spec (24 examples) (§24.8) |
+| M7 | NOT NEEDED — no model move in scope (`EmployeeRequest` stays where it is) |
+| M8 | COMPLETE — this close-out |
+
+**Final ownership.** Workforce owns the `EmployeeRequest` lifecycle (approve, reject, cancel, status, audit, the cancel
+transaction) and the contract `Requests::PermissionPayrollEffects`. Attendance & Payroll owns the payroll effect —
+period lookup, the finalized / paid check, the entry and penalty line, the penalty calculation, the totals —
+implemented by `Payroll::PermissionPayrollEffects` with `Payroll::PermissionApplier` (approval) and
+`Payroll::PermissionReverter` (cancellation), registered in `config/initializers/request_permission_payroll_effects.rb`.
+
+**Final dependency direction (one-way):**
+
+```
+Requests::Approver#approve_standard ─┐
+Requests::Canceller#cancel ──────────┴─▶ Requests::PermissionPayrollEffects (WF contract)
+                                              │
+                                              ▼
+                     Payroll::PermissionPayrollEffects ─▶ PermissionApplier  (permission_approved  → nil)
+                                                        └▶ PermissionReverter (permission_cancelled → :reverted | :refused)
+```
+
+Attendance & Payroll never calls Workforce request services or lifecycle methods; the permission path names nothing
+from Attendance & Payroll (enforced). Locked period: `:refused` — only for a finalized / paid covering period — keeps the
+request approved with the existing `cannot_cancel_finalized` result, no cancel audit; any other failure raises (an
+invalid line ends in the same `err(messages)` through `#cancel`'s existing `RecordInvalid` rescue).
+
+**Legacy exception (out of scope):** `Requests::Canceller` keeps the punch-correction rollback, which names Attendance
+& Payroll inside six methods only — `rollback_punch_correction`, `rollback_punch_payroll`, `restore_penalty_line_item`,
+`covering_period`, `daily_rate_for`, `compute_penalty`; any such reference elsewhere in the class fails the boundary.
+
+**Remaining debt (not solved here):**
+
+1. The punch-correction rollback remains in Workforce (`Requests::Canceller`) — `module-boundaries.md` §14.2 #3 and the
+   punch half of #4.
+2. `Payroll::PermissionReverter` carries small private copies of `covering_period`, `daily_rate_for` and
+   `compute_penalty` (the canceller's copies serve punch correction).
+3. Resolve the duplication when the punch-correction pilot moves its rollback into Attendance & Payroll.
+4. Recorded M1 observations, unchanged: approval is not atomic with its payroll effect; approval uses the line's
+   `original_minutes` while cancellation uses the current attendance minutes; a same-day re-approval replaces rather
+   than accumulates; `affects_payroll` gates generation only (always true for these types).
+
+**Final verification (on `cc8fe42`, seeds 20261006 / 12345 / 98765, identical):**
+
+| Run | Result |
+|---|---|
+| M1 characterization | 53 / 0 |
+| Contract + routing + reverter | 43 / 0 |
+| M6 boundary | 24 / 0 |
+| Permission-effects core | 220 / 0 |
+| `spec/architecture` + `spec/requests/security` | 569 / 0 |
+| Pilot 9 security + policy (SEC-P9-1, `pay_advances`, request policy) | 67 / 0 |
+| Request-area set (`workforce-request-permission-baseline-failures.txt`) | 1622 examples, 27 failures — **the same 27 IDs as at M0**, compared by exact ID under each seed |
+| Punch-correction specs (the 17 pre-existing files that mention punch correction) | 382 examples, 1 failure — `employee_request_spec.rb:432` (documented baseline); identical at `2d55172` (before M4) and at `cc8fe42` |
+
+The earlier "407" / "418" punch-correction figures counted Pilot 9's own specs that mention punch correction (the
+boundary spec, 13 then 24 examples, and the routing spec); excluding them the punch-correction specs are 382 examples,
+unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed, 32) and `git diff --check` clean.
+`module-boundaries.md`: status header, §12.1 inversion table, §12.2 WF → AP row and §14.2 #4 represent the final state.
+
+**Pilot 9 (Workforce — Request Permission Payroll Effects) is COMPLETE.** Nothing pushed or merged.
+
+## 25. Pilot 10 — Punch Correction payroll / attendance effects
+
+**Status: M0 + unblock done — READY FOR M1** (uncommitted, on `fix/pilot-10-request-submitter`, branched from the Pilot 9
+branch `72a3464` because Pilot 9 is not yet on `main`). M1 – M8 not started; no contract, no code moved.
+
+### 25.1 M0 — findings (read-only)
+
+* **What punch correction does.** Approve (`Requests::Approver#approve_punch_correction`, one transaction): request →
+  approved + `approved_punch_at` → `Requests::PunchCorrectionApplier` (Workforce) snapshots the record's punches onto the
+  request (`original_*`), sets the corrected punch (`admin_manual`), saves, `Attendance::RecordRecomputer`, saves, then
+  `Payroll::PunchCorrectionApplier` (open period only) updates / deletes the EXISTING late / early-leave lines and
+  recalculates totals — it never creates a line; the approve audit (with attendance metadata) after commit. Cancel
+  (`Requests::Canceller`, one transaction): `rollback_punch_correction` (refused without a record or for a finalized /
+  paid period) restores the snapshot and recomputes, `rollback_punch_payroll` updates / RECREATES / deletes the lines.
+  `Requests::PunchCorrectionAssessment` reads the attendance window, record, a projected recompute and duration check.
+* **Ownership today.** Workforce owns the request lifecycle — and also performs the Attendance & Payroll writes
+  (attendance mutation in `Requests::PunchCorrectionApplier`; attendance + payroll restore in the canceller's six punch
+  methods). Attendance & Payroll owns `Payroll::PunchCorrectionApplier`, the attendance services and payroll models. No
+  code-level A&P → Workforce dependency; the snapshot is attendance data stored on the Workforce request table.
+* **Risks recorded.** Approval adjusts only existing penalty lines (no line creation; worked / overtime / absence not
+  re-derived — every other attendance mutation uses `Payroll::EntryRecalculator`); apply never creates lines while the
+  revert does; no record → approval refused (unlike permissions); the shared helpers duplicated with Pilot 9's
+  `Payroll::PermissionReverter`.
+* **SEC-M2-2:** fixed in `ca66c43` (not reproduced). Its follow-up (attendance edits use the `view_attendance` lookup scope
+  and allow editing one's own record) is still an open product decision on a different path — not in the punch flow.
+* **Blockers found:** SEC-P10-1 and the locked-period approval gap (below).
+
+### 25.2 Unblock — product decisions applied
+
+| Item | Finding | Resolution |
+|---|---|---|
+| **SEC-P10-1** (Medium) | An approver could create a request on behalf of an employee and approve it themselves: `Approvals::SelfApproval` compared the approver only with `user_id`, requests recorded no submitter, and creation was not audited (reproduced: a punch correction rewrote attendance; the audit showed only `approve` by the same actor) | New nullable `employee_requests.submitted_by_id` (FK → users, indexed; migration `20261008100000`). `Requests::Submitter` (new) is the single creation path for web and API: sets `submitted_by` to the signed-in user (never from params), saves and writes a `create` audit (`request_type`, `for_user_id`, `submitted_by_id`, `on_behalf`) in one transaction. `EmployeeRequestPolicy#approve?` / `#reject?` and `Requests::Approver#self_approval?` refuse the employee **and** the submitter |
+| Locked-period approval (product decision) | Approving a punch correction in a finalized / paid period rewrote attendance while payroll stayed frozen, and the cancel was then refused — a permanent mismatch | `Requests::PunchCorrectionApplier` refuses (`requests.errors.cannot_approve_finalized`, en + ar) when the request month's payroll period is `locked?` (finalized or paid), after the existing missing-record check and before any write; it runs inside the approver's existing transaction, which rolls the approval back — request pending, no `approved_punch_at`, no snapshot, attendance / payroll untouched, no approve audit |
+
+**Submitter data.** `user_id` = whom the request is for; `submitted_by_id` = who created it (equal for self-requests).
+Existing rows stay NULL — creation was never audited, so there is no reliable source to backfill from — and are read as
+"submitter unknown": the self-approval rule keeps its previous, employee-only meaning for them. New rows always get a
+submitter (`Requests::Submitter`; the model defaults it to the employee for any other creation path, e.g. seeds).
+**Residual:** a legacy PENDING request created on behalf of someone may still be approved by its (unrecorded) creator;
+it disappears as those requests are decided. **Migration run on the TEST database only** — run `bin/rails db:migrate` on
+development / production as part of deployment.
+
+**Atomicity preserved:** no new transaction; the guard is the first step of the applier inside the approver's
+transaction; the approve audit is still written only after commit. Permissions (Pilot 9) are unaffected by the guard.
+
+**Specs:** `spec/requests/security/employee_request_submitter_spec.rb` (11 — submitter and audit for self / on-behalf /
+API, mass assignment ignored, employee cannot self-approve, submitter cannot approve or reject (web + service), another
+approver can, legacy NULL rule, branch scope, cross-business 404; the 2 on-behalf self-approval examples fail on the old
+authorization). `spec/requests/security/punch_correction_locked_period_spec.rb` (10 — finalized / paid refused with the
+error, every state unchanged, web alert; open period and no period unchanged; missing record message first; permissions
+unaffected; the 6 locked examples fail without the guard).
+
+**Verification (seeds 20261006 / 12345 / 98765, identical):** SEC-P10-1 11 / 0; locked period 10 / 0; punch-correction
+specs (17 files) 382 / 1 — the documented `employee_request_spec.rb:432`; request security + policy 124 / 0; Pilot 9
+M1 + contract + routing + reverter + boundary 120 / 0; Pilot 9 core 220 / 0; `spec/architecture` + `spec/requests/security`
+590 / 0 (569 + 21); request-area set 1622 examples with the same 27 baseline IDs. M0 re-check: SEC-P10-1 not reproduced
+(on-behalf creation records the approver; the same approver's approval is refused; attendance untouched); locked-period
+approval blocked. `zeitwerk:check`, RuboCop (new / fully changed files clean; the controller and approver keep their
+pre-existing 4 / 8 layout offenses on untouched lines) and `git diff --check` clean.

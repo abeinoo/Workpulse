@@ -47,6 +47,11 @@ module Requests
                  .find_by(user: @request.user, work_date: @request.requested_for_date)
 
       return failure("No attendance record found for #{@request.requested_for_date}") unless record
+      # A finalized / paid payroll period is frozen: correcting its attendance
+      # would leave attendance and payroll permanently out of step (cancellation
+      # is refused for the same period). Refused before anything is written; the
+      # approver's transaction rolls the approval back.
+      return failure(I18n.t("requests.errors.cannot_approve_finalized")) if payroll_period_locked?
 
       applier_error = nil
 
@@ -112,6 +117,16 @@ module Requests
     end
 
     private
+
+    # The payroll period of the request's month, looked up exactly as
+    # cancellation does (Requests::Canceller#covering_period); none → not locked.
+    def payroll_period_locked?
+      PayrollPeriod.where(
+        business:     @request.user.business,
+        period_month: @request.requested_for_date.month,
+        period_year:  @request.requested_for_date.year
+      ).first&.locked? || false
+    end
 
     # Combines the punch's actual calendar date (not the work/business date) with
     # an "HH:MM" string in the business timezone. Overnight punches carry their

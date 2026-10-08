@@ -167,7 +167,8 @@ module Requests
         response_note: @response_note
       )
 
-      Payroll::PermissionApplier.call(@request)
+      # The permission's payroll effect, through the Workforce contract (Pilot 9 M3).
+      Requests::PermissionPayrollEffects.permission_approved(request: @request)
 
       log_audit(
         actor:     @reviewed_by,
@@ -276,9 +277,13 @@ module Requests
     end
 
     # Backstop for direct service/API calls (the policy already hides the UI):
-    # the reviewer may not be the employee who submitted the request.
+    # neither the employee the request is for nor the user who submitted it (an
+    # approver acting on their behalf, SEC-P10-1) may approve or reject it.
+    # Legacy requests without a recorded submitter keep the employee-only rule.
     def self_approval?
-      Approvals::SelfApproval.by_requester?(approver: @reviewed_by, requester: @request.user_id)
+      [ @request.user_id, @request.submitted_by_id ].any? do |requester|
+        Approvals::SelfApproval.by_requester?(approver: @reviewed_by, requester: requester)
+      end
     end
 
     def payable?
