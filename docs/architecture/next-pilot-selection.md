@@ -3830,3 +3830,93 @@ cancellation) and the salary display remain.
 
 **Pilot 8 (Workforce — Employee Insurance Profile) is COMPLETE.** Nothing pushed or merged; the seven commits plus this
 close-out sit on `fix/pilot-8-insurance-security` on top of `main` `4655d18`.
+
+## 24. Pilot 9 — Workforce Request Permission Payroll Effects (late / early-leave permissions)
+
+**Status: M1 COMPLETE** (on `fix/pilot-9-request-scope`, not pushed or merged). M0 read-only at `main` `a9f8ff3`;
+security unblock `09957e9`, `0512fc6`; M1 characterization. M2 – M8 not started. No schema, migration, route or API
+change.
+
+### 24.1 M0 — selection
+
+* **Why this candidate:** after Pilot 8 the Workforce ↔ Attendance & Payroll request cycle is the largest remaining one
+  (`module-boundaries.md` §14.2 #2 – #4). Its smallest write edge is the payroll effect of late / early-leave
+  permissions: approval calls `Payroll::PermissionApplier` (`requests/approver.rb`), while cancellation rewrites payroll
+  line items inside Workforce (`Requests::Canceller#rollback_permission`). Deferred: advances (SEC-M2-7 product
+  decision, eligibility baseline noise), punch correction (high risk, after this pilot), the Inventory & Purchasing ↔
+  Finance & Sales settlement (~1,067 lines, money, two-way: `FinancialSettlement` names `GoodsReceipt` /
+  `PurchaseRequestAdvance` constants), the laundry labour-cost report (ready, but no cycle), POS terminals / warehouse
+  access (low value). `PurchaseRequestAdvance` is missing from `module-boundaries.md` §10 (Inventory & Purchasing in
+  practice).
+* **Security unblock (both fixed before M1):**
+
+| ID | Severity | Finding | Fix | Commit |
+|---|---|---|---|---|
+| SEC-P9-1 | Medium | `EmployeeRequestPolicy#approve?` / `#reject?` / `#cancel?` ignored the configured `approve_requests` scope (requests are found through the broader `view_requests` scope) | The requester must be inside `EmployeeScope#for_permissions(:approve_requests, :view_requests, :view_employees)` (as `create?`); approvers may still cancel their own approved request | `09957e9` |
+| (follow-up, product decision) | Medium | A `pay_advances` holder could cancel ANY request type business-wide, ignoring the `pay_advances` scope, and bypass the `approve_requests` scope | `pay_advances` cancels `salary_advance?` requests only, own or inside `for_permissions(:pay_advances, :view_requests, :view_employees)` | `0512fc6` |
+
+Regression specs: `spec/requests/security/employee_request_approve_scope_spec.rb` (13; 5 fail on the old code),
+`employee_request_pay_advances_cancel_spec.rb` (17; 10 fail on `09957e9`).
+
+### 24.2 M1 — characterization
+
+`spec/characterization/workforce/request_permission_payroll_effects_spec.rb` (53 examples: 26 per permission type via
+shared definitions, plus one request-level policy check), complementing `permission_applier_spec`, `canceller_spec`,
+`approver_spec` and the security specs. Fixture: one attendance record carrying both a 40-minute late arrival (rule
+> 15 min → 25 % of the 400 daily rate = −100) and a 120-minute early leave (> 30 min → 50 % = −200), each with its
+penalty line. Disabling the applier or the rollback fails 14 examples each.
+
+**Observed behaviour (pinned):**
+
+| Area | Current behaviour |
+|---|---|
+| Approval flow | `Requests::Approver#approve_standard`: `request.update!(approved)` → `Payroll::PermissionApplier.call(request)` → `log_audit("approve")`, **no surrounding transaction** |
+| Approval effect | Only an EXISTING `late_penalty` / `early_leave_penalty` line of the attendance record (`source_type: "AttendanceRecord"`) in an OPEN period (`period_month` / `period_year` of the work date, not finalized / paid) of an existing entry is changed: effective = `original_minutes` (else attendance minutes) − approved minutes; amount re-derived with `Salary::DailyRateCalculator` + `Attendance::PenaltyCalculator`; zero → line destroyed, else updated (`original_minutes`, `permission_minutes`); `entry.recalculate_totals!` (flags `needs_review`). Over the threshold the amount is unchanged (flat rule) but the minutes are recorded |
+| Approval no-ops | Finalized / paid period, no period, no entry, no attendance record, no matching line → request approved, payroll untouched; never creates an entry or line |
+| Same-day re-approval | A second approved permission replaces the first (recomputed from `original_minutes` − the new minutes), not cumulative |
+| Other line | A late permission never touches the early-leave line of the same record, and vice versa |
+| Audit | Request audit only (`approve`, `cancel`); no `AuditLog` / `PayrollAuditLog` row for the line change |
+| Approval failure | An applier error is not rescued: the request is already approved (committed), no `approve` audit, payroll unchanged, the error propagates (500) |
+| Cancellation flow | `Requests::Canceller#cancel`: one transaction — `rollback_permission` → `request.update!(cancelled)` → `log_audit("cancel")`; a rollback error result → `ActiveRecord::Rollback`, request stays approved |
+| Rollback effect | Re-derives the FULL penalty from the CURRENT attendance minutes (not the line's `original_minutes`): line updated (`permission_minutes: nil`), recreated (description "Late arrival / Early leave <date>") if destroyed, or destroyed if now zero; `recalculate_totals!`; attendance record untouched |
+| Rollback refusal | Covering period (any status, by request month) finalized / paid → `requests.errors.cannot_cancel_finalized`, request approved, payroll and audit unchanged |
+| Rollback no-ops | No attendance record, no period, no entry, zero raw minutes → cancelled, payroll untouched |
+| Rollback failure | An exception is not rescued, but the transaction rolls back: request approved, no `cancel` audit |
+| Generation | `Payroll::EntryCalculator` subtracts `EmployeeRequest.approved_minutes` (first approved, `affects_payroll`) when the entry is generated after approval; cancelling then restores the full penalty |
+| Policy | The effect path is behind `EmployeeRequestPolicy` (an out-of-scope approver cannot trigger it) |
+
+**Shared helpers:** `rollback_permission` uses `covering_period`, `daily_rate_for` (`Salary::DailyRateCalculator`) and
+`compute_penalty` (`Attendance::PenaltyCalculator`), which `rollback_punch_correction` / `rollback_punch_payroll` also
+use — punch correction stays out of scope; the helpers must keep serving it.
+
+**Direct Workforce → Attendance & Payroll references in this flow:** `requests/approver.rb` → `Payroll::PermissionApplier`;
+`requests/canceller.rb#rollback_permission` → `AttendanceRecord`, `PayrollPeriod`, `PayrollEntry`, `PayrollLineItem`
+(find / create / update / destroy), `entry.recalculate_totals!`, `Salary::DailyRateCalculator`,
+`Attendance::PenaltyCalculator`.
+
+**Risky / surprising (pinned, not changed):** approval is not atomic with its payroll effect; apply uses the line's
+`original_minutes` but rollback the current attendance minutes (an attendance edit between them changes the restored
+amount); re-approval replaces rather than accumulates while generation counts only the first approved request;
+`affects_payroll` gates generation but not apply / rollback (always true for these types today).
+
+### 24.3 Verification (M1, seed 20261006)
+
+| Run | Result |
+|---|---|
+| M1 characterization, seeds 20261006 / 12345 / 98765 | 53 / 0 under each |
+| Permission-effects core | 177 / 0 |
+| Request-area set (`workforce-request-permission-baseline-failures.txt`) | 1622 examples, **the same 27 baseline IDs** (1569 + 53) |
+| `spec/architecture` + `spec/requests/security` | 545 / 0 |
+| Request policy + Pilot 9 security specs | 67 / 0 |
+
+`zeitwerk:check`, RuboCop and `git diff --check` clean.
+
+### 24.4 Migration path (M1 evidence)
+
+* **M2 NEEDED:** a Workforce-defined contract for the payroll effect of a permission request — applied on approval,
+  reverted on cancellation (returning a refusal for a locked period, inside the cancel transaction) — implemented by
+  Attendance & Payroll.
+* **M3 NEEDED:** route `approve_standard` and `rollback_permission` through it.
+* **M4 NEEDED:** the revert logic (`rollback_permission` and its use of the shared helpers) moves into Attendance &
+  Payroll; the punch-correction rollback keeps its own copy until its own pilot.
+* **M6 NEEDED**; **M7** likely not needed (no model moves in scope); **M8 NEEDED.**
