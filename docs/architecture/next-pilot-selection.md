@@ -4185,8 +4185,9 @@ unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed
 
 ## 25. Pilot 10 — Punch Correction payroll / attendance effects
 
-**Status: M1 COMPLETE** (uncommitted, on `main` after `412710f`). M0 and the unblock are merged (`66abcf5`, PR #34 →
-`fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). M2 – M8 not started; no contract, no code moved.
+**Status: M2 COMPLETE** (on `feature/pilot-10-punch-correction`: M1 `5c8729e`, M2 "refactor: define punch
+correction effects contract"). M0 and the unblock are merged (`66abcf5`, PR #34 → `fix/pilot-9-request-scope`, PR #33
+→ `main` `82cce16`). Contract defined; no caller routed, no code moved; M3 – M8 not started.
 
 ### 25.1 M0 — findings (read-only)
 
@@ -4325,3 +4326,90 @@ does)? Should a punch correction respect an applied permission? Should the effec
 | Pilot 10 set (`workforce-punch-correction-baseline-failures.txt`, 20 files) | — | 432 / 1 — the same ID |
 
 `zeitwerk:check`, RuboCop (new spec) and `git diff --check` clean. No new failure; no flaky failure observed.
+
+### 25.4 M2 — Workforce contract `Requests::PunchCorrectionEffects`
+
+**Owner: Workforce.** The request, its lifecycle (approve, reject, cancel), the reviewer's chosen moment, the snapshot
+persisted on the request and the request audit are Workforce's; the attendance record, its recomputation, the attendance
+window, duration checks, penalty lines, payroll periods and entries are Attendance & Payroll's. Named in Workforce's
+request namespace next to `Requests::PermissionPayrollEffects` (Pilot 9). Struct value objects (`keyword_init`, the
+project convention); the contract source names nothing from Attendance & Payroll (asserted).
+
+| | |
+|---|---|
+| `correction_facts(request:, field:, effective_at:, baseline: nil)` | Read-only, outside any transaction. Returns `Facts`: `record_found`, `check_in_at` / `check_out_at` (the live record's, or the `baseline` `Snapshot`'s for an already-applied correction), `inside_window`, `shift_starts_at` / `shift_ends_at`, `projected_worked_minutes`, `duration_severity`. Everything `Requests::PunchCorrectionAssessment` reads from Attendance & Payroll today |
+| `correction_approved(request:, field:, effective_at:)` | Inside the approve transaction. Returns `Approval`: `status: :applied` with the `Snapshot` of the punches it replaced (`check_in_at`, `check_out_at`, `check_in_source`, `check_out_source`), `worked_minutes` and `duration_severity` of the saved record; or a refusal in `REFUSALS = %i[payroll_locked no_attendance_record check_out_not_after_check_in check_out_before_check_in]` — nothing written. Never writes the request, its status, `approved_punch_at`, the snapshot columns or the audit: Workforce persists them from the result |
+| `correction_cancelled(request:, field:, snapshot:)` | Inside the cancel transaction. Restores attendance from the `Snapshot` and the payroll it owns. Returns a `Symbol` in `CANCEL_RESULTS = %i[reverted payroll_locked no_attendance_record]` |
+| Arguments | `field` (`:check_in` / `:check_out`, `EmployeeRequest#correction_field`) and `effective_at` (the reviewer's final moment) are request data, computed by Workforce; anything else raises `ArgumentError` before the handler runs |
+| Results | Validated: a non-`Facts`, a non-`Approval`, an applied `Approval` without a `Snapshot`, an unknown status or cancel result raise `ArgumentError`, so no attendance / payroll record crosses the contract |
+| Errors | Refusals are values, not exceptions. An unexpected handler error propagates; the caller maps it in M3 to today's behaviour (approval: the applier's `failure(e.message)`, the transaction rolled back; cancellation: `RecordInvalid` → `err(messages)`, anything else rolls the cancel back un-rescued) |
+| Messages | Refusal reasons are symbols; the user-facing strings (`requests.errors.cannot_approve_finalized`, `no_attendance_record`, `check_out_not_after_check_in`, `check_out_before_check_in`, `cannot_cancel_finalized`) stay in Workforce |
+| Registration | `register` rejects a handler missing an operation; no handler → `NotRegistered` (a `StandardError`). Wired in `config/initializers/request_punch_correction_effects.rb` (`to_prepare`) |
+| No `actor` | Neither path uses one below the request; the caller writes the `approve` / `cancel` audit |
+
+**Atomicity is preserved by construction:** approval stays one transaction in `Requests::Approver` (request approved +
+`approved_punch_at` + snapshot + `correction_approved`), the audit after commit; a refusal or an error rolls the
+whole approval back. Cancellation stays one transaction in `Requests::Canceller` (`correction_cancelled` + cancelled),
+the audit inside it as today. Authorization is untouched (policies, `self_approval?`, submitter rule).
+
+**Implementation (Attendance & Payroll): `Attendance::PunchCorrectionEffects`.**
+
+* `correction_facts` is implemented: `Attendance::PunchWindow`, `AttendanceRecord` for the request's date,
+  `Attendance::RecordRecomputer` on an unsaved copy, `Attendance::DurationCheck` — the same reads as the assessment,
+  pinned by parity examples (inside / outside the window, overnight abnormal duration, missing punch, no record, an
+  applied correction against its baseline) and a reads-only example. (`record_found` uses `!record.nil?`: on
+  `AttendanceRecord`, `present?` is the `present` status enum predicate.)
+* `correction_approved` / `correction_cancelled` raise `NotImplementedError` ("lands with Pilot 10 M3 + M4"). The logic
+  is still Workforce's (`Requests::PunchCorrectionApplier`, `Requests::Canceller#rollback_punch_correction` and its
+  helpers); delegating to it from here would be the circular contract → Workforce shape rejected in Pilot 9 M3-B. No
+  caller uses them in M2 (asserted: only the contract and the implementation name `Requests::PunchCorrectionEffects`).
+
+**Sequencing for M3 / M4 (decided here):** M3 may route the assessment's attendance reads through `correction_facts`
+on its own (implemented, parity-tested). Approval and cancellation are routed **together with M4** — the moving of
+the applier's attendance / payroll writes and the canceller's six punch methods (`rollback_punch_correction`,
+`rollback_punch_payroll`, `restore_penalty_line_item`, `covering_period`, `daily_rate_for`, `compute_penalty`) into
+Attendance & Payroll — as Pilot 9 combined M3-B + M4. The snapshot write moves the other way: today
+`Requests::PunchCorrectionApplier` writes it with `update_columns` from inside the attendance step; after M4 the
+implementation returns it in `Approval#snapshot` and Workforce writes it.
+
+**Approved product decisions for M4 (recorded in M2, not implemented; they change behaviour pinned by M1 and
+need their own characterization updates):**
+
+* **A — create missing penalty lines.** Approval creates a late / early-leave line that does not exist yet when the
+  corrected punch produces a penalty, as cancellation already does (M1 §E "lines that do not exist are never created").
+* **B — respect approved permission minutes.** Approval applies the permission minutes already applied to the line
+  instead of recomputing from the full new minutes (M1 §E "ignores an approved permission").
+* **C — `Payroll::EntryRecalculator`.** The payroll effect re-derives the entry through `Payroll::EntryRecalculator`,
+  like every other attendance mutation, instead of `Payroll::PunchCorrectionApplier` patching lines (worked days /
+  overtime / absence re-derived; M1 §E "worked days / overtime are not re-derived"). The period lookup (open by work
+  date vs request month in any status, M1 §I) is settled with it.
+
+**Callers not changed:** `Requests::Approver#approve_punch_correction`, `Requests::PunchCorrectionApplier`,
+`Requests::Canceller#rollback_punch_correction`, `Requests::PunchCorrectionAssessment` and the views are as in M1.
+
+**Specs:** `spec/services/requests/punch_correction_effects_spec.rb` (18) — registration (implementation registered,
+incomplete handler rejected, `NotRegistered`), argument / result validation (field, snapshot, `Facts`, every refusal,
+malformed `Approval`s, cancel results, error propagation), `correction_facts` parity and reads-only, approve / cancel not
+implemented and writing nothing. `spec/architecture/workforce_punch_correction_boundary_spec.rb` (7) — contract names no
+Attendance & Payroll (incl. `Shifts::`); the implementation calls no Workforce service other than the contract's value
+types, never writes request status, `approved_punch_at`, the snapshot columns or the audit; the implementation is named
+only by itself and the composition root; no caller routed yet; planted probes. Physical probe: `PayrollEntry` planted
+in the contract and `EmployeeRequest` in the implementation → 2 failures; restored → 7 / 0.
+
+**Verification (seeds 20261006 / 12345 / 98765):**
+
+Identical under all three seeds, compared by exact failure ID with M1 (`5c8729e`):
+
+| Suite | M1 | M2 |
+|---|---|---|
+| M2 contract + boundary | — | 25 / 0 (18 + 7) |
+| M1 characterization | 29 / 0 | 29 / 0 |
+| Punch-correction specs (17 files) | 382 / 1 | 382 / 1 — `employee_request_spec.rb:432` (documented) |
+| SEC-P10-1 + locked period | 21 / 0 | 21 / 0 |
+| Request security + policy | 124 / 0 | 124 / 0 |
+| Pilot 9 permission-effects core (`spec/services/requests` now includes the contract spec) | 220 / 0 | 238 / 0 (+18) |
+| `spec/architecture` + `spec/requests/security` | 590 / 0 | 597 / 0 (+7) |
+| Request-area set | 1622 / 27 | 1622 / 27 — the same 27 IDs |
+| Pilot 10 set (20 files) | 432 / 1 | 432 / 1 — the same ID |
+
+`zeitwerk:check`, RuboCop and `git diff --check` clean. No new failure; no flaky failure observed.

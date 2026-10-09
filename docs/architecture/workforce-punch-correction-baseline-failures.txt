@@ -8,6 +8,8 @@
 #   the two Pilot 10 unblock regression specs, and the Pilot 10 M1 characterization file. Reproduce with:
 #   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/workforce-punch-correction-baseline-failures.txt | cut -d' ' -f3)
 # Results: before M1 the 17 files gave 382 examples, 1 failure (below) and the unblock specs 21 / 0; M1 adds 29.
+# M2 (contract + boundary specs run separately, 25 / 0): this set 432 / same 1 ID; request-area 1622 / same 27,
+#   under seeds 20261006, 12345 and 98765.
 # The request-area set (workforce-request-permission-baseline-failures.txt, 1622 examples, 27 IDs) is compared too.
 # The one ID is the documented advance-eligibility example (permission-role-baseline-failures.txt / Pilot 9 set).
 #
