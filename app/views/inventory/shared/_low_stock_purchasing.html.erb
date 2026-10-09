@@ -28,7 +28,12 @@
            data-low-stock-selection-currency-suffix-value="<%= cur_suffix %>"
            data-low-stock-selection-suppliers-value="<%= suppliers_json %>"
            data-low-stock-selection-create-url-value="<%= inventory_purchase_requests_path %>"
-           data-low-stock-selection-no-supplier-label-value="<%= t("inventory.dashboard.review_no_supplier") %>">
+           data-low-stock-selection-no-supplier-label-value="<%= t("inventory.dashboard.review_no_supplier") %>"
+           data-low-stock-selection-choose-supplier-label-value="<%= t("inventory.dashboard.review_choose_supplier") %>"
+           data-low-stock-selection-group-title-value="<%= t("inventory.dashboard.review_group_title", supplier: "%{supplier}") %>"
+           data-low-stock-selection-group-title-no-supplier-value="<%= t("inventory.dashboard.review_group_title_no_supplier") %>"
+           data-low-stock-selection-group-items-label-value="<%= t("inventory.dashboard.review_group_items") %>"
+           data-low-stock-selection-group-total-label-value="<%= t("inventory.dashboard.review_group_total") %>">
     <div class="card__header flex items-center justify-between">
       <h2 class="card__title" style="margin: 0;">
         <%= section_title %>
@@ -150,11 +155,15 @@
           </h3>
           <p class="td-secondary"><%= t("inventory.dashboard.review_intro") %></p>
 
-          <div data-low-stock-selection-target="reviewMissing" style="display:none; margin-bottom: var(--space-3);">
-            <p style="color: var(--color-danger, #c62828); font-weight: 600; margin-bottom: 2px;">
-              <%= t("inventory.dashboard.review_missing_supplier") %>
-            </p>
-            <p class="td-secondary" style="margin: 0;"><%= t("inventory.dashboard.review_missing_supplier_hint") %></p>
+          <%# Informational, never blocking: no-supplier rows become one draft
+              request that needs a supplier before submit-for-approval. %>
+          <div class="alert alert-info" data-low-stock-selection-target="reviewMissing" style="display:none; margin-bottom: var(--space-3);">
+            <strong><%= t("inventory.dashboard.review_missing_supplier") %></strong> —
+            <%= t("inventory.dashboard.review_missing_supplier_hint") %>
+          </div>
+
+          <div class="alert alert-danger" data-low-stock-selection-target="reviewInvalid" style="display:none; margin-bottom: var(--space-3);">
+            <%= t("inventory.dashboard.review_invalid_lines") %>
           </div>
 
           <div data-low-stock-selection-target="reviewGroups"></div>

@@ -17,6 +17,11 @@ class PurchaseRequestPolicy < ApplicationPolicy
                  (!record.is_a?(PurchaseRequest) || record.pending_approval?)
   def reject?  = approve?
 
+  # Class-level gate for "اعتماد الطلبات المحددة" — the same permission as a
+  # single approval. Per-request state (pending_approval, self-approval) is
+  # re-checked under lock by Inventory::PurchaseRequestBulkApproval.
+  def bulk_approve? = can?(:manage_inventory) || can?(:approve_purchase_requests)
+
   # Only while nothing has been received yet — once receiving has started,
   # the commitment is real and the request can no longer be walked back.
   def cancel? = create? &&

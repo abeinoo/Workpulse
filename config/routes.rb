@@ -347,6 +347,9 @@ Rails.application.routes.draw do
     end
     resources :barcode_labels, only: [ :index, :show ]
     resources :purchase_requests, only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
+      collection do
+        post :bulk_approve
+      end
       member do
         post :submit
         post :approve

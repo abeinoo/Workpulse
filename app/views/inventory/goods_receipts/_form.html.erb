@@ -6,7 +6,7 @@
     <div class="alert alert-info" style="margin-bottom: var(--space-4);">
       <%= t("inventory.goods_receipts.from_purchase_request") %>:
       <%= link_to @purchase_request.request_number, inventory_purchase_request_path(@purchase_request), class: "link", target: "_blank", rel: "noopener" %>
-      — <%= @purchase_request.supplier.name %>
+      — <%= purchase_request_supplier_name(@purchase_request) %>
     </div>
     <%= f.hidden_field :purchase_request_id %>
     <% if @purchase_request.advances_total.positive? %>
@@ -28,7 +28,7 @@
     </div>
     <div class="form-group">
       <%= f.label :supplier_id, t("inventory.goods_receipts.supplier"), class: "form-label" %>
-      <% if from_purchase_request %>
+      <% if from_purchase_request && @purchase_request.supplier_id.present? %>
         <%= f.select :supplier_id,
               options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
               {}, class: "form-control", disabled: true %>
@@ -39,6 +39,9 @@
               options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
               { include_blank: "— #{t('inventory.goods_receipts.no_supplier')}" },
               class: "form-control", data: { "receipt-supplier-target": "supplier" } %>
+        <% if from_purchase_request %>
+          <p class="form-hint"><%= t("inventory.goods_receipts.supplier_from_open_request_hint") %></p>
+        <% end %>
       <% end %>
     </div>
     <div class="form-group">

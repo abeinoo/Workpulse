@@ -37,11 +37,12 @@ module Inventory
       Result.new(ok: false, purchase_request: request, error: e.record.errors.full_messages.to_sentence)
     end
 
-    # pending_approval -> approved
-    def approve!
+    # pending_approval -> approved. metadata is added to the audit entry (e.g.
+    # Inventory::PurchaseRequestBulkApproval marks its approvals as one batch).
+    def approve!(metadata: {})
       return self_approval_error if self_approval?
 
-      transition(to: "approved", action: "approve") do
+      transition(to: "approved", action: "approve", metadata: metadata) do
         request.approved_by = @actor
         request.approved_at = Time.current
       end
@@ -70,10 +71,17 @@ module Inventory
       @request ||= PurchaseRequest.where(business_id: @actor.business_id).find(@purchase_request_id)
     end
 
-    def self_approval?
-      return false if @actor.owner?
+    # The business owner is exempt; anyone else may not approve a request
+    # they submitted themselves. Also used by the index to decide which rows
+    # are selectable for bulk approval.
+    def self.self_approval?(request, actor)
+      return false if actor.owner?
 
-      Approvals::SelfApproval.by_requester?(approver: @actor, requester: request.submitted_by_id)
+      Approvals::SelfApproval.by_requester?(approver: actor, requester: request.submitted_by_id)
+    end
+
+    def self_approval?
+      self.class.self_approval?(request, @actor)
     end
 
     def self_approval_error

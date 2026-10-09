@@ -33,10 +33,12 @@ RSpec.describe "Characterization: Supplier in purchasing" do
   end
 
   describe "purchase requests own supplier selection" do
-    it "a supplier is required" do
-      request = request_for(nil)
-      expect(request).not_to be_valid
-      expect(request.errors[:supplier]).to be_present
+    it "a supplier is optional on a draft, but a dangling supplier id is refused" do
+      expect(request_for(nil)).to be_valid
+
+      dangling = request_for(nil).tap { |r| r.supplier_id = Supplier.maximum(:id).to_i + 1 }
+      expect(dangling).not_to be_valid
+      expect(dangling.errors[:supplier]).to be_present
     end
 
     it "the supplier must belong to the request's business" do
@@ -46,7 +48,7 @@ RSpec.describe "Characterization: Supplier in purchasing" do
       expect(request_for(supplier)).to be_valid
     end
 
-    it "the creator makes one request per supplier and refuses a line without one" do
+    it "the creator makes one request per supplier, and a no-supplier request for lines without one" do
       result = Inventory::PurchaseRequestCreator.new(
         business, actor: create(:user, :owner, business: business),
         items: [ { product_id: product.id, quantity: 1, unit_price: 1, supplier_id: supplier.id },
@@ -59,8 +61,8 @@ RSpec.describe "Characterization: Supplier in purchasing" do
         business, actor: create(:user, business: business),
         items: [ { product_id: product.id, quantity: 1, unit_price: 1, supplier_id: nil } ]
       ).call
-      expect(missing).not_to be_ok
-      expect(missing.missing_supplier_product_ids).to eq([ product.id ])
+      expect(missing).to be_ok
+      expect(missing.purchase_requests.sole.supplier_id).to be_nil
     end
 
     it "the creator does not create a request for another business's supplier" do
@@ -82,6 +84,19 @@ RSpec.describe "Characterization: Supplier in purchasing" do
   describe "goods receipts reference the supplier" do
     it "the supplier is optional on a standalone receipt" do
       expect(post_receipt(wh_a, nil).supplier).to be_nil
+    end
+
+    it "a receipt from a request WITHOUT a supplier records its own actual supplier (or none)" do
+      request = request_for(nil).tap(&:save!)
+
+      [ supplier, second_supplier, nil ].each do |actual|
+        receipt = business.goods_receipts.build(warehouse: wh_a, supplier: actual, received_on: Date.current,
+                                                purchase_request: request)
+        receipt.items.build(product: product, quantity: 1, unit_cost: 1)
+        receipt.valid?
+        expect(receipt.errors.details[:supplier]).to be_empty
+      end
+      expect(request.reload.supplier_id).to be_nil
     end
 
     it "a receipt from a purchase request must use that request's supplier" do

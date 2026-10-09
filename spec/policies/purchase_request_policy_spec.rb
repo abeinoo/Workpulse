@@ -38,6 +38,15 @@ RSpec.describe PurchaseRequestPolicy, type: :policy do
     end
   end
 
+  describe "#bulk_approve?" do
+    it "follows the single-approval permission (approve_purchase_requests or manage_inventory)" do
+      expect(described_class.new(approver, PurchaseRequest).bulk_approve?).to be true
+      expect(described_class.new(manager, PurchaseRequest).bulk_approve?).to be true
+      expect(described_class.new(creator, PurchaseRequest).bulk_approve?).to be false
+      expect(described_class.new(viewer, PurchaseRequest).bulk_approve?).to be false
+    end
+  end
+
   describe "#index? / #show?" do
     it "allows any user with view_inventory" do
       expect(described_class.new(viewer, PurchaseRequest).index?).to be true

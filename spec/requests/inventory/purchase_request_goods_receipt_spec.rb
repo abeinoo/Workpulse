@@ -324,6 +324,74 @@ RSpec.describe "Purchase Request → Goods Receipt", type: :request do
     n.to_s
   end
 
+  describe "receiving a request without a supplier" do
+    def no_supplier_request
+      pr = business.purchase_requests.build(source: "low_stock_alert", created_by: owner)
+      pr.items.build(product: product_a, quantity: 10, unit_price: 100, source_warehouse: warehouse)
+      pr.save!
+      approve!(pr)
+    end
+
+    def post_receipt(pr, supplier_id, quantity)
+      post inventory_goods_receipts_path, params: {
+        goods_receipt: {
+          purchase_request_id: pr.id, warehouse_id: warehouse.id, supplier_id: supplier_id,
+          received_on: Date.current.to_s, funding_source_kind: "supplier_credit",
+          items_attributes: { "0" => { product_id: product_a.id, quantity: quantity, unit_cost: 100,
+                                       purchase_request_item_id: pr.items.first.id } }
+        }
+      }
+    end
+
+    it "offers an editable supplier select (with \"No supplier\") instead of a locked one" do
+      pr = no_supplier_request
+      sign_in owner
+
+      get new_inventory_goods_receipt_path(purchase_request_id: pr.id)
+
+      expect(response).to have_http_status(:ok)
+      select = Nokogiri::HTML(response.body).at_css('select[name="goods_receipt[supplier_id]"]')
+      expect(select["disabled"]).to be_nil
+      expect(select.at_css('option[value=""]')).to be_present
+      expect(response.body).to include(I18n.t("inventory.goods_receipts.supplier_from_open_request_hint"))
+    end
+
+    it "lets each receipt record a different actual supplier, or none, without touching the request" do
+      pr = no_supplier_request
+      other = business.suppliers.create!(name: "Local Shop")
+      sign_in owner
+
+      expect { post_receipt(pr, supplier.id, 4) }.to change(GoodsReceipt, :count).by(1)
+      expect { post_receipt(pr, other.id, 3) }.to change(GoodsReceipt, :count).by(1)
+      expect { post_receipt(pr, "", 3) }.to change(GoodsReceipt, :count).by(1)
+
+      expect(pr.goods_receipts.map(&:supplier_id)).to contain_exactly(supplier.id, other.id, nil)
+      expect(pr.reload.supplier_id).to be_nil
+    end
+
+    it "moves through partial and full receiving like any other request" do
+      pr = no_supplier_request
+
+      create_and_confirm_receipt!(pr, product_a, 6)
+      expect(pr.reload).to be_partially_received
+      create_and_confirm_receipt!(pr, product_a, 4)
+      expect(pr.reload).to be_fully_received
+      expect(pr.supplier_id).to be_nil
+    end
+
+    it "still locks the supplier for a request that has one" do
+      pr = build_request([ { product: product_a, quantity: 10, unit_price: 100, source_warehouse: warehouse } ])
+      approve!(pr)
+      sign_in owner
+
+      get new_inventory_goods_receipt_path(purchase_request_id: pr.id)
+
+      select = Nokogiri::HTML(response.body).at_css('select[name="goods_receipt[supplier_id]"]')
+      expect(select["disabled"]).to be_present
+      expect(response.body).to include(I18n.t("inventory.goods_receipts.supplier_locked_hint"))
+    end
+  end
+
   def create_and_confirm_receipt!(pr, product, quantity)
     pri = pr.items.find_by(product: product)
     receipt = business.goods_receipts.build(warehouse: warehouse, supplier: supplier, received_on: Date.current,

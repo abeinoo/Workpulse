@@ -147,4 +147,111 @@ RSpec.describe "Purchase Requests — edit", type: :request do
       expect(response.body).not_to include(edit_inventory_purchase_request_path(approved))
     end
   end
+
+  describe "requests without a supplier" do
+    def no_supplier_request
+      pr = business.purchase_requests.build(source: "low_stock_alert", created_by: owner)
+      pr.items.build(product: product_a, quantity: 10, unit_price: 100)
+      pr.save!
+      pr
+    end
+
+    it "AR: shows \"بدون مورد\" and the normal Submit for Approval action, with no supplier warning" do
+      pr = no_supplier_request
+      owner.update!(preferred_locale: "ar")
+      sign_in owner
+
+      get inventory_purchase_request_path(pr)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("بدون مورد")
+      expect(response.body).to include(submit_inventory_purchase_request_path(pr))
+      expect(response.body).not_to include("يجب تحديد المورد")
+    end
+
+    it "shows the Approve action to an approver while pending, without a supplier" do
+      pr = no_supplier_request
+      pr.update_columns(status: "pending_approval", submitted_by_id: create(:user, business: business).id)
+      sign_in owner
+
+      get inventory_purchase_request_path(pr)
+
+      expect(response.body).to include(approve_inventory_purchase_request_path(pr))
+    end
+
+    it "lists it on the index with \"No supplier\" and the regular Edit next action" do
+      no_supplier_request
+      sign_in owner
+
+      get inventory_purchase_requests_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("inventory.purchase_requests.no_supplier"))
+      expect(response.body).to include(I18n.t("inventory.purchase_requests.next_actions.draft"))
+    end
+
+    it "filters the index to requests without a supplier" do
+      without = no_supplier_request
+      with    = draft_request
+      sign_in owner
+
+      get inventory_purchase_requests_path(supplier_id: PurchaseRequest::NO_SUPPLIER_FILTER)
+
+      expect(response.body).to include(without.request_number)
+      expect(response.body).not_to include(with.request_number)
+    end
+
+    it "assigns a supplier by editing the draft" do
+      pr = no_supplier_request
+      sign_in owner
+
+      get edit_inventory_purchase_request_path(pr)
+      expect(response).to have_http_status(:ok)
+
+      patch inventory_purchase_request_path(pr), params: { purchase_request: { supplier_id: supplier_2.id } }
+      expect(response).to redirect_to(inventory_purchase_request_path(pr))
+      expect(pr.reload.supplier).to eq(supplier_2)
+      expect(pr.items.count).to eq(1)
+
+      post submit_inventory_purchase_request_path(pr)
+      expect(pr.reload).to be_pending_approval
+    end
+
+    it "submits for approval and approves while the supplier stays empty" do
+      pr = no_supplier_request
+      sign_in owner
+
+      post submit_inventory_purchase_request_path(pr)
+      expect(flash[:notice]).to eq(I18n.t("inventory.purchase_requests.submitted"))
+      expect(pr.reload).to be_pending_approval
+
+      # Self-approval is blocked; approve as a different user with the
+      # approve permission (not a second :super_admin — that steals business.owner).
+      role     = business.permission_roles.create!(name: "Approver", permissions: %w[view_inventory approve_purchase_requests])
+      approver = create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
+      sign_in approver
+      post approve_inventory_purchase_request_path(pr)
+      expect(flash[:notice]).to eq(I18n.t("inventory.purchase_requests.approved"))
+      expect(pr.reload).to be_approved
+      expect(pr.supplier_id).to be_nil
+    end
+
+    it "lets an existing supplier be cleared on a draft" do
+      pr = draft_request
+      sign_in owner
+
+      patch inventory_purchase_request_path(pr), params: { purchase_request: { supplier_id: "" } }
+
+      expect(pr.reload.supplier_id).to be_nil
+    end
+
+    it "keeps showing the supplier for a request that has one" do
+      pr = draft_request
+      sign_in owner
+
+      get inventory_purchase_request_path(pr)
+
+      expect(response.body).to include("Acme")
+    end
+  end
 end

@@ -6,19 +6,20 @@ module Inventory
   # inventory — a Purchase Request is a request-only document; stock only
   # moves later, at Goods Receipt confirmation.
   #
-  # Every item must already carry a resolved supplier_id (the caller — the
-  # controller — resolves product.default_supplier_id or the user's
-  # review-step choice before calling this). Items are grouped by supplier_id
-  # and one PurchaseRequest + its PurchaseRequestItems is created per group,
-  # all inside a single transaction: if any group fails to save, the whole
-  # batch rolls back — no partially-created set of requests.
+  # Each item carries the supplier the user settled on (product.default_supplier
+  # is only the suggestion) — or none: the supplier is optional at every stage
+  # of a request. Items are grouped by supplier_id (blank =
+  # one "no supplier" group) and one PurchaseRequest + its PurchaseRequestItems
+  # is created per group, all inside a single transaction: if any group fails
+  # to save, the whole batch rolls back — no partially-created set of requests.
   #
   # idempotency_key covers the WHOLE batch, not one request: a retried
   # submission with the same key returns the previously created requests
   # instead of creating new ones (checked up front, before the transaction
   # opens). The DB backstop is a unique index on (idempotency_key,
-  # supplier_id) — see the migration — which still allows several suppliers
-  # to legitimately share one batch key.
+  # supplier_id) — which still allows several suppliers to legitimately share
+  # one batch key — plus a partial index allowing at most one no-supplier
+  # request per key (NULLs never collide in the first one).
   #
   # Server-side guards (never trust the picker): every product must be a
   # transactable product of this business, every source warehouse must belong
@@ -29,11 +30,11 @@ module Inventory
   class PurchaseRequestCreator
     include AuditLoggable
 
-    Result = Struct.new(:ok, :purchase_requests, :error, :missing_supplier_product_ids, keyword_init: true) do
+    Result = Struct.new(:ok, :purchase_requests, :error, keyword_init: true) do
       def ok? = ok
     end
 
-    # items: array of { product_id:, quantity:, unit_price:, supplier_id:, source_warehouse_id: (optional), notes: (optional) }
+    # items: array of { product_id:, quantity:, unit_price:, supplier_id: (optional), source_warehouse_id: (optional), notes: (optional) }
     # notes: request-level notes, applied to every request in the batch.
     # require_warehouse: every line must name an ACTIVE, accessible warehouse
     # (the general form). Off for the Low Stock review modal, whose total-stock
@@ -54,16 +55,15 @@ module Inventory
       existing = find_existing_batch
       return Result.new(ok: true, purchase_requests: existing) if existing&.any?
 
-      missing = @items.select { |item| item[:supplier_id].blank? }
-      return missing_supplier_error(missing) if missing.any?
       return error(:invalid_product)         unless products_allowed?
+      return error(:invalid_supplier)        unless suppliers_allowed?
       return error(:missing_warehouse)       if @require_warehouse && @items.any? { |i| i[:source_warehouse_id].blank? }
       return error(:unauthorized_warehouse)  unless warehouses_allowed?
       return error(:duplicate_product)       if duplicate_lines?
 
       created = []
       ActiveRecord::Base.transaction do
-        @items.group_by { |item| item[:supplier_id].to_i }.each do |supplier_id, group_items|
+        @items.group_by { |item| item[:supplier_id].presence&.to_i }.each do |supplier_id, group_items|
           created << create_request_for_group(supplier_id, group_items)
         end
       end
@@ -106,12 +106,22 @@ module Inventory
         actor: @actor, auditable: request, action: "create",
         metadata: {
           source: @source,
+          supplier_id: supplier_id,
           item_count: request.items.size,
           total: request.total_amount.to_s,
           product_ids: group_items.map { |item| item[:product_id] }
         }
       )
       request
+    end
+
+    # Blank is fine (a no-supplier draft); anything given must be one of this
+    # business's suppliers.
+    def suppliers_allowed?
+      ids = @items.filter_map { |item| item[:supplier_id].presence&.to_s }.uniq
+      return true if ids.empty?
+
+      @business.suppliers.where(id: ids).count == ids.size
     end
 
     def products_allowed?
@@ -145,14 +155,6 @@ module Inventory
 
     def no_items_error
       Result.new(ok: false, error: I18n.t("inventory.purchase_requests.errors.no_items"))
-    end
-
-    def missing_supplier_error(missing)
-      Result.new(
-        ok: false,
-        error: I18n.t("inventory.purchase_requests.errors.missing_supplier"),
-        missing_supplier_product_ids: missing.map { |item| item[:product_id] }
-      )
     end
   end
 end

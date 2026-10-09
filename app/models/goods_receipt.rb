@@ -136,13 +136,17 @@ class GoodsReceipt < ApplicationRecord
     errors.add(:funding_source_type, :invalid) unless FUNDING_SOURCE_TYPES.include?(funding_source_type)
   end
 
-  # A receipt created from a Purchase Request must buy from that same
-  # supplier ("one supplier = one purchase request" — see PurchaseRequest) —
-  # never a different one, however the form was tampered with.
+  # A receipt created from a Purchase Request that names a supplier must buy
+  # from that same supplier — never a different one, however the form was
+  # tampered with. A request without a supplier fixes nothing: each receipt
+  # records its own actual supplier (or none), so one request's goods may come
+  # from several suppliers.
   def purchase_request_supplier_matches
     return if purchase_request.nil?
 
-    errors.add(:supplier, :must_match_purchase_request) if supplier_id != purchase_request.supplier_id
+    if purchase_request.supplier_id.present? && supplier_id != purchase_request.supplier_id
+      errors.add(:supplier, :must_match_purchase_request)
+    end
     errors.add(:purchase_request, :invalid) if purchase_request.business_id != business_id
   end
 

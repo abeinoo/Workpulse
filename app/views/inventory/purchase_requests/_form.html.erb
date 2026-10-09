@@ -20,12 +20,15 @@
   <h2 class="section-title"><%= t("inventory.purchase_requests.form.section_details") %></h2>
   <div class="form-grid">
     <div class="form-group">
-      <%= f.label :supplier_id, t("inventory.purchase_requests.form.supplier_label"), class: "form-label" %>
+      <%= f.label :supplier_id, class: "form-label",
+            title: t("inventory.purchase_requests.form.supplier_hint") do %>
+        <%= t("inventory.purchase_requests.form.supplier_label") %>
+        <span class="td-secondary"><%= t("inventory.purchase_requests.form.optional") %></span>
+      <% end %>
       <%= f.select :supplier_id,
             options_from_collection_for_select(@suppliers, :id, :name, purchase_request.supplier_id),
-            { include_blank: "— #{t('inventory.purchase_requests.form.select_supplier')}" },
+            { include_blank: "— #{t('inventory.purchase_requests.no_supplier')}" },
             class: "form-control #{'is-error' if purchase_request.errors[:supplier].any?}",
-            required: creating,
             data: { purchase_request_form_target: "supplier" } %>
     </div>
     <div class="form-group" style="grid-column: 1 / -1;">

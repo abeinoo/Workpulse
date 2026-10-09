@@ -134,7 +134,7 @@
   <div class="stats-grid" style="margin-bottom: var(--space-6);">
     <div class="stat-card">
       <span class="stat-card__label"><%= t("inventory.purchase_requests.supplier") %></span>
-      <span class="stat-card__value"><%= @purchase_request.supplier.name %></span>
+      <span class="stat-card__value"><%= purchase_request_supplier_name(@purchase_request) %></span>
     </div>
     <div class="stat-card">
       <span class="stat-card__label"><%= t("inventory.purchase_requests.created_by") %></span>

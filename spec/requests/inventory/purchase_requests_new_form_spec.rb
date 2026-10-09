@@ -202,10 +202,32 @@ RSpec.describe "Purchase Request creation form", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "requires a supplier" do
+    it "creates a draft request without a supplier when none is chosen" do
       sign_in owner
-      expect { submit_form([ line(stocked_product, qty: 1) ], supplier_id: "") }.not_to change(PurchaseRequest, :count)
-      expect(response.body).to include(I18n.t("inventory.purchase_requests.errors.missing_supplier"))
+      expect { submit_form([ line(stocked_product, qty: 1) ], supplier_id: "") }.to change(PurchaseRequest, :count).by(1)
+
+      request = PurchaseRequest.last
+      expect(request.supplier_id).to be_nil
+      expect(request).to be_draft
+      expect(request.items.sole.source_warehouse).to eq(main_wh)
+    end
+
+    it "rejects a supplier that doesn't belong to the business" do
+      sign_in owner
+      foreign = create(:business).suppliers.create!(name: "Foreign")
+
+      expect { submit_form([ line(stocked_product, qty: 1) ], supplier_id: foreign.id) }.not_to change(PurchaseRequest, :count)
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.body).to include(I18n.t("inventory.purchase_requests.errors.invalid_supplier"))
+    end
+
+    it "renders the supplier select as optional, with \"No supplier\" as the blank option" do
+      sign_in owner
+      get new_inventory_purchase_request_path
+
+      select = Nokogiri::HTML(response.body).at_css('select[name="purchase_request[supplier_id]"]')
+      expect(select["required"]).to be_nil
+      expect(select.at_css('option[value=""]').text).to include(I18n.t("inventory.purchase_requests.no_supplier"))
     end
 
     it "does not create duplicates when the same idempotency key is resubmitted" do

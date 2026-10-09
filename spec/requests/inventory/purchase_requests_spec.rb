@@ -34,7 +34,7 @@ RSpec.describe "Purchase Requests", type: :request do
       expect(PurchaseRequest.pluck(:status).uniq).to eq([ "draft" ])
     end
 
-    it "rejects a submission where a product has no supplier and creates nothing" do
+    it "creates a separate no-supplier draft request for products left without a supplier" do
       sign_in owner
 
       expect {
@@ -45,9 +45,38 @@ RSpec.describe "Purchase Requests", type: :request do
             item_params(product_b, nil,        qty: 5,  price: 200)
           ]
         }
-      }.not_to change(PurchaseRequest, :count)
+      }.to change(PurchaseRequest, :count).by(2)
 
-      expect(response).to redirect_to(inventory_root_path)
+      no_supplier = PurchaseRequest.find_by!(supplier_id: nil)
+      expect(no_supplier).to be_draft
+      expect(no_supplier.items.map(&:product)).to contain_exactly(product_b)
+      follow_redirect!
+      expect(response.body).to include(I18n.t("inventory.purchase_requests.no_supplier"))
+    end
+
+    it "groups by the FINAL supplier chosen for each line (Supplier A, Supplier B, no supplier)" do
+      sign_in owner
+      product_d = business.products.create!(name: "Product D", sku: "D-1", average_cost_price: 50)
+      product_e = business.products.create!(name: "Product E", sku: "E-1", average_cost_price: 60)
+
+      # Product B's default would be Supplier 1 but it was moved to Supplier 2
+      # in the review modal; the modal only ever posts the final choice.
+      post inventory_purchase_requests_path, params: {
+        idempotency_key: SecureRandom.uuid,
+        items: [
+          item_params(product_a, supplier_1, qty: 1, price: 100),
+          item_params(product_b, supplier_2, qty: 1, price: 200),
+          item_params(product_c, supplier_2, qty: 1, price: 150),
+          item_params(product_d, supplier_1, qty: 1, price: 50),
+          item_params(product_e, nil,        qty: 1, price: 60)
+        ]
+      }
+
+      expect(PurchaseRequest.count).to eq(3)
+      expect(PurchaseRequest.find_by!(supplier: supplier_1).items.map(&:product)).to contain_exactly(product_a, product_d)
+      expect(PurchaseRequest.find_by!(supplier: supplier_2).items.map(&:product)).to contain_exactly(product_b, product_c)
+      expect(PurchaseRequest.find_by!(supplier_id: nil).items.map(&:product)).to contain_exactly(product_e)
+      expect(PurchaseRequestItem.count).to eq(5)
     end
 
     it "does not create duplicate requests when the same idempotency key is submitted twice" do

@@ -91,17 +91,75 @@ RSpec.describe Inventory::PurchaseRequestCreator, type: :model do
     expect(result.purchase_requests.first.total_amount).to eq(2000)
   end
 
-  it "rejects the whole batch when any item is missing a supplier, without creating anything" do
-    items = [
-      item(product_a, supplier_1, qty: 10, price: 100),
-      item(product_b, nil,        qty: 5,  price: 200)
-    ]
+  describe "supplier is optional at creation" do
+    it "puts lines without a supplier into one separate no-supplier draft request" do
+      items = [
+        item(product_a, supplier_1, qty: 10, price: 100),
+        item(product_b, nil,        qty: 5,  price: 200),
+        item(product_c, nil,        qty: 2,  price: 150)
+      ]
 
-    expect {
-      result = create_batch(items)
-      expect(result.ok?).to be(false)
-      expect(result.missing_supplier_product_ids).to eq([ product_b.id ])
-    }.not_to change(PurchaseRequest, :count)
+      result = nil
+      expect { result = create_batch(items) }.to change(PurchaseRequest, :count).by(2)
+      expect(result.ok?).to be(true)
+
+      with_supplier = result.purchase_requests.find { |pr| pr.supplier_id == supplier_1.id }
+      without       = result.purchase_requests.find { |pr| pr.supplier_id.nil? }
+      expect(with_supplier.items.map(&:product)).to contain_exactly(product_a)
+      expect(without).to be_draft
+      expect(without.items.map(&:product)).to contain_exactly(product_b, product_c)
+      expect(without.total_amount).to eq(5 * 200 + 2 * 150)
+    end
+
+    it "creates a single no-supplier request when no line has a supplier" do
+      result = create_batch([ item(product_a, nil, qty: 3, price: 100) ])
+
+      expect(result.ok?).to be(true)
+      expect(result.purchase_requests.sole.supplier).to be_nil
+    end
+
+    it "treats a blank-string supplier_id (the modal's \"بدون مورد\") as no supplier" do
+      result = create_batch([ { product_id: product_a.id, quantity: 1, unit_price: 10, supplier_id: "" } ])
+
+      expect(result.ok?).to be(true)
+      expect(result.purchase_requests.sole.supplier_id).to be_nil
+    end
+
+    it "is idempotent for a batch containing a no-supplier group" do
+      key   = SecureRandom.uuid
+      items = [ item(product_a, supplier_1, qty: 1, price: 10), item(product_b, nil, qty: 1, price: 10) ]
+      first = create_batch(items, idempotency_key: key)
+
+      expect { create_batch(items, idempotency_key: key) }.not_to change(PurchaseRequest, :count)
+      expect(first.purchase_requests.size).to eq(2)
+    end
+
+    it "backs up no-supplier idempotency with a DB unique index" do
+      key = SecureRandom.uuid
+      create_batch([ item(product_a, nil, qty: 1, price: 10) ], idempotency_key: key)
+
+      dup = PurchaseRequest.new(business: business, idempotency_key: key, created_by: actor)
+      dup.items.build(product: product_b, quantity: 1, unit_price: 10)
+      expect { dup.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
+    it "rejects a supplier from another business without creating anything" do
+      foreign = create(:business).suppliers.create!(name: "Foreign")
+
+      expect {
+        result = create_batch([ item(product_a, nil, qty: 1, price: 10), item(product_b, foreign, qty: 1, price: 10) ])
+        expect(result.ok?).to be(false)
+        expect(result.error).to eq(I18n.t("inventory.purchase_requests.errors.invalid_supplier"))
+      }.not_to change(PurchaseRequest, :count)
+    end
+
+    it "still rejects a duplicate product line even when the copies are under different suppliers" do
+      items = [ item(product_a, supplier_1, qty: 1, price: 10), item(product_a, nil, qty: 1, price: 10) ]
+
+      expect {
+        expect(create_batch(items).ok?).to be(false)
+      }.not_to change(PurchaseRequest, :count)
+    end
   end
 
   it "rejects an item with no valid price rather than silently treating it as free" do

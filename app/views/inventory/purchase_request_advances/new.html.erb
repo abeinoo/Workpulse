@@ -10,7 +10,7 @@
   </div>
   <h1 class="page-title mb-2"><%= t("#{scope}.new_title") %></h1>
   <p class="td-secondary mb-6">
-    <%= @purchase_request.request_number %> — <bdi><%= @purchase_request.supplier.name %></bdi>
+    <%= @purchase_request.request_number %> — <bdi><%= purchase_request_supplier_name(@purchase_request) %></bdi>
   </p>
 
   <div class="stats-grid" style="margin-bottom: var(--space-5);">

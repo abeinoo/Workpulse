@@ -2,18 +2,21 @@ import { Controller } from "@hotwired/stimulus"
 
 // Drives the Low Stock Alerts table on the Inventory Dashboard:
 //   1. Checkbox selection + a live "selected total" (reorder_quantity * unit_price).
-//   2. The "إنشاء طلب شراء" review modal: groups the checked rows by supplier
-//      (product.default_supplier, or a manual choice for products with none),
-//      lets the requested quantity/unit price be adjusted per row, and shows
-//      one sub-total per supplier plus a grand total — before anything is
-//      created server-side (Inventory::PurchaseRequestCreator makes ONE
-//      Purchase Request per supplier group on confirm).
+//   2. The "إنشاء طلب شراء" review modal: groups the checked rows by supplier,
+//      lets the supplier (product.default_supplier is only the suggestion),
+//      requested quantity and unit price be changed per row, and shows one
+//      item count + sub-total per supplier group plus a grand total — before
+//      anything is created server-side (Inventory::PurchaseRequestCreator
+//      makes ONE Purchase Request per supplier group on confirm). Changing a
+//      row's supplier MOVES it to that supplier's group (created if new); "بدون
+//      مورد" is a valid choice — those rows become one no-supplier draft
+//      request, which needs a supplier before it can be submitted for approval.
 // Nothing here ever touches inventory — this is a client-side planning view
 // only; the actual creation happens in one POST on #submitReview.
 export default class extends Controller {
   static targets = [
     "countBadge", "totalBadge", "createBtn",
-    "modal", "reviewMissing", "reviewGroups",
+    "modal", "reviewMissing", "reviewInvalid", "reviewGroups",
     "reviewRequestCount", "reviewItemCount", "reviewGrandTotal",
     "reviewForm", "formFields", "confirmBtn",
   ]
@@ -24,6 +27,11 @@ export default class extends Controller {
     suppliers: Array,
     createUrl: String,
     noSupplierLabel: String,
+    chooseSupplierLabel: String,
+    groupTitle: String,
+    groupTitleNoSupplier: String,
+    groupItemsLabel: String,
+    groupTotalLabel: String,
   }
 
   connect() {
@@ -91,7 +99,9 @@ export default class extends Controller {
       productName:  b.dataset.productName,
       sku:          b.dataset.sku,
       warehouseId:  b.dataset.warehouseId || "",
-      quantity:     parseFloat(b.dataset.reorderQty) || 0,
+      // No reorder quantity configured -> start at 1 (same as the general
+      // form's Low Stock picker) rather than an invalid 0 line.
+      quantity:     parseFloat(b.dataset.reorderQty) > 0 ? parseFloat(b.dataset.reorderQty) : 1,
       unitPrice:    b.dataset.unitPrice || "",
       supplierId:   b.dataset.supplierId || "",
       supplierName: b.dataset.supplierName || "",
@@ -127,10 +137,13 @@ export default class extends Controller {
     if (!item) return
 
     if (field === "supplierId") {
-      const select = event.target
-      item.supplierId   = select.value
-      item.supplierName = select.value ? select.options[select.selectedIndex].text : ""
+      // Only the grouping changes. There is no supplier-specific price list
+      // (prices come from the product's average cost), so the row's unit
+      // price — suggested or typed by the user — is kept as-is.
+      item.supplierId   = event.target.value
+      item.supplierName = this._supplierName(item.supplierId)
       this._renderReview()
+      this.reviewGroupsTarget?.querySelector(`select[data-item-index="${index}"]`)?.focus()
     } else if (field === "quantity") {
       item.quantity = parseFloat(event.target.value) || 0
       this._recomputeTotals()
@@ -141,7 +154,7 @@ export default class extends Controller {
   }
 
   submitReview(event) {
-    if (this._hasMissingSupplier() || this._hasInvalidPrice()) {
+    if (this._hasInvalidLine()) {
       event.preventDefault()
       return
     }
@@ -162,6 +175,9 @@ export default class extends Controller {
 
   // ── Rendering ────────────────────────────────────────────────────────────
 
+  // supplierId ("" = no supplier) -> items. Each item lives in exactly one
+  // group — its CURRENT supplier — so a moved row is never duplicated. The
+  // no-supplier group is always listed last.
   _groups() {
     const map = new Map()
     this.reviewItems.forEach((item) => {
@@ -169,6 +185,11 @@ export default class extends Controller {
       if (!map.has(key)) map.set(key, [])
       map.get(key).push(item)
     })
+    if (map.has("")) {
+      const unassigned = map.get("")
+      map.delete("")
+      map.set("", unassigned)
+    }
     return map
   }
 
@@ -177,28 +198,33 @@ export default class extends Controller {
     let html = ""
 
     groups.forEach((items, supplierId) => {
-      const supplierName = supplierId ? items[0].supplierName : this.noSupplierLabelValue
-      const groupTotal    = items.reduce((sum, i) => sum + this._lineTotal(i), 0)
+      const title = supplierId
+        ? this.groupTitleValue.replace("%{supplier}", items[0].supplierName)
+        : this.groupTitleNoSupplierValue
+      const groupTotal = items.reduce((sum, i) => sum + this._lineTotal(i), 0)
+      const key = this._esc(supplierId)
 
-      html += `<div class="review-group" data-supplier-key="${this._esc(supplierId)}" style="margin-bottom: var(--space-4); border: 1px solid var(--border-color, #e0e0e0); border-radius: 8px; padding: var(--space-3);">`
-      html += `<div class="flex items-center justify-between" style="margin-bottom: var(--space-2);">`
-      html += `<strong>${this._esc(supplierName)}</strong>`
-      html += `<span class="td-secondary review-group-total" data-supplier-key="${this._esc(supplierId)}">${this._formatCurrency(groupTotal)}</span>`
+      html += `<div class="review-group" data-supplier-key="${key}" style="margin-bottom: var(--space-4); border: 1px solid var(--border-color, #e0e0e0); border-radius: 8px; padding: var(--space-3);">`
+      html += `<div class="flex items-center justify-between" style="margin-bottom: var(--space-2); flex-wrap: wrap; gap: var(--space-2);">`
+      html += `<strong class="review-group-title">${this._esc(title)}</strong>`
+      html += `<span class="td-secondary">`
+      html += `${this._esc(this.groupItemsLabelValue)}: <strong class="review-group-count" data-supplier-key="${key}">${items.length}</strong>`
+      html += ` · ${this._esc(this.groupTotalLabelValue)}: <strong class="review-group-total" data-supplier-key="${key}">${this._formatCurrency(groupTotal)}</strong>`
+      html += `</span>`
       html += `</div>`
 
       items.forEach((item) => {
-        const needsSupplier = !item.supplierId
-        html += `<div class="flex items-center" style="gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--border-color, #f0f0f0); flex-wrap: wrap;">`
+        html += `<div class="flex items-center review-row" data-item-index="${item.index}" style="gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--border-color, #f0f0f0); flex-wrap: wrap;">`
         html += `<div style="flex: 2; min-width: 140px;">${this._esc(item.productName)} <span class="td-secondary">(${this._esc(item.sku)})</span></div>`
 
-        if (needsSupplier) {
-          html += `<select data-action="change->low-stock-selection#reviewFieldChanged" data-field="supplierId" data-item-index="${item.index}" class="filter-bar__select" style="flex: 1; min-width: 140px;">`
-          html += `<option value="">${this._esc(this.noSupplierLabelValue)}</option>`
-          this.suppliersValue.forEach((s) => {
-            html += `<option value="${s.id}">${this._esc(s.name)}</option>`
-          })
-          html += `</select>`
-        }
+        // Always editable — the current supplier is only a suggestion.
+        html += `<select data-action="change->low-stock-selection#reviewFieldChanged" data-field="supplierId" data-item-index="${item.index}" class="filter-bar__select" style="flex: 1; min-width: 140px;" aria-label="${this._esc(this.chooseSupplierLabelValue)}">`
+        html += `<option value=""${item.supplierId ? "" : " selected"}>${this._esc(this.noSupplierLabelValue)}</option>`
+        this.suppliersValue.forEach((s) => {
+          const selected = String(s.id) === String(item.supplierId) ? " selected" : ""
+          html += `<option value="${s.id}"${selected}>${this._esc(s.name)}</option>`
+        })
+        html += `</select>`
 
         html += `<label class="td-secondary" style="display:flex; align-items:center; gap:4px;">`
         html += `<input type="number" min="0.001" step="0.001" value="${item.quantity}" style="width: 80px;" `
@@ -242,9 +268,15 @@ export default class extends Controller {
     if (this.hasReviewItemCountTarget)    this.reviewItemCountTarget.textContent = this.reviewItems.length
     if (this.hasReviewGrandTotalTarget)   this.reviewGrandTotalTarget.textContent = this._formatCurrency(grandTotal)
 
-    const missing = this._hasMissingSupplier()
-    if (this.hasReviewMissingTarget) this.reviewMissingTarget.style.display = missing ? "" : "none"
-    if (this.hasConfirmBtnTarget)    this.confirmBtnTarget.disabled = missing || this._hasInvalidPrice()
+    // Informational only: rows without a supplier still become a (draft)
+    // request; the supplier is required later, at submit for approval.
+    if (this.hasReviewMissingTarget) this.reviewMissingTarget.style.display = this._hasMissingSupplier() ? "" : "none"
+    // Only a bad quantity/price blocks Confirm — never a missing supplier —
+    // and the offending inputs are marked so the reason is visible.
+    this._markInvalidInputs()
+    const invalid = this._hasInvalidLine()
+    if (this.hasReviewInvalidTarget) this.reviewInvalidTarget.style.display = invalid ? "" : "none"
+    if (this.hasConfirmBtnTarget)    this.confirmBtnTarget.disabled = invalid || this.reviewItems.length === 0
   }
 
   _lineTotal(item) {
@@ -257,8 +289,33 @@ export default class extends Controller {
     return this.reviewItems.some((i) => !i.supplierId)
   }
 
-  _hasInvalidPrice() {
-    return this.reviewItems.some((i) => !(parseFloat(i.unitPrice) > 0) || !(i.quantity > 0))
+  _supplierName(supplierId) {
+    if (!supplierId) return ""
+    const supplier = this.suppliersValue.find((s) => String(s.id) === String(supplierId))
+    return supplier ? supplier.name : ""
+  }
+
+  _invalidQuantity(item) { return !(item.quantity > 0) }
+  _invalidPrice(item)    { return !(parseFloat(item.unitPrice) > 0) }
+
+  _hasInvalidLine() {
+    return this.reviewItems.some((i) => this._invalidQuantity(i) || this._invalidPrice(i))
+  }
+
+  _markInvalidInputs() {
+    this.reviewItems.forEach((item) => {
+      const row = this.reviewGroupsTarget?.querySelector(`.review-row[data-item-index="${item.index}"]`)
+      if (!row) return
+      this._setInvalid(row.querySelector("input[data-field='quantity']"), this._invalidQuantity(item))
+      this._setInvalid(row.querySelector("input[data-field='unitPrice']"), this._invalidPrice(item))
+    })
+  }
+
+  _setInvalid(input, invalid) {
+    if (!input) return
+    if (invalid) input.setAttribute("aria-invalid", "true")
+    else input.removeAttribute("aria-invalid")
+    input.style.outline = invalid ? "2px solid var(--color-danger, #c62828)" : ""
   }
 
   _hiddenFieldsMarkup() {

@@ -152,7 +152,39 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     redirect_with_result(result, ok_message: t("inventory.purchase_requests.remaining_closed"))
   end
 
+  # "اعتماد الطلبات المحددة" — all-or-nothing; every state/self-approval
+  # check is re-done server-side under lock by the service. Redirects back to
+  # the same filtered/paginated list so the counters and rows refresh.
+  def bulk_approve
+    authorize PurchaseRequest, :bulk_approve?
+
+    result = Inventory::PurchaseRequestBulkApproval.new(
+      purchase_request_ids: Array(params[:purchase_request_ids]), actor: current_user
+    ).call
+
+    respond_to do |format|
+      format.html do
+        redirect_back fallback_location: inventory_purchase_requests_path, **bulk_approve_flash(result)
+      end
+      format.json do
+        if result.ok?
+          render json: { success: true, approved_count: result.approved_count,
+                         total_amount: ActiveSupport::NumberHelper.number_to_rounded(result.total_amount, precision: 2) }
+        else
+          render json: { success: false, error: result.error }, status: :unprocessable_content
+        end
+      end
+    end
+  end
+
   private
+
+  def bulk_approve_flash(result)
+    return { alert: result.error } unless result.ok?
+
+    { notice: t("inventory.purchase_requests.bulk_approved",
+                count: result.approved_count, total: helpers.format_currency(result.total_amount)) }
+  end
 
   def create_from_low_stock_selection
     result = Inventory::PurchaseRequestCreator.new(

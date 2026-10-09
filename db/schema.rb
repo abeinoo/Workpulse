@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1542,7 +1542,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_100000) do
     t.string "status", default: "draft", null: false
     t.datetime "submitted_at"
     t.bigint "submitted_by_id"
-    t.bigint "supplier_id", null: false
+    t.bigint "supplier_id"
     t.datetime "updated_at", null: false
     t.index ["approved_by_id"], name: "index_purchase_requests_on_approved_by_id"
     t.index ["business_id", "request_number"], name: "index_purchase_requests_on_business_id_and_request_number", unique: true
@@ -1551,6 +1551,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_100000) do
     t.index ["closed_remaining_by_id"], name: "index_purchase_requests_on_closed_remaining_by_id"
     t.index ["created_by_id"], name: "index_purchase_requests_on_created_by_id"
     t.index ["idempotency_key", "supplier_id"], name: "index_purchase_requests_on_idem_key_and_supplier", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["idempotency_key"], name: "index_purchase_requests_on_idem_key_without_supplier", unique: true, where: "((idempotency_key IS NOT NULL) AND (supplier_id IS NULL))"
     t.index ["rejected_by_id"], name: "index_purchase_requests_on_rejected_by_id"
     t.index ["submitted_by_id"], name: "index_purchase_requests_on_submitted_by_id"
     t.index ["supplier_id"], name: "index_purchase_requests_on_supplier_id"

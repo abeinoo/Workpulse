@@ -172,6 +172,11 @@ module InventoryHelper
   # checks and routes as the full action set elsewhere on this page (see
   # PurchaseRequestPolicy). No business logic lives here: a nil/false policy
   # check just means the label renders without a link.
+  # A Purchase Request's supplier, or "بدون مورد" when none is set.
+  def purchase_request_supplier_name(pr)
+    pr.supplier&.name || t("inventory.purchase_requests.no_supplier")
+  end
+
   def purchase_request_next_action(pr)
     label = t("inventory.purchase_requests.next_actions.#{pr.status}", default: nil)
     return nil unless label

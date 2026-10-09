@@ -47,7 +47,12 @@ class PurchaseRequest < ApplicationRecord
   NEEDS_ACTION_STATUSES = %w[draft pending_approval approved partially_received].freeze
 
   belongs_to :business
-  belongs_to :supplier
+  # Optional at every stage: a request says WHAT to buy, not necessarily WHO
+  # from — the goods may end up bought from several suppliers or an unknown
+  # vendor. When set, every Goods Receipt against it must use this supplier;
+  # when nil, each receipt records its own actual supplier (see
+  # GoodsReceipt#purchase_request_supplier_matches).
+  belongs_to :supplier, optional: true
   belongs_to :created_by,           class_name: "User", optional: true
   belongs_to :submitted_by,         class_name: "User", optional: true
   belongs_to :approved_by,          class_name: "User", optional: true
@@ -71,7 +76,13 @@ class PurchaseRequest < ApplicationRecord
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(created_at: :desc, id: :desc) }
-  scope :for_supplier, ->(supplier_id) { where(supplier_id: supplier_id) if supplier_id.present? }
+  # NO_SUPPLIER_FILTER selects the requests with no supplier set.
+  NO_SUPPLIER_FILTER = "none".freeze
+  scope :for_supplier, ->(supplier_id) {
+    if supplier_id.to_s == NO_SUPPLIER_FILTER then where(supplier_id: nil)
+    elsif supplier_id.present? then where(supplier_id: supplier_id)
+    end
+  }
   scope :for_creator,  ->(user_id)     { where(created_by_id: user_id) if user_id.present? }
   scope :on_or_after,  ->(date)        { where(created_at: date.beginning_of_day..) if date.present? }
   scope :on_or_before, ->(date)        { where(created_at: ..date.end_of_day) if date.present? }
@@ -226,7 +237,10 @@ class PurchaseRequest < ApplicationRecord
     errors.add(:base, :no_items) if items.reject(&:marked_for_destruction?).empty?
   end
 
+  # Also rejects an id that doesn't resolve to a supplier at all — the
+  # association is optional, so belongs_to no longer reports "must exist".
   def supplier_in_same_business
+    return errors.add(:supplier, :invalid) if supplier_id.present? && supplier.nil?
     return if supplier.nil? || business_id.nil?
 
     errors.add(:supplier, :invalid) if supplier.business_id != business_id

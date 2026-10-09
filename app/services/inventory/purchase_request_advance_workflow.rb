@@ -149,7 +149,8 @@ module Inventory
         created_by:           @actor,
         notes:                I18n.t("finance.custody.purchase_request_advance_note",
                                      reference: purchase_request.request_number, advance: advance.id,
-                                     supplier: purchase_request.supplier.name)
+                                     supplier: purchase_request.supplier&.name ||
+                                               I18n.t("inventory.purchase_requests.no_supplier"))
       )
       account.refresh_balance!
     end
