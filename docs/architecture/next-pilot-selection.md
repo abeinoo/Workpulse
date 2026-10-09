@@ -4185,8 +4185,8 @@ unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed
 
 ## 25. Pilot 10 — Punch Correction payroll / attendance effects
 
-**Status: M0 + unblock done — READY FOR M1** (uncommitted, on `fix/pilot-10-request-submitter`, branched from the Pilot 9
-branch `72a3464` because Pilot 9 is not yet on `main`). M1 – M8 not started; no contract, no code moved.
+**Status: M1 COMPLETE** (uncommitted, on `main` after `412710f`). M0 and the unblock are merged (`66abcf5`, PR #34 →
+`fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). M2 – M8 not started; no contract, no code moved.
 
 ### 25.1 M0 — findings (read-only)
 
@@ -4242,3 +4242,86 @@ M1 + contract + routing + reverter + boundary 120 / 0; Pilot 9 core 220 / 0; `sp
 (on-behalf creation records the approver; the same approver's approval is refused; attendance untouched); locked-period
 approval blocked. `zeitwerk:check`, RuboCop (new / fully changed files clean; the controller and approver keep their
 pre-existing 4 / 8 layout offenses on untouched lines) and `git diff --check` clean.
+
+### 25.3 M1 — characterization
+
+**Scope.** The attendance and payroll effects of approving and cancelling a punch correction — what the future
+Workforce → Attendance & Payroll contract will carry. Request creation, identity, the reviewer's date / time, the
+attendance window, duration severity, punch order, self-approval, scope and the locked-period rule are already pinned
+by dedicated specs and are reused, not duplicated:
+
+| Area | Pinned by |
+|---|---|
+| A. creation, `submitted_by_id`, create audit, legacy NULL, scope | `spec/requests/security/employee_request_submitter_spec.rb` (11); SEC-P9-1 specs |
+| B. field updates, snapshot, recompute, reviewer date / time, overnight | `spec/services/requests/punch_correction_applier_spec.rb`, `spec/requests/employee_request_reviewer_datetime_spec.rb`, `employee_request_review_changes_spec.rb` |
+| C. window, confirmation, duration severity, punch order, missing record, self-approval | `punch_correction_window_guard_spec.rb`, `employee_request_attendance_window_spec.rb`, `employee_request_resulting_duration_spec.rb`, `employee_request_check_out_order_spec.rb`, `approver_spec.rb`, `employee_request_reviewer_visibility_spec.rb` |
+| D. finalized / paid refused (all state unchanged), no period | `spec/requests/security/punch_correction_locked_period_spec.rb` (10) |
+
+New: `spec/characterization/workforce/punch_correction_effects_spec.rb` (29 examples; disabling the approval payroll
+effect fails 12, disabling the cancellation payroll restore fails 6).
+
+**E. Approval — `Payroll::PunchCorrectionApplier` (open period of the record's work date, existing entry):**
+* Only EXISTING late / early-leave lines of the attendance record change: amount recomputed from the record's new
+  minutes (`Salary::DailyRateCalculator` + `Attendance::PenaltyCalculator`), `original_minutes` = new minutes, deleted
+  when the new minutes or penalty are 0; then `recalculate_totals!` (flags `needs_review` only when totals change).
+* A correction that INTRODUCES lateness creates no line (payroll unchanged). No entry → nothing created.
+* Worked days / overtime / absence are not re-derived (e.g. completing an incomplete day leaves `days_worked`).
+* An approved permission already applied to the line is IGNORED: the amount is recomputed from the full new minutes
+  (`permission_minutes` kept but not subtracted) — unlike `Payroll::PermissionApplier`.
+
+**F. Approval atomicity.** One transaction: request approved + `approved_punch_at`, snapshot, punch, recompute, payroll.
+A failure in the payroll effect or the record recompute rolls everything back (request pending, no `approved_punch_at`,
+no snapshot, attendance and payroll unchanged, no audit); `Requests::PunchCorrectionApplier` returns the exception's
+message as the error. The approve audit is written after commit (the payroll effect runs before it exists); an audit
+write failure is swallowed (`log_audit`) — the approval and its effects stay, without an audit row. The pre-approval
+assessment recomputes an unsaved copy outside the transaction.
+
+**G. Cancellation (`Requests::Canceller`, one transaction).** Restores the punch and its source from the request's
+snapshot and recomputes; then for BOTH line types updates the line to the restored minutes, RECREATES a missing line
+(description "Late arrival / Early leave <date>"), or deletes it when the restored minutes or penalty are 0; totals;
+cancelled; `cancel` audit (`changes: {status: [approved, cancelled]}`, `metadata: {reason, request_type}`). Finalized /
+paid → `cannot_cancel_finalized` (attendance stays corrected, payroll untouched, no audit); no record →
+`no_attendance_record`; no entry / no period → attendance restored, cancelled. A payroll-restore exception is not
+rescued but rolls the cancel back (attendance not restored, no audit).
+
+**Asymmetries (pinned, not fixed):** approval never creates a penalty line, cancellation does; approval looks up only
+OPEN periods by the record's work date (`open_period_covering`), cancellation the request month's period in ANY status
+(`covering_period`) and refuses a locked one; approval ignores applied permission minutes; neither path re-derives
+worked days / overtime / absence (other attendance mutations use `Payroll::EntryRecalculator`).
+
+**H. Data the approval produces (future-contract inputs / outputs):**
+
+| Value | Source today | Persisted / consumed by |
+|---|---|---|
+| `original_check_in_at` / `_out_at`, `original_check_in_source` / `_out_source` | the `AttendanceRecord` before the write (`Requests::PunchCorrectionApplier`) | `employee_requests` (Workforce table); read back by `Requests::Canceller#rollback_punch_correction` and the assessment |
+| `approved_punch_at` | the reviewer's date / time (`Requests::Approver`, assessment `effective_at`) | `employee_requests` |
+| corrected punch, `check_*_source = admin_manual`, late / early / worked minutes, status | `Requests::PunchCorrectionApplier` + `Attendance::RecordRecomputer` | `attendance_records` |
+| penalty line amount / `original_minutes`, entry totals, `needs_review` | `Payroll::PunchCorrectionApplier` | `payroll_line_items`, `payroll_entries` |
+| audit `request_type`, `correction_type`, `approved_time`, `proposed_time`, `response_note` | the request / reviewer input | `AuditLog` (`approve`) |
+| audit `punch_review` (proposed vs final date / time, `change`, reviewer id / name, `reviewed_at`) | `Requests::Approver#punch_review_metadata` (request data) | `AuditLog` |
+| audit `attendance_window`: `final_punch_date`, `final_punch_time`, `effective_at`, `inside_window`, `projected_worked_minutes`, `duration_severity` | `Requests::PunchCorrectionAssessment#audit_metadata` (`Attendance::PunchWindow`, a recomputed copy, `Attendance::DurationCheck`) | `AuditLog` |
+| audit `confirmed_by_reviewer`, `resulting_worked_minutes`, `resulting_duration_severity` | the assessment and the saved, recomputed `AttendanceRecord` | `AuditLog` |
+
+**I. Shared helpers.** `Requests::Canceller#covering_period` / `#daily_rate_for` / `#compute_penalty` and
+`Payroll::PermissionReverter`'s private copies give identical results (period by request month, any status; daily rate
+400; −100 / −200 for 40 / 120 minutes). `Payroll::PunchCorrectionApplier#open_period_covering` differs (open periods
+only, by the record's work date). Consolidation is for M4, after deciding which period lookup the revert should use.
+
+**Product questions recorded for M2 (not decided in M1):** should approval create a missing penalty line (as the revert
+does)? Should a punch correction respect an applied permission? Should the effect re-derive the whole entry
+(`EntryRecalculator`) like every other attendance mutation?
+
+**Verification (seeds 20261006 / 12345 / 98765, identical; before and after M1 on `412710f`):**
+
+| Suite | Before M1 | After M1 |
+|---|---|---|
+| M1 characterization (`punch_correction_effects_spec.rb`) | — | 29 / 0 |
+| Punch-correction specs (17 files) | 382 / 1 | 382 / 1 — `employee_request_spec.rb:432` (documented) |
+| SEC-P10-1 + locked period | 21 / 0 | 21 / 0 |
+| Request security + policy | 124 / 0 | 124 / 0 |
+| Pilot 9 permission-effects core | 220 / 0 | 220 / 0 |
+| `spec/architecture` + `spec/requests/security` | 590 / 0 | 590 / 0 |
+| Request-area set | 1622 / 27 | 1622 / 27 — the same 27 IDs |
+| Pilot 10 set (`workforce-punch-correction-baseline-failures.txt`, 20 files) | — | 432 / 1 — the same ID |
+
+`zeitwerk:check`, RuboCop (new spec) and `git diff --check` clean. No new failure; no flaky failure observed.
