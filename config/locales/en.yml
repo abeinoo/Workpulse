@@ -4626,10 +4626,12 @@ en:
         pending_approval: "Pending Approval"
         approved: "Approved"
         rejected: "Rejected"
+        cancelled: "Cancelled"
       receipt_statuses:
         not_received: "Not Received"
         received: "Received"
         voided: "Voided"
+        not_receivable: "Cannot Be Received (Rejected)"
       all_approval_statuses: "All Statuses"
       all_receiving_statuses: "All Statuses"
       all_suppliers: "All Suppliers"

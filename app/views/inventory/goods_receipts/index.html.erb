@@ -33,7 +33,7 @@
         <%= f.select :receiving_status,
               options_for_select(
                 [[ t("inventory.goods_receipts.all_receiving_statuses"), "" ]] +
-                  %w[not_received received voided].map { |s| [ t("inventory.goods_receipts.receipt_statuses.#{s}"), s ] },
+                  %w[not_received received not_receivable voided].map { |s| [ t("inventory.goods_receipts.receipt_statuses.#{s}"), s ] },
                 @filters[:receiving_status]),
               {}, class: "filter-bar__select" %>
       </div>

@@ -45,23 +45,22 @@ module InventoryHelper
   # independent of whether the goods have physically arrived).
   GOODS_RECEIPT_APPROVAL_STATUS_BADGES = {
     "draft" => "badge-neutral", "pending_approval" => "badge-warning",
-    "approved" => "badge-accent", "rejected" => "badge-danger"
+    "approved" => "badge-accent", "rejected" => "badge-danger", "cancelled" => "badge-danger"
   }.freeze
 
   def goods_receipt_approval_status_class(approval_status)
     GOODS_RECEIPT_APPROVAL_STATUS_BADGES.fetch(approval_status.to_s, "badge-neutral")
   end
 
-  # Receipt (inventory) status for a goods receipt: not_received / received /
-  # voided — derived from status + voided?, independent of approval_status.
+  # Receipt (inventory) status for a goods receipt — derived in the model
+  # (GoodsReceipt#receiving_status), mirrored by its for_receiving_status scope.
   def goods_receipt_receipt_status(receipt)
-    return "voided" if receipt.voided?
-
-    receipt.confirmed? ? "received" : "not_received"
+    receipt.receiving_status
   end
 
   GOODS_RECEIPT_RECEIPT_STATUS_BADGES = {
-    "not_received" => "badge-neutral", "received" => "badge-success", "voided" => "badge-danger"
+    "not_received" => "badge-neutral", "received" => "badge-success", "voided" => "badge-danger",
+    "not_receivable" => "badge-danger"
   }.freeze
 
   def goods_receipt_receipt_status_class(receipt)

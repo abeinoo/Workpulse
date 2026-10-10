@@ -4683,10 +4683,12 @@ ar:
         pending_approval: "بانتظار الاعتماد"
         approved: "معتمد"
         rejected: "مرفوض"
+        cancelled: "ملغى"
       receipt_statuses:
         not_received: "لم يُستلم"
         received: "تم الاستلام"
         voided: "ملغى"
+        not_receivable: "لا يمكن الاستلام (مرفوض)"
       all_approval_statuses: "كل الحالات"
       all_receiving_statuses: "كل الحالات"
       all_suppliers: "كل الموردين"

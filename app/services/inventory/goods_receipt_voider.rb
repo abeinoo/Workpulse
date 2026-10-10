@@ -49,9 +49,13 @@ module Inventory
           raise ActiveRecord::Rollback unless void_unconfirmed!
         end
 
+        approval_from = cancel_undecided_approval!
+
         reverse_settlements!
 
-        log_audit(actor: @actor, auditable: @receipt, action: "void", metadata: { reason: @reason })
+        metadata = { reason: @reason }
+        metadata[:approval_status] = [ approval_from, "cancelled" ] if approval_from
+        log_audit(actor: @actor, auditable: @receipt, action: "void", metadata: metadata)
 
         return Result.new(ok: true, document: @receipt)
       end
@@ -77,6 +81,19 @@ module Inventory
 
       @receipt.update!(voided_at: Time.current, voided_by: @actor, void_reason: reason)
       true
+    end
+
+    # A receipt cancelled before any approval decision (draft / pending_approval)
+    # leaves the approval workflow: approval_status → cancelled, in the same
+    # transaction as the void, so it never stays "awaiting approval" while its
+    # receiving status reads voided. Approved/rejected decisions are kept as
+    # history. Returns the previous approval status, or nil when unchanged.
+    def cancel_undecided_approval!
+      from = @receipt.approval_status
+      return nil unless GoodsReceipt::UNDECIDED_APPROVAL_STATUSES.include?(from)
+
+      @receipt.update!(approval_status: "cancelled")
+      from
     end
 
     def reverse_settlements!
