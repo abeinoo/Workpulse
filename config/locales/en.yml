@@ -1191,6 +1191,7 @@ en:
         confirm_question: "Are you sure you want to approve this correction?"
         confirm_label: "I have reviewed the date and time and confirm this correction"
       review_correction: "Review Correction Request"
+      awaiting_other_reviewer: "You submitted this request on the employee's behalf, so another authorized approver must approve or reject it."
       response_note_label: "Manager Note (optional)"
       response_note_placeholder: "Add a note for the employee"
       minutes_requested: "Minutes requested"
@@ -1228,6 +1229,7 @@ en:
     approve: "Approve"
     reject: "Reject"
     confirm_approve: "Approve this request?"
+    awaiting_other_reviewer: "Awaiting another approver"
     confirm_reject: "Reject this request?"
     confirm_pay: "Confirm this advance has been disbursed to %{name}?"
     types:

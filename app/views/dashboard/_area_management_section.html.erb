@@ -255,7 +255,12 @@
                 <% end %>
               </div>
               <div class="request-review-row__actions">
-                <% if req.punch_correction? %>
+                <% if !policy(req).approve? %>
+                  <%# Same rule as the controller: no actions without approve? (scope, self/submitter) %>
+                  <% if policy(req).awaiting_other_reviewer? %>
+                    <span class="badge badge-neutral" data-testid="awaiting-other-reviewer"><%= t("requests.awaiting_other_reviewer") %></span>
+                  <% end %>
+                <% elsif req.punch_correction? %>
                   <%# Punch corrections need time review — link to full page %>
                   <%= link_to t("requests.show.review_correction"),
                         employee_request_path(req),

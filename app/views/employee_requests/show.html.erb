@@ -204,6 +204,13 @@
     <% end %>
   <% end %>
 
+  <%# Submitted on the employee's behalf by this approver: another approver reviews it (SEC-P10-1) %>
+  <% if policy(@request).awaiting_other_reviewer? %>
+    <div class="alert alert-info" role="status" style="margin-top: 1rem;" data-testid="awaiting-other-reviewer">
+      <%= t("requests.show.awaiting_other_reviewer") %>
+    </div>
+  <% end %>
+
   <%# Manager approves/rejects pending requests %>
   <% if @request.pending? && policy(@request).approve? %>
     <div class="form-card" style="margin-top: 1rem;">

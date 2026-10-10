@@ -1198,6 +1198,7 @@ ar:
         confirm_question: "هل أنت متأكد من اعتماد هذا التعديل؟"
         confirm_label: "راجعت التاريخ والوقت وأؤكد اعتماد هذا التعديل"
       review_correction: "مراجعة طلب التعديل"
+      awaiting_other_reviewer: "قدّمتَ هذا الطلب نيابةً عن الموظف، لذا يجب أن يعتمده أو يرفضه مسؤول آخر مخوّل."
       response_note_label: "ملاحظة المدير (اختياري)"
       response_note_placeholder: "أضف ملاحظة للموظف"
       minutes_requested: "الدقائق المطلوبة"
@@ -1235,6 +1236,7 @@ ar:
     approve: "موافقة"
     reject: "رفض"
     confirm_approve: "الموافقة على هذا الطلب؟"
+    awaiting_other_reviewer: "بانتظار مراجعة مسؤول آخر"
     confirm_reject: "رفض هذا الطلب؟"
     confirm_pay: "هل تأكد صرف السلفة لـ %{name}؟"
     types:
