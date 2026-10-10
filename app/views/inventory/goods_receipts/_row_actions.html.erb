@@ -1,0 +1,83 @@
+<%#
+  Row actions for one goods receipt, as one compact horizontal group — on the
+  Goods Receipts list and the Purchase Request page. locals: receipt
+  The goods-receipt endpoints redirect back to whichever page they came from.
+
+  Each action is shown only when the SAME policy check the controller authorizes
+  with allows it (GoodsReceiptPolicy#approve? / #reject? / #confirm? — which
+  already encode permission, voided and approval/receiving state), and posts to
+  the SAME endpoint with the SAME confirmation as the Show page. No workflow
+  rule is re-derived here; the controller and services re-check everything.
+
+  Hierarchy: next step = filled, reject = destructive outline, عرض = neutral.
+  Approving a custody-funded receipt first shows, in a dialog, the custody
+  balance before/after the payment that approval records.
+%>
+<% receipt_policy = policy(receipt) %>
+<div class="action-group" role="group" aria-label="<%= t("inventory.goods_receipts.actions") %> — <%= receipt.receipt_number %>">
+  <% if receipt_policy.approve? %>
+    <% if (preview = Inventory::CustodyPaymentPreview.for(receipt)) %>
+      <%# Custody-funded: approving pays from the custody account, so the approver
+          sees the same before/after preview as on the receipt page — in a dialog,
+          without leaving this page — then approves through the same endpoint. %>
+      <div class="action-group__item" data-controller="dialog">
+        <button type="button" class="btn btn-primary" aria-haspopup="dialog" aria-controls="approve-dialog-<%= receipt.id %>"
+                data-action="click->dialog#open" data-testid="row-approve">
+          <%= action_icon(:approve) %><span><%= t("inventory.goods_receipts.approve") %></span>
+        </button>
+        <dialog id="approve-dialog-<%= receipt.id %>" aria-labelledby="approve-dialog-<%= receipt.id %>-title"
+                data-dialog-target="modal" data-action="click->dialog#backdropClose">
+          <div class="dialog-body">
+            <div class="dialog-header">
+              <h2 class="dialog-title" id="approve-dialog-<%= receipt.id %>-title">
+                <%= t("inventory.goods_receipts.custody_payment_preview.title") %> — <%= receipt.receipt_number %>
+              </h2>
+              <button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="<%= t("forms.cancel") %>"
+                      data-action="click->dialog#close"><%= action_icon(:reject) %></button>
+            </div>
+            <%= render "inventory/goods_receipts/custody_payment_preview", preview: preview %>
+            <div class="dialog-footer">
+              <button type="button" class="btn btn-ghost" data-action="click->dialog#close"><%= t("forms.cancel") %></button>
+              <%= button_to approve_inventory_goods_receipt_path(receipt), method: :post, class: "btn btn-primary",
+                    data: { turbo_confirm: t("inventory.goods_receipts.approve_hint") } do %>
+                <%= action_icon(:approve) %><span><%= t("inventory.goods_receipts.approve") %></span>
+              <% end %>
+            </div>
+          </div>
+        </dialog>
+      </div>
+    <% else %>
+      <%= button_to approve_inventory_goods_receipt_path(receipt),
+            method: :post, class: "btn btn-primary",
+            form: { class: "action-group__item", data: { testid: "row-approve" } },
+            data: { turbo_confirm: t("inventory.goods_receipts.approve_hint") } do %>
+        <%= action_icon(:approve) %><span><%= t("inventory.goods_receipts.approve") %></span>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if receipt_policy.reject? %>
+    <%= render "inventory/goods_receipts/reason_dialog",
+          id: "reject-dialog-#{receipt.id}", testid: "row-reject",
+          trigger_label: t("inventory.goods_receipts.reject"), trigger_class: "btn btn-danger-outline", icon: :reject,
+          title: "#{t('inventory.goods_receipts.reject_submit')} — #{receipt.receipt_number}",
+          url: reject_inventory_goods_receipt_path(receipt), method: :post, param: :rejection_reason,
+          reason_label: t("inventory.goods_receipts.rejection_reason"),
+          placeholder: t("inventory.goods_receipts.rejection_reason_placeholder"),
+          submit_label: t("inventory.goods_receipts.reject_submit"),
+          confirm: t("inventory.goods_receipts.reject_confirm") %>
+  <% end %>
+
+  <% if receipt_policy.confirm? %>
+    <%= button_to confirm_inventory_goods_receipt_path(receipt),
+          method: :post, class: "btn btn-primary",
+          form: { class: "action-group__item", data: { testid: "row-confirm" } },
+          data: { turbo_confirm: t("inventory.goods_receipts.confirm_hint") } do %>
+      <%= action_icon(:receive) %><span><%= t("inventory.goods_receipts.confirm") %></span>
+    <% end %>
+  <% end %>
+
+  <%= link_to inventory_goods_receipt_path(receipt), class: "btn btn-ghost", data: { testid: "row-view" } do %>
+    <%= action_icon(:view) %><span><%= t("inventory.goods_receipts.view_action") %></span>
+  <% end %>
+</div>

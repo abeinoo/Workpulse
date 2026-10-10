@@ -114,7 +114,7 @@ RSpec.describe "Inventory", type: :request do
       expect(product.reload.current_stock).to eq(7)
     end
 
-    it "creates the stock issue draft regardless of on-hand stock, but refuses to confirm an over-issue" do
+    it "creates the stock issue draft regardless of on-hand stock, but refuses to approve (reserve) an over-issue" do
       post inventory_warehouses_path, params: { warehouse: { name: "Main", status: "active" } }
       warehouse = business.warehouses.find_by!(name: "Main")
       post inventory_products_path, params: { product: { name: "Mask", sku: "MK-1", initial_cost_price: 5 } }
@@ -132,9 +132,9 @@ RSpec.describe "Inventory", type: :request do
 
       post submit_inventory_stock_issue_path(issue)
       post approve_inventory_stock_issue_path(issue)
-      post confirm_inventory_stock_issue_path(issue)
 
-      expect(issue.reload).to be_approved # confirm refused — stays approved, never issued
+      expect(flash[:alert]).to include("Not enough stock for Mask")
+      expect(issue.reload).to be_pending_approval # approval refused — nothing reserved, never issued
       expect(product.reload.current_stock).to eq(0)
       expect(issue.inventory_movements.count).to eq(0)
     end

@@ -148,7 +148,7 @@
                 <%= amt.payment_method_name %>
               </td>
               <td style="padding: var(--space-2) 0 var(--space-2) var(--space-3); text-align: end; vertical-align: middle;">
-                <input type="number"
+                <input type="number" inputmode="decimal"
                        name="amounts[<%= amt.id %>][collected_amount]"
                        value="<%= amt.collected_amount.to_f %>"
                        step="0.01"
@@ -158,7 +158,7 @@
                        style="width: 120px; text-align: end; font-variant-numeric: tabular-nums; display: inline-block;" />
               </td>
               <td style="padding: var(--space-2) 0 var(--space-2) var(--space-3); text-align: end; vertical-align: middle;">
-                <input type="number"
+                <input type="number" inputmode="decimal"
                        name="amounts[<%= amt.id %>][refund_amount]"
                        value="<%= amt.refund_amount.to_f %>"
                        step="0.01"

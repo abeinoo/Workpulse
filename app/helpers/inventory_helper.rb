@@ -108,6 +108,25 @@ module InventoryHelper
     GOODS_RECEIPT_TIMELINE_ICONS.fetch(icon_type, GOODS_RECEIPT_TIMELINE_ICONS[:created])
   end
 
+  # Small decorative icons for document action buttons (heroicons-outline
+  # paths). The button's visible text is its accessible name.
+  ACTION_ICONS = {
+    approve: "m4.5 12.75 6 6 9-13.5",
+    reject:  "M6 18 18 6M6 6l12 12",
+    view:    "M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+    receive: GOODS_RECEIPT_TIMELINE_ICONS[:received],
+    submit:  GOODS_RECEIPT_TIMELINE_ICONS[:submitted],
+    cancel:  GOODS_RECEIPT_TIMELINE_ICONS[:voided],
+    edit:    "m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z",
+    back:    "M15.75 19.5 8.25 12l7.5-7.5"
+  }.freeze
+
+  def action_icon(name)
+    tag.svg(tag.path(d: ACTION_ICONS.fetch(name)),
+            class: "action-icon", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+            "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true")
+  end
+
   # "Where did this payment come from?" for one FinancialSettlement row —
   # reuses the funding-source labels. A NIL source_kind is a legacy payment
   # through an untracked means (cash vs. bank unknown).
@@ -129,6 +148,12 @@ module InventoryHelper
 
   def stock_issue_status_class(status)
     STOCK_ISSUE_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
+  end
+
+  # Stock quantity with insignificant zeros dropped ("2", "2.5") — the same
+  # format the insufficient-stock messages use.
+  def stock_quantity(quantity)
+    Inventory::StockAvailability.format_quantity(quantity)
   end
 
   # Badge colour for a purchase request's status.
@@ -166,33 +191,24 @@ module InventoryHelper
     key ? PURCHASE_REQUEST_RECEIVING_BADGES.fetch(key, "badge-neutral") : "badge-neutral"
   end
 
-  # "الإجراء التالي" — a pure presentation mapping from the request's current
-  # status to what a user should do next, reusing the exact same policy
-  # checks and routes as the full action set elsewhere on this page (see
-  # PurchaseRequestPolicy). No business logic lives here: a nil/false policy
-  # check just means the label renders without a link.
   # A Purchase Request's supplier, or "بدون مورد" when none is set.
   def purchase_request_supplier_name(pr)
     pr.supplier&.name || t("inventory.purchase_requests.no_supplier")
   end
 
-  def purchase_request_next_action(pr)
-    label = t("inventory.purchase_requests.next_actions.#{pr.status}", default: nil)
-    return nil unless label
+  # The approval decision alone, for the "الحالة" badge: the status column also
+  # carries receiving progress (partially/fully received, partially closed),
+  # which the list shows separately under "الاستلام" — so those read "معتمد"
+  # here instead of repeating the receiving label. Display only.
+  def purchase_request_approval_status(pr)
+    purchase_request_receiving_status(pr) ? "approved" : pr.status
+  end
 
-    url, http_method =
-      case pr.status
-      when "draft"
-        [ (edit_inventory_purchase_request_path(pr) if policy(pr).update?), :get ]
-      when "pending_approval"
-        [ (approve_inventory_purchase_request_path(pr) if policy(pr).approve?), :post ]
-      when "approved", "partially_received"
-        [ (new_inventory_goods_receipt_path(purchase_request_id: pr.id) if policy(pr).create_goods_receipt?), :get ]
-      else
-        [ nil, :get ]
-      end
+  # Received share of the requested quantity, 0–100, for the progress bar.
+  def purchase_request_received_percent(requested, received)
+    return 0 unless requested.to_d.positive?
 
-    { label: label, url: url, http_method: http_method }
+    [ (received.to_d / requested.to_d * 100).round, 100 ].min
   end
 
   # Marker colour + icon for one Activity Timeline entry (built by

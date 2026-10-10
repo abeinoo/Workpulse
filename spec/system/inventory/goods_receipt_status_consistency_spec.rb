@@ -38,9 +38,11 @@ RSpec.describe "Goods receipt status consistency (browser, Arabic)", type: :syst
     expect(status_badges).to eq([ ar("approval_statuses.pending_approval"), ar("receipt_statuses.not_received") ])
     expect(page).to have_css("form[action='#{approve_inventory_goods_receipt_path(receipt)}']")
 
-    find("#cancel-panel summary").click
-    fill_in "cancellation_reason", with: "مكرر"
-    accept_confirm { click_button ar("cancel_action") }
+    find("[data-testid='gr-end']").click
+    within("dialog#end-dialog[open]") do
+      fill_in "end-dialog-reason", with: "مكرر"
+      accept_confirm { click_button ar("cancel_action") }
+    end
 
     expect(page).to have_text(ar("cancelled"))
     expect(status_badges).to eq([ ar("approval_statuses.cancelled"), ar("receipt_statuses.voided") ])

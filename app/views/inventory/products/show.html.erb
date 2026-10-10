@@ -262,6 +262,13 @@
       </div>
     <% end %>
 
+    <% unless @recent_goods_receipts.nil? %>
+      <%= render "inventory/products/recent_goods_receipts", rows: @recent_goods_receipts %>
+    <% end %>
+    <% unless @recent_stock_issues.nil? %>
+      <%= render "inventory/products/recent_stock_issues", rows: @recent_stock_issues, product: @product %>
+    <% end %>
+
     <%# ── Purchase Information ─────────────────────────────── %>
     <h2 class="section-title"><%= t("inventory.products.purchase_information") %></h2>
     <% if @last_gr_item %>

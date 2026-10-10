@@ -1,0 +1,82 @@
+<%#
+  The goods receipt's single workflow action group, in its header.
+  locals: receipt
+
+  Every action is gated by the SAME GoodsReceiptPolicy method the controller
+  authorizes with (which already encodes permission, voided and approval /
+  receiving state) and posts to the SAME endpoint with the SAME confirmation as
+  before — this only places and styles them. Order = priority: approve, reject,
+  receive (confirm), submit, edit, cancel / void, then رجوع.
+
+  Reject, cancel and void need a reason: their form opens in a dialog.
+%>
+<% receipt_policy = policy(receipt) %>
+<div class="action-group action-group--header" role="group" aria-label="<%= t("inventory.goods_receipts.actions") %>" data-testid="gr-actions">
+  <% if receipt_policy.approve? %>
+    <%= button_to approve_inventory_goods_receipt_path(receipt), method: :post, class: "btn btn-primary",
+          form: { class: "action-group__item", data: { testid: "gr-approve" } },
+          data: { turbo_confirm: t("inventory.goods_receipts.approve_hint") } do %>
+      <%= action_icon(:approve) %><span><%= t("inventory.goods_receipts.approve") %></span>
+    <% end %>
+  <% end %>
+
+  <% if receipt_policy.reject? %>
+    <%= render "reason_dialog",
+          id: "reject-dialog", testid: "gr-reject",
+          trigger_label: t("inventory.goods_receipts.reject"), trigger_class: "btn btn-danger-outline", icon: :reject,
+          title: "#{t('inventory.goods_receipts.reject_submit')} — #{receipt.receipt_number}",
+          url: reject_inventory_goods_receipt_path(receipt), method: :post, param: :rejection_reason,
+          reason_label: t("inventory.goods_receipts.rejection_reason"),
+          placeholder: t("inventory.goods_receipts.rejection_reason_placeholder"),
+          submit_label: t("inventory.goods_receipts.reject_submit"),
+          confirm: t("inventory.goods_receipts.reject_confirm") %>
+  <% end %>
+
+  <% if receipt_policy.confirm? %>
+    <%= button_to confirm_inventory_goods_receipt_path(receipt), method: :post, class: "btn btn-primary",
+          form: { class: "action-group__item", data: { testid: "gr-confirm" } },
+          data: { turbo_confirm: t("inventory.goods_receipts.confirm_hint") } do %>
+      <%= action_icon(:receive) %><span><%= t("inventory.goods_receipts.confirm") %></span>
+    <% end %>
+  <% end %>
+
+  <% if receipt_policy.submit_for_approval? %>
+    <%= button_to submit_inventory_goods_receipt_path(receipt), method: :post, class: "btn btn-primary",
+          form: { class: "action-group__item", data: { testid: "gr-submit" } } do %>
+      <%= action_icon(:submit) %><span><%= t("inventory.goods_receipts.submit_for_approval") %></span>
+    <% end %>
+  <% end %>
+
+  <% if receipt_policy.update? %>
+    <%= link_to edit_inventory_goods_receipt_path(receipt), class: "btn btn-ghost", data: { testid: "gr-edit" } do %>
+      <%= action_icon(:edit) %><span><%= t("inventory.goods_receipts.edit_action") %></span>
+    <% end %>
+  <% end %>
+
+  <%# Cancel (before any approval decision) or void (approved / received). %>
+  <% if receipt_policy.void? %>
+    <%= render "reason_dialog",
+          id: "end-dialog", testid: "gr-end",
+          trigger_label: t("inventory.void.action"), trigger_class: "btn btn-ghost btn-danger-ghost", icon: :cancel,
+          title: "#{t('inventory.void.action')} — #{receipt.receipt_number}",
+          url: void_inventory_goods_receipt_path(receipt), method: :patch, param: :void_reason,
+          reason_label: t("inventory.void.reason_label"), placeholder: t("inventory.void.reason_placeholder"),
+          hint: t("inventory.void.reason_hint"),
+          submit_label: t("inventory.void.action"), confirm: t("inventory.void.confirm_dialog") %>
+  <% elsif receipt_policy.cancel? %>
+    <%= render "reason_dialog",
+          id: "end-dialog", testid: "gr-end",
+          trigger_label: t("inventory.goods_receipts.cancel_action"), trigger_class: "btn btn-ghost btn-danger-ghost", icon: :cancel,
+          title: "#{t('inventory.goods_receipts.cancel_action')} — #{receipt.receipt_number}",
+          url: cancel_inventory_goods_receipt_path(receipt), method: :patch, param: :cancellation_reason,
+          reason_label: t("inventory.goods_receipts.cancellation_reason"),
+          placeholder: t("inventory.goods_receipts.cancellation_placeholder"),
+          hint: t("inventory.void.reason_hint"),
+          submit_label: t("inventory.goods_receipts.cancel_action"),
+          confirm: t("inventory.goods_receipts.cancel_confirm_dialog") %>
+  <% end %>
+
+  <%= link_to inventory_goods_receipts_path, class: "btn btn-ghost action-group__back", data: { testid: "gr-back" } do %>
+    <%= action_icon(:back) %><span><%= t("forms.back") %></span>
+  <% end %>
+</div>

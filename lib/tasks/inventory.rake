@@ -36,4 +36,47 @@ namespace :inventory do
       puts "Nothing written. Re-run with APPLY=1 to apply."
     end
   end
+
+  desc <<~DESC
+    Report (product, warehouse) pairs whose approved-but-not-yet-issued stock
+    issues reserve more than is physically on hand — the issues that can't be
+    confirmed until stock is received or one of them is cancelled (see
+    Inventory::StockAvailability). Also lists issues pending approval that
+    couldn't be approved right now.
+
+    READ-ONLY — never writes anything.
+
+    Options (via ENV):
+      BUSINESS_ID=42   Restrict to one business.
+
+    Usage:
+      bin/rails inventory:reservation_audit
+  DESC
+  task reservation_audit: :environment do
+    scope = StockIssue.active.where(status: %w[approved pending_approval]).includes(:warehouse, items: :product)
+    scope = scope.where(business_id: ENV["BUSINESS_ID"]) if ENV["BUSINESS_ID"].present?
+    issues = scope.order(:id).to_a
+    fmt = ->(q) { Inventory::StockAvailability.format_quantity(q) }
+
+    over = issues.select(&:approved?).group_by(&:warehouse_id).flat_map do |warehouse_id, approved|
+      product_ids = approved.flat_map { |i| i.items.map(&:product_id) }.uniq
+      on_hand  = Inventory::StockAvailability.on_hand_by(warehouse_ids: warehouse_id, product_ids: product_ids)
+      reserved = Inventory::StockAvailability.reserved_by(warehouse_ids: warehouse_id, product_ids: product_ids)
+      product_ids.filter_map do |product_id|
+        key = [ warehouse_id, product_id ]
+        next if reserved[key].to_d <= on_hand[key].to_d
+
+        holders = approved.select { |i| i.items.any? { |item| item.product_id == product_id } }
+        product = holders.first.items.find { |item| item.product_id == product_id }.product
+        "  business=#{holders.first.business_id} warehouse=#{holders.first.warehouse.name} product=#{product.sku} #{product.name} " \
+          "on_hand=#{fmt.(on_hand[key].to_d)} reserved=#{fmt.(reserved[key].to_d)} issues=#{holders.map(&:issue_number).join(",")}"
+      end
+    end
+    puts "#{issues.count(&:approved?)} approved-unissued issue(s); #{over.size} over-committed product/warehouse pair(s):"
+    puts over
+
+    blocked = Inventory::StockAvailability.unfulfillable_issue_ids(issues.select(&:pending_approval?))
+    puts "#{issues.count(&:pending_approval?)} issue(s) pending approval; #{blocked.size} can't be approved right now:"
+    issues.select { |i| blocked.include?(i.id) }.each { |i| puts "  #{i.issue_number} business=#{i.business_id}" }
+  end
 end

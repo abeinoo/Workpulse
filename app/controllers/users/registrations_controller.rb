@@ -19,7 +19,7 @@ class Users::RegistrationsController < Devise::RegistrationsController
       sign_in(result.user)
       redirect_to root_path, notice: t("flash.welcome_registered")
     else
-      build_resource({})
+      build_resource(login: sign_up_params[:login])
       @invitation_token = sign_up_params[:invitation_token].to_s
       resource.errors.add(:base, result.error)
       render :new, status: :unprocessable_entity

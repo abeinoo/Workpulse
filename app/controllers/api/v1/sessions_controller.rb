@@ -36,14 +36,17 @@ module Api
         if login.include?("@")
           User.find_by("LOWER(email) = ?", login.downcase)
         else
-          User.find_by(phone_number: login)
+          User.find_by_phone_login(login)
         end
       end
 
       def login_rate_limit_key
         session_param = params[:session]
-        login = session_param.respond_to?(:key?) ? session_param[:login] : nil
-        "#{request.remote_ip}:#{Digest::SHA256.hexdigest(login.to_s.strip.downcase)}"
+        login = (session_param.respond_to?(:key?) ? session_param[:login] : nil).to_s.strip.downcase
+        # Equivalent phone formats reach the same account, so they share one
+        # bucket — rotating "01…" / "+20…" / "20…" must not reset the limit.
+        login = PhoneNumber.comparison_key(login) || login unless login.include?("@")
+        "#{request.remote_ip}:#{Digest::SHA256.hexdigest(login)}"
       end
 
       def session_params

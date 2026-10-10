@@ -13,9 +13,13 @@ module Inventory
   # browser refresh, or a client retry can never post two movements for the
   # same issue.
   #
-  # If stock is insufficient, the poster's own availability check fails the
-  # whole transaction and the issue is left exactly as it was — "approved",
-  # never "issued".
+  # Confirmation consumes the reservation approval made (see
+  # Inventory::StockAvailability): the poster locks the products and re-checks
+  # that the quantities are still available to THIS issue — on-hand minus
+  # other approved issues' reservations — since a count, adjustment or
+  # transfer can shrink on-hand after approval. If not, the whole transaction
+  # fails and the issue is left exactly as it was — "approved" (reservation
+  # intact), never "issued".
   class StockIssueConfirmationService
     include AuditLoggable
 

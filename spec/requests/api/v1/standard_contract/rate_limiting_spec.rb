@@ -40,6 +40,16 @@ RSpec.describe "API v1 rate limiting — login", type: :request do
     expect(response).to have_http_status(:unauthorized)
   end
 
+  it "counts equivalent phone formats as one identifier" do
+    create(:user, :phone_only, business: business, phone_number: "01012345678")
+    formats = [ "01012345678", "+201012345678", "201012345678", "00201012345678", "٠١٠١٢٣٤٥٦٧٨" ]
+    10.times { |i| attempt(formats[i % formats.size]) }
+    expect(response).to have_http_status(:unauthorized)
+
+    attempt("+20 101 234 5678", "password123")
+    expect(response).to have_http_status(:too_many_requests)
+  end
+
   it "counts the same identifier independently per IP" do
     11.times { attempt("limit@example.com", ip: "10.0.0.1") }
     attempt("limit@example.com", "password123", ip: "10.0.0.2")

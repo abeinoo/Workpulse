@@ -1,6 +1,8 @@
 module Inventory
-  # Posts a stock issue: validates that every product has enough on-hand in the
-  # issue's warehouse (blocking over-issue), values each line at the product's
+  # Posts a stock issue: validates that every product has enough stock
+  # available to it in the issue's warehouse — on-hand minus what OTHER
+  # approved issues have reserved (see Inventory::StockAvailability) —
+  # blocking over-issue, values each line at the product's
   # current average cost, then records an OUT movement per line, and marks the
   # issue "issued". All-or-nothing in one transaction. Idempotent by
   # construction — an already-issued issue is refused outright, so calling this
@@ -31,12 +33,17 @@ module Inventory
         return Result.new(ok: false, issue: @issue)
       end
 
-      value_items
-      unless availability_ok?
-        return Result.new(ok: false, issue: @issue)
-      end
-
       ActiveRecord::Base.transaction do
+        # Serializes against every other approval/confirmation/transfer of the
+        # same products, so the availability read below can't go stale before
+        # the OUT movements are written.
+        StockAvailability.lock_products!(@issue.items.map(&:product_id))
+        value_items
+        return Result.new(ok: false, issue: @issue) unless availability_ok?
+
+        # approved -> issued consumes this issue's reservation in the same
+        # write that posts its OUT movements: the quantity stops counting as
+        # reserved exactly when it starts counting as deducted.
         @issue.status = :issued
 
         raise ActiveRecord::Rollback unless @issue.save
@@ -49,32 +56,13 @@ module Inventory
     end
 
     # Sums requested quantity per product (a product may appear on >1 line) and
-    # compares against on-hand in the target warehouse, adding an
-    # :insufficient_stock error per short product. Read-only — also used by the
-    # import's "Complete Import" step to flag short rows before submitting for
-    # approval (the check here at posting time stays authoritative).
+    # compares against what's available to this issue in its warehouse,
+    # adding an insufficient-stock error per short product. Read-only — also
+    # used by the import's "Complete Import" step to flag short rows before
+    # submitting for approval (the locked check here at posting time, and at
+    # approval, stays authoritative).
     def availability_ok?
-      ok = true
-      requested_by_product = @issue.items.reject(&:marked_for_destruction?)
-                                   .group_by(&:product_id)
-
-      requested_by_product.each do |product_id, items|
-        product = items.first.product
-        next if product.nil?
-
-        requested = items.sum { |i| i.quantity.to_d }
-        available = product.stock_in(@issue.warehouse)
-        next if requested <= available
-
-        ok = false
-        @issue.errors.add(:base, :insufficient_stock,
-                          product: product.name,
-                          sku:       product.sku,
-                          available: available.to_s,
-                          requested: requested.to_s)
-      end
-
-      ok
+      StockAvailability.validate!(@issue)
     end
 
     private

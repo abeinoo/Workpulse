@@ -246,14 +246,16 @@
       <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.purchase_requests.no_goods_receipts_yet") %></p>
     <% else %>
       <div class="table-wrap table-wrap--cards">
-        <table>
+        <table class="gr-table">
           <thead>
             <tr>
               <th><%= t("inventory.purchase_requests.goods_receipt_number") %></th>
               <th><%= t("inventory.purchase_requests.goods_receipt_date") %></th>
               <th style="text-align: end;"><%= t("inventory.purchase_requests.goods_receipt_quantity") %></th>
               <th style="text-align: end;"><%= t("inventory.purchase_requests.total") %></th>
-              <th><%= t("inventory.purchase_requests.goods_receipt_status") %></th>
+              <th><%= t("inventory.goods_receipts.approval_status") %></th>
+              <th><%= t("inventory.goods_receipts.receipt_status") %></th>
+              <th class="col-actions"><%= t("inventory.goods_receipts.actions") %></th>
             </tr>
           </thead>
           <tbody>
@@ -264,10 +266,19 @@
                 <td style="text-align: end;"><%= receipt.items.sum(&:quantity).to_i %></td>
                 <td style="text-align: end;"><%= format_currency(receipt.total_value) %></td>
                 <td>
+                  <span class="badge <%= goods_receipt_approval_status_class(receipt.approval_status) %>">
+                    <%= t("inventory.goods_receipts.approval_statuses.#{receipt.approval_status}") %>
+                  </span>
+                </td>
+                <td>
                   <span class="badge <%= goods_receipt_receipt_status_class(receipt) %>">
                     <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(receipt)}") %>
                   </span>
                 </td>
+                <%# Same actions as the Goods Receipts list: GoodsReceiptPolicy gates each
+                    one and it posts to the existing goods-receipt endpoint, which
+                    redirects back here (GoodsReceiptsController#redirect_with_result). %>
+                <td class="td-actions col-actions"><%= render "inventory/goods_receipts/row_actions", receipt: receipt %></td>
               </tr>
             <% end %>
           </tbody>

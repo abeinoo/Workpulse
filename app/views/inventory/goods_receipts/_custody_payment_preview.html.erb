@@ -1,0 +1,25 @@
+<%#
+  What approving will take from the custody account (Inventory::CustodyPaymentPreview).
+  Display only — shared by the receipt page and the approve dialog on the
+  Goods Receipts list / Purchase Request page. locals: preview
+%>
+<% pscope = "inventory.goods_receipts.custody_payment_preview" %>
+<% if preview[:account] %>
+  <dl class="detail-list">
+    <div class="detail-list__row"><dt><%= t("#{pscope}.holder") %></dt>
+      <dd><bdi><%= preview[:account].user&.full_name || preview[:account].name %></bdi></dd></div>
+    <div class="detail-list__row"><dt><%= t("#{pscope}.current_balance") %></dt>
+      <dd data-testid="custody-preview-current"><%= format_currency(preview[:current]) %></dd></div>
+    <div class="detail-list__row"><dt><%= t("#{pscope}.amount_due") %></dt>
+      <dd data-testid="custody-preview-due"><%= format_currency(preview[:due]) %></dd></div>
+    <div class="detail-list__row"><dt><strong><%= t("#{pscope}.balance_after") %></strong></dt>
+      <dd><strong data-testid="custody-preview-after" style="<%= 'color: var(--danger);' if preview[:after].negative? %>"><%= format_currency(preview[:after]) %></strong></dd></div>
+  </dl>
+  <% if preview[:after].negative? %>
+    <p class="form-hint" style="color: var(--danger); margin: var(--space-2) 0 0;" data-testid="custody-preview-negative">
+      <%= t("#{pscope}.negative_note") %>
+    </p>
+  <% end %>
+<% else %>
+  <p class="form-hint text-warning" style="margin: 0;"><%= t("inventory.goods_receipts.errors.no_active_custody_account") %></p>
+<% end %>

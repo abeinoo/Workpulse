@@ -1,0 +1,20 @@
+<%#
+  An expense's notes (Expense#notes), display only. locals: notes (stripped, present)
+
+  Up to two lines, then "…"; hovering shows the full text (title). A long note
+  can also be expanded in place (keyboard / touch) with "عرض المزيد". The text
+  exists once here, so screen readers read it in full.
+%>
+<% if notes.length > 60 || notes.include?("\n") %>
+  <details class="expense-list__note">
+    <summary title="<%= notes %>">
+      <span class="expense-list__note-text"><%= notes %></span>
+      <span class="expense-list__note-toggle" aria-hidden="true">
+        <span class="expense-list__note-more"><%= t("finance.expenses.note_more") %></span>
+        <span class="expense-list__note-less"><%= t("finance.expenses.note_less") %></span>
+      </span>
+    </summary>
+  </details>
+<% else %>
+  <span class="expense-list__note-text" title="<%= notes %>"><%= notes %></span>
+<% end %>

@@ -1,0 +1,45 @@
+<%# ── Recent goods receipts carrying this product ─────────── %>
+<section id="recent-goods-receipts" aria-labelledby="recent-goods-receipts-title">
+  <h2 class="section-title" id="recent-goods-receipts-title"><%= t("inventory.products.recent_goods_receipts") %></h2>
+  <% if rows.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.products.no_recent_goods_receipts") %></p></div>
+  <% else %>
+    <% columns = %w[number date supplier warehouse quantity approval_status receipt_status].index_with { |c| t("inventory.products.recent_documents.#{c}") } %>
+    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
+      <table>
+        <thead><tr>
+          <% columns.each do |key, label| %>
+            <%= tag.th label, style: ("text-align: end;" if key == "quantity") %>
+          <% end %>
+        </tr></thead>
+        <tbody>
+          <% rows.each do |row| %>
+            <% receipt = row.document %>
+            <tr data-recent-document="<%= receipt.receipt_number %>">
+              <td data-label="<%= columns["number"] %>">
+                <%= link_to receipt.receipt_number, inventory_goods_receipt_path(receipt),
+                      class: "link", style: "font-weight: 700; display: inline-block; padding: var(--space-1) 0;" %>
+              </td>
+              <td class="td-secondary" data-label="<%= columns["date"] %>"><%= local_date(receipt.received_on) %></td>
+              <td data-label="<%= columns["supplier"] %>" style="overflow-wrap: anywhere;"><%= receipt.supplier&.name || "—" %></td>
+              <td class="td-secondary" data-label="<%= columns["warehouse"] %>" style="overflow-wrap: anywhere;"><%= receipt.warehouse.name %></td>
+              <td data-label="<%= columns["quantity"] %>" style="text-align: end;">
+                <%= render "inventory/products/recent_document_quantity", row: row, direction: :in %>
+              </td>
+              <td data-label="<%= columns["approval_status"] %>">
+                <span class="badge <%= goods_receipt_approval_status_class(receipt.approval_status) %>">
+                  <%= t("inventory.goods_receipts.approval_statuses.#{receipt.approval_status}") %>
+                </span>
+              </td>
+              <td data-label="<%= columns["receipt_status"] %>">
+                <span class="badge <%= goods_receipt_receipt_status_class(receipt) %>">
+                  <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(receipt)}") %>
+                </span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</section>

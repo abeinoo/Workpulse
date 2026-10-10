@@ -40,12 +40,23 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @total_documents_count = base.count
     @total_value           = StockIssueItem.joins(:stock_issue).merge(base.issued.active).sum(:total_cost)
     @filtered_count        = @stock_issues.count
+    # Pending/approved issues that couldn't be approved/confirmed right now
+    # (two queries for the whole list — see StockAvailability).
+    @unfulfillable_issue_ids = Inventory::StockAvailability.unfulfillable_issue_ids(@stock_issues)
   end
 
   def show
-    @stock_issue = find_issue(includes: [ :submitted_by, :approved_by, :rejected_by, :issued_by, :cancelled_by, :voided_by ])
+    @stock_issue = find_issue(includes: [ :submitted_by, :approved_by, :rejected_by, :issued_by, :cancelled_by, :voided_by,
+                                          { items: :product } ])
     authorize @stock_issue
-    @items           = @stock_issue.items.includes(:product)
+    @items           = @stock_issue.items
+    # Physical / reserved-by-others / available / requested per product while
+    # the issue can still be approved or confirmed; the same figures the
+    # approval and confirmation services enforce under lock.
+    if !@stock_issue.voided? && (@stock_issue.draft? || @stock_issue.pending_approval? || @stock_issue.approved?)
+      @availability_lines     = Inventory::StockAvailability.lines_for(@stock_issue)
+      @availability_shortages = @availability_lines.select(&:shortfall?)
+    end
     @audit_logs      = AuditLog.for_auditable(@stock_issue).recent.includes(:actor)
     @timeline_events = build_timeline_events
   end
