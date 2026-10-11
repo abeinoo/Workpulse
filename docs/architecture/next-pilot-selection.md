@@ -4185,9 +4185,10 @@ unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed
 
 ## 25. Pilot 10 — Punch Correction payroll / attendance effects
 
-**Status: M2 COMPLETE** (on `feature/pilot-10-punch-correction`: M1 `5c8729e`, M2 "refactor: define punch
-correction effects contract"). M0 and the unblock are merged (`66abcf5`, PR #34 → `fix/pilot-9-request-scope`, PR #33
-→ `main` `82cce16`). Contract defined; no caller routed, no code moved; M3 – M8 not started.
+**Status: M3 COMPLETE** (on `feature/pilot-10-punch-correction`: M1 `5c8729e`, M2 `e2aa155`, M3 "refactor: route
+punch correction assessment through effects contract"). M0 and the unblock are merged (`66abcf5`, PR #34 →
+`fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). The read-only assessment is routed; approval and cancellation
+are not (M4); M4 – M8 not started.
 
 ### 25.1 M0 — findings (read-only)
 
@@ -4413,3 +4414,89 @@ Identical under all three seeds, compared by exact failure ID with M1 (`5c8729e`
 | Pilot 10 set (20 files) | 432 / 1 | 432 / 1 — the same ID |
 
 `zeitwerk:check`, RuboCop and `git diff --check` clean. No new failure; no flaky failure observed.
+
+### 25.5 M3 — the read-only assessment routed through `correction_facts`
+
+**Changed: one class.** `Requests::PunchCorrectionAssessment` no longer names Attendance & Payroll: the
+`Attendance::PunchWindow`, the `AttendanceRecord` lookup, `Attendance::RecordRecomputer` on a copy and
+`Attendance::DurationCheck` are replaced by one memoized call to `Requests::PunchCorrectionEffects.correction_facts`
+(lazy, after `effective_at` is known). Its public interface is kept, so **every caller is routed without being
+edited**:
+
+| Caller | Arguments the contract receives | Why safe in M3 |
+|---|---|---|
+| `EmployeeRequest#check_out_after_check_in` (create validation, check-out corrections) | the unsaved request, `:check_out`, the proposal's moment, no baseline | read-only; same refusal message (`check_out_not_after_check_in`) |
+| `EmployeeRequestsController#show` (reviewer only) | the request, its field, the reviewer's / stored final moment, the request's snapshot once applied | read-only; requesters still compute nothing; one facts call per page |
+| `EmployeeRequestsController#create` (out-of-window hold) | the unsaved request, its field, the proposal's moment, no baseline | read-only; same hold / acknowledgement |
+| `Requests::Approver#approve_punch_correction` (pre-transaction checks, audit metadata) | the request, its field, the reviewer's final moment, no baseline | read before the transaction, as before; same punch-order refusal, confirmation gate and `attendance_window` audit keys / values |
+| views `_attendance_window`, `_resulting_duration`, `_punch_facts`, `show` | — (read the assessment) | `assessment.window` is now a Workforce `Window` struct (`work_date`, `shift` → `Shift(name, required_hours)` or nil, `shift_starts_at`, `shift_ends_at`): same fields the view reads, no Attendance & Payroll object |
+
+**Baseline:** a pending correction passes `baseline: nil` (the live record's punches); an applied one passes a
+`Snapshot` of the request's `original_*` columns, so the facts are judged against the punches before the correction,
+as before. A legacy approval (`approved_punch_at` nil) still derives `effective_at` from the request's snapshot alone
+(`Requests::PunchCorrectionApplier.legacy_applied_punch_at`, Workforce) before the facts call.
+
+**Contract extension (additive):** `Facts` gained `shift_name` and `shift_required_hours` (plain values) because the
+attendance-window card shows the shift name and, for hour-based shifts, its hours; no `Shift` record crosses the
+contract.
+
+**Punch order** is computed in Workforce from the projected punches (`effective_at` for the corrected field, the
+original punch for the other) when an attendance record exists; `RecordRecomputer` never changes punch times, so this is
+exactly the old check on the recomputed copy. Removed public readers with no callers: `record`, `projected_record`.
+
+**Deliberately unchanged:**
+
+* `correction_approved` / `correction_cancelled` — unrouted (asserted). `Requests::Approver`'s transaction,
+  `Requests::PunchCorrectionApplier` (snapshot write, punch write, recompute, `Payroll::PunchCorrectionApplier`) and
+  `Requests::Canceller#rollback_punch_correction` with its five helpers stay in Workforce until M4 moves approval and
+  cancellation together.
+* `EmployeeRequestsController#show` still loads `@attendance_record` directly (`AttendanceRecord.find_by`) for the
+  page, and `_resulting_duration` calls `Attendance::DurationCheck.threshold_hours` for the threshold label: neither is
+  the assessment path; both are listed for M6.
+* Decisions A / B / C (§25.4) — not implemented.
+
+**Specs:**
+* `spec/services/requests/punch_correction_assessment_routing_spec.rb` (22): the arguments for pending, reviewer-
+  overridden, applied and legacy-approved corrections (one lazy call); the model validation and the approver routed;
+  confirmation gate and audit metadata unchanged; `NotRegistered` raised, never skipped; parity with an oracle that
+  recomputes the pre-M3 direct reads (inside / outside the window, overnight abnormal duration, both punch-order
+  messages, missing punch, no record, applied snapshot); only plain structs exposed (fixed-time, hour-based, no shift).
+* `spec/requests/employee_request_punch_facts_routing_spec.rb` (3): show (reviewer: one call, arguments, window card;
+  requester: no call) and the create hold.
+* `punch_correction_effects_spec.rb`: parity now against the same direct-read oracle (the assessment is itself routed),
+  `shift_name` included; approve / cancel messages say M4.
+* Boundary (11): plus — the assessment names nothing from Attendance & Payroll (incl. `Shifts::`); it is the only
+  Workforce user of the contract (bare or namespaced name) and calls only `correction_facts`; nothing calls
+  `correction_approved` / `correction_cancelled`; planted probes for each.
+* Physical probes: the implementation's window inverted → 16 failures across the routing and contract specs; an
+  `AttendanceRecord` read planted in the assessment plus an early `correction_approved` route in the approver → the
+  three M3 boundary examples fail; restored → green.
+
+**Baseline note (date effect, not M3):** `rspec ./spec/models/employee_request_spec.rb:432` (salary-advance limit;
+attendance built at `Date.current.beginning_of_month + 0..9`) passes from the 10th of the month on. Re-measured on the
+unchanged M2 commit `e2aa155` on 2026-10-12 under all three seeds: the request-area set gives the recorded 27 IDs minus
+that one (26), the Pilot 10 set 432 / 0. M3 is compared with that same-day measurement by exact ID.
+
+**Verification (seeds 20261006 / 12345 / 98765):**
+
+Identical under all three seeds; compared by exact failure ID with the same-day measurement on `e2aa155`:
+
+| Suite | M2 `e2aa155` (2026-10-12) | M3 |
+|---|---|---|
+| M2 + M3 specs (contract 18, boundary 11, assessment routing 22, request routing 3) | 25 / 0 | 54 / 0 |
+| M1 characterization | 29 / 0 | 29 / 0 |
+| Punch-correction specs (17 files) | 382 / 0 (date effect) | 382 / 0 |
+| SEC-P10-1 + locked period | 21 / 0 | 21 / 0 |
+| Request security + policy | 124 / 0 | 124 / 0 |
+| Pilot 9 core (`spec/services/requests` includes the contract and routing specs) | 238 / 0 | 260 / 0 (+22) |
+| `spec/architecture` + `spec/requests/security` | 597 / 0 | 601 / 0 (+4) |
+| Request-area set | 1622 / 26 | 1622 / 26 — the same 26 IDs |
+| Pilot 10 set (20 files) | 432 / 0 | 432 / 0 |
+
+`zeitwerk:check`, RuboCop (7 changed Ruby files) and `git diff --check` clean. No new failure; no flaky failure
+observed.
+
+**Risks / notes for M4:** `main` has moved past this branch's base (`412710f`): `d198d7d` (branch-manager approval
+policy in the manager UI, +7 lines in `employee_requests/show.html.erb`, a new punch-correction request spec),
+`ae23b93`, `01def5c`. No file overlaps M3 except that view, which M3 does not edit; the branch was not rebased. Before
+merging, run `employee_request_branch_manager_punch_correction_spec.rb` on the merged result.

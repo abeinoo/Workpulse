@@ -1,16 +1,19 @@
 require "rails_helper"
 
-# Boundary for Pilot 10 — Punch Correction (M2; see
+# Boundary for Pilot 10 — Punch Correction (M2, M3; see
 # docs/architecture/next-pilot-selection.md §25).
 #
-# M2 defines the Workforce contract Requests::PunchCorrectionEffects and its
-# Attendance & Payroll implementation Attendance::PunchCorrectionEffects. This
-# spec pins the contract side only: the contract names nothing from Attendance &
-# Payroll, the implementation never calls back into Workforce's request
-# lifecycle or writes the request's own data, and the implementation is wired
-# only by the composition root. Routing the callers (Requests::Approver,
-# Requests::Canceller, Requests::PunchCorrectionAssessment) is M3; their
-# boundary is added in M6.
+# M2 defined the Workforce contract Requests::PunchCorrectionEffects and its
+# Attendance & Payroll implementation Attendance::PunchCorrectionEffects: the
+# contract names nothing from Attendance & Payroll, the implementation never
+# calls back into Workforce's request lifecycle or writes the request's own
+# data, and the implementation is wired only by the composition root.
+#
+# M3 routed the read-only path: Requests::PunchCorrectionAssessment reads its
+# attendance facts only through correction_facts and names nothing from
+# Attendance & Payroll. correction_approved / correction_cancelled stay
+# unrouted until M4 (approval and cancellation move together); the approver /
+# canceller boundary is added in M6.
 module ArchitectureSpecs
   module WorkforcePunchCorrectionBoundary
     module_function
@@ -18,6 +21,13 @@ module ArchitectureSpecs
     CONTRACT_FILE   = "app/services/requests/punch_correction_effects.rb".freeze
     IMPLEMENTATION  = "app/services/attendance/punch_correction_effects.rb".freeze
     INITIALIZER     = "config/initializers/request_punch_correction_effects.rb".freeze
+    ASSESSMENT      = "app/services/requests/punch_correction_assessment.rb".freeze
+
+    # The contract, with or without its namespace (callers inside module Requests omit it).
+    CONTRACT_NAME = /(?<![\w:])(?:Requests::)?PunchCorrectionEffects\b/
+
+    # The write operations, not routed before M4.
+    WRITE_OPERATIONS = /\.correction_(?:approved|cancelled)\b/
 
     CONTRACT_FORBIDDEN = /\bPayroll\b|\b(?:Attendance|Salary|Shifts)::|\b(?:PayrollPeriod|PayrollEntry|PayrollLineItem|AttendanceRecord)\b/
 
@@ -68,9 +78,24 @@ RSpec.describe "Architecture: Workforce punch correction boundary (contract)" do
     expect(namers - [ boundary::IMPLEMENTATION, boundary::INITIALIZER ]).to be_empty
   end
 
-  it "no caller is routed through the contract yet (M3)" do
-    namers = boundary.source_files.select { |path| boundary.matches_in(path, /\bRequests::PunchCorrectionEffects\b/).any? }
-    expect(namers - [ boundary::CONTRACT_FILE, boundary::IMPLEMENTATION ]).to be_empty
+  it "M3: the assessment names nothing from Attendance & Payroll" do
+    violations = boundary.matches_in(boundary::ASSESSMENT, boundary::CONTRACT_FORBIDDEN)
+    expect(violations).to be_empty, "Read attendance facts through correction_facts:\n#{violations.join("\n")}"
+  end
+
+  it "M3: the assessment is the only Workforce user of the contract, and it calls only correction_facts" do
+    files = boundary.source_files.reject { |path| path.start_with?("app/services/attendance/") }
+    users = files.select { |path| boundary.matches_in(path, boundary::CONTRACT_NAME).any? } - [ boundary::CONTRACT_FILE ]
+    expect(users).to eq([ boundary::ASSESSMENT ])
+
+    calls = boundary.matches_in(boundary::ASSESSMENT, /PunchCorrectionEffects\.\w+/)
+    expect(calls.map { |line| line[/PunchCorrectionEffects\.(\w+)/, 1] }.uniq).to eq(%w[correction_facts])
+  end
+
+  it "M3: approval and cancellation stay unrouted until M4 (no caller of correction_approved / correction_cancelled)" do
+    callers = boundary.source_files.flat_map { |path| boundary.matches_in(path, boundary::WRITE_OPERATIONS) }
+                      .reject { |line| line.start_with?(boundary::CONTRACT_FILE, boundary::IMPLEMENTATION) }
+    expect(callers).to be_empty, callers.join("\n")
   end
 
   describe "self-tests (planted probes)" do
@@ -100,6 +125,19 @@ RSpec.describe "Architecture: Workforce punch correction boundary (contract)" do
         AuditLog.create!
       RUBY
       expect(boundary.matches_in(boundary::IMPLEMENTATION, boundary::WORKFORCE_CALLBACK).size).to eq(8)
+    end
+
+    it "catches Attendance & Payroll reads planted back into the assessment" do
+      plant(boundary::ASSESSMENT, "@window = Attendance::PunchWindow.for(user: u, work_date: d)\n" \
+                                  "@record = AttendanceRecord.find_by(user: u)\n")
+      expect(boundary.matches_in(boundary::ASSESSMENT, boundary::CONTRACT_FORBIDDEN).size).to eq(2)
+    end
+
+    it "catches an early approval / cancellation route (bare or namespaced) and a bare contract use" do
+      plant("app/services/requests/approver.rb", "PunchCorrectionEffects.correction_approved(request: @request)\n" \
+                                                 "Requests::PunchCorrectionEffects.correction_cancelled(request: r)\n")
+      expect(boundary.matches_in("app/services/requests/approver.rb", boundary::WRITE_OPERATIONS).size).to eq(2)
+      expect(boundary.matches_in("app/services/requests/approver.rb", boundary::CONTRACT_NAME).size).to eq(2)
     end
 
     it "lets the implementation name the contract's value types" do

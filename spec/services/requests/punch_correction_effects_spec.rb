@@ -2,10 +2,11 @@ require "rails_helper"
 
 # Pilot 10 — Punch Correction, M2: the Workforce contract
 # Requests::PunchCorrectionEffects and its Attendance & Payroll implementation
-# Attendance::PunchCorrectionEffects. No caller is routed through it yet (M3);
-# correction_facts is implemented and must equal what
-# Requests::PunchCorrectionAssessment reads today, correction_approved /
-# correction_cancelled land with M3 + M4. The current approve / cancel behaviour
+# Attendance::PunchCorrectionEffects. Since M3 Requests::PunchCorrectionAssessment
+# reads its attendance facts through correction_facts
+# (punch_correction_assessment_routing_spec.rb); correction_facts must equal the
+# direct reads the assessment made before M3. correction_approved /
+# correction_cancelled land with M4. The current approve / cancel behaviour
 # stays pinned by spec/characterization/workforce/punch_correction_effects_spec.rb.
 RSpec.describe Requests::PunchCorrectionEffects do
   around { |ex| travel_to(Time.zone.local(2026, 7, 15, 12, 0, 0)) { ex.run } }
@@ -167,23 +168,39 @@ RSpec.describe Requests::PunchCorrectionEffects do
     end
   end
 
-  describe "Attendance::PunchCorrectionEffects.correction_facts — parity with Requests::PunchCorrectionAssessment" do
-    def facts_for(req, baseline: nil)
-      assessment = Requests::PunchCorrectionAssessment.for(req)
-      facts = described_class.correction_facts(request: req, field: req.correction_field,
-                                               effective_at: assessment.effective_at, baseline: baseline)
-      [ facts, assessment ]
+  # Since M3 the assessment itself reads these facts through the contract, so
+  # parity is measured against the direct Attendance & Payroll reads it made
+  # before (the oracle below), not against the assessment.
+  describe "Attendance::PunchCorrectionEffects.correction_facts — parity with the pre-M3 assessment reads" do
+    def oracle_for(req, effective_at, baseline)
+      window = Attendance::PunchWindow.for(user: req.user, work_date: req.requested_for_date)
+      record = AttendanceRecord.find_by(user: req.user, work_date: req.requested_for_date)
+      check_in_at  = baseline ? baseline.check_in_at  : record&.check_in_at
+      check_out_at = baseline ? baseline.check_out_at : record&.check_out_at
+      minutes = nil
+      if record && effective_at
+        copy = record.dup
+        copy.check_in_at  = req.correction_field == :check_in  ? effective_at : check_in_at
+        copy.check_out_at = req.correction_field == :check_out ? effective_at : check_out_at
+        Attendance::RecordRecomputer.recompute!(copy)
+        minutes = copy.worked_minutes
+      end
+      { inside_window: window.cover?(effective_at), check_in_at: check_in_at, check_out_at: check_out_at,
+        shift_name: window.shift&.name, shift_starts_at: window.shift_starts_at, shift_ends_at: window.shift_ends_at,
+        projected_worked_minutes: minutes,
+        duration_severity: Attendance::DurationCheck.severity(minutes, business: req.user.business) }
     end
 
-    def expect_parity(facts, assessment)
+    def facts_for(req, baseline: nil)
+      effective_at = Requests::PunchCorrectionApplier.effective_punch_at(request: req)
+      facts = described_class.correction_facts(request: req, field: req.correction_field,
+                                               effective_at: effective_at, baseline: baseline)
+      [ facts, oracle_for(req, effective_at, baseline) ]
+    end
+
+    def expect_parity(facts, expected)
       expect(facts).to be_a(described_class::Facts)
-      expect(facts.inside_window?).to eq(assessment.inside_window?)
-      expect(facts.check_in_at).to eq(assessment.original_check_in_at)
-      expect(facts.check_out_at).to eq(assessment.original_check_out_at)
-      expect(facts.shift_starts_at).to eq(assessment.window.shift_starts_at)
-      expect(facts.shift_ends_at).to eq(assessment.window.shift_ends_at)
-      expect(facts.projected_worked_minutes).to eq(assessment.projected_worked_minutes)
-      expect(facts.duration_severity).to eq(assessment.duration_severity)
+      expect(facts.to_h.except(:record_found, :shift_required_hours)).to eq(expected)
     end
 
     it "a check-in correction inside the window" do
@@ -258,15 +275,15 @@ RSpec.describe Requests::PunchCorrectionEffects do
     end
   end
 
-  describe "Attendance::PunchCorrectionEffects approval and cancellation (M3 + M4)" do
+  describe "Attendance::PunchCorrectionEffects approval and cancellation (M4)" do
     it "are not implemented yet and write nothing" do
       record = attendance
       req = correction("wrong_check_in_time", "09:00")
 
       expect { described_class.correction_approved(request: req, field: :check_in, effective_at: at(9)) }
-        .to raise_error(NotImplementedError, /M3 \+ M4/)
+        .to raise_error(NotImplementedError, /Pilot 10 M4/)
       expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot) }
-        .to raise_error(NotImplementedError, /M3 \+ M4/)
+        .to raise_error(NotImplementedError, /Pilot 10 M4/)
       expect(record.reload.check_in_at).to eq(at(9, 40))
       expect(req.reload.status).to eq("pending")
     end

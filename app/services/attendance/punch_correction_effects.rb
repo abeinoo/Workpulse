@@ -5,18 +5,18 @@ module Attendance
   #
   #   correction_facts     → the attendance window (Attendance::PunchWindow), the
   #                          record's projected recomputation (RecordRecomputer on
-  #                          an unsaved copy) and Attendance::DurationCheck — the
-  #                          same reads Requests::PunchCorrectionAssessment makes
-  #   correction_approved  → not yet implemented (M3 + M4)
-  #   correction_cancelled → not yet implemented (M3 + M4)
+  #                          an unsaved copy) and Attendance::DurationCheck; read by
+  #                          Requests::PunchCorrectionAssessment since M3
+  #   correction_approved  → not yet implemented (M4)
+  #   correction_cancelled → not yet implemented (M4)
   #
   # Approval and cancellation are still performed by Workforce
   # (Requests::PunchCorrectionApplier, Requests::Canceller#rollback_punch_correction).
   # Delegating to them from here would route Workforce through a contract that
   # calls straight back into Workforce (the circular shape rejected in Pilot 9
   # M3-B), so the two operations raise until their logic moves here in M4,
-  # together with the M3 routing of their callers. No caller uses this
-  # implementation in M2.
+  # together with the routing of their callers (decided in M3). Nothing calls
+  # them before M4.
   #
   # Calls nothing in Workforce.
   module PunchCorrectionEffects
@@ -36,6 +36,8 @@ module Attendance
         check_in_at:              check_in_at,
         check_out_at:             check_out_at,
         inside_window:            window.cover?(effective_at),
+        shift_name:               window.shift&.name,
+        shift_required_hours:     window.shift&.required_hours,
         shift_starts_at:          window.shift_starts_at,
         shift_ends_at:            window.shift_ends_at,
         projected_worked_minutes: projected,
@@ -44,11 +46,11 @@ module Attendance
     end
 
     def correction_approved(request:, field:, effective_at:)
-      raise NotImplementedError, "#{name}.correction_approved lands with Pilot 10 M3 + M4"
+      raise NotImplementedError, "#{name}.correction_approved lands with Pilot 10 M4"
     end
 
     def correction_cancelled(request:, field:, snapshot:)
-      raise NotImplementedError, "#{name}.correction_cancelled lands with Pilot 10 M3 + M4"
+      raise NotImplementedError, "#{name}.correction_cancelled lands with Pilot 10 M4"
     end
 
     # Worked minutes the record would have with the correction, recomputed on an

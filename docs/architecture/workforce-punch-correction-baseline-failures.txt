@@ -10,6 +10,9 @@
 # Results: before M1 the 17 files gave 382 examples, 1 failure (below) and the unblock specs 21 / 0; M1 adds 29.
 # M2 (contract + boundary specs run separately, 25 / 0): this set 432 / same 1 ID; request-area 1622 / same 27,
 #   under seeds 20261006, 12345 and 98765.
+# Date effect (2026-10-12, on unchanged e2aa155, all three seeds): the one ID passes from the 10th of the month on
+#   (attendance built at Date.current.beginning_of_month + 0..9); this set then gives 432 / 0 and the request-area set
+#   the recorded 27 minus this ID. The ID stays listed; a later step is compared with a same-day measurement.
 # The request-area set (workforce-request-permission-baseline-failures.txt, 1622 examples, 27 IDs) is compared too.
 # The one ID is the documented advance-eligibility example (permission-role-baseline-failures.txt / Pilot 9 set).
 #

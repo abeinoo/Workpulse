@@ -62,11 +62,14 @@ module Requests
     #   record_found             — an attendance record exists for the date
     #   check_in_at / _out_at    — its punches (or the baseline's)
     #   inside_window            — effective_at falls inside the expected attendance window
+    #   shift_name               — the shift assigned on that date (nil without one)
+    #   shift_required_hours     — its required hours (hour-based shifts; nil otherwise / without one)
     #   shift_starts_at / _ends_at — the scheduled shift on that date (nil without a fixed-time shift)
     #   projected_worked_minutes — worked minutes the record would have with the correction (nil if a punch is missing)
     #   duration_severity        — nil, :suspicious or :critical for the projected minutes
-    Facts = Struct.new(:record_found, :check_in_at, :check_out_at, :inside_window, :shift_starts_at, :shift_ends_at,
-                       :projected_worked_minutes, :duration_severity, keyword_init: true) do
+    Facts = Struct.new(:record_found, :check_in_at, :check_out_at, :inside_window, :shift_name, :shift_required_hours,
+                       :shift_starts_at, :shift_ends_at, :projected_worked_minutes, :duration_severity,
+                       keyword_init: true) do
       def record_found? = record_found
       def inside_window? = inside_window
     end
