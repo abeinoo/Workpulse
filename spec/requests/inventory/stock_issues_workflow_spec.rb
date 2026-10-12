@@ -103,7 +103,7 @@ RSpec.describe "Inventory::StockIssues workflow", type: :request do
     expect(issue.reload).to be_draft
   end
 
-  it "blocks destroying once submitted and editing once approved, but allows both while draft" do
+  it "blocks destroying once submitted and editing once issued, but allows both while draft" do
     receive_stock!(10)
     issue = draft_issue
 
@@ -120,6 +120,14 @@ RSpec.describe "Inventory::StockIssues workflow", type: :request do
     sign_in approver
     post approve_inventory_stock_issue_path(issue)
     expect(issue.reload).to be_approved
+
+    sign_in creator
+    get edit_inventory_stock_issue_path(issue)
+    expect(response).to have_http_status(:ok) # approved: Edit Request
+
+    sign_in confirmer
+    post confirm_inventory_stock_issue_path(issue)
+    expect(issue.reload).to be_issued
 
     sign_in creator
     get edit_inventory_stock_issue_path(issue)

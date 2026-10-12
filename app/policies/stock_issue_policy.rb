@@ -3,13 +3,13 @@ class StockIssuePolicy < ApplicationPolicy
   def show?    = index?
   def create?  = can?(:manage_inventory) || can?(:manage_stock_issues)
 
-  # Editing is allowed while a draft, and while pending approval ("Edit
-  # Request") — saving a pending issue withdraws it back to draft (see
-  # Inventory::StockIssueEditor), so an approver never approves lines that
-  # changed under them. Nothing that has reserved or moved stock (approved,
-  # issued) or reached a terminal state is editable. `record` may be the class
-  # itself for a bare permission check, so the status guard only applies once
-  # we have an actual instance.
+  # Editing is allowed while a draft, and while pending approval or approved
+  # ("Edit Request") — saving returns the issue to draft (see
+  # Inventory::StockIssueEditor), revoking any approval and its reservation,
+  # so no approval ever covers lines that changed after it. Issued (stock has
+  # moved — void instead) and terminal states are never editable. `record`
+  # may be the class itself for a bare permission check, so the status guard
+  # only applies once we have an actual instance.
   def update?  = create? && (!record.is_a?(StockIssue) || StockIssue::EDITABLE_STATUSES.include?(record.status))
 
   # Deleting and submitting stay draft-only.

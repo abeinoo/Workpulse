@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Inventory::StockIssues Edit Request (pending approval)", type: :request do
+RSpec.describe "Inventory::StockIssues Edit Request (pending approval or approved)", type: :request do
   let(:business)  { create(:business) }
   let(:warehouse) { business.warehouses.create!(name: "Main") }
   let(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
@@ -151,16 +151,102 @@ RSpec.describe "Inventory::StockIssues Edit Request (pending approval)", type: :
       expect(issue.warehouse_id).to eq(warehouse.id)
     end
 
-    it "refuses editing once approved, even with edit permission" do
-      business.goods_receipts.build(warehouse: warehouse, received_on: Date.current).tap do |r|
-        r.items.build(product: product, quantity: 10, unit_cost: 10)
-        Inventory::GoodsReceiptPoster.new(r).call
-      end
+    it "refuses editing once issued, even with edit permission" do
+      receive!
       Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: approver).approve!
+      Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: approver).call
+      expect(issue.reload).to be_issued
+
+      sign_in creator
+      get edit_inventory_stock_issue_path(issue)
+      expect(response).to redirect_to(root_path).or have_http_status(:forbidden)
+      patch inventory_stock_issue_path(issue), params: update_params(quantity: 5, lock_token: issue.lock_token)
+      expect(issue.reload).to be_issued
+      expect(issue.items.count).to eq(1)
+
+      get inventory_stock_issue_path(issue)
+      expect(response.body).to include("issued-not-editable-hint")
+      expect(response.body).not_to include("edit-stock-issue")
+    end
+
+    it "refuses editing an approved issue for users without edit permission or warehouse access" do
+      receive!
+      Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: approver).approve!
+      scoped = role_user(%w[view_inventory manage_stock_issues])
+      WarehouseAssignment.create!(user: scoped, warehouse: business.warehouses.create!(name: "Other"))
+
+      [ approver, viewer, scoped ].each do |user|
+        sign_in user
+        begin
+          patch inventory_stock_issue_path(issue), params: update_params(quantity: 5, lock_token: issue.reload.lock_token)
+        rescue ActiveRecord::RecordNotFound
+          # raised through in the test env — equally a refusal
+        end
+        expect(issue.reload).to be_approved
+        expect(issue.approved_by).to eq(approver)
+      end
+    end
+  end
+
+  def receive!
+    business.goods_receipts.build(warehouse: warehouse, received_on: Date.current).tap do |r|
+      r.items.build(product: product, quantity: 10, unit_cost: 10)
+      r.items.build(product: product2, quantity: 10, unit_cost: 5)
+      Inventory::GoodsReceiptPoster.new(r).call
+    end
+  end
+
+  describe "approved issue" do
+    before do
+      receive!
+      Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: approver).approve!
+      issue.reload
+    end
+
+    it "shows Edit Request and an approval-revocation warning with a confirmation on save" do
+      sign_in creator
+      get inventory_stock_issue_path(issue)
+      expect(response.body).to include("edit-stock-issue")
+      expect(response.body).to include(I18n.t("inventory.stock_issues.edit_request"))
+
+      get edit_inventory_stock_issue_path(issue)
+      expect(response).to have_http_status(:ok)
+      warning = CGI.escapeHTML(I18n.t("inventory.stock_issues.edit_approved_warning"))
+      expect(response.body).to include("edit-request-warning")
+      expect(response.body.scan(warning).size).to eq(2) # banner + submit confirmation
+    end
+
+    it "saves, revokes the approval, returns to draft, and asks for resubmission" do
       sign_in creator
       patch inventory_stock_issue_path(issue), params: update_params(quantity: 5)
+
+      expect(flash[:notice]).to eq(I18n.t("inventory.stock_issues.approval_revoked_for_editing"))
+      issue.reload
+      expect(issue).to be_draft
+      expect(issue.approved_by_id).to be_nil
+
+      follow_redirect!
+      expect(response.body).to include(I18n.t("inventory.stock_issues.statuses.draft"))
+      expect(response.body).to include("resubmission-required-notice")
+      expect(response.body).to include(I18n.t("inventory.stock_issues.resubmit_for_approval"))
+      expect(response.body).to include(I18n.t("inventory.stock_issues.timeline.approval_revoked"))
+      expect(response.body).to include(I18n.t("inventory.stock_issues.timeline.approved")) # history kept
+    end
+
+    it "renders the edit form again, still approved, when a line is invalid" do
+      sign_in creator
+      patch inventory_stock_issue_path(issue), params: update_params(quantity: 0)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("edit-request-warning")
       expect(issue.reload).to be_approved
-      expect(issue.items.count).to eq(1)
+    end
+
+    it "shows Arabic labels" do
+      creator.update!(preferred_locale: "ar")
+      sign_in creator
+      get edit_inventory_stock_issue_path(issue, locale: :ar)
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("inventory.stock_issues.edit_approved_warning", locale: :ar)))
     end
   end
 

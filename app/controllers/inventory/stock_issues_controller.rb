@@ -61,7 +61,8 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @timeline_events = build_timeline_events
     # A draft that was withdrawn from approval must be resubmitted — label the
     # primary action accordingly.
-    @awaiting_resubmission = @stock_issue.draft? && @timeline_events.any? { |e| e[:type] == :reopened }
+    @awaiting_resubmission = @stock_issue.draft? &&
+                             @timeline_events.any? { |e| %i[reopened approval_revoked].include?(e[:type]) }
   end
 
   def new
@@ -94,7 +95,8 @@ class Inventory::StockIssuesController < Inventory::BaseController
   end
 
   # Draft or pending_approval ("Edit Request"). Saving a pending issue
-  # withdraws it to draft for resubmission — see Inventory::StockIssueEditor.
+  # withdraws it to draft for resubmission, and saving an approved one also
+  # revokes its approval and reservation — see Inventory::StockIssueEditor.
   def update
     @stock_issue = find_issue
     authorize @stock_issue
@@ -103,7 +105,10 @@ class Inventory::StockIssuesController < Inventory::BaseController
     result = Inventory::StockIssueEditor.new(stock_issue_id: @stock_issue.id, actor: current_user,
                                              attributes: issue_params, lock_token: params[:lock_token]).call
     if result.ok?
-      notice = t(result.reopened? ? "inventory.stock_issues.reopened_for_editing" : "inventory.stock_issues.updated")
+      notice = if result.approval_revoked? then t("inventory.stock_issues.approval_revoked_for_editing")
+      elsif result.reopened? then t("inventory.stock_issues.reopened_for_editing")
+      else t("inventory.stock_issues.updated")
+      end
       redirect_to inventory_stock_issue_path(@stock_issue), notice: notice
     elsif result.issue.nil? || !policy(result.issue).update?
       redirect_to inventory_stock_issue_path(@stock_issue), alert: result.error
@@ -307,7 +312,10 @@ class Inventory::StockIssuesController < Inventory::BaseController
   def load_options
     @warehouses = accessible_warehouses
     @branches   = current_user.business.branches.active.order(:name)
-    @products   = current_user.business.products.transactable.ordered
+    @products   = current_user.business.products.transactable.ordered.to_a
+    # One query for every option's barcode — the form renders the full product
+    # list once per line-item row.
+    @product_barcodes = Product.barcode_lookup(@products.map(&:id))
   end
 
   def issue_params
@@ -335,7 +343,8 @@ class Inventory::StockIssuesController < Inventory::BaseController
       when "submit_for_approval"
         events << { type: :submitted, time: log.created_at, actor: log.actor }
       when "reopen_for_editing"
-        events << { type: :reopened, time: log.created_at, actor: log.actor }
+        from = Array(log.changes_json["status"]).first
+        events << { type: from == "approved" ? :approval_revoked : :reopened, time: log.created_at, actor: log.actor }
       when "approve"
         events << { type: :approved, time: log.created_at, actor: log.actor }
       when "reject"

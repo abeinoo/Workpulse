@@ -69,9 +69,10 @@ module Inventory
     end
 
     # { product_id => quantity } this approval reserves — recorded on the audit
-    # entry so the allocation is traceable. Editing a pending issue withdraws
-    # it to draft under this same row lock (Inventory::StockIssueEditor), so
-    # once the lock is held and the status re-checked, the lines are final.
+    # entry so the allocation is traceable. Editing a pending (or approved)
+    # issue returns it to draft under this same row lock
+    # (Inventory::StockIssueEditor), so once the lock is held and the status
+    # re-checked, the lines are final.
     def reserved_quantities
       issue.items.group_by(&:product_id).transform_values { |items| items.sum { |i| i.quantity.to_d }.to_s }
     end

@@ -15,14 +15,19 @@ class StockIssue < ApplicationRecord
   # Inventory::StockIssueConfirmationService / StockIssuePoster, and the
   # #issued_only_from_approved validation below) — approval alone never
   # deducts stock. rejected/cancelled are terminal; there is no transition
-  # back out of them.
+  # back out of them. pending_approval/approved -> draft happens only when the
+  # issue is edited (Inventory::StockIssueEditor).
   enum :status, { draft: "draft", pending_approval: "pending_approval", approved: "approved",
                   rejected: "rejected", issued: "issued", cancelled: "cancelled" }
 
-  # Lines/header may change only before approval. Editing a pending_approval
-  # issue withdraws it to draft (see Inventory::StockIssueEditor) — it must be
-  # resubmitted, and no earlier submission counts as approval of new lines.
-  EDITABLE_STATUSES = %w[draft pending_approval].freeze
+  # Lines/header may change only before stock has moved. Editing a
+  # pending_approval or approved issue returns it to draft (see
+  # Inventory::StockIssueEditor) — it must be resubmitted and approved again;
+  # no earlier submission or approval counts for the new lines. Issued
+  # (stock moved — void instead), rejected and cancelled are never editable.
+  EDITABLE_STATUSES = %w[draft pending_approval approved].freeze
+  # Statuses an edit sends back to draft.
+  REOPENED_BY_EDIT_STATUSES = %w[pending_approval approved].freeze
 
   belongs_to :business
   belongs_to :warehouse

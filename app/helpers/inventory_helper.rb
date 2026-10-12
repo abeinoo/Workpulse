@@ -218,6 +218,7 @@ module InventoryHelper
   STOCK_ISSUE_TIMELINE_MARKER_CLASSES = {
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
     reopened: "activity-timeline__marker--neutral",
+    approval_revoked: "activity-timeline__marker--warning",
     approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
     issued: "activity-timeline__marker--success", issued_legacy: "activity-timeline__marker--success",
     cancelled: "activity-timeline__marker--neutral", voided: "activity-timeline__marker--danger"
@@ -240,8 +241,15 @@ module InventoryHelper
   # only the label differs (see the timeline.issued_legacy locale key).
   STOCK_ISSUE_TIMELINE_ICONS[:issued_legacy] = STOCK_ISSUE_TIMELINE_ICONS[:issued]
   # Pencil — returned to draft for editing.
+  STOCK_ISSUE_TIMELINE_ICONS[:approval_revoked] = STOCK_ISSUE_TIMELINE_ICONS[:rejected]
   STOCK_ISSUE_TIMELINE_ICONS[:reopened] = "m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
   STOCK_ISSUE_TIMELINE_ICONS.freeze
+
+  # Edit-form warning for an issue that saving will return to draft: an
+  # approved issue also loses its approval and stock reservation.
+  def stock_issue_edit_warning_key(stock_issue)
+    stock_issue.approved? ? "inventory.stock_issues.edit_approved_warning" : "inventory.stock_issues.edit_request_warning"
+  end
 
   def stock_issue_timeline_icon(type)
     STOCK_ISSUE_TIMELINE_ICONS.fetch(type, STOCK_ISSUE_TIMELINE_ICONS[:created])
@@ -252,6 +260,37 @@ module InventoryHelper
   # client-side without a server round-trip; default supplier is carried for the
   # goods-receipt supplier prefill. Shared by every document form so scanning
   # behaves identically everywhere.
+  # The same <option>s as #inventory_product_options, rendered ONCE for a form
+  # with many line-item rows (every row lists the whole catalog): barcodes come
+  # from a bulk Product.barcode_lookup (same primary/first rule as
+  # Product#barcode) instead of one or two queries per product per row. Each
+  # row then takes this HTML through #inventory_product_select_options.
+  def inventory_product_options_html(products, barcodes:)
+    options_for_select(
+      products.map { |p|
+        barcode = barcodes[p.id]
+        [ "#{p.name} (#{p.sku})", p.id, {
+          "data-barcode"             => barcode,
+          "data-barcodes"            => barcode.to_s,
+          "data-sku"                 => p.sku,
+          "data-default-supplier-id" => p.default_supplier_id
+        } ]
+      }
+    )
+  end
+
+  # Marks one row's selected product in the pre-rendered option list — the
+  # exact markup options_for_select(rows, selected_id) produces. Safe as a
+  # string edit: `value` is always an option's last attribute, and every quote
+  # inside labels/attribute values is escaped, so ` value="ID">` can only be
+  # that option's own value attribute.
+  def inventory_product_select_options(options_html, selected_id)
+    return options_html if selected_id.blank?
+
+    value = %( value="#{ERB::Util.html_escape(selected_id)}">)
+    options_html.sub(value) { %( selected="selected"#{value}) }.html_safe
+  end
+
   def inventory_product_options(products, selected_id)
     options_for_select(
       products.map { |p|

@@ -40,9 +40,23 @@ RSpec.describe StockIssuePolicy, type: :policy do
       expect(policy.submit?).to be false
     end
 
-    it "blocks editing once approved, issued, rejected, or cancelled" do
-      %w[approved issued rejected cancelled].each do |status|
+    it "allows editing an approved issue (Edit Request), but not deleting or submitting it" do
+      policy = described_class.new(creator, build_issue(status: "approved"))
+      expect(policy.update?).to be true
+      expect(policy.destroy?).to be false
+      expect(policy.submit?).to be false
+    end
+
+    it "blocks editing once issued, rejected, or cancelled" do
+      %w[issued rejected cancelled].each do |status|
         expect(described_class.new(creator, build_issue(status: status)).update?).to be(false), status
+      end
+    end
+
+    it "blocks approvers, confirmers, and viewers from editing an approved issue" do
+      issue = build_issue(status: "approved")
+      [ approver, confirmer, viewer ].each do |user|
+        expect(described_class.new(user, issue).update?).to be(false)
       end
     end
 

@@ -131,10 +131,21 @@ RSpec.describe "Stock issue reservations", type: :model do
       expect(reserved).to eq(1)
     end
 
-    it "does not allow editing an approved issue, so its reservation can't change under it" do
-      issue = build_issue(1, status: :approved)
-      policy = StockIssuePolicy.new(create(:user, :super_admin, business: business), issue)
-      expect(policy.update?).to be(false)
+    it "never changes an approved issue's lines in place: editing releases the reservation and returns it to draft" do
+      receive!(5)
+      issue = build_issue(2)
+      expect(approve(issue)).to be_ok
+      expect(reserved).to eq(2)
+
+      result = Inventory::StockIssueEditor.new(
+        stock_issue_id: issue.id, actor: requester, lock_token: issue.reload.lock_token,
+        attributes: { items_attributes: { "0" => { id: issue.items.first.id, product_id: sugar.id, quantity: 4 } } }
+      ).call
+
+      expect(result).to be_ok
+      expect(issue.reload).to be_draft
+      expect(reserved).to eq(0) # nothing reserved for lines nobody approved
+      expect(issue.items.first.quantity.to_i).to eq(4)
     end
 
     it "makes newly received stock available to issues that were short" do
