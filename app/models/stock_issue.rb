@@ -19,6 +19,11 @@ class StockIssue < ApplicationRecord
   enum :status, { draft: "draft", pending_approval: "pending_approval", approved: "approved",
                   rejected: "rejected", issued: "issued", cancelled: "cancelled" }
 
+  # Lines/header may change only before approval. Editing a pending_approval
+  # issue withdraws it to draft (see Inventory::StockIssueEditor) — it must be
+  # resubmitted, and no earlier submission counts as approval of new lines.
+  EDITABLE_STATUSES = %w[draft pending_approval].freeze
+
   belongs_to :business
   belongs_to :warehouse
   # The branch that consumed the issued stock — feeds branch profitability.
@@ -99,6 +104,15 @@ class StockIssue < ApplicationRecord
   # unavailable contribute nothing — flagged via #cost_unavailable?.
   def total_value
     items.sum { |item| item.effective_total_cost || 0 }
+  end
+
+  # Optimistic-concurrency token for the edit form: the row's updated_at at the
+  # moment the form was rendered. Inventory::StockIssueEditor refuses a save
+  # whose token no longer matches (someone else saved in between) instead of
+  # silently overwriting the newer lines. Every successful edit touches the
+  # row, so line-only changes advance it too.
+  def lock_token
+    updated_at&.utc&.iso8601(6)
   end
 
   def cost_estimated?

@@ -1,15 +1,27 @@
 class StockIssueItem < ApplicationRecord
-  belongs_to :stock_issue
+  # touch: any line write (form, import resolver, poster) advances the parent's
+  # updated_at — the edit form's lock_token (StockIssue#lock_token) — so a
+  # stale form is detected even when only lines changed.
+  belongs_to :stock_issue, touch: true
   belongs_to :product
 
   has_one :business, through: :stock_issue
 
   validates :quantity, numericality: { greater_than: 0 }
   validate  :product_is_transactable
+  validate  :product_in_same_business
 
   def product_is_transactable
     return unless product
     errors.add(:product_id, :parent_not_allowed) if Product.where(parent_product_id: product.id).exists?
+  end
+
+  # Line product ids come straight from form params — never trust one that
+  # belongs to another business.
+  def product_in_same_business
+    return if product.nil? || stock_issue.nil? || stock_issue.business_id.nil?
+
+    errors.add(:product_id, :invalid) if product.business_id != stock_issue.business_id
   end
 
   before_validation :compute_total_cost

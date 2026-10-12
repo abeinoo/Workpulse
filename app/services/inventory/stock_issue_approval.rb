@@ -33,7 +33,8 @@ module Inventory
     def approve!
       return self_approval_error if self_approval?
 
-      transition(to: "approved", action: "approve", metadata: { reserved: reserved_quantities }) do
+      # Metadata is built after the lock (lazily), from the lines actually approved.
+      transition(to: "approved", action: "approve", metadata: -> { { reserved: reserved_quantities } }) do
         StockAvailability.lock_products!(issue.items.map(&:product_id))
         next issue.errors.full_messages.to_sentence unless StockAvailability.validate!(issue)
 
@@ -68,8 +69,9 @@ module Inventory
     end
 
     # { product_id => quantity } this approval reserves — recorded on the audit
-    # entry so the allocation is traceable. A pending issue isn't editable
-    # (StockIssuePolicy#update?), so its lines can't change under the lock.
+    # entry so the allocation is traceable. Editing a pending issue withdraws
+    # it to draft under this same row lock (Inventory::StockIssueEditor), so
+    # once the lock is held and the status re-checked, the lines are final.
     def reserved_quantities
       issue.items.group_by(&:product_id).transform_values { |items| items.sum { |i| i.quantity.to_d }.to_s }
     end
@@ -98,8 +100,16 @@ module Inventory
       error = nil
       ActiveRecord::Base.transaction do
         issue.lock!
+        issue.items.reset # never approve lines loaded before the lock
         unless issue.pending_approval?
           error = I18n.t("inventory.stock_issues.errors.invalid_transition")
+          raise ActiveRecord::Rollback
+        end
+        # Re-checked under the lock: an edit + resubmission
+        # (Inventory::StockIssueEditor) may have changed the submitter since
+        # the pre-check in #approve!/#reject!.
+        if self_approval?
+          error = Approvals::SelfApproval.error_message
           raise ActiveRecord::Rollback
         end
 
@@ -110,7 +120,8 @@ module Inventory
         issue.status = to
         issue.save!
         log_audit(actor: @actor, auditable: issue, action: action,
-                  changes: { status: [ from_status, to ] }, metadata: metadata)
+                  changes: { status: [ from_status, to ] },
+                  metadata: metadata.respond_to?(:call) ? metadata.call : metadata)
       end
       return Result.new(ok: false, issue: issue, error: error) if error
 

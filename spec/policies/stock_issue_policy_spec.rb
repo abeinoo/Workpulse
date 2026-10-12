@@ -32,12 +32,24 @@ RSpec.describe StockIssuePolicy, type: :policy do
       expect(policy.submit?).to be true
     end
 
-    it "blocks editing once submitted" do
+    it "allows editing a pending issue (Edit Request) but not deleting or re-submitting it" do
       issue = build_issue(status: "pending_approval")
       policy = described_class.new(creator, issue)
-      expect(policy.update?).to be false
+      expect(policy.update?).to be true
       expect(policy.destroy?).to be false
       expect(policy.submit?).to be false
+    end
+
+    it "blocks editing once approved, issued, rejected, or cancelled" do
+      %w[approved issued rejected cancelled].each do |status|
+        expect(described_class.new(creator, build_issue(status: status)).update?).to be(false), status
+      end
+    end
+
+    it "blocks a plain viewer and an approver-only user from editing a pending issue" do
+      issue = build_issue(status: "pending_approval")
+      expect(described_class.new(viewer, issue).update?).to be false
+      expect(described_class.new(approver, issue).update?).to be false
     end
 
     it "blocks a plain viewer from editing a draft" do

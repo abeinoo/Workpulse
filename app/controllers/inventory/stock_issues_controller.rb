@@ -59,6 +59,9 @@ class Inventory::StockIssuesController < Inventory::BaseController
     end
     @audit_logs      = AuditLog.for_auditable(@stock_issue).recent.includes(:actor)
     @timeline_events = build_timeline_events
+    # A draft that was withdrawn from approval must be resubmitted — label the
+    # primary action accordingly.
+    @awaiting_resubmission = @stock_issue.draft? && @timeline_events.any? { |e| e[:type] == :reopened }
   end
 
   def new
@@ -90,16 +93,23 @@ class Inventory::StockIssuesController < Inventory::BaseController
     load_options
   end
 
+  # Draft or pending_approval ("Edit Request"). Saving a pending issue
+  # withdraws it to draft for resubmission — see Inventory::StockIssueEditor.
   def update
     @stock_issue = find_issue
     authorize @stock_issue
-    @stock_issue.assign_attributes(issue_params)
-    ensure_warehouses_accessible!(@stock_issue.warehouse_id)
+    ensure_warehouses_accessible!(issue_params[:warehouse_id].presence || @stock_issue.warehouse_id)
 
-    result = Inventory::StockIssueDraftService.new(@stock_issue, actor: current_user).call
+    result = Inventory::StockIssueEditor.new(stock_issue_id: @stock_issue.id, actor: current_user,
+                                             attributes: issue_params, lock_token: params[:lock_token]).call
     if result.ok?
-      redirect_to inventory_stock_issue_path(@stock_issue), notice: t("inventory.stock_issues.updated")
+      notice = t(result.reopened? ? "inventory.stock_issues.reopened_for_editing" : "inventory.stock_issues.updated")
+      redirect_to inventory_stock_issue_path(@stock_issue), notice: notice
+    elsif result.issue.nil? || !policy(result.issue).update?
+      redirect_to inventory_stock_issue_path(@stock_issue), alert: result.error
     else
+      @stock_issue = result.issue
+      flash.now[:alert] = result.error if @stock_issue.errors.empty?
       load_options
       render :edit, status: :unprocessable_entity
     end
@@ -324,6 +334,8 @@ class Inventory::StockIssuesController < Inventory::BaseController
       case log.action
       when "submit_for_approval"
         events << { type: :submitted, time: log.created_at, actor: log.actor }
+      when "reopen_for_editing"
+        events << { type: :reopened, time: log.created_at, actor: log.actor }
       when "approve"
         events << { type: :approved, time: log.created_at, actor: log.actor }
       when "reject"

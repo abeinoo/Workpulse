@@ -82,6 +82,7 @@ module InventoryHelper
   # as presentation-only lookups so the view never branches on event type.
   GOODS_RECEIPT_TIMELINE_MARKER_CLASSES = {
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
+    reopened: "activity-timeline__marker--neutral",
     approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
     settled: "activity-timeline__marker--accent", received: "activity-timeline__marker--success",
     voided: "activity-timeline__marker--danger", settlement_reversed: "activity-timeline__marker--warning"
@@ -216,6 +217,7 @@ module InventoryHelper
   # same icon set as goods receipts for the events they share.
   STOCK_ISSUE_TIMELINE_MARKER_CLASSES = {
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
+    reopened: "activity-timeline__marker--neutral",
     approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
     issued: "activity-timeline__marker--success", issued_legacy: "activity-timeline__marker--success",
     cancelled: "activity-timeline__marker--neutral", voided: "activity-timeline__marker--danger"
@@ -237,6 +239,8 @@ module InventoryHelper
   # issued_legacy reuses the exact same icon as issued (see #stock_issue_timeline_icon) —
   # only the label differs (see the timeline.issued_legacy locale key).
   STOCK_ISSUE_TIMELINE_ICONS[:issued_legacy] = STOCK_ISSUE_TIMELINE_ICONS[:issued]
+  # Pencil — returned to draft for editing.
+  STOCK_ISSUE_TIMELINE_ICONS[:reopened] = "m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
   STOCK_ISSUE_TIMELINE_ICONS.freeze
 
   def stock_issue_timeline_icon(type)
