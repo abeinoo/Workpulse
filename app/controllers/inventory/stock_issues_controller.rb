@@ -1,4 +1,6 @@
 class Inventory::StockIssuesController < Inventory::BaseController
+  PER_PAGE = 25
+
   def index
     authorize StockIssue
     base = policy_scope(StockIssue).excluding_incomplete_imports
@@ -40,8 +42,17 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @total_documents_count = base.count
     @total_value           = StockIssueItem.joins(:stock_issue).merge(base.issued.active).sum(:total_cost)
     @filtered_count        = @stock_issues.count
-    # Pending/approved issues that couldn't be approved/confirmed right now
-    # (two queries for the whole list — see StockAvailability).
+
+    # Only one page of issues (with their lines and products) is ever loaded —
+    # the unpaginated list grew without bound and loaded every line of every
+    # issue into memory on each visit.
+    @page        = [ params[:page].to_i, 1 ].max
+    @total_pages = [ (@filtered_count.to_f / PER_PAGE).ceil, 1 ].max
+    @page        = @total_pages if @page > @total_pages
+    @stock_issues = @stock_issues.limit(PER_PAGE).offset((@page - 1) * PER_PAGE).to_a
+
+    # Pending/approved issues on this page that couldn't be approved/confirmed
+    # right now (two queries for the whole page — see StockAvailability).
     @unfulfillable_issue_ids = Inventory::StockAvailability.unfulfillable_issue_ids(@stock_issues)
   end
 

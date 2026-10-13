@@ -186,4 +186,69 @@ RSpec.describe "Inventory::StockIssues#index", type: :request do
       expect(response.body).to include(I18n.t("inventory.imports.import_csv"))
     end
   end
+
+  describe "pagination" do
+    def draft_issues(count, branch: branch_a)
+      Array.new(count) do |i|
+        issue = business.stock_issues.build(warehouse: warehouse_a, branch: branch, status: :draft,
+                                            issued_on: Date.current - i)
+        issue.items.build(product: product, quantity: 1)
+        issue.save!
+        issue
+      end
+    end
+
+    def listed_numbers
+      Nokogiri::HTML(response.body).css("tbody tr td:first-child a").map { |a| a.text.squish }
+    end
+
+    it "lists one page of 25 issues, newest first, with the rest on the next page" do
+      issues = draft_issues(27) # issues[0] is newest
+
+      get inventory_stock_issues_path
+      expect(listed_numbers).to eq(issues.first(25).map(&:issue_number))
+      expect(response.body).to include(inventory_stock_issues_path(page: 2))
+
+      get inventory_stock_issues_path(page: 2)
+      expect(listed_numbers).to eq(issues.last(2).map(&:issue_number))
+    end
+
+    it "clamps an out-of-range page to the last page" do
+      issues = draft_issues(27)
+
+      get inventory_stock_issues_path(page: 99)
+
+      expect(listed_numbers).to eq(issues.last(2).map(&:issue_number))
+    end
+
+    it "keeps the summary counts for the whole set, not just the page" do
+      draft_issues(27)
+
+      get inventory_stock_issues_path(page: 2)
+
+      values = Nokogiri::HTML(response.body).css(".stat-card__value").map { |n| n.text.squish }
+      expect(values.first).to eq("27") # total documents
+      expect(values.last).to eq("27")  # filtered results
+    end
+
+    it "carries the active filters into the page links" do
+      draft_issues(26, branch: branch_b)
+
+      get inventory_stock_issues_path(branch_id: branch_b.id)
+
+      expect(response.body).to include(ERB::Util.html_escape(inventory_stock_issues_path(branch_id: branch_b.id, page: 2)))
+    end
+
+    it "loads a bounded number of rows no matter how many issues exist" do
+      draft_issues(3)
+      get inventory_stock_issues_path # warm-up
+      small = count_queries { get inventory_stock_issues_path }
+
+      draft_issues(40)
+      large = count_queries { get inventory_stock_issues_path }
+
+      expect(listed_numbers.size).to eq(25)
+      expect(large).to eq(small)
+    end
+  end
 end
