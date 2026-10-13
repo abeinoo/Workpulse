@@ -5,6 +5,13 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     def net_amount = collected_amount - refund_amount
   end
 
+  # Columns the index's issue badges read (Comparator + payment-method gate +
+  # employee totals). Excludes sales_transactions.raw_data (jsonb), which was
+  # loaded and decoded for every row on the page without ever being read.
+  SALES_BADGE_COLUMNS = %i[id daily_reconciliation_id payment_method_name cashier_name
+                           amount reference_number transaction_date transaction_time].freeze
+  POS_BADGE_COLUMNS   = %i[id branch_id amount reference_number transaction_date].freeze
+
   before_action :set_reconciliation, only: %i[show verify assign_depositor transfer_deposit_responsibility
                                                edit_opening_float update_opening_float_amounts receive_opening_float
                                                edit_session_totals update_session_totals
@@ -1411,8 +1418,10 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     pos_verification_method_ids = biz_payment_methods.select(&:include_in_pos_verification).map(&:id).to_set
 
     # One query for the whole page — every Sales Transaction belonging to
-    # any of these DRs, grouped in Ruby by daily_reconciliation_id.
-    sales_by_dr = SalesTransaction.where(daily_reconciliation_id: drs.map(&:id)).group_by(&:daily_reconciliation_id)
+    # any of these DRs, grouped in Ruby by daily_reconciliation_id. Kept in
+    # @index_sales_by_dr so build_employee_issue_badges reuses it instead of
+    # re-querying (its DRs are always a subset of these).
+    sales_by_dr = @index_sales_by_dr = index_sales_transactions_by_dr(drs.map(&:id))
 
     # One query for the whole page — every PosTransaction for any branch/date
     # combination appearing in this list, grouped in Ruby by
@@ -1431,6 +1440,7 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       pos_by_branch_date = PosTransaction
         .where(branch_id: dated_drs.map(&:branch_id).uniq, business_id: business.id)
         .where(transaction_date: range_start...range_end)
+        .select(POS_BADGE_COLUMNS)
         .to_a
         .group_by { |t| [ t.branch_id, t.transaction_date.in_time_zone(tz).to_date ] }
     end
@@ -1438,13 +1448,17 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @pos_unmatched_count_by_dr   = {}
     @sales_unmatched_count_by_dr = {}
 
+    # Same gate per row, resolved once per distinct payment_method_name
+    # (a handful of values across thousands of rows).
+    pos_verification_name = Hash.new do |h, name|
+      pm_id = pm_id_by_english_name[name.downcase.strip] || name
+      h[name] = pos_verification_method_ids.include?(pm_id)
+    end
+
     drs.each do |dr|
       next unless dr.business_date
 
-      sales_for_dr = (sales_by_dr[dr.id] || []).select do |txn|
-        pm_id = pm_id_by_english_name[txn.payment_method_name.downcase.strip] || txn.payment_method_name
-        pos_verification_method_ids.include?(pm_id)
-      end
+      sales_for_dr = (sales_by_dr[dr.id] || []).select { |txn| pos_verification_name[txn.payment_method_name] }
       pos_for_dr = pos_by_branch_date[[ dr.branch_id, dr.business_date ]] || []
       next if sales_for_dr.empty? && pos_for_dr.empty?
 
@@ -1476,7 +1490,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     dr_ids = drs.map(&:id)
     return if dr_ids.empty?
 
-    sales_by_dr = SalesTransaction.where(daily_reconciliation_id: dr_ids).group_by(&:daily_reconciliation_id)
+    # Reuses the rows build_dr_issue_badges already loaded for the wider
+    # all_drs set (drs is always a subset of it); only queries when that
+    # builder didn't load them (viewer without the POS verification gate).
+    sales_by_dr = if @index_sales_by_dr
+      @index_sales_by_dr.slice(*dr_ids)
+    else
+      index_sales_transactions_by_dr(dr_ids)
+    end
 
     # Finance::EmployeeReconciliationSummarizer re-walks the handover graph
     # per DR (see its own class comment), but the query it runs to do so
@@ -1497,12 +1518,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       {}
     end
 
+    cashier_key = Hash.new { |h, name| h[name] = name.to_s.downcase.strip }
+
     drs.each do |dr|
       sales_for_dr = sales_by_dr[dr.id]
       next if sales_for_dr.blank?
 
       sales_total_by_cashier = sales_for_dr
-        .group_by { |txn| txn.cashier_name.to_s.downcase.strip }
+        .group_by { |txn| cashier_key[txn.cashier_name] }
         .transform_values { |txns| txns.sum(&:amount) }
 
       summarizer = Finance::EmployeeReconciliationSummarizer.new(dr, preloaded_handovers: handovers_by_dr[dr.id] || [])
@@ -1516,6 +1539,14 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         @employee_sales_issues_by_dr[dr.id] << { user: summary.user, amount: employee_difference.abs }
       end
     end
+  end
+
+  # { daily_reconciliation_id => [SalesTransaction, ...] } for the index's
+  # issue badges, limited to SALES_BADGE_COLUMNS.
+  def index_sales_transactions_by_dr(dr_ids)
+    SalesTransaction.where(daily_reconciliation_id: dr_ids)
+                    .select(SALES_BADGE_COLUMNS)
+                    .group_by(&:daily_reconciliation_id)
   end
 
   # ── Redesign display aggregates ─────────────────────────────────────────────

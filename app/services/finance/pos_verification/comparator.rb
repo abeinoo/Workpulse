@@ -80,18 +80,27 @@ module Finance
       end
 
       def call
-        @pending_sales = @sales.sort_by(&:id)
-        @pool_pos      = @pos.sort_by(&:id)
-        @matched       = []
+        @pending_sales  = @sales.sort_by(&:id)
+        @pool_pos       = @pos.sort_by(&:id)
+        @matched        = []
+        @consumed_sales = Set.new
+        @consumed_pos   = Set.new
 
         run_reference_tier!
+        drop_consumed!
         run_amount_date_time_window_tier!
+        drop_consumed!
 
         Result.new(matched_pairs: @matched, missing_from_pos: @pending_sales, extra_in_pos: @pool_pos)
       end
 
       private
 
+      # POS rows are grouped by normalized reference once, up front (pool
+      # order, i.e. ascending id, is kept within each group). Equivalent to
+      # re-selecting from the live pool per bucket: a POS row can only be
+      # consumed by the bucket of its own reference, and each reference is
+      # visited once, so a group never contains a row consumed earlier.
       def run_reference_tier!
         buckets = {}
         @pending_sales.each do |s|
@@ -99,10 +108,13 @@ module Finance
           next if ref.blank?
           (buckets[ref] ||= []) << s
         end
+        return if buckets.empty?
+
+        pos_by_ref = @pool_pos.group_by { |p| normalize_ref(p.reference_number) }
 
         buckets.each do |ref, sales_group|
-          pos_group = @pool_pos.select { |p| normalize_ref(p.reference_number) == ref }
-          next if pos_group.empty?
+          pos_group = pos_by_ref[ref]
+          next if pos_group.nil?
 
           resolve_bucket!(sales_group, pos_group, :reference_number)
         end
@@ -115,23 +127,46 @@ module Finance
       # TIME_WINDOW) is the right partner, not simply the Nth by id. Once a
       # pair is committed, both records are consumed (see commit_match!) and
       # can never be matched again.
+      #
+      # The remaining pool is grouped once by (amount, calendar date) — the
+      # two equality conditions every candidate must meet — keeping ascending
+      # id order within each group, so each Sales Transaction scans only its
+      # own amount/date candidates instead of the whole pool. A claimed row is
+      # removed from its group. The scan keeps the FIRST row (in id order)
+      # with the smallest time difference — exactly what select + min_by did.
       def run_amount_date_time_window_tier!
         buckets = {}
         @pending_sales.each { |s| (buckets[s.amount] ||= []) << s }
+        return if buckets.empty?
+
+        candidates = @pool_pos.group_by { |p| [ amount_key(p.amount), p.transaction_date&.to_date ] }
 
         buckets.each do |amount, sales_group|
-          next if @pool_pos.none? { |p| p.amount == amount }
+          key = amount_key(amount)
 
           sales_group.sort_by(&:id).each do |s|
             sales_timestamp = combined_timestamp(s)
             next if sales_timestamp.nil?
 
-            candidate = @pool_pos
-              .select { |p| p.amount == amount && p.transaction_date.to_date == s.transaction_date &&
-                            (p.transaction_date - sales_timestamp).abs <= TIME_WINDOW }
-              .min_by { |p| (p.transaction_date - sales_timestamp).abs }
+            pool = candidates[[ key, s.transaction_date ]]
+            next if pool.nil?
 
-            commit_match!(s, candidate, :amount_date_time_window) if candidate
+            candidate = nil
+            best_gap  = nil
+            pool.each do |p|
+              gap = (p.transaction_date - sales_timestamp).abs
+              next if gap > TIME_WINDOW
+
+              if best_gap.nil? || gap < best_gap
+                candidate = p
+                best_gap  = gap
+              end
+            end
+
+            next unless candidate
+
+            commit_match!(s, candidate, :amount_date_time_window)
+            pool.delete(candidate)
           end
         end
       end
@@ -150,14 +185,33 @@ module Finance
         end
       end
 
+      # Consumption is recorded in sets and applied to @pending_sales/@pool_pos
+      # by drop_consumed! between tiers — nothing reads those arrays mid-tier
+      # (each tier works from its own groups), and Set membership uses the
+      # records' own eql?/hash (ActiveRecord: same class + id), so the result
+      # is exactly what deleting every equal element on each match produced,
+      # without an O(n) Array#delete per match.
       def commit_match!(sales_transaction, pos_transaction, method)
         @matched << MatchedPair.new(sales_transaction: sales_transaction, pos_transaction: pos_transaction, method: method)
-        @pending_sales.delete(sales_transaction)
-        @pool_pos.delete(pos_transaction)
+        @consumed_sales << sales_transaction
+        @consumed_pos << pos_transaction
+      end
+
+      def drop_consumed!
+        @pending_sales.reject! { |s| @consumed_sales.include?(s) } if @consumed_sales.any?
+        @pool_pos.reject! { |p| @consumed_pos.include?(p) } if @consumed_pos.any?
       end
 
       def normalize_ref(str)
         str.to_s.strip.downcase.gsub(/\s+/, "")
+      end
+
+      # Hash key standing in for the tier's `p.amount == amount` test.
+      # BigDecimal hashes by value regardless of scale (POS amounts are
+      # scale 2, Sales scale 4), so equal amounts share a key — except
+      # 0 vs -0, which are == but hash differently, so zero is normalized.
+      def amount_key(amount)
+        amount.respond_to?(:zero?) && amount.zero? ? 0 : amount
       end
 
       def combined_timestamp(sales_transaction)
