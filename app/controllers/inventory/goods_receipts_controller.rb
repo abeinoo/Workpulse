@@ -195,7 +195,13 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   def load_options
     @warehouses      = accessible_warehouses
     @suppliers       = current_user.business.suppliers.ordered
-    @products        = current_user.business.products.transactable.ordered
+    @products        = current_user.business.products.transactable.ordered.to_a
+    # Request-line rows render their own (possibly no longer transactable)
+    # product: load those once, and resolve every product's barcode in one
+    # query — instead of one or two barcode queries per product per row.
+    lines = @goods_receipt.items.to_a
+    ActiveRecord::Associations::Preloader.new(records: lines, associations: :product).call
+    @product_barcodes = Product.barcode_lookup(@products.map(&:id) + lines.map(&:product_id))
     @custody_account = own_custody_account
     @custody_balance = @custody_account&.computed_balance
   end

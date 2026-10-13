@@ -291,6 +291,10 @@ module InventoryHelper
     options_html.sub(value) { %( selected="selected"#{value}) }.html_safe
   end
 
+  # Reference implementation only — retained so specs can prove the batched
+  # path (#inventory_product_options_html + #inventory_product_select_options)
+  # renders identical markup. Do not use it in application views/controllers:
+  # it runs one or two barcode queries per product, per call.
   def inventory_product_options(products, selected_id)
     options_for_select(
       products.map { |p|

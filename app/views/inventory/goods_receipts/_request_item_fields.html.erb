@@ -1,6 +1,6 @@
 <%#
   One Purchase Request line on a receipt created from that request.
-  locals: f (item fields builder)
+  locals: f (item fields builder), barcodes ({ product_id => barcode }, Product.barcode_lookup)
 
   The product is the request line's own product: a one-option select keeps it
   fixed (GoodsReceiptItem#product_matches_purchase_request_item enforces it)
@@ -12,7 +12,8 @@
 <% qty = ->(n) { number_with_precision(n, precision: 3, strip_insignificant_zeros: true) } %>
 <tr data-line-row class="line-items-row--request">
   <td>
-    <%= f.select :product_id, inventory_product_options([ f.object.product ].compact, f.object.product_id),
+    <%= f.select :product_id, inventory_product_select_options(
+          inventory_product_options_html([ f.object.product ].compact, barcodes: barcodes), f.object.product_id),
           {}, class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
   </td>
   <td>

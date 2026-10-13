@@ -1,3 +1,4 @@
+<% product_options = inventory_product_options_html(@products, barcodes: @product_barcodes) %>
 <%
   cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
   cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
@@ -136,7 +137,7 @@
           <% goods_receipt.items.each_with_index do |item, index| %>
             <% next unless item.purchase_request_item %>
             <%= f.fields_for :items, item, child_index: index do |item_f| %>
-              <%= render "request_item_fields", f: item_f %>
+              <%= render "request_item_fields", f: item_f, barcodes: @product_barcodes %>
             <% end %>
           <% end %>
           <tr class="line-items-section">
@@ -148,12 +149,12 @@
           <% goods_receipt.items.each_with_index do |item, index| %>
             <% next if item.purchase_request_item %>
             <%= f.fields_for :items, item, child_index: index do |item_f| %>
-              <%= render "item_fields", f: item_f, products: @products, extra: true %>
+              <%= render "item_fields", f: item_f, product_options: product_options, extra: true %>
             <% end %>
           <% end %>
         <% else %>
           <%= f.fields_for :items do |item_f| %>
-            <%= render "item_fields", f: item_f, products: @products %>
+            <%= render "item_fields", f: item_f, product_options: product_options %>
           <% end %>
         <% end %>
       </tbody>
@@ -171,7 +172,7 @@
   <%# Template for new rows (index replaced by JS) %>
   <template data-line-items-target="template">
     <%= f.fields_for :items, GoodsReceiptItem.new, child_index: "NEW_INDEX" do |item_f| %>
-      <%= render "item_fields", f: item_f, products: @products, extra: linked_pr.present? %>
+      <%= render "item_fields", f: item_f, product_options: product_options, extra: linked_pr.present? %>
     <% end %>
   </template>
 

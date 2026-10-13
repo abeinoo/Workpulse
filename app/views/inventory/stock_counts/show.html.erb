@@ -100,7 +100,7 @@
              diff_class = !item.counted? ? "badge-neutral" : (diff.zero? ? "badge-success" : (diff.positive? ? "badge-warning" : "badge-danger")) %>
           <tr>
             <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %> <span class="td-secondary">(<%= item.product.sku %>)</span></td>
-            <td class="td-secondary"><%= item.product.barcode.presence || "—" %></td>
+            <td class="td-secondary"><%= @product_barcodes[item.product_id].presence || "—" %></td>
             <td style="text-align: end;"><%= item.system_quantity.to_i %></td>
             <td style="text-align: end;"><%= item.counted? ? item.counted_quantity.to_i : "—" %></td>
             <td style="text-align: end;">

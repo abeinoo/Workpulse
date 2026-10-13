@@ -1,7 +1,7 @@
 <tr data-line-row>
   <td>
     <%= f.select :product_id,
-          inventory_product_options(products, f.object.product_id),
+          inventory_product_select_options(product_options, f.object.product_id),
           { include_blank: "— #{t('inventory.goods_receipts.select_product')}" },
           class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
     <% if local_assigns[:extra] %>
