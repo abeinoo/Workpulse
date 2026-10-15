@@ -128,4 +128,34 @@ RSpec.describe Finance::Reports::VerifiedRevenue, type: :model do
       expect(scoped.any?).to eq(false)
     end
   end
+
+  describe "derived figures" do
+    it "keeps total equal to the sum of by_branch, including refunds and branch_ids narrowing" do
+      verified_dr(branch: branch, business_date: Date.current,
+                  collected: { cash_pm => 500, card_pm => 300 }, refund: { cash_pm => 50 })
+      verified_dr(branch: other_branch, business_date: Date.current, collected: { cash_pm => 120 })
+      unverified_dr(branch: branch, business_date: Date.current - 1, collected: 999) unless Date.current.day == 1
+
+      expect(service.by_branch).to eq(branch.id => 750, other_branch.id => 120)
+      expect(service.total).to eq(870)
+
+      scoped = described_class.new(business, from: Date.current.beginning_of_month, to: Date.current.end_of_month,
+                                   branch_ids: [ other_branch.id ])
+      expect(scoped.total).to eq(120)
+    end
+
+    it "answers total, any? and by_branch for one instance with a single query" do
+      verified_dr(branch: branch, business_date: Date.current, collected: { cash_pm => 500 })
+
+      queries = []
+      counter = ->(*, payload) { queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached] }
+      ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+        service.total
+        service.any?
+        service.by_branch
+      end
+
+      expect(queries.size).to eq(1)
+    end
+  end
 end

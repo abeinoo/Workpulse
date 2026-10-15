@@ -47,7 +47,7 @@ class Finance::DashboardController < Finance::BaseController
   # ── KPI cards ────────────────────────────────────────────────────────────
 
   def load_kpis
-    @kpi_expenses = period_over_period(->(from, to) { expenses_scope(from, to).sum(:amount) })
+    @kpi_expenses = period_over_period(->(from, to) { expenses_by_category(from, to).values.sum(0) })
 
     if @show_profitability
       @kpi_revenue                = period_over_period(->(from, to) { verified_revenue(from, to).total })
@@ -62,8 +62,12 @@ class Finance::DashboardController < Finance::BaseController
       # the filter-bar date range and the profitability chart's calendar
       # month (@focus_month) are intentionally different scopes (see class
       # comment above).
+      #
+      # The focus-month check reads the 12-month trend's by_month (fetched
+      # anyway by load_trend, same scope) — a month key exists iff a verified
+      # row exists in that month, which is exactly what any? answers.
       @has_period_revenue      = verified_revenue(@filters.from, @filters.to).any?
-      @has_focus_month_revenue = verified_revenue(@focus_month.beginning_of_month, @focus_month.end_of_month).any?
+      @has_focus_month_revenue = trend_revenue_by_month.key?(@focus_month)
     end
 
     @show_custody = current_user.can?(:view_employee_balances) || current_user.can?(:manage_employee_balances)
@@ -81,12 +85,17 @@ class Finance::DashboardController < Finance::BaseController
   # as-of-date balance rather than a period sum (previous = balance at the
   # end of the previous period, not a delta over it).
   def period_over_period(metric, snapshot: false)
-    previous_to   = @filters.from - 1.day
-    previous_from = previous_to - (@filters.to - @filters.from)
+    previous_from, previous_to = previous_period
 
     current  = metric.call(@filters.from, @filters.to)
     previous = snapshot ? metric.call(nil, previous_to) : metric.call(previous_from, previous_to)
     [ current, previous ]
+  end
+
+  # The equal-length period immediately before the filter bar's range.
+  def previous_period
+    previous_to = @filters.from - 1.day
+    [ previous_to - (@filters.to - @filters.from), previous_to ]
   end
 
   def profitability_for(month)
@@ -129,12 +138,30 @@ class Finance::DashboardController < Finance::BaseController
     scope
   end
 
+  # Approved expenses in the period, summed per category name — memoized per
+  # period so the Expenses KPI (current + previous total), the category
+  # distribution and the top-categories trend share one grouped query per
+  # period. Summing every group equals SUM(amount) over expenses_scope:
+  # expense_category_id is NOT NULL with a foreign key, so the inner join
+  # neither drops nor duplicates an expense.
+  def expenses_by_category(from, to)
+    @expenses_by_category ||= {}
+    @expenses_by_category[[ from, to ]] ||= expenses_scope(from, to).joins(:expense_category)
+                                              .group("expense_categories.name").sum(:amount)
+  end
+
   # Finance::Reports::VerifiedRevenue is the single source of truth for
   # revenue across the whole Finance module (dashboard + Branch Profitability
   # report) — SUM(TillSessionAmount.net_amount) for verified Daily
   # Reconciliations only. Never read BranchRevenue or SalesTransaction here.
+  #
+  # Memoized per period: VerifiedRevenue memoizes its own grouped results, so
+  # the Revenue KPI, the has-data check and Revenue by Branch for the same
+  # range share a single query.
   def verified_revenue(from, to)
-    Finance::Reports::VerifiedRevenue.new(current_user.business, from: from, to: to, branch_ids: @filters.branch_ids)
+    @verified_revenue ||= {}
+    @verified_revenue[[ from, to ]] ||=
+      Finance::Reports::VerifiedRevenue.new(current_user.business, from: from, to: to, branch_ids: @filters.branch_ids)
   end
 
   def custody_balance_as_of(date)
@@ -146,8 +173,17 @@ class Finance::DashboardController < Finance::BaseController
 
   # ── Revenue / Expense / Net trend (monthly; client aggregates to quarter/year) ──
 
+  # The trailing 12 calendar months ending with @focus_month.
+  def trend_months
+    @trend_months ||= 11.downto(0).map { |n| @focus_month - n.months }
+  end
+
+  def trend_revenue_by_month
+    verified_revenue(trend_months.first.beginning_of_month, trend_months.last.end_of_month).by_month
+  end
+
   def load_trend
-    months = 11.downto(0).map { |n| @focus_month - n.months }
+    months = trend_months
     # Keys normalized to Date for the same reason as VerifiedRevenue#by_month —
     # date_trunc() grouping keys come back as Time, which never #eql? the Date
     # objects in `months`, so the lookups below would silently always miss.
@@ -166,7 +202,7 @@ class Finance::DashboardController < Finance::BaseController
 
     return unless @show_profitability
 
-    revenue = verified_revenue(months.first.beginning_of_month, months.last.end_of_month).by_month
+    revenue = trend_revenue_by_month
     @trend_revenue = months.map { |m| (revenue[m] || 0).to_f }
     @trend_net     = @trend_revenue.zip(@trend_expenses).map { |r, e| r - e }
   end
@@ -174,9 +210,7 @@ class Finance::DashboardController < Finance::BaseController
   # ── Distribution charts ─────────────────────────────────────────────────
 
   def load_distributions
-    @by_category = expenses_scope(@filters.from, @filters.to).joins(:expense_category)
-                     .group("expense_categories.name").sum(:amount)
-                     .sort_by { |_, total| -total }.first(8)
+    @by_category = expenses_by_category(@filters.from, @filters.to).sort_by { |_, total| -total }.first(8)
     @category_ids_by_name = Rails.cache.fetch("finance_dashboard/expense_categories/#{current_user.business_id}", expires_in: 5.minutes) do
       current_user.business.expense_categories.pluck(:name, :id).to_h
     end
@@ -202,10 +236,7 @@ class Finance::DashboardController < Finance::BaseController
   # ── Top expense categories with period-over-period trend ───────────────
 
   def load_top_categories
-    previous_to   = @filters.from - 1.day
-    previous_from = previous_to - (@filters.to - @filters.from)
-    previous_by_category = expenses_scope(previous_from, previous_to).joins(:expense_category)
-                              .group("expense_categories.name").sum(:amount)
+    previous_by_category = expenses_by_category(*previous_period)
 
     total = @by_category.sum { |_, amount| amount }
     @top_categories = @by_category.first(10).map do |name, amount|
@@ -234,15 +265,25 @@ class Finance::DashboardController < Finance::BaseController
     if @show_outstanding
       overdue_days      = current_user.business.finance_overdue_days
       notify_thresholds = current_user.business.finance_notify_thresholds
-      all_rdb           = policy_scope(RemainingDepositBalance).where(branch_id: @filters.branch_ids)
-      @rdb_open_count   = all_rdb.open.count
-      @rdb_open_amount  = all_rdb.open.sum(:remaining_amount)
-      # The alerts panel only shows a count/link, never per-row detail — count
-      # directly rather than loading RemainingDepositBalance + associations.
-      @rdb_overdue_count = all_rdb.overdue(days: overdue_days).count
+      open_rdb          = policy_scope(RemainingDepositBalance).where(branch_id: @filters.branch_ids).open
+      # The alerts panel only shows counts/links, never per-row detail — and
+      # every figure is a filter over the same open set, so one aggregate row
+      # answers all of them: open count, open amount, then one age-cutoff
+      # count per bucket (the overdue window first, then each notify
+      # threshold). Same predicate as RemainingDepositBalance.overdue.
+      cutoffs = [ overdue_days, *notify_thresholds ].map do |days|
+        Arel.sql(RemainingDepositBalance.sanitize_sql_array(
+          [ "COUNT(*) FILTER (WHERE remaining_deposit_balances.created_at < ?)", days.days.ago ]
+        ))
+      end
+      open_count, open_amount, overdue_count, *threshold_counts =
+        open_rdb.pick(Arel.sql("COUNT(*)"), Arel.sql("SUM(remaining_deposit_balances.remaining_amount)"), *cutoffs)
+
+      @rdb_open_count    = open_count
+      @rdb_open_amount   = open_amount || 0
+      @rdb_overdue_count = overdue_count
       @rdb_overdue_days  = overdue_days
-      @rdb_threshold_alerts = notify_thresholds.filter_map do |days|
-        count = all_rdb.open.where("remaining_deposit_balances.created_at < ?", days.days.ago).count
+      @rdb_threshold_alerts = notify_thresholds.zip(threshold_counts).filter_map do |days, count|
         { days: days, count: count } if count > 0
       end
     end
@@ -263,13 +304,26 @@ class Finance::DashboardController < Finance::BaseController
     ledger = CustodyTransaction.active.where(custody_account_id: accounts.select(:id))
                                 .where(created_at: @filters.from.beginning_of_day..@filters.to.end_of_day)
 
-    by_day = ledger.group(Arel.sql("date_trunc('day', created_at)")).sum(:amount)
+    # One pass over the ledger: per business-local calendar day (the same
+    # day boundaries as the created_at range above, which is built in the
+    # business time zone), inflows and outflows summed separately so the
+    # period totals come from the same rows. Bucketing in SQL by local date —
+    # rather than date_trunc on the UTC timestamp — keeps early-morning
+    # transactions on the right day and yields plain Date keys that match
+    # the Date lookups below regardless of the server's own TZ.
+    local_day = Arel.sql(CustodyTransaction.sanitize_sql_array(
+      [ "(custody_transactions.created_at AT TIME ZONE 'UTC' AT TIME ZONE ?)::date", Time.zone.tzinfo.identifier ]
+    ))
+    rows = ledger.group(local_day).pluck(local_day,
+                                         Arel.sql("SUM(custody_transactions.amount) FILTER (WHERE custody_transactions.amount > 0)"),
+                                         Arel.sql("SUM(custody_transactions.amount) FILTER (WHERE custody_transactions.amount < 0)"))
+    by_day = rows.to_h { |day, inflow, outflow| [ day, (inflow || 0) + (outflow || 0) ] }
     days   = (@filters.from..@filters.to).to_a
 
     @cash_flow_labels = days.map { |d| I18n.l(d, format: :long) }
-    @cash_flow_net    = days.map { |d| by_day[d.to_time.beginning_of_day] || 0 }
-    @cash_in          = ledger.where("amount > 0").sum(:amount)
-    @cash_out          = ledger.where("amount < 0").sum(:amount).abs
+    @cash_flow_net    = days.map { |d| by_day[d] || 0 }
+    @cash_in          = rows.sum(0) { |_, inflow, _| inflow || 0 }
+    @cash_out          = rows.sum(0) { |_, _, outflow| outflow || 0 }.abs
     @cash_net          = @cash_in - @cash_out
   end
 
