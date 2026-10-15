@@ -22,12 +22,17 @@ module Finance
         @branch_ids = branch_ids
       end
 
+      # total and any? are derived from by_branch rather than issuing their own
+      # SUM / EXISTS over the identical scope: the per-branch sums partition
+      # exactly the rows SUM(...) would cover (branch_id is NOT NULL), and a
+      # group row exists iff a joined verified row exists. by_branch is
+      # memoized, so one instance answers all three with a single query.
       def total
-        scope.sum(net_amount_sql)
+        by_branch.values.sum(0)
       end
 
       def by_branch
-        scope.group(:branch_id).sum(net_amount_sql)
+        @by_branch ||= scope.group(:branch_id).sum(net_amount_sql)
       end
 
       # Keys normalized to Date — Postgres/Rails returns date_trunc() grouping
@@ -36,8 +41,8 @@ module Finance
       # plain Date (e.g. months.map { |m| by_month[m] }) would silently get
       # nil for every key without this normalization.
       def by_month
-        scope.group(Arel.sql("date_trunc('month', business_date)")).sum(net_amount_sql)
-             .transform_keys(&:to_date)
+        @by_month ||= scope.group(Arel.sql("date_trunc('month', business_date)")).sum(net_amount_sql)
+                           .transform_keys(&:to_date)
       end
 
       # Whether any verified Daily Reconciliation exists for this scope at
@@ -45,7 +50,7 @@ module Finance
       # Distinct from total.zero?, which can't tell "no data" apart from "a
       # verified DR that happened to net to exactly 0."
       def any?
-        scope.exists?
+        by_branch.any?
       end
 
       private
