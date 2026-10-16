@@ -4185,12 +4185,12 @@ unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed
 
 ## 25. Pilot 10 — Punch Correction payroll / attendance effects
 
-**Status (2026-10-16): M4 and M6 COMPLETE — the pilot is NOT fully closed** (§25.10, §25.11). On
-`feature/pilot-10-punch-correction` (not pushed): M1 `5c8729e`, M2 `e2aa155`, M3 `cf29212`, M4-0 merge `cd2296d`,
-M4-1 `3213425`, M4-2 `33e5add`, M4-3 `dee8a70`, M4-4 docs `2bcdcb4`, M6 cleanup (§25.11). M0 and the unblock are
-merged (`66abcf5`, PR #34 → `fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). The assessment, approval and
-cancellation reach Attendance & Payroll only through `Requests::PunchCorrectionEffects`, and the pre-M4 legacy code is
-deleted. Outstanding before the pilot can close: the production-only legacy check (§25.10.3) and M8.
+**Status (2026-10-16): M4, M6 and M8 verification COMPLETE — the pilot is NOT fully closed: BLOCKED on the
+production-only legacy check** (§25.10.3, §25.12). On `feature/pilot-10-punch-correction` (not pushed): M1 `5c8729e`,
+M2 `e2aa155`, M3 `cf29212`, M4-0 merge `cd2296d`, M4-1 `3213425`, M4-2 `33e5add`, M4-3 `dee8a70`, M4-4 docs `2bcdcb4`,
+M6 cleanup `e4c8486`, M8 verification (§25.12). M0 and the unblock are merged (`66abcf5`, PR #34 →
+`fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). The assessment, approval and cancellation reach Attendance &
+Payroll only through `Requests::PunchCorrectionEffects`, and the pre-M4 legacy code is deleted.
 
 ### 25.1 M0 — findings (read-only)
 
@@ -4672,7 +4672,7 @@ its 8 pre-existing layout offenses on untouched lines).
 | M4-4 | COMPLETE — this documentation |
 | M6 | COMPLETE (after this table was written) — legacy code removed, boundaries tightened (§25.11) |
 | M7 | NOT NEEDED — no model move in scope |
-| M8 | NOT DONE — final close-out after §25.10.3 and M6 |
+| M8 | VERIFICATION COMPLETE (after this table was written; §25.12) — full closure BLOCKED on §25.10.3 |
 
 #### 25.10.1 Final ownership and contract direction (verified in the code on `dee8a70`)
 
@@ -4825,3 +4825,31 @@ Failing IDs unchanged (§25.9). `zeitwerk:check`, RuboCop on the six changed Rub
 
 **Remaining (unchanged by M6):** the production-only check (§25.10.3); the concurrency risks of §25.10.2; consolidating
 `Payroll::PermissionReverter`'s private helper copies (Pilot 9 debt, now the only copies left); M8 close-out.
+
+### 25.12 M8 — final verification (2026-10-16, on `e4c8486`)
+
+**Code (verified, no discrepancy):** the assessment, approval and cancellation call only
+`Requests::PunchCorrectionEffects` (`correction_facts` / `correction_approved` / `correction_cancelled`, one operation
+per Workforce caller); `Attendance::PunchCorrectionEffects` owns the attendance and payroll effects; the payroll effect
+recalculates an EXISTING entry only (`PayrollEntry.lock.find_by` → none → nothing; never creates one), with
+`Payroll::EntryRecalculator.call(user:, period:, triggered_by: actor)` and a raised `RecalculationFailed` for a not-ok
+result (nothing rescued); lock order request (`lock!` in the approver / canceller) → period (`PayrollPeriod.lock`) →
+entry, with `Payroll::Approver` locking the same period row; refusal messages (incl. the literal approval no-record
+string), the `update_columns` snapshot, the approve audit after commit and the cancel audit inside the transaction are
+as documented. `Payroll::PunchCorrectionApplier`, `Payroll::PunchCorrectionReverter` and the canceller's six legacy
+methods are absent (files, constants, names in `app/`, `lib/`, `config/`).
+
+**Tests (seeds 20261006 / 12345 / 98765, identical; failure IDs compared by exact ID with the same-day post-M6 run on
+`e4c8486`, §25.11):** A 62 / 0; B 28 / 0; C 383 / 0; D 21 / 0; E 130 / 0; F 282 / 0; G 606 / 0 (includes both
+tightened boundary specs and the penalty-rule allow-list); H 1640 / 23 — the same 23 IDs; I 432 / 0; J 21 / 0;
+K 50 / 0; L 18 / 0; M 295 / 8, 1 pending — the same 8 IDs. No new failure; no baseline ID changed. `zeitwerk:check`
+clean; no Ruby file changed in M8 (RuboCop not applicable); `git diff --check` clean.
+
+**Docs:** this section, the status header, the M8 row of §25.10 and a dated line in
+`workforce-punch-correction-baseline-failures.txt`; `module-boundaries.md` already matches the post-M6 code. The
+remaining risks (§25.10.2) and the `Payroll::PermissionReverter` helper-copy debt (§25.11) stand as recorded.
+
+**Closeout decision:** M8 verification COMPLETE. **Pilot 10 is NOT fully closed — BLOCKED / OUTSTANDING:** the
+read-only production query of §25.10.3 has not been run by an authorized operator. If it returns no rows, Pilot 10 can
+be closed with a dated note here; if it returns rows, a separate evidence-based follow-up is required first (the field
+to restore must not be guessed). Nothing pushed, merged or deployed.
