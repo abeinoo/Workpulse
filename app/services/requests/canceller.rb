@@ -43,6 +43,15 @@ module Requests
       rollback_error = nil
 
       ActiveRecord::Base.transaction do
+        # Punch corrections lock the request row first (lock order: request →
+        # payroll period) and re-check the committed state against what the
+        # caller saw, so a stale cancellation can neither cancel twice nor skip
+        # the rollback of an approval committed since it was loaded.
+        if @request.punch_correction?
+          rollback_error = locked_state_error(prior_status)
+          raise ActiveRecord::Rollback if rollback_error
+        end
+
         if @request.approved?
           result = rollback_approval_effects
           unless result.success?
@@ -80,12 +89,25 @@ module Requests
       @request.status.in?(%w[pending approved])
     end
 
+    # Locks and reloads the request, then repeats cancel's own checks on the
+    # committed state. A status other than the one the caller acted on (e.g. a
+    # pending request approved meanwhile) is refused: who may cancel depends on
+    # it (EmployeeRequestPolicy#cancel?). nil when it may still be cancelled.
+    def locked_state_error(observed_status)
+      @request.lock!
+      return I18n.t("requests.errors.already_cancelled") if @request.cancelled?
+      return I18n.t("requests.errors.cannot_cancel_paid") if @request.paid?
+      return I18n.t("requests.errors.cannot_cancel") unless cancellable_status? && @request.status == observed_status
+
+      nil
+    end
+
     def rollback_approval_effects
       case @request.request_type
       when "salary_advance"    then ok   # Advance only created at pay step
       when "late_permission",
            "early_leave"       then revert_permission_payroll_effect
-      when "punch_correction"  then rollback_punch_correction
+      when "punch_correction"  then revert_punch_correction_effect
       else ok
       end
     end
@@ -103,10 +125,43 @@ module Requests
       end
     end
 
-    # ── Punch correction rollback ─────────────────────────────────────────────
+    # ── Punch correction effect (Pilot 10 M4-2) ────────────────────────────────
     #
-    # Restores check_in_at/out and their source fields from the snapshots taken
-    # at approval time, then recomputes the record and re-propagates to payroll.
+    # Attendance & Payroll restores the attendance record from the snapshot
+    # persisted on the request and brings its payroll back, through the Workforce
+    # contract, inside this cancel transaction. Refusals keep the request
+    # approved with the messages cancellation has always shown; an invalid record
+    # is reported with its messages; any other error rolls the cancel back.
+    def revert_punch_correction_effect
+      result = Requests::PunchCorrectionEffects.correction_cancelled(
+        request: @request, field: @request.correction_field, snapshot: punch_snapshot, actor: @cancelled_by
+      )
+
+      case result
+      when :no_attendance_record then err(I18n.t("requests.errors.no_attendance_record"))
+      when :payroll_locked       then err(I18n.t("requests.errors.cannot_cancel_finalized"))
+      else ok
+      end
+    rescue ActiveRecord::RecordInvalid => e
+      err(e.record.errors.full_messages.join(", "))
+    end
+
+    # The punches before the correction, as persisted on the request at approval.
+    def punch_snapshot
+      Requests::PunchCorrectionEffects::Snapshot.new(
+        check_in_at:      @request.original_check_in_at,
+        check_out_at:     @request.original_check_out_at,
+        check_in_source:  @request.original_check_in_source,
+        check_out_source: @request.original_check_out_source
+      )
+    end
+
+    # ── Legacy punch correction rollback (unused since M4-2) ───────────────────
+    #
+    # Kept, with the helpers below, until the Attendance & Payroll path above is
+    # verified; removed in Pilot 10 M4-4. Restores check_in_at/out and their
+    # source fields from the snapshots taken at approval time, then recomputes
+    # the record and re-propagates to payroll.
     def rollback_punch_correction
       record = AttendanceRecord
                  .includes(shift_assignment: [ :rule_profile, { shift: :penalty_rules } ])

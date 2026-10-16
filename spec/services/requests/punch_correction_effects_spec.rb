@@ -6,8 +6,10 @@ require "rails_helper"
 # reads its attendance facts through correction_facts
 # (punch_correction_assessment_routing_spec.rb); correction_facts must equal the
 # direct reads the assessment made before M3. correction_approved /
-# correction_cancelled land with M4. The current approve / cancel behaviour
-# stays pinned by spec/characterization/workforce/punch_correction_effects_spec.rb.
+# correction_cancelled are implemented in M4-2 (with the actor argument); the
+# approve / cancel behaviour stays pinned by the M1 and M4-1 characterization
+# (spec/characterization/workforce/punch_correction_effects_spec.rb,
+# punch_correction_m4_baseline_spec.rb).
 RSpec.describe Requests::PunchCorrectionEffects do
   around { |ex| travel_to(Time.zone.local(2026, 7, 15, 12, 0, 0)) { ex.run } }
 
@@ -22,6 +24,7 @@ RSpec.describe Requests::PunchCorrectionEffects do
     create(:shift_assignment, user: employee, branch: branch, shift: shift, effective_from: Date.new(2026, 1, 1))
   end
   let(:day) { Date.new(2026, 6, 8) }
+  let(:actor) { create(:user, business: business) }
 
   def at(hour, minute = 0, date: day) = tz.local(date.year, date.month, date.day, hour, minute)
 
@@ -76,9 +79,9 @@ RSpec.describe Requests::PunchCorrectionEffects do
       with_handler(nil) do
         expect { described_class.correction_facts(request: req, field: :check_in, effective_at: at(9)) }
           .to raise_error(described_class::NotRegistered)
-        expect { described_class.correction_approved(request: req, field: :check_in, effective_at: at(9)) }
+        expect { described_class.correction_approved(request: req, field: :check_in, effective_at: at(9), actor: actor) }
           .to raise_error(described_class::NotRegistered)
-        expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot) }
+        expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot, actor: actor) }
           .to raise_error(described_class::NotRegistered)
       end
     end
@@ -92,14 +95,39 @@ RSpec.describe Requests::PunchCorrectionEffects do
       with_handler(handler_returning(facts: facts)) do
         expect { described_class.correction_facts(request: req, field: :lunch, effective_at: at(9)) }
           .to raise_error(ArgumentError, /field must be one of/)
-        expect { described_class.correction_approved(request: req, field: "check_in", effective_at: at(9)) }
+        expect { described_class.correction_approved(request: req, field: "check_in", effective_at: at(9), actor: actor) }
           .to raise_error(ArgumentError, /field must be one of/)
       end
     end
 
+    it "requires a User actor for approval and cancellation before calling the handler (M4-2)" do
+      handler = handler_returning(approval: described_class::Approval.new(status: :payroll_locked), cancelled: :reverted)
+      allow(handler).to receive(:correction_approved).and_call_original
+      allow(handler).to receive(:correction_cancelled).and_call_original
+
+      with_handler(handler) do
+        [ nil, actor.id, "reviewer" ].each do |bad|
+          expect { described_class.correction_approved(request: req, field: :check_in, effective_at: at(9), actor: bad) }
+            .to raise_error(ArgumentError, /actor must be a User/)
+          expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot, actor: bad) }
+            .to raise_error(ArgumentError, /actor must be a User/)
+        end
+        expect { described_class.correction_approved(request: req, field: :check_in, effective_at: at(9)) }
+          .to raise_error(ArgumentError, /missing keyword: :actor/)
+
+        described_class.correction_approved(request: req, field: :check_in, effective_at: at(9), actor: actor)
+        described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot, actor: actor)
+      end
+
+      expect(handler).to have_received(:correction_approved).once
+        .with(request: req, field: :check_in, effective_at: at(9), actor: actor)
+      expect(handler).to have_received(:correction_cancelled).once
+        .with(request: req, field: :check_in, snapshot: snapshot, actor: actor)
+    end
+
     it "requires a Snapshot for cancellation and accepts nil or a Snapshot as the facts baseline" do
       with_handler(handler_returning(facts: facts, cancelled: :reverted)) do
-        expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: nil) }
+        expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: nil, actor: actor) }
           .to raise_error(ArgumentError, /expected a .*Snapshot/)
         expect { described_class.correction_facts(request: req, field: :check_in, effective_at: at(9), baseline: {}) }
           .to raise_error(ArgumentError, /expected a .*Snapshot/)
@@ -120,7 +148,7 @@ RSpec.describe Requests::PunchCorrectionEffects do
       applied = described_class::Approval.new(status: :applied, snapshot: snapshot(check_in_at: at(9, 40)),
                                               worked_minutes: 360, duration_severity: nil)
       with_handler(handler_returning(approval: applied)) do
-        result = described_class.correction_approved(request: req, field: :check_in, effective_at: at(9))
+        result = described_class.correction_approved(request: req, field: :check_in, effective_at: at(9), actor: actor)
         expect(result).to equal(applied)
         expect(result).to be_applied
       end
@@ -128,7 +156,7 @@ RSpec.describe Requests::PunchCorrectionEffects do
       described_class::REFUSALS.each do |reason|
         refusal = described_class::Approval.new(status: reason)
         with_handler(handler_returning(approval: refusal)) do
-          expect(described_class.correction_approved(request: req, field: :check_in, effective_at: at(9))).to be_refused
+          expect(described_class.correction_approved(request: req, field: :check_in, effective_at: at(9), actor: actor)).to be_refused
         end
       end
     end
@@ -137,7 +165,7 @@ RSpec.describe Requests::PunchCorrectionEffects do
       [ :applied, described_class::Approval.new(status: :applied),
         described_class::Approval.new(status: :weekend, snapshot: snapshot) ].each do |bad|
         with_handler(handler_returning(approval: bad)) do
-          expect { described_class.correction_approved(request: req, field: :check_in, effective_at: at(9)) }
+          expect { described_class.correction_approved(request: req, field: :check_in, effective_at: at(9), actor: actor) }
             .to raise_error(ArgumentError)
         end
       end
@@ -146,13 +174,13 @@ RSpec.describe Requests::PunchCorrectionEffects do
     it "passes through each cancel result and refuses anything else" do
       described_class::CANCEL_RESULTS.each do |result|
         with_handler(handler_returning(cancelled: result)) do
-          expect(described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot)).to eq(result)
+          expect(described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot, actor: actor)).to eq(result)
         end
       end
 
       [ nil, true, :refused, "reverted" ].each do |bad|
         with_handler(handler_returning(cancelled: bad)) do
-          expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot) }
+          expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot, actor: actor) }
             .to raise_error(ArgumentError, /expected one of/)
         end
       end
@@ -162,7 +190,7 @@ RSpec.describe Requests::PunchCorrectionEffects do
       failing = handler_returning
       failing.define_singleton_method(:correction_cancelled) { |**| raise ActiveRecord::RecordInvalid }
       with_handler(failing) do
-        expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot) }
+        expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot, actor: actor) }
           .to raise_error(ActiveRecord::RecordInvalid)
       end
     end
@@ -275,17 +303,64 @@ RSpec.describe Requests::PunchCorrectionEffects do
     end
   end
 
-  describe "Attendance::PunchCorrectionEffects approval and cancellation (M4)" do
-    it "are not implemented yet and write nothing" do
-      record = attendance
-      req = correction("wrong_check_in_time", "09:00")
+  # Implemented in M4-2. The end-to-end behaviour (through Requests::Approver /
+  # Requests::Canceller) stays pinned by the M1 and M4-1 characterization; these
+  # pin the implementation's own contract: plain results, refusals before any
+  # write, and the request never written.
+  describe "Attendance::PunchCorrectionEffects approval and cancellation (M4-2)" do
+    def approved(req, effective_at)
+      described_class.correction_approved(request: req, field: req.correction_field, effective_at: effective_at, actor: actor)
+    end
 
-      expect { described_class.correction_approved(request: req, field: :check_in, effective_at: at(9)) }
-        .to raise_error(NotImplementedError, /Pilot 10 M4/)
-      expect { described_class.correction_cancelled(request: req, field: :check_in, snapshot: snapshot) }
-        .to raise_error(NotImplementedError, /Pilot 10 M4/)
-      expect(record.reload.check_in_at).to eq(at(9, 40))
-      expect(req.reload.status).to eq("pending")
+    it "approval applies the punch and returns the replaced punches and the resulting values, never writing the request" do
+      record = attendance
+      req    = correction("wrong_check_in_time", "09:00")
+      before = req.attributes
+
+      approval = approved(req, at(9))
+
+      expect(approval).to be_applied
+      expect(approval.snapshot).to eq(snapshot(check_in_at: at(9, 40), check_out_at: at(15), check_in_source: "device",
+                                               check_out_source: "device"))
+      expect(approval.worked_minutes).to eq(360)
+      expect(approval.duration_severity).to be_nil
+      expect(record.reload).to have_attributes(check_in_at: at(9), check_in_source: "admin_manual", worked_minutes: 360)
+      expect(req.reload.attributes).to eq(before)
+      [ approval, approval.snapshot ].each { |value| expect(value).to be_a(Struct) }
+    end
+
+    it "approval refusals are decided before anything is written, in order" do
+      req = correction("wrong_check_in_time", "09:00")
+      expect(approved(req, at(9)).status).to eq(:no_attendance_record)
+
+      record = attendance
+      create(:payroll_period, business: business, period_year: 2026, period_month: 6, working_days: 22, status: "paid")
+      expect(approved(req, at(9)).status).to eq(:payroll_locked)
+      PayrollPeriod.update_all(status: "under_review")
+
+      expect(approved(correction("wrong_check_out_time", "09:40"), at(9, 40)).status).to eq(:check_out_not_after_check_in)
+      expect(approved(req, at(16)).status).to eq(:check_out_before_check_in)
+      expect(record.reload).to have_attributes(check_in_at: at(9, 40), check_out_at: at(15), check_in_source: "device")
+    end
+
+    it "cancellation restores the field from the snapshot, refuses in order, and never writes the request" do
+      req = correction("wrong_check_in_time", "09:00")
+      original = snapshot(check_in_at: at(9, 40), check_out_at: at(15), check_in_source: "device", check_out_source: "device")
+      cancel = -> { described_class.correction_cancelled(request: req, field: :check_in, snapshot: original, actor: actor) }
+
+      expect(cancel.call).to eq(:no_attendance_record)
+      record = attendance
+      record.update!(check_in_at: at(9), check_in_source: "admin_manual")
+      period = create(:payroll_period, business: business, period_year: 2026, period_month: 6, working_days: 22,
+                                       status: "finalized")
+      expect(cancel.call).to eq(:payroll_locked)
+      expect(record.reload.check_in_at).to eq(at(9))
+
+      period.update_column(:status, "under_review")
+      before = req.reload.attributes
+      expect(cancel.call).to eq(:reverted)
+      expect(record.reload).to have_attributes(check_in_at: at(9, 40), check_in_source: "device")
+      expect(req.reload.attributes).to eq(before)
     end
   end
 end

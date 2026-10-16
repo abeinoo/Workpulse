@@ -50,7 +50,11 @@ module ArchitectureSpecs
       "app/services/payroll/entry_calculator.rb"         => "AP payroll: penalty line items",
       "app/services/payroll/permission_applier.rb"       => "AP payroll: permission penalty adjustment",
       "app/services/payroll/permission_reverter.rb"      => "AP payroll: permission penalty restore on cancellation (Pilot 9 M4)",
-      "app/services/payroll/punch_correction_applier.rb" => "AP payroll: punch-correction penalty adjustment"
+      "app/services/payroll/punch_correction_applier.rb" => "AP payroll: punch-correction penalty adjustment",
+      "app/services/attendance/punch_correction_effects.rb" => "AP implementation of Requests::PunchCorrectionEffects: " \
+                                                              "preloads rules for the corrected record (Pilot 10 M4-2)",
+      "app/services/payroll/punch_correction_reverter.rb" => "AP payroll: punch-correction penalty restore on cancellation " \
+                                                             "(Pilot 10 M4-2)"
     }.freeze
 
     ATTENDANCE_PAYROLL_DIRS = [
@@ -80,10 +84,13 @@ module ArchitectureSpecs
     # (module-boundaries.md §14.2 #3 / #4); outside this pilot. They compute
     # penalties and preload rules but never write penalty_rules.
     REQUEST_EXCEPTION_FILES = {
-      "app/services/requests/canceller.rb"               => "§14.2 #3: the punch-correction rollback restores penalty line items via " \
+      "app/services/requests/canceller.rb"               => "§14.2 #3: the pre-M4 punch-correction rollback (unreachable since " \
+                                                            "Pilot 10 M4-2, removed in M4-4) restores penalty line items via " \
                                                             "Attendance::PenaltyCalculator (the permission revert moved to " \
-                                                            "Payroll::PermissionReverter, Pilot 9 M4)",
-      "app/services/requests/punch_correction_applier.rb" => "§14.2 #3: preloads rules for the corrected record"
+                                                            "Payroll::PermissionReverter, Pilot 9 M4)"
+      # app/services/requests/punch_correction_applier.rb left the list in Pilot 10
+      # M4-2: the approval effect (and its rule preload) moved to
+      # Attendance::PunchCorrectionEffects behind the contract.
     }.freeze
 
     UI_SHELL_FILES = {

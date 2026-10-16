@@ -149,7 +149,8 @@ RSpec.describe "Punch correction: check-out must be after check-in", type: :requ
     describe "6. final approval cannot save an invalid check-out" do
       it "the applier refuses a check-out equal to the check-in and leaves the record untouched" do
         request = correction("18:00")
-        request.update_columns(status: "approved", reviewed_at: Time.current, approved_punch_at: at(12, 15, 10))
+        request.update_columns(status: "approved", reviewed_at: Time.current, reviewed_by_id: manager.id,
+                               approved_punch_at: at(12, 15, 10))
 
         result = Requests::PunchCorrectionApplier.call(request: request)
 

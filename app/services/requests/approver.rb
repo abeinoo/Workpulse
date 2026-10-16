@@ -197,9 +197,16 @@ module Requests
       end
 
       applier_error = nil
-      applied_record = nil
+      approval      = nil
 
       ActiveRecord::Base.transaction do
+        # Lock the request row before acting on it (lock order: request → payroll
+        # period, the latter taken by the attendance & payroll effect), then
+        # re-check what the checks above saw: a concurrent approval, rejection or
+        # cancellation committed since this copy was loaded wins.
+        applier_error = locked_state_error
+        raise ActiveRecord::Rollback if applier_error
+
         update_attrs = {
           status:        "approved",
           reviewed_by:   @reviewed_by,
@@ -210,12 +217,12 @@ module Requests
         update_attrs[:approved_punch_at] = assessment.effective_at
         @request.update!(update_attrs)
 
-        result = Requests::PunchCorrectionApplier.call(request: @request)
+        result = Requests::PunchCorrectionApplier.call(request: @request, actor: @reviewed_by)
         unless result.success?
           applier_error = result.error
           raise ActiveRecord::Rollback
         end
-        applied_record = result.record
+        approval = result.approval
       end
 
       return err(applier_error) if applier_error
@@ -234,8 +241,8 @@ module Requests
           punch_review:    punch_review_metadata(final_date, final_time),
           attendance_window: assessment.audit_metadata.merge(
             confirmed_by_reviewer:       assessment.requires_confirmation?,
-            resulting_worked_minutes:    applied_record&.worked_minutes,
-            resulting_duration_severity: applied_record&.duration_severity
+            resulting_worked_minutes:    approval&.worked_minutes,
+            resulting_duration_severity: approval&.duration_severity
           )
         }
       )
@@ -247,6 +254,15 @@ module Requests
 
     def parse_approved_at
       self.class.parse_approved_at(@approved_at, business: @request.user.business)
+    end
+
+    # Locks and reloads the request, then repeats approve's own checks on the
+    # committed state; nil when it may still be approved.
+    def locked_state_error
+      @request.lock!
+      return "Request is already #{@request.status}" unless @request.pending?
+
+      Approvals::SelfApproval.error_message if self_approval?
     end
 
     # Employee proposal vs reviewer-selected final punch, for the audit trail.

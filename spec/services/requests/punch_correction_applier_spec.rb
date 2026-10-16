@@ -4,6 +4,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
   let(:business) { create(:business, timezone: "UTC") }
   let(:branch)   { create(:branch, business: business) }
   let(:user)     { create(:user, business: business) }
+  # Approval is applied for a reviewer (the contract's actor, Pilot 10 M4-2).
+  let(:reviewer) { create(:user, business: business) }
   let(:shift)    { create(:shift, :fixed_time, business: business) }
   let(:work_date) { Date.current - 1.day }
 
@@ -40,7 +42,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
            requested_for_date: record_date,
            proposed_time:      proposed_time_str,
            status:             :approved,
-           reviewed_at:        Time.current)
+           reviewed_at:        Time.current,
+           reviewed_by:        reviewer)
   end
 
   # ──────────────────────────────────────────────────────────────
@@ -147,7 +150,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
              proposed_time:      "17:00",
              approved_time:      "16:45",
              status:             :approved,
-             reviewed_at:        Time.current)
+             reviewed_at:        Time.current,
+             reviewed_by:        reviewer)
     end
 
     it "uses approved_time, not proposed_time" do
@@ -170,7 +174,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
              proposed_date:      work_date + 1.day,    # actual punch is next calendar day
              proposed_time:      "04:00",
              status:             :approved,
-             reviewed_at:        Time.current)
+             reviewed_at:        Time.current,
+             reviewed_by:        reviewer)
     end
 
     it "stores the check-out on the day after the work_date" do
@@ -201,6 +206,7 @@ RSpec.describe Requests::PunchCorrectionApplier do
     let(:riyadh)    { create(:business, timezone: "Asia/Riyadh") }
     let(:rz_branch) { create(:branch, business: riyadh) }
     let(:rz_user)   { create(:user, business: riyadh) }
+    let(:reviewer)  { create(:user, business: riyadh) }
     let(:rz_shift)  { create(:shift, :overnight, business: riyadh) } # 13:00 → 01:00
     let(:tz)        { riyadh.timezone_object }
     let(:work_date) { Date.new(2026, 6, 1) }
@@ -228,7 +234,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
              requested_for_date: work_date,
              proposed_time:      "22:22",
              status:             :approved,
-             reviewed_at:        Time.current)
+             reviewed_at:        Time.current,
+             reviewed_by:        reviewer)
     end
 
     it "refuses a check-out before the check-in with a clear error instead of moving the date" do

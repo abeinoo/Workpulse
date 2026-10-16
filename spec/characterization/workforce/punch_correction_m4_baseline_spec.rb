@@ -18,12 +18,12 @@ require "rails_helper"
 #   Q. audit: attendance_window from the pre-write assessment, resulting_* from
 #      the post-write record
 #   R. locked-period protections (full state)
-#   S. concurrency — KNOWN GAPS, recorded as `pending`: no request or period
-#      row is locked today. Each race is simulated deterministically by a
-#      second, stale in-memory copy of the request (loaded before the first
-#      operation commits) — exactly the check-then-act window two concurrent
-#      requests have. RSpec fails a pending example that starts passing, so
-#      each one flips when M4-2 adds the locks.
+#   S. concurrency — recorded as `pending` known gaps in M4-1, fixed in M4-2
+#      (request row lock + re-check). Each race is simulated deterministically
+#      by a second, stale in-memory copy of the request (loaded before the
+#      first operation commits) — exactly the check-then-act window two
+#      concurrent requests have. The period-finalization races moved to the
+#      two-connection spec/services/requests/punch_correction_period_lock_spec.rb.
 #
 # Examples that Decisions A / B / C (M4-3) are expected to change are marked
 # "(changes with Decision A|B|C)".
@@ -657,8 +657,8 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
     end
   end
 
-  # ── S. concurrency (known gaps, M4-2) ──────────────────────────────────────
-  describe "S. concurrency — known gaps until M4-2 locks the request and the period" do
+  # ── S. concurrency (fixed in M4-2) ─────────────────────────────────────────
+  describe "S. concurrency — the request row is locked and its state re-checked (M4-2)" do
     before { standard_payroll }
 
     it "two simultaneous approvals: the second must be refused and must not overwrite the snapshot" do
@@ -668,8 +668,8 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
 
       second = approve(other, by: other_reviewer, approved_at: "2026-06-08T09:10")
 
-      pending "M4-2: no request row lock — the stale approval re-applies, snapshotting the corrected punch as the original"
       expect(second).not_to be_success
+      expect(second.error).to eq("Request is already approved")
       expect(req.reload).to have_attributes(approved_punch_at: at(9, 0), reviewed_by_id: reviewer.id,
                                             original_check_in_at: at(9, 40), original_check_in_source: "device")
       expect(attendance.reload.check_in_at).to eq(at(9, 0))
@@ -685,7 +685,6 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
 
       second_result = cancel(second, by: other_reviewer)
 
-      pending "M4-2: no request row lock — the stale cancellation rolls back again, re-cancels and audits twice"
       expect(second_result.error).to eq(I18n.t("requests.errors.already_cancelled"))
       expect(full_state(req)).to eq(after_first)
       expect(audits(req)).to eq(%w[approve cancel])
@@ -698,10 +697,11 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
 
       result = approve(approver)
 
-      pending "M4-2: no request row lock — the stale approval overwrites 'cancelled' with 'approved' and applies the correction"
       expect(result).not_to be_success
+      expect(result.error).to eq("Request is already cancelled")
       expect(req.reload.status).to eq("cancelled")
       expect(attendance.reload.check_in_at).to eq(at(9, 40))
+      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 40)
       expect(audits(req)).to eq([ "cancel" ])
     end
 
@@ -710,46 +710,18 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
       canceller = stale(req) # loaded while pending
       expect(approve(req)).to be_success
 
-      cancel(canceller)
+      result = cancel(canceller)
 
-      pending "M4-2: no request row lock — the stale cancellation treats the request as pending and skips the rollback"
       cancelled_with_effect = req.reload.cancelled? && attendance.reload.check_in_at == at(9, 0)
       expect(cancelled_with_effect).to be(false)
+      # Refused: who may cancel depends on the status (an employee may cancel only
+      # a pending request), and the caller acted on "pending".
+      expect(result.error).to eq(I18n.t("requests.errors.cannot_cancel"))
+      expect(req.status).to eq("approved")
+      expect(audits(req)).to eq([ "approve" ])
     end
 
-    # Same-connection simulation: the period is finalized between the applier's
-    # lock check and the payroll write. It shows today's check-then-act gap; it
-    # cannot prove a row lock (one connection never blocks itself), so M4-2
-    # replaces it with a two-connection FOR UPDATE NOWAIT test.
-    it "the period is finalized after the approval's lock check: attendance and payroll must not diverge" do
-      req = correction("wrong_check_in_time", "09:00")
-      allow(Attendance::RecordRecomputer).to receive(:recompute!).and_wrap_original do |original, record|
-        original.call(record).tap do
-          PayrollPeriod.where(id: period.id).update_all(status: "finalized") if record.persisted?
-        end
-      end
-
-      result = approve(req)
-
-      pending "M4-2: the period is read without a lock — the approval commits attendance while payroll is skipped"
-      consistent = result.success? ? line("late_penalty").nil? : attendance.reload.late_minutes == 40
-      expect(consistent).to be(true)
-    end
-
-    it "the period is finalized after the cancellation's lock check: attendance and payroll must not diverge" do
-      req = correction("wrong_check_in_time", "09:00")
-      approve(req)
-      allow(Attendance::RecordRecomputer).to receive(:recompute!).and_wrap_original do |original, record|
-        original.call(record).tap do
-          PayrollPeriod.where(id: period.id).update_all(status: "finalized") if record.persisted?
-        end
-      end
-
-      result = cancel(req)
-
-      pending "M4-2: the period is re-read without a lock — the cancellation restores attendance but skips payroll"
-      consistent = result.success? ? line("late_penalty").present? : attendance.reload.late_minutes.zero?
-      expect(consistent).to be(true)
-    end
+    # Period-finalization races need a second database connection (one connection
+    # never blocks itself): spec/services/requests/punch_correction_period_lock_spec.rb.
   end
 end

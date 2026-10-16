@@ -31,17 +31,24 @@ module Requests
   #       for the request's date: a Facts. baseline nil → judged against the
   #       live attendance record; a Snapshot → against the punches before an
   #       already-applied correction. Never writes anything.
-  #   correction_approved(request:, field:, effective_at:)
+  #   correction_approved(request:, field:, effective_at:, actor:)
   #     — the request is being approved: apply the correction to attendance and
   #       bring the payroll it owns in line. An Approval: status :applied with the
   #       Snapshot of the punches it replaced and the resulting worked minutes /
   #       duration severity, or one of the REFUSALS (nothing written). It never
   #       writes the request, its status, approved_punch_at, its snapshot or the
   #       audit — Workforce persists those from the result.
-  #   correction_cancelled(request:, field:, snapshot:)
+  #   correction_cancelled(request:, field:, snapshot:, actor:)
   #     — the approved correction is being cancelled: restore the attendance
   #       record from the snapshot and the payroll it owns. One of
   #       CANCEL_RESULTS (a Symbol): :reverted, or a refusal (nothing written).
+  #
+  # actor — the reviewer / canceller (a User) the effect is performed for.
+  #
+  # Concurrency (Pilot 10 M4-2): the caller has already locked the request row
+  # (Workforce); the handler locks the payroll period row it checks and writes
+  # under — lock order request → payroll period → attendance / payroll rows —
+  # so a period cannot be finalized or paid between its check and the write.
   module PunchCorrectionEffects
     OPERATIONS = %i[correction_facts correction_approved correction_cancelled].freeze
 
@@ -106,19 +113,21 @@ module Requests
         raise ArgumentError, "#{handler}.correction_facts returned #{facts.class}, expected #{Facts}"
       end
 
-      def correction_approved(request:, field:, effective_at:)
+      def correction_approved(request:, field:, effective_at:, actor:)
         check_field!(field)
+        check_actor!(actor)
 
-        approval = handler.correction_approved(request: request, field: field, effective_at: effective_at)
+        approval = handler.correction_approved(request: request, field: field, effective_at: effective_at, actor: actor)
         check_approval!(approval)
         approval
       end
 
-      def correction_cancelled(request:, field:, snapshot:)
+      def correction_cancelled(request:, field:, snapshot:, actor:)
         check_field!(field)
         check_snapshot!(snapshot)
+        check_actor!(actor)
 
-        result = handler.correction_cancelled(request: request, field: field, snapshot: snapshot)
+        result = handler.correction_cancelled(request: request, field: field, snapshot: snapshot, actor: actor)
         return result if CANCEL_RESULTS.include?(result)
 
         raise ArgumentError, "#{handler}.correction_cancelled returned #{result.inspect}, expected one of #{CANCEL_RESULTS.inspect}"
@@ -128,6 +137,10 @@ module Requests
 
       def check_field!(field)
         raise ArgumentError, "field must be one of #{FIELDS.inspect}, got #{field.inspect}" unless FIELDS.include?(field)
+      end
+
+      def check_actor!(actor)
+        raise ArgumentError, "actor must be a User, got #{actor.class}" unless actor.is_a?(::User)
       end
 
       def check_snapshot!(snapshot, allow_nil: false)

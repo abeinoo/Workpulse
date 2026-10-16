@@ -1,22 +1,30 @@
 module Requests
-  # Applies an approved PunchCorrection request to the employee's AttendanceRecord.
+  # Applies an approved PunchCorrection request (Workforce side).
   #
-  # On success:
-  #   - Snapshots original check_in_at / check_out_at / check_in_source / check_out_source
-  #     onto the request so cancellation can fully restore the pre-correction state.
-  #   - Updates the attendance record's relevant punch time (check_in_at or check_out_at).
-  #   - Recomputes late_minutes, early_leave_minutes, worked_minutes, status via RecordRecomputer.
-  #   - Propagates the change to any open payroll entry via Payroll::PunchCorrectionApplier.
+  # The attendance and payroll effect — the punch write, the recomputation and
+  # the payroll lines — is Attendance & Payroll's, reached only through the
+  # Workforce contract Requests::PunchCorrectionEffects.correction_approved
+  # (Pilot 10 M4-2). This class keeps what Workforce owns:
+  #   - the moment applied (the request's final punch, see effective_punch_at);
+  #   - the snapshot of the replaced punches (check_in_at / check_out_at and
+  #     their sources), persisted onto the request from the contract's result so
+  #     cancellation can restore the pre-correction state;
+  #   - the user-facing message for each refusal.
   #
-  # Everything runs inside a single transaction so a partial failure leaves
-  # both the attendance record and the request in their original state.
+  # Everything runs inside one transaction (the approver's, when called from
+  # Requests::Approver), so a failure leaves the request, the attendance record
+  # and payroll in their original state. A refusal is decided before anything
+  # is written.
   class PunchCorrectionApplier
-    Result = Struct.new(:success, :record, :error, keyword_init: true) do
+    # approval — the contract's Approval (plain values) on success.
+    Result = Struct.new(:success, :approval, :error, keyword_init: true) do
       def success? = success
     end
 
-    def self.call(request:)
-      new(request).call
+    # actor — the reviewer the correction is applied for (defaults to the
+    # request's saved reviewer).
+    def self.call(request:, actor: request.reviewed_by)
+      new(request, actor: actor).call
     end
 
     # The exact moment a correction applies: the final punch date + "HH:MM" in
@@ -37,67 +45,25 @@ module Requests
       new(request).legacy_applied_punch_at(check_in_at: check_in_at, check_out_at: check_out_at)
     end
 
-    def initialize(request)
+    def initialize(request, actor: request.reviewed_by)
       @request = request
+      @actor   = actor
     end
 
     def call
-      record = AttendanceRecord
-                 .includes(shift_assignment: [ :rule_profile, { shift: :penalty_rules } ])
-                 .find_by(user: @request.user, work_date: @request.requested_for_date)
-
-      return failure("No attendance record found for #{@request.requested_for_date}") unless record
-      # A finalized / paid payroll period is frozen: correcting its attendance
-      # would leave attendance and payroll permanently out of step (cancellation
-      # is refused for the same period). Refused before anything is written; the
-      # approver's transaction rolls the approval back.
-      return failure(I18n.t("requests.errors.cannot_approve_finalized")) if payroll_period_locked?
-
-      applier_error = nil
+      effective_at = self.class.effective_punch_at(request: @request)
+      approval     = nil
 
       ActiveRecord::Base.transaction do
-        @request.update_columns(
-          original_check_in_at:      record.check_in_at,
-          original_check_out_at:     record.check_out_at,
-          original_check_in_source:  record.check_in_source,
-          original_check_out_source: record.check_out_source
+        approval = PunchCorrectionEffects.correction_approved(
+          request: @request, field: @request.correction_field, effective_at: effective_at, actor: @actor
         )
-
-        effective_dt = self.class.effective_punch_at(request: @request)
-
-        case @request.correction_field
-        when :check_in
-          record.check_in_at     = effective_dt
-          record.check_in_source = "admin_manual"
-        when :check_out
-          record.check_out_at     = effective_dt
-          record.check_out_source = "admin_manual"
-        end
-
-        # The date is applied exactly as selected; a check-out before the
-        # check-in is refused rather than silently moved to another day. A
-        # check-out correction must land strictly after the check-in (full
-        # datetime, so a next-day overnight check-out is valid).
-        if record.check_in_at && record.check_out_at
-          if @request.correction_field == :check_out && record.check_out_at <= record.check_in_at
-            applier_error = I18n.t("requests.errors.check_out_not_after_check_in")
-          elsif record.check_out_at < record.check_in_at
-            applier_error = I18n.t("requests.errors.check_out_before_check_in")
-          end
-          raise ActiveRecord::Rollback if applier_error
-        end
-
-        record.save!
-
-        Attendance::RecordRecomputer.recompute!(record)
-        record.save!
-
-        Payroll::PunchCorrectionApplier.call(request: @request, record: record)
+        persist_snapshot(approval.snapshot) if approval.applied?
       end
 
-      return failure(applier_error) if applier_error
+      return failure(refusal_message(approval.status)) if approval.refused?
 
-      Result.new(success: true, record: record)
+      Result.new(success: true, approval: approval)
     rescue ActiveRecord::RecordInvalid => e
       failure(e.record.errors.full_messages.join(", "))
     rescue => e
@@ -118,14 +84,27 @@ module Requests
 
     private
 
-    # The payroll period of the request's month, looked up exactly as
-    # cancellation does (Requests::Canceller#covering_period); none → not locked.
-    def payroll_period_locked?
-      PayrollPeriod.where(
-        business:     @request.user.business,
-        period_month: @request.requested_for_date.month,
-        period_year:  @request.requested_for_date.year
-      ).first&.locked? || false
+    # The punches the correction replaced, persisted onto the request exactly as
+    # before M4-2 (update_columns: no validations, callbacks or updated_at).
+    def persist_snapshot(snapshot)
+      @request.update_columns(
+        original_check_in_at:      snapshot.check_in_at,
+        original_check_out_at:     snapshot.check_out_at,
+        original_check_in_source:  snapshot.check_in_source,
+        original_check_out_source: snapshot.check_out_source
+      )
+    end
+
+    # The contract's refusals as the messages approval has always shown. The
+    # no-record message is the historical literal (not translated).
+    def refusal_message(status)
+      case status
+      when :no_attendance_record then "No attendance record found for #{@request.requested_for_date}"
+      # A finalized / paid payroll period is frozen: correcting its attendance
+      # would leave attendance and payroll permanently out of step.
+      when :payroll_locked then I18n.t("requests.errors.cannot_approve_finalized")
+      else I18n.t("requests.errors.#{status}")
+      end
     end
 
     # Combines the punch's actual calendar date (not the work/business date) with
