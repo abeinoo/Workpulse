@@ -10,8 +10,9 @@ module Requests
   #     late_permission  : the payroll effect is reverted by Attendance & Payroll
   #     early_leave        through the Workforce contract Requests::PermissionPayrollEffects
   #                        (refused while the payroll period is finalized / paid)
-  #     punch_correction : restores check_in_at/out + sources on AttendanceRecord,
-  #                        recomputes the record, and re-propagates to open payroll
+  #     punch_correction : Attendance & Payroll restores the attendance record from
+  #                        the request's snapshot and recalculates the payroll entry
+  #                        through the Workforce contract Requests::PunchCorrectionEffects
   #
   # Blocked transitions
   #   paid      → not cancellable (Advance already created / funds disbursed)
@@ -154,129 +155,6 @@ module Requests
         check_in_source:  @request.original_check_in_source,
         check_out_source: @request.original_check_out_source
       )
-    end
-
-    # ── Legacy punch correction rollback (unused since M4-2) ───────────────────
-    #
-    # Kept, with the helpers below, until the Attendance & Payroll path above is
-    # verified; removed in Pilot 10 M4-4. Restores check_in_at/out and their
-    # source fields from the snapshots taken at approval time, then recomputes
-    # the record and re-propagates to payroll.
-    def rollback_punch_correction
-      record = AttendanceRecord
-                 .includes(shift_assignment: [ :rule_profile, { shift: :penalty_rules } ])
-                 .find_by(user: @request.user, work_date: @request.requested_for_date)
-
-      return err(I18n.t("requests.errors.no_attendance_record")) unless record
-
-      period = covering_period
-      if period&.finalized? || period&.paid?
-        return err(I18n.t("requests.errors.cannot_cancel_finalized"))
-      end
-
-      case @request.correction_type
-      when "missing_check_in", "wrong_check_in_time"
-        record.check_in_at     = @request.original_check_in_at
-        record.check_in_source = @request.original_check_in_source
-      when "missing_check_out", "wrong_check_out_time"
-        record.check_out_at     = @request.original_check_out_at
-        record.check_out_source = @request.original_check_out_source
-      end
-
-      record.save!
-      Attendance::RecordRecomputer.recompute!(record)
-      record.save!
-
-      rollback_punch_payroll(record)
-
-      ok
-    rescue ActiveRecord::RecordInvalid => e
-      err(e.record.errors.full_messages.join(", "))
-    end
-
-    # Updates or recreates penalty line items in the open payroll entry to match
-    # the restored attendance record. Mirrors Payroll::PunchCorrectionApplier but
-    # also handles the case where the correction had destroyed a line item (it
-    # would only update existing items, never recreate).
-    def rollback_punch_payroll(record)
-      period = covering_period
-      return unless period && !period.finalized? && !period.paid?
-
-      entry = PayrollEntry.find_by(payroll_period: period, user: @request.user)
-      return unless entry
-
-      daily_rate = daily_rate_for(entry)
-
-      restore_penalty_line_item(entry, record, "late_penalty",        record.late_minutes.to_i,        daily_rate)
-      restore_penalty_line_item(entry, record, "early_leave_penalty", record.early_leave_minutes.to_i, daily_rate)
-      entry.recalculate_totals!
-    end
-
-    def restore_penalty_line_item(entry, record, item_type, raw_minutes, daily_rate)
-      line_item = entry.payroll_line_items.find_by(
-        source_type: "AttendanceRecord",
-        source_id:   record.id,
-        item_type:   item_type
-      )
-
-      if raw_minutes == 0
-        line_item&.destroy!
-        return
-      end
-
-      full_amount = compute_penalty(record, daily_rate, item_type, raw_minutes)
-
-      if full_amount.round(2) == 0.0
-        line_item&.destroy!
-      elsif line_item
-        line_item.update!(amount: full_amount.round(2), original_minutes: raw_minutes)
-      else
-        type_label = item_type == "late_penalty" ? "Late arrival" : "Early leave"
-        entry.payroll_line_items.create!(
-          item_type:        item_type,
-          amount:           full_amount.round(2),
-          description:      "#{type_label} #{record.work_date}",
-          source_type:      "AttendanceRecord",
-          source_id:        record.id,
-          original_minutes: raw_minutes
-        )
-      end
-    end
-
-    # ── Shared helpers ─────────────────────────────────────────────────────────
-
-    def covering_period
-      PayrollPeriod.where(
-        business:     @request.user.business,
-        period_month: @request.requested_for_date.month,
-        period_year:  @request.requested_for_date.year
-      ).first
-    end
-
-    def daily_rate_for(entry)
-      Salary::DailyRateCalculator.for(
-        user:     @request.user,
-        business: @request.user.business,
-        date:     entry.payroll_period.period_start
-      ).daily_rate
-    end
-
-    def compute_penalty(record, daily_rate, item_type, minutes)
-      if item_type == "late_penalty"
-        result = Attendance::PenaltyCalculator.calculate(
-          record:                record,
-          daily_salary:          daily_rate,
-          late_minutes_override: minutes
-        )
-        -result.late_penalty
-      else
-        result = Attendance::PenaltyCalculator.calculate(
-          record:                       record,
-          daily_salary:                 daily_rate,
-          early_leave_minutes_override: minutes
-        )
-        -result.early_leave_penalty
-      end
     end
 
     def ok

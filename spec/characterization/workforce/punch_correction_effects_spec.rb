@@ -474,37 +474,14 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
     end
   end
 
-  # ── I. shared helpers ──────────────────────────────────────────────────────
-  describe "I. helpers shared with / duplicated by Payroll::PermissionReverter" do
-    let(:req) { correction("wrong_check_in_time", "09:00") }
-    let(:canceller) { Requests::Canceller.new(request: req, cancelled_by: reviewer, reason: "x") }
-    let(:reverter)  { Payroll::PermissionReverter.new(req) }
-
-    before { attendance && entry }
-
-    it "covering_period: both pick the request month's period regardless of status" do
-      period.update_column(:status, "paid")
-      expect(canceller.send(:covering_period)).to eq(period)
-      expect(reverter.send(:covering_period)).to eq(period)
-    end
-
-    it "daily_rate_for and compute_penalty give identical results" do
-      expect(canceller.send(:daily_rate_for, entry)).to eq(reverter.send(:daily_rate_for, entry))
-      expect(canceller.send(:daily_rate_for, entry)).to eq(400)
-
-      { "late_penalty" => [ 40, -100.0 ], "early_leave_penalty" => [ 120, -200.0 ] }.each do |type, (minutes, amount)|
-        expect(canceller.send(:compute_penalty, attendance, 400, type, minutes)).to eq(amount)
-        expect(reverter.send(:compute_penalty, attendance, 400, type, minutes)).to eq(amount)
-      end
-    end
-
-    it "the approval applier differs: it only looks at OPEN periods, by the record's work date" do
-      applier = Payroll::PunchCorrectionApplier.new(req, attendance)
-      expect(applier.send(:open_period_covering, day)).to eq(period)
-
-      period.update_column(:status, "finalized")
-      expect(applier.send(:open_period_covering, day)).to be_nil
-      expect(canceller.send(:covering_period)).to eq(period)
-    end
-  end
+  # ── I. shared helpers — retired in Pilot 10 M6 ─────────────────────────────
+  # The three examples here compared Requests::Canceller's private
+  # covering_period / daily_rate_for / compute_penalty with
+  # Payroll::PermissionReverter's copies and Payroll::PunchCorrectionApplier's
+  # open_period_covering (through #send). M4 replaced that code and M6 deleted it,
+  # so the duplication is gone. The behaviour they pinned stays covered:
+  #   request-month period in any status, locked refusal →
+  #     punch_correction_m4_baseline_spec.rb M / R and punch_correction_period_lock_spec.rb;
+  #   daily rate 400, −100 / −200 for 40 / 120 minutes → E / G above (amounts);
+  #   Payroll::PermissionReverter (Pilot 9, unchanged) → spec/services/payroll/permission_reverter_spec.rb.
 end

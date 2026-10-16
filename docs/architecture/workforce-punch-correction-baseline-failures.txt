@@ -22,6 +22,8 @@
 #   432 / 0, 1639 / the same 23; M4-3 dee8a70 — 435 / 0 (M1 +2 examples, applier spec +1), 1640 / the same 23. The
 #   M4 specs (M4-1 characterization, M4-2 routing + two-connection lock, branch-manager specs) run alongside, not in
 #   this set. The listed ID stays: it is date-dependent, not fixed.
+# M6 (2026-10-16, all three seeds, compared by exact ID with the same day's 2bcdcb4): this set 432 / 0 (M1 §I's three
+#   passing examples retired with the code they compared — §25.11); request-area 1640 / the same 23. No ID changed.
 #
 # set spec/architecture/attendance_payroll_penalty_rule_boundary_spec.rb
 # set spec/characterization/workforce/punch_correction_effects_spec.rb

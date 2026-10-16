@@ -4185,13 +4185,12 @@ unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed
 
 ## 25. Pilot 10 — Punch Correction payroll / attendance effects
 
-**Status (2026-10-16): M4 IMPLEMENTATION COMPLETE — the pilot is NOT fully closed** (§25.10). On
+**Status (2026-10-16): M4 and M6 COMPLETE — the pilot is NOT fully closed** (§25.10, §25.11). On
 `feature/pilot-10-punch-correction` (not pushed): M1 `5c8729e`, M2 `e2aa155`, M3 `cf29212`, M4-0 merge `cd2296d`,
-M4-1 `3213425`, M4-2 `33e5add`, M4-3 `dee8a70`; M4-4 is this documentation close-out. M0 and the unblock are merged
-(`66abcf5`, PR #34 → `fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). The assessment, approval and
-cancellation reach Attendance & Payroll only through `Requests::PunchCorrectionEffects`. Outstanding before the pilot
-can close: the production-only legacy check (§25.10.3) and the M6 cleanup of the now-unreachable legacy code
-(§25.10.4).
+M4-1 `3213425`, M4-2 `33e5add`, M4-3 `dee8a70`, M4-4 docs `2bcdcb4`, M6 cleanup (§25.11). M0 and the unblock are
+merged (`66abcf5`, PR #34 → `fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). The assessment, approval and
+cancellation reach Attendance & Payroll only through `Requests::PunchCorrectionEffects`, and the pre-M4 legacy code is
+deleted. Outstanding before the pilot can close: the production-only legacy check (§25.10.3) and M8.
 
 ### 25.1 M0 — findings (read-only)
 
@@ -4671,7 +4670,7 @@ its 8 pre-existing layout offenses on untouched lines).
 | M4-2 | COMPLETE — `33e5add`, approval + cancellation moved, row locks (§25.8) |
 | M4-3 | COMPLETE — `dee8a70`, Decisions A / B / C (§25.9) |
 | M4-4 | COMPLETE — this documentation |
-| M6 | NOT DONE — cleanup of the unreachable legacy code (§25.10.4); enforcement exists (boundary specs) |
+| M6 | COMPLETE (after this table was written) — legacy code removed, boundaries tightened (§25.11) |
 | M7 | NOT NEEDED — no model move in scope |
 | M8 | NOT DONE — final close-out after §25.10.3 and M6 |
 
@@ -4737,6 +4736,8 @@ empty test database; that says nothing about production.
 
 #### 25.10.4 Obsolete code (kept; recommended separate removal task, Pilot 10 M6)
 
+*Done in M6 (§25.11). The audit below is the M4-4 state.*
+
 Searched (`git grep`, all files except `production.sql`) on `dee8a70`:
 
 * **`Payroll::PunchCorrectionApplier`** and **`Payroll::PunchCorrectionReverter`** — no runtime caller in `app/`, `lib/`
@@ -4755,3 +4756,72 @@ The removal (both services, the legacy methods, the M1 §I examples that compare
 boundary entries, the stale comments) is one narrowly scoped `chore:` task with its own matrix; consolidating
 `Payroll::PermissionReverter`'s private copies is separate. **Next step:** Pilot 10 M6 (cleanup), then M8 after the
 production check — no new pilot is selected here.
+
+### 25.11 M6 — legacy cleanup (2026-10-16)
+
+**Scope:** delete what M4 left unreachable; no behaviour, contract, authorization, message, schema or transaction
+change. `Payroll::PermissionReverter`'s own helper copies (Pilot 9) are kept — a separate follow-up.
+
+**Reference audit on `2bcdcb4`** (`git grep`, every file except `production.sql`):
+
+| Reference | Category |
+|---|---|
+| `Payroll::PunchCorrectionApplier` / `Payroll::PunchCorrectionReverter` in `app/`, `lib/`, `config/` | No runtime caller — one comment in `requests/canceller.rb`; Zeitwerk eager-loads both files |
+| `Requests::Canceller#rollback_punch_correction`, `#rollback_punch_payroll`, `#restore_penalty_line_item`, `#covering_period`, `#daily_rate_for`, `#compute_penalty` | No runtime caller (the live cancel path calls only `revert_punch_correction_effect`; asserted since M4-2) |
+| M1 §I (3 examples, `punch_correction_effects_spec.rb`) | Characterization of the obsolete seam: compared the canceller's helpers and `PunchCorrectionApplier#open_period_covering` with `PermissionReverter`'s copies through `#send` |
+| `punch_correction_effects_routing_spec.rb` — `expect(Payroll::PunchCorrection{Applier,Reverter}).not_to receive(:call)` | Regression test naming the constants |
+| `workforce_punch_correction_boundary_spec.rb` — `REVERTER`, the legacy marker, "legacy rollback unreachable", "reverter never calls back" | Architecture enforcement of the M4-2 interim state |
+| `workforce_request_permission_payroll_boundary_spec.rb` (Pilot 9) — `PUNCH_CORRECTION_METHODS` exemption in rule A, check F "still in place", two probes | Architecture enforcement: the canceller's only allowed Attendance & Payroll use |
+| `attendance_payroll_penalty_rule_boundary_spec.rb` — allow-list entries for both services and the canceller's request exception, with the "every listed file exists and still needs its entry" check | Allow-list |
+| `docs/` and spec comments | Documentation (historical; kept) |
+| `covering_period` in `EmployeeObligation` / `ObligationDeductor`; `PermissionReverter#covering_period` / `#daily_rate_for` / `#compute_penalty` | Other, unrelated (same names, different classes) — untouched |
+
+**Removed (production):** `app/services/payroll/punch_correction_applier.rb`, `app/services/payroll/punch_correction_reverter.rb`
+and the canceller's legacy section (the six methods above) — 306 lines; the canceller's header comment now describes
+the contract path. **Retained:** everything reachable, including `Requests::PunchCorrectionApplier` (Workforce: the
+moment, the snapshot, the refusal messages) and `PermissionReverter`'s copies.
+
+**Tests changed (coverage kept through the current contract):**
+
+* **M1 §I retired (3 examples)** — the duplication it compared no longer exists. Behaviour mapping: request-month period
+  in any status and the locked refusal → M4-1 M / R and the two-connection lock spec (through the contract); daily rate
+  400 and −100 / −200 for 40 / 120 minutes → M1 E / G amounts; `PermissionReverter` → its own
+  `spec/services/payroll/permission_reverter_spec.rb`. A comment in the spec records the mapping. No baseline failure ID
+  is involved (all three passed).
+* **Routing spec:** the two constant expectations dropped; `expect(Payroll::EntryRecalculator).not_to receive(:call)`
+  (Workforce never runs the payroll effect itself) stays.
+* **Punch-correction boundary — tightened:** the canceller names nothing from Attendance & Payroll in the whole file (no
+  exempt section); the removed files, constants and canceller methods must not exist and nothing in `app/`, `lib/` or
+  `config/` may name them; a probe plants them back.
+* **Pilot 9 boundary — tightened:** rule A has no exemption any more (the canceller names Attendance & Payroll nowhere);
+  check F now asserts the six methods are gone (it asserted the opposite); the two probes that relied on the exemption
+  now expect a revived rollback to be reported as a leak.
+* **Penalty-rule allow-list:** the two deleted files and the canceller's request exception removed (its own tightness
+  check requires it); no other entry changed.
+
+Physical probe: a planted `Payroll::PunchCorrectionApplier` file plus a `covering_period` method naming `PayrollPeriod`
+in the canceller → 4 boundary failures across both specs; restored → green.
+
+**Verification (2026-10-16, seeds 20261006 / 12345 / 98765, identical; compared by exact failure ID with the same-day
+measurement on `2bcdcb4`):**
+
+| Suite | `2bcdcb4` | M6 |
+|---|---|---|
+| A. M2 / M3 contract, boundary, routing | 61 / 0 | 62 / 0 (+1 probe) |
+| B. M1 characterization | 31 / 0 | 28 / 0 (−3, §I retired) |
+| C. Punch-correction specs | 383 / 0 | 383 / 0 |
+| D. SEC-P10-1 + locked period | 21 / 0 | 21 / 0 |
+| E. Request security + policy | 130 / 0 | 130 / 0 |
+| F. Pilot 9 core | 282 / 0 | 282 / 0 |
+| G. `spec/architecture` + `spec/requests/security` | 605 / 0 | 606 / 0 (+1 probe) |
+| H. Request-area set | 1640 / 23 | 1640 / 23 — the same IDs |
+| I. Pilot 10 set | 435 / 0 | 432 / 0 (−3, §I) |
+| J. Branch-manager specs | 21 / 0 | 21 / 0 |
+| K. M4-1 characterization | 50 / 0 | 50 / 0 |
+| L. M4-2 routing + lock | 18 / 0 | 18 / 0 |
+| M. Finalization paths | 295 / 8, 1 pending | 295 / 8, 1 pending — the same IDs |
+
+Failing IDs unchanged (§25.9). `zeitwerk:check`, RuboCop on the six changed Ruby files and `git diff --check` clean.
+
+**Remaining (unchanged by M6):** the production-only check (§25.10.3); the concurrency risks of §25.10.2; consolidating
+`Payroll::PermissionReverter`'s private helper copies (Pilot 9 debt, now the only copies left); M8 close-out.

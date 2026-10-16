@@ -16,23 +16,36 @@ require "rails_helper"
 # M4-2 routed approval and cancellation together: Requests::PunchCorrectionApplier
 # (called by Requests::Approver) reaches the attendance & payroll effect only
 # through correction_approved, Requests::Canceller only through
-# correction_cancelled. The canceller's pre-M4 rollback stays below its legacy
-# marker, unreachable, until M4-4 removes it.
+# correction_cancelled.
+#
+# M6 removed what M4 had left unreachable: Requests::Canceller's pre-M4
+# rollback and its helpers, and the pre-M4 payroll services
+# Payroll::PunchCorrectionApplier / Payroll::PunchCorrectionReverter (the
+# payroll effect is Payroll::EntryRecalculator since M4-3). They must stay gone,
+# and the canceller names nothing from Attendance & Payroll.
 module ArchitectureSpecs
   module WorkforcePunchCorrectionBoundary
     module_function
 
     CONTRACT_FILE   = "app/services/requests/punch_correction_effects.rb".freeze
     IMPLEMENTATION  = "app/services/attendance/punch_correction_effects.rb".freeze
-    REVERTER        = "app/services/payroll/punch_correction_reverter.rb".freeze
     INITIALIZER     = "config/initializers/request_punch_correction_effects.rb".freeze
     ASSESSMENT      = "app/services/requests/punch_correction_assessment.rb".freeze
     APPLIER         = "app/services/requests/punch_correction_applier.rb".freeze
     APPROVER        = "app/services/requests/approver.rb".freeze
     CANCELLER       = "app/services/requests/canceller.rb".freeze
 
-    # Where Requests::Canceller's unreachable pre-M4 rollback starts (M4-4 removes it).
-    CANCELLER_LEGACY_MARKER = "Legacy punch correction rollback (unused since M4-2)".freeze
+    # Removed in M6 — must not come back.
+    REMOVED_FILES = %w[
+      app/services/payroll/punch_correction_applier.rb
+      app/services/payroll/punch_correction_reverter.rb
+    ].freeze
+    REMOVED_CONSTANTS = %w[Payroll::PunchCorrectionApplier Payroll::PunchCorrectionReverter].freeze
+    REMOVED_CANCELLER_METHODS = %i[
+      rollback_punch_correction rollback_punch_payroll restore_penalty_line_item
+      covering_period daily_rate_for compute_penalty
+    ].freeze
+    REMOVED_NAMES = /\bPayroll::PunchCorrection(?:Applier|Reverter)\b|\brollback_punch_(?:correction|payroll)\b/
 
     # The contract, with or without its namespace (callers inside module Requests omit it).
     CONTRACT_NAME = /(?<![\w:])(?:Requests::)?PunchCorrectionEffects\b/
@@ -66,15 +79,6 @@ module ArchitectureSpecs
 
     def source_files(root = "{app,lib}")
       Dir.glob(Rails.root.join("#{root}/**/*.{rb,erb,rake}")).map { |f| f.delete_prefix("#{Rails.root}/") }
-    end
-
-    # The canceller's live code: everything above the legacy marker.
-    def canceller_live_lines
-      lines  = code_lines(CANCELLER)
-      marker = File.read(Rails.root.join(CANCELLER)).each_line.find_index { |line| line.include?(CANCELLER_LEGACY_MARKER) }
-      raise "legacy marker missing from #{CANCELLER}" unless marker
-
-      lines.select { |_, number| number <= marker }
     end
   end
 end
@@ -127,27 +131,20 @@ RSpec.describe "Architecture: Workforce punch correction boundary (contract)" do
     expect(violations).to be_empty, "Reach attendance & payroll through correction_approved:\n#{violations.join("\n")}"
   end
 
-  it "M4-2: the canceller's live code names nothing from Attendance & Payroll, and its legacy rollback is unreachable" do
-    violations = boundary.canceller_live_lines.filter_map do |line, number|
-      "#{boundary::CANCELLER}:#{number}: #{line.strip}" if line.match?(boundary::CONTRACT_FORBIDDEN)
-    end
+  it "M6: the canceller names nothing from Attendance & Payroll (the whole file — no legacy section left)" do
+    violations = boundary.matches_in(boundary::CANCELLER, boundary::CONTRACT_FORBIDDEN)
     expect(violations).to be_empty, "Reach attendance & payroll through correction_cancelled:\n#{violations.join("\n")}"
-
-    # The legacy methods are named only inside the legacy section itself (the
-    # reverter has its own restore_penalty_line_item).
-    legacy   = /\b(?:rollback_punch_correction|rollback_punch_payroll|restore_penalty_line_item)\b/
-    live     = boundary.canceller_live_lines.map(&:last)
-    namers   = (boundary.source_files - [ boundary::REVERTER ]).flat_map { |path| boundary.matches_in(path, legacy) }
-    outside  = namers.reject do |line|
-      path, number = line.split(":").first(2)
-      path == boundary::CANCELLER && !live.include?(number.to_i)
-    end
-    expect(outside).to be_empty, "The pre-M4 rollback must stay unreachable:\n#{outside.join("\n")}"
   end
 
-  it "M4-2: the payroll reverter never calls back into Workforce or writes the request" do
-    callbacks = boundary.matches_in(boundary::REVERTER, boundary::WORKFORCE_CALLBACK)
-    expect(callbacks).to be_empty, callbacks.join("\n")
+  it "M6: the pre-M4 payroll services and the canceller's pre-M4 rollback are gone, and nothing names them" do
+    expect(boundary::REMOVED_FILES.select { |file| File.exist?(Rails.root.join(file)) }).to be_empty
+    boundary::REMOVED_CONSTANTS.each { |name| expect(Object.const_defined?(name)).to be(false), name }
+    boundary::REMOVED_CANCELLER_METHODS.each do |name|
+      expect(Requests::Canceller.private_method_defined?(name) || Requests::Canceller.method_defined?(name)).to be(false), name
+    end
+
+    named = (boundary.source_files + boundary.source_files("config")).flat_map { |path| boundary.matches_in(path, boundary::REMOVED_NAMES) }
+    expect(named).to be_empty, named.join("\n")
   end
 
   describe "self-tests (planted probes)" do
@@ -199,9 +196,15 @@ RSpec.describe "Architecture: Workforce punch correction boundary (contract)" do
         .to eq(2)
 
       plant(boundary::CANCELLER, "def cancel\n  Attendance::RecordRecomputer.recompute!(record)\nend\n" \
-                                 "# ── #{boundary::CANCELLER_LEGACY_MARKER} ──\ndef rollback_punch_correction\n  PayrollEntry.first\nend\n")
-      live = boundary.canceller_live_lines.select { |line, _| line.match?(boundary::CONTRACT_FORBIDDEN) }
-      expect(live.map(&:last)).to eq([ 2 ]) # the planted live line, not the legacy one
+                                 "def rollback_punch_correction\n  PayrollEntry.first\nend\n")
+      expect(boundary.matches_in(boundary::CANCELLER, boundary::CONTRACT_FORBIDDEN).size).to eq(2) # no exempt section any more
+    end
+
+    it "catches a removed service or the legacy rollback planted back" do
+      plant(boundary::CANCELLER, "def rollback_punch_payroll(record)\nend\n")
+      plant(boundary::IMPLEMENTATION, "Payroll::PunchCorrectionReverter.call(request: request, record: record, period: period)\n")
+      expect([ boundary::CANCELLER, boundary::IMPLEMENTATION ].flat_map { |p| boundary.matches_in(p, boundary::REMOVED_NAMES) }.size)
+        .to eq(2)
     end
 
     it "lets the implementation name the contract's value types" do

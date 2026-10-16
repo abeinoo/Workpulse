@@ -81,7 +81,6 @@ RSpec.describe "Punch correction effects routing (approval and cancellation)" do
     it "calls correction_approved once with the request, its field, the saved final moment and the reviewer — and writes no attendance itself" do
       handler, calls = recording_handler(approved: applied(worked_minutes: 412, duration_severity: :suspicious))
       expect(Payroll::EntryRecalculator).not_to receive(:call) # the payroll effect is the handler's (M4-3)
-      expect(Payroll::PunchCorrectionApplier).not_to receive(:call)
       req    = correction
       before = record_state
 
@@ -145,7 +144,6 @@ RSpec.describe "Punch correction effects routing (approval and cancellation)" do
     it "calls correction_cancelled once with the request, its field, the persisted snapshot and the canceller — and writes no attendance itself" do
       handler, calls = recording_handler(cancelled: :reverted)
       expect(Payroll::EntryRecalculator).not_to receive(:call)
-      expect(Payroll::PunchCorrectionReverter).not_to receive(:call)
       req    = approved_request
       before = record_state
 
