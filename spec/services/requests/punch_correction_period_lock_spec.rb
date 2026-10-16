@@ -3,7 +3,7 @@ require "rails_helper"
 # Pilot 10 M4-2 — punch corrections and payroll-period finalization coordinate on
 # the period row (and two approvals on the request row), proven with TWO
 # database connections: a second connection is the only thing a row lock can
-# block. Lock order: request → payroll period → attendance / payroll rows;
+# block. Lock order: request → payroll period → payroll entry (M4-3) → attendance / payroll rows;
 # Payroll::Approver (the only path to finalized / paid) locks the period first.
 #
 # Deterministic: the operation under test is paused at a known point by a
@@ -125,16 +125,23 @@ RSpec.describe "Punch correction ↔ payroll period locking (two connections)" d
       .to raise_error(ActiveRecord::LockWaitTimeout)
   end
 
+  # M4-3: the existing entry is locked after the period, before it is recalculated.
+  def expect_entry_row_held
+    expect { PayrollEntry.transaction { PayrollEntry.lock("FOR UPDATE NOWAIT").find(entry.id) } }
+      .to raise_error(ActiveRecord::LockWaitTimeout)
+  end
+
   after { (@releases || []).each { |release| 2.times { release << true } } } # never leave a thread blocked
 
   describe "approval" do
     it "holds the period row from its lock check to its commit: finalization cannot run in between" do
       req = correction
-      reached, release = pause_inside(Payroll::PunchCorrectionApplier, :call) # after the check, before the payroll write
+      reached, release = pause_inside(Payroll::EntryRecalculator, :call) # after the period + entry locks, before the payroll write
       approval = on_other_connection { approve(req) }
       wait_for(reached)
 
       expect_period_row_held
+      expect_entry_row_held
       blocked = finalize_with_lock_timeout
       expect(blocked).not_to be_success
       expect(blocked.error).to match(/lock timeout/)
@@ -169,7 +176,7 @@ RSpec.describe "Punch correction ↔ payroll period locking (two connections)" d
     it "two approvals on two connections: the second waits for the request row, then is refused" do
       req   = correction
       stale = EmployeeRequest.find(req.id)
-      reached, release = pause_inside(Payroll::PunchCorrectionApplier, :call)
+      reached, release = pause_inside(Payroll::EntryRecalculator, :call)
       first = on_other_connection { approve(req) }
       wait_for(reached)
 
@@ -188,11 +195,12 @@ RSpec.describe "Punch correction ↔ payroll period locking (two connections)" d
     let!(:approved) { correction.tap { |req| expect(approve(req)).to be_success } }
 
     it "holds the period row from its lock check to its commit: finalization cannot run in between" do
-      reached, release = pause_inside(Payroll::PunchCorrectionReverter, :call)
+      reached, release = pause_inside(Payroll::EntryRecalculator, :call)
       cancellation = on_other_connection { cancel(approved) }
       wait_for(reached)
 
       expect_period_row_held
+      expect_entry_row_held
       blocked = finalize_with_lock_timeout
       expect(blocked.error).to match(/lock timeout/)
       expect(period_now.status).to eq("under_review")

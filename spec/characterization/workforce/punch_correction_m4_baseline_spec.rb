@@ -81,13 +81,37 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
                                permission_minutes: permission_minutes)
   end
 
-  # The penalty lines for the default record, totals settled, needs_review cleared.
-  def standard_payroll
-    penalty_line("late_penalty", -100.0, 40)
-    penalty_line("early_leave_penalty", -200.0, 120)
-    entry.recalculate_totals!
-    entry.update_column(:needs_review, false)
+  # Complete, on-time attendance on June's other 21 working days, so the entry's
+  # full recalculation (Decision C, M4-3) derives exactly the hand-built entry:
+  # 22 days worked, no absence, base 8,800, only the corrected day's penalties.
+  def complete_rest_of_month!
+    (Date.new(2026, 6, 1)..Date.new(2026, 6, 30)).select { |d| d.on_weekday? && d != day }.each do |d|
+      create(:attendance_record, user: employee, branch: branch, shift_assignment: assignment, date: d, work_date: d,
+                                 check_in_at: at(9, 0, date: d), check_out_at: at(17, 0, date: d),
+                                 check_in_source: "device", check_out_source: "device", status: "present")
+        .tap { |record| Attendance::RecordRecomputer.recompute!(record) && record.save! }
+    end
   end
+
+  # The employee's June entry as payroll generation derives it (M4-3: built by
+  # Payroll::EntryCalculator, not by hand, so a recalculation starts from a real
+  # derivation): base 8,800, late −100 (40 min), early −200 (120 min), net 8,500.
+  def standard_payroll
+    complete_rest_of_month!
+    attendance
+    @entry = Payroll::EntryCalculator.call(period: period, user: employee, business: business)
+    @entry.update_column(:needs_review, false)
+  end
+
+  # Line content without row identity: a full recalculation (M4-3) destroys and
+  # recreates every line item, so ids / timestamps never survive it.
+  def line_contents
+    entry.payroll_line_items.reload.map { |li| li.attributes.except("id", "created_at", "updated_at") }
+         .sort_by { |attrs| [ attrs["item_type"], attrs["source_type"].to_s, attrs["source_id"].to_i ] }
+  end
+
+  def totals = entry.reload.attributes.slice(*%w[base_salary days_worked total_deductions total_overtime total_bonuses
+                                                 advances_deducted obligations_deducted net_salary])
 
   def line(type) = entry.payroll_line_items.find_by(item_type: type, source_type: "AttendanceRecord", source_id: attendance.id)
 
@@ -121,30 +145,38 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
   describe "J. approve → cancel round trips" do
     before { standard_payroll }
 
-    it "a line the correction updates: attendance, the line and the entry come back exactly; the snapshot stays on the request" do
+    # CHANGED in M4-3 (Decision C): the entry is re-derived on approval and on
+    # cancellation, which recreates every line row, so the round trip restores
+    # line CONTENT and the entry's figures, not row ids (until M4-2 the patched
+    # rows kept their ids).
+    it "a line the correction updates: attendance, the line content and the entry come back exactly; the snapshot stays on the request" do
       req           = correction("wrong_check_in_time", "09:20")
       record_before = record_state
-      lines_before  = lines_state
-      entry_before  = entry_state
+      lines_before  = line_contents
+      totals_before = totals
 
       approve(req)
       expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 20)
       cancel(req)
 
       expect(record_state).to eq(record_before)
-      expect(lines_state).to eq(lines_before)
-      expect(entry_state).to eq(entry_before)
+      expect(line_contents).to eq(lines_before)
+      expect(totals).to eq(totals_before)
+      expect(entry.needs_review).to be(false) # the figures never changed
       expect(req.reload).to have_attributes(status: "cancelled", approved_punch_at: at(9, 20),
                                             original_check_in_at: at(9, 40), original_check_out_at: at(15, 0),
                                             original_check_in_source: "device", original_check_out_source: "device")
     end
 
-    it "a line the correction deletes is RECREATED with the same money but a new id, a generated description and nil permission_minutes; needs_review stays set" do
+    # CHANGED in M4-3 (Decision C): the deleted line is recreated by the same
+    # derivation that built it, so it comes back identical except for its row
+    # (until M4-2 the canceller's copy had a generated description and nil
+    # permission_minutes instead of the generated line's 0).
+    it "a line the correction deletes is recreated identical but for its row; needs_review stays set" do
       req           = correction("wrong_check_in_time", "09:00")
       record_before = record_state
       late_before   = line("late_penalty").attributes
-      totals        = %w[total_deductions net_salary total_overtime total_bonuses advances_deducted obligations_deducted]
-      totals_before = entry.attributes.slice(*totals)
+      totals_before = totals
 
       approve(req)
       expect(line("late_penalty")).to be_nil
@@ -154,27 +186,43 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
       recreated = line("late_penalty")
       expect(record_state).to eq(record_before)
       expect(recreated.id).not_to eq(late_before["id"])
-      expect(recreated.attributes.except("id", "created_at", "updated_at", "description", "permission_minutes"))
-        .to eq(late_before.except("id", "created_at", "updated_at", "description", "permission_minutes"))
-      expect(recreated).to have_attributes(description: "Late arrival #{day}", permission_minutes: nil)
-      expect(late_before["permission_minutes"]).to eq(0)
-      expect(entry.reload.attributes.slice(*totals)).to eq(totals_before)
+      expect(recreated.attributes.except("id", "created_at", "updated_at"))
+        .to eq(late_before.except("id", "created_at", "updated_at"))
+      expect(recreated).to have_attributes(description: "Late arrival #{day}", permission_minutes: 0)
+      expect(totals).to eq(totals_before)
       expect(entry.needs_review).to be(true) # set by the approval, never cleared by the cancellation
     end
+  end
 
-    it "with a permission already applied to the line, the round trip does NOT restore the amount (changes with Decision B)" do
+  # CHANGED in M4-3 (Decision B). Until M4-2 the approval ignored the approved
+  # permission (the line was recomputed from the full minutes) and the round
+  # trip did not restore the amount. The recalculation applies the permission
+  # every time, so the round trip is exact.
+  describe "J. round trips with and without an approved permission (Decision B)" do
+    before do
       create(:employee_request, :late_permission, status: "approved", user: employee, requested_for_date: day,
-                                                  duration_minutes: 30, reviewed_by: reviewer)
-      line("late_penalty").update!(permission_minutes: 30, amount: 0.0) # as PermissionApplier leaves it
-      entry.recalculate_totals!
-      req = correction("wrong_check_in_time", "09:35")
+                                                  duration_minutes: 20, reviewed_by: reviewer)
+      standard_payroll # 40 late − 20 permitted = 20 minutes penalised → −100
+    end
 
-      approve(req)
-      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 35, permission_minutes: 30)
+    it "the permission is applied before, during and after the correction, and the round trip is exact" do
+      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 40, permission_minutes: 20)
+      lines_before  = line_contents
+      totals_before = totals
+      req = correction("wrong_check_in_time", "09:30")
+
+      approve(req) # 30 late − 20 permitted = 10 minutes, under the threshold
+      expect(line("late_penalty")).to be_nil
+      expect(totals).to include("total_deductions" => 200.0, "net_salary" => 8_600.0)
+
       cancel(req)
+      expect(line_contents).to eq(lines_before)
+      expect(totals).to eq(totals_before)
+    end
 
-      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 40, permission_minutes: 30)
-      expect(attendance.reload.late_minutes).to eq(40)
+    it "a correction the permission does not cover keeps the remainder penalised" do
+      approve(correction("wrong_check_in_time", "10:00")) # 60 late − 20 permitted = 40 minutes
+      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 60, permission_minutes: 20)
     end
   end
 
@@ -441,24 +489,60 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
 
   # ── N. existing-entry recalculation ────────────────────────────────────────
   describe "N. existing-entry recalculation and the no-entry case" do
-    it "neither approval nor cancellation calls Payroll::EntryRecalculator or Payroll::EntryCalculator (changes with Decision C)" do
+    # CHANGED in M4-3 (Decision C). Until M4-2 neither path used the standard
+    # recalculation; now each recalculates the existing entry exactly once, for
+    # the request's period, on behalf of the reviewer / canceller.
+    it "approval and cancellation each recalculate the existing entry once, for the period, triggered by the actor" do
       standard_payroll
-      expect(Payroll::EntryRecalculator).not_to receive(:call)
-      expect(Payroll::EntryCalculator).not_to receive(:call)
+      canceller = other_reviewer
+      allow(Payroll::EntryRecalculator).to receive(:call).and_call_original
+      allow(Payroll::EntryCalculator).to receive(:call).and_call_original
 
       req = correction("wrong_check_in_time", "09:00")
       approve(req)
-      cancel(req)
+      expect(Payroll::EntryRecalculator).to have_received(:call).once
+        .with(user: employee, period: period, triggered_by: reviewer)
+      cancel(req, by: canceller)
+
+      expect(Payroll::EntryRecalculator).to have_received(:call).twice
+      expect(Payroll::EntryRecalculator).to have_received(:call).with(user: employee, period: period, triggered_by: canceller)
+      expect(Payroll::EntryCalculator).to have_received(:call).twice.with(hash_including(entry: entry)) # never entry: nil
     end
 
-    it "an entry without penalty lines still has its totals recalculated (a stale net salary is corrected)" do
+    # CHANGED in M4-3 (Decisions A / C). Until M4-2 an entry without lines only
+    # had its totals recomputed from its (absent) lines. It is now re-derived from
+    # attendance: the early-leave line the day requires is created and the
+    # stale figures are replaced.
+    it "a stale entry without lines is re-derived from attendance: missing lines created, figures corrected" do
+      complete_rest_of_month!
       attendance
-      entry(net_salary: 8_500) # stale: no line items, base 8,800
-      req = correction("wrong_check_in_time", "09:00")
+      entry(net_salary: 1_234, days_worked: 3, total_deductions: 0) # stale, no line items
+      approve(correction("wrong_check_in_time", "09:00"))
 
-      approve(req)
-      expect(entry.reload).to have_attributes(net_salary: 8_800.0, total_deductions: 0)
-      expect(entry.payroll_line_items).to be_empty
+      expect(line("early_leave_penalty")).to have_attributes(amount: -200.0, original_minutes: 120)
+      expect(line("late_penalty")).to be_nil
+      expect(entry.reload).to have_attributes(days_worked: 22, base_salary: 8_800.0, total_deductions: 200.0,
+                                              net_salary: 8_600.0)
+    end
+
+    it "the entry row is locked (after the period) before it is recalculated" do
+      standard_payroll
+      locks = []
+      allow(PayrollEntry).to receive(:lock).and_wrap_original do |original, *args|
+        locks << :entry
+        original.call(*args)
+      end
+      allow(PayrollPeriod).to receive(:lock).and_wrap_original do |original, *args|
+        locks << :period
+        original.call(*args)
+      end
+      allow(Payroll::EntryRecalculator).to receive(:call).and_wrap_original do |original, **kwargs|
+        locks << :recalculate
+        original.call(**kwargs)
+      end
+
+      approve(correction("wrong_check_in_time", "09:00"))
+      expect(locks).to eq(%i[period entry recalculate])
     end
 
     it "another employee's entry in the same period is untouched" do
@@ -488,69 +572,103 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
   end
 
   # ── O. preservation of other payroll decisions ─────────────────────────────
-  describe "O. preservation of the entry's other payroll data" do
+  # CHANGED in M4-3 (Decision C). Until M4-2 the correction patched only the
+  # penalty lines, so ANY other row of the entry — even one with no payroll
+  # source — stayed untouched. The entry is now re-derived from its sources, as
+  # every attendance edit does: lines come back from attendance, approved
+  # adjustments, active advances and due obligations (new rows), and the
+  # management decisions on them (overtime override, deduction waiver, addition
+  # cancellation) are re-applied by EntryRecalculator. This group therefore
+  # builds the entry from real sources, generated by Payroll::EntryCalculator.
+  describe "O. preservation of the entry's other payroll data (real sources)" do
+    let(:overtime_day) { Date.new(2026, 6, 9) }
     let(:obligation) do
-      create(:employee_obligation, business: business, user: employee, total_amount: 3_000, remaining_amount: 2_500,
-                                   installment_amount: 500)
+      create(:employee_obligation, business: business, user: employee, total_amount: 3_000, remaining_amount: 3_000,
+                                   installment_amount: 500, start_month: 6, start_year: 2026)
     end
-    let(:adjustment) do
-      create(:payroll_adjustment, :manual_deduction, payroll_period: period, user: employee, amount: 50.0,
-                                                     review_status: :approved)
+    let(:advance) do
+      create(:advance, user: employee, total_amount: 300.0, remaining_amount: 300.0, issued_at: Date.new(2026, 6, 1))
     end
+
+    def adjustment(trait, amount, reason)
+      create(:payroll_adjustment, trait, payroll_period: period, user: employee, amount: amount, reason: reason,
+                                         review_status: :approved)
+    end
+
+    def line_for(source) = entry.payroll_line_items.find_by(source_type: source.class.name, source_id: source.id)
 
     before do
-      standard_payroll
-      create(:payroll_line_item, :overtime, payroll_entry: entry, amount: 300.0)
-      create(:payroll_line_item, :manual_deduction, payroll_entry: entry, amount: -50.0, source_id: adjustment.id)
-      create(:payroll_line_item, :manual_deduction, :deduction_waived, payroll_entry: entry, amount: -100.0)
-      create(:payroll_line_item, :cash_incentive, :addition_cancelled, payroll_entry: entry, amount: 200.0)
-      create(:payroll_line_item, :commission, payroll_entry: entry, amount: 100.0)
-      create(:payroll_line_item, :advance_deduction, payroll_entry: entry, amount: -300.0)
-      create(:payroll_line_item, payroll_entry: entry, item_type: "obligation_deduction", amount: -500.0,
-                                 review_status: "approved", source_type: "EmployeeObligation", source_id: obligation.id)
-      create(:obligation_deduction, employee_obligation: obligation, payroll_period: period, deducted_amount: 500,
-                                    remaining_before: 3_000, remaining_after: 2_500)
-      entry.update!(overtime_override_mode: "amount", approved_overtime_pay: 150.0, overtime_override_reason: "capped",
-                    overtime_overridden_by_id: reviewer.id, overtime_overridden_at: Time.current)
+      complete_rest_of_month!
+      AttendanceRecord.find_by(user: employee, work_date: overtime_day).tap do |record| # two hours' overtime
+        record.update!(check_out_at: at(19, 0, date: overtime_day))
+        Attendance::RecordRecomputer.recompute!(record) && record.save!
+      end
+      @kept      = adjustment(:manual_deduction, 50.0, "Damaged uniform")
+      @waived    = adjustment(:manual_deduction, 100.0, "Late report")
+      @cancelled = adjustment(:cash_incentive, 200.0, "Weekend cover")
+      @commission = adjustment(:commission, 100.0, "Sales")
+      obligation
+      advance
+      attendance
+      @entry = Payroll::EntryCalculator.call(period: period, user: employee, business: business)
+
+      line_for(@waived).update!(deduction_waived: true, deduction_waiver_reason: "goodwill",
+                                deduction_waived_by_id: reviewer.id, deduction_waived_at: Time.current)
+      line_for(@cancelled).update!(addition_cancelled: true, addition_cancellation_reason: "duplicate",
+                                   addition_cancelled_by_id: reviewer.id, addition_cancelled_at: Time.current)
+      overtime_pay = entry.reload.calculated_overtime_pay
+      entry.update!(overtime_override_mode: "amount", approved_overtime_pay: (overtime_pay / 2).round(2),
+                    overtime_override_reason: "capped", overtime_overridden_by_id: reviewer.id,
+                    overtime_overridden_at: Time.current)
       entry.recalculate_totals!
+      entry.update_column(:needs_review, false)
     end
 
-    def other_lines = entry.payroll_line_items.reload.where.not(item_type: %w[late_penalty early_leave_penalty])
-                           .order(:id).map(&:attributes)
-
-    def preserved
-      { lines:       other_lines,
-        override:    entry.reload.attributes.slice(*%w[overtime_override_mode approved_overtime_pay approved_overtime_minutes
-                                                       overtime_override_reason overtime_overridden_by_id
-                                                       overtime_overridden_at overtime_override_stale]),
-        deductions:  ObligationDeduction.order(:id).map(&:attributes),
-        obligation:  obligation.reload.attributes.except("updated_at"),
-        adjustment:  adjustment.reload.attributes.except("updated_at") }
+    # The decisions and source-derived values that must survive a recalculation.
+    def decisions
+      { override:   entry.reload.attributes.slice(*%w[overtime_override_mode approved_overtime_pay overtime_override_reason
+                                                      overtime_overridden_by_id overtime_overridden_at
+                                                      overtime_override_stale calculated_overtime_pay]),
+        waiver:     line_for(@waived).attributes.slice(*%w[amount deduction_waived deduction_waiver_reason
+                                                           deduction_waived_by_id deduction_waived_at]),
+        cancelled:  line_for(@cancelled).attributes.slice(*%w[amount addition_cancelled addition_cancellation_reason
+                                                              addition_cancelled_by_id addition_cancelled_at]),
+        kept:       line_for(@kept).attributes.slice(*%w[amount deduction_waived review_status]),
+        commission: line_for(@commission).attributes.slice(*%w[amount addition_cancelled]),
+        advance:    line_for(advance).attributes.slice(*%w[amount]),
+        overtime:   entry.payroll_line_items.overtime.map { |li| li.attributes.slice("amount", "source_id") },
+        obligation: obligation.reload.remaining_amount,
+        snapshots:  ObligationDeduction.where(payroll_period: period)
+                                       .map { |od| od.attributes.slice("deducted_amount", "remaining_before", "remaining_after") },
+        obligation_line: entry.payroll_line_items.obligation_deduction.map { |li| li.attributes.slice("amount") },
+        adjustments: PayrollAdjustment.order(:id).map { |a| a.attributes.except("updated_at") } }
     end
 
-    def totals = entry.reload.attributes.slice(*%w[total_deductions total_overtime total_bonuses advances_deducted
-                                                   obligations_deducted net_salary])
-
-    it "approval and cancellation leave every other line, the override, the obligation snapshot and the adjustment untouched" do
-      before_totals = totals
-      expect(before_totals).to eq("total_deductions" => 350.0, "total_overtime" => 150.0, "total_bonuses" => 100.0,
-                                  "advances_deducted" => 300.0, "obligations_deducted" => 500.0, "net_salary" => 7_900.0)
-      before = preserved
-      req    = correction("wrong_check_in_time", "09:00")
+    it "approval and cancellation re-derive the entry, re-apply every management decision and keep the sources intact" do
+      before_decisions = decisions
+      before_totals    = totals
+      expect(before_decisions[:override]["overtime_override_mode"]).to eq("amount")
+      expect(before_decisions[:snapshots]).to eq([ { "deducted_amount" => 500.0, "remaining_before" => 3_000.0,
+                                                     "remaining_after" => 2_500.0 } ])
+      expect(before_decisions[:obligation]).to eq(2_500.0)
+      req = correction("wrong_check_in_time", "09:00")
 
       approve(req)
-      expect(preserved).to eq(before)
-      expect(totals).to include("total_deductions" => 250.0, "net_salary" => 8_000.0) # late line deleted; waived / cancelled stay out
+      expect(decisions).to eq(before_decisions)
+      expect(line("late_penalty")).to be_nil
+      expect(totals).to eq(before_totals.merge("total_deductions" => before_totals["total_deductions"] - 100,
+                                               "net_salary"       => before_totals["net_salary"] + 100))
 
       cancel(req)
-      expect(preserved).to eq(before)
+      expect(decisions).to eq(before_decisions)
       expect(totals).to eq(before_totals)
     end
 
-    it "permission minutes on the other penalty line are kept untouched" do
-      line("early_leave_penalty").update!(permission_minutes: 30)
-      approve(correction("wrong_check_in_time", "09:00"))
-      expect(line("early_leave_penalty")).to have_attributes(permission_minutes: 30, amount: -200.0, original_minutes: 120)
+    it "approved permission minutes on the other penalty line are applied from the permission, not the stored line" do
+      create(:employee_request, :early_leave, status: "approved", user: employee, requested_for_date: day,
+                                              duration_minutes: 60, reviewed_by: reviewer)
+      approve(correction("wrong_check_in_time", "09:00")) # 120 early − 60 permitted = 60 minutes → still −200
+      expect(line("early_leave_penalty")).to have_attributes(permission_minutes: 60, amount: -200.0, original_minutes: 120)
     end
   end
 
@@ -558,9 +676,11 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
   describe "P. a payroll RecordInvalid rolls the whole transaction back" do
     before { standard_payroll }
 
+    # The payroll effect is Payroll::EntryRecalculator since M4-3 (until M4-2:
+    # PayrollEntry#recalculate_totals! after the line patch).
     def invalid_payroll!
       invalid = PayrollEntry.new.tap { |e| e.errors.add(:base, "payroll invalid") }
-      allow_any_instance_of(PayrollEntry).to receive(:recalculate_totals!).and_raise(ActiveRecord::RecordInvalid.new(invalid))
+      allow(Payroll::EntryRecalculator).to receive(:call).and_raise(ActiveRecord::RecordInvalid.new(invalid))
     end
 
     it "approval: a failed result with the record's messages; request, snapshot, attendance and payroll unchanged; no audit" do
@@ -586,6 +706,43 @@ RSpec.describe "Characterization: punch correction M4 baseline" do
       expect(result.error).to eq("payroll invalid")
       expect(full_state(req)).to eq(before)
       expect(audits(req)).to eq([ "approve" ])
+    end
+
+    # M4-3: the recalculation is never rescued and swallowed (unlike the
+    # after-commit recalculation of AdjustmentService / ManualEntryService).
+    it "a recalculation that fails mid-way (after rebuilding lines) rolls approval and cancellation back completely" do
+      req    = correction("wrong_check_in_time", "09:00")
+      before = full_state(req)
+      allow(Payroll::EntryRecalculator).to receive(:call).and_wrap_original do |original, **kwargs|
+        original.call(**kwargs)
+        raise "recalculation boom" # after the entry and its lines were rewritten
+      end
+
+      expect(approve(req).error).to eq("recalculation boom")
+      expect(full_state(req)).to eq(before)
+      expect(audits(req)).to be_empty
+
+      allow(Payroll::EntryRecalculator).to receive(:call).and_call_original
+      approve(req)
+      before = full_state(req)
+      allow(Payroll::EntryRecalculator).to receive(:call).and_wrap_original do |original, **kwargs|
+        original.call(**kwargs)
+        raise "recalculation boom"
+      end
+
+      expect { cancel(req) }.to raise_error(RuntimeError, "recalculation boom") # cancellation never rescues it
+      expect(full_state(req)).to eq(before)
+      expect(audits(req)).to eq([ "approve" ])
+    end
+
+    it "a recalculation result that is not ok is raised, never ignored" do
+      req    = correction("wrong_check_in_time", "09:00")
+      before = full_state(req)
+      allow(Payroll::EntryRecalculator).to receive(:call)
+        .and_return(Payroll::EntryRecalculator::Result.new(ok: false, error: "no salary profile"))
+
+      expect(approve(req).error).to eq("no salary profile")
+      expect(full_state(req)).to eq(before)
     end
   end
 

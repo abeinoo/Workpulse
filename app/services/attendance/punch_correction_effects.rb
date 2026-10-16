@@ -7,20 +7,20 @@ module Attendance
   #                          record's projected recomputation (RecordRecomputer on
   #                          an unsaved copy) and Attendance::DurationCheck; read by
   #                          Requests::PunchCorrectionAssessment since M3
-  #   correction_approved  → the punch write, recomputation and
-  #                          Payroll::PunchCorrectionApplier (moved from
-  #                          Requests::PunchCorrectionApplier in M4-2)
-  #   correction_cancelled → the restore from the snapshot, recomputation and
-  #                          Payroll::PunchCorrectionReverter (moved from
-  #                          Requests::Canceller#rollback_punch_correction in M4-2)
+  #   correction_approved  → the punch write and recomputation (moved from
+  #                          Requests::PunchCorrectionApplier in M4-2), then the
+  #                          entry's full recalculation (M4-3)
+  #   correction_cancelled → the restore from the snapshot and recomputation
+  #                          (moved from Requests::Canceller in M4-2), then the
+  #                          entry's full recalculation (M4-3)
   #
   # Both write operations run inside the caller's transaction, after Workforce
   # has locked the request row. They look the payroll period of the request's
   # month up with a row lock (FOR UPDATE) before checking it, so Payroll::Approver
   # — which locks the same row before finalizing or paying — can neither finalize
   # the period between this check and the write nor be overtaken by it. Every
-  # refusal is decided before anything is written. Payroll behaviour is exactly
-  # the pre-M4 one (Decisions A / B / C land in M4-3).
+  # refusal is decided before anything is written. The payroll effect is the
+  # standard recalculation (Decisions A / B / C, M4-3; see #recalculate_payroll).
   #
   # Calls nothing in Workforce.
   module PunchCorrectionEffects
@@ -55,7 +55,9 @@ module Attendance
       contract = Requests::PunchCorrectionEffects
       record   = record_for(request)
       return contract::Approval.new(status: :no_attendance_record) unless record
-      return contract::Approval.new(status: :payroll_locked) if locked_period_for(request)&.locked?
+
+      period = locked_period_for(request)
+      return contract::Approval.new(status: :payroll_locked) if period&.locked?
 
       snapshot = contract::Snapshot.new(
         check_in_at:      record.check_in_at,
@@ -86,7 +88,7 @@ module Attendance
       Attendance::RecordRecomputer.recompute!(record)
       record.save!
 
-      Payroll::PunchCorrectionApplier.call(request: request, record: record)
+      recalculate_payroll(request, period, actor)
 
       contract::Approval.new(status: :applied, snapshot: snapshot,
                              worked_minutes: record.worked_minutes, duration_severity: record.duration_severity)
@@ -113,10 +115,36 @@ module Attendance
       Attendance::RecordRecomputer.recompute!(record)
       record.save!
 
-      Payroll::PunchCorrectionReverter.call(request: request, record: record, period: period) if period
+      recalculate_payroll(request, period, actor)
 
       :reverted
     end
+
+    # Decisions A / B / C (Pilot 10 M4-3): the employee's entry in the (locked,
+    # open) period is re-derived from attendance by Payroll::EntryRecalculator, as
+    # every other attendance mutation does — penalty lines created / updated /
+    # removed (A), approved permission minutes applied (B), worked days, overtime
+    # and absences re-derived, management decisions (overtime override, waivers,
+    # addition cancellations) re-applied (C). Inside the caller's transaction;
+    # any error propagates and rolls the approval / cancellation back.
+    #
+    # Only an EXISTING entry is recalculated (EntryCalculator would create one):
+    # a punch correction never creates a payroll entry. The entry row is locked
+    # after the period row (lock order request → period → entry, as
+    # Payroll::OvertimeRecalculator).
+    def recalculate_payroll(request, period, actor)
+      return unless period
+
+      entry = PayrollEntry.lock.find_by(payroll_period: period, user: request.user)
+      return unless entry
+
+      result = Payroll::EntryRecalculator.call(user: request.user, period: period, triggered_by: actor)
+      # A real error (not ActiveRecord::Rollback, which a joined transaction
+      # block would swallow): the caller's whole transaction must roll back.
+      raise RecalculationFailed, result.error.to_s unless result.ok?
+    end
+
+    class RecalculationFailed < StandardError; end
 
     def record_for(request)
       AttendanceRecord

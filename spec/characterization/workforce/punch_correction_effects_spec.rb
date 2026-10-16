@@ -13,6 +13,13 @@ require "rails_helper"
 #            (snapshot restored, recompute) → rollback_punch_payroll (lines
 #            updated / RECREATED / deleted, totals) → cancelled → log_audit("cancel")
 #
+# Since M4-2 both effects run in Attendance::PunchCorrectionEffects behind the
+# Workforce contract; since M4-3 their payroll part is the entry's full
+# recalculation (Payroll::EntryRecalculator; Decisions A / B / C). The payroll
+# groups therefore give the employee a complete June (complete_rest_of_month!)
+# so the hand-built entry equals what that recalculation derives. Examples
+# whose expectation changed in M4-3 say so ("CHANGED in M4-3").
+#
 # Already pinned elsewhere, not repeated: field updates, overnight dates and the
 # reviewer's date / time (spec/services/requests/punch_correction_applier_spec.rb,
 # spec/requests/employee_request_reviewer_datetime_spec.rb), the attendance window,
@@ -62,6 +69,21 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
                                                status: "late")
   end
 
+  # Complete, on-time attendance on June's other 21 working days. Since M4-3
+  # (Decision C) approval and cancellation re-derive the whole entry from the
+  # month's attendance; with these days the hand-built entry below (22 days
+  # worked, base 8,800, only the corrected day's penalties) is exactly what that
+  # recalculation produces, so the examples keep measuring the corrected day
+  # rather than a 21-day absence deduction of a one-day fixture month.
+  def complete_rest_of_month!
+    (Date.new(2026, 6, 1)..Date.new(2026, 6, 30)).select { |d| d.on_weekday? && d != day }.each do |d|
+      create(:attendance_record, user: employee, branch: branch, shift_assignment: assignment, date: d, work_date: d,
+                                 check_in_at: at(9, 0, date: d), check_out_at: at(17, 0, date: d),
+                                 check_in_source: "device", check_out_source: "device", status: "present")
+        .tap { |record| Attendance::RecordRecomputer.recompute!(record) && record.save! }
+    end
+  end
+
   def entry(**attrs)
     @entry ||= create(:payroll_entry, { payroll_period: period, user: employee, base_salary: 8_800, net_salary: 8_500,
                                         needs_review: false }.merge(attrs))
@@ -94,8 +116,9 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
   end
 
   # ── E. approval: payroll penalty effect ────────────────────────────────────
-  describe "E. approval — Payroll::PunchCorrectionApplier" do
+  describe "E. approval — the penalty lines of the open period" do
     before do
+      complete_rest_of_month!
       penalty_line("late_penalty", -100.0, 40)
       penalty_line("early_leave_penalty", -200.0, 120)
       entry.recalculate_totals!
@@ -135,23 +158,46 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
       expect(entry.reload.total_deductions).to eq(100.0)
     end
 
-    it "ignores an approved permission already applied to the line: the amount is recomputed from the full new minutes" do
-      line("late_penalty").update!(permission_minutes: 30, amount: 0.0) # as if a 30-minute late permission had covered it
+    # CHANGED in M4-3 (Decision B). Until M4-2 the approval recomputed the line
+    # from the full new minutes and ignored the permission (35 minutes → −100,
+    # permission_minutes 30 kept on the line). The entry is now re-derived by
+    # Payroll::EntryRecalculator, which deducts the approved permission minutes
+    # before the penalty rules apply.
+    it "respects an approved late permission: only the minutes beyond it are penalised (Decision B)" do
+      create(:employee_request, :late_permission, status: "approved", user: employee, requested_for_date: day,
+                                                  duration_minutes: 30, reviewed_by: reviewer)
       approve(correction("wrong_check_in_time", "09:35"))
 
-      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 35, permission_minutes: 30)
+      expect(attendance.reload.late_minutes).to eq(35)
+      expect(line("late_penalty")).to be_nil # 35 − 30 = 5 minutes, under the 15-minute threshold
+      expect(entry.reload.total_deductions).to eq(200.0)
+    end
+
+    it "respects an approved late permission that does not cover all the lateness (Decision B)" do
+      create(:employee_request, :late_permission, status: "approved", user: employee, requested_for_date: day,
+                                                  duration_minutes: 30, reviewed_by: reviewer)
+      approve(correction("wrong_check_in_time", "10:00"))
+
+      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 60, permission_minutes: 30)
     end
   end
 
-  describe "E. approval — lines that do not exist are never created" do
-    it "a correction that introduces lateness creates no late line (attendance changes, payroll does not)" do
-      attendance(check_in: at(9, 0), late: 0)
+  describe "E. approval — lines are derived from attendance (Decisions A / C)" do
+    before { complete_rest_of_month! }
+
+    # CHANGED in M4-3 (Decision A). Until M4-2 only existing lines were updated:
+    # a correction that introduced lateness changed attendance but created no
+    # line. The recalculation creates the line the corrected punch requires.
+    # (An on-time, full day here, so only the corrected lateness is in play.)
+    it "a correction that introduces lateness creates the late line it requires (Decision A)" do
+      attendance(check_in: at(9, 0), late: 0, check_out: at(17, 0), early: 0)
       entry
       approve(correction("wrong_check_in_time", "09:45"))
 
       expect(attendance.reload.late_minutes).to eq(45)
-      expect(entry.payroll_line_items.reload).to be_empty
-      expect(entry.reload.total_deductions).to eq(0)
+      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 45, permission_minutes: 0,
+                                                      description: "Late arrival #{day}")
+      expect(entry.reload.total_deductions).to eq(100.0)
     end
 
     it "an open period without a payroll entry: attendance corrected, no entry created" do
@@ -161,19 +207,34 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
       expect(attendance.reload.late_minutes).to eq(0)
     end
 
-    it "worked days / overtime are not re-derived: completing an incomplete day leaves days_worked as it was" do
+    # CHANGED in M4-3 (Decision C). Until M4-2 only penalty lines were patched:
+    # completing an incomplete day left days_worked as stored (5). The entry is
+    # now re-derived, so the completed day counts: the 21 other complete days + 1.
+    it "worked days are re-derived: completing an incomplete day counts it (Decision C)" do
       attendance(check_out: nil, early: 0).update_columns(status: "incomplete", worked_minutes: nil)
       entry(days_worked: 5)
       approve(correction("missing_check_out", "17:00"))
 
       expect(attendance.reload).to have_attributes(check_out_at: at(17, 0), status: "late")
-      expect(entry.reload.days_worked).to eq(5)
+      expect(entry.reload).to have_attributes(days_worked: 22, base_salary: 8_800.0)
+      expect(line("late_penalty")).to have_attributes(amount: -100.0, original_minutes: 40)
+    end
+
+    it "overtime is re-derived: a later check-out creates the overtime line it earns (Decision C)" do
+      attendance(check_in: at(9, 0), late: 0, check_out: at(17, 0), early: 0)
+      entry
+      approve(correction("wrong_check_out_time", "19:00"))
+
+      expect(line("overtime")).to be_present
+      expect(entry.reload.total_overtime).to be > 0
+      expect(entry.calculated_overtime_pay).to eq(entry.total_overtime)
     end
   end
 
   # ── F. approval atomicity ──────────────────────────────────────────────────
   describe "F. approval atomicity" do
     before do
+      complete_rest_of_month!
       penalty_line("late_penalty", -100.0, 40)
       entry.recalculate_totals!
     end
@@ -181,7 +242,8 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
     it "a failure in the payroll effect rolls everything back: pending, no approved_punch_at, no snapshot, attendance and payroll untouched, no approve audit" do
       req    = correction("wrong_check_in_time", "09:00")
       before = snapshot_state(req)
-      allow(Payroll::PunchCorrectionApplier).to receive(:call).and_raise(StandardError, "boom")
+      # The payroll effect is Payroll::EntryRecalculator since M4-3 (was Payroll::PunchCorrectionApplier).
+      allow(Payroll::EntryRecalculator).to receive(:call).and_raise(StandardError, "boom")
 
       result = approve(req)
 
@@ -209,7 +271,7 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
     it "the approve audit is written only after the transaction: the payroll effect runs before it exists" do
       req  = correction("wrong_check_in_time", "09:00")
       seen = nil
-      allow(Payroll::PunchCorrectionApplier).to receive(:call).and_wrap_original do |original, **kwargs|
+      allow(Payroll::EntryRecalculator).to receive(:call).and_wrap_original do |original, **kwargs| # payroll effect since M4-3
         seen = AuditLog.exists?(auditable: req, action: "approve")
         original.call(**kwargs)
       end
@@ -233,6 +295,7 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
   # ── G. cancellation ────────────────────────────────────────────────────────
   describe "G. cancellation of an approved correction" do
     before do
+      complete_rest_of_month!
       penalty_line("late_penalty", -100.0, 40)
       penalty_line("early_leave_penalty", -200.0, 120)
       entry.recalculate_totals!
@@ -336,6 +399,8 @@ RSpec.describe "Characterization: punch correction attendance and payroll effect
   end
 
   describe "G. cancellation — zero penalty after restore" do
+    before { complete_rest_of_month! }
+
     it "restored minutes under the threshold delete an existing line" do
       attendance(check_in: at(9, 10), late: 10)
       penalty_line("late_penalty", -100.0, 10) # stale line on a 10-minute lateness

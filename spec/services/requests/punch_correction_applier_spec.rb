@@ -288,13 +288,28 @@ RSpec.describe Requests::PunchCorrectionApplier do
     let!(:record) { open_record }
     let(:request) { build_request(correction_type: "missing_check_out") }
 
-    it "calls Payroll::PunchCorrectionApplier with the updated record" do
-      allow(Payroll::PunchCorrectionApplier).to receive(:call)
-      described_class.call(request: request)
-      expect(Payroll::PunchCorrectionApplier).to have_received(:call).with(
-        request: request,
-        record:  record
-      )
+    # Since Pilot 10 M4-3 the payroll effect is the entry's full recalculation
+    # (was: Payroll::PunchCorrectionApplier patching the record's lines).
+    let(:period) do
+      create(:payroll_period, business: business, period_year: work_date.year, period_month: work_date.month,
+                              status: "under_review")
+    end
+
+    before do
+      allow(Payroll::EntryRecalculator).to receive(:call).and_return(Payroll::EntryRecalculator::Result.new(ok: true))
+    end
+
+    it "recalculates the employee's existing entry for the request's period, triggered by the reviewer" do
+      create(:payroll_entry, payroll_period: period, user: user)
+      expect(described_class.call(request: request)).to be_success
+      expect(Payroll::EntryRecalculator).to have_received(:call).once
+        .with(user: user, period: period, triggered_by: reviewer)
+    end
+
+    it "never recalculates (or creates) an entry the employee does not have" do
+      period
+      expect { described_class.call(request: request) }.not_to change(PayrollEntry, :count)
+      expect(Payroll::EntryRecalculator).not_to have_received(:call)
     end
   end
 end
