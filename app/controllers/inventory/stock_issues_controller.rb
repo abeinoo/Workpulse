@@ -1,4 +1,6 @@
 class Inventory::StockIssuesController < Inventory::BaseController
+  PER_PAGE = 25
+
   def index
     authorize StockIssue
     base = policy_scope(StockIssue).excluding_incomplete_imports
@@ -40,14 +42,38 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @total_documents_count = base.count
     @total_value           = StockIssueItem.joins(:stock_issue).merge(base.issued.active).sum(:total_cost)
     @filtered_count        = @stock_issues.count
+
+    # Only one page of issues (with their lines and products) is ever loaded —
+    # the unpaginated list grew without bound and loaded every line of every
+    # issue into memory on each visit.
+    @page        = [ params[:page].to_i, 1 ].max
+    @total_pages = [ (@filtered_count.to_f / PER_PAGE).ceil, 1 ].max
+    @page        = @total_pages if @page > @total_pages
+    @stock_issues = @stock_issues.limit(PER_PAGE).offset((@page - 1) * PER_PAGE).to_a
+
+    # Pending/approved issues on this page that couldn't be approved/confirmed
+    # right now (two queries for the whole page — see StockAvailability).
+    @unfulfillable_issue_ids = Inventory::StockAvailability.unfulfillable_issue_ids(@stock_issues)
   end
 
   def show
-    @stock_issue = find_issue(includes: [ :submitted_by, :approved_by, :rejected_by, :issued_by, :cancelled_by, :voided_by ])
+    @stock_issue = find_issue(includes: [ :submitted_by, :approved_by, :rejected_by, :issued_by, :cancelled_by, :voided_by,
+                                          { items: :product } ])
     authorize @stock_issue
-    @items           = @stock_issue.items.includes(:product)
+    @items           = @stock_issue.items
+    # Physical / reserved-by-others / available / requested per product while
+    # the issue can still be approved or confirmed; the same figures the
+    # approval and confirmation services enforce under lock.
+    if !@stock_issue.voided? && (@stock_issue.draft? || @stock_issue.pending_approval? || @stock_issue.approved?)
+      @availability_lines     = Inventory::StockAvailability.lines_for(@stock_issue)
+      @availability_shortages = @availability_lines.select(&:shortfall?)
+    end
     @audit_logs      = AuditLog.for_auditable(@stock_issue).recent.includes(:actor)
     @timeline_events = build_timeline_events
+    # A draft that was withdrawn from approval must be resubmitted — label the
+    # primary action accordingly.
+    @awaiting_resubmission = @stock_issue.draft? &&
+                             @timeline_events.any? { |e| %i[reopened approval_revoked].include?(e[:type]) }
   end
 
   def new
@@ -79,16 +105,27 @@ class Inventory::StockIssuesController < Inventory::BaseController
     load_options
   end
 
+  # Draft or pending_approval ("Edit Request"). Saving a pending issue
+  # withdraws it to draft for resubmission, and saving an approved one also
+  # revokes its approval and reservation — see Inventory::StockIssueEditor.
   def update
     @stock_issue = find_issue
     authorize @stock_issue
-    @stock_issue.assign_attributes(issue_params)
-    ensure_warehouses_accessible!(@stock_issue.warehouse_id)
+    ensure_warehouses_accessible!(issue_params[:warehouse_id].presence || @stock_issue.warehouse_id)
 
-    result = Inventory::StockIssueDraftService.new(@stock_issue, actor: current_user).call
+    result = Inventory::StockIssueEditor.new(stock_issue_id: @stock_issue.id, actor: current_user,
+                                             attributes: issue_params, lock_token: params[:lock_token]).call
     if result.ok?
-      redirect_to inventory_stock_issue_path(@stock_issue), notice: t("inventory.stock_issues.updated")
+      notice = if result.approval_revoked? then t("inventory.stock_issues.approval_revoked_for_editing")
+      elsif result.reopened? then t("inventory.stock_issues.reopened_for_editing")
+      else t("inventory.stock_issues.updated")
+      end
+      redirect_to inventory_stock_issue_path(@stock_issue), notice: notice
+    elsif result.issue.nil? || !policy(result.issue).update?
+      redirect_to inventory_stock_issue_path(@stock_issue), alert: result.error
     else
+      @stock_issue = result.issue
+      flash.now[:alert] = result.error if @stock_issue.errors.empty?
       load_options
       render :edit, status: :unprocessable_entity
     end
@@ -286,7 +323,10 @@ class Inventory::StockIssuesController < Inventory::BaseController
   def load_options
     @warehouses = accessible_warehouses
     @branches   = current_user.business.branches.active.order(:name)
-    @products   = current_user.business.products.transactable.ordered
+    @products   = current_user.business.products.transactable.ordered.to_a
+    # One query for every option's barcode — the form renders the full product
+    # list once per line-item row.
+    @product_barcodes = Product.barcode_lookup(@products.map(&:id))
   end
 
   def issue_params
@@ -313,6 +353,9 @@ class Inventory::StockIssuesController < Inventory::BaseController
       case log.action
       when "submit_for_approval"
         events << { type: :submitted, time: log.created_at, actor: log.actor }
+      when "reopen_for_editing"
+        from = Array(log.changes_json["status"]).first
+        events << { type: from == "approved" ? :approval_revoked : :reopened, time: log.created_at, actor: log.actor }
       when "approve"
         events << { type: :approved, time: log.created_at, actor: log.actor }
       when "reject"

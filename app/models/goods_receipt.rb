@@ -17,9 +17,16 @@ class GoodsReceipt < ApplicationRecord
   # were physically received"). prefix: :approval avoids colliding with
   # status's draft?/confirmed? methods. A receipt may only be confirmed once
   # approval_status is "approved" — see Inventory::GoodsReceiptConfirmationService.
+  # "cancelled" is terminal: set by Inventory::GoodsReceiptVoider when a receipt
+  # that never reached an approval decision (draft / pending_approval) is
+  # cancelled, so a voided receipt is never left "awaiting approval". Approved
+  # and rejected decisions are history and are kept as-is on void.
   enum :approval_status, { draft: "draft", pending_approval: "pending_approval",
-                           approved: "approved", rejected: "rejected" },
+                           approved: "approved", rejected: "rejected", cancelled: "cancelled" },
        prefix: :approval
+
+  # Approval states that end in "cancelled" when the receipt is voided.
+  UNDECIDED_APPROVAL_STATUSES = %w[draft pending_approval].freeze
 
   belongs_to :business
   belongs_to :warehouse
@@ -74,11 +81,27 @@ class GoodsReceipt < ApplicationRecord
   # filter matches exactly what the "Receiving Status" badge shows.
   scope :for_receiving_status, ->(status) {
     case status
-    when "received"     then confirmed.active
-    when "not_received" then draft.active
-    when "voided"       then voided
+    when "received"       then confirmed.active
+    when "not_received"   then draft.active.where.not(approval_status: "rejected")
+    when "not_receivable" then draft.active.approval_rejected
+    when "voided"         then voided
     end
   }
+
+  # Receiving (inventory) status, derived — never stored:
+  #   voided         — cancelled/voided (approval is then cancelled, approved or rejected history)
+  #   received       — confirmed: goods physically received
+  #   not_receivable — approval rejected: cannot be received unless resubmitted and approved
+  #   not_received   — awaiting approval or approved, goods not yet received
+  # Receiving is all-or-nothing (draft → confirmed); there is no partial state.
+  # for_receiving_status mirrors this exactly.
+  def receiving_status
+    return "voided"         if voided?
+    return "received"       if confirmed?
+    return "not_receivable" if approval_rejected?
+
+    "not_received"
+  end
 
   def total_value
     items.sum(&:total_cost)

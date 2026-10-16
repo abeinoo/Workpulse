@@ -185,18 +185,23 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     policy_scope(GoodsReceipt).includes(includes).find(params[:id])
   end
 
+  # Back to where the action was taken — the Show page, or the index row (with
+  # its filters) — falling back to the receipt's Show page.
   def redirect_with_result(result, ok_message:)
-    if result.ok?
-      redirect_to inventory_goods_receipt_path(@goods_receipt), notice: ok_message
-    else
-      redirect_to inventory_goods_receipt_path(@goods_receipt), alert: result.error
-    end
+    flash = result.ok? ? { notice: ok_message } : { alert: result.error }
+    redirect_back fallback_location: inventory_goods_receipt_path(@goods_receipt), **flash
   end
 
   def load_options
     @warehouses      = accessible_warehouses
     @suppliers       = current_user.business.suppliers.ordered
-    @products        = current_user.business.products.transactable.ordered
+    @products        = current_user.business.products.transactable.ordered.to_a
+    # Request-line rows render their own (possibly no longer transactable)
+    # product: load those once, and resolve every product's barcode in one
+    # query — instead of one or two barcode queries per product per row.
+    lines = @goods_receipt.items.to_a
+    ActiveRecord::Associations::Preloader.new(records: lines, associations: :product).call
+    @product_barcodes = Product.barcode_lookup(@products.map(&:id) + lines.map(&:product_id))
     @custody_account = own_custody_account
     @custody_balance = @custody_account&.computed_balance
   end
@@ -233,14 +238,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   # look like after paying the amount due (advances already deducted). Display
   # only — a negative result is allowed and never blocks approval.
   def custody_payment_preview
-    return unless @goods_receipt.approval_pending_approval? && @goods_receipt.employee_custody_funded?
-
-    account = @goods_receipt.funding_source
-    return { account: nil } unless account.is_a?(CustodyAccount) && account.active?
-
-    current = account.computed_balance
-    due     = (@advance_allocator || Inventory::PurchaseRequestAdvanceAllocator.new(@goods_receipt)).amount_due
-    { account: account, current: current, due: due, after: current - due }
+    Inventory::CustodyPaymentPreview.for(@goods_receipt, allocator: @advance_allocator)
   end
 
   def prefill_from_purchase_request(purchase_request)

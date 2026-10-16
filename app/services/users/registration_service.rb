@@ -4,8 +4,11 @@ module Users
   # The claimant must present the signed invitation token issued by an
   # administrator (User#generate_token_for(:account_claim)) AND the account's
   # phone number or email. Knowing the phone/email alone is not enough (OA-S6).
-  # Every failure returns the same message, so the form cannot be used to
-  # discover which phone numbers or emails have accounts.
+  # Without a valid invitation every failure returns the same message, so the
+  # form cannot be used to discover which phone numbers or emails have
+  # accounts. Only the holder of a valid invitation is told that the
+  # phone/email they typed does not match it — that reveals nothing about any
+  # other account.
   class RegistrationService
     Result = Struct.new(:success?, :user, :error, keyword_init: true)
 
@@ -21,8 +24,15 @@ module Users
     end
 
     def call
+      # No token at all (e.g. the "Create account" link on the sign-in page
+      # instead of the administrator's invitation link): say what is missing
+      # rather than calling a link that was never opened invalid. Nothing is
+      # looked up, so every login gets this same answer.
+      return failure(I18n.t("auth.register.invitation_required")) if @invitation_token.blank?
+
       user = invited_user
       return failure(I18n.t("auth.register.invalid_invitation")) unless claimable?(user)
+      return failure(I18n.t("auth.register.login_mismatch")) unless login_matches?(user)
 
       user.password              = @password
       user.password_confirmation = @password_confirmation
@@ -43,7 +53,7 @@ module Users
     end
 
     def claimable?(user)
-      user.present? && user.active? && user.encrypted_password.blank? && login_matches?(user)
+      user.present? && user.active? && user.encrypted_password.blank?
     end
 
     def login_matches?(user)
@@ -52,7 +62,7 @@ module Users
       if @login.include?("@")
         user.email.present? && user.email.casecmp?(@login)
       else
-        user.phone_number.present? && user.phone_number == User.normalize_value_for(:phone_number, @login)
+        PhoneNumber.equivalent?(user.phone_number, @login)
       end
     end
 

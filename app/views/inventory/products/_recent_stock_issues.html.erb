@@ -1,0 +1,56 @@
+<%# ── Recent stock issues carrying this product ───────────── %>
+<section id="recent-stock-issues" aria-labelledby="recent-stock-issues-title">
+  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap;">
+    <h2 class="section-title" id="recent-stock-issues-title"><%= t("inventory.products.recent_stock_issues") %></h2>
+    <% if rows.any? %>
+      <%= link_to t("inventory.products.view_all_stock_issue_movements"),
+            inventory_movements_report_path(product_id: product.id, reason: "stock_issue"),
+            class: "link", id: "recent-stock-issues-view-all", style: "padding: var(--space-1) 0;" %>
+    <% end %>
+  </div>
+  <% if rows.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.products.no_recent_stock_issues") %></p></div>
+  <% else %>
+    <% columns = %w[number date warehouse quantity requested_by status].index_with { |c| t("inventory.products.recent_documents.#{c}") } %>
+    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
+      <table>
+        <thead><tr>
+          <% columns.each do |key, label| %>
+            <%= tag.th label, style: ("text-align: end;" if key == "quantity") %>
+          <% end %>
+        </tr></thead>
+        <tbody>
+          <% rows.each do |row| %>
+            <% issue = row.document %>
+            <tr data-recent-document="<%= issue.issue_number %>">
+              <td data-label="<%= columns["number"] %>">
+                <%= link_to issue.issue_number, inventory_stock_issue_path(issue),
+                      class: "link", style: "font-weight: 700; display: inline-block; padding: var(--space-1) 0;" %>
+              </td>
+              <td class="td-secondary" data-label="<%= columns["date"] %>"><%= local_date(issue.issued_on) %></td>
+              <td data-label="<%= columns["warehouse"] %>" style="overflow-wrap: anywhere;">
+                <%= issue.warehouse.name %>
+                <% if issue.branch %>
+                  <div class="td-secondary" style="font-size: var(--text-xs);">
+                    <%= t("inventory.products.recent_documents.to_branch", branch: issue.branch.name) %>
+                  </div>
+                <% end %>
+              </td>
+              <td data-label="<%= columns["quantity"] %>" style="text-align: end;">
+                <%= render "inventory/products/recent_document_quantity", row: row, direction: :out %>
+              </td>
+              <td class="td-secondary" data-label="<%= columns["requested_by"] %>" style="overflow-wrap: anywhere;">
+                <%= issue.created_by&.full_name || "—" %>
+              </td>
+              <td data-label="<%= columns["status"] %>">
+                <span class="badge <%= issue.voided? ? 'badge-danger' : stock_issue_status_class(issue.status) %>">
+                  <%= issue.voided? ? t("inventory.void.status_voided") : t("inventory.stock_issues.statuses.#{issue.status}") %>
+                </span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</section>

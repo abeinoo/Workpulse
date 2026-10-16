@@ -2048,7 +2048,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100000) do
     t.bigint "batch_id", null: false
     t.datetime "created_at", null: false
     t.string "failure_reason"
-    t.text "notes"
     t.bigint "product_id"
     t.decimal "quantity", precision: 12, scale: 3
     t.integer "row_number", null: false
@@ -2064,7 +2063,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100000) do
 
   create_table "stock_issue_items", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.text "notes"
     t.bigint "product_id", null: false
     t.decimal "quantity", precision: 12, scale: 3, null: false
     t.bigint "stock_issue_id", null: false

@@ -80,7 +80,7 @@
                 <% end %>
               </td>
               <td style="padding: var(--space-2) 0 var(--space-2) var(--space-3); text-align: end; vertical-align: middle;">
-                <input type="number"
+                <input type="number" inputmode="decimal"
                        name="amounts[<%= pm.id %>][collected_amount]"
                        value="<%= row[:collected].to_f %>"
                        step="0.01"
@@ -89,7 +89,7 @@
                        style="width: 130px; text-align: end; font-variant-numeric: tabular-nums; display: inline-block;" />
               </td>
               <td style="padding: var(--space-2) 0 var(--space-2) var(--space-3); text-align: end; vertical-align: middle;">
-                <input type="number"
+                <input type="number" inputmode="decimal"
                        name="amounts[<%= pm.id %>][refund_amount]"
                        value="<%= row[:refund].to_f %>"
                        step="0.01"

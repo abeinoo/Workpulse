@@ -291,7 +291,9 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
 
   def load_options
     @suppliers  = current_user.business.suppliers.ordered
-    @products   = current_user.business.products.transactable.ordered
+    @products   = current_user.business.products.transactable.ordered.to_a
+    # One query for every option's barcode — each line row lists the whole catalog.
+    @product_barcodes = Product.barcode_lookup(@products.map(&:id))
     @warehouses = accessible_warehouses
   end
 

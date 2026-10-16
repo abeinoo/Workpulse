@@ -9,7 +9,7 @@
               data: { turbo_frame: dom_id(row) } do |f| %>
   <div class="form-group" data-controller="searchable-select">
     <%= f.label :product_id, t("inventory.imports.search_product"), class: "form-label" %>
-    <%= f.select :product_id, inventory_product_options(transactable_products, row.product_id),
+    <%= f.select :product_id, inventory_product_select_options(transactable_product_options_html, row.product_id),
           { include_blank: "— #{t('inventory.imports.search_product')}" },
           class: "form-control", data: { searchable_select_target: "select" } %>
   </div>

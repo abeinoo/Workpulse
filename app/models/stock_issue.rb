@@ -15,9 +15,19 @@ class StockIssue < ApplicationRecord
   # Inventory::StockIssueConfirmationService / StockIssuePoster, and the
   # #issued_only_from_approved validation below) — approval alone never
   # deducts stock. rejected/cancelled are terminal; there is no transition
-  # back out of them.
+  # back out of them. pending_approval/approved -> draft happens only when the
+  # issue is edited (Inventory::StockIssueEditor).
   enum :status, { draft: "draft", pending_approval: "pending_approval", approved: "approved",
                   rejected: "rejected", issued: "issued", cancelled: "cancelled" }
+
+  # Lines/header may change only before stock has moved. Editing a
+  # pending_approval or approved issue returns it to draft (see
+  # Inventory::StockIssueEditor) — it must be resubmitted and approved again;
+  # no earlier submission or approval counts for the new lines. Issued
+  # (stock moved — void instead), rejected and cancelled are never editable.
+  EDITABLE_STATUSES = %w[draft pending_approval approved].freeze
+  # Statuses an edit sends back to draft.
+  REOPENED_BY_EDIT_STATUSES = %w[pending_approval approved].freeze
 
   belongs_to :business
   belongs_to :warehouse
@@ -99,6 +109,15 @@ class StockIssue < ApplicationRecord
   # unavailable contribute nothing — flagged via #cost_unavailable?.
   def total_value
     items.sum { |item| item.effective_total_cost || 0 }
+  end
+
+  # Optimistic-concurrency token for the edit form: the row's updated_at at the
+  # moment the form was rendered. Inventory::StockIssueEditor refuses a save
+  # whose token no longer matches (someone else saved in between) instead of
+  # silently overwriting the newer lines. Every successful edit touches the
+  # row, so line-only changes advance it too.
+  def lock_token
+    updated_at&.utc&.iso8601(6)
   end
 
   def cost_estimated?

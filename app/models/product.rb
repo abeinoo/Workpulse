@@ -259,6 +259,20 @@ class Product < ApplicationRecord
     end
   end
 
+  # { product_id => barcode } for many products in ONE query, with exactly
+  # #barcode's selection rule: the primary barcode, else the first (lowest id)
+  # barcode; products without any are absent. For list/form rendering, where
+  # calling #barcode per product would query once or twice per product.
+  def self.barcode_lookup(product_ids)
+    ids = Array(product_ids).compact.uniq
+    return {} if ids.empty?
+
+    ProductBarcode.where(product_id: ids)
+                  .order(:product_id, is_primary: :desc, id: :asc)
+                  .pluck(:product_id, :barcode)
+                  .each_with_object({}) { |(product_id, barcode), map| map[product_id] ||= barcode }
+  end
+
   # Compat setter so single-barcode code paths (CSV import, seeds, controller
   # new action) continue to work: builds or updates the primary ProductBarcode.
   def barcode=(value)

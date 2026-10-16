@@ -1,9 +1,12 @@
 <tr data-line-row>
   <td>
     <%= f.select :product_id,
-          inventory_product_options(products, f.object.product_id),
+          inventory_product_select_options(product_options, f.object.product_id),
           { include_blank: "— #{t('inventory.goods_receipts.select_product')}" },
           class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
+    <% if local_assigns[:extra] %>
+      <span class="badge badge-neutral line-items-extra-badge"><%= t("inventory.goods_receipts.outside_request_badge") %></span>
+    <% end %>
   </td>
   <td>
     <% pri = f.object.purchase_request_item %>
@@ -15,8 +18,10 @@
     <% end %>
   </td>
   <td>
-    <%= f.number_field :unit_cost, step: "0.0001", min: 0, class: "form-control", placeholder: "0.00" %>
+    <%= f.number_field :unit_cost, step: "0.0001", min: 0, class: "form-control", placeholder: "0.00",
+          data: { cost_field: true } %>
   </td>
+  <td class="line-items-table__total" data-line-total aria-live="off">—</td>
   <td class="td-actions">
     <% if f.object.persisted? %>
       <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>

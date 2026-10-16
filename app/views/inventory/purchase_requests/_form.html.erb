@@ -1,3 +1,4 @@
+<% product_options = inventory_product_options_html(@products, barcodes: @product_barcodes) %>
 <%
   cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
   cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
@@ -57,7 +58,7 @@
       </tr></thead>
       <tbody data-line-items-target="rows">
         <%= f.fields_for :items do |item_f| %>
-          <%= render "item_fields", f: item_f, products: @products, warehouses: @warehouses, require_warehouse: creating %>
+          <%= render "item_fields", f: item_f, product_options: product_options, warehouses: @warehouses, require_warehouse: creating %>
         <% end %>
       </tbody>
     </table>
@@ -85,7 +86,7 @@
   <%# Template for new rows (index replaced by JS) %>
   <template data-line-items-target="template">
     <%= f.fields_for :items, PurchaseRequestItem.new, child_index: "NEW_INDEX" do |item_f| %>
-      <%= render "item_fields", f: item_f, products: @products, warehouses: @warehouses, require_warehouse: creating %>
+      <%= render "item_fields", f: item_f, product_options: product_options, warehouses: @warehouses, require_warehouse: creating %>
     <% end %>
   </template>
 

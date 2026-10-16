@@ -1,0 +1,16 @@
+<%# This product's quantity on a document, and whether it is an actual stock
+    movement (Inventory::ProductRecentDocuments::Row#stock_effect). Only a
+    posted movement gets a +/− sign; the text label never relies on colour. %>
+<% sign = direction == :in ? "+" : "−" %>
+<div class="recent-document-quantity" data-stock-effect="<%= row.stock_effect %>">
+  <% if row.posted? %>
+    <span style="font-weight: 700;"><%= sign %><%= row.quantity.to_i %></span>
+  <% elsif row.reversed? %>
+    <s style="color: var(--text-2);"><%= row.quantity.to_i %></s>
+  <% else %>
+    <span style="color: var(--text-2);"><%= row.quantity.to_i %></span>
+  <% end %>
+  <div class="td-secondary" style="font-size: var(--text-xs);">
+    <%= t("inventory.products.recent_documents.stock_effects.#{direction}.#{row.stock_effect}") %>
+  </div>
+</div>

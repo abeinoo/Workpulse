@@ -125,6 +125,7 @@ class Inventory::ProductsController < Inventory::BaseController
 
       load_purchase_history
       load_consumption_stats
+      load_recent_documents
     end
   end
 
@@ -342,6 +343,19 @@ class Inventory::ProductsController < Inventory::BaseController
         purchase_count:      items.size
       }
     end.sort_by { |r| r[:last_purchase_date] }.reverse
+  end
+
+  # Latest goods receipts / stock issues carrying this product. Policy-scoped
+  # (business + accessible warehouses) so every linked document is one the
+  # viewer can open; nil hides a section the viewer may not list at all.
+  def load_recent_documents
+    recent = Inventory::ProductRecentDocuments.new(
+      @product,
+      goods_receipts: policy_scope(GoodsReceipt),
+      stock_issues:   policy_scope(StockIssue).excluding_incomplete_imports
+    )
+    @recent_goods_receipts = policy(GoodsReceipt).index? ? recent.goods_receipts : nil
+    @recent_stock_issues   = policy(StockIssue).index?   ? recent.stock_issues   : nil
   end
 
   def load_consumption_stats

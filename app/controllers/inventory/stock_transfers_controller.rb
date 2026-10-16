@@ -54,7 +54,9 @@ class Inventory::StockTransfersController < Inventory::BaseController
 
   def load_options
     @warehouses = accessible_warehouses
-    @products   = current_user.business.products.transactable.ordered
+    @products   = current_user.business.products.transactable.ordered.to_a
+    # One query for every option's barcode — each line row lists the whole catalog.
+    @product_barcodes = Product.barcode_lookup(@products.map(&:id))
   end
 
   def transfer_params

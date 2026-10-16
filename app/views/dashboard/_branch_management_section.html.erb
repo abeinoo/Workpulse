@@ -70,14 +70,26 @@
               <% end %>
             </div>
             <div class="request-review-row__actions">
-              <%= button_to t("requests.approve"), approve_employee_request_path(req),
-                    method: :patch,
-                    class: "btn btn-sm btn-primary",
-                    data: { turbo_confirm: t("requests.confirm_approve") } %>
-              <%= button_to t("requests.reject"), reject_employee_request_path(req),
-                    method: :patch,
-                    class: "btn btn-sm btn-ghost",
-                    data: { turbo_confirm: t("requests.confirm_reject") } %>
+              <% if !policy(req).approve? %>
+                <%# Same rule as the controller: no actions without approve? (scope, self/submitter) %>
+                <% if policy(req).awaiting_other_reviewer? %>
+                  <span class="badge badge-neutral" data-testid="awaiting-other-reviewer"><%= t("requests.awaiting_other_reviewer") %></span>
+                <% end %>
+              <% elsif req.punch_correction? %>
+                <%# Punch corrections need time review — link to full page %>
+                <%= link_to t("requests.show.review_correction"),
+                      employee_request_path(req),
+                      class: "btn btn-sm btn-primary" %>
+              <% else %>
+                <%= button_to t("requests.approve"), approve_employee_request_path(req),
+                      method: :patch,
+                      class: "btn btn-sm btn-primary",
+                      data: { turbo_confirm: t("requests.confirm_approve") } %>
+                <%= button_to t("requests.reject"), reject_employee_request_path(req),
+                      method: :patch,
+                      class: "btn btn-sm btn-ghost",
+                      data: { turbo_confirm: t("requests.confirm_reject") } %>
+              <% end %>
             </div>
           </div>
         <% end %>

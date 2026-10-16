@@ -142,8 +142,19 @@ class User < ApplicationRecord
     if login.include?("@")
       find_by("LOWER(email) = ?", login.downcase)
     else
-      find_by(phone_number: login)
+      find_by_phone_login(login)
     end
+  end
+
+  # Sign-in lookup by a typed phone number in any format PhoneNumber treats as
+  # equivalent (e.g. Egyptian 01… / +20… / 20… / 00 20…, Arabic-Indic digits).
+  # An exact match on the stored value wins; otherwise the number must
+  # identify exactly one account, so an ambiguous login never picks one.
+  def self.find_by_phone_login(login)
+    candidates = where(phone_number: PhoneNumber.stored_forms(login)).to_a
+                   .select { |user| PhoneNumber.equivalent?(user.phone_number, login) }
+    exact = candidates.find { |user| user.phone_number == normalize_value_for(:phone_number, login) }
+    exact || (candidates.one? ? candidates.first : nil)
   end
 
   def active_for_authentication?

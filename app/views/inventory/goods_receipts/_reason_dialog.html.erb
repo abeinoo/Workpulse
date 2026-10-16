@@ -1,0 +1,36 @@
+<%#
+  An action that needs a written reason (reject / cancel / void): a compact
+  trigger button that opens a native <dialog> (dialog controller) holding the
+  reason form. Same endpoint, field name, required reason and turbo
+  confirmation as before — only the presentation is shared.
+
+  locals: id, trigger_label, trigger_class, icon, testid, title, url, method,
+          param, reason_label, placeholder, submit_label, confirm (optional), hint (optional)
+%>
+<div class="action-group__item" data-controller="dialog">
+  <button type="button" class="<%= trigger_class %>" aria-haspopup="dialog" aria-controls="<%= id %>"
+          data-action="click->dialog#open" data-testid="<%= testid %>">
+    <%= action_icon(icon) %><span><%= trigger_label %></span>
+  </button>
+  <dialog id="<%= id %>" aria-labelledby="<%= id %>-title" data-dialog-target="modal" data-action="click->dialog#backdropClose">
+    <div class="dialog-body">
+      <div class="dialog-header">
+        <h2 class="dialog-title" id="<%= id %>-title"><%= title %></h2>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="<%= t("forms.cancel") %>"
+                data-action="click->dialog#close"><%= action_icon(:reject) %></button>
+      </div>
+      <%= form_with url: url, method: method do %>
+        <div class="form-group">
+          <label class="form-label form-label--required" for="<%= id %>-reason"><%= reason_label %></label>
+          <textarea id="<%= id %>-reason" name="<%= param %>" rows="3" class="form-control" required
+                    placeholder="<%= placeholder %>"></textarea>
+          <% if local_assigns[:hint] %><p class="form-hint"><%= hint %></p><% end %>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-ghost" data-action="click->dialog#close"><%= t("forms.cancel") %></button>
+          <%= button_tag submit_label, type: "submit", class: "btn btn-danger", data: { turbo_confirm: local_assigns[:confirm].presence } %>
+        </div>
+      <% end %>
+    </div>
+  </dialog>
+</div>

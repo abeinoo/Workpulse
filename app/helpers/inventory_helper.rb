@@ -45,23 +45,22 @@ module InventoryHelper
   # independent of whether the goods have physically arrived).
   GOODS_RECEIPT_APPROVAL_STATUS_BADGES = {
     "draft" => "badge-neutral", "pending_approval" => "badge-warning",
-    "approved" => "badge-accent", "rejected" => "badge-danger"
+    "approved" => "badge-accent", "rejected" => "badge-danger", "cancelled" => "badge-danger"
   }.freeze
 
   def goods_receipt_approval_status_class(approval_status)
     GOODS_RECEIPT_APPROVAL_STATUS_BADGES.fetch(approval_status.to_s, "badge-neutral")
   end
 
-  # Receipt (inventory) status for a goods receipt: not_received / received /
-  # voided — derived from status + voided?, independent of approval_status.
+  # Receipt (inventory) status for a goods receipt — derived in the model
+  # (GoodsReceipt#receiving_status), mirrored by its for_receiving_status scope.
   def goods_receipt_receipt_status(receipt)
-    return "voided" if receipt.voided?
-
-    receipt.confirmed? ? "received" : "not_received"
+    receipt.receiving_status
   end
 
   GOODS_RECEIPT_RECEIPT_STATUS_BADGES = {
-    "not_received" => "badge-neutral", "received" => "badge-success", "voided" => "badge-danger"
+    "not_received" => "badge-neutral", "received" => "badge-success", "voided" => "badge-danger",
+    "not_receivable" => "badge-danger"
   }.freeze
 
   def goods_receipt_receipt_status_class(receipt)
@@ -83,6 +82,7 @@ module InventoryHelper
   # as presentation-only lookups so the view never branches on event type.
   GOODS_RECEIPT_TIMELINE_MARKER_CLASSES = {
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
+    reopened: "activity-timeline__marker--neutral",
     approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
     settled: "activity-timeline__marker--accent", received: "activity-timeline__marker--success",
     voided: "activity-timeline__marker--danger", settlement_reversed: "activity-timeline__marker--warning"
@@ -109,6 +109,25 @@ module InventoryHelper
     GOODS_RECEIPT_TIMELINE_ICONS.fetch(icon_type, GOODS_RECEIPT_TIMELINE_ICONS[:created])
   end
 
+  # Small decorative icons for document action buttons (heroicons-outline
+  # paths). The button's visible text is its accessible name.
+  ACTION_ICONS = {
+    approve: "m4.5 12.75 6 6 9-13.5",
+    reject:  "M6 18 18 6M6 6l12 12",
+    view:    "M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+    receive: GOODS_RECEIPT_TIMELINE_ICONS[:received],
+    submit:  GOODS_RECEIPT_TIMELINE_ICONS[:submitted],
+    cancel:  GOODS_RECEIPT_TIMELINE_ICONS[:voided],
+    edit:    "m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z",
+    back:    "M15.75 19.5 8.25 12l7.5-7.5"
+  }.freeze
+
+  def action_icon(name)
+    tag.svg(tag.path(d: ACTION_ICONS.fetch(name)),
+            class: "action-icon", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+            "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true")
+  end
+
   # "Where did this payment come from?" for one FinancialSettlement row —
   # reuses the funding-source labels. A NIL source_kind is a legacy payment
   # through an untracked means (cash vs. bank unknown).
@@ -130,6 +149,12 @@ module InventoryHelper
 
   def stock_issue_status_class(status)
     STOCK_ISSUE_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
+  end
+
+  # Stock quantity with insignificant zeros dropped ("2", "2.5") — the same
+  # format the insufficient-stock messages use.
+  def stock_quantity(quantity)
+    Inventory::StockAvailability.format_quantity(quantity)
   end
 
   # Badge colour for a purchase request's status.
@@ -167,33 +192,24 @@ module InventoryHelper
     key ? PURCHASE_REQUEST_RECEIVING_BADGES.fetch(key, "badge-neutral") : "badge-neutral"
   end
 
-  # "الإجراء التالي" — a pure presentation mapping from the request's current
-  # status to what a user should do next, reusing the exact same policy
-  # checks and routes as the full action set elsewhere on this page (see
-  # PurchaseRequestPolicy). No business logic lives here: a nil/false policy
-  # check just means the label renders without a link.
   # A Purchase Request's supplier, or "بدون مورد" when none is set.
   def purchase_request_supplier_name(pr)
     pr.supplier&.name || t("inventory.purchase_requests.no_supplier")
   end
 
-  def purchase_request_next_action(pr)
-    label = t("inventory.purchase_requests.next_actions.#{pr.status}", default: nil)
-    return nil unless label
+  # The approval decision alone, for the "الحالة" badge: the status column also
+  # carries receiving progress (partially/fully received, partially closed),
+  # which the list shows separately under "الاستلام" — so those read "معتمد"
+  # here instead of repeating the receiving label. Display only.
+  def purchase_request_approval_status(pr)
+    purchase_request_receiving_status(pr) ? "approved" : pr.status
+  end
 
-    url, http_method =
-      case pr.status
-      when "draft"
-        [ (edit_inventory_purchase_request_path(pr) if policy(pr).update?), :get ]
-      when "pending_approval"
-        [ (approve_inventory_purchase_request_path(pr) if policy(pr).approve?), :post ]
-      when "approved", "partially_received"
-        [ (new_inventory_goods_receipt_path(purchase_request_id: pr.id) if policy(pr).create_goods_receipt?), :get ]
-      else
-        [ nil, :get ]
-      end
+  # Received share of the requested quantity, 0–100, for the progress bar.
+  def purchase_request_received_percent(requested, received)
+    return 0 unless requested.to_d.positive?
 
-    { label: label, url: url, http_method: http_method }
+    [ (received.to_d / requested.to_d * 100).round, 100 ].min
   end
 
   # Marker colour + icon for one Activity Timeline entry (built by
@@ -201,6 +217,8 @@ module InventoryHelper
   # same icon set as goods receipts for the events they share.
   STOCK_ISSUE_TIMELINE_MARKER_CLASSES = {
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
+    reopened: "activity-timeline__marker--neutral",
+    approval_revoked: "activity-timeline__marker--warning",
     approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
     issued: "activity-timeline__marker--success", issued_legacy: "activity-timeline__marker--success",
     cancelled: "activity-timeline__marker--neutral", voided: "activity-timeline__marker--danger"
@@ -222,7 +240,16 @@ module InventoryHelper
   # issued_legacy reuses the exact same icon as issued (see #stock_issue_timeline_icon) —
   # only the label differs (see the timeline.issued_legacy locale key).
   STOCK_ISSUE_TIMELINE_ICONS[:issued_legacy] = STOCK_ISSUE_TIMELINE_ICONS[:issued]
+  # Pencil — returned to draft for editing.
+  STOCK_ISSUE_TIMELINE_ICONS[:approval_revoked] = STOCK_ISSUE_TIMELINE_ICONS[:rejected]
+  STOCK_ISSUE_TIMELINE_ICONS[:reopened] = "m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
   STOCK_ISSUE_TIMELINE_ICONS.freeze
+
+  # Edit-form warning for an issue that saving will return to draft: an
+  # approved issue also loses its approval and stock reservation.
+  def stock_issue_edit_warning_key(stock_issue)
+    stock_issue.approved? ? "inventory.stock_issues.edit_approved_warning" : "inventory.stock_issues.edit_request_warning"
+  end
 
   def stock_issue_timeline_icon(type)
     STOCK_ISSUE_TIMELINE_ICONS.fetch(type, STOCK_ISSUE_TIMELINE_ICONS[:created])
@@ -233,6 +260,41 @@ module InventoryHelper
   # client-side without a server round-trip; default supplier is carried for the
   # goods-receipt supplier prefill. Shared by every document form so scanning
   # behaves identically everywhere.
+  # The same <option>s as #inventory_product_options, rendered ONCE for a form
+  # with many line-item rows (every row lists the whole catalog): barcodes come
+  # from a bulk Product.barcode_lookup (same primary/first rule as
+  # Product#barcode) instead of one or two queries per product per row. Each
+  # row then takes this HTML through #inventory_product_select_options.
+  def inventory_product_options_html(products, barcodes:)
+    options_for_select(
+      products.map { |p|
+        barcode = barcodes[p.id]
+        [ "#{p.name} (#{p.sku})", p.id, {
+          "data-barcode"             => barcode,
+          "data-barcodes"            => barcode.to_s,
+          "data-sku"                 => p.sku,
+          "data-default-supplier-id" => p.default_supplier_id
+        } ]
+      }
+    )
+  end
+
+  # Marks one row's selected product in the pre-rendered option list — the
+  # exact markup options_for_select(rows, selected_id) produces. Safe as a
+  # string edit: `value` is always an option's last attribute, and every quote
+  # inside labels/attribute values is escaped, so ` value="ID">` can only be
+  # that option's own value attribute.
+  def inventory_product_select_options(options_html, selected_id)
+    return options_html if selected_id.blank?
+
+    value = %( value="#{ERB::Util.html_escape(selected_id)}">)
+    options_html.sub(value) { %( selected="selected"#{value}) }.html_safe
+  end
+
+  # Reference implementation only — retained so specs can prove the batched
+  # path (#inventory_product_options_html + #inventory_product_select_options)
+  # renders identical markup. Do not use it in application views/controllers:
+  # it runs one or two barcode queries per product, per call.
   def inventory_product_options(products, selected_id)
     options_for_select(
       products.map { |p|

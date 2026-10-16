@@ -10,7 +10,14 @@ class Inventory::StockCountsController < Inventory::BaseController
   def show
     @stock_count = find_count
     authorize @stock_count
-    @items = @stock_count.items.includes(:product)
+    # Load the items association itself (with products) so the summary
+    # figures (StockCount#adjustment_value etc., which read `items`) and the
+    # worksheet rows share one load, instead of the summaries re-loading items
+    # and each product one by one. Barcodes come from one bulk lookup (same
+    # primary/first rule as Product#barcode).
+    ActiveRecord::Associations::Preloader.new(records: [ @stock_count ], associations: { items: :product }).call
+    @items            = @stock_count.items
+    @product_barcodes = Product.barcode_lookup(@items.map(&:product_id))
   end
 
   def new

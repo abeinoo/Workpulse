@@ -12,44 +12,49 @@
 
   <div class="auth-card">
     <h1 class="auth-card__title"><%= t("auth.register.title") %></h1>
-    <p class="auth-card__subtitle"><%= t("auth.register.subtitle") %></p>
-
-    <%= render "users/shared/error_messages", resource: resource %>
-
     <% if @invitation_token.blank? %>
-      <p class="form-hint"><%= t("auth.register.invitation_required") %></p>
-    <% end %>
-
-    <%= form_for(resource, as: resource_name, url: user_registration_path) do |f| %>
-      <%= hidden_field_tag "user[invitation_token]", @invitation_token %>
-
-      <div class="form-group">
-        <%= f.label :login, t("auth.fields.login"), class: "form-label" %>
-        <%= f.text_field :login,
-              autofocus: true,
-              autocomplete: "username",
-              class: "form-control",
-              placeholder: t("auth.fields.login_placeholder") %>
+      <%# Activation needs the administrator's invitation link (OA-S6) — a form
+          without one can never succeed, so explain the next step instead. %>
+      <div class="empty-state" id="invitation-required" role="status">
+        <p class="empty-state__title"><%= t("auth.register.invitation_required_title") %></p>
+        <p class="empty-state__text"><%= t("auth.register.invitation_required") %></p>
       </div>
+    <% else %>
+      <p class="auth-card__subtitle"><%= t("auth.register.subtitle") %></p>
 
-      <div class="form-group">
-        <%= f.label :password, t("auth.fields.password"), class: "form-label" %>
-        <%= f.password_field :password,
-              autocomplete: "new-password",
-              class: "form-control",
-              placeholder: t("auth.fields.password_new_placeholder") %>
-      </div>
+      <%= render "users/shared/error_messages", resource: resource %>
 
-      <div class="form-group">
-        <%= f.label :password_confirmation, t("auth.fields.password_confirmation"), class: "form-label" %>
-        <%= f.password_field :password_confirmation,
-              autocomplete: "new-password",
-              class: "form-control",
-              placeholder: t("auth.fields.password_confirmation_placeholder") %>
-      </div>
+      <%= form_for(resource, as: resource_name, url: user_registration_path) do |f| %>
+        <%= hidden_field_tag "user[invitation_token]", @invitation_token %>
 
-      <%= f.submit t("auth.register.submit"), class: "btn btn-primary btn-lg btn-block" %>
+        <div class="form-group">
+          <%= f.label :login, t("auth.fields.login"), class: "form-label" %>
+          <%= f.text_field :login,
+                autofocus: true,
+                autocomplete: "username",
+                class: "form-control",
+                placeholder: t("auth.fields.login_placeholder") %>
+        </div>
 
+        <div class="form-group">
+          <%= f.label :password, t("auth.fields.password"), class: "form-label" %>
+          <%= f.password_field :password,
+                autocomplete: "new-password",
+                class: "form-control",
+                placeholder: t("auth.fields.password_new_placeholder") %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :password_confirmation, t("auth.fields.password_confirmation"), class: "form-label" %>
+          <%= f.password_field :password_confirmation,
+                autocomplete: "new-password",
+                class: "form-control",
+                placeholder: t("auth.fields.password_confirmation_placeholder") %>
+        </div>
+
+        <%= f.submit t("auth.register.submit"), class: "btn btn-primary btn-lg btn-block" %>
+
+      <% end %>
     <% end %>
 
     <div class="auth-links">

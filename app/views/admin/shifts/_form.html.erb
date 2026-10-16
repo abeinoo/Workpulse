@@ -193,7 +193,7 @@
 
         <div class="form-group mb-0">
           <label class="form-label form-label--mobile-only"><%= t("shifts.form.threshold_header") %></label>
-          <input type="number"
+          <input type="number" inputmode="numeric"
                  name="shift[penalty_rules_attributes][NEW_INDEX][threshold_minutes]"
                  class="form-control"
                  min="1"
@@ -212,7 +212,7 @@
 
         <div class="form-group mb-0">
           <label class="form-label form-label--mobile-only"><%= t("shifts.form.amount_header") %></label>
-          <input type="number"
+          <input type="number" inputmode="decimal"
                  name="shift[penalty_rules_attributes][NEW_INDEX][deduction_value]"
                  class="form-control"
                  min="0.01"

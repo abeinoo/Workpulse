@@ -1,0 +1,39 @@
+<%#
+  One Purchase Request line on a receipt created from that request.
+  locals: f (item fields builder), barcodes ({ product_id => barcode }, Product.barcode_lookup)
+
+  The product is the request line's own product: a one-option select keeps it
+  fixed (GoodsReceiptItem#product_matches_purchase_request_item enforces it)
+  while still submitting product_id and letting the barcode scanner find the
+  row. Shows requested / already received / remaining for the line; the
+  quantity received now is entered here.
+%>
+<% pri = f.object.purchase_request_item %>
+<% qty = ->(n) { number_with_precision(n, precision: 3, strip_insignificant_zeros: true) } %>
+<tr data-line-row class="line-items-row--request">
+  <td>
+    <%= f.select :product_id, inventory_product_select_options(
+          inventory_product_options_html([ f.object.product ].compact, barcodes: barcodes), f.object.product_id),
+          {}, class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
+  </td>
+  <td>
+    <%= f.hidden_field :purchase_request_item_id %>
+    <%= f.number_field :quantity, step: "0.001", min: 0, max: pri.remaining_quantity,
+          class: "form-control", placeholder: "0", data: { quantity_field: true } %>
+    <p class="form-hint"><%= t("inventory.goods_receipts.quantity_hint_request",
+                               requested: qty.(pri.quantity),
+                               received: qty.(pri.received_quantity),
+                               remaining: qty.(pri.remaining_quantity)) %></p>
+  </td>
+  <td>
+    <%= f.number_field :unit_cost, step: "0.0001", min: 0, class: "form-control", placeholder: "0.00",
+          data: { cost_field: true } %>
+  </td>
+  <td class="line-items-table__total" data-line-total aria-live="off">—</td>
+  <td class="td-actions">
+    <% if f.object.persisted? %>
+      <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
+    <% end %>
+    <button type="button" class="btn btn-ghost btn-sm text-danger" data-action="line-items#remove" aria-label="<%= t('common.delete') %>">×</button>
+  </td>
+</tr>

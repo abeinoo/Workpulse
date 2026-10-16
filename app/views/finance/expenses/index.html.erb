@@ -138,7 +138,7 @@
   <% if @expenses.empty? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("finance.expenses.empty") %></p></div>
   <% else %>
-    <%# Desktop: an 8-column table (related values stacked in one cell).
+    <%# Desktop: a 9-column table (related values stacked in one cell).
         When the LIST itself is narrow (container query, not viewport — the
         finance sidebars leave ~640px at a 1024px screen), each row becomes a
         card laid out in priority order. One markup, so approve/reject and the
@@ -158,6 +158,7 @@
                 <span class="expense-list__th-sub"><%= t("finance.expenses.type") %></span>
               </th>
               <th class="expense-list__num"><%= t("finance.expenses.amount") %></th>
+              <th class="expense-list__notes-th"><%= t("finance.common.notes") %></th>
               <th><%= t("finance.common.status") %></th>
               <th>
                 <%= t("finance.expenses.payment_source") %>
@@ -178,6 +179,7 @@
               payment_status = expense_payment_status(paid, expense.amount)
               can_approve    = policy(expense).approve?
               can_reject     = policy(expense).reject?
+              notes          = expense.notes.to_s.strip
             %>
             <tbody data-controller="<%= 'collapsible' if can_reject %>">
               <tr class="expense-list__row">
@@ -196,7 +198,14 @@
                     <span class="expense-list__clamp" title="<%= type_name %>"><%= type_name %></span>
                   </span>
                 </td>
-                <td class="expense-list__num expense-list__amount"><%= format_currency(expense.amount) %></td>
+                <td class="expense-list__num expense-list__amount">
+                  <%= format_currency(expense.amount) %>
+                  <%# Medium-width lists show the note here instead of in its own column (CSS container query). %>
+                  <% if notes.present? %>
+                    <div class="expense-list__amount-note"><%= render "finance/expenses/note", notes: notes %></div>
+                  <% end %>
+                </td>
+                <%= render "finance/expenses/notes_cell", notes: notes %>
                 <td class="expense-list__status">
                   <%= render "finance/expenses/status_badge", status: expense.status %>
                 </td>
@@ -250,7 +259,7 @@
               <%# Inline reject form – revealed by collapsible trigger above %>
               <% if can_reject %>
                 <tr class="expense-list__reject-row" data-collapsible-target="content" hidden>
-                  <td colspan="8">
+                  <td colspan="9">
                     <%= form_with url: reject_finance_expense_path(expense), method: :patch, class: "expense-list__reject-form" do %>
                       <%= hidden_field_tag :from_index, 1 %>
                       <% index_filter_params.each do |key, value| %>

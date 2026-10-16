@@ -9,6 +9,13 @@ RSpec.describe Inventory::StockIssueApproval, type: :model do
   let(:branch)     { business.branches.create!(name: "Nasr City", active: true) }
   let(:product)    { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10) }
 
+  # Approval reserves stock, so it needs some on hand to reserve.
+  before do
+    r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+    r.items.build(product: product, quantity: 10, unit_cost: 10)
+    Inventory::GoodsReceiptPoster.new(r).call
+  end
+
   def pending_issue(submitted_by: requester)
     i = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current, created_by: submitted_by)
     i.items.build(product: product, quantity: 1)

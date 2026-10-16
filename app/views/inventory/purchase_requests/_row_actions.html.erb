@@ -1,0 +1,78 @@
+<%#
+  Purchase Requests list — the row's ONE actions area. locals: pr
+
+  Every action is gated by the same PurchaseRequestPolicy method its endpoint
+  authorizes with (which already encodes permission and state), and posts to
+  the existing route — the backend stays the final authority. Layout:
+    • one primary action — the request's next step:
+        create_goods_receipt? → + إنشاء إذن استلام
+        approve?              → اعتماد (+ رفض, which needs a reason → dialog)
+        submit_for_approval?  → إرسال للاعتماد
+    • عرض, always;
+    • ⋮ for the remaining administrative actions (edit / delete; cancel and
+      close-remaining need their reason forms → open on the request page).
+  A fully received request shows "تم استلام جميع الكميات" instead of an action.
+%>
+<% pr_policy = policy(pr) %>
+<% scope = "inventory.purchase_requests" %>
+<div class="action-group pr-actions" role="group" aria-label="<%= t("#{scope}.table_actions") %> — <%= pr.request_number %>">
+  <% if pr_policy.create_goods_receipt? %>
+    <%= link_to new_inventory_goods_receipt_path(purchase_request_id: pr.id), class: "btn btn-primary",
+          data: { testid: "pr-create-receipt" } do %>
+      <span aria-hidden="true">+</span><span><%= t(pr.partially_received? ? "#{scope}.actions.create_goods_receipt_remaining" : "#{scope}.actions.create_goods_receipt") %></span>
+    <% end %>
+  <% elsif pr_policy.approve? %>
+    <%= button_to approve_inventory_purchase_request_path(pr), method: :post, class: "btn btn-primary",
+          form: { class: "action-group__item", data: { testid: "pr-approve" } } do %>
+      <%= action_icon(:approve) %><span><%= t("#{scope}.actions.approve") %></span>
+    <% end %>
+  <% elsif pr_policy.submit_for_approval? %>
+    <%= button_to submit_inventory_purchase_request_path(pr), method: :post, class: "btn btn-primary",
+          form: { class: "action-group__item", data: { testid: "pr-submit" } } do %>
+      <%= action_icon(:submit) %><span><%= t("#{scope}.actions.submit") %></span>
+    <% end %>
+  <% elsif pr.fully_received? %>
+    <span class="pr-actions__done" data-testid="pr-all-received"><%= t("#{scope}.all_received") %></span>
+  <% end %>
+
+  <% if pr_policy.reject? %>
+    <%= render "inventory/goods_receipts/reason_dialog",
+          id: "pr-reject-dialog-#{pr.id}", testid: "pr-reject",
+          trigger_label: t("#{scope}.actions.reject"), trigger_class: "btn btn-danger-outline", icon: :reject,
+          title: "#{t("#{scope}.actions.reject")} — #{pr.request_number}",
+          url: reject_inventory_purchase_request_path(pr), method: :post, param: :rejection_reason,
+          reason_label: t("#{scope}.rejection_reason"), placeholder: t("#{scope}.rejection_reason_placeholder"),
+          submit_label: t("#{scope}.actions.reject") %>
+  <% end %>
+
+  <%= link_to inventory_purchase_request_path(pr), class: "btn btn-ghost", data: { testid: "pr-view" } do %>
+    <%= action_icon(:view) %><span><%= t("#{scope}.view") %></span>
+  <% end %>
+
+  <% can_edit, can_delete = pr_policy.update?, pr_policy.destroy? %>
+  <% can_cancel, can_close = pr_policy.cancel?, pr_policy.close_remaining? %>
+  <% if can_edit || can_delete || can_cancel || can_close %>
+    <div class="row-actions" data-controller="dropdown">
+      <button type="button" class="btn btn-ghost pr-actions__more" data-action="click->dropdown#toggle"
+              data-dropdown-target="button" aria-haspopup="menu" aria-expanded="false"
+              aria-label="<%= t("#{scope}.actions.more") %> — <%= pr.request_number %>" title="<%= t("#{scope}.actions.more") %>"
+              data-testid="pr-more">&#8942;</button>
+      <div class="row-actions__menu" data-dropdown-target="menu" role="menu" hidden>
+        <% if can_edit %>
+          <%= link_to t("#{scope}.actions.edit"), edit_inventory_purchase_request_path(pr), class: "row-actions__item", role: "menuitem" %>
+        <% end %>
+        <% if can_cancel %>
+          <%= link_to "#{t("#{scope}.actions.cancel")}…", inventory_purchase_request_path(pr), class: "row-actions__item row-actions__item--danger", role: "menuitem" %>
+        <% end %>
+        <% if can_close %>
+          <%= link_to "#{t("#{scope}.actions.close_remaining")}…", inventory_purchase_request_path(pr), class: "row-actions__item", role: "menuitem" %>
+        <% end %>
+        <% if can_delete %>
+          <%= button_to t("#{scope}.actions.delete"), inventory_purchase_request_path(pr), method: :delete,
+                class: "row-actions__item row-actions__item--danger", role: "menuitem",
+                data: { turbo_confirm: t("#{scope}.delete_confirm") } %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-# Finance › Expenses index: an 8-column table while the list has room
+# Finance › Expenses index: a 9-column table while the list has room
 # (≥860px of list width), one card per expense below that — switched by a
 # container query on .expense-list, since the finance sidebars make the
 # viewport a poor proxy (~770px of list at a 1024px screen). Widths via Chrome
@@ -121,7 +121,7 @@ RSpec.describe "Expenses index — responsive layout", type: :system do
       it "#{locale.upcase} #{dir.upcase} @ #{width}px: compact table fits without horizontal scrolling" do
         visit_index(locale, width)
         expect(card_mode?).to be(false)
-        expect(page).to have_css(".expense-list thead th", count: 8, visible: :all)
+        expect(page).to have_css(".expense-list thead th", count: 9, visible: :all)
         expect(js("document.documentElement.scrollWidth - window.innerWidth")).to be <= 1
 
         wrap = find(".expense-list__table")

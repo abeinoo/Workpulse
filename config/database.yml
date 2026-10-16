@@ -69,6 +69,10 @@ production:
     database_tasks: false
   queue:
     <<: *production_primary
+    # Sized for Solid Queue, not Puma: it refuses to boot unless this pool is
+    # at least its largest worker `threads` (config/queue.yml) + 2 (worker +
+    # heartbeat). Independent of RAILS_MAX_THREADS so Puma can run fewer threads.
+    pool: <%= ENV.fetch("SOLID_QUEUE_DB_POOL", 5) %>
     migrations_paths: db/queue_migrate
     database_tasks: false
   cable:

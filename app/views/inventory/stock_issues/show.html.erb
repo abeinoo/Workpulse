@@ -15,10 +15,12 @@
     </h1>
     <div class="flex" style="gap: var(--space-2);">
       <% if policy(@stock_issue).update? %>
-        <%= link_to t("inventory.stock_issues.edit_action"), edit_inventory_stock_issue_path(@stock_issue), class: "btn btn-ghost btn-sm" %>
+        <%= link_to t(StockIssue::REOPENED_BY_EDIT_STATUSES.include?(@stock_issue.status) ? "inventory.stock_issues.edit_request" : "inventory.stock_issues.edit_action"),
+              edit_inventory_stock_issue_path(@stock_issue), id: "edit-stock-issue", class: "btn btn-ghost btn-sm" %>
       <% end %>
       <% if policy(@stock_issue).submit? %>
-        <%= button_to t("inventory.stock_issues.submit_for_approval"), submit_inventory_stock_issue_path(@stock_issue),
+        <%= button_to t(@awaiting_resubmission ? "inventory.stock_issues.resubmit_for_approval" : "inventory.stock_issues.submit_for_approval"),
+              submit_inventory_stock_issue_path(@stock_issue),
               method: :post, class: "btn btn-primary btn-sm",
               data: { turbo_confirm: t("inventory.stock_issues.submit_confirm") } %>
       <% end %>
@@ -33,10 +35,38 @@
     </div>
   <% end %>
 
+  <% if @awaiting_resubmission && !@stock_issue.voided? %>
+    <div id="resubmission-required-notice" class="alert alert-warning" role="status" style="margin-bottom: var(--space-5);">
+      <%= t("inventory.stock_issues.resubmission_required") %>
+    </div>
+  <% end %>
+
+  <%# Blocking state: approval/confirmation would be refused by the service
+      (same StockAvailability figures, re-checked there under lock). %>
+  <% if @availability_shortages.present? && (@stock_issue.pending_approval? || @stock_issue.approved?) %>
+    <div id="stock-shortage-alert" class="alert alert-warning" role="alert" style="margin-bottom: var(--space-5);">
+      <p style="margin: 0 0 var(--space-2); font-weight: 600;">
+        <%= t(@stock_issue.approved? ? "inventory.stock_issues.availability.cannot_confirm" : "inventory.stock_issues.availability.cannot_approve") %>
+      </p>
+      <ul style="margin: 0 0 var(--space-2); padding-inline-start: var(--space-5);">
+        <% @availability_shortages.each do |line| %>
+          <li>
+            <%= t("inventory.stock_issues.availability.shortage_line",
+                  product: line.product.name, available: stock_quantity(line.available), requested: stock_quantity(line.requested)) %>
+            <% if line.reserved.positive? %>
+              <%= t("inventory.stock_issues.availability.shortage_reserved") %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+      <p style="margin: 0;"><%= t("inventory.stock_issues.availability.resolve_hint") %></p>
+    </div>
+  <% end %>
+
   <% if @stock_issue.pending_approval? && policy(@stock_issue).approve? %>
     <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
       <%= button_to t("inventory.stock_issues.approve"), approve_inventory_stock_issue_path(@stock_issue),
-            method: :post, class: "btn btn-primary btn-sm",
+            method: :post, class: "btn btn-primary btn-sm", disabled: @availability_shortages.present?,
             data: { turbo_confirm: t("inventory.stock_issues.approve_hint") } %>
       <details style="flex: 1;">
         <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
@@ -85,12 +115,16 @@
         </dl>
         <%= button_to t("inventory.stock_issues.confirm_issue"), confirm_inventory_stock_issue_path(@stock_issue),
               method: :post, class: "btn btn-primary", style: "margin-top: var(--space-4);",
+              disabled: @availability_shortages.present?,
               data: { turbo_confirm: t("inventory.stock_issues.confirm_issue_warning") } %>
       </div>
     </details>
   <% end %>
 
   <% if @stock_issue.issued? %>
+    <p id="issued-not-editable-hint" class="form-hint" style="margin-bottom: var(--space-3);">
+      <%= t("inventory.stock_issues.issued_not_editable") %>
+    </p>
     <%= render "inventory/shared/void_panel",
           document: @stock_issue,
           void_path: void_inventory_stock_issue_path(@stock_issue),
@@ -133,6 +167,47 @@
       <% end %>
     </dl>
   </div>
+
+  <% if @availability_lines.present? %>
+    <div id="stock-availability" class="card" style="margin-bottom: var(--space-5);">
+      <div class="card-header">
+        <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.stock_issues.availability.title") %></h2>
+      </div>
+      <p class="td-secondary" style="margin: 0; padding: 0 var(--space-5) var(--space-3); font-size: var(--text-xs);">
+        <%= t(@stock_issue.approved? ? "inventory.stock_issues.availability.hint_reserved" : "inventory.stock_issues.availability.hint_unreserved") %>
+      </p>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead><tr>
+            <th><%= t("inventory.stock_issues.product") %></th>
+            <th style="text-align: end;"><%= t("inventory.stock_issues.availability.on_hand") %></th>
+            <th style="text-align: end;"><%= t("inventory.stock_issues.availability.reserved") %></th>
+            <th style="text-align: end;"><%= t("inventory.stock_issues.availability.available") %></th>
+            <th style="text-align: end;"><%= t("inventory.stock_issues.availability.requested") %></th>
+            <th><%= t("inventory.stock_issues.availability.status") %></th>
+          </tr></thead>
+          <tbody>
+            <% @availability_lines.each do |line| %>
+              <tr data-product-id="<%= line.product.id %>">
+                <td data-label="<%= t('inventory.stock_issues.product') %>"><%= line.product.name %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.on_hand') %>" style="text-align: end;"><%= stock_quantity(line.on_hand) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.reserved') %>" style="text-align: end;"><%= stock_quantity(line.reserved) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.available') %>" style="text-align: end; font-weight: 600;"><%= stock_quantity(line.available) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.requested') %>" style="text-align: end;"><%= stock_quantity(line.requested) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.status') %>">
+                  <% if line.shortfall? %>
+                    <span class="badge badge-danger"><%= t("inventory.stock_issues.availability.insufficient") %></span>
+                  <% else %>
+                    <span class="badge badge-success"><%= t("inventory.stock_issues.availability.sufficient") %></span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
 
   <div id="items" class="table-wrap table-wrap--cards">
     <table>

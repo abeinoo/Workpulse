@@ -1,0 +1,12 @@
+<%#
+  Expenses index — the notes column (and, in card layout, the "ملاحظات"
+  section, shown only when there is a note). locals: notes (stripped string)
+%>
+<% if notes.blank? %>
+  <td class="expense-list__notes expense-list__notes--empty"><span class="expense-list__notes-empty">—</span></td>
+<% else %>
+  <td class="expense-list__notes">
+    <span class="expense-list__notes-label" aria-hidden="true"><%= t("finance.common.notes") %></span>
+    <%= render "finance/expenses/note", notes: notes %>
+  </td>
+<% end %>

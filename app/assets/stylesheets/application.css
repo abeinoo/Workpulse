@@ -625,6 +625,45 @@ body.is-guest .main-content {
   box-shadow: 0 0 0 3px rgba(var(--danger-rgb), 0.2);
 }
 
+/* ── Numeric inputs — every input[type="number"] in the app ─────────────────
+   One standard for quantities, prices, amounts, salaries, percentages…
+   (phone numbers, IDs and dates aren't type="number", so they're untouched):
+   • no native spinners (Chrome/Safari/Edge pseudo-elements, Firefox textfield);
+   • digits laid out LTR so the cursor, decimal point and selection behave
+     predictably on RTL pages, aligned to the right in RTL (left in LTR);
+   • tabular figures so the value never jumps while typing;
+   • the typed value reads stronger than the placeholder;
+   • a minimum width that fits "12,500.000" without resizing;
+   • focus/error states are .form-control's (box-shadow ring → no layout shift).
+   inputmode (numeric / decimal keypad) comes from the number_field helpers —
+   see config/initializers/number_field_inputmode.rb. */
+input[type="number"] {
+  direction: ltr;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--text-1);
+  min-width: 6.5rem;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+[dir="rtl"] input[type="number"] { text-align: right; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"]::placeholder { color: var(--text-3); font-weight: 400; opacity: 1; }
+input[type="number"]:disabled,
+input[type="number"][readonly] {
+  color: var(--text-2);
+  background: var(--navy-700);
+  cursor: not-allowed;
+}
+
+/* A unit / currency beside a numeric input, outside the editable value:
+   <div class="input-unit"><input type="number" …><span class="input-unit__label">ج.م</span></div> */
+.input-unit { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.input-unit > input { flex: 1 1 auto; min-width: 0; }
+.input-unit__label { flex-shrink: 0; font-size: var(--text-sm); color: var(--text-2); white-space: nowrap; }
+
 /* Textarea */
 textarea.form-control {
   height: auto;
@@ -1165,6 +1204,103 @@ tbody td {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+/* ── Action group — compact horizontal actions for a record ────────────
+   One group per row (index) or per record header (show). Hierarchy comes
+   from the existing button variants: the next step is .btn-primary, reject
+   is .btn-danger-outline, عرض / رجوع are .btn-ghost. Desktop: one line,
+   compact 32px buttons. Phones: 44px touch targets, wrapping evenly. */
+.action-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.action-group__item { display: contents; }  /* button_to forms + dialog wrappers */
+.action-group > .btn, .action-group > .action-group__item > .btn {
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  gap: 6px;
+  font-size: var(--text-xs);
+  border-radius: var(--radius);
+  border-width: 1px;
+}
+.action-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+[dir="rtl"] .action-group__back .action-icon { transform: scaleX(-1); }
+.btn-danger-outline {
+  background: transparent;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+.btn-danger-outline:hover:not(:disabled) {
+  background: var(--danger-muted);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.action-group > .btn:focus-visible, .action-group > .action-group__item > .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Goods receipts index: data stays the focus; the actions column sizes to
+   its group, cells stay on one line, and rows keep one height. */
+.gr-table .nowrap,
+.gr-table .badge { white-space: nowrap; }
+.gr-table td { vertical-align: middle; }
+.cell-stack { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cell-stack__main { font-weight: 500; }
+.cell-stack .td-secondary { font-size: var(--text-xs); }
+@media (min-width: 769px) {
+  .gr-table thead th,
+  .gr-table tbody td { padding-inline: var(--space-3); }
+  .gr-table th.col-actions,
+  .gr-table td.col-actions {
+    display: table-cell;   /* override .td-actions' flex so the cell stays a table cell */
+    width: 1%;
+    white-space: nowrap;
+  }
+  .gr-table .action-group { justify-content: flex-end; }  /* عرض lines up across rows */
+}
+
+/* Record header (show pages): number + status, then the action group. */
+.record-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5);
+}
+.record-header__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.record-header__title .page-title { overflow-wrap: anywhere; }
+.record-header__badges { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.action-group--header { flex-wrap: wrap; }
+.action-group--header > .btn, .action-group--header > .action-group__item > .btn { min-height: 2.25rem; }
+
+@media (max-width: 768px) {
+  /* Index cards: one tidy row of equal buttons at the bottom of the card. */
+  .table-wrap--cards tbody td.col-actions { display: block; }
+  .gr-table .action-group { flex-wrap: wrap; width: 100%; }
+  .gr-table .action-group > .btn, .gr-table .action-group > .action-group__item > .btn { flex: 1 1 0; min-width: 5.5rem; }
+
+  /* Header: title block, then actions full width; رجوع on its own line. */
+  .record-header { flex-direction: column; align-items: stretch; }
+  .action-group--header > .btn, .action-group--header > .action-group__item > .btn { flex: 1 1 calc(50% - 6px); }
+  .action-group--header .action-group__back { flex-basis: 100%; }
+
+  .action-group > .btn, .action-group > .action-group__item > .btn { min-height: 2.75rem; font-size: var(--text-sm); }
+  .action-group dialog .dialog-footer .btn { flex: 1 1 0; min-height: 2.75rem; }
 }
 
 /* ── Avatar & logo components ─────────────────────────────────────── */
@@ -5587,6 +5723,60 @@ table {
     text-align: start;
   }
 }
+/* Line-items table columns: product first and roomy; quantity / cost columns
+   wide enough for "12,500.000" so the inputs never resize; the live total
+   (line_total_controller) end-aligned and bold. Cards on phones come from
+   .table-wrap--form-cards (inputs then take the full width). */
+.line-items-table th.line-items-table__product { min-width: 9rem; }
+.line-items-table th.line-items-table__num { width: 6.5rem; }
+.line-items-table input[type="number"] { padding-inline: 10px; }
+@media (min-width: 769px) {
+  .line-items-table > thead > tr > th,
+  .line-items-table > tbody > tr > td { padding-inline: var(--space-2); }
+}
+.line-items-table .line-items-table__total {
+  width: 5.5rem;
+  text-align: end;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Goods receipt from a Purchase Request: section headings inside the line-items
+   rows ("منتجات طلب الشراء" / "منتجات إضافية") and the extra-product badge. */
+.line-items-table tr.line-items-section th {
+  padding: var(--space-4) var(--space-3) var(--space-2);
+  text-align: start;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-1);
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+  background: transparent;
+}
+.line-items-section__ref {
+  margin-inline-start: var(--space-2);
+  font-weight: 500;
+  color: var(--text-2);
+}
+.line-items-section__hint {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-2);
+}
+.line-items-extra-badge { margin-top: var(--space-1); }
+@media (max-width: 768px) {
+  .table-wrap--form-cards tbody tr.line-items-section {
+    background: transparent;
+    border: none;
+    padding: var(--space-2) 0 0;
+  }
+  .table-wrap--form-cards tbody tr.line-items-section th { display: block; padding: 0; }
+}
+
 
 /* ============================================================
    FORM-CARD TABLE LAYOUT — mobile transformation for editable line-item tables
@@ -12032,12 +12222,9 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
   border-color: transparent;
 }
 
-/* Stock-count quantity inputs: standard whole-number field — right-aligned,
-   consistent text size, no native number spinners. */
-.qty-input { text-align: end; max-width: 130px; margin-inline-start: auto; }
-.qty-input::-webkit-outer-spin-button,
-.qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.qty-input { -moz-appearance: textfield; }
+/* Stock-count quantity inputs: compact, pushed to the row end. Spinners,
+   alignment and figures come from the global input[type="number"] rule. */
+.qty-input { max-width: 130px; margin-inline-start: auto; }
 
 /* ── Performance Evaluation ───────────────────────────────────────────────
    Star rating controls (interactive + read-only), observation type chips,
@@ -14594,6 +14781,82 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
 }
 .expense-list__reject-form .form-control { flex: 1; min-width: 200px; }
 
+/* Notes (Expense#notes): table cell = two lines then "…", full text on hover
+   (title) or by expanding a long note in place. Never widens the table. */
+.expense-list__notes {
+  min-width: 96px;
+  max-width: 180px;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+.expense-list__notes-label { display: none; }
+.expense-list__notes-empty { color: var(--text-3, var(--text-2)); }
+.expense-list__note-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  text-align: start;
+}
+.expense-list__note > summary {
+  list-style: none;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+.expense-list__note > summary::-webkit-details-marker { display: none; }
+.expense-list__note > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.expense-list__note-toggle {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+}
+.expense-list__note-less,
+.expense-list__note[open] .expense-list__note-more { display: none; }
+.expense-list__note[open] .expense-list__note-less { display: inline; }
+.expense-list__note[open] .expense-list__note-text {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  white-space: pre-line;
+}
+
+/* The same note under the amount — used only on medium-width lists (below).
+   width:0 + min-width:100% keeps it from widening the amount column. */
+.expense-list__amount-note {
+  display: none;
+  width: 0;
+  min-width: 100%;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-2);
+  white-space: normal;
+  text-align: start;
+}
+
+/* Not enough room for a 9th column: the notes column folds under the amount
+   instead of squeezing the other columns or scrolling the table. Measured:
+   the list is ~976px at 1440px screens and caps at ~1052px (page max-width);
+   the 9 columns need ~974px in Arabic but ~1070px in English (longer dates,
+   status and button labels). */
+@container expense-list (min-width: 860px) and (max-width: 1039px) {
+  .expense-list__table th.expense-list__notes-th,
+  .expense-list__table td.expense-list__notes { display: none; }
+  .expense-list__amount-note { display: block; }
+}
+@container expense-list (min-width: 1040px) and (max-width: 1079px) {
+  html:not([dir="rtl"]) .expense-list__table th.expense-list__notes-th,
+  html:not([dir="rtl"]) .expense-list__table td.expense-list__notes { display: none; }
+  html:not([dir="rtl"]) .expense-list__amount-note { display: block; }
+}
+
 /* ── Card layout ─────────────────────────────────────────────────────────── */
 @container expense-list (max-width: 859px) {
   .expense-list__table {
@@ -14627,6 +14890,7 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
       "type      type"
       "category  category"
       "branch    branch"
+      "notes     notes"
       "source    source"
       "paystatus paystatus"
       "creator   creator"
@@ -14671,6 +14935,24 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
   .expense-list__source    { grid-area: source; }
   .expense-list__paystatus { grid-area: paystatus; }
   .expense-list__creator   { grid-area: creator; }
+
+  /* Notes: a small labelled section, only when the expense has notes. Three
+     lines, then "عرض المزيد" expands the full text inside the card. */
+  .expense-list__table td.expense-list__notes--empty { display: none; }
+  .expense-list__table td.expense-list__notes {
+    grid-area: notes;
+    padding: var(--space-2) 0;
+    border-top: 1px solid rgba(var(--overlay-rgb), 0.06);
+  }
+  .expense-list__notes-label {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .expense-list__notes .expense-list__note-text { -webkit-line-clamp: 3; }
+  .expense-list__note-toggle { padding-block: var(--space-2); }
 
   /* Labelled rows: "label ……… value"; values wrap in full, never clipped. */
   .expense-list__table .expense-list__field {
@@ -14744,4 +15026,285 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
   .expenses-header-actions__menu { display: block; }
   .expenses-header-actions__menu .row-actions__menu { min-width: 100%; }
   .expenses-header-actions__menu .row-actions__item { min-height: 44px; }
+}
+
+/* ============================================================
+   PURCHASE REQUESTS INDEX — status-first list with one actions area.
+   Table while the list has room; one card per request below that
+   (container query on .pr-list — the inventory sidebar makes the
+   viewport a poor proxy). Built from existing tokens, badges, buttons
+   and the shared .action-group / .row-actions components.
+   ============================================================ */
+
+/* Summary: compact, clickable state cards (filter the list). */
+.pr-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.pr-summary__card { padding: var(--space-3) var(--space-4); text-decoration: none; }
+.pr-summary__card .stat-card__value { font-size: var(--text-xl); }
+.pr-summary__card--current {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.pr-summary__card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Filters: denser grid so the table starts higher. */
+.pr-filter-bar { padding: var(--space-4); gap: var(--space-3); }
+.pr-filters { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3); }
+
+/* Bulk bar: a visible explanation of what can be selected. */
+.bulk-action-bar__hint {
+  flex-basis: 100%;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+/* Table */
+.pr-list { container: pr-list / inline-size; }
+.pr-list__table th,
+.pr-list__table td {
+  padding: var(--space-3) 6px;
+  vertical-align: middle;
+  text-align: start;
+}
+.pr-list__table th:first-child,
+.pr-list__table td:first-child { padding-inline-start: var(--space-4); }
+.pr-list__table th:last-child,
+.pr-list__table td:last-child  { padding-inline-end: var(--space-4); }
+.pr-list__table .pr-list__num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pr-list__ref { display: block; font-weight: 700; white-space: nowrap; }
+.pr-list__meta {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.pr-list__supplier { color: var(--text-2); min-width: 96px; max-width: 170px; }
+.pr-list__creator { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+.pr-list .action-group > .btn,
+.pr-list .action-group > .action-group__item > .btn { padding-inline: 10px; }
+.pr-list__clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.pr-list__total { font-weight: 700; color: var(--text-1); }
+.pr-list__table .badge { white-space: nowrap; }
+.pr-list__table th.pr-list__actions-th,
+.pr-list__table td.pr-list__actions { width: 1%; white-space: nowrap; }
+.pr-list__actions .action-group { justify-content: flex-end; }
+
+/* Receiving: status badge first, numbers + a thin bar secondary. */
+.pr-progress { display: grid; gap: 4px; min-width: 120px; }
+.pr-progress .badge { justify-self: start; }
+.pr-progress__numbers { font-size: var(--text-xs); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pr-progress__bar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--navy-500, rgba(var(--overlay-rgb), 0.08));
+  overflow: hidden;
+}
+.pr-progress__fill { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.pr-progress__fill--full { background: var(--success); }
+.pr-progress__fill--partial { background: var(--warning); }
+.pr-progress__fill--closed { background: var(--text-3, var(--text-2)); }
+
+/* Actions: primary + عرض + ⋮ in one compact group. */
+.pr-actions__more { min-width: 2rem; min-height: 2rem; padding: 0 var(--space-2); font-size: var(--text-base); border-width: 1px; }
+.pr-actions__done {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--success);
+  white-space: nowrap;
+}
+.pr-actions .row-actions__menu .button_to { margin: 0; }
+.pr-actions .row-actions__menu button.row-actions__item {
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ── Card layout ─────────────────────────────────────────────────────── */
+@container pr-list (max-width: 919px) {
+  .pr-list__table { border: none; border-radius: 0; overflow: visible; }
+  .pr-list__table table {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  .pr-list__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .pr-list__table tbody { display: contents; }
+
+  .pr-list__row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check ref       status"
+      "supplier supplier supplier"
+      "items items items"
+      "total total total"
+      "receiving receiving receiving"
+      "actions actions actions";
+    column-gap: var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+  }
+  .pr-list__row:hover { background: var(--surface); }
+  .pr-list__table td { display: block; padding: 0 !important; border: none; min-width: 0; max-width: none; }
+
+  .pr-list__check     { grid-area: check; align-self: center; }
+  .pr-list__ref-cell  { grid-area: ref; align-self: center; }
+  .pr-list__status    { grid-area: status; justify-self: end; align-self: center; }
+  .pr-list__supplier  { grid-area: supplier; margin-top: var(--space-2); }
+  .pr-list__items     { grid-area: items; }
+  .pr-list__total     { grid-area: total; }
+  .pr-list__receiving { grid-area: receiving; }
+  .pr-list__actions   { grid-area: actions; }
+  .pr-list__supplier .pr-list__clamp { display: block; overflow: visible; -webkit-line-clamp: unset; }
+
+  /* Labelled rows: "label ……… value". */
+  .pr-list__table td.pr-list__items,
+  .pr-list__table td.pr-list__total,
+  .pr-list__table td.pr-list__receiving {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    padding-top: var(--space-2) !important;
+    border-top: 1px solid rgba(var(--overlay-rgb), 0.06);
+    text-align: end;
+  }
+  .pr-list__items::before,
+  .pr-list__total::before,
+  .pr-list__receiving::before {
+    content: attr(data-label);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .pr-progress { min-width: 0; justify-items: end; text-align: end; width: 55%; }
+  .pr-progress .badge { justify-self: end; }
+  .pr-progress__bar { width: 100%; }
+
+  .pr-list__table td.pr-list__actions {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3) !important;
+    border-top: 1px solid var(--border);
+    width: auto;
+    white-space: normal;
+  }
+  .pr-list__actions .action-group { flex-wrap: wrap; }
+  .pr-list__actions .action-group > .btn,
+  .pr-list__actions .action-group > .action-group__item > .btn { flex: 1 1 0; min-width: 6rem; min-height: 2.75rem; font-size: var(--text-sm); }
+  .pr-list__actions .action-group > .btn-primary,
+  .pr-list__actions .action-group > .action-group__item > .btn-primary { flex-basis: 100%; }
+  .pr-list__actions .pr-actions__more { min-width: 2.75rem; min-height: 2.75rem; }
+  .pr-actions__done { flex-basis: 100%; padding-block: var(--space-2); text-align: center; }
+}
+/* English (LTR) needs ~1096px for the table (longer labels) — more than the
+   page ever gives the list (max ~1002px) — so LTR stays in cards up to 1099px.
+   Same rules as above, scoped to LTR. Arabic fits from ~920px. */
+@container pr-list (min-width: 920px) and (max-width: 1099px) {
+  html:not([dir="rtl"]) .pr-list__table { border: none; border-radius: 0; overflow: visible; }
+  html:not([dir="rtl"]) .pr-list__table table {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  html:not([dir="rtl"]) .pr-list__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  html:not([dir="rtl"]) .pr-list__table tbody { display: contents; }
+
+  html:not([dir="rtl"]) .pr-list__row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check ref       status"
+      "supplier supplier supplier"
+      "items items items"
+      "total total total"
+      "receiving receiving receiving"
+      "actions actions actions";
+    column-gap: var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+  }
+  html:not([dir="rtl"]) .pr-list__row:hover { background: var(--surface); }
+  html:not([dir="rtl"]) .pr-list__table td { display: block; padding: 0 !important; border: none; min-width: 0; max-width: none; }
+
+  html:not([dir="rtl"]) .pr-list__check { grid-area: check; align-self: center; }
+  html:not([dir="rtl"]) .pr-list__ref-cell { grid-area: ref; align-self: center; }
+  html:not([dir="rtl"]) .pr-list__status { grid-area: status; justify-self: end; align-self: center; }
+  html:not([dir="rtl"]) .pr-list__supplier { grid-area: supplier; margin-top: var(--space-2); }
+  html:not([dir="rtl"]) .pr-list__items { grid-area: items; }
+  html:not([dir="rtl"]) .pr-list__total { grid-area: total; }
+  html:not([dir="rtl"]) .pr-list__receiving { grid-area: receiving; }
+  html:not([dir="rtl"]) .pr-list__actions { grid-area: actions; }
+  html:not([dir="rtl"]) .pr-list__supplier .pr-list__clamp { display: block; overflow: visible; -webkit-line-clamp: unset; }
+
+  /* Labelled rows: "label ……… value". */
+  html:not([dir="rtl"]) .pr-list__table td.pr-list__items,
+  html:not([dir="rtl"]) .pr-list__table td.pr-list__total,
+  html:not([dir="rtl"]) .pr-list__table td.pr-list__receiving {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    padding-top: var(--space-2) !important;
+    border-top: 1px solid rgba(var(--overlay-rgb), 0.06);
+    text-align: end;
+  }
+  html:not([dir="rtl"]) .pr-list__items::before,
+  html:not([dir="rtl"]) .pr-list__total::before,
+  html:not([dir="rtl"]) .pr-list__receiving::before {
+    content: attr(data-label);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  html:not([dir="rtl"]) .pr-progress { min-width: 0; justify-items: end; text-align: end; width: 55%; }
+  html:not([dir="rtl"]) .pr-progress .badge { justify-self: end; }
+  html:not([dir="rtl"]) .pr-progress__bar { width: 100%; }
+
+  html:not([dir="rtl"]) .pr-list__table td.pr-list__actions {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3) !important;
+    border-top: 1px solid var(--border);
+    width: auto;
+    white-space: normal;
+  }
+  html:not([dir="rtl"]) .pr-list__actions .action-group { flex-wrap: wrap; }
+  html:not([dir="rtl"]) .pr-list__actions .action-group > .btn,
+  html:not([dir="rtl"]) .pr-list__actions .action-group > .action-group__item > .btn { flex: 1 1 0; min-width: 6rem; min-height: 2.75rem; font-size: var(--text-sm); }
+  html:not([dir="rtl"]) .pr-list__actions .action-group > .btn-primary,
+  html:not([dir="rtl"]) .pr-list__actions .action-group > .action-group__item > .btn-primary { flex-basis: 100%; }
+  html:not([dir="rtl"]) .pr-list__actions .pr-actions__more { min-width: 2.75rem; min-height: 2.75rem; }
+  html:not([dir="rtl"]) .pr-actions__done { flex-basis: 100%; padding-block: var(--space-2); text-align: center; }
+}
+.pr-list__select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  cursor: pointer;
 }

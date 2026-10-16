@@ -47,7 +47,7 @@
                 <td style="text-align: end;"><span class="badge badge-warning"><%= row.on_hand.to_i %></span></td>
                 <td style="text-align: end;"><%= row.low_stock_level.to_i %></td>
                 <td style="text-align: end;">
-                  <input type="number" min="0.001" step="0.001" value="<%= row.suggested_quantity.to_d.positive? ? row.suggested_quantity.to_d : 1 %>"
+                  <input type="number" inputmode="decimal" min="0.001" step="0.001" value="<%= row.suggested_quantity.to_d.positive? ? row.suggested_quantity.to_d : 1 %>"
                          data-low-stock-quantity style="width: 90px;"
                          aria-label="<%= t("inventory.purchase_requests.form.quantity_label") %>">
                 </td>

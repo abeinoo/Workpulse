@@ -14,7 +14,7 @@ class GoodsReceiptItem < ApplicationRecord
   validates :unit_cost, numericality: { greater_than_or_equal_to: 0 }
   validate  :product_is_transactable
   validate  :product_matches_purchase_request_item
-  validate  :purchase_request_item_required_when_receipt_linked
+  validate  :purchase_request_item_consistent_with_receipt
   # Soft, non-locking check for early feedback while a draft is being
   # created/edited — not a substitute for GoodsReceiptPoster's locked check,
   # which is the only place that's actually race-safe.
@@ -39,17 +39,23 @@ class GoodsReceiptItem < ApplicationRecord
     errors.add(:product_id, :invalid) if purchase_request_item.product_id != product_id
   end
 
-  # Closes off the over-receiving guard's one gap: it only ever checks a line
-  # that carries a purchase_request_item reference. Without this, a line on a
-  # PR-linked receipt with that reference stripped (e.g. a tampered form
-  # submission) would post with no remaining-quantity check at all. Once a
-  # receipt is linked to a Purchase Request, every one of its lines must
-  # point at one of that request's own items — no unconstrained lines.
-  def purchase_request_item_required_when_receipt_linked
+  # A receipt linked to a Purchase Request records what was actually bought:
+  # the request's lines (each pointing at its purchase_request_item) plus any
+  # extra catalog products bought beyond the request (no reference). Extras
+  # never touch the request — its received/remaining quantities count only
+  # referenced lines (PurchaseRequestItem#received_quantity).
+  #
+  # The over-receiving guard only checks referenced lines, so a product that IS
+  # on the request must go through its request line: an unreferenced line for
+  # it (e.g. a reference stripped from a tampered form) would otherwise post
+  # with no remaining-quantity check. A reference must belong to this request.
+  def purchase_request_item_consistent_with_receipt
     return unless goods_receipt&.purchase_request_id.present?
 
     if purchase_request_item.nil?
-      errors.add(:purchase_request_item, :required)
+      on_request = product_id &&
+                   PurchaseRequestItem.where(purchase_request_id: goods_receipt.purchase_request_id, product_id: product_id).exists?
+      errors.add(:product_id, :on_purchase_request) if on_request
     elsif purchase_request_item.purchase_request_id != goods_receipt.purchase_request_id
       errors.add(:purchase_request_item, :invalid)
     end

@@ -11,6 +11,10 @@ class EmployeeRequestPolicy < ApplicationPolicy
   # the employee's behalf) approve or reject it (SEC-P10-1).
   def approve? = can?(:approve_requests) && !own_request? && !own_submission? && reviewable_employee?
   def reject?  = approve?
+  # A pending request this approver submitted on an employee's behalf: they hold
+  # approve_requests but SEC-P10-1 refuses them, so the UI explains that another
+  # approver must review it instead of silently hiding the actions.
+  def awaiting_other_reviewer? = record.pending? && can?(:approve_requests) && !own_request? && own_submission?
   # Reviewer-only validation details on the show page (attendance-window check,
   # shift span, resulting work duration, duration warnings, confirmation). Same
   # people who may approve — independent of status, so the details stay visible

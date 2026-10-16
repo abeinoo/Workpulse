@@ -214,6 +214,11 @@
                   <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0;"></span>
                   <%= issue.voided? ? t("inventory.void.status_voided") : t("inventory.stock_issues.statuses.#{issue.status}") %>
                 </span>
+                <% if @unfulfillable_issue_ids.include?(issue.id) %>
+                  <span class="badge badge-danger" data-testid="insufficient-stock-badge" style="margin-top: 4px; display: inline-flex;">
+                    <%= t("inventory.stock_issues.insufficient_stock_badge") %>
+                  </span>
+                <% end %>
               </td>
               <% symbol, amount = format_currency_parts(issue.total_value) %>
               <td style="text-align: end;">
@@ -322,5 +327,10 @@
         </tbody>
       </table>
     </div>
+
+    <% filter_params = params.permit(:q, :warehouse_id, :branch_id, :status, :workflow_status,
+                                     :created_by_id, :approved_by_id, :issued_by_id, :from, :to).to_h %>
+    <%= render "shared/pagination", page: @page, total_pages: @total_pages,
+          path_proc: ->(p) { inventory_stock_issues_path(filter_params.merge(page: p)) } %>
   <% end %>
 </div>

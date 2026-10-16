@@ -33,7 +33,7 @@
         <%= f.select :receiving_status,
               options_for_select(
                 [[ t("inventory.goods_receipts.all_receiving_statuses"), "" ]] +
-                  %w[not_received received voided].map { |s| [ t("inventory.goods_receipts.receipt_statuses.#{s}"), s ] },
+                  %w[not_received received not_receivable voided].map { |s| [ t("inventory.goods_receipts.receipt_statuses.#{s}"), s ] },
                 @filters[:receiving_status]),
               {}, class: "filter-bar__select" %>
       </div>
@@ -109,23 +109,30 @@
     <div class="empty-state"><p class="empty-state__title"><%= t("inventory.goods_receipts.empty") %></p></div>
   <% else %>
     <div class="table-wrap table-wrap--cards">
-      <table>
+      <table class="gr-table">
         <thead><tr>
           <th><%= t("inventory.goods_receipts.number") %></th>
-          <th><%= t("inventory.goods_receipts.date") %></th>
-          <th><%= t("inventory.goods_receipts.supplier") %></th>
-          <th><%= t("inventory.goods_receipts.warehouse") %></th>
+          <th><%= t("inventory.goods_receipts.supplier_warehouse") %></th>
           <th><%= t("inventory.goods_receipts.approval_status") %></th>
           <th><%= t("inventory.goods_receipts.receipt_status") %></th>
           <th style="text-align: end;"><%= t("inventory.goods_receipts.total") %></th>
+          <th class="col-actions"><%= t("inventory.goods_receipts.actions") %></th>
         </tr></thead>
         <tbody>
           <% @goods_receipts.each do |receipt| %>
             <tr>
-              <td><%= link_to receipt.receipt_number, inventory_goods_receipt_path(receipt), class: "link" %></td>
-              <td class="td-secondary"><%= local_date(receipt.received_on) %></td>
-              <td class="td-secondary"><%= receipt.supplier&.name || "—" %></td>
-              <td class="td-secondary"><%= receipt.warehouse.name %></td>
+              <td class="nowrap">
+                <div class="cell-stack">
+                  <%= link_to receipt.receipt_number, inventory_goods_receipt_path(receipt), class: "link cell-stack__main" %>
+                  <span class="td-secondary"><%= local_date(receipt.received_on) %></span>
+                </div>
+              </td>
+              <td>
+                <div class="cell-stack">
+                  <span class="cell-stack__main"><%= receipt.supplier&.name || "—" %></span>
+                  <span class="td-secondary"><%= receipt.warehouse.name %></span>
+                </div>
+              </td>
               <td>
                 <span class="badge <%= goods_receipt_approval_status_class(receipt.approval_status) %>">
                   <%= t("inventory.goods_receipts.approval_statuses.#{receipt.approval_status}") %>
@@ -136,7 +143,8 @@
                   <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(receipt)}") %>
                 </span>
               </td>
-              <td style="text-align: end;"><%= format_currency(receipt.total_value) %></td>
+              <td class="nowrap" style="text-align: end;"><%= format_currency(receipt.total_value) %></td>
+              <td class="td-actions col-actions"><%= render "row_actions", receipt: receipt %></td>
             </tr>
           <% end %>
         </tbody>

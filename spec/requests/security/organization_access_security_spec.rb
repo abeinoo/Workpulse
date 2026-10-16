@@ -345,12 +345,14 @@ RSpec.describe "Organization & Access security", type: :request do
     end
 
     it "gives the same answer for unknown, unclaimed and registered accounts (no enumeration)" do
-      generic = ERB::Util.html_escape(I18n.t("auth.register.invalid_invitation"))
-      [ "+966500000001", "+966507777777", owner_a.email ].each do |login|
-        claim(login: login)
-        expect(response).to have_http_status(:unprocessable_content)
-        expect(response.body).to include(generic)
-        expect(response.body).not_to include("No account found", "already been registered")
+      { nil => "auth.register.invitation_required", "forged--token" => "auth.register.invalid_invitation" }.each do |token, key|
+        expected = ERB::Util.html_escape(I18n.t(key))
+        [ "+966500000001", "+966507777777", owner_a.email ].each do |login|
+          claim(login: login, token: token)
+          expect(response).to have_http_status(:unprocessable_content)
+          expect(response.body).to include(expected)
+          expect(response.body).not_to include("No account found", "already been registered")
+        end
       end
     end
 

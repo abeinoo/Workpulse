@@ -311,6 +311,43 @@ RSpec.describe User, type: :model do
     it "returns nil for a blank login" do
       expect(User.find_for_database_authentication(login: "")).to be_nil
     end
+
+    context "with an Egyptian mobile stored in national form" do
+      let!(:egyptian_user) { create(:user, :phone_only, phone_number: "01012345678") }
+
+      [ "01012345678", "+201012345678", "201012345678", "00201012345678", "+20 101 234 5678", "٠١٠١٢٣٤٥٦٧٨" ].each do |typed|
+        it "finds the user when the phone is typed as #{typed.inspect}" do
+          expect(User.find_for_database_authentication(login: typed)).to eq(egyptian_user)
+        end
+      end
+
+      it "does not find a different Egyptian number" do
+        expect(User.find_for_database_authentication(login: "+201012345679")).to be_nil
+      end
+    end
+
+    it "still finds non-Egyptian numbers only in their own international forms" do
+      expect(User.find_for_database_authentication(login: "00966501234567")).to eq(phone_user)
+      expect(User.find_for_database_authentication(login: "0501234567")).to be_nil
+    end
+
+    it "returns nil for a login with no digits instead of matching on an empty phone" do
+      expect(User.find_for_database_authentication(login: "abc")).to be_nil
+    end
+
+    context "when two accounts store the same number in different formats" do
+      let!(:national) { create(:user, :phone_only, phone_number: "01112345678") }
+      let!(:international) { create(:user, :phone_only, phone_number: "+201112345678") }
+
+      it "prefers the exact stored value" do
+        expect(User.find_for_database_authentication(login: "01112345678")).to eq(national)
+        expect(User.find_for_database_authentication(login: "+201112345678")).to eq(international)
+      end
+
+      it "refuses to pick one for an ambiguous format" do
+        expect(User.find_for_database_authentication(login: "201112345678")).to be_nil
+      end
+    end
   end
 
 

@@ -1,29 +1,31 @@
 <% content_for :title, @goods_receipt.receipt_number %>
 
 <div class="admin-page">
-  <%= link_to inventory_goods_receipts_path, class: "back-link" do %>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-    <%= t("forms.back") %>
+  <%# 1–2. Header: number + status, and the single action group (ends with رجوع) %>
+  <header class="record-header">
+    <div class="record-header__title">
+      <h1 class="page-title"><%= @goods_receipt.receipt_number %></h1>
+      <div class="record-header__badges">
+        <span class="badge <%= goods_receipt_approval_status_class(@goods_receipt.approval_status) %>" data-testid="gr-header-approval">
+          <%= t("inventory.goods_receipts.approval_statuses.#{@goods_receipt.approval_status}") %>
+        </span>
+        <span class="badge <%= goods_receipt_receipt_status_class(@goods_receipt) %>" data-testid="gr-header-receiving">
+          <%= t("inventory.goods_receipts.receipt_statuses.#{goods_receipt_receipt_status(@goods_receipt)}") %>
+        </span>
+      </div>
+    </div>
+    <%= render "actions_bar", receipt: @goods_receipt %>
+  </header>
+
+  <%# What approving will pay from custody — shown right under the Approve action %>
+  <% if policy(@goods_receipt).approve? && (preview = @custody_payment_preview) %>
+    <section class="card" style="padding: var(--space-4); margin-bottom: var(--space-3);" id="custody-payment-preview">
+      <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("inventory.goods_receipts.custody_payment_preview.title") %></h2>
+      <%= render "custody_payment_preview", preview: preview %>
+    </section>
   <% end %>
 
-  <div class="page-header">
-    <h1 class="page-title"><%= @goods_receipt.receipt_number %></h1>
-    <div class="flex" style="gap: var(--space-2);">
-      <% if policy(@goods_receipt).update? %>
-        <%= link_to t("inventory.goods_receipts.edit_action"), edit_inventory_goods_receipt_path(@goods_receipt), class: "btn btn-ghost btn-sm" %>
-      <% end %>
-      <% if policy(@goods_receipt).submit_for_approval? %>
-        <%= button_to t("inventory.goods_receipts.submit_for_approval"), submit_inventory_goods_receipt_path(@goods_receipt),
-              method: :post, class: "btn btn-primary btn-sm" %>
-      <% end %>
-      <% if @goods_receipt.approval_approved? && @goods_receipt.draft? && policy(@goods_receipt).confirm? %>
-        <%= button_to t("inventory.goods_receipts.confirm"), confirm_inventory_goods_receipt_path(@goods_receipt),
-              method: :post, class: "btn btn-primary",
-              data: { turbo_confirm: t("inventory.goods_receipts.confirm_hint") } %>
-      <% end %>
-    </div>
-  </div>
-
+  <%# 3. Current status summary %>
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-4);"><%= t("inventory.goods_receipts.current_status") %></h2>
     <div class="flex" style="gap: var(--space-6); flex-wrap: wrap;">
@@ -62,6 +64,11 @@
     </div>
   </div>
 
+  <% if @goods_receipt.voided? %>
+    <%= render "inventory/shared/void_panel", document: @goods_receipt, void_path: nil, can_void: false %>
+  <% end %>
+
+  <%# 4. Source purchase request %>
   <% if @goods_receipt.purchase_request.present? %>
     <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
       <p class="td-secondary" style="margin: 0 0 var(--space-1);"><%= t("inventory.goods_receipts.original_purchase_request") %></p>
@@ -70,88 +77,7 @@
     </div>
   <% end %>
 
-  <% if @goods_receipt.approval_pending_approval? && policy(@goods_receipt).approve? %>
-    <% if (preview = @custody_payment_preview) %>
-      <% pscope = "inventory.goods_receipts.custody_payment_preview" %>
-      <section class="card" style="padding: var(--space-4); margin-bottom: var(--space-3);" id="custody-payment-preview">
-        <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("#{pscope}.title") %></h2>
-        <% if preview[:account] %>
-          <dl class="detail-list">
-            <div class="detail-list__row"><dt><%= t("#{pscope}.holder") %></dt>
-              <dd><bdi><%= preview[:account].user&.full_name || preview[:account].name %></bdi></dd></div>
-            <div class="detail-list__row"><dt><%= t("#{pscope}.current_balance") %></dt>
-              <dd data-testid="custody-preview-current"><%= format_currency(preview[:current]) %></dd></div>
-            <div class="detail-list__row"><dt><%= t("#{pscope}.amount_due") %></dt>
-              <dd data-testid="custody-preview-due"><%= format_currency(preview[:due]) %></dd></div>
-            <div class="detail-list__row"><dt><strong><%= t("#{pscope}.balance_after") %></strong></dt>
-              <dd><strong data-testid="custody-preview-after" style="<%= 'color: var(--danger);' if preview[:after].negative? %>"><%= format_currency(preview[:after]) %></strong></dd></div>
-          </dl>
-          <% if preview[:after].negative? %>
-            <p class="form-hint" style="color: var(--danger); margin: var(--space-2) 0 0;" data-testid="custody-preview-negative">
-              <%= t("#{pscope}.negative_note") %>
-            </p>
-          <% end %>
-        <% else %>
-          <p class="form-hint text-warning" style="margin: 0;"><%= t("inventory.goods_receipts.errors.no_active_custody_account") %></p>
-        <% end %>
-      </section>
-    <% end %>
-    <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
-      <%= button_to t("inventory.goods_receipts.approve"), approve_inventory_goods_receipt_path(@goods_receipt),
-            method: :post, class: "btn btn-primary btn-sm",
-            data: { turbo_confirm: t("inventory.goods_receipts.approve_hint") } %>
-      <details style="flex: 1;">
-        <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
-          <%= t("inventory.goods_receipts.reject") %>
-        </summary>
-        <%= form_with url: reject_inventory_goods_receipt_path(@goods_receipt), method: :post, class: "mt-4" do %>
-          <div class="form-group">
-            <label class="form-label" for="rejection_reason"><%= t("inventory.goods_receipts.rejection_reason") %></label>
-            <textarea id="rejection_reason" name="rejection_reason" rows="2" class="form-control" required
-                      placeholder="<%= t('inventory.goods_receipts.rejection_reason_placeholder') %>"></textarea>
-          </div>
-          <button type="submit" class="btn btn-danger btn-sm"
-                  data-turbo-confirm="<%= t('inventory.goods_receipts.reject_confirm') %>">
-            <%= t("inventory.goods_receipts.reject_submit") %>
-          </button>
-        <% end %>
-      </details>
-    </div>
-  <% end %>
-
-  <% if @goods_receipt.confirmed? || @goods_receipt.approval_approved? %>
-    <%= render "inventory/shared/void_panel",
-          document: @goods_receipt,
-          void_path: void_inventory_goods_receipt_path(@goods_receipt),
-          can_void: policy(@goods_receipt).void? %>
-  <% elsif policy(@goods_receipt).cancel? %>
-    <%= render "inventory/shared/void_panel",
-          document: @goods_receipt,
-          void_path: cancel_inventory_goods_receipt_path(@goods_receipt),
-          can_void: true,
-          panel_id: "cancel-panel",
-          action_label: t("inventory.goods_receipts.cancel_action"),
-          confirm_dialog: t("inventory.goods_receipts.cancel_confirm_dialog"),
-          reason_label: t("inventory.goods_receipts.cancellation_reason"),
-          reason_placeholder: t("inventory.goods_receipts.cancellation_placeholder"),
-          param_name: :cancellation_reason %>
-  <% end %>
-
-  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
-    <dl class="detail-list">
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.date") %></dt><dd><%= local_date(@goods_receipt.received_on) %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.supplier") %></dt><dd><%= @goods_receipt.supplier&.name || "—" %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.warehouse") %></dt><dd><%= @goods_receipt.warehouse.name %></dd></div>
-      <% if @goods_receipt.notes.present? %>
-        <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.notes") %></dt><dd><%= simple_format(@goods_receipt.notes) %></dd></div>
-      <% end %>
-    </dl>
-  </div>
-
-  <% if @advance_allocator && (@goods_receipt.purchase_request.advances_total.positive? || @advance_allocator.receipt_applied_amount.positive?) %>
-    <%= render "purchase_request_advances_summary", purchase_request: @goods_receipt.purchase_request, allocator: @advance_allocator %>
-  <% end %>
-
+  <%# 5. Payment / custody %>
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <h2 class="card-title" style="font-size: var(--text-lg); margin-bottom: var(--space-3);"><%= t("inventory.goods_receipts.payment_information") %></h2>
     <dl class="detail-list">
@@ -193,6 +119,53 @@
 
   </div>
 
+  <% if @advance_allocator && (@goods_receipt.purchase_request.advances_total.positive? || @advance_allocator.receipt_applied_amount.positive?) %>
+    <%= render "purchase_request_advances_summary", purchase_request: @goods_receipt.purchase_request, allocator: @advance_allocator %>
+  <% end %>
+
+  <%# 6–7. Receipt details: date, supplier, warehouse, notes %>
+  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.date") %></dt><dd><%= local_date(@goods_receipt.received_on) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.supplier") %></dt><dd><%= @goods_receipt.supplier&.name || "—" %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.warehouse") %></dt><dd><%= @goods_receipt.warehouse.name %></dd></div>
+      <% if @goods_receipt.notes.present? %>
+        <div class="detail-list__row"><dt><%= t("inventory.goods_receipts.notes") %></dt><dd><%= simple_format(@goods_receipt.notes) %></dd></div>
+      <% end %>
+    </dl>
+  </div>
+
+  <%# 8. Items %>
+  <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
+    <table>
+      <thead><tr>
+        <th><%= t("inventory.goods_receipts.product") %></th>
+        <th><%= t("inventory.products.sku") %></th>
+        <th style="text-align: end;"><%= t("inventory.goods_receipts.quantity") %></th>
+        <th style="text-align: end;"><%= t("inventory.goods_receipts.unit_cost") %></th>
+        <th style="text-align: end;"><%= t("inventory.goods_receipts.total") %></th>
+      </tr></thead>
+      <tbody>
+        <% @items.each do |item| %>
+          <tr>
+            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+            <td class="td-secondary"><%= item.product.sku %></td>
+            <td style="text-align: end;"><%= item.quantity.to_i %></td>
+            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
+            <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align: end; font-weight: 600;"><%= t("inventory.goods_receipts.total") %></td>
+          <td style="text-align: end; font-weight: 600;"><%= format_currency(@goods_receipt.total_value) %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <%# 9. Financial details: settlements and supplier invoices %>
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <div class="flex" style="justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);">
       <h2 class="card-title" style="font-size: var(--text-lg); margin: 0;"><%= t("inventory.goods_receipts.settlements.history_title") %></h2>
@@ -337,35 +310,7 @@
     <% end %>
   </div>
 
-  <div class="table-wrap table-wrap--cards">
-    <table>
-      <thead><tr>
-        <th><%= t("inventory.goods_receipts.product") %></th>
-        <th><%= t("inventory.products.sku") %></th>
-        <th style="text-align: end;"><%= t("inventory.goods_receipts.quantity") %></th>
-        <th style="text-align: end;"><%= t("inventory.goods_receipts.unit_cost") %></th>
-        <th style="text-align: end;"><%= t("inventory.goods_receipts.total") %></th>
-      </tr></thead>
-      <tbody>
-        <% @items.each do |item| %>
-          <tr>
-            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
-            <td class="td-secondary"><%= item.product.sku %></td>
-            <td style="text-align: end;"><%= item.quantity.to_i %></td>
-            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
-            <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
-          </tr>
-        <% end %>
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="4" style="text-align: end; font-weight: 600;"><%= t("inventory.goods_receipts.total") %></td>
-          <td style="text-align: end; font-weight: 600;"><%= format_currency(@goods_receipt.total_value) %></td>
-        </tr>
-      </tfoot>
-    </table>
-  </div>
-
+  <%# 10. History %>
   <div class="card" style="margin-top: var(--space-5);">
     <div class="card-header">
       <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("inventory.goods_receipts.activity_timeline") %></h2>

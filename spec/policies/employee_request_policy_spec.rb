@@ -163,6 +163,46 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
     end
   end
 
+  describe "punch corrections (same approve_requests rule as every request type)" do
+    let(:correction) { create(:employee_request, :punch_correction, user: employee) }
+
+    it "permits the in-scope manager to approve and reject" do
+      expect(subject.new(manager, correction).approve?).to be true
+      expect(subject.new(manager, correction).reject?).to be true
+    end
+
+    it "denies another branch's manager" do
+      other_manager = create(:user, :branch_manager, business: business)
+      expect(subject.new(other_manager, correction).approve?).to be false
+    end
+
+    it "denies the manager who submitted it on the employee's behalf (SEC-P10-1)" do
+      correction.update_column(:submitted_by_id, manager.id)
+      expect(subject.new(manager, correction).approve?).to be false
+      expect(subject.new(manager, correction).reject?).to be false
+    end
+  end
+
+  describe "awaiting_other_reviewer?" do
+    let(:on_behalf) { create(:employee_request, :punch_correction, user: employee, submitted_by: manager) }
+
+    it "is true for the approver who submitted a pending request on the employee's behalf" do
+      expect(subject.new(manager, on_behalf).awaiting_other_reviewer?).to be true
+    end
+
+    it "is false once the request is no longer pending" do
+      on_behalf.update_column(:status, "rejected")
+      expect(subject.new(manager, on_behalf).awaiting_other_reviewer?).to be false
+    end
+
+    it "is false for the employee, for another approver, and for an employee-submitted request" do
+      expect(subject.new(employee, on_behalf).awaiting_other_reviewer?).to be false
+      expect(subject.new(super_admin, on_behalf).awaiting_other_reviewer?).to be false
+      expect(subject.new(manager, create(:employee_request, :punch_correction, user: employee))
+               .awaiting_other_reviewer?).to be false
+    end
+  end
+
   describe "cancel?" do
     it "permits the owner to cancel their own PENDING request" do
       expect(subject.new(employee, request).cancel?).to be true

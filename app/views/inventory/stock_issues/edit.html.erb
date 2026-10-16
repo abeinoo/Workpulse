@@ -1,10 +1,16 @@
-<% content_for :title, t("inventory.stock_issues.edit_title") %>
+<% reopening = StockIssue::REOPENED_BY_EDIT_STATUSES.include?(@stock_issue.status) %>
+<% content_for :title, t(reopening ? "inventory.stock_issues.edit_request_title" : "inventory.stock_issues.edit_title") %>
 
 <div class="form-page form-page--wide">
   <%= link_to inventory_stock_issue_path(@stock_issue), class: "back-link" do %>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
     <%= t("forms.back") %>
   <% end %>
-  <h1 class="page-title mb-6"><%= t("inventory.stock_issues.edit_title") %></h1>
+  <h1 class="page-title mb-6"><%= t(reopening ? "inventory.stock_issues.edit_request_title" : "inventory.stock_issues.edit_title") %></h1>
+  <% if reopening %>
+    <div id="edit-request-warning" class="alert alert-warning" role="status" style="margin-bottom: var(--space-5);">
+      <%= t(stock_issue_edit_warning_key(@stock_issue)) %>
+    </div>
+  <% end %>
   <%= render "form", stock_issue: @stock_issue %>
 </div>

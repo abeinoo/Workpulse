@@ -34,6 +34,18 @@ class Inventory::BaseController < ApplicationController
   end
   helper_method :transactable_products
 
+  # <option>s for every transactable product, built once per request (one
+  # product query + one barcode query) however many pickers the page renders
+  # — e.g. one per unknown-SKU import row. Rows mark their selection with
+  # inventory_product_select_options.
+  def transactable_product_options_html
+    @transactable_product_options_html ||= begin
+      products = transactable_products.to_a
+      helpers.inventory_product_options_html(products, barcodes: Product.barcode_lookup(products.map(&:id)))
+    end
+  end
+  helper_method :transactable_product_options_html
+
   # Refuses a write whose warehouse the scoped user isn't assigned to. Pass every
   # warehouse id the document touches (e.g. both ends of a transfer).
   def ensure_warehouses_accessible!(*warehouse_ids)

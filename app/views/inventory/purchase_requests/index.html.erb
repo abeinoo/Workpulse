@@ -21,37 +21,26 @@
     </div>
   </div>
 
-  <%# ── Summary cards — business-wide scope, independent of the filters below ── %>
-  <div class="stats-grid" style="margin-bottom: var(--space-6);">
-    <%= link_to inventory_purchase_requests_path, class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.active") %></span>
-      <span class="stat-card__value"><%= @active_count %></span>
+  <%# ── Summary cards — business-wide scope, independent of the filters below.
+      Each card filters the list to that state (existing status filter). ── %>
+  <% summary_cards = [
+       [ "active", nil, @active_count ],
+       [ "pending_approval", "pending_approval", @status_counts["pending_approval"] ],
+       [ "approved", "approved", @status_counts["approved"] ],
+       [ "partially_received", "partially_received", @status_counts["partially_received"] ],
+       [ "fully_received", "fully_received", @status_counts["fully_received"] ]
+     ] %>
+  <nav class="pr-summary" aria-label="<%= t("inventory.purchase_requests.title") %>">
+    <% summary_cards.each do |key, status, count| %>
+      <% current = status ? @filters[:status] == status : (@filters[:status].blank? && !@active_filters) %>
+      <%= link_to inventory_purchase_requests_path(status ? { status: status } : {}),
+            class: "stat-card pr-summary__card#{' pr-summary__card--current' if current}",
+            aria: { current: (current ? "true" : nil) }, data: { testid: "pr-summary-#{key}" } do %>
+        <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.#{key}") %></span>
+        <span class="stat-card__value"><%= count %></span>
+      <% end %>
     <% end %>
-    <%= link_to inventory_purchase_requests_path(status: "draft"), class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.draft") %></span>
-      <span class="stat-card__value"><%= @status_counts["draft"] %></span>
-    <% end %>
-    <%= link_to inventory_purchase_requests_path(status: "pending_approval"), class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.pending_approval") %></span>
-      <span class="stat-card__value"><%= @status_counts["pending_approval"] %></span>
-    <% end %>
-    <%= link_to inventory_purchase_requests_path(status: "approved"), class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.approved") %></span>
-      <span class="stat-card__value"><%= @status_counts["approved"] %></span>
-    <% end %>
-    <%= link_to inventory_purchase_requests_path(status: "partially_received"), class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.partially_received") %></span>
-      <span class="stat-card__value"><%= @status_counts["partially_received"] %></span>
-    <% end %>
-    <%= link_to inventory_purchase_requests_path(status: "partially_closed"), class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.partially_closed") %></span>
-      <span class="stat-card__value"><%= @status_counts["partially_closed"] %></span>
-    <% end %>
-    <%= link_to inventory_purchase_requests_path(status: "fully_received"), class: "stat-card" do %>
-      <span class="stat-card__label"><%= t("inventory.purchase_requests.summary.fully_received") %></span>
-      <span class="stat-card__value"><%= @status_counts["fully_received"] %></span>
-    <% end %>
-  </div>
+  </nav>
 
   <% if @just_created.present? %>
     <section class="card" style="margin-bottom: var(--space-6); border-color: var(--color-success, #2e7d32);">
@@ -88,14 +77,8 @@
   <% end %>
 
   <%# ── Filter bar (GET form → filters live in the URL query string) ────────── %>
-  <%= form_with url: inventory_purchase_requests_path, method: :get, local: true, class: "filter-bar" do |f| %>
-    <div class="filter-bar__fields">
-      <div class="filter-bar__field">
-        <%= f.label :q, t("inventory.purchase_requests.filters.search_placeholder"), class: "filter-bar__label" %>
-        <%= f.text_field :q, value: @filters[:q], class: "filter-bar__input",
-              placeholder: t("inventory.purchase_requests.filters.search_placeholder") %>
-      </div>
-
+  <%= form_with url: inventory_purchase_requests_path, method: :get, local: true, class: "filter-bar pr-filter-bar" do |f| %>
+    <div class="filter-bar__fields pr-filters">
       <div class="filter-bar__field">
         <%= f.label :status, t("inventory.purchase_requests.filters.status_label"), class: "filter-bar__label" %>
         <%= f.select :status,
@@ -126,10 +109,9 @@
       </div>
 
       <div class="filter-bar__field">
-        <%= f.label :created_by_id, t("inventory.purchase_requests.filters.created_by_label"), class: "filter-bar__label" %>
-        <%= f.select :created_by_id,
-              options_from_collection_for_select(@filter_creators, :id, :full_name, @filters[:created_by_id]),
-              { include_blank: t("inventory.purchase_requests.filters.all_creators") }, class: "filter-bar__select" %>
+        <%= f.label :q, t("inventory.purchase_requests.filters.search_placeholder"), class: "filter-bar__label" %>
+        <%= f.text_field :q, value: @filters[:q], class: "filter-bar__input",
+              placeholder: t("inventory.purchase_requests.filters.search_placeholder") %>
       </div>
 
       <div class="filter-bar__field">
@@ -140,6 +122,13 @@
       <div class="filter-bar__field">
         <%= f.label :date_to, t("inventory.purchase_requests.filters.date_to"), class: "filter-bar__label" %>
         <%= f.date_field :date_to, value: @filters[:date_to], class: "filter-bar__input" %>
+      </div>
+
+      <div class="filter-bar__field">
+        <%= f.label :created_by_id, t("inventory.purchase_requests.filters.created_by_label"), class: "filter-bar__label" %>
+        <%= f.select :created_by_id,
+              options_from_collection_for_select(@filter_creators, :id, :full_name, @filters[:created_by_id]),
+              { include_blank: t("inventory.purchase_requests.filters.all_creators") }, class: "filter-bar__select" %>
       </div>
     </div>
 
@@ -170,8 +159,8 @@
            style="display:none"
            role="toolbar"
            aria-label="<%= t("inventory.purchase_requests.bulk.toolbar_label") %>">
-        <span class="bulk-action-bar__badge">
-          <%= t("inventory.purchase_requests.bulk.selected_count") %>:
+        <span class="bulk-action-bar__badge" aria-live="polite">
+          <%= t("inventory.purchase_requests.bulk.selected_count") %>
           <strong data-purchase-request-bulk-approve-target="countBadge">0</strong>
         </span>
         <span class="bulk-action-bar__sep"></span>
@@ -188,6 +177,7 @@
         <button type="button" class="btn btn-ghost btn-sm" data-action="click->purchase-request-bulk-approve#clear">
           <%= t("inventory.purchase_requests.bulk.clear") %>
         </button>
+        <span class="bulk-action-bar__hint" data-testid="pr-bulk-hint"><%= t("inventory.purchase_requests.bulk.only_pending_hint") %></span>
       </div>
     <% end %>
     <% if @purchase_requests.empty? %>
@@ -203,36 +193,42 @@
         <% end %>
       </div>
     <% else %>
-      <div class="table-wrap table-wrap--cards">
+      <%# One row per request: number (+ date · creator), supplier, items, total,
+          approval status, receiving (badge + received/requested + bar), and ONE
+          actions area. Narrow lists (container query, not viewport — the
+          inventory sidebar leaves ~815px at a 1280px screen) render each row
+          as a card. %>
+      <div class="pr-list">
+      <% if can_bulk_approve %>
+        <%# Select-all lives above the list so it stays reachable in the card layout too. %>
+        <label class="pr-list__select-all">
+          <input type="checkbox" class="pr-bulk-check-all"
+                 data-action="change->purchase-request-bulk-approve#toggleAll">
+          <span><%= t("inventory.purchase_requests.bulk.select_all") %></span>
+        </label>
+      <% end %>
+      <div class="table-wrap pr-list__table">
         <table>
           <thead>
             <tr>
               <% if can_bulk_approve %>
-                <th class="td-check">
-                  <input type="checkbox" class="pr-bulk-check-all"
-                         data-action="change->purchase-request-bulk-approve#toggleAll"
-                         aria-label="<%= t("inventory.purchase_requests.bulk.select_all") %>"
-                         title="<%= t("inventory.purchase_requests.bulk.select_all") %>">
-                </th>
+                <th class="td-check"><span class="sr-only"><%= t("inventory.purchase_requests.bulk.select_row", number: "") %></span></th>
               <% end %>
               <th><%= t("inventory.purchase_requests.request_number") %></th>
               <th><%= t("inventory.purchase_requests.supplier") %></th>
-              <th style="text-align: end;"><%= t("inventory.purchase_requests.items_count") %></th>
-              <th style="text-align: end;"><%= t("inventory.purchase_requests.total") %></th>
+              <th class="pr-list__num"><%= t("inventory.purchase_requests.items_count") %></th>
+              <th class="pr-list__num"><%= t("inventory.purchase_requests.total") %></th>
               <th><%= t("inventory.purchase_requests.status") %></th>
-              <th><%= t("inventory.purchase_requests.receiving_status") %></th>
               <th><%= t("inventory.purchase_requests.receiving_progress") %></th>
-              <th><%= t("inventory.purchase_requests.created_by") %></th>
-              <th><%= t("inventory.purchase_requests.created_at") %></th>
-              <th><%= t("inventory.purchase_requests.next_action_column") %></th>
-              <th><%= t("inventory.purchase_requests.table_actions") %></th>
+              <th class="pr-list__actions-th"><%= t("inventory.purchase_requests.table_actions") %></th>
             </tr>
           </thead>
           <tbody>
             <% @purchase_requests.each do |pr| %>
               <% requested = pr.total_requested_quantity; received = pr.total_received_quantity %>
               <% receiving_key = purchase_request_receiving_status(pr) %>
-              <tr>
+              <% approval_key = purchase_request_approval_status(pr) %>
+              <tr class="pr-list__row">
                 <% if can_bulk_approve %>
                   <%
                     blocked_reason =
@@ -242,7 +238,7 @@
                         t("inventory.purchase_requests.bulk.not_selectable_self")
                       end
                   %>
-                  <td class="td-check">
+                  <td class="td-check pr-list__check">
                     <input type="checkbox" class="pr-bulk-check-row"
                            value="<%= pr.id %>"
                            data-amount="<%= pr.total_amount.to_d.to_s("F") %>"
@@ -251,77 +247,44 @@
                            <% if blocked_reason %>disabled title="<%= blocked_reason %>"<% end %>>
                   </td>
                 <% end %>
-                <td><%= link_to pr.request_number, inventory_purchase_request_path(pr), class: "link" %></td>
-                <td class="td-secondary"><%= purchase_request_supplier_name(pr) %></td>
-                <td style="text-align: end;"><%= pr.items.size %></td>
-                <td style="text-align: end;"><%= format_currency(pr.total_amount) %></td>
-                <td>
-                  <span class="badge <%= purchase_request_status_class(pr.status) %>">
-                    <%= t("inventory.purchase_requests.statuses.#{pr.status}") %>
+                <td class="pr-list__ref-cell">
+                  <%= link_to pr.request_number, inventory_purchase_request_path(pr), class: "link pr-list__ref" %>
+                  <span class="pr-list__meta"><%= l pr.created_at, format: :short %></span>
+                  <span class="pr-list__meta pr-list__creator" title="<%= pr.created_by&.full_name %>"><%= pr.created_by&.full_name || "—" %></span>
+                </td>
+                <td class="pr-list__supplier"><span class="pr-list__clamp" title="<%= purchase_request_supplier_name(pr) %>"><%= purchase_request_supplier_name(pr) %></span></td>
+                <td class="pr-list__num pr-list__items" data-label="<%= t("inventory.purchase_requests.items_count") %>"><%= pr.items.size %></td>
+                <td class="pr-list__num pr-list__total" data-label="<%= t("inventory.purchase_requests.total") %>"><%= format_currency(pr.total_amount) %></td>
+                <td class="pr-list__status">
+                  <span class="badge <%= purchase_request_status_class(approval_key) %>">
+                    <%= t("inventory.purchase_requests.statuses.#{approval_key}") %>
                   </span>
                 </td>
-                <td>
+                <td class="pr-list__receiving" data-label="<%= t("inventory.purchase_requests.receiving_progress") %>">
                   <% if receiving_key %>
-                    <span class="badge <%= purchase_request_receiving_status_class(pr) %>">
-                      <%= t("inventory.purchase_requests.receiving_statuses.#{receiving_key}") %>
-                    </span>
+                    <% percent = purchase_request_received_percent(requested, received) %>
+                    <div class="pr-progress">
+                      <span class="badge <%= purchase_request_receiving_status_class(pr) %>">
+                        <%= t("inventory.purchase_requests.receiving_statuses.#{receiving_key}") %>
+                      </span>
+                      <span class="pr-progress__numbers" aria-label="<%= t("inventory.purchase_requests.received_progress_label", received: received.to_i, requested: requested.to_i) %>">
+                        <%= received.to_i %> / <%= requested.to_i %>
+                      </span>
+                      <span class="pr-progress__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= percent %>"
+                            aria-label="<%= t("inventory.purchase_requests.received_progress_label", received: received.to_i, requested: requested.to_i) %>">
+                        <span class="pr-progress__fill pr-progress__fill--<%= receiving_key %>" style="width: <%= percent %>%;"></span>
+                      </span>
+                    </div>
                   <% else %>
                     <span class="td-secondary">—</span>
                   <% end %>
                 </td>
-                <td class="td-secondary">
-                  <%= receiving_key ? "#{received.to_i} / #{requested.to_i}" : "—" %>
-                </td>
-                <td class="td-secondary"><%= pr.created_by&.full_name || "—" %></td>
-                <td class="td-secondary"><%= l pr.created_at, format: :short %></td>
-                <td>
-                  <% next_action = purchase_request_next_action(pr) %>
-                  <% if next_action %>
-                    <% if next_action[:url] %>
-                      <% if next_action[:http_method] == :post %>
-                        <%= button_to next_action[:label], next_action[:url], method: :post, class: "btn btn-primary btn-sm" %>
-                      <% else %>
-                        <%= link_to next_action[:label], next_action[:url], class: "btn btn-primary btn-sm" %>
-                      <% end %>
-                    <% else %>
-                      <span class="td-secondary"><%= next_action[:label] %></span>
-                    <% end %>
-                  <% end %>
-                </td>
-                <td>
-                  <div class="flex" style="gap: var(--space-2); flex-wrap: wrap;">
-                    <%= link_to t("inventory.purchase_requests.view"), inventory_purchase_request_path(pr), class: "link" %>
-
-                    <% if policy(pr).update? %>
-                      <%= link_to t("inventory.purchase_requests.actions.edit"), edit_inventory_purchase_request_path(pr), class: "btn btn-ghost btn-sm" %>
-                    <% end %>
-
-                    <% if policy(pr).submit_for_approval? %>
-                      <%= button_to t("inventory.purchase_requests.actions.submit"), submit_inventory_purchase_request_path(pr),
-                            method: :post, class: "btn btn-ghost btn-sm" %>
-                    <% end %>
-
-                    <% if policy(pr).approve? %>
-                      <%= button_to t("inventory.purchase_requests.actions.approve"), approve_inventory_purchase_request_path(pr),
-                            method: :post, class: "btn btn-ghost btn-sm" %>
-                    <% end %>
-
-                    <% if policy(pr).destroy? %>
-                      <%= button_to t("inventory.purchase_requests.actions.delete"), inventory_purchase_request_path(pr),
-                            method: :delete, class: "btn btn-ghost btn-sm text-danger",
-                            data: { turbo_confirm: t("inventory.purchase_requests.delete_confirm") } %>
-                    <% end %>
-
-                    <% if policy(pr).create_goods_receipt? %>
-                      <%= link_to (pr.partially_received? ? t("inventory.purchase_requests.actions.create_goods_receipt_remaining") : t("inventory.purchase_requests.actions.create_goods_receipt")),
-                            new_inventory_goods_receipt_path(purchase_request_id: pr.id), class: "btn btn-ghost btn-sm" %>
-                    <% end %>
-                  </div>
-                </td>
+                <td class="pr-list__actions"><%= render "row_actions", pr: pr %></td>
               </tr>
             <% end %>
           </tbody>
         </table>
+      </div>
       </div>
 
       <% if can_bulk_approve %>

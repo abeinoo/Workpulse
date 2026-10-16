@@ -62,9 +62,13 @@ class PayrollPeriodsController < ApplicationController
       end
     end
 
+    # Each row renders user_avatar_tag (profile_photo, falling back to avatar)
+    # — preload both attachments with their blobs, or every row costs up to
+    # four attachment/blob queries.
     @entries = policy_scope(PayrollEntry)
                  .where(payroll_period: @period)
-                 .includes(:user, :payroll_line_items)
+                 .includes(:payroll_line_items,
+                           user: [ { profile_photo_attachment: :blob }, { avatar_attachment: :blob } ])
                  .order("users.first_name, users.last_name")
 
     @needs_review_count = @entries.count(&:needs_review?)

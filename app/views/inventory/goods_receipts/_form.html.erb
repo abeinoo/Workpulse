@@ -1,4 +1,14 @@
-<%= form_with model: [:inventory, goods_receipt], class: "form-card", data: { controller: "line-items receipt-supplier funding-source" } do |f| %>
+<% product_options = inventory_product_options_html(@products, barcodes: @product_barcodes) %>
+<%
+  cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
+  cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
+  cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
+%>
+<%= form_with model: [:inventory, goods_receipt], class: "form-card",
+              data: { controller: "line-items receipt-supplier funding-source line-total",
+                      action: "input->line-total#recalculate",
+                      "line-total-currency-prefix-value": cur_prefix,
+                      "line-total-currency-suffix-value": cur_suffix } do |f| %>
   <%= render "shared/error_messages", object: goods_receipt %>
 
   <% from_purchase_request = defined?(@purchase_request) && @purchase_request.present? %>
@@ -99,19 +109,53 @@
     </div>
   </div>
 
+  <% linked_pr = goods_receipt.purchase_request %>
   <h2 class="section-title"><%= t("inventory.goods_receipts.section_items") %></h2>
   <%= render "inventory/shared/barcode_scanner" %>
   <div class="table-wrap table-wrap--form-cards">
     <table class="line-items-table">
       <thead><tr>
-        <th style="width: 45%;"><%= t("inventory.goods_receipts.product") %></th>
-        <th><%= t("inventory.goods_receipts.quantity") %></th>
-        <th><%= t("inventory.goods_receipts.unit_cost") %></th>
-        <th></th>
+        <th class="line-items-table__product"><%= t("inventory.goods_receipts.product") %></th>
+        <th class="line-items-table__num"><%= t("inventory.goods_receipts.quantity") %></th>
+        <th class="line-items-table__num"><%= t("inventory.goods_receipts.unit_cost") %></th>
+        <th class="line-items-table__total"><%= t("inventory.goods_receipts.total") %></th>
+        <th><span class="sr-only"><%= t("common.delete") %></span></th>
       </tr></thead>
       <tbody data-line-items-target="rows">
-        <%= f.fields_for :items do |item_f| %>
-          <%= render "item_fields", f: item_f, products: @products %>
+        <% if linked_pr %>
+          <%# Created from a Purchase Request: its lines first (suggested, quantities
+              editable), then any extra catalog products bought beyond the request.
+              Extras are added to this receipt only — never to the request. Both
+              sections share one rows container so the barcode scanner sees every
+              line. Explicit child_index keeps the nested-attribute keys unique. %>
+          <tr class="line-items-section">
+            <th colspan="5" scope="colgroup">
+              <%= t("inventory.goods_receipts.request_items_title") %>
+              <span class="line-items-section__ref"><%= linked_pr.request_number %></span>
+            </th>
+          </tr>
+          <% goods_receipt.items.each_with_index do |item, index| %>
+            <% next unless item.purchase_request_item %>
+            <%= f.fields_for :items, item, child_index: index do |item_f| %>
+              <%= render "request_item_fields", f: item_f, barcodes: @product_barcodes %>
+            <% end %>
+          <% end %>
+          <tr class="line-items-section">
+            <th colspan="5" scope="colgroup">
+              <%= t("inventory.goods_receipts.extra_items_title") %>
+              <span class="line-items-section__hint"><%= t("inventory.goods_receipts.extra_items_hint") %></span>
+            </th>
+          </tr>
+          <% goods_receipt.items.each_with_index do |item, index| %>
+            <% next if item.purchase_request_item %>
+            <%= f.fields_for :items, item, child_index: index do |item_f| %>
+              <%= render "item_fields", f: item_f, product_options: product_options, extra: true %>
+            <% end %>
+          <% end %>
+        <% else %>
+          <%= f.fields_for :items do |item_f| %>
+            <%= render "item_fields", f: item_f, product_options: product_options %>
+          <% end %>
         <% end %>
       </tbody>
     </table>
@@ -122,13 +166,13 @@
   </p>
 
   <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add" style="margin-top: var(--space-3);">
-    + <%= t("inventory.goods_receipts.add_item") %>
+    + <%= t(linked_pr ? "inventory.goods_receipts.add_product" : "inventory.goods_receipts.add_item") %>
   </button>
 
   <%# Template for new rows (index replaced by JS) %>
   <template data-line-items-target="template">
     <%= f.fields_for :items, GoodsReceiptItem.new, child_index: "NEW_INDEX" do |item_f| %>
-      <%= render "item_fields", f: item_f, products: @products %>
+      <%= render "item_fields", f: item_f, product_options: product_options, extra: linked_pr.present? %>
     <% end %>
   </template>
 

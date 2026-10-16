@@ -1,5 +1,9 @@
+<% product_options = inventory_product_options_html(@products, barcodes: @product_barcodes) %>
 <%= form_with model: [:inventory, stock_issue], class: "form-card", data: { controller: "line-items" } do |f| %>
   <%= render "shared/error_messages", object: stock_issue %>
+  <% if stock_issue.persisted? %>
+    <%= hidden_field_tag :lock_token, stock_issue.lock_token %>
+  <% end %>
 
   <h2 class="section-title"><%= t("inventory.stock_issues.section_header") %></h2>
   <div class="form-grid">
@@ -32,6 +36,7 @@
 
   <h2 class="section-title"><%= t("inventory.stock_issues.section_items") %></h2>
   <p class="form-hint"><%= t("inventory.stock_issues.cost_note") %></p>
+  <p class="form-hint form-hint--info"><%= t("inventory.stock_issues.availability_form_hint") %></p>
   <%= render "inventory/shared/barcode_scanner" %>
   <div class="table-wrap table-wrap--form-cards">
     <table class="line-items-table">
@@ -42,7 +47,7 @@
       </tr></thead>
       <tbody data-line-items-target="rows">
         <%= f.fields_for :items do |item_f| %>
-          <%= render "item_fields", f: item_f, products: @products %>
+          <%= render "item_fields", f: item_f, product_options: product_options %>
         <% end %>
       </tbody>
     </table>
@@ -58,12 +63,15 @@
 
   <template data-line-items-target="template">
     <%= f.fields_for :items, StockIssueItem.new, child_index: "NEW_INDEX" do |item_f| %>
-      <%= render "item_fields", f: item_f, products: @products %>
+      <%= render "item_fields", f: item_f, product_options: product_options %>
     <% end %>
   </template>
 
   <div class="form-actions">
-    <%= f.submit t("inventory.stock_issues.save_draft"), class: "btn btn-primary" %>
+    <% reopening = StockIssue::REOPENED_BY_EDIT_STATUSES.include?(stock_issue.status) %>
+    <%= f.submit t(reopening ? "inventory.stock_issues.save_and_return_to_draft" : "inventory.stock_issues.save_draft"),
+          class: "btn btn-primary",
+          data: (reopening ? { turbo_confirm: t(stock_issue_edit_warning_key(stock_issue)) } : {}) %>
     <%= link_to t("common.cancel"),
           stock_issue.persisted? ? inventory_stock_issue_path(stock_issue) : inventory_stock_issues_path,
           class: "btn btn-ghost" %>
