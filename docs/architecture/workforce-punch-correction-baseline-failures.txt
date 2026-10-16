@@ -15,6 +15,13 @@
 #   the recorded 27 minus this ID. The ID stays listed; a later step is compared with a same-day measurement.
 # The request-area set (workforce-request-permission-baseline-failures.txt, 1622 examples, 27 IDs) is compared too.
 # The one ID is the documented advance-eligibility example (permission-role-baseline-failures.txt / Pilot 9 set).
+# M3 (cf29212, 2026-10-12, same-day comparison): this set 432 / 0; request-area 1622 / the same 26 IDs.
+# M4 (2026-10-16, all three seeds, each step compared by exact ID with the same-day measurement of the previous one;
+#   next-pilot-selection.md §25.6–25.9): M4-0 merge cd2296d — this set 432 / 0, request-area 1639 / 23 (main added
+#   17 examples; the 27 IDs minus the four date-dependent ones, which pass mid-month); M4-1 3213425 and M4-2 33e5add —
+#   432 / 0, 1639 / the same 23; M4-3 dee8a70 — 435 / 0 (M1 +2 examples, applier spec +1), 1640 / the same 23. The
+#   M4 specs (M4-1 characterization, M4-2 routing + two-connection lock, branch-manager specs) run alongside, not in
+#   this set. The listed ID stays: it is date-dependent, not fixed.
 #
 # set spec/architecture/attendance_payroll_penalty_rule_boundary_spec.rb
 # set spec/characterization/workforce/punch_correction_effects_spec.rb
