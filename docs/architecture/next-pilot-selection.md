@@ -4185,8 +4185,9 @@ unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed
 
 ## 25. Pilot 10 — Punch Correction payroll / attendance effects
 
-**Status (2026-10-16): M4, M6 and M8 verification COMPLETE — the pilot is NOT fully closed: BLOCKED on the
-production-only legacy check** (§25.10.3, §25.12). On `feature/pilot-10-punch-correction` (not pushed): M1 `5c8729e`,
+**Status (2026-10-17): Pilot 10 CLOSED** — M4, M6 and M8 complete; the production-only legacy check (§25.10.3) was
+reported empty on 2026-10-17 (§25.12.1). Known concurrency risks and helper duplication remain follow-up debt
+(§25.10.2, §25.11). On `feature/pilot-10-punch-correction` (not pushed): M1 `5c8729e`,
 M2 `e2aa155`, M3 `cf29212`, M4-0 merge `cd2296d`, M4-1 `3213425`, M4-2 `33e5add`, M4-3 `dee8a70`, M4-4 docs `2bcdcb4`,
 M6 cleanup `e4c8486`, M8 verification (§25.12). M0 and the unblock are merged (`66abcf5`, PR #34 →
 `fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). The assessment, approval and cancellation reach Attendance &
@@ -4656,7 +4657,8 @@ its 8 pre-existing layout offenses on untouched lines).
 
 ### 25.10 M4-4 — close-out (2026-10-16, documentation only)
 
-**M4 implementation: COMPLETE. Pilot 10: NOT fully closed** — §25.10.3 and §25.10.4 are outstanding.
+**M4 implementation: COMPLETE. Pilot 10: NOT fully closed** — §25.10.3 and §25.10.4 are outstanding. *(State at M4-4;
+§25.10.4 was done in M6 (§25.11) and §25.10.3 resolved on 2026-10-17 (§25.12.1).)*
 
 | Step | Result |
 |---|---|
@@ -4672,7 +4674,7 @@ its 8 pre-existing layout offenses on untouched lines).
 | M4-4 | COMPLETE — this documentation |
 | M6 | COMPLETE (after this table was written) — legacy code removed, boundaries tightened (§25.11) |
 | M7 | NOT NEEDED — no model move in scope |
-| M8 | VERIFICATION COMPLETE (after this table was written; §25.12) — full closure BLOCKED on §25.10.3 |
+| M8 | COMPLETE (after this table was written) — verification 2026-10-16 (§25.12); production check reported empty and Pilot 10 closed 2026-10-17 (§25.12.1) |
 
 #### 25.10.1 Final ownership and contract direction (verified in the code on `dee8a70`)
 
@@ -4719,6 +4721,8 @@ Verified by reading the code (no failing test demonstrates them, and their likel
 6. **Legacy `correction_type: nil` (production unverified)** — §25.10.3.
 
 #### 25.10.3 Production-only check (outstanding — for an authorized operator)
+
+*Resolved 2026-10-17: reported empty by an authorized operator (§25.12.1). The text below is the M4-4 state.*
 
 Run read-only, through the approved production-console procedure:
 
@@ -4853,3 +4857,35 @@ remaining risks (§25.10.2) and the `Payroll::PermissionReverter` helper-copy de
 read-only production query of §25.10.3 has not been run by an authorized operator. If it returns no rows, Pilot 10 can
 be closed with a dated note here; if it returns rows, a separate evidence-based follow-up is required first (the field
 to restore must not be guessed). Nothing pushed, merged or deployed.
+
+#### 25.12.1 Production check and final closeout (reported 2026-10-17)
+
+**Query** (read-only, as requested in §25.10.3):
+
+```ruby
+EmployeeRequest.where(request_type: "punch_correction", correction_type: nil).group(:status).count
+```
+
+**Result, as reported by the user:** empty — the query selected no punch-correction request with
+`correction_type: nil`. It was run by an authorized operator through the approved production-console procedure; this
+pilot did not connect to production and did not re-run it. Recorded on the date it was reported (2026-10-17); no
+execution timestamp was supplied. The local development-database count (§25.10.3) was not used as production
+evidence.
+
+**Decision:** the legacy nil-`correction_type` blocker is resolved for the production records the query selected when
+it ran. No backfill or guard is needed for them. This says nothing about rows written later: the presence validation
+remains the only protection, and a row written past it would again be cancelled by restoring `:check_out`.
+
+**Final closeout — Pilot 10 (Workforce ↔ Attendance & Payroll — Punch Correction) is CLOSED (2026-10-17):**
+
+* M4 (contract routing, row locks, Decisions A / B / C), M6 (legacy removal) and M8 (verification) are complete.
+* The authorized production query returned an empty result.
+* The final test matrix (§25.12, on `e4c8486`; no application code changed since) matched the post-M6 baseline by
+  exact failure ID under seeds 20261006 / 12345 / 98765: request-area 1640 / the same 23 IDs, finalization paths
+  295 / the same 8 IDs (1 pending), every other suite 0 failures. No baseline ID was removed or reclassified.
+* **Not fixed by this pilot (follow-up debt):** the concurrency risks of §25.10.2 — permission paths update the same
+  payroll entry without its lock (verified); a rejection racing an approval, concurrent attendance edits and concurrent
+  period creation (possibilities, not demonstrated) — and `Payroll::PermissionReverter`'s private helper copies
+  (§25.11). Closing the pilot does not mean those races are eliminated elsewhere in the application.
+
+Nothing pushed, merged or deployed.
