@@ -84,7 +84,7 @@ RSpec.describe "Request permission payroll effects → Requests::PermissionPayro
       handler = double("handler", permission_approved: nil, permission_cancelled: :reverted)
       allow(Requests::PunchCorrectionAssessment).to receive(:for)
         .and_return(double(punch_order_invalid?: false, requires_confirmation?: false, effective_at: Time.current, audit_metadata: {}))
-      allow(Requests::PunchCorrectionApplier).to receive(:call).and_return(double(success?: true, record: nil))
+      allow(Requests::PunchCorrectionApplier).to receive(:call).and_return(double(success?: true, approval: nil))
       punch = request_of(:punch_correction)
 
       with_handler(handler) do

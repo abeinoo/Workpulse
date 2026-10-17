@@ -1,0 +1,50 @@
+# Pilot 10 (Workforce ↔ Attendance & Payroll — Punch Correction) — baseline failing example IDs
+# Purpose: the reference list for every Pilot 10 step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs elsewhere keep their treatment.
+# Recorded at main 412710f (Pilot 9 + Pilot 10 unblock merged, 82cce16, plus an unrelated purchase-request commit),
+#   2026-10-09, seed 20261006; identical under 12345 and 98765.
+# Set: every spec file that mentions punch correction (17 files, excluding Pilot 9's and the unblock's own specs),
+#   the two Pilot 10 unblock regression specs, and the Pilot 10 M1 characterization file. Reproduce with:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/workforce-punch-correction-baseline-failures.txt | cut -d' ' -f3)
+# Results: before M1 the 17 files gave 382 examples, 1 failure (below) and the unblock specs 21 / 0; M1 adds 29.
+# M2 (contract + boundary specs run separately, 25 / 0): this set 432 / same 1 ID; request-area 1622 / same 27,
+#   under seeds 20261006, 12345 and 98765.
+# Date effect (2026-10-12, on unchanged e2aa155, all three seeds): the one ID passes from the 10th of the month on
+#   (attendance built at Date.current.beginning_of_month + 0..9); this set then gives 432 / 0 and the request-area set
+#   the recorded 27 minus this ID. The ID stays listed; a later step is compared with a same-day measurement.
+# The request-area set (workforce-request-permission-baseline-failures.txt, 1622 examples, 27 IDs) is compared too.
+# The one ID is the documented advance-eligibility example (permission-role-baseline-failures.txt / Pilot 9 set).
+# M3 (cf29212, 2026-10-12, same-day comparison): this set 432 / 0; request-area 1622 / the same 26 IDs.
+# M4 (2026-10-16, all three seeds, each step compared by exact ID with the same-day measurement of the previous one;
+#   next-pilot-selection.md §25.6–25.9): M4-0 merge cd2296d — this set 432 / 0, request-area 1639 / 23 (main added
+#   17 examples; the 27 IDs minus the four date-dependent ones, which pass mid-month); M4-1 3213425 and M4-2 33e5add —
+#   432 / 0, 1639 / the same 23; M4-3 dee8a70 — 435 / 0 (M1 +2 examples, applier spec +1), 1640 / the same 23. The
+#   M4 specs (M4-1 characterization, M4-2 routing + two-connection lock, branch-manager specs) run alongside, not in
+#   this set. The listed ID stays: it is date-dependent, not fixed.
+# M6 (2026-10-16, all three seeds, compared by exact ID with the same day's 2bcdcb4): this set 432 / 0 (M1 §I's three
+#   passing examples retired with the code they compared — §25.11); request-area 1640 / the same 23. No ID changed.
+# M8 (2026-10-16, on e4c8486, all three seeds): this set 432 / 0; request-area 1640 / the same 23 — identical to M6.
+#
+# set spec/architecture/attendance_payroll_penalty_rule_boundary_spec.rb
+# set spec/characterization/workforce/punch_correction_effects_spec.rb
+# set spec/models/employee_request_spec.rb
+# set spec/requests/employee_request_attendance_window_spec.rb
+# set spec/requests/employee_request_check_out_order_spec.rb
+# set spec/requests/employee_request_resulting_duration_spec.rb
+# set spec/requests/employee_request_review_changes_spec.rb
+# set spec/requests/employee_request_reviewer_datetime_spec.rb
+# set spec/requests/employee_request_reviewer_visibility_spec.rb
+# set spec/requests/employee_requests_spec.rb
+# set spec/requests/security/employee_request_pay_advances_cancel_spec.rb
+# set spec/requests/security/employee_request_submitter_spec.rb
+# set spec/requests/security/punch_correction_locked_period_spec.rb
+# set spec/services/payroll/entry_calculator_spec.rb
+# set spec/services/requests/approver_spec.rb
+# set spec/services/requests/canceller_spec.rb
+# set spec/services/requests/punch_correction_applier_spec.rb
+# set spec/services/requests/punch_correction_window_guard_spec.rb
+# set spec/system/employee_request_attendance_window_spec.rb
+# set spec/system/employee_request_review_changes_spec.rb
+#
+rspec ./spec/models/employee_request_spec.rb:432

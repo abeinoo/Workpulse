@@ -9,10 +9,11 @@ require "rails_helper"
 # (Payroll::PermissionPayrollEffects → PermissionApplier / PermissionReverter)
 # and never calls back into Workforce request services. One-way.
 #
-# Requests::Canceller still names Attendance & Payroll in its PUNCH-CORRECTION
-# rollback (out of this pilot; module-boundaries.md §14.2 #3): those references
-# are allowed only inside the punch-correction methods listed below, so they
-# cannot spread back into the permission path.
+# Requests::Canceller used to name Attendance & Payroll in its PUNCH-CORRECTION
+# rollback (out of this pilot; module-boundaries.md §14.2 #3), allowed only
+# inside the punch-correction methods listed below. Pilot 10 routed that effect
+# through Requests::PunchCorrectionEffects (M4) and removed the rollback (M6):
+# the canceller now names Attendance & Payroll nowhere.
 module ArchitectureSpecs
   module WorkforceRequestPermissionPayrollBoundary
     module_function
@@ -35,7 +36,10 @@ module ArchitectureSpecs
       | \b(?:PayrollPeriod|PayrollEntry|PayrollLineItem|AttendanceRecord)\b
     /x
 
-    # The punch-correction rollback and the helpers it (alone, since M4) uses.
+    # The canceller's pre-Pilot-10 punch-correction rollback and its helpers — the
+    # only place the canceller was allowed to name Attendance & Payroll. Removed in
+    # Pilot 10 M6 (the punch effect goes through Requests::PunchCorrectionEffects),
+    # so the exception is gone and these must not come back.
     PUNCH_CORRECTION_METHODS = %w[
       rollback_punch_correction rollback_punch_payroll restore_penalty_line_item
       covering_period daily_rate_for compute_penalty
@@ -96,12 +100,12 @@ module ArchitectureSpecs
       end
     end
 
-    # Attendance & Payroll names in the canceller OUTSIDE the punch-correction methods.
+    # Attendance & Payroll names anywhere in the canceller (no exempt methods since
+    # Pilot 10 M6).
     def canceller_leaks
       owners = method_of_line(CANCELLER)
       code_lines(CANCELLER).filter_map do |line, number|
         next unless line.match?(ATTENDANCE_PAYROLL)
-        next if PUNCH_CORRECTION_METHODS.include?(owners[number])
 
         "#{CANCELLER}:#{number} (#{owners[number] || 'class body'}): #{line.strip}"
       end
@@ -133,10 +137,10 @@ RSpec.describe "Architecture: Workforce request permission payroll boundary" do
       expect(violations).to be_empty, "Go through Requests::PermissionPayrollEffects:\n#{violations.join("\n")}"
     end
 
-    it "A. the canceller names Attendance & Payroll only inside the punch-correction rollback (not in the permission path)" do
+    it "A. the canceller names Attendance & Payroll nowhere (the punch-correction exception was removed in Pilot 10 M6)" do
       leaks = boundary.canceller_leaks
       expect(leaks).to be_empty, <<~MSG
-        Requests::Canceller may name Attendance & Payroll only in #{boundary::PUNCH_CORRECTION_METHODS.join(', ')}:
+        Requests::Canceller must reach Attendance & Payroll only through the Workforce contracts:
         #{leaks.join("\n")}
       MSG
     end
@@ -195,9 +199,11 @@ RSpec.describe "Architecture: Workforce request permission payroll boundary" do
     expect(defined?(Requests::Canceller::PermissionRevertFailed)).to be_nil
   end
 
-  it "F. the punch-correction rollback and its helpers are still in place" do
+  # Until Pilot 10 M6 this asserted the opposite (the legacy rollback was still
+  # in place, the only allowed Attendance & Payroll use in the canceller).
+  it "F. the canceller's pre-Pilot-10 punch-correction rollback and its helpers are gone" do
     boundary::PUNCH_CORRECTION_METHODS.each do |name|
-      expect(Requests::Canceller.private_method_defined?(name.to_sym)).to be(true), name
+      expect(Requests::Canceller.private_method_defined?(name.to_sym)).to be(false), name
     end
   end
 
@@ -217,7 +223,7 @@ RSpec.describe "Architecture: Workforce request permission payroll boundary" do
       expect(boundary.matches_in(boundary::APPROVER, boundary::PERMISSION_INTERNALS)).not_to be_empty
     end
 
-    it "catches payroll models planted in the canceller's permission path but not in the punch rollback" do
+    it "catches payroll models planted in the canceller's permission path and in a revived punch rollback" do
       plant(boundary::CANCELLER, <<~RUBY)
         module Requests
           class Canceller
@@ -231,7 +237,8 @@ RSpec.describe "Architecture: Workforce request permission payroll boundary" do
           end
         end
       RUBY
-      expect(boundary.canceller_leaks).to eq([ "#{boundary::CANCELLER}:4 (revert_permission_payroll_effect): PayrollEntry.find_by(user: @request.user)" ])
+      expect(boundary.canceller_leaks).to eq([ "#{boundary::CANCELLER}:4 (revert_permission_payroll_effect): PayrollEntry.find_by(user: @request.user)",
+                                               "#{boundary::CANCELLER}:8 (rollback_punch_payroll): PayrollEntry.find_by(user: @request.user)" ])
     end
 
     it "catches a Workforce callback planted in the Attendance & Payroll implementation" do
@@ -282,10 +289,10 @@ RSpec.describe "Architecture: Workforce request permission payroll boundary" do
         expect(boundary.matches_in(boundary::CONTRACT_FILE, boundary::CONTRACT_FORBIDDEN).size).to eq(2)
       end
 
-      it "and passes without them: the punch-correction rollback is not a permission-path violation" do
+      it "a revived punch-correction rollback is not a permission-path violation, but it is a canceller leak (Pilot 10 M6)" do
         plant(boundary::CANCELLER, "module Requests\n  class Canceller\n    def rollback_punch_payroll(record)\n      PayrollEntry.find_by(user: 1)\n    end\n  end\nend\n")
         expect(boundary.permission_path_violations.grep(/\A#{Regexp.escape(boundary::CANCELLER)}/)).to be_empty
-        expect(boundary.canceller_leaks).to be_empty
+        expect(boundary.canceller_leaks).to eq([ "#{boundary::CANCELLER}:4 (rollback_punch_payroll): PayrollEntry.find_by(user: 1)" ])
       end
     end
 

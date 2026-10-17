@@ -30,10 +30,25 @@ module Payroll
     end
 
     def advance
-      next_status = TRANSITIONS[@period.status]
-      return err("No transition available from '#{@period.status}'") unless next_status
+      observed_status = @period.status
+      next_status     = TRANSITIONS[observed_status]
+      return err(no_transition_error) unless next_status
+
+      transition_error = nil
 
       ActiveRecord::Base.transaction do
+        # Lock the period row before acting (the same row a punch-correction
+        # approval / cancellation locks for its period check — Pilot 10 M4-2), so
+        # finalizing or paying waits for an in-flight correction and then sees the
+        # committed status. The transition the caller asked for applies only to
+        # the status it saw: a concurrent transition is neither repeated nor
+        # turned into the next one.
+        @period.lock!
+        unless @period.status == observed_status
+          transition_error = no_transition_error
+          raise ActiveRecord::Rollback
+        end
+
         case next_status
         when "finalized"
           from = @period.status
@@ -66,6 +81,8 @@ module Payroll
         end
       end
 
+      return err(transition_error) if transition_error
+
       Result.new(success: true, period: @period)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
@@ -83,6 +100,8 @@ module Payroll
         end
       end
     end
+
+    def no_transition_error = "No transition available from '#{@period.status}'"
 
     def err(message)
       Result.new(success: false, error: message)

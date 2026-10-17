@@ -4,6 +4,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
   let(:business) { create(:business, timezone: "UTC") }
   let(:branch)   { create(:branch, business: business) }
   let(:user)     { create(:user, business: business) }
+  # Approval is applied for a reviewer (the contract's actor, Pilot 10 M4-2).
+  let(:reviewer) { create(:user, business: business) }
   let(:shift)    { create(:shift, :fixed_time, business: business) }
   let(:work_date) { Date.current - 1.day }
 
@@ -40,7 +42,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
            requested_for_date: record_date,
            proposed_time:      proposed_time_str,
            status:             :approved,
-           reviewed_at:        Time.current)
+           reviewed_at:        Time.current,
+           reviewed_by:        reviewer)
   end
 
   # ──────────────────────────────────────────────────────────────
@@ -147,7 +150,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
              proposed_time:      "17:00",
              approved_time:      "16:45",
              status:             :approved,
-             reviewed_at:        Time.current)
+             reviewed_at:        Time.current,
+             reviewed_by:        reviewer)
     end
 
     it "uses approved_time, not proposed_time" do
@@ -170,7 +174,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
              proposed_date:      work_date + 1.day,    # actual punch is next calendar day
              proposed_time:      "04:00",
              status:             :approved,
-             reviewed_at:        Time.current)
+             reviewed_at:        Time.current,
+             reviewed_by:        reviewer)
     end
 
     it "stores the check-out on the day after the work_date" do
@@ -201,6 +206,7 @@ RSpec.describe Requests::PunchCorrectionApplier do
     let(:riyadh)    { create(:business, timezone: "Asia/Riyadh") }
     let(:rz_branch) { create(:branch, business: riyadh) }
     let(:rz_user)   { create(:user, business: riyadh) }
+    let(:reviewer)  { create(:user, business: riyadh) }
     let(:rz_shift)  { create(:shift, :overnight, business: riyadh) } # 13:00 → 01:00
     let(:tz)        { riyadh.timezone_object }
     let(:work_date) { Date.new(2026, 6, 1) }
@@ -228,7 +234,8 @@ RSpec.describe Requests::PunchCorrectionApplier do
              requested_for_date: work_date,
              proposed_time:      "22:22",
              status:             :approved,
-             reviewed_at:        Time.current)
+             reviewed_at:        Time.current,
+             reviewed_by:        reviewer)
     end
 
     it "refuses a check-out before the check-in with a clear error instead of moving the date" do
@@ -281,13 +288,28 @@ RSpec.describe Requests::PunchCorrectionApplier do
     let!(:record) { open_record }
     let(:request) { build_request(correction_type: "missing_check_out") }
 
-    it "calls Payroll::PunchCorrectionApplier with the updated record" do
-      allow(Payroll::PunchCorrectionApplier).to receive(:call)
-      described_class.call(request: request)
-      expect(Payroll::PunchCorrectionApplier).to have_received(:call).with(
-        request: request,
-        record:  record
-      )
+    # Since Pilot 10 M4-3 the payroll effect is the entry's full recalculation
+    # (was: Payroll::PunchCorrectionApplier patching the record's lines).
+    let(:period) do
+      create(:payroll_period, business: business, period_year: work_date.year, period_month: work_date.month,
+                              status: "under_review")
+    end
+
+    before do
+      allow(Payroll::EntryRecalculator).to receive(:call).and_return(Payroll::EntryRecalculator::Result.new(ok: true))
+    end
+
+    it "recalculates the employee's existing entry for the request's period, triggered by the reviewer" do
+      create(:payroll_entry, payroll_period: period, user: user)
+      expect(described_class.call(request: request)).to be_success
+      expect(Payroll::EntryRecalculator).to have_received(:call).once
+        .with(user: user, period: period, triggered_by: reviewer)
+    end
+
+    it "never recalculates (or creates) an entry the employee does not have" do
+      period
+      expect { described_class.call(request: request) }.not_to change(PayrollEntry, :count)
+      expect(Payroll::EntryRecalculator).not_to have_received(:call)
     end
   end
 end
