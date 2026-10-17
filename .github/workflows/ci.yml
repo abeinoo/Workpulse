@@ -65,15 +65,38 @@ jobs:
       - name: Lint code for consistent style
         run: bin/rubocop -f github
 
+      # .rubocop_todo.yml excludes whole files per cop; this compares offenses per
+      # file and cop with .rubocop_baseline.json, so no new offense can hide there.
+      - name: Check RuboCop offenses against the recorded baseline
+        if: ${{ !cancelled() }}
+        run: bin/rubocop-baseline
+
+  # The suite is RSpec (spec/) on PostgreSQL 16 (as docker-compose.yml). The
+  # database credentials below are throwaway values for the CI service only.
+  # Failing example IDs are written to tmp/rspec-failures.txt and uploaded, so a
+  # run can be compared by exact ID with the documented baseline
+  # (docs/architecture/*-baseline-failures.txt). Known failures are not skipped.
   test:
     runs-on: ubuntu-latest
 
-    # services:
-    #  redis:
-    #    image: valkey/valkey:8
-    #    ports:
-    #      - 6379:6379
-    #    options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: work_pulse_test
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      RAILS_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
@@ -86,22 +109,43 @@ jobs:
         with:
           bundler-cache: true
 
-      - name: Run tests
-        env:
-          RAILS_ENV: test
-          # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-          # REDIS_URL: redis://localhost:6379/0
-        run: bin/rails db:test:prepare test
+      - name: Prepare database
+        run: bin/rails db:test:prepare
+
+      - name: Run RSpec (all specs except spec/system)
+        run: >-
+          bundle exec rspec --exclude-pattern "spec/system/**/*_spec.rb"
+          --format progress --format failures --out tmp/rspec-failures.txt
+
+      - name: Keep failing example IDs
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: rspec-failures
+          path: ${{ github.workspace }}/tmp/rspec-failures.txt
+          if-no-files-found: ignore
 
   system-test:
     runs-on: ubuntu-latest
 
-    # services:
-    #  redis:
-    #    image: valkey/valkey:8
-    #    ports:
-    #      - 6379:6379
-    #    options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: work_pulse_test
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      RAILS_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
@@ -114,17 +158,28 @@ jobs:
         with:
           bundler-cache: true
 
-      - name: Run System Tests
-        env:
-          RAILS_ENV: test
-          # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-          # REDIS_URL: redis://localhost:6379/0
-        run: bin/rails db:test:prepare test:system
+      - name: Prepare database
+        run: bin/rails db:test:prepare
+
+      - name: Run RSpec system specs (headless Chrome)
+        run: >-
+          bundle exec rspec spec/system
+          --format progress --format failures --out tmp/rspec-system-failures.txt
+
+      - name: Keep failing example IDs
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: rspec-system-failures
+          path: ${{ github.workspace }}/tmp/rspec-system-failures.txt
+          if-no-files-found: ignore
 
       - name: Keep screenshots from failed system tests
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: screenshots
-          path: ${{ github.workspace }}/tmp/screenshots
+          path: |
+            ${{ github.workspace }}/tmp/screenshots
+            ${{ github.workspace }}/tmp/capybara
           if-no-files-found: ignore

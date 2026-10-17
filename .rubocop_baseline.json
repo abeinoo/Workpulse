@@ -1,0 +1,279 @@
+{
+  "rubocop_version": "1.86.1",
+  "offenses": 370,
+  "files_with_offenses": 85,
+  "files": {
+    "app/controllers/adjustments_controller.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "app/controllers/admin/users_controller.rb": {
+      "Layout/EndAlignment": 2,
+      "Layout/SpaceInsideArrayLiteralBrackets": 6
+    },
+    "app/controllers/api/v1/attendance_controller.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/controllers/api/v1/sessions_controller.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/controllers/application_controller.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/controllers/attendance_controller.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/controllers/bulk_adjustments_controller.rb": {
+      "Layout/SpaceInsideArrayPercentLiteral": 1
+    },
+    "app/controllers/dashboard_controller.rb": {
+      "Style/TrailingCommaInHashLiteral": 1
+    },
+    "app/controllers/employee_requests_controller.rb": {
+      "Layout/ElseAlignment": 2,
+      "Layout/EndAlignment": 2
+    },
+    "app/controllers/inventory/barcode_labels_controller.rb": {
+      "Layout/ElseAlignment": 1,
+      "Layout/EndAlignment": 1
+    },
+    "app/controllers/operations_dashboard_controller.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "app/controllers/payroll_dashboard_controller.rb": {
+      "Layout/EndAlignment": 1,
+      "Layout/SpaceInsideArrayLiteralBrackets": 6,
+      "Style/TrailingCommaInHashLiteral": 1
+    },
+    "app/controllers/payroll_entries_controller.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/controllers/payroll_periods_controller.rb": {
+      "Style/TrailingCommaInHashLiteral": 2
+    },
+    "app/controllers/shift_assignments_controller.rb": {
+      "Layout/ElseAlignment": 1,
+      "Layout/EndAlignment": 2
+    },
+    "app/helpers/application_helper.rb": {
+      "Layout/EndAlignment": 1,
+      "Layout/SpaceInsideArrayLiteralBrackets": 14
+    },
+    "app/helpers/attachment_helper.rb": {
+      "Style/TrailingCommaInHashLiteral": 4
+    },
+    "app/models/business.rb": {
+      "Style/StringLiterals": 1,
+      "Style/TrailingCommaInHashLiteral": 1
+    },
+    "app/models/concerns/attachable.rb": {
+      "Style/TrailingCommaInHashLiteral": 1
+    },
+    "app/models/payroll_period.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/models/payroll_snapshot.rb": {
+      "Style/TrailingCommaInHashLiteral": 1
+    },
+    "app/policies/payroll_line_item_policy.rb": {
+      "Layout/ElseAlignment": 1,
+      "Layout/EndAlignment": 1
+    },
+    "app/services/adjustments/bulk_csv_parser.rb": {
+      "Style/RedundantReturn": 1
+    },
+    "app/services/adjustments/selectable_periods.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/services/attendance/adjustment_service.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "app/services/attendance/csv_importer.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/services/attendance/timestamp_parser.rb": {
+      "Layout/EndAlignment": 1
+    },
+    "app/services/dashboard/area_manager_data.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 6
+    },
+    "app/services/finance/sales_imports/dr_matcher.rb": {
+      "Layout/ElseAlignment": 1,
+      "Layout/EndAlignment": 1,
+      "Layout/SpaceInsideArrayLiteralBrackets": 16
+    },
+    "app/services/payroll/anomaly_detector.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4,
+      "Style/TrailingCommaInArrayLiteral": 1
+    },
+    "app/services/payroll/insights_presenter.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 8,
+      "Style/TrailingCommaInHashLiteral": 1
+    },
+    "app/services/payroll/recommendation_engine.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/services/payroll/snapshot_service.rb": {
+      "Style/TrailingCommaInHashLiteral": 1
+    },
+    "app/services/reports/bank_transfer_csv_exporter.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "app/services/reports/payroll_csv_exporter.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "app/services/requests/approver.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 8
+    },
+    "app/services/requests/bulk_payment_service.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "config/initializers/devise.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 8,
+      "Style/StringLiterals": 2
+    },
+    "db/migrate/20260507000004_create_user_branches.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260507000005_create_salary_profiles.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260507000010_create_attendance_records.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "db/migrate/20260512000006_create_payroll_period_branch_reviews.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "db/migrate/20260512000007_create_payroll_audit_logs.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "db/migrate/20260513000001_centralize_payroll_periods.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "db/migrate/20260517210000_create_biometric_devices.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260517210001_create_biometric_punch_logs.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260526143932_add_profile_fields_to_users.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260529170347_expand_manage_payroll_permission.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "db/migrate/20260602000000_create_inventory_tables.rb": {
+      "Layout/SpaceBeforeFirstArg": 3
+    },
+    "db/migrate/20260619000001_add_business_id_to_product_barcodes.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "db/migrate/20260626051428_create_till_handover_amounts.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260626051430_create_till_session_amounts.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260626051433_restructure_till_deposits.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260626220001_add_daily_reconciliation_id_to_till_sessions.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "db/migrate/20260626220002_add_daily_reconciliation_id_to_till_handovers_and_deposits.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "db/migrate/20260627000001_create_employee_reconciliation_summaries.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "db/migrate/20260627000002_move_till_session_amounts_to_daily_reconciliation.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260627100001_add_settle_remaining_balance_permission.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "db/migrate/20260627120000_create_remaining_deposit_balance_transactions.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "db/migrate/20260630400000_split_view_performance_permission.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "db/migrate/20260702100000_backfill_view_adjustments_permission.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260703100000_create_finance_bank_statements.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 6
+    },
+    "db/migrate/20260703200000_create_finance_bank_statement_transactions.rb": {
+      "Layout/SpaceBeforeFirstArg": 1,
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "db/migrate/20260710090400_create_laundry_batches.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "spec/factories/penalty_rules.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "spec/models/employee_request_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "spec/models/product_barcode_spec.rb": {
+      "Layout/EmptyLinesAroundBlockBody": 2
+    },
+    "spec/policies/shift_assignment_policy_spec.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "spec/requests/api/v1/payroll_visibility_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "spec/requests/api/v1/payroll_waive_scope_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "spec/requests/dashboard_spec.rb": {
+      "Layout/SpaceBeforeBlockBraces": 1
+    },
+    "spec/requests/employee_requests_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 12
+    },
+    "spec/requests/inventory/barcode_labels_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 4
+    },
+    "spec/requests/payroll_bank_transfer_export_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "spec/requests/permission_matrix_verification_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 46
+    },
+    "spec/requests/shift_assignments_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 20
+    },
+    "spec/services/adjustments/selectable_periods_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "spec/services/attendance/anomaly_detector_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2,
+      "Layout/SpaceInsideParens": 1
+    },
+    "spec/services/attendance/csv_importer_spec.rb": {
+      "Layout/SpaceBeforeFirstArg": 1
+    },
+    "spec/services/attendance/record_recomputer_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 6
+    },
+    "spec/services/employee/performance_scorer_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "spec/services/inventory/imports/product_importer_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 12
+    },
+    "spec/services/payroll/entry_calculator_simulation_spec.rb": {
+      "Layout/SpaceBeforeFirstArg": 1,
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "spec/services/reports/bank_transfer_csv_exporter_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 2
+    },
+    "spec/services/requests/bulk_payment_service_spec.rb": {
+      "Layout/SpaceInsideArrayLiteralBrackets": 28
+    }
+  }
+}
