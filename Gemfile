@@ -24,7 +24,7 @@ gem "phonelib"
 gem "csv"
 
 # Read Excel spreadsheets (.xlsx, .xls) for bank statement imports
-gem "roo", "~> 2.10"
+gem "roo", "~> 3.0"
 gem "roo-xls"
 
 # Write .xlsx workbooks for report exports
