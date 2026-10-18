@@ -26,7 +26,7 @@ RSpec.describe "Performance reviews — Phase 2 analytics dashboard", type: :req
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include(I18n.t("performance.reviews.analytics.employees_reviewed"))
-      expect(response.body).to include(employee.full_name)
+      expect(response.body).to include(html_escaped(employee.full_name))
     end
 
     it "supports sorting by review_count" do
@@ -37,7 +37,7 @@ RSpec.describe "Performance reviews — Phase 2 analytics dashboard", type: :req
 
     it "respects the same filters as the reviews tab" do
       get employee_summary_performance_reviews_path(branch_id: branch.id)
-      expect(response.body).to include(employee.full_name)
+      expect(response.body).to include(html_escaped(employee.full_name))
 
       other_branch = create(:branch, business: business)
       get employee_summary_performance_reviews_path(branch_id: other_branch.id)
@@ -88,7 +88,7 @@ RSpec.describe "Performance reviews — Phase 2 analytics dashboard", type: :req
       expect(response).to have_http_status(:ok)
       expect(response.headers["Content-Type"]).to eq("application/pdf")
       expect(Performance::Exports::PdfRenderer).to have_received(:render) do |html|
-        expect(html).to include(employee.full_name)
+        expect(html).to include(html_escaped(employee.full_name))
       end
     end
   end
@@ -117,12 +117,12 @@ RSpec.describe "Performance reviews — Phase 2 analytics dashboard", type: :req
       other_branch = create(:branch, business: business)
 
       get performance_reviews_path(branch_id: branch.id)
-      expect(response.body).to include(employee.full_name)
+      expect(response.body).to include(html_escaped(employee.full_name))
 
       ShiftAssignment.where(user: employee, branch: branch).update_all(branch_id: other_branch.id)
 
       get performance_reviews_path(branch_id: branch.id)
-      expect(response.body).to include(employee.full_name), "review should remain attributed to its snapshot branch"
+      expect(response.body).to include(html_escaped(employee.full_name)), "review should remain attributed to its snapshot branch"
 
       get performance_reviews_path(branch_id: other_branch.id)
       expect(response.body).to include(I18n.t("performance.reviews.empty")),

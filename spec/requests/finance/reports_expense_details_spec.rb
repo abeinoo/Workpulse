@@ -94,7 +94,7 @@ RSpec.describe "Finance::Reports expense details", type: :request do
       from_label = I18n.l(older_month.beginning_of_month, format: "%B %Y")
       to_label   = I18n.l(month, format: "%B %Y")
       expect(response.body).to include("#{from_label} → #{to_label}")
-      expect(response.body).to include(older_employee.full_name)
+      expect(response.body).to include(html_escaped(older_employee.full_name))
     end
 
     it "last_6_months and last_12_months render without error" do

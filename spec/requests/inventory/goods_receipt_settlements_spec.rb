@@ -77,9 +77,9 @@ RSpec.describe "Inventory::GoodsReceiptSettlements", type: :request do
 
       expect(body).to include(I18n.t("inventory.goods_receipts.funding_source_kinds.employee_custody"))
       expect(body).to include(I18n.t("inventory.goods_receipts.funding_source_kinds.company_cash"))
-      expect(body).to include(approver.full_name)
+      expect(body).to include(html_escaped(approver.full_name))
       expect(body).to include("CV-42")
-      expect(body).to include(admin.full_name)
+      expect(body).to include(html_escaped(admin.full_name))
       expect(body).to include(settlement_t("statuses.reversed"))
       expect(body).to include(settlement_t("statuses.active"))
       expect(body).to include("Wrong employee")

@@ -1266,6 +1266,13 @@ tbody td {
   }
   .gr-table .action-group { justify-content: flex-end; }  /* عرض lines up across rows */
 }
+/* Narrow desktops (e.g. 1024px with a classic, space-taking scrollbar): every
+   cell stays on one line, so tighter cell padding is what lets the whole table
+   fit without horizontal scroll. Wider screens keep the roomier spacing. */
+@media (min-width: 769px) and (max-width: 1199px) {
+  .gr-table thead th,
+  .gr-table tbody td { padding-inline: var(--space-2); }
+}
 
 /* Record header (show pages): number + status, then the action group. */
 .record-header {

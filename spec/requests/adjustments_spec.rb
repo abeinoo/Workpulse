@@ -480,7 +480,7 @@ RSpec.describe "Adjustments workflow", type: :request do
         get adjustment_path(adjustment)
 
         expect(response.body).to include(I18n.t("adjustments.show.approved_by"))
-        expect(response.body).to include(approver.full_name)
+        expect(response.body).to include(html_escaped(approver.full_name))
         # Approved adjustments are immutable — no approve or remove buttons.
         expect(response.body).not_to include(approve_adjustment_path(adjustment))
         expect(response.body).not_to include(I18n.t("adjustments.remove"))

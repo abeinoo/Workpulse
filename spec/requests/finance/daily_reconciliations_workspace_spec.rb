@@ -171,8 +171,8 @@ RSpec.describe "Daily Reconciliations — accountant workspace", type: :request 
       deposit(dr_b, amount: 200, depositor: other)
 
       get finance_daily_reconciliations_path
-      expect(response.body).to include(t_ws("depositor_count", name: actor.full_name, count: 1))
-      expect(response.body).to include(t_ws("depositor_count", name: other.full_name, count: 1))
+      expect(response.body).to include(html_escaped(t_ws("depositor_count", name: actor.full_name, count: 1)))
+      expect(response.body).to include(html_escaped(t_ws("depositor_count", name: other.full_name, count: 1)))
 
       get finance_daily_reconciliations_path(depositor_id: actor.id)
       expect(response.body).to include(finance_daily_reconciliation_path(dr_a))

@@ -341,7 +341,7 @@ RSpec.describe "Admin::Users", type: :request do
         expect(target_user.reload.active).to be false
         expect(response).to redirect_to(admin_users_path)
         follow_redirect!
-        expect(response.body).to include(target_user.full_name)
+        expect(response.body).to include(html_escaped(target_user.full_name))
       end
 
       it "reactivates an inactive user" do

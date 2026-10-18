@@ -35,8 +35,8 @@ RSpec.describe "TillHandovers#new — cashier handover recipient list", type: :r
 
     get_new
 
-    expect(response.body).to include(permitted.full_name)
-    expect(response.body).not_to include(unpermitted.full_name)
+    expect(response.body).to include(html_escaped(permitted.full_name))
+    expect(response.body).not_to include(html_escaped(unpermitted.full_name))
   end
 
   it "shows the 'no one' message for an ordinary user when nobody in the branch holds the permission" do
@@ -46,7 +46,7 @@ RSpec.describe "TillHandovers#new — cashier handover recipient list", type: :r
     get_new
 
     expect(Nokogiri::HTML(response.body).text).to include(I18n.t("till_handovers.new.no_colleagues"))
-    expect(response.body).not_to include(unpermitted.full_name)
+    expect(response.body).not_to include(html_escaped(unpermitted.full_name))
   end
 
   it "shows every active branch employee for the business owner (Super Admin), regardless of permission" do
@@ -58,7 +58,7 @@ RSpec.describe "TillHandovers#new — cashier handover recipient list", type: :r
     sign_in owner_actor
     get new_till_handover_path
 
-    expect(response.body).to include(unpermitted.full_name)
+    expect(response.body).to include(html_escaped(unpermitted.full_name))
     expect(Nokogiri::HTML(response.body).text).not_to include(I18n.t("till_handovers.new.no_colleagues"))
   end
 
@@ -72,7 +72,7 @@ RSpec.describe "TillHandovers#new — cashier handover recipient list", type: :r
     sign_in accountant
     get new_till_handover_path
 
-    expect(response.body).to include(unpermitted.full_name)
+    expect(response.body).to include(html_escaped(unpermitted.full_name))
     expect(Nokogiri::HTML(response.body).text).not_to include(I18n.t("till_handovers.new.no_colleagues"))
   end
 
@@ -85,7 +85,7 @@ RSpec.describe "TillHandovers#new — cashier handover recipient list", type: :r
     sign_in owner_actor
     get new_till_handover_path
 
-    expect(response.body).not_to include(elsewhere.full_name)
+    expect(response.body).not_to include(html_escaped(elsewhere.full_name))
   end
 
   it "still shows the 'no one' message for the business owner when the branch truly has no other active employees" do
