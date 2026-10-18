@@ -53,7 +53,18 @@ RSpec.describe AttachmentHelper, type: :helper do
     end
 
     it "renders a download link (not inline) for any other file type" do
-      invoice = receipt_with_invoice(filename: "test_document.pdf", content_type: "application/msword")
+      # The helper renders any persisted attachment (it builds blob URLs). Goods
+      # receipt invoices only accept images/PDF, so attaching a Word file through
+      # them never saves; build a persisted attachment of that type directly.
+      receipt = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+      receipt.items.build(product: product, quantity: 1, unit_cost: 1)
+      receipt.save!
+      blob = ActiveStorage::Blob.create_and_upload!(
+        io: File.open(Rails.root.join("spec/fixtures/files/test_document.pdf")),
+        filename: "test_document.doc", content_type: "application/msword", identify: false
+      )
+      invoice = ActiveStorage::Attachment.create!(name: "invoices", record: receipt, blob: blob)
+      expect(invoice).to be_persisted
 
       html = helper.document_viewer_tag(invoice)
 

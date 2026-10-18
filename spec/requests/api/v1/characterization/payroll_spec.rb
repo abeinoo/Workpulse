@@ -129,14 +129,13 @@ RSpec.describe "API v1 characterization — payroll & reports", type: :request d
       expect_legacy_error(:not_found)
     end
 
-    # KNOWN DEFECT (docs/api/baseline.md → D1): PayrollLineItemPolicy#waive? was
-    # renamed to #waive_deduction? (commit d950781) but this controller still
-    # calls :waive?, so every request raises NoMethodError (HTTP 500).
-    it "PATCH /payroll_line_items/:id/waive answers with an HTTP status instead of raising" do
-      pending "D1: Api::V1::PayrollLineItemsController#waive calls the removed policy method waive?"
+    # D1 (docs/api/baseline.md) is resolved by retirement: the endpoint always
+    # raised (it called the removed policy method waive?), had no client, and
+    # waiving is Payroll::DeductionWaiver's job behind waive_deduction? (web only).
+    it "PATCH /payroll_line_items/:id/waive is retired and answers 404" do
       sign_in employee
       patch "/api/v1/payroll_line_items/#{line_item.id}/waive", params: { notes: "x" }, as: :json
-      expect(response.status).to be_in([ 403, 404 ])
+      expect(response).to have_http_status(:not_found)
     end
   end
 

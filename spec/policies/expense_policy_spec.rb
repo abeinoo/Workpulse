@@ -55,6 +55,12 @@ RSpec.describe ExpensePolicy, type: :policy do
       expect { described_class.new(owner, Expense).create? }.not_to raise_error
       expect(described_class.new(owner, Expense).create?).to be false
     end
+
+    it "create? on the bare class is also false, without error, for a branch-scoped manager" do
+      expect { described_class.new(manager, Expense).create? }.not_to raise_error
+      expect(described_class.new(manager, Expense).create?).to be false
+      expect(described_class.new(manager, Expense).new?).to be true
+    end
   end
 
   describe "full create workflow by role" do

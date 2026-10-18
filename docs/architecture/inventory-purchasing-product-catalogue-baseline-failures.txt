@@ -17,6 +17,7 @@
 #   x6, barcode_labels:36, products_barcode:50, operations_dashboard_policy x3, payroll_period_policy:217,
 #   expense_policy:54); stock_issue_importer_spec:143 fails on main and is listed in next-pilot-selection.md §18.9.
 #   None touches Brand or ProductCategory.
+# 2026-10-18: stock_count_poster_spec.rb was deleted with the unused Inventory::StockCountPoster (superseded by StockCountApprover in 5563208); its 6 IDs were removed from this file. Totals above are as recorded at the time.
 #
 # set spec/characterization/inventory_purchasing
 # set spec/requests/security
@@ -33,9 +34,3 @@ rspec ./spec/policies/payroll_period_policy_spec.rb:217
 rspec ./spec/requests/inventory/barcode_labels_spec.rb:36
 rspec ./spec/requests/inventory/products_barcode_spec.rb:50
 rspec ./spec/services/inventory/imports/stock_issue_importer_spec.rb:143
-rspec ./spec/services/inventory/stock_count_poster_spec.rb:25
-rspec ./spec/services/inventory/stock_count_poster_spec.rb:37
-rspec ./spec/services/inventory/stock_count_poster_spec.rb:50
-rspec ./spec/services/inventory/stock_count_poster_spec.rb:55
-rspec ./spec/services/inventory/stock_count_poster_spec.rb:63
-rspec ./spec/services/inventory/stock_count_poster_spec.rb:76

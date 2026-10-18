@@ -12,6 +12,7 @@
 #   dashboard_spec:432/460, payroll_period_policy_spec:217, expense_policy_spec:54.
 # Used: M1 (this set + the 3 new spec/characterization/organization_access/*membership* files): 1606 examples,
 #   the same 33 failures, 0 pending.
+# 2026-10-18: payroll_waive_scope_spec.rb was deleted with the retired PATCH /api/v1/payroll_line_items/:id/waive (D1/AP-D2; docs/api/baseline.md); its 17 IDs and its # set line were removed from this file. Totals above are as recorded at the time.
 #
 rspec ./spec/policies/expense_policy_spec.rb:54
 rspec ./spec/policies/operations_dashboard_policy_spec.rb:15
@@ -27,23 +28,6 @@ rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:170
 rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:175
 rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:181
 rspec ./spec/requests/api/v1/payroll_visibility_spec.rb:186
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:100
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:115
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:130
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:142
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:150
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:155
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:169
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:174
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:187
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:206
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:211
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:216
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:231
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:268
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:73
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:79
-rspec ./spec/requests/api/v1/payroll_waive_scope_spec.rb:88
 rspec ./spec/requests/dashboard_spec.rb:432
 rspec ./spec/requests/dashboard_spec.rb:460
 #
@@ -101,7 +85,6 @@ rspec ./spec/requests/dashboard_spec.rb:460
 # set spec/policies/user_policy_spec.rb
 # set spec/requests/api/v1/employee_request_scope_spec.rb
 # set spec/requests/api/v1/payroll_visibility_spec.rb
-# set spec/requests/api/v1/payroll_waive_scope_spec.rb
 # set spec/requests/api/v1/security/cross_business_authorization_spec.rb
 # set spec/requests/dashboard_spec.rb
 # set spec/requests/employee_request_reviewer_visibility_spec.rb

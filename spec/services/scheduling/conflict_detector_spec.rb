@@ -66,10 +66,13 @@ RSpec.describe Scheduling::ConflictDetector do
       end
     end
 
+    # A ShiftAssignment must name its branch (branch membership is shift-driven),
+    # so an assignment without one can never be created.
     context "when branch is nil" do
-      it "returns :valid even without a branch" do
+      it "blocks the assignment — a branch is required" do
         result = detect(branch: nil)
-        expect(result.valid?).to be true
+        expect(result.blocked?).to be true
+        expect(result.reason).to eq(ShiftAssignment.new(branch: nil).tap(&:validate).errors.full_messages_for(:branch).first)
       end
     end
   end

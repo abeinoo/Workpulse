@@ -17,4 +17,16 @@ RSpec.configure do |config|
   config.before(:each, type: :system) do
     driven_by :selenium_chrome_headless_local
   end
+
+  # Capybara reuses one Chrome session across examples, and a CDP viewport
+  # override (Emulation.setDeviceMetricsOverride, used by the responsive specs)
+  # outlives the example that set it. Left in place, a 390px mobile override
+  # silently becomes the next example's viewport (e.g. the purchase-request specs
+  # then see the phone layout). Reset it so every example starts at the
+  # configured window size. Config-level after hooks run after the group-level
+  # teardown, so failure screenshots still capture the emulated viewport.
+  config.after(:each, type: :system) do
+    browser = page.driver.browser
+    browser.execute_cdp("Emulation.clearDeviceMetricsOverride") if browser.respond_to?(:execute_cdp)
+  end
 end

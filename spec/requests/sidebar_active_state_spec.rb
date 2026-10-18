@@ -217,7 +217,8 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
       expect(section_hrefs("home")).to eq([ root_path, operations_dashboard_path ])
       # Employee pages, then the two employee workspaces (Attendance & Shifts
       # opens on its first section, attendance logs; Performance on its dashboard).
-      expect(section_hrefs("employees")).to eq([ admin_users_path, admin_employee_obligations_path, payroll_periods_path,
+      expect(section_hrefs("employees")).to eq([ admin_users_path, employee_data_requests_path,
+                                                 admin_employee_obligations_path, payroll_periods_path,
                                                  adjustments_path, employee_requests_path,
                                                  attendance_records_path, performance_root_path ])
       workspace_entries = html.css('.sidebar [data-sidebar-group-key-value="employees"] a.sidebar__nav-item--workspace')
@@ -228,7 +229,7 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
       # and evaluation templates moved into the Performance workspace.
       expect(section_hrefs("administration")).to eq([ admin_branches_path, admin_biometric_devices_path,
                                                       admin_permission_roles_path, admin_settings_path,
-                                                      admin_departments_path ])
+                                                      admin_departments_path, admin_job_titles_path ])
       # No attendance/shift or performance child page is linked from the main sidebar.
       sidebar = html.css(".sidebar a").map { |a| a["href"] }
       expect(sidebar).not_to include(admin_shifts_path, shift_assignments_path, admin_shift_rule_profiles_path,
@@ -291,13 +292,15 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
     end
 
     it "keeps a filtered group collapsible while two or more of its pages remain" do
-      sign_in user_with(:view_employees, :manage_obligations, :manage_settings)
+      # manage_branches is the user's only Administration permission. (manage_settings
+      # would now show two pages — Settings and Job Titles, see JobTitlePolicy#index?.)
+      sign_in user_with(:view_employees, :manage_obligations, :manage_branches)
       get root_path
       expect(collapsible_keys).to include("employees")
       expect(section_hrefs("employees")).to eq([ admin_users_path, admin_employee_obligations_path ])
       # …while Administration, down to one visible page for this user, renders plain.
       expect(plain_keys).to include("administration")
-      expect(section_hrefs("administration")).to eq([ admin_settings_path ])
+      expect(section_hrefs("administration")).to eq([ admin_branches_path ])
     end
   end
 

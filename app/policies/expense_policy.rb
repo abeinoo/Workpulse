@@ -3,8 +3,11 @@ class ExpensePolicy < ApplicationPolicy
   def show?   = (can?(:view_expenses) && same_business?) || own_expense?
 
   # new? (blank form) only needs the permission; the branch isn't chosen yet.
+  # create? needs a concrete expense (its branch/allocations decide write scope),
+  # so a class-level check is false rather than reaching instance-only methods;
+  # class-level buttons use new?.
   def new?    = can?(:create_expenses)
-  def create? = can?(:create_expenses) && same_business? &&
+  def create? = !record.is_a?(Class) && can?(:create_expenses) && same_business? &&
                 branches_writable?(:create_expenses, :view_expenses)
 
   # Editable while not yet committed (draft / pending / rejected). Once approved

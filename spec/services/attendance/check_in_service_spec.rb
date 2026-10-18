@@ -54,6 +54,10 @@ RSpec.describe Attendance::CheckInService do
     # business day, not a new calendar day. UTC business so wall-clock == work_date math.
     let(:business) { create(:business, timezone: "UTC", business_day_start_hour: 6) }
 
+    # These examples travel_to fixed May 2026 dates, so the assignment must already
+    # be in effect then — the outer one starts 1.month.ago relative to the real clock.
+    before { ShiftAssignment.where(user: user).update_all(effective_from: Date.new(2026, 1, 1)) }
+
     it "assigns a 02:00 check-in to the previous business day" do
       travel_to Time.utc(2026, 5, 24, 2, 0, 0) do
         result = call

@@ -48,10 +48,15 @@ RSpec.describe "Inventory products barcode endpoints", type: :request do
     end
 
     it "marks the barcode as primary when the product has no primary barcode" do
+      # A new product gets an auto-generated primary barcode (Product#auto_generate_barcode),
+      # so remove it to reach the scenario under test: a product with no barcodes at all.
+      product.product_barcodes.delete_all
+      expect(product.product_barcodes.reload).to be_empty
+
       post generate_barcode_inventory_product_path(product), as: :json
       body = JSON.parse(response.body)
       expect(body["is_primary"]).to be true
-      expect(product.product_barcodes.reload.where(is_primary: true).count).to eq(1)
+      expect(product.product_barcodes.reload.where(is_primary: true).pluck(:id)).to eq([ body["id"] ])
     end
 
     it "does not make the new barcode primary when a primary already exists" do

@@ -27,6 +27,11 @@ RSpec.describe "Payroll review approval paths", type: :request do
   end
 
   let(:period) { create(:payroll_period, business: business, status: "under_review", period_month: 7, period_year: 2026) }
+  # The Branch Manager reaches the under_review period as a branch reviewer —
+  # through the review for the branch they manage (PayrollPeriodPolicy::Scope).
+  let!(:bm_branch_review) do
+    create(:payroll_period_branch_review, payroll_period: period, branch: bm_branch, reviewer: branch_manager)
+  end
   let!(:entry) do
     create(:payroll_entry, payroll_period: period, user: employee,
            base_salary: 5_000.0, net_salary: 5_000.0, total_bonuses: 0.0, total_deductions: 0.0)

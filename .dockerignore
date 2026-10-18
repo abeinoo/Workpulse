@@ -49,3 +49,7 @@
 # Ignore Docker-related files
 /.dockerignore
 /Dockerfile*
+
+# Never send the production database dump into a build context or image
+# (the Dockerfile copies the whole context with `COPY . .`).
+/production.sql

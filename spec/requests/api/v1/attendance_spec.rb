@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe "API V1 Attendance", type: :request do
+  # Assignments for the examples that travel_to fixed May 2026 dates must already
+  # be in effect then; a date relative to the real clock (1.month.ago) is not.
+  let(:assignment_start) { Date.new(2026, 1, 1) }
+
   let(:business)    { create(:business) }
   let(:branch)      { create(:branch, business: business) }
   let(:user)        { create(:user, business: business) }
@@ -64,7 +68,7 @@ RSpec.describe "API V1 Attendance", type: :request do
 
       before do
         create(:shift_assignment, user: cairo_user, branch: cairo_branch, shift: shift,
-               effective_from: 1.month.ago.to_date)
+               effective_from: assignment_start)
         sign_in cairo_user
       end
 
@@ -131,7 +135,7 @@ RSpec.describe "API V1 Attendance", type: :request do
 
       before do
         create(:shift_assignment, user: utc_user, branch: utc_branch, shift: shift,
-               effective_from: 1.month.ago.to_date)
+               effective_from: assignment_start)
         sign_in utc_user
       end
 
@@ -322,7 +326,7 @@ RSpec.describe "API V1 Attendance", type: :request do
 
     before do
       create(:shift_assignment, user: early_user, branch: early_branch, shift: shift,
-             effective_from: 1.month.ago.to_date)
+             effective_from: assignment_start)
       sign_in early_user
     end
 
