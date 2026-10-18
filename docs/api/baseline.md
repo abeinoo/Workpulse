@@ -114,6 +114,19 @@ business-wide authority. Regression tests:
 `spec/requests/api/v1/security/cross_business_authorization_spec.rb`. The rows
 above are kept as the historical baseline. D1–D8 remain open.
 
+**Status update (2026-10-18, D1 retired):** `PATCH /api/v1/payroll_line_items/:id/waive`
+is removed — route and `Api::V1::PayrollLineItemsController#waive` — because it
+always failed (it called the removed `waive?`) and had no client. It is not
+replaced: waiving a deduction stays web-only through `Payroll::DeductionWaiver`
+behind `PayrollLineItemPolicy#waive_deduction?` (reason required, restorable),
+which `d950781` introduced in place of the review-layer waive. The route now
+answers 404 and is no longer in `openapi.yaml`.
+`spec/requests/api/v1/payroll_waive_scope_spec.rb` (the 17 failures in §5, which
+pinned the pre-`d950781` behaviour) is replaced by
+`spec/requests/api/v1/payroll_line_item_scope_spec.rb`, which keeps its scope
+checks on the remaining `approve` action and pins the retirement. The rows above
+are kept as the historical baseline. D2–D8 remain open.
+
 ## 5. Pre-existing failing specs (not caused by this phase)
 
 All 96 failures exist on unchanged `main`. None is caused or fixed by this phase.

@@ -27,7 +27,15 @@ RSpec.describe "Punch correction ↔ payroll period locking (two connections)" d
     dirty = self.class.data_tables(conn).select do |table|
       conn.select_value("SELECT EXISTS (SELECT 1 FROM #{conn.quote_table_name(table)})")
     end
-    raise "test database not empty (#{dirty.first(5).join(', ')}…): refusing to run a truncating spec" if dirty.any?
+    next if dirty.empty?
+
+    # Name the leftover rows so an intermittent leak from an earlier example can
+    # be traced (which business, created when) — the guard still refuses to run.
+    leftovers = dirty.first(5).map do |table|
+      rows = conn.select_rows("SELECT * FROM #{conn.quote_table_name(table)} ORDER BY 1 LIMIT 3")
+      "#{table}: #{conn.select_value("SELECT COUNT(*) FROM #{conn.quote_table_name(table)}")} row(s), first #{rows.inspect[0, 400]}"
+    end
+    raise "test database not empty (#{dirty.first(5).join(', ')}…): refusing to run a truncating spec\n  #{leftovers.join("\n  ")}"
   end
 
   after do

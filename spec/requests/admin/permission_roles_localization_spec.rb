@@ -37,6 +37,15 @@ RSpec.describe "Admin::PermissionRoles localization", type: :request do
         expected_dir = locale == "ar" ? 'dir="rtl"' : 'dir="ltr"'
         expect(response.body).to include(expected_dir)
       end
+
+      it "shows the translated Manage Bank Disputes and Ignore Deposits labels and descriptions" do
+        get edit_admin_permission_role_path(role)
+
+        %w[manage_bank_disputes ignore_deposits].product(%w[permissions permission_descriptions]).each do |perm, section|
+          text = I18n.t("admin.permission_roles.#{section}.#{perm}", locale: locale)
+          expect(response.body).to include(ERB::Util.html_escape(text))
+        end
+      end
     end
   end
 

@@ -4,17 +4,26 @@ RSpec.describe "Inventory barcode labels", type: :request do
   let(:business) { create(:business) }
   let(:owner)    { create(:user, :super_admin, business: business) }
 
+  # Created WITH its barcodes, so Product#auto_generate_barcode (which only fills a
+  # new product that has none) adds nothing: the product holds exactly these two.
   let!(:product) do
-    p = business.products.create!(name: "Argan Oil", sku: "AO-1",
-                                  initial_cost_price: 10, average_cost_price: 10,
-                                  selling_markup_percentage: 50)
-    p.product_barcodes.create!(barcode: "6291041500213", barcode_type: "manufacturer", is_primary: true)
-    p.product_barcodes.create!(barcode: "10000001",      barcode_type: "internal",     is_primary: false)
-    p
+    business.products.create!(
+      name: "Argan Oil", sku: "AO-1",
+      initial_cost_price: 10, average_cost_price: 10, selling_markup_percentage: 50,
+      product_barcodes_attributes: [
+        { barcode: "6291041500213", barcode_type: "manufacturer", is_primary: true },
+        { barcode: "10000001",      barcode_type: "internal",     is_primary: false }
+      ]
+    )
   end
 
-  let(:manufacturer_bc) { product.product_barcodes.find_by(barcode_type: "manufacturer") }
-  let(:internal_bc)     { product.product_barcodes.find_by(barcode_type: "internal") }
+  let(:manufacturer_bc) { product.product_barcodes.find_by!(barcode: "6291041500213") }
+  let(:internal_bc)     { product.product_barcodes.find_by!(barcode: "10000001") }
+
+  it "sets up a product with exactly the two barcodes the examples describe" do
+    expect(product.product_barcodes.pluck(:barcode, :barcode_type, :is_primary))
+      .to contain_exactly([ "6291041500213", "manufacturer", true ], [ "10000001", "internal", false ])
+  end
 
   before { sign_in owner }
 
@@ -74,10 +83,10 @@ RSpec.describe "Inventory barcode labels", type: :request do
 
   describe "GET /inventory/barcode_labels" do
     let!(:product2) do
-      p = business.products.create!(name: "Conditioner", sku: "CO-1",
-                                    initial_cost_price: 8, average_cost_price: 8)
-      p.product_barcodes.create!(barcode: "6291041500220", barcode_type: "manufacturer", is_primary: true)
-      p
+      business.products.create!(
+        name: "Conditioner", sku: "CO-1", initial_cost_price: 8, average_cost_price: 8,
+        product_barcodes_attributes: [ { barcode: "6291041500220", barcode_type: "manufacturer", is_primary: true } ]
+      )
     end
 
     it "renders labels for all specified products" do

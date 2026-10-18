@@ -23,7 +23,8 @@ RSpec.describe Scheduling::TemplatePreviewer do
   subject do
     described_class.call(
       template:  template,
-      employees: [ employee ]
+      employees: [ employee ],
+      branch:    branch
     )
   end
 
@@ -91,7 +92,8 @@ RSpec.describe Scheduling::TemplatePreviewer do
       other_employee = create(:user, business: business)
       rows = described_class.call(
         template:  template,
-        employees: [ employee, other_employee ]
+        employees: [ employee, other_employee ],
+        branch:    branch
       )
       expect(rows.size).to eq(2)
       expect(rows.map(&:user)).to contain_exactly(employee, other_employee)
@@ -105,9 +107,23 @@ RSpec.describe Scheduling::TemplatePreviewer do
              starts_on:      starts_on + 10.days)
       rows = described_class.call(
         template:  template,
-        employees: [ employee ]
+        employees: [ employee ],
+        branch:    branch
       )
       expect(rows.size).to eq(2)
+    end
+
+    it "checks every row against the branch selected when applying, not the entry's own" do
+      other_branch = create(:branch, business: business)
+      create(:shift_assignment, user: employee, branch: other_branch, shift: shift,
+             effective_from: starts_on - 60.days, effective_to: starts_on - 30.days)
+      rows = described_class.call(template: template, employees: [ employee ], branch: other_branch)
+      expect(rows.first.conflict).to be_nil # employee has history at other_branch → no mismatch warning
+    end
+
+    it "requires a branch" do
+      expect { described_class.call(template: template, employees: [ employee ], branch: nil) }
+        .to raise_error(ArgumentError, /branch is required/)
     end
 
     it "returns empty when the template has no entries" do

@@ -1266,6 +1266,13 @@ tbody td {
   }
   .gr-table .action-group { justify-content: flex-end; }  /* عرض lines up across rows */
 }
+/* Narrow desktops (e.g. 1024px with a classic, space-taking scrollbar): every
+   cell stays on one line, so tighter cell padding is what lets the whole table
+   fit without horizontal scroll. Wider screens keep the roomier spacing. */
+@media (min-width: 769px) and (max-width: 1199px) {
+  .gr-table thead th,
+  .gr-table tbody td { padding-inline: var(--space-2); }
+}
 
 /* Record header (show pages): number + status, then the action group. */
 .record-header {
@@ -15101,7 +15108,7 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
 .pr-list__actions .action-group { justify-content: flex-end; }
 
 /* Receiving: status badge first, numbers + a thin bar secondary. */
-.pr-progress { display: grid; gap: 4px; min-width: 120px; }
+.pr-progress { display: grid; gap: 4px; min-width: 96px; }
 .pr-progress .badge { justify-self: start; }
 .pr-progress__numbers { font-size: var(--text-xs); color: var(--text-2); font-variant-numeric: tabular-nums; }
 .pr-progress__bar {
@@ -15135,7 +15142,7 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
 }
 
 /* ── Card layout ─────────────────────────────────────────────────────── */
-@container pr-list (max-width: 919px) {
+@container pr-list (max-width: 899px) {
   .pr-list__table { border: none; border-radius: 0; overflow: visible; }
   .pr-list__table table {
     display: grid;
@@ -15217,8 +15224,9 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
 }
 /* English (LTR) needs ~1096px for the table (longer labels) — more than the
    page ever gives the list (max ~1002px) — so LTR stays in cards up to 1099px.
-   Same rules as above, scoped to LTR. Arabic fits from ~920px. */
-@container pr-list (min-width: 920px) and (max-width: 1099px) {
+   Same rules as above, scoped to LTR. Arabic fits from ~900px — measured with a
+   classic (space-taking) scrollbar, which leaves the list ~911px on a 1440px screen. */
+@container pr-list (min-width: 900px) and (max-width: 1099px) {
   html:not([dir="rtl"]) .pr-list__table { border: none; border-radius: 0; overflow: visible; }
   html:not([dir="rtl"]) .pr-list__table table {
     display: grid;

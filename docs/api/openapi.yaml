@@ -1066,15 +1066,9 @@ paths:
   /api/v1/payroll_line_items/{id}/reject:
     parameters: [{ $ref: "#/components/parameters/Id" }]
     patch: *lineItemReview
-  /api/v1/payroll_line_items/{id}/waive:
-    parameters: [{ $ref: "#/components/parameters/Id" }]
-    patch:
-      tags: [Payroll]
-      summary: Waive a line item — BROKEN
-      deprecated: true
-      description: "KNOWN DEFECT D1 (docs/api/baseline.md): always fails with HTTP 500 (calls removed policy method waive?)."
-      responses:
-        "500": { description: Internal server error. }
+  # PATCH /api/v1/payroll_line_items/{id}/waive was retired (docs/api/baseline.md → D1):
+  # it always failed with HTTP 500 and had no client. Waiving a deduction is web-only
+  # (Payroll::DeductionWaiver, PayrollLineItemPolicy#waive_deduction?).
 
   /api/v1/reports/payroll/summary:
     get:

@@ -97,8 +97,21 @@ RSpec.describe "Finance::DailyReconciliations day close editing", type: :request
       expect(dr.session_amounts.find_by(payment_method: cash_pm).collected_amount).to eq(7_250)
 
       follow_redirect!
-      expect(response.body).to include(I18n.t("finance.daily_reconciliations.show.timeline.day_close_edited",
-                                              actor: manager.full_name))
+      expect(response.body).to include(html_escaped(I18n.t("finance.daily_reconciliations.show.timeline.day_close_edited",
+                                                           actor: manager.full_name)))
+    end
+
+    # The timeline names the editor; a name with an apostrophe is rendered
+    # HTML-escaped (CI run #265 failed only because Faker generated "O'Keefe").
+    it "logs the timeline event for an editor whose name contains an apostrophe" do
+      manager.update!(last_name: "O'Keefe")
+      sign_in manager
+      submit
+      follow_redirect!
+
+      event = I18n.t("finance.daily_reconciliations.show.timeline.day_close_edited", actor: manager.full_name)
+      expect(response.body).to include(html_escaped(event))
+      expect(response.body).to include("O&#39;Keefe")
     end
 
     it "requires a reason" do

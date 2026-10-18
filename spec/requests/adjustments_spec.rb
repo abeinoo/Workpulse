@@ -480,7 +480,7 @@ RSpec.describe "Adjustments workflow", type: :request do
         get adjustment_path(adjustment)
 
         expect(response.body).to include(I18n.t("adjustments.show.approved_by"))
-        expect(response.body).to include(approver.full_name)
+        expect(response.body).to include(html_escaped(approver.full_name))
         # Approved adjustments are immutable — no approve or remove buttons.
         expect(response.body).not_to include(approve_adjustment_path(adjustment))
         expect(response.body).not_to include(I18n.t("adjustments.remove"))
@@ -724,7 +724,8 @@ RSpec.describe "Adjustments workflow", type: :request do
                permissions: %w[view_payroll])
       end
       let(:payroll_manager) { create(:user, business: business, permission_role: payroll_role) }
-      # Payroll managers can see submitted periods but NOT drafts (draft is accounting-only).
+      # view_payroll alone opens neither drafts (accounting-only) nor the review
+      # pipeline: under_review needs a pipeline permission or a branch review.
       let(:submitted_period) do
         create(:payroll_period, :under_review, business: business,
                period_month: 5, period_year: 2026)
@@ -737,9 +738,9 @@ RSpec.describe "Adjustments workflow", type: :request do
         expect(response).to have_http_status(:ok)
       end
 
-      it "can view a submitted (under_review) payroll period" do
+      it "cannot view a submitted (under_review) payroll period — review stage needs a pipeline permission" do
         get payroll_period_path(submitted_period)
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:not_found)
       end
 
       it "cannot view a draft payroll period — draft is accounting-only" do

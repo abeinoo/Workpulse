@@ -4,7 +4,8 @@ RSpec.describe ShiftAssignment, type: :model do
   describe "associations" do
     it { is_expected.to belong_to(:user) }
     it { is_expected.to belong_to(:shift) }
-    it { is_expected.to belong_to(:branch).optional }
+    # Branch membership is shift-driven: every assignment names its branch.
+    it { is_expected.to belong_to(:branch).required }
   end
 
   describe "validations" do

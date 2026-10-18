@@ -422,7 +422,7 @@ RSpec.describe "Dashboard", type: :request do
     context "admin with business-wide permissions but no relationship assignments" do
       let(:admin_role) do
         create(:permission_role, business: business,
-               permissions: %w[view_attendance view_payroll view_requests approve_requests view_employees],
+               permissions: %w[view_attendance view_payroll view_requests approve_requests view_employees view_dashboard],
                permission_scopes: { "view_attendance" => "business_wide" })
       end
       let(:admin) { create(:user, business: business, permission_role: admin_role) }
@@ -444,13 +444,25 @@ RSpec.describe "Dashboard", type: :request do
         expect(response.body).to include(payroll_marker)    # payroll
         expect(response.body).to include(analytics_marker)  # business analytics
       end
+
+      # Business analytics is gated by view_dashboard on top of business-wide
+      # attendance (DashboardController#show_analytics_section?, b84dde3).
+      it "does not see business analytics without view_dashboard, even with business-wide attendance" do
+        admin_role.update!(permissions: admin_role.permissions - %w[view_dashboard])
+        sign_in admin
+        get root_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include(area_marker)
+        expect(response.body).not_to include(analytics_marker)
+      end
     end
 
     # 10. Multi-role — branch manager + payroll + business-wide attendance ──
     context "multi-role user (branch manager + business-wide attendance + payroll)" do
       let(:multi_role) do
         create(:permission_role, business: business,
-               permissions: %w[view_attendance view_payroll view_requests approve_requests view_shifts assign_shifts],
+               permissions: %w[view_attendance view_payroll view_requests approve_requests view_shifts assign_shifts view_dashboard],
                permission_scopes: { "view_attendance" => "business_wide" })
       end
       let(:user) { create(:user, business: business, permission_role: multi_role) }

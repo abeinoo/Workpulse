@@ -187,7 +187,9 @@
             <th><%= t("inventory.goods_receipts.settlements.source") %></th>
             <th><%= t("inventory.goods_receipts.settlements.reference") %></th>
             <th><%= t("inventory.goods_receipts.settlements.recorded_by") %></th>
-            <th style="min-width: 180px;"><%= t("inventory.goods_receipts.settlements.status") %></th>
+            <%# 150px keeps the badge and its reversal note readable while the whole
+                table still fits a 1024px screen with a classic (space-taking) scrollbar. %>
+            <th style="min-width: 150px;"><%= t("inventory.goods_receipts.settlements.status") %></th>
           </tr></thead>
           <tbody>
             <% @settlements.each do |settlement| %>

@@ -24,6 +24,7 @@ RSpec.describe Scheduling::TemplateApplier do
     described_class.call(
       template:   overrides.fetch(:template, template),
       employees:  overrides.fetch(:employees, [ employee ]),
+      branch:     overrides.fetch(:branch, branch),
       created_by: overrides.fetch(:created_by, creator)
     )
   end
@@ -54,6 +55,11 @@ RSpec.describe Scheduling::TemplateApplier do
         expect(assignment.source_template).to eq(template)
       end
 
+      it "creates the assignment at the branch selected when applying (entries carry no branch)" do
+        apply
+        expect(ShiftAssignment.last.branch).to eq(branch)
+      end
+
       it "sets the correct date range on the assignment from entry dates" do
         apply
         assignment = ShiftAssignment.last
@@ -81,7 +87,7 @@ RSpec.describe Scheduling::TemplateApplier do
         create(:shift_assignment,
                user:           employee,
                shift:          shift,
-               branch:         nil,
+               branch:         branch,
                effective_from: starts_on - 60.days,
                effective_to:   nil)
       end
@@ -111,7 +117,7 @@ RSpec.describe Scheduling::TemplateApplier do
       end
     end
 
-    context "with multiple entries for different branches" do
+    context "with multiple entries, one still carrying a branch of its own" do
       let(:branch_b) { create(:branch, business: business) }
       let(:shift_b)  { create(:shift, :hour_based, business: business) }
 
@@ -120,13 +126,38 @@ RSpec.describe Scheduling::TemplateApplier do
                shift_template: template,
                shift:          shift_b,
                branch:         branch_b,
+               starts_on:      ends_on + 1.day,
+               ends_on:        ends_on + 30.days)
+      end
+
+      it "creates one assignment per entry, all at the selected branch" do
+        expect { apply }.to change(ShiftAssignment, :count).by(2)
+        expect(ShiftAssignment.where(source_template: template).pluck(:branch_id).uniq).to eq([ branch.id ])
+      end
+    end
+
+    # One branch per application: two entries whose dates overlap now meet at
+    # the same branch, where the existing overlap rule keeps only the first.
+    context "with two entries whose dates overlap" do
+      before do
+        create(:shift_template_entry,
+               shift_template: template,
+               shift:          create(:shift, :hour_based, business: business),
+               branch:         nil,
                starts_on:      starts_on + 1.day,
                ends_on:        ends_on)
       end
 
-      it "creates one assignment per entry" do
-        expect { apply }.to change(ShiftAssignment, :count).by(2)
+      it "creates the first and reports the overlapping one as a row error" do
+        result = nil
+        expect { result = apply }.to change(ShiftAssignment, :count).by(1)
+        expect(result.skipped + result.row_errors.size).to eq(1)
       end
+    end
+
+    it "refuses to run without a branch, writing nothing" do
+      expect { apply(branch: nil) }.to raise_error(ArgumentError, /branch is required/)
+      expect(ShiftAssignment.count).to eq(0)
     end
 
     it "returns empty result when template has no entries" do

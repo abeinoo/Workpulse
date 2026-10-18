@@ -31,9 +31,12 @@ RSpec.describe "Payroll Scope Visibility", type: :request do
   let!(:entry_a)  { create(:payroll_entry, payroll_period: period, user: employee_a, base_salary: 5_000.0, net_salary: 4_800.0) }
   let!(:entry_b)  { create(:payroll_entry, payroll_period: period, user: employee_b, base_salary: 3_000.0, net_salary: 2_900.0) }
 
+  # The period is under_review, which view_payroll alone does not open
+  # (PayrollPeriodPolicy::Scope): a branch manager reaches it as a branch reviewer,
+  # through the PayrollPeriodBranchReview for their own branch (created below).
   let(:manager_role) do
     create(:permission_role, business: business,
-           permissions: %w[view_payroll view_payroll_analytics view_employees],
+           permissions: %w[view_payroll view_payroll_analytics view_employees complete_branch_review],
            permission_scopes: {})
   end
 
@@ -47,6 +50,8 @@ RSpec.describe "Payroll Scope Visibility", type: :request do
     # Scope is resolved by EmployeeScope via the branch_manager_id relationship.
     manager_a.update_column(:permission_role_id, manager_role.id)
     manager_b.update_column(:permission_role_id, manager_role.id)
+    create(:payroll_period_branch_review, payroll_period: period, branch: branch_a, reviewer: manager_a)
+    create(:payroll_period_branch_review, payroll_period: period, branch: branch_b, reviewer: manager_b)
   end
 
   # ── Entries index ──────────────────────────────────────────────────────────
@@ -105,6 +110,13 @@ RSpec.describe "Payroll Scope Visibility", type: :request do
       data = fetch_summary(accountant)
       expect(data["totals"]["employees"]).to eq(2)
       expect(data["totals"]["base_salary"]).to eq(8_000.0)
+    end
+
+    it "a branch manager without a branch review for their branch cannot read the under_review summary" do
+      PayrollPeriodBranchReview.where(payroll_period: period, branch: branch_a).delete_all
+      sign_in manager_a
+      get "/api/v1/reports/payroll/summary", params: { payroll_period_id: period.id }, as: :json
+      expect(response).to have_http_status(:not_found)
     end
 
     it "branch manager A summary reflects only branch A" do

@@ -462,9 +462,11 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
 
     let(:records_only) { payroll_user(:view_payroll) }
     let(:analyst)      { payroll_user(:view_payroll, :view_payroll_analytics) }
-    # Use under_review so view_payroll users (who can't see draft) can access the period.
-    # Draft visibility is restricted to accounting-level users (create/submit/finalize/etc).
-    let!(:period)      { create(:payroll_period, :under_review, business: business) }
+    # A finalized period: view_payroll holders (business_wide scope) can open it, so
+    # the show-page checks compare real pages. Neither user holds a pipeline
+    # permission, so draft and under_review periods are not visible to either
+    # (PayrollPeriodPolicy::Scope) — pinned separately below.
+    let!(:period)      { create(:payroll_period, :finalized, business: business) }
     let!(:other_user)  { create(:user, business: business) }
     let!(:entry)       { create(:payroll_entry, payroll_period: period, user: other_user,
                                 base_salary: 5000, total_overtime: 200,
@@ -499,15 +501,24 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
       expect(body).not_to include(I18n.t("payroll.index.net_total_col"))
     end
 
+    # Each show check first asserts 200, so an error page can never satisfy it.
     it "records-only user does NOT see period overview metrics on show" do
-      body = get_html(records_only, payroll_period_path(period)).body
-      expect(body).not_to include("payroll-overview"),
+      response = get_html(records_only, payroll_period_path(period))
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("payroll-overview"),
         "records-only user must not see period-level financial aggregates"
     end
 
     it "records-only user does NOT see anomaly alerts on show" do
-      body = get_html(records_only, payroll_period_path(period)).body
-      expect(body).not_to include("payroll-alerts")
+      response = get_html(records_only, payroll_period_path(period))
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("payroll-alerts")
+    end
+
+    it "records-only user cannot open an under_review period (review stage needs a pipeline permission)" do
+      under_review = create(:payroll_period, :under_review, business: business, period_month: 1, period_year: 2025)
+      create(:payroll_entry, payroll_period: under_review, user: other_user)
+      expect(get_html(records_only, payroll_period_path(under_review))).to have_http_status(:not_found)
     end
 
     it "records-only user is denied the payroll dashboard" do
@@ -546,7 +557,9 @@ RSpec.describe "Permission matrix — behavioral verification", type: :request d
     end
 
     it "analyst sees period overview metrics on show" do
-      expect(get_html(analyst, payroll_period_path(period)).body).to include("payroll-overview")
+      response = get_html(analyst, payroll_period_path(period))
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("payroll-overview")
     end
 
     it "analyst can access the payroll dashboard" do

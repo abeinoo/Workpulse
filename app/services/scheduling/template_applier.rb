@@ -4,6 +4,10 @@ module Scheduling
   #
   # Blocked rows are skipped. Warning rows proceed (manager confirmed preview).
   # Partial success is reported via the Result struct.
+  #
+  # Every assignment is created at the branch chosen when applying (entries
+  # carry no branch); the caller resolves it from the branches the actor may
+  # assign to, before anything is written.
   class TemplateApplier
     Result = Struct.new(:created, :skipped, :row_errors, keyword_init: true) do
       def success?   = row_errors.empty?
@@ -12,20 +16,24 @@ module Scheduling
 
     RowError = Struct.new(:user_name, :entry_description, :reason, keyword_init: true)
 
-    def self.call(template:, employees:, created_by:)
-      new(template: template, employees: employees, created_by: created_by).call
+    def self.call(template:, employees:, branch:, created_by:)
+      new(template: template, employees: employees, branch: branch, created_by: created_by).call
     end
 
-    def initialize(template:, employees:, created_by:)
+    def initialize(template:, employees:, branch:, created_by:)
+      raise ArgumentError, "branch is required" if branch.nil?
+
       @template   = template
       @employees  = Array(employees)
+      @branch     = branch
       @created_by = created_by
     end
 
     def call
       preview_rows = TemplatePreviewer.call(
         template:  @template,
-        employees: @employees
+        employees: @employees,
+        branch:    @branch
       )
 
       created    = 0
@@ -41,7 +49,7 @@ module Scheduling
         assignment = ShiftAssignment.new(
           user:            row.user,
           shift:           row.entry.shift,
-          branch:          row.entry.branch,
+          branch:          @branch,
           effective_from:  row.effective_from,
           effective_to:    row.effective_to,
           created_by:      @created_by,

@@ -99,14 +99,18 @@ export default class extends Controller {
   _position() {
     const gap     = 2
     const margin  = 8
+    const style   = this.menu.style
+    // Take the menu out of the container's flow BEFORE measuring. While it is
+    // still position:absolute inside the .table-wrap it can overflow it and
+    // briefly add a (classic, space-taking) scrollbar that narrows the table, so
+    // the input would be measured narrower than it settles at.
+    style.position = "fixed"
     const rect    = this.input.getBoundingClientRect()
     const below   = window.innerHeight - rect.bottom - gap - margin
     const above   = rect.top - gap - margin
     const natural = Math.min(this.menu.scrollHeight, 256) // 16rem, as in CSS
     const openUp  = below < natural && above > below
 
-    const style = this.menu.style
-    style.position  = "fixed"
     style.left      = `${rect.left}px`
     style.right     = "auto"
     style.width     = `${rect.width}px`

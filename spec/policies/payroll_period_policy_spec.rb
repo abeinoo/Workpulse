@@ -214,12 +214,29 @@ RSpec.describe PayrollPeriodPolicy, type: :model do
       expect(scope).not_to include(other_period)
     end
 
-    it "branch_manager sees under_review and later periods for the business" do
+    # A branch reviewer (complete_branch_review) sees a review-stage period only
+    # through a PayrollPeriodBranchReview for a branch they manage — view_payroll
+    # does not open the review pipeline business-wide.
+    it "branch_manager sees an under_review period through a branch review for their branch" do
       under_review = create(:payroll_period, :under_review, business: business,
                             period_year: 2025, period_month: 2)
+      create(:payroll_period_branch_review, payroll_period: under_review,
+             branch: Branch.find_by!(branch_manager_id: manager.id), reviewer: manager)
       scope = described_class::Scope.new(manager, PayrollPeriod).resolve
       expect(scope).to     include(under_review)
       expect(scope).not_to include(other_period)
+    end
+
+    it "branch_manager does not see an under_review period without a branch review for their branch" do
+      under_review = create(:payroll_period, :under_review, business: business,
+                            period_year: 2025, period_month: 3)
+      create(:payroll_period_branch_review, payroll_period: under_review,
+             branch: create(:branch, business: business), reviewer: manager)
+      unreviewed = create(:payroll_period, :under_review, business: business,
+                          period_year: 2025, period_month: 4)
+      scope = described_class::Scope.new(manager, PayrollPeriod).resolve
+      expect(scope).not_to include(under_review)
+      expect(scope).not_to include(unreviewed)
     end
 
     it "employee sees only finalized/paid periods where they have an entry" do

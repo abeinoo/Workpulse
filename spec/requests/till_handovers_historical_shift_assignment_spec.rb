@@ -85,7 +85,7 @@ RSpec.describe "TillHandovers — historical reconciliation via a temporary Shif
         get new_till_handover_path(daily_reconciliation_id: nasr_aug18.id)
 
         expect(response).to have_http_status(:ok)
-        expect(response.body).not_to include(shoubra_colleague.full_name)
+        expect(response.body).not_to include(html_escaped(shoubra_colleague.full_name))
       end
     end
 
@@ -93,7 +93,7 @@ RSpec.describe "TillHandovers — historical reconciliation via a temporary Shif
       travel_to Date.new(2026, 8, 20) do
         get new_till_handover_path(daily_reconciliation_id: nasr_aug18.id)
 
-        expect(response.body).to include(nasr_colleague.full_name)
+        expect(response.body).to include(html_escaped(nasr_colleague.full_name))
       end
     end
   end
@@ -154,7 +154,7 @@ RSpec.describe "TillHandovers — historical reconciliation via a temporary Shif
 
         # Falls back to Anton's own CURRENT branch (Shoubra), never Nasr City.
         expect(anton.effective_branch_on(Date.current)).to eq(shoubra)
-        expect(response.body).not_to include(nasr_colleague.full_name)
+        expect(response.body).not_to include(html_escaped(nasr_colleague.full_name))
       end
     end
   end

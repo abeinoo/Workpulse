@@ -101,7 +101,7 @@ class Admin::ShiftTemplatesController < Admin::BaseController
     @template = find_template
     authorize @template, :apply?
 
-    employee_ids = Array(params[:employee_ids]).map(&:to_i).reject(&:zero?)
+    employee_ids = selected_employee_ids
     @employees   = scoped_employees.where(id: employee_ids)
 
     if @template.entries.empty?
@@ -110,15 +110,29 @@ class Admin::ShiftTemplatesController < Admin::BaseController
       render :apply, status: :unprocessable_entity and return
     end
 
-    if @employees.empty?
+    if employee_ids.empty?
       flash.now[:alert] = t("shift_templates.apply.no_employees_selected")
+      load_apply_data
+      render :apply, status: :unprocessable_entity and return
+    end
+
+    unless all_selected_in_scope?(@employees, employee_ids)
+      flash.now[:alert] = t("shift_templates.apply.employees_not_allowed")
+      load_apply_data
+      render :apply, status: :unprocessable_entity and return
+    end
+
+    @branch = selected_branch
+    unless @branch
+      flash.now[:alert] = branch_error_message
       load_apply_data
       render :apply, status: :unprocessable_entity and return
     end
 
     @preview_rows = Scheduling::TemplatePreviewer.call(
       template:  @template,
-      employees: @employees
+      employees: @employees,
+      branch:    @branch
     )
   end
 
@@ -126,17 +140,32 @@ class Admin::ShiftTemplatesController < Admin::BaseController
     @template    = find_template
     authorize @template, :apply?
 
-    employee_ids = Array(params[:employee_ids]).map(&:to_i).reject(&:zero?)
+    employee_ids = selected_employee_ids
     employees    = scoped_employees.where(id: employee_ids)
 
-    if employees.empty?
+    if employee_ids.empty?
       redirect_to apply_admin_shift_template_path(@template),
                   alert: t("shift_templates.apply.no_employees_selected") and return
+    end
+
+    # Any selected employee outside the actor's scope refuses the whole
+    # application before anything is written — never a silent partial apply.
+    unless all_selected_in_scope?(employees, employee_ids)
+      redirect_to apply_admin_shift_template_path(@template),
+                  alert: t("shift_templates.apply.employees_not_allowed") and return
+    end
+
+    # Resolved before anything is written: a missing, foreign or out-of-scope
+    # branch creates no assignments at all.
+    branch = selected_branch
+    unless branch
+      redirect_to apply_admin_shift_template_path(@template), alert: branch_error_message and return
     end
 
     result = Scheduling::TemplateApplier.call(
       template:   @template,
       employees:  employees,
+      branch:     branch,
       created_by: current_user
     )
 
@@ -165,10 +194,56 @@ class Admin::ShiftTemplatesController < Admin::BaseController
 
   def load_apply_data
     @all_employees = scoped_employees.order(:first_name, :last_name)
+    @branches      = assignable_branches.order(:name)
   end
 
+  # The branch every assignment of this application is created at. Only a
+  # branch the actor may assign shifts to resolves; a blank, foreign,
+  # inactive or out-of-scope id resolves to nil.
+  def selected_branch
+    id = params[:branch_id].presence
+    id && assignable_branches.find_by(id: id)
+  end
+
+  def branch_error_message
+    key = params[:branch_id].present? ? "branch_not_allowed" : "branch_required"
+    t("shift_templates.apply.#{key}")
+  end
+
+  # Branches the actor may assign shifts to — the same set the Assign Shift form
+  # offers (ShiftAssignmentsController#load_form_data): every active branch for a
+  # business-wide scope, otherwise the branches they manage, area-manage or
+  # currently belong to.
+  def assignable_branches
+    business = current_user.business
+    scope = current_user.scope_for(:assign_shifts) ||
+            current_user.scope_for(:view_shifts) ||
+            current_user.scope_for(:view_employees)
+    return Branch.for_business(business).active if scope == "business"
+
+    branch_ids = current_user.managed_branch_ids +
+                 current_user.area_managed_branch_ids +
+                 BranchMembership.current_branch_ids(current_user)
+    Branch.for_business(business).active.where(id: branch_ids.uniq)
+  end
+
+  # The employees this user may apply a template to — the same pool the Assign
+  # Shift form uses (ShiftAssignmentsController#scoped_employees): the first
+  # explicitly configured data scope among assign_shifts / view_shifts /
+  # view_employees, otherwise the hierarchy (owner → whole business; managers →
+  # the branches they manage or area-manage).
   def scoped_employees
-    User.where(business: current_user.business).active
+    EmployeeScope.new(current_user)
+                 .for_permissions(:assign_shifts, :view_shifts, :view_employees)
+                 .active
+  end
+
+  def selected_employee_ids
+    Array(params[:employee_ids]).map(&:to_i).reject(&:zero?).uniq
+  end
+
+  def all_selected_in_scope?(employees, employee_ids)
+    employees.count == employee_ids.size
   end
 
   def template_params

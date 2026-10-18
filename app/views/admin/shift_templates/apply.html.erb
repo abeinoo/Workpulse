@@ -45,6 +45,17 @@
   <%= form_with url: preview_apply_admin_shift_template_path(@template), method: :post,
                 data: { turbo: false } do |f| %>
 
+    <%# ── Branch selector: every assignment is created at this branch ── %>
+    <div class="section-card">
+      <h2 class="section-card__title"><%= label_tag :branch_id, t("shift_templates.apply.select_branch") %></h2>
+      <p class="text-muted text-sm"><%= t("shift_templates.apply.branch_hint") %></p>
+      <%= select_tag :branch_id,
+                     options_from_collection_for_select(@branches, :id, :name, params[:branch_id]),
+                     prompt: t("shift_templates.apply.branch_prompt"),
+                     required: true,
+                     class: "form-control" %>
+    </div>
+
     <%# ── Employee selector ── %>
     <div class="section-card">
       <div class="entries-header">

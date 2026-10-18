@@ -17,6 +17,10 @@
     blocked_count = @preview_rows.count(&:blocked?)
   %>
 
+  <p class="preview-branch">
+    <strong><%= t("shift_templates.preview.branch") %>:</strong> <%= @branch.name %>
+  </p>
+
   <div class="preview-summary">
     <div class="preview-stat preview-stat--valid">
       <span class="preview-stat__num"><%= valid_count %></span>
@@ -168,6 +172,8 @@
   <%# ── Confirm form ── %>
   <% if valid_count > 0 || warning_count > 0 %>
     <%= form_with url: apply_confirm_admin_shift_template_path(@template), method: :post do |f| %>
+      <%# Re-validated server-side in apply_confirm — never trusted from the form. %>
+      <%= hidden_field_tag :branch_id, @branch.id %>
       <% @employees.each do |emp| %>
         <input type="hidden" name="employee_ids[]" value="<%= emp.id %>">
       <% end %>

@@ -141,8 +141,8 @@ RSpec.describe "Bank Dispute — depositor mismatch blocking deposit registratio
 
     get finance_bank_dispute_path(dispute)
     expect(response.body).to include(I18n.t("finance.bank_disputes.show.depositor_mismatch_title"))
-    expect(response.body).to include(I18n.t("finance.bank_disputes.show.depositor_mismatch_no_permission",
-                                            opened_by: reporter.full_name))
+    expect(response.body).to include(html_escaped(I18n.t("finance.bank_disputes.show.depositor_mismatch_no_permission",
+                                                         opened_by: reporter.full_name)))
     expect(response.body).not_to include(assign_depositor_finance_daily_reconciliation_path(dr))
   end
 end

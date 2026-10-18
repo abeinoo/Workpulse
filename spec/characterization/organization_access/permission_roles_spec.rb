@@ -33,8 +33,8 @@ RSpec.describe "Characterization: Organization & Access permission roles", type:
                                  permission_role: create(:permission_role, business: business))
       get admin_permission_role_path(role)
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include(member.full_name, unassigned.full_name)
-      expect(response.body).not_to include(elsewhere.full_name)
+      expect(response.body).to include(html_escaped(member.full_name), html_escaped(unassigned.full_name))
+      expect(response.body).not_to include(html_escaped(elsewhere.full_name))
     end
   end
 

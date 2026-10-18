@@ -74,6 +74,35 @@ RSpec.describe "PermissionRole registry translations", type: :model do
     end
   end
 
+  # manage_bank_disputes and ignore_deposits were registered without any
+  # translation, so the Role Permissions form rendered "translation missing" for
+  # them in both locales. Descriptions are optional elsewhere (the form defaults
+  # them to ""), so this pins the label AND description for these two only.
+  %w[manage_bank_disputes ignore_deposits].each do |perm|
+    describe perm do
+      it "is a registered permission" do
+        expect(permissions).to include(perm)
+      end
+
+      [ :en, :ar ].each do |locale|
+        it "has a real #{locale} label and description" do
+          %w[permissions permission_descriptions].each do |section|
+            key = "admin.permission_roles.#{section}.#{perm}"
+            expect(I18n.exists?(key, locale)).to be(true), "#{key} is missing in #{locale}"
+            expect(I18n.t(key, locale: locale)).to be_present
+          end
+        end
+      end
+
+      it "has Arabic text distinct from English for both the label and the description" do
+        %w[permissions permission_descriptions].each do |section|
+          key = "admin.permission_roles.#{section}.#{perm}"
+          expect(I18n.t(key, locale: :ar)).not_to eq(I18n.t(key, locale: :en))
+        end
+      end
+    end
+  end
+
   describe "dependency labels" do
     it "resolves every dependency through the same permission translation key (no separate dependency-label storage)" do
       PermissionRole::PERMISSION_DEPENDENCIES.each_value do |deps|

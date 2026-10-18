@@ -25,17 +25,6 @@ module Api
         handle_result(result)
       end
 
-      def waive
-        authorize @line_item, :waive?
-        result = Payroll::LineItemReviewer.call(
-          line_item:   @line_item,
-          action:      "waive",
-          reviewed_by: current_user,
-          notes:       params[:notes]
-        )
-        handle_result(result)
-      end
-
       private
 
       def set_line_item

@@ -214,7 +214,7 @@ RSpec.describe "Finance::Dashboard", type: :request do
       sign_in owner
       get finance_root_path
 
-      expect(response.body).to include(owner.full_name)
+      expect(response.body).to include(html_escaped(owner.full_name))
       expect(response.body).to match(/less than a minute|\d+ (second|minute|hour)s? ago/)
     end
   end
