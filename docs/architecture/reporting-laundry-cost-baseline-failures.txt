@@ -1,0 +1,26 @@
+# Pilot 11 (Reporting — Laundry labour-cost report) — baseline failing example IDs
+# Purpose: the reference list for every Pilot 11 step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs elsewhere keep their treatment.
+# Recorded at main cd316a7 (origin/main 7cb8d7f + the Finance::Reports::Column autoload fix 565989d + the laundry
+#   cost report security fix cd316a7, both local), 2026-10-18, before any Pilot 11 spec was added, no code changes.
+# Full suite (lazy loading, no CI env), seed 20261006: 9141 examples, 0 failures, 0 pending.
+# Set: Reporting / laundry / finance-report / boundary / security specs below. Reproduce with:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/reporting-laundry-cost-baseline-failures.txt | cut -d' ' -f3)
+# Result at M0: 1016 examples, 0 failures, 0 pending — identical under seeds 20261006, 12345 and 98765 (lazy loading).
+# No failing ID: any failure in this set during Pilot 11 is new and stops the work (migration-pattern.md §7, §10).
+#
+# set spec/architecture
+# set spec/services/laundry
+# set spec/requests/laundry
+# set spec/services/finance/reports
+# set spec/requests/finance/reports_branch_profitability_spec.rb
+# set spec/requests/finance/reports_expense_breakdowns_spec.rb
+# set spec/requests/finance/reports_expense_details_spec.rb
+# set spec/requests/finance/dashboard_spec.rb
+# set spec/requests/finance_laundry_workspace_navigation_spec.rb
+# set spec/requests/sidebar_active_state_spec.rb
+# set spec/requests/inventory/warehouse_access_spec.rb
+# set spec/policies/stock_issue_policy_spec.rb
+# set spec/requests/security
+#
