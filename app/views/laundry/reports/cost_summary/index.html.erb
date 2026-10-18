@@ -30,22 +30,29 @@
     </div>
   <% end %>
 
-  <% unless @summary.has_laundry_branch? %>
+  <% if @summary.multiple_laundry_branches? %>
+    <div class="empty-state" style="margin-top: var(--space-4);"><p class="empty-state__title"><%= t("laundry.reports.cost_summary.multiple_laundry_branches") %></p></div>
+  <% elsif !@summary.has_laundry_branch? %>
     <div class="empty-state" style="margin-top: var(--space-4);"><p class="empty-state__title"><%= t("laundry.reports.cost_summary.no_laundry_branch") %></p></div>
   <% else %>
+    <% unless @summary.payroll_included? %>
+      <div class="alert alert-info" style="margin-top: var(--space-4);"><%= t("laundry.reports.cost_summary.payroll_restricted") %></div>
+    <% end %>
     <div class="stats-grid" style="margin-top: var(--space-4);">
       <div class="stat-card">
         <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.towels_consumed") %></span>
-        <span class="stat-card__value"><%= number_with_precision(@summary.consumption.total_towels, precision: 0) %></span>
+        <span class="stat-card__value"><%= number_with_precision(@summary.standard_towels, precision: 0) %></span>
       </div>
       <div class="stat-card">
         <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.standard_branch_cost") %></span>
-        <span class="stat-card__value"><%= format_currency(@summary.consumption.total_cost) %></span>
+        <span class="stat-card__value"><%= format_currency(@summary.standard_cost) %></span>
       </div>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.payroll_cost") %></span>
-        <span class="stat-card__value"><%= format_currency(@summary.payroll_cost) %></span>
-      </div>
+      <% if @summary.payroll_included? %>
+        <div class="stat-card">
+          <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.payroll_cost") %></span>
+          <span class="stat-card__value"><%= format_currency(@summary.payroll_cost) %></span>
+        </div>
+      <% end %>
       <div class="stat-card">
         <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.direct_expenses") %></span>
         <span class="stat-card__value"><%= format_currency(@summary.direct_expenses) %></span>
@@ -54,42 +61,53 @@
         <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.material_cost") %></span>
         <span class="stat-card__value"><%= format_currency(@summary.material_cost) %></span>
       </div>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.total_actual_cost") %></span>
-        <span class="stat-card__value"><%= format_currency(@summary.actual_operating_cost) %></span>
-      </div>
-      <div class="stat-card <%= @summary.coverage_variance.negative? ? 'stat-card--warning' : '' %>">
-        <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.coverage_variance") %></span>
-        <span class="stat-card__value"><%= format_currency(@summary.coverage_variance) %></span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.actual_cost_per_towel") %></span>
-        <span class="stat-card__value">
-          <%= @summary.actual_cost_per_towel ? format_currency(@summary.actual_cost_per_towel, precision: 4) : t("laundry.reports.cost_summary.insufficient_data") %>
-        </span>
-      </div>
+      <% if @summary.payroll_included? %>
+        <div class="stat-card">
+          <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.total_actual_cost") %></span>
+          <span class="stat-card__value"><%= format_currency(@summary.actual_operating_cost) %></span>
+        </div>
+        <div class="stat-card <%= @summary.coverage_variance.negative? ? 'stat-card--warning' : '' %>">
+          <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.coverage_variance") %></span>
+          <span class="stat-card__value"><%= format_currency(@summary.coverage_variance) %></span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__label"><%= t("laundry.reports.cost_summary.cards.actual_cost_per_towel") %></span>
+          <span class="stat-card__value">
+            <%= @summary.actual_cost_per_towel ? format_currency(@summary.actual_cost_per_towel, precision: 4) : t("laundry.reports.cost_summary.insufficient_data") %>
+          </span>
+        </div>
+      <% end %>
     </div>
 
-    <div class="card" style="margin-top: var(--space-5);">
-      <div class="card-header"><h2 class="card-title"><%= t("laundry.reports.cost_summary.cards.coverage_variance") %></h2></div>
-      <div style="padding: var(--space-4) var(--space-5);">
-        <% if @summary.coverage_variance.positive? %>
-          <p><%= t("laundry.reports.cost_summary.variance.positive", amount: format_currency(@summary.coverage_variance)) %></p>
-        <% elsif @summary.coverage_variance.negative? %>
-          <p style="color: var(--danger);"><%= t("laundry.reports.cost_summary.variance.negative", amount: format_currency(@summary.coverage_variance.abs)) %></p>
-        <% else %>
-          <p><%= t("laundry.reports.cost_summary.variance.zero") %></p>
-        <% end %>
-        <p class="form-hint"><%= t("laundry.reports.cost_summary.disclaimer") %></p>
+    <% if @summary.payroll_included? %>
+      <div class="card" style="margin-top: var(--space-5);">
+        <div class="card-header"><h2 class="card-title"><%= t("laundry.reports.cost_summary.cards.coverage_variance") %></h2></div>
+        <div style="padding: var(--space-4) var(--space-5);">
+          <% if @summary.coverage_variance.positive? %>
+            <p><%= t("laundry.reports.cost_summary.variance.positive", amount: format_currency(@summary.coverage_variance)) %></p>
+          <% elsif @summary.coverage_variance.negative? %>
+            <p style="color: var(--danger);"><%= t("laundry.reports.cost_summary.variance.negative", amount: format_currency(@summary.coverage_variance.abs)) %></p>
+          <% else %>
+            <p><%= t("laundry.reports.cost_summary.variance.zero") %></p>
+          <% end %>
+          <p class="form-hint"><%= t("laundry.reports.cost_summary.disclaimer") %></p>
+        </div>
       </div>
-    </div>
+    <% end %>
 
     <div class="card" style="margin-top: var(--space-5);">
       <div class="card-header"><h2 class="card-title"><%= t("laundry.reports.cost_summary.material_details.title") %></h2></div>
-      <% if @summary.material_lines.blank? %>
-        <div style="padding: var(--space-4) var(--space-5);">
-          <p class="td-secondary"><%= t("laundry.reports.cost_summary.material_details.empty") %></p>
+      <% if @material_details_withheld %>
+        <div style="padding: var(--space-4) var(--space-5) 0;">
+          <div class="alert alert-info"><%= t("laundry.reports.cost_summary.material_details.withheld") %></div>
         </div>
+      <% end %>
+      <% if @material_lines.empty? %>
+        <% unless @material_details_withheld %>
+          <div style="padding: var(--space-4) var(--space-5);">
+            <p class="td-secondary"><%= t("laundry.reports.cost_summary.material_details.empty") %></p>
+          </div>
+        <% end %>
       <% else %>
         <div class="table-wrap table-wrap--cards">
           <table>
@@ -106,7 +124,7 @@
               <th></th>
             </tr></thead>
             <tbody>
-              <% @summary.material_lines.each do |line| %>
+              <% @material_lines.each do |line| %>
                 <tr>
                   <td><%= link_to line.stock_issue.issue_number, inventory_stock_issue_path(line.stock_issue), class: "link" %></td>
                   <td class="td-secondary"><%= l(line.stock_issue.issued_on, format: :short) %></td>
@@ -126,19 +144,21 @@
       <% end %>
     </div>
 
-    <div class="card" style="margin-top: var(--space-5);">
-      <div class="card-header"><h2 class="card-title"><%= t("laundry.reports.cost_summary.payroll_periods_included") %></h2></div>
-      <div style="padding: var(--space-4) var(--space-5);">
-        <% if @summary.payroll_periods.blank? %>
-          <p class="td-secondary"><%= t("laundry.reports.cost_summary.no_payroll_periods") %></p>
-        <% else %>
-          <ul style="margin: 0; padding-inline-start: var(--space-5);">
-            <% @summary.payroll_periods.each do |period| %>
-              <li><%= period.period_label %></li>
-            <% end %>
-          </ul>
-        <% end %>
+    <% if @summary.payroll_included? %>
+      <div class="card" style="margin-top: var(--space-5);">
+        <div class="card-header"><h2 class="card-title"><%= t("laundry.reports.cost_summary.payroll_periods_included") %></h2></div>
+        <div style="padding: var(--space-4) var(--space-5);">
+          <% if @summary.payroll_periods.blank? %>
+            <p class="td-secondary"><%= t("laundry.reports.cost_summary.no_payroll_periods") %></p>
+          <% else %>
+            <ul style="margin: 0; padding-inline-start: var(--space-5);">
+              <% @summary.payroll_periods.each do |period| %>
+                <li><%= period.period_label %></li>
+              <% end %>
+            </ul>
+          <% end %>
+        </div>
       </div>
-    </div>
+    <% end %>
   <% end %>
 </div>
