@@ -1,0 +1,51 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "SQL Injection",
+      "warning_code": 0,
+      "fingerprint": "52a203cda162568b37407d8e73d1e577f5466590ebf8cd9e6a60dfef4cd31c6f",
+      "check_name": "SQL",
+      "message": "Possible SQL injection",
+      "file": "app/services/payroll/period_financial_summary.rb",
+      "line": 112,
+      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
+      "code": "line_item_scope.where(\"amount #{comparator} 0\")",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Payroll::PeriodFinancialSummary",
+        "method": "grouped_totals"
+      },
+      "user_input": "comparator",
+      "confidence": "Weak",
+      "cwe_id": [
+        89
+      ],
+      "note": "False positive (reviewed 2026-10-17). comparator is not user input: grouped_totals is a private method of Payroll::PeriodFinancialSummary and its only callers pass the string literals \">\" and \"<\" (gross_breakdown / deduction_breakdown). No request data reaches the interpolated SQL."
+    },
+    {
+      "warning_type": "SQL Injection",
+      "warning_code": 0,
+      "fingerprint": "994bf73d2d9052c9d9e75d61906353addc9ba4b62ca6a4f78dec5f21b6417be1",
+      "check_name": "SQL",
+      "message": "Possible SQL injection",
+      "file": "app/models/user.rb",
+      "line": 82,
+      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
+      "code": "where.not(:date_of_birth => nil).where(\"#{[[date.month, date.day], [2, 29]].size} OR (EXTRACT(MONTH FROM users.date_of_birth) = ? AND EXTRACT(DAY FROM users.date_of_birth) = ?)\", *[[date.month, date.day], [2, 29]].flatten)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "User",
+        "method": "birthday_on"
+      },
+      "user_input": "[[date.month, date.day], [2, 29]].size",
+      "confidence": "Weak",
+      "cwe_id": [
+        89
+      ],
+      "note": "False positive (reviewed 2026-10-17). The interpolated value is pairs.size (1, or 2 for the Feb 29 fallback), used only to repeat a constant SQL fragment; month and day values are passed as bound ? parameters. The scope's only caller is Dashboard::Birthdays.team, which DashboardController calls with BusinessDay.current (a server-side date)."
+    }
+  ],
+  "brakeman_version": "8.1.0"
+}

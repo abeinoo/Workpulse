@@ -1,0 +1,168 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# RuboCop offense ratchet.
+#
+# .rubocop_todo.yml lets `bin/rubocop` pass on the offenses that existed when it
+# was generated, but it does so by excluding whole files per cop: a NEW offense
+# of an already-excluded cop in an already-listed file would go unnoticed.
+#
+# This check runs the same RuboCop (Gemfile.lock), over the same files, with the
+# project configuration minus only the todo inheritance, and compares the
+# offenses per file and per cop with .rubocop_baseline.json. Any increase — for
+# a (file, cop) pair, a new file or a new cop — fails, so a reduction elsewhere
+# can never hide a regression. A different RuboCop version fails too: the
+# baseline is only meaningful for the version it was recorded with.
+#
+# The RuboCop run itself must be complete before anything is compared or
+# written: exit status 0 or 1 only, no "N errors occurred" (a crashed cop),
+# every target file inspected, the parsed offenses matching RuboCop's own
+# summary, and the locked RuboCop version.
+#
+#   bin/rubocop-baseline           check (CI)
+#   bin/rubocop-baseline --update  re-record the baseline (only after offenses
+#                                  were removed on purpose; commit the result)
+require "json"
+require "open3"
+
+USAGE = "usage: bin/rubocop-baseline [--update]"
+
+def fail!(message)
+  warn "bin/rubocop-baseline: #{message}"
+  exit 1
+end
+
+# Arguments first, before RuboCop runs: only no argument or exactly --update.
+update =
+  case ARGV
+  when [] then false
+  when [ "--update" ] then true
+  else fail!("unsupported arguments #{ARGV.inspect}. #{USAGE}")
+  end
+
+ROOT     = File.expand_path("..", __dir__)
+BASELINE = ".rubocop_baseline.json"
+TODO     = /\Ainherit_from:\s*\.rubocop_todo\.yml\s*\z/
+TMP      = ".rubocop_baseline_check.tmp.yml" # at the root, so relative paths resolve as in .rubocop.yml
+# RuboCop's summary when a cop crashed on a file ("1 error occurred:", "3 errors occurred:"),
+# printed to stderr while the run still exits 1 (cli/command/execute_runner.rb).
+INCOMPLETE_RUN = /\b\d+\s+errors?\s+occurred\b/i
+
+Dir.chdir(ROOT)
+
+locked_version = File.read("Gemfile.lock")[/^    rubocop \(([^)]+)\)$/, 1]
+fail!("could not read the locked rubocop version from Gemfile.lock") if locked_version.to_s.empty?
+
+lines    = File.readlines(".rubocop.yml")
+stripped = lines.reject { |line| line.strip.match?(TODO) }
+fail!("expected exactly one 'inherit_from: .rubocop_todo.yml' line in .rubocop.yml") unless stripped.size == lines.size - 1
+
+begin
+  File.write(TMP, stripped.join)
+  out, err, status = Open3.capture3("bundle", "exec", "rubocop", "--config", TMP, "--format", "json", "--cache", "false")
+rescue SystemCallError => e
+  fail!("could not run rubocop: #{e.message}")
+ensure
+  File.delete(TMP) if File.exist?(TMP)
+end
+
+# ── Validate the run before comparing or writing anything ─────────────────────
+unless [ 0, 1 ].include?(status.exitstatus)
+  fail!("rubocop did not complete (#{status.inspect}); expected exit status 0 or 1.\n#{err}")
+end
+plain_err = err.gsub(/\e\[[\d;]*m/, "")
+if plain_err.match?(INCOMPLETE_RUN)
+  fail!("rubocop reported errors (a cop crashed), so its offenses are incomplete:\n#{plain_err}")
+end
+warn plain_err unless plain_err.strip.empty?
+
+report =
+  begin
+    JSON.parse(out)
+  rescue JSON::ParserError => e
+    fail!("rubocop output is not valid JSON (#{e.message})")
+  end
+fail!("rubocop JSON is not an object") unless report.is_a?(Hash)
+
+summary = report["summary"]
+files   = report["files"]
+version = report.dig("metadata", "rubocop_version")
+fail!("rubocop JSON has no summary object") unless summary.is_a?(Hash)
+fail!("rubocop JSON has no files array") unless files.is_a?(Array)
+counts = %w[inspected_file_count target_file_count offense_count].to_h { |key| [ key, summary[key] ] }
+fail!("rubocop summary counts are missing or not integers: #{counts.inspect}") unless counts.values.all?(Integer)
+
+inspected, targets = counts.values_at("inspected_file_count", "target_file_count")
+unless inspected.positive? && targets.positive? && inspected == targets
+  fail!("rubocop inspected #{inspected} of #{targets} target files; the run is incomplete")
+end
+unless version.is_a?(String) && !version.empty? && version == locked_version
+  fail!("rubocop reported version #{version.inspect}, Gemfile.lock locks #{locked_version}")
+end
+
+current = Hash.new { |hash, file| hash[file] = Hash.new(0) }
+files.each do |file|
+  path     = file["path"] if file.is_a?(Hash)
+  offenses = file["offenses"] if file.is_a?(Hash)
+  fail!("rubocop JSON has a malformed file entry: #{file.inspect[0, 200]}") unless path.is_a?(String) && offenses.is_a?(Array)
+
+  offenses.each do |offense|
+    cop = offense["cop_name"] if offense.is_a?(Hash)
+    fail!("rubocop JSON has a malformed offense in #{path}: #{offense.inspect[0, 200]}") unless cop.is_a?(String) && !cop.empty?
+
+    current[path][cop] += 1
+  end
+end
+total = current.values.sum { |cops| cops.values.sum }
+unless total == counts["offense_count"]
+  fail!("parsed #{total} offenses but rubocop's summary reports #{counts['offense_count']}")
+end
+
+# ── Record or compare ─────────────────────────────────────────────────────────
+if update
+  recorded_files = current.keys.sort.to_h { |file| [ file, current[file].sort.to_h ] }
+  File.write(BASELINE, JSON.pretty_generate(
+    "rubocop_version" => version, "offenses" => total, "files_with_offenses" => recorded_files.size, "files" => recorded_files
+  ) + "\n")
+  puts "Recorded #{total} offenses in #{recorded_files.size} files (RuboCop #{version}) to #{BASELINE}."
+  exit
+end
+
+baseline =
+  begin
+    JSON.parse(File.read(BASELINE))
+  rescue Errno::ENOENT, JSON::ParserError => e
+    fail!("cannot read #{BASELINE} (#{e.message})")
+  end
+unless baseline.is_a?(Hash) && baseline["files"].is_a?(Hash)
+  fail!("#{BASELINE} is malformed (expected an object with a files object)")
+end
+unless baseline["rubocop_version"] == version
+  fail!("#{BASELINE} was recorded with RuboCop #{baseline['rubocop_version']}, this is #{version}. " \
+        "Review the new offenses, then re-record deliberately.")
+end
+
+recorded     = baseline["files"]
+regressions  = []
+improvements = []
+(current.keys | recorded.keys).sort.each do |file|
+  (current[file].keys | recorded.fetch(file, {}).keys).sort.each do |cop|
+    now  = current[file][cop]
+    was  = recorded.dig(file, cop).to_i
+    line = "#{file}: #{cop} #{was} -> #{now}"
+    regressions << line if now > was
+    improvements << line if now < was
+  end
+end
+
+puts "RuboCop #{version}: #{total} offenses in #{current.size} files (baseline #{baseline['offenses']} in #{baseline['files_with_offenses']})."
+unless improvements.empty?
+  puts "Fewer offenses than recorded (re-record the baseline and .rubocop_todo.yml to lock them in):"
+  improvements.each { |line| puts "  #{line}" }
+end
+if regressions.any?
+  puts "New RuboCop offenses (per file and cop) — fix them; do not re-record the baseline to hide them:"
+  regressions.each { |line| puts "  #{line}" }
+  exit 1
+end
+puts "No new offenses."
