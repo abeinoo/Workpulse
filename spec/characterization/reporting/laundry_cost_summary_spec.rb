@@ -10,7 +10,7 @@ require "rails_helper"
 # the branch-count states, include_payroll: false and cross-business isolation
 # (…/laundry_cost_summary_report_guards_spec.rb), the HTML / CSV visibility rules
 # (spec/requests/laundry/cost_summary_visibility_spec.rb).
-RSpec.describe Laundry::LaundryCostSummaryReport, type: :model do
+RSpec.describe Finance::Reports::LaundryCostSummary, type: :model do
   let(:business)        { create(:business) }
   let!(:sales_branch)   { create(:branch, business: business, branch_type: "sales") }
   let!(:laundry_branch) { create(:branch, business: business, branch_type: "laundry") }

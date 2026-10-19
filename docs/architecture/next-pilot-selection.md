@@ -4892,8 +4892,8 @@ Nothing pushed, merged or deployed.
 
 ## 26. Pilot 11 — Reporting: Laundry labour-cost report
 
-**Status (2026-10-19): M0 COMPLETE (`96cfc31`); M1 characterization COMPLETE, not committed (§26.7); M4 NOT
-STARTED.** Decisions D-P11-1…6 approved (§26.5; D-P11-6 amended: the security fix went in the same PR as M0). PR #43
+**Status (2026-10-19): M0 COMPLETE (`96cfc31`); M1 COMPLETE (`1e27d98`, §26.7); M4 relocation COMPLETE, not
+committed (§26.8); M6 NOT STARTED.** Decisions D-P11-1…6 approved (§26.5; D-P11-6 amended: the security fix went in the same PR as M0). PR #43
 (`565989d`, `cd316a7`, `96cfc31`) merged into `main` with a merge commit, `b2afa03`. No schema, migration, route, API
 or Booking change.
 
@@ -5030,3 +5030,40 @@ failures; date range from `Date.current` → 2 G2 failures; a write inside the s
 `zeitwerk:check` clean, RuboCop on the two files no offenses, `git diff --check` clean.
 
 **Next:** M4 relocation (§26.6), after the M1 commit.
+
+### 26.8 M4 — relocation (2026-10-19)
+
+**Moved:** `Laundry::LaundryCostSummaryReport` (`app/services/laundry/laundry_cost_summary_report.rb`) →
+`Finance::Reports::LaundryCostSummary` (`app/services/finance/reports/laundry_cost_summary.rb`), the existing
+Reporting service location (D-P11-1, D-P11-2). The body is unchanged apart from the namespace: a whitespace-insensitive
+diff against the old file shows only the `module Finance` / `module Reports` wrapper, the class name and
+`BranchTowelConsumptionReport` qualified as `Laundry::BranchTowelConsumptionReport` (one call, two comments) — it now
+reads that Inventory & Purchasing query from outside the `Laundry` namespace, as `Finance::Reports::ExpenseSources`
+already does. No new read interface (D-P11-4); no `Finance::` / `Finance::Reports::` constant shadows a name the
+service uses.
+
+**Not byte-identical (deviation from the M4 row of `migration-pattern.md` §3, recorded):** the file follows the
+nested `module Finance` / `module Reports` style of every other `app/services/finance/reports/` file (no `app/` file uses
+compact `Outer::Inner` headers), so every body line gains two spaces of indentation (152 / 150 lines in a plain diff).
+Git therefore shows a delete + add rather than a rename; review it with `git diff -w` against
+`app/services/laundry/laundry_cost_summary_report.rb` at `1e27d98`.
+
+**Callers updated:** `Laundry::Reports::CostSummaryController#index` (one constant); the `describe` line of
+`spec/services/laundry/laundry_cost_summary_report_spec.rb`, `…_guards_spec.rb` and
+`spec/characterization/reporting/laundry_cost_summary_spec.rb` (the spec files stay where they are). The route, URL,
+controller class, view, navigation and i18n keys are unchanged (D-P11-3); the HTML / CSV contracts are unchanged
+(D-P11-5, the M1 G1–G6 specs pass unedited apart from the `describe` constant).
+
+**Boundary:** `finance_sales_expense_boundary_spec.rb` — the file moved from the cross-domain exceptions
+(`EXCEPTION_FILES`, `READ_ONLY_EXCEPTIONS`, now empty) to `REPORTING_FILES`, so it stays enforced read-only on
+expenses as Reporting code; the other boundary specs already classify `app/services/finance/reports/**` as Reporting.
+
+**Left for M8 (comments only, no behaviour):** `app/models/laundry_batch_consumption.rb:8` and `config/routes.rb:634`
+still name `Laundry::LaundryCostSummaryReport` in comments.
+
+**Verification:** M1 characterization 17 / 0; laundry service + request specs 184 / 0; `spec/architecture` 292 / 0;
+the pilot set 1033 / 0 under seeds 20261006, 12345 and 98765 (lazy) and with `CI=1` — the same as M1, no failing ID.
+`zeitwerk:check` clean; the old constant is undefined and the new one resolves from the new file; RuboCop on the six
+changed Ruby files no offenses; `git diff --check` clean.
+
+**Next:** the M4 commit (`refactor:`), then M6 enforcement (§26.6).

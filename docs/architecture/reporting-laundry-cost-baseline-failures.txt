@@ -12,6 +12,8 @@
 # M1 (2026-10-19, on 96cfc31 = the tree of main b2afa03, PR #43 merged): the set now includes the 2 new M1
 #   characterization files (spec/characterization/reporting, 17 examples): 1033 examples, 0 failures, 0 pending —
 #   identical under seeds 20261006, 12345 and 98765 (lazy loading), and with CI=1 (eager). No failing ID.
+# M4 (2026-10-19, relocation to Finance::Reports::LaundryCostSummary, on 1e27d98 + working tree): this set
+#   1033 examples, 0 failures — identical under seeds 20261006, 12345 and 98765 (lazy) and with CI=1. No failing ID.
 #
 # set spec/architecture
 # set spec/services/laundry

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Laundry::LaundryCostSummaryReport, type: :model do
+RSpec.describe Finance::Reports::LaundryCostSummary, type: :model do
   let(:business) { create(:business) }
   let(:sales_branch) { create(:branch, business: business, branch_type: "sales") }
   let!(:laundry_branch) { create(:branch, business: business, branch_type: "laundry") }
