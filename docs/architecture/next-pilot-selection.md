@@ -4893,9 +4893,8 @@ Nothing pushed, merged or deployed.
 ## 26. Pilot 11 — Reporting: Laundry labour-cost report
 
 **Status (2026-10-19): M0 COMPLETE (`96cfc31`); M1 COMPLETE (`1e27d98`, §26.7); M4 COMPLETE (`d0b21bf`, §26.8);
-M6 COMPLETE (`c30c148`, §26.9); M8 verification and documentation COMPLETE, not committed (§26.10). TD-P11-7 root
-cause identified and mitigated by a test-only fix, not committed (§26.11). Pilot 11 NOT CLOSED — M1, M4 and M6 are
-local and unpushed, M8 and the TD-P11-7 fix are uncommitted, and the TD-P11-7 resolution awaits review (§26.11).** Decisions D-P11-1…6 approved (§26.5; D-P11-6 amended: the security fix went in the same PR as M0). PR #43
+M6 COMPLETE (`c30c148`, §26.9); M8 COMPLETE (`b539faf`, §26.10); TD-P11-7 resolved by the test-only fix `7ac20da`
+(§26.11). Pilot 11 CLOSED (2026-10-19): merged into `main` in PR #44, merge commit `96cc194` (§26.12).** Decisions D-P11-1…6 approved (§26.5; D-P11-6 amended: the security fix went in the same PR as M0). PR #43
 (`565989d`, `cd316a7`, `96cfc31`) merged into `main` with a merge commit, `b2afa03`. No schema, migration, route, API
 or Booking change.
 
@@ -5131,8 +5130,8 @@ is the only implementation; its only caller is `Laundry::Reports::CostSummaryCon
 `zeitwerk:check` clean; RuboCop on the two changed Ruby files no offenses; `bin/rubocop-baseline` no new offenses;
 `bin/brakeman` 0 warnings; `git diff --check` clean.
 
-*Root cause identified and mitigated on 2026-10-19 (§26.11); the resolution is not committed. The text below is the
-M8 state.*
+*Root cause identified and mitigated on 2026-10-19 (§26.11); resolved by `7ac20da`, merged in PR #44 (§26.12). The
+text below is the M8 state.*
 
 **TD-P11-7 (new, not fixed — needs review; not in the pilot set):** the M8 full-suite run failed two browser system
 specs that passed in the M0 full-suite run (9141 / 0 at `cd316a7`):
@@ -5199,6 +5198,8 @@ closed**: it is resolved once the fix is committed — as its own commit, separa
 (`migration-pattern.md` §9: pre-existing defect fixes are never mixed with migration steps) — and the resolution is
 accepted on review.
 
+*All four items below were satisfied on 2026-10-19 (§26.12). The text below is the pre-merge state.*
+
 **Close-out readiness:** every Pilot 11 stage has its evidence (M0 §26.2–26.6; M1 §26.7; M4 §26.8; M6 §26.9; M8
 §26.10; TD-P11-7 §26.11). Outstanding before Pilot 11 can be recorded as CLOSED:
 
@@ -5208,3 +5209,22 @@ accepted on review.
 4. M1, M4, M6, M8 and the fix pushed and merged into `main` (merge commit, as PR #43).
 
 Debt TD-P11-1…6 (§26.4) and the M4 formatting deviation (§26.8) stand as recorded. No next pilot is selected here.
+
+### 26.12 Close-out — Pilot 11 CLOSED (2026-10-19)
+
+The four outstanding items of §26.11 are satisfied:
+
+1. **TD-P11-7 resolution accepted:** the fix was reviewed and its commit and merge authorized by the user.
+2. **TD-P11-7 fix committed on its own:** `7ac20da` `test: disable smooth scrolling for system specs`
+   (`spec/support/capybara.rb` only).
+3. **M8 documentation committed:** `b539faf` `docs: record Pilot 11 M8 verification and TD-P11-7` (the four documents of
+   §26.10 and §26.11 plus the two comment-only updates).
+4. **Merged into `main`:** PR #44 (https://github.com/abeinoo/Workpulse/pull/44), merged 2026-10-19 05:50:57 UTC with a
+   merge commit, `96cc194` (parents `b2afa03`, `b539faf`), as PR #43. The PR carried M1 `1e27d98`, M4 `d0b21bf`, M6
+   `c30c148`, the fix `7ac20da` and M8 `b539faf` (15 files); all are reachable from `origin/main`. CI on `b539faf`:
+   `scan_ruby`, `scan_js`, `lint`, `test`, `system-test` — all passed.
+
+**Pilot 11 — Reporting: laundry labour-cost report — is CLOSED.** M0 and the security fix were merged in PR #43
+(`b2afa03`); M1, M4, M6, M8 and the TD-P11-7 fix in PR #44 (`96cc194`). **TD-P11-7 is resolved** by `7ac20da` (root
+cause and validation: §26.11); the two system specs were never recorded as flaky. Debt TD-P11-1…6 (§26.4) and the M4
+formatting deviation (§26.8) stand as recorded. No next pilot is selected here.

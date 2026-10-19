@@ -22,6 +22,9 @@
 # TD-P11-7 (2026-10-19): root cause identified (smooth-scroll click race) and mitigated by a test-only fix in
 #   spec/support/capybara.rb (uncommitted); with it the full suite (seed 20261006) gave 9169 examples, 0 failures,
 #   and this set 1044 / 0 under the three seeds. Not listed as flaky (next-pilot-selection.md §26.11).
+# Close-out (2026-10-19): Pilot 11 merged into main in PR #44, merge commit 96cc194 (CI scan_ruby, scan_js, lint,
+#   test, system-test passed on b539faf). TD-P11-7 resolved by the test-only fix 7ac20da. Pilot 11 CLOSED
+#   (next-pilot-selection.md §26.12). No failing or flaky ID was added.
 #
 # set spec/architecture
 # set spec/services/laundry
