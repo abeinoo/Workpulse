@@ -3523,10 +3523,13 @@ en:
         payroll_periods_included: "Payroll periods included:"
         no_payroll_periods: "No finalized payroll period overlaps this date range."
         no_laundry_branch: "No branch is set up as the laundry — nothing to show."
+        multiple_laundry_branches: "More than one active branch is set up as the laundry. This report supports exactly one laundry branch — review the branch types in Branches before using it."
+        payroll_restricted: "Laundry payroll cost, and the totals that include it (total operating cost, coverage variance and average cost per towel), require the View Payroll permission."
         insufficient_data: "Insufficient data"
         material_details:
           title: "Material Consumption Details"
           empty: "No stock issues to the laundry branch in this period."
+          withheld: "Details of some stock issues are hidden because you do not have access to them. The material cost total above still includes them."
           stock_issue: "Stock Issue"
           issue_date: "Issue Date"
           warehouse: "Source Warehouse"

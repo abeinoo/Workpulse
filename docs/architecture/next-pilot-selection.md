@@ -4889,3 +4889,117 @@ remains the only protection, and a row written past it would again be cancelled 
   (§25.11). Closing the pilot does not mean those races are eliminated elsewhere in the application.
 
 Nothing pushed, merged or deployed.
+
+## 26. Pilot 11 — Reporting: Laundry labour-cost report
+
+**Status (2026-10-18): M0 COMPLETE (read-only, at `main` `cd316a7`); M1 NOT STARTED — waiting for approval of the
+decisions in §26.5 and a committed baseline (§7 of `migration-pattern.md`).** Nothing committed, pushed or merged.
+No schema, migration, route, API or Booking change.
+
+### 26.1 Selection
+
+Selected by the user on 2026-10-18 from the post-Pilot-10 review (scored with `migration-pattern.md` §12 on
+`origin/main` `2f3888c`): laundry labour-cost report → Reporting **33**, POS terminals (§14.2 #8) 34, warehouse access
+(#10) 40, `admin/users` account fields (#7) 49 (disqualified: User ≠ Employee split), Advances (#2, P-6) 62 (blocked:
+SEC-M2-7 product decision), goods receipt → Finance & Sales settlement (#6) 69 (disqualified: unresolved IP ↔ FS cycle,
+no event mechanism). **Accepted deviation:** Reporting is step 6 in `module-boundaries.md` §19; it is advanced on the
+user's decision (as Pilot 6 opened Inventory & Purchasing). This is the first Reporting pilot.
+
+**Security unblock (done before M0, separate commits, not part of this pilot):** an authorization review found the
+report exposed payroll (which can equal one person's net salary) without `view_payroll`, stock-issue line details
+beyond the viewer's inventory access, and picked an arbitrary laundry branch with `.first`. Fixed with the user's
+product decisions in `cd316a7` (`fix: enforce laundry cost report authorization`); `565989d` made
+`Finance::Reports::Column` autoloadable (its CSV raised `NameError` under lazy loading). Both are local on `main`.
+
+### 26.2 M0 — inventory (`cd316a7`)
+
+**Component.** `Laundry::LaundryCostSummaryReport` (`app/services/laundry/laundry_cost_summary_report.rb`, 166 lines):
+read-only management report — actual laundry operating cost (payroll + direct expenses + materials) against the
+standard cost charged to sales branches. Only caller: `Laundry::Reports::CostSummaryController#index`
+(`GET /laundry/reports/cost_summary(.csv)`, `config/routes.rb:641`), view `laundry/reports/cost_summary/index`,
+workspace nav `WorkspaceHelper:259, :275`, i18n `laundry.reports.cost_summary.*` (en + ar). Specs reference the
+constant (`laundry_cost_summary_report_spec.rb`, `…_guards_spec.rb`). No API, job, serializer or other caller.
+
+**What it reads (all read-only; no write call in the service or controller):**
+
+| Read | Owner | Where |
+|---|---|---|
+| `@business.branches.active.branch_type_laundry` (exactly one; 0 → empty, >1 → blocked) | OA | service `call` |
+| `Laundry::BranchTowelConsumptionReport` (received towels × standard rate), narrowed to the selected branch | IP (laundry query; Reporting's `Finance::Reports::ExpenseSources` already reuses it) | `call`, `standard_coverage` |
+| `ShiftAssignment.user_ids_for_branch_during` (its only caller) | WF | `laundry_payroll_cost` |
+| `PayrollPeriod.for_business` (finalized / paid), `PayrollEntry … sum(:net_salary)` | AP | `laundry_payroll_cost` (only with `include_payroll: true`) |
+| `@business.expenses` (approved, `in_period`), `ExpenseAllocation` | FS | `laundry_direct_expenses` |
+| `StockIssue.for_business.issued.active` + items / product / warehouse / branch | IP | `laundry_material_cost_and_lines` |
+
+Controller: the `view_laundry_cost_reports` gate (non-scopable by design), `can?(:view_payroll)` → `include_payroll:`,
+`StockIssuePolicy#index?` + `policy_scope(StockIssue)` for line details (IP authorization, one `pluck`),
+`BusinessDay` default range, CSV through `Finance::Reports::{Column, Table, CsvExporter}` (shared report infrastructure
+in the Reporting location `app/services/finance/reports/`). It inherits `Laundry::BaseController` (laundry module gate).
+
+**Ownership.** The report aggregates four domains (AP + WF + FS + IP), so by `module-boundaries.md` §9 it is a
+Reporting component (§18 rule 9: single-domain reports stay in their domain — `BranchTowelConsumptionReport` stays in
+IP). §9.6 / §12.2 name only "the labour-cost part"; splitting it out would make Inventory & Purchasing call Reporting,
+the forbidden direction (nothing depends on Reporting, §12.1). Recorded today as: §12.2 "IP → AP / IP → WF — Violation";
+`finance_sales_expense_boundary_spec.rb:87, :90` exception "target: Reporting; read-only".
+
+**Cross-domain callers of the component: none** (its only caller is its own controller). No cycle. No model, table,
+STI or polymorphic type is involved (§8: safe without database changes).
+
+**Locked behaviour (from `cd316a7`, pinned by specs, must not change):** `view_payroll` alone grants payroll figures;
+without it payroll is not queried and payroll, periods, actual cost, variance and cost per towel are neither rendered
+nor exported; line details need the StockIssue permission and `policy_scope(StockIssue)`; the aggregate material cost
+stays visible with a notice; only active laundry branches count, more than one blocks (HTML message, CSV redirect);
+the CSV never has line details. HTML / CSV contracts in en and ar as pinned.
+
+**Coverage today:** service 21 + guards 10, request visibility 26 + authorization 10, plus navigation, sidebar,
+standard-cost locale and architecture specs. **Security:** no open finding in the touched path after `cd316a7`.
+
+### 26.3 Baseline
+
+`docs/architecture/reporting-laundry-cost-baseline-failures.txt`: full suite at `cd316a7` (lazy, seed 20261006) 9141
+examples, 0 failures, 0 pending; the pilot set 1016 / 0 under seeds 20261006, 12345 and 98765. Any failure is new.
+
+### 26.4 Technical debt found (recorded, not fixed here)
+
+| ID | Item |
+|---|---|
+| TD-P11-1 (security, separate) | `Laundry::Reports::BranchConsumptionController#scoped_branch_id` returns nil without a `branch_id` param, so a branch-scoped viewer sees every branch's rows (code reading). Not in this pilot |
+| TD-P11-2 | `Laundry::DashboardController:13` still uses `branch_type_laundry.first` (inactive branches included) — can disagree with the report. Not in this pilot |
+| TD-P11-3 | Payroll attribution counts a user's whole period `net_salary` for any overlapping laundry assignment (no proration — documented in the class) |
+| TD-P11-4 | Material lines have no explicit order (view order is the query's) |
+| TD-P11-5 | Payroll periods are filtered in Ruby and cost two queries per overlapping period (bounded by the months in range) |
+| TD-P11-6 | `Result#consumption` still carries the business-wide consumption object (unused by the view) |
+
+### 26.5 Decisions to approve before M1
+
+| ID | Decision (recommended) |
+|---|---|
+| D-P11-1 | The **whole** `LaundryCostSummaryReport` is Reporting (not only the labour-cost part) — see Ownership |
+| D-P11-2 | Location: `Finance::Reports::LaundryCostSummary` in `app/services/finance/reports/laundry_cost_summary.rb` (the existing Reporting service location, already Reporting in two boundary specs' globs). Alternatives: keep the file and constant and enforce only; or a new `Reporting::` namespace (new top-level folder, wider change) |
+| D-P11-3 | Route, URL, controller class, view, nav and i18n keys stay (`/laundry/reports/cost_summary`); the controller is classified as Reporting UI under the laundry URL (as `finance/dashboard` is Reporting under `/finance`) |
+| D-P11-4 | No read interfaces introduced: Reporting → all is allowed read-only today (§12.2); rule B, no speculative interfaces |
+| D-P11-5 | No behaviour change: §26.2 locked behaviour and the HTML / CSV contracts are preserved byte-for-byte |
+| D-P11-6 | Pilot numbering: Pilot 11; branch `feature/pilot-11-laundry-cost-reporting` from `cd316a7` (the security fix needs its own PR to `main` first or alongside) |
+
+### 26.6 Proposed path and M1 gaps
+
+Standard IDs: **M0** (this) → **M1** characterization → **M4** relocation (`git mv`, namespace and the one unqualified
+`BranchTowelConsumptionReport` reference qualified, caller + spec `describe` updates, FS boundary allow-list entry moved
+from exceptions to Reporting — one commit) → **M6** enforcement (a Reporting read-only boundary spec for the component:
+no writes, only its controller calls it, laundry code does not reference it; probe-proven) → **M8** docs.
+M2 / M3 not needed (no cross-domain caller), M5 not needed (no business rule in the controller), M7 not needed (no model).
+
+**M1 — required gaps (new specs only, against unchanged code):**
+
+* G1 — standard cost counts only receipts at the selected branch (towels received at a laundry branch later
+  deactivated are excluded).
+* G2 — default date range (no params) is the `BusinessDay` month, in the HTML filter and the CSV period column.
+* G3 — payroll attribution: a partial-period laundry assignment counts the whole `net_salary` (TD-P11-3, labelled
+  current behaviour).
+* G4 — the authorized HTML card set and order, and the restricted card set.
+* G5 — CSV response: `text/csv`, attachment filename `laundry_cost_summary_<date>.csv`, UTF-8 BOM.
+* G6 — no writes: payroll entries, stock issues and towel transfers are unchanged by a run (today only an expense is
+  checked).
+
+**M1 acceptance:** the new specs pass on unchanged code; the pilot set's failing IDs stay empty under the three seeds;
+`zeitwerk:check`, RuboCop and `git diff --check` clean.
