@@ -9,6 +9,9 @@
 #   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/reporting-laundry-cost-baseline-failures.txt | cut -d' ' -f3)
 # Result at M0: 1016 examples, 0 failures, 0 pending — identical under seeds 20261006, 12345 and 98765 (lazy loading).
 # No failing ID: any failure in this set during Pilot 11 is new and stops the work (migration-pattern.md §7, §10).
+# M1 (2026-10-19, on 96cfc31 = the tree of main b2afa03, PR #43 merged): the set now includes the 2 new M1
+#   characterization files (spec/characterization/reporting, 17 examples): 1033 examples, 0 failures, 0 pending —
+#   identical under seeds 20261006, 12345 and 98765 (lazy loading), and with CI=1 (eager). No failing ID.
 #
 # set spec/architecture
 # set spec/services/laundry
@@ -23,4 +26,5 @@
 # set spec/requests/inventory/warehouse_access_spec.rb
 # set spec/policies/stock_issue_policy_spec.rb
 # set spec/requests/security
+# set spec/characterization/reporting
 #

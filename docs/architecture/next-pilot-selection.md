@@ -4892,9 +4892,10 @@ Nothing pushed, merged or deployed.
 
 ## 26. Pilot 11 — Reporting: Laundry labour-cost report
 
-**Status (2026-10-18): M0 COMPLETE (read-only, at `main` `cd316a7`); M1 NOT STARTED — waiting for approval of the
-decisions in §26.5 and a committed baseline (§7 of `migration-pattern.md`).** Nothing committed, pushed or merged.
-No schema, migration, route, API or Booking change.
+**Status (2026-10-19): M0 COMPLETE (`96cfc31`); M1 characterization COMPLETE, not committed (§26.7); M4 NOT
+STARTED.** Decisions D-P11-1…6 approved (§26.5; D-P11-6 amended: the security fix went in the same PR as M0). PR #43
+(`565989d`, `cd316a7`, `96cfc31`) merged into `main` with a merge commit, `b2afa03`. No schema, migration, route, API
+or Booking change.
 
 ### 26.1 Selection
 
@@ -5003,3 +5004,29 @@ M2 / M3 not needed (no cross-domain caller), M5 not needed (no business rule in 
 
 **M1 acceptance:** the new specs pass on unchanged code; the pilot set's failing IDs stay empty under the three seeds;
 `zeitwerk:check`, RuboCop and `git diff --check` clean.
+
+### 26.7 M1 — characterization (2026-10-19)
+
+**Precondition met:** PR #43 merged into `main` as merge commit `b2afa03` (parents `7cb8d7f`, `96cfc31`); `565989d`,
+`cd316a7` and `96cfc31` are ancestors of `origin/main`; local `main` fast-forwarded to `b2afa03`. M1 ran on
+`feature/pilot-11-laundry-cost-reporting` at `96cfc31` (same tree as `b2afa03`). New specs only, no production change.
+
+Two files in `spec/characterization/reporting/` (17 examples), each pinning the unchanged code:
+
+| Gap | File (examples) | What it pins |
+|---|---|---|
+| G1 | `laundry_cost_summary_spec.rb` (1), `laundry_cost_summary_request_spec.rb` (1) | Towels received at a laundry branch later deactivated are excluded from `standard_towels` / `standard_cost`, the variance, the cost per towel and the CSV standard-cost row; `Result#consumption` still counts them (TD-P11-6) |
+| G2 | request (3) | No params → the `BusinessDay` month: at 03:00 UTC on 1 November (start hour 6) the range is still 1–31 October, in the HTML filter and the CSV period column; after the start hour it is November; an unparseable date falls back to the default |
+| G3 | service (4) | TD-P11-3 current behaviour: a partial-period, last-day-only or shared (laundry + sales) assignment counts the whole `net_salary`; an assignment ending the day before the period is excluded |
+| G4 | request (3) | The 8 cards and 3 section titles, in order, for `view_payroll` holders and the owner; 4 cards and 1 section title without `view_payroll` |
+| G5 | request (1) | `text/csv`, `attachment`, filename `laundry_cost_summary_<calendar date>.csv` (`Date.current`, not the business day), UTF-8 BOM, header row |
+| G6 | service (4) | No INSERT / UPDATE / DELETE during a run, with and without payroll (an `sql.active_record` recorder, with a control example proving it sees writes); payroll entries / periods, stock issues and items, inventory movements, towel transfers / items / ledger entries, expenses and allocations unchanged |
+
+**Proof the specs are not vacuous** (in-memory probes, no file changed): narrowing standard cost removed → 2 G1
+failures; date range from `Date.current` → 2 G2 failures; a write inside the service → 2 G6 failures.
+
+**Verification:** the baseline set plus `spec/characterization/reporting` (added to the set) — 1033 examples,
+0 failures under seeds 20261006, 12345 and 98765 (lazy loading) and with `CI=1`; the M1 files alone 17 / 0.
+`zeitwerk:check` clean, RuboCop on the two files no offenses, `git diff --check` clean.
+
+**Next:** M4 relocation (§26.6), after the M1 commit.
