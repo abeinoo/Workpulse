@@ -16,6 +16,12 @@
 #   1033 examples, 0 failures — identical under seeds 20261006, 12345 and 98765 (lazy) and with CI=1. No failing ID.
 # M6 (2026-10-19, on d0b21bf + the new spec/architecture/reporting_laundry_cost_summary_boundary_spec.rb, 11 examples):
 #   this set 1044 examples, 0 failures — identical under seeds 20261006, 12345 and 98765 (lazy) and with CI=1.
+# M8 (2026-10-19, on c30c148 + M8 docs / comment-only changes): this set 1044 / 0 under seeds 20261006, 12345 and
+#   98765 (lazy) and with CI=1. Full suite (lazy, seed 20261006): 9169 examples, 2 failures, both browser system
+#   specs outside this set that pass on re-run (TD-P11-7, next-pilot-selection.md §26.10) — not listed as flaky.
+# TD-P11-7 (2026-10-19): root cause identified (smooth-scroll click race) and mitigated by a test-only fix in
+#   spec/support/capybara.rb (uncommitted); with it the full suite (seed 20261006) gave 9169 examples, 0 failures,
+#   and this set 1044 / 0 under the three seeds. Not listed as flaky (next-pilot-selection.md §26.11).
 #
 # set spec/architecture
 # set spec/services/laundry

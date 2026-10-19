@@ -28,7 +28,9 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
 * **Inventory & Purchasing is partially migrated (Pilots 6 and 7):** `Supplier`, `Brand` and `ProductCategory` live
   in the collapsed `app/models/inventory_purchasing/` (top-level constants and tables unchanged), each with a boundary
   spec; see `next-pilot-selection.md` §21 and §22.
-* **Reporting is not yet migrated.**
+* **Reporting is partially migrated (Pilot 11):** the laundry operating-cost report `Finance::Reports::LaundryCostSummary`
+  (`app/services/finance/reports/`, moved from `Laundry::LaundryCostSummaryReport`), with a read-only boundary spec;
+  see `next-pilot-selection.md` §26. Its controller stays under `/laundry/reports/cost_summary` as Reporting UI.
 * The cross-domain violations recorded in §12.2 remain until their owning steps; those resolved in Milestone 2 are
   marked there and in §14.2.
 
@@ -242,12 +244,12 @@ property); no behaviour change is part of this document.
 1. **Purpose.** Answer cross-domain questions without owning business data.
 2. **Responsibilities.** Dashboards, reports, analytics and cross-domain aggregations only.
 3. **Models / 4. Tables.** None.
-5. **Controllers.** `dashboard` (home), `operations_dashboard`, `admin/dashboard`, `finance/dashboard` (+ PDF export), cross-domain `finance/reports` actions (`branch_profitability`).
-6. **Services.** `dashboard/{owner_data,area_manager_data}`, `finance/dashboard/*`, `finance/dashboard_filters`, `finance/reports/{branch_profitability,expense_sources,verified_revenue}`; in the target design also the labour-cost part of `Laundry::LaundryCostSummaryReport` (reads AP + WF).
+5. **Controllers.** `dashboard` (home), `operations_dashboard`, `admin/dashboard`, `finance/dashboard` (+ PDF export), cross-domain `finance/reports` actions (`branch_profitability`), `laundry/reports/cost_summary` (Reporting UI under the laundry URL, Pilot 11).
+6. **Services.** `dashboard/{owner_data,area_manager_data}`, `finance/dashboard/*`, `finance/dashboard_filters`, `finance/reports/{branch_profitability,expense_sources,verified_revenue,laundry_cost_summary}` (`laundry_cost_summary`: the whole laundry operating-cost report, reads AP + WF + FS + IP — Pilot 11).
 7. **Queries.** The services above.
 8. **Jobs.** None.
 9. **Policies.** `operations_dashboard`, `finance/dashboard`.
-10. **Routes / API.** `/`, `/operations_dashboard`, `/admin`, `/finance`, `/finance/dashboard/export_pdf`, `/finance/reports/branch_profitability`. No API.
+10. **Routes / API.** `/`, `/operations_dashboard`, `/admin`, `/finance`, `/finance/dashboard/export_pdf`, `/finance/reports/branch_profitability`, `/laundry/reports/cost_summary`. No API.
 11. **Business rules.** Presentation/aggregation only (section gating by permission, profitability composition, period resolution).
 12. **Dependencies.** Reads all five domains (today: AP 36 refs / 7 files, FS 34 / 12, WF 16 / 8, OA 16 / 8, IP 13 / 5).
 13. **Owns.** Nothing. 14. **May read.** Every domain via query interfaces. 15. **Must NOT modify.** Anything.
@@ -350,7 +352,7 @@ An upstream domain never calls or writes into a downstream domain.
 | OA access scopes need branch membership (WF) | **Implemented (Pilot 5):** OA defines `OrganizationAccess::MembershipProvider` (`current_branch_ids`, `current_member_ids`); WF implements it (`Workforce::MembershipProvider` → `BranchMembership`), registered at boot in `config/initializers/organization_access_membership_provider.rb`. `EmployeeScope` / `BranchScope` reference only the contract (enforced by `spec/architecture/organization_access_membership_boundary_spec.rb`) |
 | WF request validation/effects need attendance & payroll facts (AP) | WF defines **`RequestEligibility`** and **`RequestEffects`** contracts and publishes `employee_request.*` events; AP implements/subscribes |
 | WF employee page shows salary (AP) | UI composition: AP contributes the salary panel (infrastructure-level view composition), WF does not read AP |
-| IP laundry cost report reads payroll/assignments (AP/WF) | The cross-domain labour-cost part moves to **Reporting** |
+| ~~IP laundry cost report reads payroll/assignments (AP/WF)~~ | **Resolved (Pilot 11):** the whole report moved to **Reporting** (`Finance::Reports::LaundryCostSummary`) |
 | WF shift form edits penalty rules (AP) | **Implemented (Milestone 2, Pilot 4):** WF defines `Shifts::PenaltyRuleSettings`; AP implements it (`Attendance::ShiftPenaltyRules`), registered at boot in `config/initializers/shift_penalty_rule_settings.rb`. WF code references only its own contract |
 | WF insurance profile change must update payroll; the insurance form shows which payroll it affects (AP) | **Implemented (Pilot 8):** WF defines `Employee::InsuranceProfileEffects` (`profile_changed`, `payroll_notice_for` → `:none`/`:active`/`:mixed`/`:finalized`); AP implements it (`Payroll::InsuranceProfileEffects`), registered at boot in `config/initializers/employee_insurance_profile_effects.rb`. Synchronous, called after the profile is committed; a failure is logged and never fails the change. AP still reads the profile itself for its snapshot (allowed direction). Enforced by `spec/architecture/workforce_employee_insurance_profile_boundary_spec.rb` |
 | WF late / early-leave permission approval and cancellation must update payroll (AP) | **Implemented (Pilot 9):** WF owns the `EmployeeRequest` lifecycle and defines `Requests::PermissionPayrollEffects` (`permission_approved(request:)` → `nil`; `permission_cancelled(request:)` → `:reverted` / `:refused`, `:refused` only for a finalized / paid period, called inside the cancel transaction). AP owns the effect: `Payroll::PermissionPayrollEffects` → `Payroll::PermissionApplier` (approval) / `Payroll::PermissionReverter` (cancellation), registered at boot in `config/initializers/request_permission_payroll_effects.rb`; it never calls WF request services. Enforced by `spec/architecture/workforce_request_permission_payroll_boundary_spec.rb`. **Legacy exception:** the punch-correction rollback in `Requests::Canceller` still names AP, allowed only in its six methods (unreachable since Pilot 10 M4-2; **removed in Pilot 10 M6** — the canceller now names AP nowhere) |
@@ -382,7 +384,7 @@ of rules 4–5 of §18.
 | ~~AP → FS (`Payroll::InsuranceExpenseGenerator` writes `expenses`)~~ | — | **Resolved (Milestone 2, Pilot 3):** generator removed; AP calls only its `Payroll::FinalizationEffects` contract, FS implements it (cycle F3 eliminated) |
 | ~~WF → AP penalty-rule write (`Shift` nested attributes, §14.2 #9)~~ | — | **Resolved (Milestone 2, Pilot 4):** WF `Shifts::PenaltyRuleSettings` contract, AP implementation; `Shift` keeps only the inverse lifecycle association (`dependent: :destroy, autosave: true`), a classified exception |
 | IP → FS (goods-receipt settlement/void call `FinancialSettlementService`; custody accounts as funding source) | 6 / 6 | **Violation of direction** → `goods_receipt.*` events; settlement workflow owned by FS |
-| IP → AP / IP → WF (`Laundry::LaundryCostSummaryReport`) | 1 file | **Violation** → labour-cost aggregation moves to Reporting |
+| ~~IP → AP / IP → WF (`Laundry::LaundryCostSummaryReport`)~~ | — | **Resolved (Pilot 11):** the report aggregates four domains, so the whole of it moved to Reporting as `Finance::Reports::LaundryCostSummary` (RP → all, read-only); enforced by `spec/architecture/reporting_laundry_cost_summary_boundary_spec.rb` |
 
 ## 13. Circular Dependencies
 
@@ -586,7 +588,7 @@ OA 16 / 297 / 124 · WF 61 / 1,103 / 197 · AP 101 / 1,895 / 275 · FS 154 / 1,5
 | 3 | **Attendance & Payroll** | Depends on OA + WF; strongest tests (≈1,900 examples) and the only characterized API; implements WF contracts; publishes `payroll.period_finalized` |
 | 4 | **Finance & Sales** | Consumes AP (and later IP) effects; highest churn and the largest controller (`Finance::DailyReconciliationsController`, 1,865 lines) — slim it as a prerequisite |
 | 5 | **Inventory & Purchasing** | Depends on OA; publishes `goods_receipt.*` for FS; FS's settlement workflow for receipts is completed here. Its FS-bound effects can only be switched once FS (step 4) consumes them |
-| 6 | **Reporting** | Reads every domain — last; also receives the labour-cost aggregation from the laundry cost report |
+| 6 | **Reporting** | Reads every domain — last; also receives the labour-cost aggregation from the laundry cost report (done ahead of order in Pilot 11) |
 
 Repository evidence does not require changing this sequence. Note on steps 4–5: until step 5, the existing
 `FinancialSettlementService` calls from goods receipts remain as recorded violations.

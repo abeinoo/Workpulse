@@ -631,7 +631,7 @@ Rails.application.routes.draw do
 
     # NOTE: laundry material consumption is NOT recorded here — the existing
     # Inventory Stock Issue workflow (inventory/stock_issues) is the single
-    # source of truth. See Laundry::LaundryCostSummaryReport.
+    # source of truth. See Finance::Reports::LaundryCostSummary.
 
     # NOTE: standard washing-cost rates are managed per towel type, nested
     # under towel_types above — there is no standalone rate-management page.

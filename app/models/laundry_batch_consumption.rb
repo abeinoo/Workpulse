@@ -5,7 +5,7 @@
 #
 # NOTE: this is no longer a recording entry point — the existing Inventory
 # Stock Issue workflow is the single source of truth for laundry material
-# consumption cost (see Laundry::LaundryCostSummaryReport). Any orphaned
+# consumption cost (see Finance::Reports::LaundryCostSummary). Any orphaned
 # laundry_branch_id-only rows here are historical data from a removed
 # standalone recording screen and are not counted by that report.
 #
