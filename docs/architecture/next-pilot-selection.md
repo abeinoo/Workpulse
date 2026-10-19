@@ -4892,8 +4892,8 @@ Nothing pushed, merged or deployed.
 
 ## 26. Pilot 11 — Reporting: Laundry labour-cost report
 
-**Status (2026-10-19): M0 COMPLETE (`96cfc31`); M1 COMPLETE (`1e27d98`, §26.7); M4 relocation COMPLETE, not
-committed (§26.8); M6 NOT STARTED.** Decisions D-P11-1…6 approved (§26.5; D-P11-6 amended: the security fix went in the same PR as M0). PR #43
+**Status (2026-10-19): M0 COMPLETE (`96cfc31`); M1 COMPLETE (`1e27d98`, §26.7); M4 COMPLETE (`d0b21bf`, §26.8);
+M6 enforcement COMPLETE, not committed (§26.9); M8 NOT STARTED.** Decisions D-P11-1…6 approved (§26.5; D-P11-6 amended: the security fix went in the same PR as M0). PR #43
 (`565989d`, `cd316a7`, `96cfc31`) merged into `main` with a merge commit, `b2afa03`. No schema, migration, route, API
 or Booking change.
 
@@ -5067,3 +5067,32 @@ the pilot set 1033 / 0 under seeds 20261006, 12345 and 98765 (lazy) and with `CI
 changed Ruby files no offenses; `git diff --check` clean.
 
 **Next:** the M4 commit (`refactor:`), then M6 enforcement (§26.6).
+
+### 26.9 M6 — Reporting boundary enforcement (2026-10-19)
+
+New `spec/architecture/reporting_laundry_cost_summary_boundary_spec.rb` (11 examples; the conventions of the earlier
+boundary specs: code lines only, comments and ERB comments ignored, reasoned allow-list that fails on stale entries,
+planted probes). It enforces, for `Finance::Reports::LaundryCostSummary`:
+
+| Rule | Why |
+|---|---|
+| The component — service, its Reporting UI controller and view (D-P11-3) — has no write call (create / update / save / destroy / delete / insert / upsert / build / touch / lock / jobs / mail / `log_audit` / `transaction`) | Reporting owns and writes nothing (`module-boundaries.md` §9, §18 rule 9) |
+| The service's constants are exactly its own names plus six cross-domain reads — `Laundry::BranchTowelConsumptionReport`, `StockIssue` (IP), `ShiftAssignment` (WF), `PayrollPeriod`, `PayrollEntry` (AP), `ExpenseAllocation` (FS) — and its business associations exactly `branches` (OA) and `expenses` (FS); a new dependency or a stale entry fails | Direct read-only access is the approved model (D-P11-4: no read interfaces); the list makes any new coupling a reviewed decision |
+| Only the service and its controller name the component (one `.new` in the controller) | No domain — Laundry / Inventory & Purchasing included — depends on Reporting (§12.1) |
+| The pre-M4 file and `Laundry::LaundryCostSummaryReport` stay gone and no code names them | M4 removed them; the two comments that still name it (§26.8) are not code |
+| Zeitwerk maps the file to `Finance::Reports::LaundryCostSummary` | The Reporting location chosen in D-P11-2 |
+
+**Probes (in memory, `File.read` stubbed):** 7 planted writes across the three files caught; a planted
+`Payroll::EntryRecalculator` call and a stale allow-list entry caught; a new `@business.payroll_periods` read caught;
+callers planted in a Laundry service and an Attendance & Payroll service (bare and namespaced) caught; the old name
+planted back caught; comments, ERB comments and strings not flagged.
+
+No application code changed. The Finance & Sales expense boundary keeps listing the service among its read-only
+Reporting files (M4).
+
+**Verification:** the new spec 11 / 0; `spec/architecture` 303 / 0; M1 characterization 17 / 0; laundry service +
+request specs 184 / 0; the pilot set 1044 / 0 under seeds 20261006, 12345 and 98765 (lazy) and with `CI=1` (1033 + the
+11 new examples, no failing ID). `zeitwerk:check` clean, RuboCop on the new spec no offenses, `git diff --check` clean.
+
+**Next:** the M6 commit (`chore:`), then M8 (verification and documentation, including `module-boundaries.md` and the
+two stale comments). M7 is not needed (no model).

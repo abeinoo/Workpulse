@@ -14,6 +14,8 @@
 #   identical under seeds 20261006, 12345 and 98765 (lazy loading), and with CI=1 (eager). No failing ID.
 # M4 (2026-10-19, relocation to Finance::Reports::LaundryCostSummary, on 1e27d98 + working tree): this set
 #   1033 examples, 0 failures — identical under seeds 20261006, 12345 and 98765 (lazy) and with CI=1. No failing ID.
+# M6 (2026-10-19, on d0b21bf + the new spec/architecture/reporting_laundry_cost_summary_boundary_spec.rb, 11 examples):
+#   this set 1044 examples, 0 failures — identical under seeds 20261006, 12345 and 98765 (lazy) and with CI=1.
 #
 # set spec/architecture
 # set spec/services/laundry
