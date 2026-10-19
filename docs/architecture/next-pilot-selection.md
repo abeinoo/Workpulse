@@ -4892,9 +4892,12 @@ Nothing pushed, merged or deployed.
 
 ## 26. Pilot 11 — Reporting: Laundry labour-cost report
 
-**Status (2026-10-18): M0 COMPLETE (read-only, at `main` `cd316a7`); M1 NOT STARTED — waiting for approval of the
-decisions in §26.5 and a committed baseline (§7 of `migration-pattern.md`).** Nothing committed, pushed or merged.
-No schema, migration, route, API or Booking change.
+**Status (2026-10-19): M0 COMPLETE (`96cfc31`); M1 COMPLETE (`1e27d98`, §26.7); M4 COMPLETE (`d0b21bf`, §26.8);
+M6 COMPLETE (`c30c148`, §26.9); M8 verification and documentation COMPLETE, not committed (§26.10). TD-P11-7 root
+cause identified and mitigated by a test-only fix, not committed (§26.11). Pilot 11 NOT CLOSED — M1, M4 and M6 are
+local and unpushed, M8 and the TD-P11-7 fix are uncommitted, and the TD-P11-7 resolution awaits review (§26.11).** Decisions D-P11-1…6 approved (§26.5; D-P11-6 amended: the security fix went in the same PR as M0). PR #43
+(`565989d`, `cd316a7`, `96cfc31`) merged into `main` with a merge commit, `b2afa03`. No schema, migration, route, API
+or Booking change.
 
 ### 26.1 Selection
 
@@ -5003,3 +5006,205 @@ M2 / M3 not needed (no cross-domain caller), M5 not needed (no business rule in 
 
 **M1 acceptance:** the new specs pass on unchanged code; the pilot set's failing IDs stay empty under the three seeds;
 `zeitwerk:check`, RuboCop and `git diff --check` clean.
+
+### 26.7 M1 — characterization (2026-10-19)
+
+**Precondition met:** PR #43 merged into `main` as merge commit `b2afa03` (parents `7cb8d7f`, `96cfc31`); `565989d`,
+`cd316a7` and `96cfc31` are ancestors of `origin/main`; local `main` fast-forwarded to `b2afa03`. M1 ran on
+`feature/pilot-11-laundry-cost-reporting` at `96cfc31` (same tree as `b2afa03`). New specs only, no production change.
+
+Two files in `spec/characterization/reporting/` (17 examples), each pinning the unchanged code:
+
+| Gap | File (examples) | What it pins |
+|---|---|---|
+| G1 | `laundry_cost_summary_spec.rb` (1), `laundry_cost_summary_request_spec.rb` (1) | Towels received at a laundry branch later deactivated are excluded from `standard_towels` / `standard_cost`, the variance, the cost per towel and the CSV standard-cost row; `Result#consumption` still counts them (TD-P11-6) |
+| G2 | request (3) | No params → the `BusinessDay` month: at 03:00 UTC on 1 November (start hour 6) the range is still 1–31 October, in the HTML filter and the CSV period column; after the start hour it is November; an unparseable date falls back to the default |
+| G3 | service (4) | TD-P11-3 current behaviour: a partial-period, last-day-only or shared (laundry + sales) assignment counts the whole `net_salary`; an assignment ending the day before the period is excluded |
+| G4 | request (3) | The 8 cards and 3 section titles, in order, for `view_payroll` holders and the owner; 4 cards and 1 section title without `view_payroll` |
+| G5 | request (1) | `text/csv`, `attachment`, filename `laundry_cost_summary_<calendar date>.csv` (`Date.current`, not the business day), UTF-8 BOM, header row |
+| G6 | service (4) | No INSERT / UPDATE / DELETE during a run, with and without payroll (an `sql.active_record` recorder, with a control example proving it sees writes); payroll entries / periods, stock issues and items, inventory movements, towel transfers / items / ledger entries, expenses and allocations unchanged |
+
+**Proof the specs are not vacuous** (in-memory probes, no file changed): narrowing standard cost removed → 2 G1
+failures; date range from `Date.current` → 2 G2 failures; a write inside the service → 2 G6 failures.
+
+**Verification:** the baseline set plus `spec/characterization/reporting` (added to the set) — 1033 examples,
+0 failures under seeds 20261006, 12345 and 98765 (lazy loading) and with `CI=1`; the M1 files alone 17 / 0.
+`zeitwerk:check` clean, RuboCop on the two files no offenses, `git diff --check` clean.
+
+**Next:** M4 relocation (§26.6), after the M1 commit.
+
+### 26.8 M4 — relocation (2026-10-19)
+
+**Moved:** `Laundry::LaundryCostSummaryReport` (`app/services/laundry/laundry_cost_summary_report.rb`) →
+`Finance::Reports::LaundryCostSummary` (`app/services/finance/reports/laundry_cost_summary.rb`), the existing
+Reporting service location (D-P11-1, D-P11-2). The body is unchanged apart from the namespace: a whitespace-insensitive
+diff against the old file shows only the `module Finance` / `module Reports` wrapper, the class name and
+`BranchTowelConsumptionReport` qualified as `Laundry::BranchTowelConsumptionReport` (one call, two comments) — it now
+reads that Inventory & Purchasing query from outside the `Laundry` namespace, as `Finance::Reports::ExpenseSources`
+already does. No new read interface (D-P11-4); no `Finance::` / `Finance::Reports::` constant shadows a name the
+service uses.
+
+**Not byte-identical (deviation from the M4 row of `migration-pattern.md` §3, recorded):** the file follows the
+nested `module Finance` / `module Reports` style of every other `app/services/finance/reports/` file (no `app/` file uses
+compact `Outer::Inner` headers), so every body line gains two spaces of indentation (152 / 150 lines in a plain diff).
+Git therefore shows a delete + add rather than a rename; review it with `git diff -w` against
+`app/services/laundry/laundry_cost_summary_report.rb` at `1e27d98`.
+
+**Callers updated:** `Laundry::Reports::CostSummaryController#index` (one constant); the `describe` line of
+`spec/services/laundry/laundry_cost_summary_report_spec.rb`, `…_guards_spec.rb` and
+`spec/characterization/reporting/laundry_cost_summary_spec.rb` (the spec files stay where they are). The route, URL,
+controller class, view, navigation and i18n keys are unchanged (D-P11-3); the HTML / CSV contracts are unchanged
+(D-P11-5, the M1 G1–G6 specs pass unedited apart from the `describe` constant).
+
+**Boundary:** `finance_sales_expense_boundary_spec.rb` — the file moved from the cross-domain exceptions
+(`EXCEPTION_FILES`, `READ_ONLY_EXCEPTIONS`, now empty) to `REPORTING_FILES`, so it stays enforced read-only on
+expenses as Reporting code; the other boundary specs already classify `app/services/finance/reports/**` as Reporting.
+
+**Left for M8 (comments only, no behaviour):** `app/models/laundry_batch_consumption.rb:8` and `config/routes.rb:634`
+still name `Laundry::LaundryCostSummaryReport` in comments.
+
+**Verification:** M1 characterization 17 / 0; laundry service + request specs 184 / 0; `spec/architecture` 292 / 0;
+the pilot set 1033 / 0 under seeds 20261006, 12345 and 98765 (lazy) and with `CI=1` — the same as M1, no failing ID.
+`zeitwerk:check` clean; the old constant is undefined and the new one resolves from the new file; RuboCop on the six
+changed Ruby files no offenses; `git diff --check` clean.
+
+**Next:** the M4 commit (`refactor:`), then M6 enforcement (§26.6).
+
+### 26.9 M6 — Reporting boundary enforcement (2026-10-19)
+
+New `spec/architecture/reporting_laundry_cost_summary_boundary_spec.rb` (11 examples; the conventions of the earlier
+boundary specs: code lines only, comments and ERB comments ignored, reasoned allow-list that fails on stale entries,
+planted probes). It enforces, for `Finance::Reports::LaundryCostSummary`:
+
+| Rule | Why |
+|---|---|
+| The component — service, its Reporting UI controller and view (D-P11-3) — has no write call (create / update / save / destroy / delete / insert / upsert / build / touch / lock / jobs / mail / `log_audit` / `transaction`) | Reporting owns and writes nothing (`module-boundaries.md` §9, §18 rule 9) |
+| The service's constants are exactly its own names plus six cross-domain reads — `Laundry::BranchTowelConsumptionReport`, `StockIssue` (IP), `ShiftAssignment` (WF), `PayrollPeriod`, `PayrollEntry` (AP), `ExpenseAllocation` (FS) — and its business associations exactly `branches` (OA) and `expenses` (FS); a new dependency or a stale entry fails | Direct read-only access is the approved model (D-P11-4: no read interfaces); the list makes any new coupling a reviewed decision |
+| Only the service and its controller name the component (one `.new` in the controller) | No domain — Laundry / Inventory & Purchasing included — depends on Reporting (§12.1) |
+| The pre-M4 file and `Laundry::LaundryCostSummaryReport` stay gone and no code names them | M4 removed them; the two comments that still name it (§26.8) are not code |
+| Zeitwerk maps the file to `Finance::Reports::LaundryCostSummary` | The Reporting location chosen in D-P11-2 |
+
+**Probes (in memory, `File.read` stubbed):** 7 planted writes across the three files caught; a planted
+`Payroll::EntryRecalculator` call and a stale allow-list entry caught; a new `@business.payroll_periods` read caught;
+callers planted in a Laundry service and an Attendance & Payroll service (bare and namespaced) caught; the old name
+planted back caught; comments, ERB comments and strings not flagged.
+
+No application code changed. The Finance & Sales expense boundary keeps listing the service among its read-only
+Reporting files (M4).
+
+**Verification:** the new spec 11 / 0; `spec/architecture` 303 / 0; M1 characterization 17 / 0; laundry service +
+request specs 184 / 0; the pilot set 1044 / 0 under seeds 20261006, 12345 and 98765 (lazy) and with `CI=1` (1033 + the
+11 new examples, no failing ID). `zeitwerk:check` clean, RuboCop on the new spec no offenses, `git diff --check` clean.
+
+**Next:** the M6 commit (`chore:`), then M8 (verification and documentation, including `module-boundaries.md` and the
+two stale comments). M7 is not needed (no model).
+
+### 26.10 M8 — final verification and documentation (2026-10-19, on `c30c148`)
+
+**Code (verified):** `Finance::Reports::LaundryCostSummary` (`app/services/finance/reports/laundry_cost_summary.rb`)
+is the only implementation; its only caller is `Laundry::Reports::CostSummaryController#index`; the pre-M4 file and
+`Laundry::LaundryCostSummaryReport` are gone and no code names them. Route table identical before and after M8
+(`bin/rails routes`, 770 lines, compared byte for byte). M7 not needed (no model). No database verification needed
+(`migration-pattern.md` §8: no migration or `db/` file references the constant, no model or table moved).
+
+**Documentation:**
+
+* `module-boundaries.md` — status header (Reporting partially migrated, Pilot 11); §9 controllers, services and
+  routes list the laundry operating-cost report as Reporting; the target-graph row (IP laundry cost report) and the
+  §12.2 row "IP → AP / IP → WF" marked resolved (Pilot 11, enforced by the M6 spec); §19 step 6 notes it was done
+  ahead of order. The §19 evidence counts are left as recorded.
+* The two stale comments (§26.8) now name `Finance::Reports::LaundryCostSummary`:
+  `app/models/laundry_batch_consumption.rb:8`, `config/routes.rb:634` (comment text only).
+
+**Tests:**
+
+| Run | Result |
+|---|---|
+| M1 characterization (`spec/characterization/reporting`, G1–G6) | 17 / 0 |
+| Laundry service + guards + laundry request specs (M4 behaviour) | 184 / 0 |
+| M6 boundary (`reporting_laundry_cost_summary_boundary_spec.rb`) | 11 / 0 |
+| `spec/architecture` | 303 / 0 |
+| Pilot set (14 entries), seeds 20261006 / 12345 / 98765, lazy | 1044 / 0 under each — no failing ID |
+| Pilot set with `CI=1` (eager), seed 20261006 | 1044 / 0 |
+| Full suite, lazy, seed 20261006 | 9169 examples, **2 failures** (below) |
+
+`zeitwerk:check` clean; RuboCop on the two changed Ruby files no offenses; `bin/rubocop-baseline` no new offenses;
+`bin/brakeman` 0 warnings; `git diff --check` clean.
+
+*Root cause identified and mitigated on 2026-10-19 (§26.11); the resolution is not committed. The text below is the
+M8 state.*
+
+**TD-P11-7 (new, not fixed — needs review; not in the pilot set):** the M8 full-suite run failed two browser system
+specs that passed in the M0 full-suite run (9141 / 0 at `cd316a7`):
+
+* `spec/system/finance/expense_duplicate_branch_spec.rb:55` — `undefined method 'find' for nil` at line 59
+  (`rows.first` read right after `add_row`; likely the row list is read before the JavaScript added the row).
+* `spec/system/finance/expense_register_payment_spec.rb:27` — custody balance `0.0`, expected `-400`, at line 43,
+  while the settled amount (400) had already been asserted; root cause not identified (the "paid from balance"
+  checkbox interaction is the suspected area).
+
+Neither touches Pilot 11 code (expense form and expense payments / custody balance). Both pass on re-run: the two
+examples alone three times (seed 20261006), both files under seeds 20261006, 12345 and 98765 (5 / 0 each), and the
+whole `spec/system` directory under seed 20261006 (203 / 0). They are **not** recorded as `flaky` in any baseline
+file: `migration-pattern.md` §7 requires a review and an identified root cause first.
+
+**Closeout decision:** M8 verification and documentation COMPLETE for the pilot (every Pilot 11 check and the pilot
+set by exact ID). **Pilot 11 is NOT CLOSED** until TD-P11-7 is reviewed. Debt TD-P11-1…6 (§26.4) and the M4
+formatting deviation (§26.8) stand as recorded.
+
+### 26.11 TD-P11-7 — root cause, mitigation and close-out readiness (2026-10-19)
+
+**Root cause (identified, reproduced):** the application sets `html { scroll-behavior: smooth }`
+(`app/assets/stylesheets/application.css:230`). Before each click Selenium scrolls the target into view; with smooth
+scrolling that scroll animates, and ChromeDriver can measure the target and dispatch the click mid-scroll, so the
+click lands on a neighbouring element. When ChromeDriver detects it, Capybara retries; when it does not, the click is
+silently lost. Instrumented reproductions (browser events through an injected script, server parameters through
+`ActiveSupport::Notifications`; harness outside the repository, spec files unchanged) showed, for each failure:
+
+* `expense_duplicate_branch_spec.rb:55` — the "add branch" click landed on the empty-state paragraph above the button
+  while `scrollY` was still moving (e.g. 576 → 502 within 50 ms of the click); `line-items#add` never ran, so no row
+  appeared and `rows.first` was `nil`. Reproduced 3 / 80 (plus 2 earlier), every failure with exactly one misdirected
+  click.
+* `expense_register_payment_spec.rb:27` — the `check "payment_paid_from_balance"` click landed on the notes
+  `<textarea>` mid-scroll; the box was unchecked at submit, the form sent `paid_from_balance = ["0"]` and the server
+  received `"0"`, so the payment was settled without a custody deduction. Reproduced 2 / 80.
+
+The application behaved correctly for the input it received (`line-items#add`, `Finance::ExpensePaymentRecorder`); no
+application defect was established. Three goods-receipt system specs already worked around the same race locally
+(`scrollBehavior = 'auto'`). Ruled out by experiment: controller registration timing (network latency, CPU
+throttling), machine load, and the PWA install banner.
+
+**Mitigation (test-only, uncommitted):** `spec/support/capybara.rb` (+33 lines) registers, once per Chrome session,
+`Page.addScriptToEvaluateOnNewDocument` with `html { scroll-behavior: auto !important; }` on `<html>` (kept by Turbo
+visits). No application code, CSS, spec or dependency change.
+
+**Validation and provenance:**
+
+| Run | Result | When |
+|---|---|---|
+| A/B, injected `scroll-behavior: auto` vs current CSS, 20 iterations each | 0 / 80 vs 3 / 80 duplicate-branch failures; 0 vs 3 misdirected clicks | Investigation |
+| With the fix: both files × 25 iterations (instrumented) | 125 / 0, 0 misdirected clicks | Fix verification |
+| With the fix: payment spec × 80 (instrumented) | 80 / 0 (before: 2 / 80), 0 misdirected clicks | Fix verification |
+| Computed `scroll-behavior` with the fix | `auto` in all 540 samples (initial documents and Turbo visits) | Fix verification |
+| Full suite with the fix, seed 20261006 (the M8 seed) | 9169 examples, 0 failures (22 min 37 s) | Fix verification; no file changed since (same file hashes) |
+| Close-out reruns: the two files under seeds 20261006, 12345, 98765 | 5 / 0 each | This close-out |
+| Close-out reruns: `spec/system`, seed 20261006 | 203 / 0 | This close-out |
+| Close-out reruns: M1 17 / 0; M6 boundary 11 / 0; `spec/architecture` 303 / 0; `spec/services/laundry` 86 / 0; `spec/requests/laundry` 98 / 0; pilot set 1044 / 0 under the three seeds | all 0 failures | This close-out |
+
+RuboCop on `spec/support/capybara.rb` no offenses; `git diff --check` clean.
+
+**Classification:** the two failures are **not** recorded as `flaky` (`migration-pattern.md` §7 covers failures that
+are recorded rather than fixed); the root cause is identified and removed by the fix. TD-P11-7 is **mitigated, not
+closed**: it is resolved once the fix is committed — as its own commit, separate from the M8 documentation
+(`migration-pattern.md` §9: pre-existing defect fixes are never mixed with migration steps) — and the resolution is
+accepted on review.
+
+**Close-out readiness:** every Pilot 11 stage has its evidence (M0 §26.2–26.6; M1 §26.7; M4 §26.8; M6 §26.9; M8
+§26.10; TD-P11-7 §26.11). Outstanding before Pilot 11 can be recorded as CLOSED:
+
+1. Review and acceptance of the TD-P11-7 resolution above.
+2. The TD-P11-7 fix committed on its own (`spec/support/capybara.rb`).
+3. The M8 documentation committed (`docs:`), with the two comment-only updates of §26.10.
+4. M1, M4, M6, M8 and the fix pushed and merged into `main` (merge commit, as PR #43).
+
+Debt TD-P11-1…6 (§26.4) and the M4 formatting deviation (§26.8) stand as recorded. No next pilot is selected here.

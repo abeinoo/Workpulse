@@ -3,7 +3,7 @@ require "rails_helper"
 # Guards added by the laundry cost-report security fix: exactly one ACTIVE
 # laundry branch, every component restricted to it, and include_payroll: false
 # never computing payroll or anything derived from it.
-RSpec.describe Laundry::LaundryCostSummaryReport, type: :model do
+RSpec.describe Finance::Reports::LaundryCostSummary, type: :model do
   let(:business)        { create(:business) }
   let!(:laundry_branch) { create(:branch, business: business, branch_type: "laundry") }
   let(:category)        { create(:expense_category, business: business) }

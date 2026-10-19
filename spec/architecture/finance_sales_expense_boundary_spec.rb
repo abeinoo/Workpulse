@@ -76,18 +76,18 @@ module ArchitectureSpecs
     REPORTING_FILES = {
       "app/controllers/finance/dashboard_controller.rb" => "Reporting: finance dashboard reads approved expenses (policy_scope)",
       "app/services/finance/dashboard_filters.rb"       => "Reporting: dashboard filter validates Expense::PAYMENT_SOURCES",
-      "app/services/finance/reports/expense_sources.rb" => "Reporting: profitability expense sources (direct + shared allocations)"
+      "app/services/finance/reports/expense_sources.rb" => "Reporting: profitability expense sources (direct + shared allocations)",
+      "app/services/finance/reports/laundry_cost_summary.rb" => "Reporting: laundry operating cost reads approved expenses (Pilot 11)"
     }.freeze
 
     # Cross-domain exceptions documented in the Expenses M0 classification.
     EXCEPTION_FILES = {
       "app/models/business.rb"                         => "Organization & Access inverse associations (has_many :expenses …)",
       "app/models/branch.rb"                           => "Organization & Access inverse associations (restrict_with_error)",
-      "app/helpers/workspace_helper.rb"                => "UI shell: Finance workspace nav gated by policy(Expense …)",
-      "app/services/laundry/laundry_cost_summary_report.rb" => "IP laundry cost report reads approved expenses (target: Reporting); read-only"
+      "app/helpers/workspace_helper.rb"                => "UI shell: Finance workspace nav gated by policy(Expense …)"
     }.freeze
 
-    READ_ONLY_EXCEPTIONS = [ "app/services/laundry/laundry_cost_summary_report.rb" ].freeze
+    READ_ONLY_EXCEPTIONS = [].freeze
 
     WRITE_CALL = /\.(?:create|update|update_all|update_columns?|save|destroy|destroy_all|delete|delete_all|
                     insert_all|upsert_all|build|find_or_create_by|increment|decrement|toggle)!?(?=[(\s]|$)/x

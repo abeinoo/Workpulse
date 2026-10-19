@@ -3,7 +3,7 @@ class Laundry::Reports::CostSummaryController < Laundry::BaseController
 
   def index
     @from, @to = date_range
-    @summary = Laundry::LaundryCostSummaryReport.new(
+    @summary = Finance::Reports::LaundryCostSummary.new(
       current_user.business, from: @from, to: @to, include_payroll: current_user.can?(:view_payroll)
     ).call
     @material_lines = authorized_material_lines(@summary.material_lines)
