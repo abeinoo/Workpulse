@@ -194,13 +194,17 @@ module Attendance
 
     def detect_biometric_mismatch
       # Flags users where biometric punch logs exist but attendance was created manually
-      # (bio punch logs present but no shift_assignment link — indicating manual override)
+      # (bio punch logs present but no shift_assignment link — indicating manual override).
+      # Only device punches that are evidence of presence count (TD-T-2): biometric
+      # source, BiometricPunchLog::BIOMETRIC_MISMATCH_EVIDENCE_ACTIONS. A day is the
+      # calendar date of punched_at in the business time zone (not work_date).
       tz = @user.business.timezone_object
       from_utc = tz.local(@from.year, @from.month, @from.day, 0, 0, 0).utc
       to_utc   = tz.local(@to.year,   @to.month,   @to.day,  23, 59, 59).utc
 
       bio_days = BiometricPunchLog
         .where(employee_id: @user.id)
+        .where(source: "biometric", action: BiometricPunchLog::BIOMETRIC_MISMATCH_EVIDENCE_ACTIONS)
         .where(punched_at: from_utc..to_utc)
         .pluck(:punched_at)
         .map { |t| t.in_time_zone(tz).to_date }

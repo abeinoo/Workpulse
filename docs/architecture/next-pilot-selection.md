@@ -5794,7 +5794,8 @@ clean; `Gemfile.lock` and `db/schema.rb` unchanged.
   computed without it). The window is the duration of one punch request. `Attendance::PunchCorrectionEffects` closes the
   same window by reading the period `FOR UPDATE` inside its transaction; the device path does not (no transaction or
   row lock was added in this fix). Same limitation as `Attendance::BulkManualEntryService#period_locked?`.
-* **TD-T-2 — anomaly detector counts refused punches (no defect established).**
+* **TD-T-2 — anomaly detector counts refused punches (no defect established).** *Resolved by an approved product
+  decision in §34 (evidence filtered by source and action); the text below records the state at §32.*
   `Attendance::AnomalyDetector#detect_biometric_mismatch` treats the calendar day of **every** punch log of the
   employee in the range as a "biometric day", with no filter on action, and reports `biometric_mismatch` (info) when at
   least 3 active attendance records on such days have no `shift_assignment_id` (manual entries). The two new refusal
@@ -5812,7 +5813,7 @@ clean; `Gemfile.lock` and `db/schema.rb` unchanged.
 
 ## 33. TD-T-1 — device punches serialized against payroll finalization
 
-**Status (2026-10-20): FIXED, uncommitted**, on `feature/pilot-12-pos-terminals` on top of `ffd1906` (§32). No schema,
+**Status (2026-10-20): FIXED** — committed locally (`5925411`), on `feature/pilot-12-pos-terminals` on top of `ffd1906` (§32). No schema,
 dependency, route, API or behaviour change for a single punch.
 
 **Race (§32):** `Attendance::PunchService` read the payroll period with a plain `find_by` outside any transaction, then
@@ -5894,4 +5895,68 @@ mid-flight); `Timeout` only wraps `Queue#pop`.
 * Every punch now runs in a transaction and holds the shared period lock until commit; finalization waits for punches
   in flight (milliseconds). The lock behaviour assumes PostgreSQL and that only `Payroll::Approver` sets locked
   statuses.
-* TD-T-2 (anomaly detector counts refused punches) is unchanged and open.
+* TD-T-2 (anomaly detector counts refused punches) was unchanged and open here; addressed in §34.
+
+---
+
+## 34. TD-T-2 — biometric_mismatch evidence filtered by source and action
+
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on
+`feature/pilot-12-pos-terminals` on top of `5925411` (§33). No schema, migration, backfill, dependency, route or API change.
+
+**Problem (§32):** `Attendance::AnomalyDetector#detect_biometric_mismatch` took the calendar day of **every** punch log
+of the employee in the range as a "biometric day" — any action, any source, including mobile-source
+`rejected_not_allowed` logs written by `Api::V1::AttendanceController` and refusals whose timestamp the server does
+not trust.
+
+**Approved rules (2026-10-20):** only `source: "biometric"` logs count, and only these actions —
+`BiometricPunchLog::BIOMETRIC_MISMATCH_EVIDENCE_ACTIONS`:
+
+| Action | Evidence? |
+|---|---|
+| `check_in`, `check_in_updated`, `check_out` | Yes |
+| `rejected_no_assignment` | Yes — the device saw the employee on a day with no assignment |
+| `rejected_spam` | Yes — neutral (always next to another punch within 60 s) |
+| `rejected_payroll_locked` | Yes — a real device punch, refused by policy |
+| `rejected_not_allowed` (biometric source) | No |
+| `rejected_stale_timestamp` | No — the day comes from an untrusted timestamp |
+| `error` | No |
+| any action with `source: "mobile"` | No |
+| any action not listed | No (an explicit allow-list; a new action counts only once added) |
+
+**Change:** `app/models/attendance_payroll/biometric_punch_log.rb` adds the constant next to `NOT_SPAM_ACTIONS`;
+`app/services/attendance/anomaly_detector.rb#detect_biometric_mismatch` adds
+`.where(source: "biometric", action: BiometricPunchLog::BIOMETRIC_MISMATCH_EVIDENCE_ACTIONS)` to its query.
+Unchanged: the range (business-time-zone midnight to 23:59:59), the threshold (`REPEAT_THRESHOLD` = 3 unassigned
+records), severity `:info`, the message and its translations, `count` / `dates`, the other detectors, and the
+operations dashboard (its only consumer — `OperationsDashboardController#build_anomaly_summary`). Effect: fewer
+employees can receive the signal, so the dashboard's top-8 ranking by anomaly count can change; it is computed at read
+time, so no data changes.
+
+**Deferred (separate task):** a "biometric day" is still the **calendar date of `punched_at` in the business time zone**,
+not the log's `work_date` / business day. A punch before `business_day_start_hour` belongs to the previous work date but
+counts for its calendar date; switching needs a fallback for logs with no `work_date` (the `rejected_not_allowed` log
+written before the work date is computed) and is a separate decision. The "manual" proxy (`shift_assignment_id` nil =
+attendance written while no assignment resolved) is also unchanged.
+
+**Tests (`spec/services/attendance/anomaly_detector_spec.rb`):** the seven `receive_message_chain(:where, :where,
+:pluck)` stubs of the punch-log query no longer matched the query and are removed — those examples create no logs, so
+the real query returns nothing; their expectations are unchanged. New `describe "biometric mismatch"` (24 examples,
+real `BiometricPunchLog` and `AttendanceRecord` rows, time frozen, Asia/Riyadh): three qualifying days → one `:info`
+anomaly with count 3, the dates and the unchanged message; two days → none; each evidence action counts; biometric
+`rejected_not_allowed` / `rejected_stale_timestamp` / `error` do not; every action with source `mobile` does not; a day
+whose only logs are excluded does not reach the threshold; logs outside the range (including 23:59:59 local on the day
+before) do not count; the calendar date of `punched_at` is used, not `work_date`; a record with a shift assignment is
+not counted. Probe (in memory, restored): without the new filter → 13 failures (the excluded-action, mobile-source and
+per-day examples).
+
+### 34.1 Verification
+
+| Run | Result |
+|---|---|
+| `spec/services/attendance/anomaly_detector_spec.rb`, `spec/characterization/attendance_payroll/biometric_punch_log_spec.rb`, `spec/architecture/attendance_payroll_biometric_boundary_spec.rb`, `spec/architecture/reporting_read_only_boundary_spec.rb` — seed 20261020 | 56 examples, 0 failures |
+| The same set with `CI=1` | 56 examples, 0 failures |
+
+No operations-dashboard request spec renders anomalies (only policy / navigation / permission checks exist), so none
+was run. `zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `git diff --check` clean; `Gemfile.lock`
+and `db/schema.rb` unchanged.

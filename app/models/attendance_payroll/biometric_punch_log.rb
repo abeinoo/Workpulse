@@ -15,6 +15,14 @@ class BiometricPunchLog < ApplicationRecord
   # spam window look like a duplicate (SEC-P12-1).
   NOT_SPAM_ACTIONS = %w[rejected_no_assignment rejected_stale_timestamp rejected_payroll_locked error].freeze
 
+  # Device-punch actions that prove the employee was at the device that day, for
+  # Attendance::AnomalyDetector's biometric_mismatch signal (TD-T-2; biometric
+  # source only). Excluded: rejected_not_allowed, rejected_stale_timestamp
+  # (untrusted timestamp) and error.
+  BIOMETRIC_MISMATCH_EVIDENCE_ACTIONS = %w[
+    check_in check_in_updated check_out rejected_no_assignment rejected_spam rejected_payroll_locked
+  ].freeze
+
   SOURCES = %w[biometric mobile].freeze
 
   belongs_to :business
