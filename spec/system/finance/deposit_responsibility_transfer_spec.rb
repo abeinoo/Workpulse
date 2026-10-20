@@ -220,7 +220,14 @@ RSpec.describe "Transfer Deposit Responsibility", type: :system do
     expect(session.reload.depositor).to eq(ahmed)
     expect(transfer.reload.rejection_reason).to eq("لدي إجازة غدًا")
 
+    # Switch users on a fresh browser session. Mohamed's page can still fire a
+    # Turbo hover prefetch; one reaching the server after `sign_in manager`
+    # consumes that one-shot login, and the manager's visit — already sent with
+    # Mohamed's cookie — renders as Mohamed (no transfer button). Resetting
+    # leaves the page, waits for in-flight requests and clears the cookies.
+    Capybara.reset_session!
     sign_in manager
+    emulate(430)
     visit finance_daily_reconciliation_path(dr)
     find("#audit-log .recon-accordion__trigger").click
     expect(page).to have_content(I18n.t("finance.daily_reconciliations.show.timeline.deposit_rejected",
