@@ -5625,12 +5625,12 @@ its effects; the persisted end state is proven by the stale-copy examples.
 
 | ID | Item |
 |---|---|
-| F-A2 | Two truly concurrent payments: the unique index `index_advances_on_employee_request_id` prevents a second `Advance`; with the lock the second payment should now wait and be refused instead of raising `RecordNotUnique` (500), but this is **not verified under real concurrency** |
+| F-A2 | **Closed (`46c0bcd`, §36).** Two truly concurrent payments: the unique index `index_advances_on_employee_request_id` prevents a second `Advance`; with the lock the second payment should now wait and be refused instead of raising `RecordNotUnique` (500) — now **verified with two real connections** for single vs single, bulk vs single and same-order overlapping batches (the scenarios tested, not every interleaving) |
 | F-A3 | **Closed (`3490e6a`).** `EmployeeRequestsController#mark_all_paid` authorized the class (`authorize EmployeeRequest, :pay?`) and `pay?` evaluates `record.user` on it — `NoMethodError` for a `pay_advances` holder or the owner, a Pundit refusal for everyone else (routed, no view or spec used it). Investigation found **no unauthorized payment mutation**: the endpoint failed inside `authorize`, before any query or write, so it could never pay anything. Resolution: the unused route, the controller action, `Requests::Approver.pay_all` / `BulkResult` and the translations only it used (`requests.mark_all_paid`, `flash.advances_paid_one` / `_other`, `flash.advances_partial_failure`, en + ar) were removed; the retired route is pinned as unroutable (`spec/requests/employee_requests_spec.rb`) and `pay?` / `bulk_pay?` have policy examples. `bulk_pay` (selected, class-authorized by `bulk_pay?`, policy-scoped, `paid_at` and note, bulk audit — `Requests::BulkPaymentService`) remains the supported bulk-payment path and was not changed. Whether production ever called the route is unknown (not inspected) |
 | F-A4 | `log_audit` inside a transaction has no savepoint: a database-level `AuditLog` failure aborts the PostgreSQL transaction while the rescue swallows it (general `AuditLoggable` debt) |
 | F-A5 | `User has_many :employee_requests, dependent: :destroy` → `EmployeeRequest has_one :advance, dependent: :destroy` can delete financial records |
 | F-A6 | `Advance#repay!` / `Payroll::AdvanceDeductor` use Float arithmetic for money |
-| F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one) |
+| F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one). **Bulk deadlock fixed (`49f5a04`, §36):** batches lock in ascending id; reproduced without the fix, prevented with it. **The approval race stays open** (`approve_standard` still takes no lock) |
 
 SEC-P12-1, TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1 and TD-W-1 remain open.
 
@@ -5673,8 +5673,8 @@ Ruby files no offenses; `git diff --check` clean; `Gemfile.lock` and `db/schema.
 Classifying `EmployeeRequest has_one :advance, dependent: :destroy` as a read / lifecycle exception does **not** fix
 F-A5: destroying a request (or its user) can still delete the Advance — F-A5 stays an open risk.
 
-**Still open, unchanged by Batch A:** F-A2 (not verified under real concurrency), F-A3 (`mark_all_paid` class
-authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29); the WF → AP request-validation reads (D-A5); SEC-P12-1,
+**Still open, unchanged by Batch A:** F-A2 (not verified under real concurrency — later closed, `46c0bcd`, §36), F-A3 (`mark_all_paid` class
+authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29; F-A7's bulk deadlock later fixed, `49f5a04`, §36); the WF → AP request-validation reads (D-A5); SEC-P12-1,
 TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1, TD-W-1.
 
 ---
@@ -6017,3 +6017,55 @@ are unchanged; no advisory lock; `Attendance::CheckInService` unchanged; the rac
 both read the old state and both update; the last commit wins, which can keep the earlier check-out (contrary to "keeps
 latest") and writes two `check_out` logs instead of one plus `rejected_spam`. A lost update, not a 500 — not addressed
 here (a per-employee advisory lock was considered and deferred).
+
+---
+
+## 36. F-A2 and F-A7 — concurrent salary advance payments
+
+**Status (2026-10-20): F-A2 CLOSED, F-A7 bulk deadlock FIXED** — committed locally (`46c0bcd` "test: cover concurrent
+salary advance payments", `49f5a04` "fix: prevent deadlocks in bulk salary advance payments"), not pushed or merged, on
+`feature/pilot-12-pos-terminals`. No schema, migration, dependency, route or permission change.
+
+**F-A2 (`46c0bcd`, tests only, no production change):** new two-connection spec
+`spec/services/requests/advance_payment_concurrency_spec.rb` (the non-transactional harness of
+`spec/services/attendance/punch_period_lock_spec.rb`, copied locally: empty-database guard, bounded worker shutdown with
+captured exceptions, truncation only when no worker or other session remains). The first payment is paused right after
+its Advance is created (request row locked and paid, uncommitted); the second is observed waiting on a lock while
+running the `employee_requests … FOR UPDATE` (`pg_stat_activity`), then the first is released:
+
+* single vs single — the second returns `Requests::Approver::NOT_PAYABLE`; one Advance, one pay audit, the first payer
+  recorded;
+* bulk vs single — the batch commits, the single payment is refused; one Advance, one pay audit, one bulk audit; an
+  unrelated request stays approved;
+* two batches with the same first lock (`[r1, r2]` / `[r1, r3]`) — the second waits, skips r1 with `NOT_PAYABLE` and
+  pays r3; one Advance and one pay audit per request, two bulk audits.
+
+Probe: without `@request.lock!` all three fail — no backend waits on the `FOR UPDATE`, and the loser raises
+`RecordNotUnique` on `index_advances_on_employee_request_id` (the index alone prevents the duplicate only as a 500).
+
+**F-A7 bulk deadlock (`49f5a04`):** `Requests::BulkPaymentService#call` now pays its payable requests in ascending id
+(`payable.sort_by(&:id)`), the one lock order for every batch (it is the only code holding several request row locks;
+approve / reject / cancel / single pay lock at most one request row). Only ordering changes: `result.paid` and the bulk
+audit's `request_ids` are in ascending id; authorization, scope, skip reasons, the locked re-check, transaction
+boundaries, Advances, audit content, `paid_at` and notes are unchanged. Tests: a two-connection example — batch A holds
+r1, batch B given `[r3, r2, r1]` waits on r1 while r2 and r3 stay lockable (`FOR UPDATE NOWAIT` probes), then skips
+r1 / r2 and pays r3, no `ActiveRecord::Deadlocked`; a service example (reversed selection → `paid`, per-request pay
+audits and `request_ids` in ascending id, skip reasons unchanged). Probe: without the sort, B holds r2 while waiting and
+PostgreSQL reports a real deadlock (`PG::TRDeadlockDetected`) — the risk is reproduced, not only inferred.
+
+### 36.1 Verification
+
+| Run | Result |
+|---|---|
+| `46c0bcd` set — the new concurrency spec, `spec/services/requests/{advance_payment_lock,bulk_payment_service,approver,canceller,advance_effects}_spec.rb`, `spec/characterization/workforce/advance_payment_spec.rb`, `spec/requests/employee_requests_spec.rb`, `spec/requests/security/employee_request_*` (3), `spec/architecture/workforce_request_advance_boundary_spec.rb` — seed 20261020 | 178 examples, 0 failures (normal and `CI=1`) |
+| `49f5a04` set — the same without `advance_effects_spec.rb` — seed 20261020 | 171 examples, 0 failures (normal and `CI=1`) |
+
+RuboCop on the changed Ruby files no offenses; `git diff --check` and `zeitwerk:check` clean; `Gemfile.lock` and
+`db/schema.rb` unchanged.
+
+**Limits and open items:** the tests prove the scenarios above, not every interleaving. Overlapping batches still wait
+for each other: each batch holds its request row locks for its whole transaction, so a batch (or a single payment of
+one of its requests) can wait for another batch's full duration; there is no `lock_timeout`. Still open, unchanged:
+F-A7's approval race (`approve_standard` takes no lock), the theoretical bulk "paid without an Advance" case (a
+`RecordInvalid` from the Advance after `update!`, rescued inside the joined batch transaction — unreachable today),
+F-A4, F-A5, F-A6 and every other open finding.
