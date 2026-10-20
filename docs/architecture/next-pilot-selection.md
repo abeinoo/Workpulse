@@ -5891,7 +5891,8 @@ mid-flight); `Timeout` only wraps `Queue#pop`.
   unless a regeneration runs in between: `PunchService` never recalculates (D-L3, a separate product decision).
 * Two simultaneous *first* punches of the same employee and work date both pass the duplicate read; the unique index
   `index_attendance_records_on_user_id_and_work_date` makes the second insert raise `ActiveRecord::RecordNotUnique`
-  (not rescued) — pre-existing, unchanged; the shared period lock does not serialize them.
+  (not rescued) — pre-existing, unchanged here; the shared period lock does not serialize them. *Fixed in §35
+  (`b14744a`): the losing punch is retried once.*
 * Every punch now runs in a transaction and holds the shared period lock until commit; finalization waits for punches
   in flight (milliseconds). The lock behaviour assumes PostgreSQL and that only `Payroll::Approver` sets locked
   statuses.
@@ -5960,3 +5961,58 @@ per-day examples).
 No operations-dashboard request spec renders anomalies (only policy / navigation / permission checks exist), so none
 was run. `zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `git diff --check` clean; `Gemfile.lock`
 and `db/schema.rb` unchanged.
+
+---
+
+## 35. Concurrent first punch — RecordNotUnique retry
+
+**Status (2026-10-20): FIXED** — committed locally (`b14744a` "fix: retry a punch that loses the concurrent
+first-punch insert"), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `9ccff39` (§34). No schema,
+migration, dependency, route or API change. Resolves the §33 residual risk on simultaneous first punches.
+
+**Failure mode:** two simultaneous first punches of one employee and work date both passed the duplicate check and the
+record lookup (neither had committed) and both built a new record. The second insert waited on the first's uncommitted
+entry in `index_attendance_records_on_user_id_and_work_date` (`user_id, work_date`, unique), then failed when the first
+committed: `ActiveRecord::RecordNotUnique`, rescued nowhere on the path (`Api::V1::BiometricBaseController` maps no
+exceptions) → HTTP 500, and the loser's whole transaction — its punch log included — rolled back, so the punch left no
+audit row.
+
+**Fix (`app/services/attendance/punch_service.rb`):** `#call` rescues `ActiveRecord::RecordNotUnique` **outside** the
+failed transaction and runs the complete punch transaction (`#punch_transaction` →
+`ActiveRecord::Base.transaction(requires_new: true) { process }`) exactly once more; a second conflict propagates (no
+loop). The failed attempt left nothing behind, so the retry cannot duplicate a record or a log; it re-runs the period
+`FOR SHARE` guard, the assignment lookup, the duplicate check and the record lookup on the committed state and gets the
+outcome it would have had arriving second (`rejected_spam` within 60 s, otherwise `check_in_updated` / `check_out`), with
+its own durable log. `requires_new`: with no open transaction (the API path) it is a real transaction, as before; inside
+a caller's transaction it is a savepoint, so the unique violation rolls back to it and the retry never runs inside an
+aborted PostgreSQL transaction. Timestamp window, business day, assignment rules, rejection actions and log semantics
+are unchanged; no advisory lock; `Attendance::CheckInService` unchanged; the race is not mapped to a 409.
+
+**Tests:**
+
+* `spec/services/attendance/punch_service_spec.rb` (3, single connection; PostgreSQL itself raises the violation — a
+  wrapped `save` inserts a real duplicate row): one conflict → `check_in` (the failed insert did not survive), exactly
+  two saves, the period guard read twice, one record, one log; the same inside a caller's transaction (savepoint);
+  two conflicts → re-raised after exactly two saves, no record, no log.
+* `spec/services/attendance/punch_period_lock_spec.rb` (2, genuine two-connection race, existing harness unchanged):
+  the first punch pauses after its insert, before commit; the second is observed blocked on the unique index
+  (`pg_locks`); after the first commits the second retries — same second → `rejected_spam`, one record, logs
+  `check_in` + `rejected_spam`; two hours later → `check_out` on the winner's record (120 worked minutes), logs
+  `check_in` + `check_out`.
+* Probes (in memory, restored): without the retry → all 5 fail (the race examples raise `PG::UniqueViolation` in the
+  losing worker); without `requires_new` → the caller's-transaction example fails.
+
+### 35.1 Verification
+
+| Run | Result |
+|---|---|
+| `spec/services/attendance/{punch_service,punch_period_lock,punch_window}_spec.rb`, `spec/requests/api/v1/punch_timestamp_window_spec.rb`, `spec/characterization/attendance_payroll/{punch_service,punch_api}_spec.rb`, `spec/requests/api/v1/characterization/biometric_punch_spec.rb`, `spec/services/requests/punch_correction_period_lock_spec.rb`, `spec/architecture/attendance_payroll_biometric_boundary_spec.rb` — seed 20261020 | 127 examples, 0 failures |
+| The same set with `CI=1` | 127 examples, 0 failures |
+
+`zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `git diff --check` clean; `Gemfile.lock` and
+`db/schema.rb` unchanged.
+
+**Residual risk (open, separate):** concurrent punches on an **existing** attendance record (for example two check-outs)
+both read the old state and both update; the last commit wins, which can keep the earlier check-out (contrary to "keeps
+latest") and writes two `check_out` logs instead of one plus `rejected_spam`. A lost update, not a 500 — not addressed
+here (a per-employee advisory lock was considered and deferred).
