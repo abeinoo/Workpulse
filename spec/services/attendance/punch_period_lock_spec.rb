@@ -259,6 +259,56 @@ RSpec.describe "Device punch ↔ payroll period locking (two connections)" do
     expect { PayrollPeriod.transaction { PayrollPeriod.lock("FOR UPDATE NOWAIT").find(period.id) } }.not_to raise_error
   end
 
+  # Concurrent first punches of one employee and work date: both read "no record",
+  # the first inserts and pauses before its log (uncommitted); the second's insert
+  # waits on the (user_id, work_date) unique index, then fails when the first
+  # commits. The loser's attempt rolls back and the whole punch is retried once on
+  # the committed state — no unhandled RecordNotUnique, and its log is durable.
+  describe "concurrent first punches of the same employee and work date" do
+    def race(second_punched_at)
+      user = employee_a
+      reached, release = pause_inside(BiometricPunchLog, :create!)
+      first = on_other_connection { punch(user) }
+      wait_for(reached) # the first punch inserted its record, not yet committed
+
+      second = on_other_connection do
+        Attendance::PunchService.call(employee: user, punched_at: second_punched_at, business: business)
+      end
+      wait_until_a_backend_waits
+      expect(second.join(0)).to be_nil # blocked on the unique index
+
+      release << true   # the first punch writes its log and commits
+      wait_for(reached) # the second punch, retried, reaches its own log
+      release << true
+
+      [ user, result_of(first), result_of(second) ]
+    end
+
+    def logs_of(user) = BiometricPunchLog.where(employee_id: user.id).order(:id).pluck(:action)
+
+    it "turns the same-second duplicate into rejected_spam instead of an exception" do
+      user, first, second = race(Time.current)
+
+      expect(first.action).to eq("check_in")
+      expect(second).to be_success
+      expect(second.action).to eq("rejected_spam")
+      expect(records_of(user)).to eq(1)
+      expect(logs_of(user)).to eq(%w[check_in rejected_spam])
+    end
+
+    it "applies a later punch to the winner's record (check-out), as if it had arrived second" do
+      user, first, second = race(Time.current + 2.hours)
+
+      expect(first.action).to eq("check_in")
+      expect(second.action).to eq("check_out")
+      expect(records_of(user)).to eq(1)
+      expect(AttendanceRecord.find_by!(user_id: user.id))
+        .to have_attributes(check_in_at: Time.current, check_out_at: Time.current + 2.hours, worked_minutes: 120)
+      expect(logs_of(user)).to eq(%w[check_in check_out])
+      expect(BiometricPunchLog.where(employee_id: user.id).distinct.pluck(:attendance_record_id).size).to eq(1)
+    end
+  end
+
   it "accepts a punch when the month has no payroll period yet (nothing to lock)" do
     PayrollPeriod.where(id: period.id).delete_all
     user = employee_a

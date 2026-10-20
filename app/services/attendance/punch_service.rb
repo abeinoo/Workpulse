@@ -8,6 +8,7 @@ module Attendance
   #   - Punch within SPAM_WINDOW of a previous logged punch → rejected_spam
   #   - No active shift assignment    → rejected_no_assignment
   #   - Work date in a finalized / paid payroll period → rejected_payroll_locked
+  #   - Lost a concurrent first-punch insert → the whole punch is retried once
   class PunchService
     SPAM_WINDOW            = 60.seconds
     CHECK_IN_UPDATE_WINDOW = 1.hour
@@ -41,10 +42,26 @@ module Attendance
       # cannot finalize or pay between the lock check and the attendance write, and
       # the attendance change and its log are committed together or not at all.
       # #process returns the Result (no return across the transaction block).
-      ActiveRecord::Base.transaction { process }
+      begin
+        punch_transaction
+      rescue ActiveRecord::RecordNotUnique
+        # A concurrent first punch of the same employee and work date won the
+        # (user_id, work_date) unique index. This attempt rolled back entirely (no
+        # record, no log), so the whole punch runs once more on the committed state
+        # — period guard included — and gets the outcome it would have had if it
+        # had arrived second. A second conflict propagates (no loop).
+        punch_transaction
+      end
     end
 
     private
+
+    # requires_new: a real transaction when none is open (as from the API); a
+    # savepoint inside a caller's transaction, so a unique violation rolls back to
+    # it and the retry does not run inside an aborted PostgreSQL transaction.
+    def punch_transaction
+      ActiveRecord::Base.transaction(requires_new: true) { process }
+    end
 
     # Lock order: payroll period (FOR SHARE) → attendance record → punch log — the
     # "period first" order of Payroll::Approver, Payroll::OvertimeRecalculator and

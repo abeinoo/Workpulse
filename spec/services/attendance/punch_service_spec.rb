@@ -362,4 +362,60 @@ RSpec.describe Attendance::PunchService do
       expect { punch("2026-05-17 15:05:00 +03:00") }.not_to change { assignment.reload.attributes }
     end
   end
+
+  # ───── Lost first-punch insert (RecordNotUnique) → one retry ──────────────────
+  #
+  # The genuine two-connection race is in spec/services/attendance/punch_period_lock_spec.rb.
+  # Here the first `times` saves really insert the record and then a duplicate of it,
+  # so PostgreSQL itself raises the unique violation (aborting the transaction, as in
+  # the race) — pinning the rollback, the single retry and the savepoint.
+  describe "a lost first-punch insert (RecordNotUnique)" do
+    def conflict_on_save(times:)
+      calls = 0
+      allow_any_instance_of(AttendanceRecord).to receive(:save).and_wrap_original do |original, *args, **kwargs|
+        calls += 1
+        saved = original.call(*args, **kwargs)
+        AttendanceRecord.insert!(original.receiver.attributes.except("id")) if calls <= times
+        saved
+      end
+      -> { calls }
+    end
+
+    def logged_actions = BiometricPunchLog.where(employee: employee).pluck(:action)
+
+    it "rolls the failed attempt back and runs the whole punch once more, period guard included" do
+      save_calls = conflict_on_save(times: 1)
+      allow(PayrollPeriod).to receive(:lock).and_call_original
+
+      result = punch("2026-05-17 09:05:00 +03:00")
+
+      expect(result).to be_success
+      expect(result.action).to eq("check_in") # the failed attempt left no record behind to update
+      expect(save_calls.call).to eq(2)
+      expect(PayrollPeriod).to have_received(:lock).with("FOR SHARE").twice
+      expect(AttendanceRecord.where(user: employee).count).to eq(1)
+      expect(logged_actions).to eq([ "check_in" ])
+      expect(result.log.attendance_record).to eq(result.record)
+    end
+
+    it "retries inside a caller's transaction too (a savepoint: never inside an aborted transaction)" do
+      conflict_on_save(times: 1)
+
+      result = ActiveRecord::Base.transaction { punch("2026-05-17 09:05:00 +03:00") }
+
+      expect(result.action).to eq("check_in")
+      expect(AttendanceRecord.where(user: employee).count).to eq(1)
+      expect(logged_actions).to eq([ "check_in" ])
+    end
+
+    it "re-raises a second conflict after exactly one retry and persists nothing" do
+      save_calls = conflict_on_save(times: 2)
+
+      expect { punch("2026-05-17 09:05:00 +03:00") }.to raise_error(ActiveRecord::RecordNotUnique)
+
+      expect(save_calls.call).to eq(2)
+      expect(AttendanceRecord.where(user: employee).count).to eq(0)
+      expect(logged_actions).to be_empty
+    end
+  end
 end
