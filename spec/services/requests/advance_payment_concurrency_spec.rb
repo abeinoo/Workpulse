@@ -264,4 +264,52 @@ RSpec.describe "Salary advance payment concurrency (two connections, F-A2)" do
     expect(bulk_audits.map { |log| [ log.actor_id, log.metadata["request_ids"] ] })
       .to contain_exactly([ accountant.id, [ r1.id, r2.id ] ], [ other_payer.id, [ r3.id ] ])
   end
+
+  # F-A7: from this (main) connection, may the row be locked right now? NOWAIT —
+  # a row held by another transaction raises at once instead of waiting.
+  def row_free?(request)
+    EmployeeRequest.transaction { EmployeeRequest.lock("FOR UPDATE NOWAIT").find(request.id) }
+    true
+  rescue ActiveRecord::LockWaitTimeout
+    false
+  end
+
+  it "opposite-order batches: ascending-id locking makes the second wait on r1 holding nothing — no deadlock (F-A7)" do
+    r1 = approved_advance(1_000.0)
+    r2 = approved_advance(2_000.0)
+    r3 = approved_advance(3_000.0)
+    reached, release = pause_after_first_advance
+
+    batch_a = on_other_connection { bulk_pay([ r1.id, r2.id ]) }
+    wait_for(reached) # holds r1 (paid, Advance created), not committed; r2 not locked yet
+
+    batch_b = on_other_connection { bulk_pay([ r3.id, r2.id, r1.id ], by: other_payer) } # reversed selection
+    wait_until_request_lock_waits
+    expect(batch_b.join(0)).to be_nil
+
+    # B waits on r1 without having locked r2 or r3 first (input order would lock r3, r2, then wait for r1).
+    expect(row_free?(r1)).to be false
+    expect(row_free?(r2)).to be true
+    expect(row_free?(r3)).to be true
+
+    release << true
+    a = result_of(batch_a) # a deadlock would raise ActiveRecord::Deadlocked from one of these joins
+    b = result_of(batch_b)
+
+    expect(a.paid.map(&:id)).to eq([ r1.id, r2.id ])
+    expect(b.paid.map(&:id)).to eq([ r3.id ])
+    expect(b.skipped.map { |s| [ s.request.id, s.reason ] })
+      .to eq([ [ r1.id, Requests::Approver::NOT_PAYABLE ], [ r2.id, Requests::Approver::NOT_PAYABLE ] ])
+
+    [ r1, r2, r3 ].each do |request|
+      expect(status_of(request)).to eq("paid")
+      expect(advances_of(request)).to eq(1)
+      expect(pay_audits_of(request)).to eq(1)
+    end
+    expect(Advance.count).to eq(3)
+    expect(EmployeeRequest.where(id: [ r1.id, r2.id ]).pluck(:reviewed_by_id).uniq).to eq([ accountant.id ])
+
+    expect(bulk_audits.map { |log| [ log.actor_id, log.metadata["request_ids"] ] })
+      .to contain_exactly([ accountant.id, [ r1.id, r2.id ] ], [ other_payer.id, [ r3.id ] ])
+  end
 end

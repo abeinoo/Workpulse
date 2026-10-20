@@ -43,7 +43,10 @@ module Requests
       paid = []
       if payable.any?
         ActiveRecord::Base.transaction do
-          payable.each do |request|
+          # Approver#pay locks each request row, held until this batch commits.
+          # Ascending id is the one lock order, so two overlapping batches can
+          # wait on each other but never deadlock (F-A7).
+          payable.sort_by(&:id).each do |request|
             result = Requests::Approver.pay(
               request: request, paid_by: @paid_by, paid_at: @paid_at, note: @notes
             )
