@@ -5633,3 +5633,45 @@ its effects; the persisted end state is proven by the stale-copy examples.
 | F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one) |
 
 SEC-P12-1, TD-P12-1, TD-P12-2, SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1 and TD-W-1 remain open.
+
+---
+
+## 30. Batch A — salary-advance payment boundary (Workforce → Attendance & Payroll, §14.2 #2)
+
+**Status (2026-10-20): implemented and verified with focused tests; committed locally** (M1 `9a628ad`, M2–M4
+`375f1ba`, M6 `f1e89f3`, then this documentation commit), not pushed or merged, on `feature/pilot-12-pos-terminals` on
+top of the F-A1 fix `fa81c7d` (§29). No full-suite run (not a designated milestone). No schema, route, permission,
+API or dependency change.
+
+**Approved scope (2026-10-20):** D-A1 — Attendance & Payroll implements (the Advance ledger is AP's,
+`module-boundaries.md` §10.1; Finance & Sales records nothing for an advance disbursement, §14.1 A). D-A2 — one
+operation; Workforce keeps reading `request.advance` at classified sites, no second read contract. D-A3 — F-A1 fixed
+first, separately (§29). D-A4 — `mark_all_paid` (F-A3) not changed and not pinned as acceptable. D-A5 — eligibility
+and salary reads for the advance limit stay out of this batch.
+
+| Step | Files | What |
+|---|---|---|
+| **M1** | `spec/characterization/workforce/advance_payment_spec.rb` (11) | Against `fa81c7d` (unchanged): approval creates no Advance (one approve audit); payment with time and note (request paid, reviewer, note, full-amount Advance issued at the time, one pay audit with exact changes / metadata); default time and approval note kept, no note in the audit; atomicity (the Advance cannot be saved → request stays approved, no Advance, no pay audit, the record's error returned); refusal of pending / rejected / cancelled / paid advances and an approved non-advance request (same message, nothing written); an approved request with an existing Advance row refused (one Advance stays); bulk payment through `#pay` with the batch time and note, skipped reasons, one bulk audit. Not characterized: `mark_all_paid` / `Approver.pay_all` (F-A3) |
+| **M2–M4** | `app/services/requests/advance_effects.rb`, `app/services/payroll/advance_effects.rb`, `config/initializers/request_advance_effects.rb`, `app/services/requests/approver.rb` | WF contract `Requests::AdvanceEffects.advance_paid(request:, paid_at:)` → `nil` (register / handler / `NotRegistered`, Pilot 9 shape); AP implementation `Payroll::AdvanceEffects` (the same `Advance.create!`: user, request, total = remaining = amount, `active`, `issued_at` = paid time); `to_prepare` registration. `Requests::Approver#pay` calls the contract at the line of the former `Advance.create!` — inside the existing transaction, after the F-A1 `lock!` + `payable?` re-check and the `paid` update, before the pay audit. Amounts, status, note, audit metadata, errors (`RecordInvalid` → the record's message), authorization and the transaction boundary unchanged |
+| **M5** | — | Not needed: no business rule moved |
+| **M6** | `spec/architecture/workforce_request_advance_boundary_spec.rb` (12), contract spec `spec/services/requests/advance_effects_spec.rb` (9) | Workforce request code (requests services, `EmployeeRequest`, its controllers / views / policy, the shared helper) names no `Advance`, creates / builds / writes none and names no implementation; reads only at the classified sites, pinned by shape and count: `EmployeeRequest has_one :advance, dependent: :destroy` and its sort scope `left_joins(:advance)`; the controller's sort `left_joins`, two `includes(:user, :advance)` preloads and the `mark_all_paid` filter; the index view's two "awaiting payment" checks; `ApplicationHelper#employee_request_awaiting_payment?`; `BulkPaymentService`'s skip reason; `Approver#payable?`. Only `Payroll::AdvanceEffects` creates an Advance; the approver calls the contract once; the contract names nothing from AP; the implementation never calls back into the request lifecycle; only the composition root names it, and it is the registered handler. Real planted probe (an `Advance.create!` in a Requests service — caught by two rules, removed) plus in-memory self-tests. Contract spec: registration, `NotRegistered`, dispatch, error propagation, the AP record, routing (called once in `pay`, not when refused, rollback of the paid status on a handler error) |
+| **M7** | — | Not needed (no model moved) |
+
+**Verification (focused, sequential; 2026-10-20):** see §30.1. `zeitwerk:check` clean; RuboCop on the new / changed
+Ruby files no offenses; `git diff --check` clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+
+### 30.1 Verification
+
+| Run | Result |
+|---|---|
+| M1 characterization on `fa81c7d` (unchanged code) | 11 examples, 0 failures |
+| After M2–M4: M1 + the F-A1 lock spec + `approver_spec` + `bulk_payment_service_spec` | 58 examples, 0 failures |
+| Focused set — `spec/characterization/workforce/advance_payment_spec.rb`, `spec/services/requests` (incl. the contract and F-A1 specs), `spec/requests/employee_requests_spec.rb`, `spec/policies/employee_request_policy_spec.rb`, `spec/requests/security/advance_{view_scope,limit_disclosure}_spec.rb`, `spec/requests/api/v1/standard_contract/advances_spec.rb`, `spec/services/payroll/advance_deductor_spec.rb`, `spec/characterization/workforce/request_permission_payroll_effects_spec.rb`, `spec/architecture` — seed 20261006 | 739 examples, 0 failures |
+| The same set with `CI=1` (eager loading) | 739 examples, 0 failures |
+
+Classifying `EmployeeRequest has_one :advance, dependent: :destroy` as a read / lifecycle exception does **not** fix
+F-A5: destroying a request (or its user) can still delete the Advance — F-A5 stays an open risk.
+
+**Still open, unchanged by Batch A:** F-A2 (not verified under real concurrency), F-A3 (`mark_all_paid` class
+authorization — reported, not pinned), F-A4 to F-A7 (§29); the WF → AP request-validation reads (D-A5); SEC-P12-1,
+TD-P12-1, TD-P12-2, SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1, TD-W-1.
