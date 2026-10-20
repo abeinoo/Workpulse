@@ -1,0 +1,70 @@
+<div data-controller="line-items">
+    <h2 class="section-title">Terminal IDs</h2>
+    <p class="form-hint">Payment terminals assigned to this branch. POS Import resolves each transaction&#39;s branch by matching its Terminal ID here — Terminal IDs must be unique across the business.</p>
+
+    <div data-line-items-target="rows">
+      
+        <div data-line-row class="form-grid" style="grid-template-columns: 1fr 1fr auto auto; align-items: end; gap: var(--space-3); margin-bottom: var(--space-3);">
+  
+  
+
+  <div class="form-group" style="margin-bottom: 0;">
+    <label class="form-label" for="branch_pos_terminals_attributes_0_terminal_id">Terminal ID</label>
+    <input class="form-control " type="text" value="TERM-N1" name="branch[pos_terminals_attributes][0][terminal_id]" id="branch_pos_terminals_attributes_0_terminal_id" />
+  </div>
+
+  <div class="form-group" style="margin-bottom: 0;">
+    <label class="form-label" for="branch_pos_terminals_attributes_0_label">Label (optional)</label>
+    <input class="form-control" type="text" value="One" name="branch[pos_terminals_attributes][0][label]" id="branch_pos_terminals_attributes_0_label" />
+  </div>
+
+  <label class="form-check" style="margin-bottom: var(--space-2);">
+    <input name="branch[pos_terminals_attributes][0][active]" type="hidden" value="0" /><input type="checkbox" value="1" checked="checked" name="branch[pos_terminals_attributes][0][active]" id="branch_pos_terminals_attributes_0_active" />
+    <span class="form-check-label">Active</span>
+  </label>
+
+  <button type="button" class="btn btn-ghost btn-sm text-danger"
+          data-action="line-items#remove"
+          aria-label="Delete">×</button>
+</div>
+
+    </div>
+
+    <p data-line-items-target="emptyState" class="td-secondary" hidden>
+      No Terminal IDs configured for this branch yet.
+    </p>
+
+    <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
+      + Add Terminal ID
+    </button>
+
+    <template data-line-items-target="template">
+      
+        <div data-line-row class="form-grid" style="grid-template-columns: 1fr 1fr auto auto; align-items: end; gap: var(--space-3); margin-bottom: var(--space-3);">
+  
+  
+
+  <div class="form-group" style="margin-bottom: 0;">
+    <label class="form-label" for="branch_pos_terminals_attributes_NEW_INDEX_terminal_id">Terminal ID</label>
+    <input class="form-control " type="text" name="branch[pos_terminals_attributes][NEW_INDEX][terminal_id]" id="branch_pos_terminals_attributes_NEW_INDEX_terminal_id" />
+  </div>
+
+  <div class="form-group" style="margin-bottom: 0;">
+    <label class="form-label" for="branch_pos_terminals_attributes_NEW_INDEX_label">Label (optional)</label>
+    <input class="form-control" type="text" name="branch[pos_terminals_attributes][NEW_INDEX][label]" id="branch_pos_terminals_attributes_NEW_INDEX_label" />
+  </div>
+
+  <label class="form-check" style="margin-bottom: var(--space-2);">
+    <input name="branch[pos_terminals_attributes][NEW_INDEX][active]" type="hidden" value="0" /><input type="checkbox" value="1" checked="checked" name="branch[pos_terminals_attributes][NEW_INDEX][active]" id="branch_pos_terminals_attributes_NEW_INDEX_active" />
+    <span class="form-check-label">Active</span>
+  </label>
+
+  <button type="button" class="btn btn-ghost btn-sm text-danger"
+          data-action="line-items#remove"
+          aria-label="Delete">×</button>
+</div>
+
+    </template>
+  </div>
+
+  
