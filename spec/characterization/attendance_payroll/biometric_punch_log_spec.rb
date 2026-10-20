@@ -5,10 +5,10 @@ require "rails_helper"
 # mobile rejections) and who can see them in the admin. Admin filters/ordering
 # are in spec/requests/admin/biometric_punch_logs_spec.rb.
 #
-# Visibility is pinned AS IS: any user past Admin::BaseController's gate sees
-# every log of the business (no policy, no data scope). That is the deferred
-# finding SEC-M2-8 (next-pilot-selection.md, Milestone 2 §5.2) — not desired
-# behaviour; update these examples when SEC-M2-8 is decided.
+# Visibility: until SEC-M2-8 was fixed any user past Admin::BaseController's gate
+# saw every log of the business; it now follows BiometricPunchLogPolicy
+# (manage_devices: the business; view_attendance: its scope — D-S8-1), pinned
+# below and in spec/requests/security/biometric_punch_logs_authorization_spec.rb.
 RSpec.describe "Characterization: biometric punch logs", type: :request do
   let(:business) { create(:business) }
   let(:other)    { create(:business) }
@@ -83,7 +83,11 @@ RSpec.describe "Characterization: biometric punch logs", type: :request do
     end
   end
 
-  describe "admin visibility (current behaviour; SEC-M2-8 deferred)" do
+  # SEC-M2-8 (fixed; decisions D-S8-1 / D-S8-2): punch logs need manage_devices
+  # (the whole business) or view_attendance (its scope) — the admin gate alone no
+  # longer suffices. The full matrix is in
+  # spec/requests/security/biometric_punch_logs_authorization_spec.rb.
+  describe "admin visibility (BiometricPunchLogPolicy)" do
     let!(:own_log)     { create(:biometric_punch_log, business: business, employee: employee) }
     let!(:foreign_log) { create(:biometric_punch_log, business: other, employee: create(:user, business: other)) }
 
@@ -91,8 +95,19 @@ RSpec.describe "Characterization: biometric punch logs", type: :request do
       Nokogiri::HTML(response.body).css("a").map { |a| a["href"] }
     end
 
-    it "shows every business log to a user holding only view_employees (no device or attendance permission)" do
+    it "refuses a user holding only view_employees (an admin-gate permission, but no device or attendance permission)" do
       sign_in api_user_with(business, :view_employees)
+
+      get admin_biometric_punch_logs_path
+      expect(response).to redirect_to(root_path)
+      expect(flash[:alert]).to eq(I18n.t("flash.not_authorized"))
+
+      get admin_biometric_punch_log_path(own_log)
+      expect(response).to redirect_to(root_path)
+    end
+
+    it "shows every business log, and no other business's, to a manage_devices holder" do
+      sign_in api_user_with(business, :manage_devices)
 
       get admin_biometric_punch_logs_path
       expect(response).to have_http_status(:ok)

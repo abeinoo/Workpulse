@@ -36,7 +36,8 @@ module ArchitectureSpecs
       "app/models/attendance_payroll/biometric_punch_log.rb"   => "the model itself (folder collapsed: top-level constant)",
       "app/models/attendance_record.rb"                        => "AP internal: has_many :biometric_punch_logs (punches that built the record)",
       "app/controllers/admin/biometric_devices_controller.rb"  => "AP device administration (BiometricDevicePolicy, manage_devices)",
-      "app/controllers/admin/biometric_punch_logs_controller.rb" => "AP punch-log screens (visibility: SEC-M2-8, deferred)",
+      "app/controllers/admin/biometric_punch_logs_controller.rb" => "AP punch-log screens (BiometricPunchLogPolicy: manage_devices, or view_attendance within its scope — SEC-M2-8)",
+      "app/policies/biometric_punch_log_policy.rb"             => "AP punch-log authorization and visibility (SEC-M2-8, D-S8-1)",
       "app/controllers/api/v1/biometric_base_controller.rb"    => "AP device-token realm: authenticates BiometricDevice",
       "app/controllers/api/v1/punches_controller.rb"           => "AP device punch endpoint: TimestampParser + PunchService",
       "app/controllers/api/v1/attendance_controller.rb"        => "AP mobile attendance: writes the mobile rejected_not_allowed punch log"

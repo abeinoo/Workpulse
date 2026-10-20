@@ -1405,7 +1405,7 @@ is in §27.2. The "Why deferred" column below is the original record. SEC-M2-8 a
 | SEC-M2-5 | Medium | Employee page shows salary and obligations without the AP policies | Needs Q-M2-5 (AP policy gate in the WF view vs AP-contributed panel). **Resolved** by `8342c01` / `bfbef9a` (§27.2) |
 | SEC-M2-6 | Medium | Salary-profile create/update ignores the `manage_salary_profiles` scope; self-salary changes allowed | Needs Q-M2-4 (segregation-of-duties rule). **Resolved** by `8342c01` / `bfbef9a` (§27.2) |
 | SEC-M2-7 | Medium | Advance and salary-profile scopes ignore the configured `view_payroll` scope | Needs a scope decision; fix before P-3 / P-6. **Resolved** by `8342c01` / `bfbef9a` (§27.2) |
-| SEC-M2-8 | Low–Medium | Punch logs visible business-wide to any admin-gate holder | Needs Q-M2-2; it is in Pilot 1's scope (CG-4), so it should be decided before Pilot 1's M1. **Still open** (2026-10-20: `Admin::BiometricPunchLogsController` has no `authorize`) |
+| SEC-M2-8 | Low–Medium | Punch logs visible business-wide to any admin-gate holder | Needs Q-M2-2; it is in Pilot 1's scope (CG-4), so it should be decided before Pilot 1's M1. **Fixed** (2026-10-20, §31: `BiometricPunchLogPolicy` — manage_devices business-wide, view_attendance within its scope) |
 | AP-D1 | Defect (not security) | `GET /api/v1/users/:id/salary_profiles` raises `NoMethodError` for callers without salary/payroll permission | Fix with SEC-M2-6/7 (same policy). **Resolved** by `8342c01` / `bfbef9a` (§27.2) |
 | SEC-M2-4 follow-up | Medium (product decision) | Obligation creation is not limited to the creator's `manage_obligations` data scope; the employee picker is intentionally business-wide | Decide with P-2 (Obligations) |
 | SEC-M2-2 follow-up | Low (product decision) | Admin and web attendance updates both use the `view_attendance` scope for the lookup (not the `manage_attendance` scope), and allow a `manage_attendance` holder to edit their own record — the existing web-path rule, kept for parity | Decide with P-7 (Attendance records). **Still open** (2026-10-20) |
@@ -5632,7 +5632,7 @@ its effects; the persisted end state is proven by the stale-copy examples.
 | F-A6 | `Advance#repay!` / `Payroll::AdvanceDeductor` use Float arithmetic for money |
 | F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one) |
 
-SEC-P12-1, TD-P12-1, TD-P12-2, SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1 and TD-W-1 remain open.
+SEC-P12-1, TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1 and TD-W-1 remain open.
 
 ---
 
@@ -5674,4 +5674,52 @@ F-A5: destroying a request (or its user) can still delete the Advance — F-A5 s
 
 **Still open, unchanged by Batch A:** F-A2 (not verified under real concurrency), F-A3 (`mark_all_paid` class
 authorization — reported, not pinned), F-A4 to F-A7 (§29); the WF → AP request-validation reads (D-A5); SEC-P12-1,
-TD-P12-1, TD-P12-2, SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1, TD-W-1.
+TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1, TD-W-1.
+
+---
+
+## 31. SEC-M2-8 — biometric punch-log authorization (standalone security fix)
+
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `a21625a`. Separate from the
+migration batches. No schema, route, permission, navigation or API change.
+
+**Finding (confirmed):** `Admin::BiometricPunchLogsController` called no `authorize` / `policy_scope`, and no policy
+existed; the only gate was `Admin::BaseController#require_admin_access!`, which admits any of 13 permissions. Any such
+holder (e.g. only `view_employees`, `view_payroll`, `manage_evaluation_templates` or `manage_branches`) could open the
+URL directly (the navigation link is `manage_devices`-only) and read every punch log of the business — employee, punch
+and received times, work date, result, IP address, error message and raw payload (`employee_id` + `timestamp`; the
+device token is in a header and is not stored) — and a branch-scoped attendance viewer saw every branch. No
+cross-business path. The characterization pinned this as "current behaviour; SEC-M2-8 deferred".
+
+**Decisions (approved 2026-10-20):** D-S8-1 — `manage_devices`: every punch log of the business (a global,
+non-scopable permission); `view_attendance`: only logs of employees inside its configured scope, else the hierarchy
+default (own + managed); everyone else refused. D-S8-2 — no field-level restriction (IP address, raw payload); the
+detail page is protected by the same authorization and record scope. Navigation unchanged (`manage_devices`-only).
+
+**Fix:**
+
+* `app/policies/biometric_punch_log_policy.rb` (AP-owned): `index?` = `manage_devices || view_attendance`; `show?` =
+  the record is a `BiometricPunchLog` inside `Scope` (never evaluated on the class); `Scope` as above, through
+  `filter_by_data_scope(…, user_id_column: :employee_id)` / `EmployeeScope#relation` — the same path as
+  `AttendanceRecordPolicy::Scope`; `.visible_employees` (the filter's employees: the business, or
+  `EmployeeScope#for_permissions(:view_attendance)` + self).
+* `Admin::BiometricPunchLogsController`: `index` authorizes and builds on `policy_scope`; `show` authorizes the class
+  (`:index?` — a refused role gets the same not-authorized redirect as on the index), finds through `policy_scope`
+  (out of scope → 404) and authorizes the record; the employee filter uses `.visible_employees`. Ordering, filters,
+  eager loading, the 100-row limit and views unchanged. The branch filter still lists the business's branches (names
+  only); choosing another branch shows no logs and no employees.
+* `spec/architecture/attendance_payroll_biometric_boundary_spec.rb`: the policy classified AP-owned; the controller's
+  reason updated.
+
+**Tests:** `spec/requests/security/biometric_punch_logs_authorization_spec.rb` (17) and
+`spec/policies/biometric_punch_log_policy_spec.rb` (10): refusal of the four non-attendance gate permissions (index and
+show) and of a non-gate user; `manage_devices`, the owner and business-wide `view_attendance` see the business;
+branch-scoped `view_attendance` sees only its branch (another branch's log 404; an out-of-scope employee filter
+reveals neither the employee nor records; another branch selected shows nothing); unconfigured `view_attendance` sees
+own + managed; cross-business 404. The characterization's insecure example now asserts the refusal (plus a
+`manage_devices` example); its no-gate redirect and cross-business 404 examples are unchanged. Probe: with the pre-fix
+permissive policy restored in memory, 10 of the 17 request examples fail.
+
+**Not covered / limitations:** logs without an employee (none are written by the device API, which refuses unknown
+employees) are visible only to `manage_devices`; the navigation link stays `manage_devices`-only, so `view_attendance`
+holders reach the screen by URL only.
