@@ -7,6 +7,7 @@ module Attendance
   #   - Later punch than check_in     → set/update check_out (keeps latest)
   #   - Punch within SPAM_WINDOW of a previous logged punch → rejected_spam
   #   - No active shift assignment    → rejected_no_assignment
+  #   - Work date in a finalized / paid payroll period → rejected_payroll_locked
   class PunchService
     SPAM_WINDOW            = 60.seconds
     CHECK_IN_UPDATE_WINDOW = 1.hour
@@ -36,6 +37,15 @@ module Attendance
       end
 
       @work_date  = BusinessDay.work_date_for(@punched_at, context: @business)
+
+      # Finalized / paid payroll is immutable: a punch whose work date belongs to
+      # a locked period changes nothing (SEC-P12-1, D-T4).
+      if payroll_locked?
+        log = record_punch!(action: "rejected_payroll_locked")
+        return Result.new(success: false, action: "rejected_payroll_locked", log: log,
+                          error: I18n.t("api.punch.payroll_locked"))
+      end
+
       @assignment = Shifts::AssignmentResolver.for(user: @employee, date: @work_date)
 
       unless @assignment
@@ -154,10 +164,19 @@ module Attendance
       end
     end
 
+    # The payroll period of the work date's calendar month, as every attendance
+    # write path finds it (e.g. Attendance::BulkManualEntryService#period_locked?);
+    # no period yet → not locked.
+    def payroll_locked?
+      PayrollPeriod.find_by(
+        business: @business, period_year: @work_date.year, period_month: @work_date.month
+      )&.locked? || false
+    end
+
     def spam_punch?
       BiometricPunchLog
         .where(employee: @employee, business: @business)
-        .where.not(action: %w[rejected_no_assignment error])
+        .where.not(action: BiometricPunchLog::NOT_SPAM_ACTIONS)
         .where(punched_at: (@punched_at - SPAM_WINDOW)..(@punched_at + SPAM_WINDOW))
         .exists?
     end

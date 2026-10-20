@@ -2179,6 +2179,8 @@ en:
         rejected_no_assignment: "Rejected — no shift"
         rejected_spam: "Rejected — duplicate"
         rejected_not_allowed: "Rejected — not allowed"
+        rejected_stale_timestamp: "Rejected — timestamp outside window"
+        rejected_payroll_locked: "Rejected — payroll period locked"
         error: "Error"
       back: "Back to Logs"
     dashboard:
@@ -3112,7 +3114,8 @@ en:
       no_shift_assignment: "No active shift assignment for this work date."
       employee_not_found: "Employee not found."
       invalid_timestamp: "Invalid or missing timestamp."
-      stale_timestamp: "Timestamp is outside the accepted 24-hour window."
+      stale_timestamp: "Timestamp is outside the accepted window (up to 7 days in the past and 5 minutes in the future)."
+      payroll_locked: "This punch falls in a finalized or paid payroll period and was not recorded."
       biometric_attendance_not_allowed: "This employee is not allowed to use biometric attendance."
       mobile_attendance_not_allowed: "Your account is not allowed to use mobile attendance. Please contact your manager."
     attendance:

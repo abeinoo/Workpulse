@@ -56,8 +56,8 @@ RSpec.describe "API v1 characterization — biometric punch", type: :request do
     expect_legacy_error(:unprocessable_content, message: I18n.t("api.punch.invalid_timestamp"))
   end
 
-  it "returns 422 for a timestamp outside the 24-hour window" do
-    punch({ employee_id: "E-100", timestamp: 3.days.ago.iso8601 })
+  it "returns 422 for a timestamp outside the accepted window (8 days old; SEC-P12-1, D-T1)" do
+    punch({ employee_id: "E-100", timestamp: 8.days.ago.iso8601 })
     expect_legacy_error(:unprocessable_content, message: I18n.t("api.punch.stale_timestamp"))
   end
 

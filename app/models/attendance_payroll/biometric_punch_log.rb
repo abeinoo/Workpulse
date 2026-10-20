@@ -6,8 +6,14 @@ class BiometricPunchLog < ApplicationRecord
     rejected_no_assignment
     rejected_spam
     rejected_not_allowed
+    rejected_stale_timestamp
+    rejected_payroll_locked
     error
   ].freeze
+
+  # Refusals that recorded nothing and must not make a later punch within the
+  # spam window look like a duplicate (SEC-P12-1).
+  NOT_SPAM_ACTIONS = %w[rejected_no_assignment rejected_stale_timestamp rejected_payroll_locked error].freeze
 
   SOURCES = %w[biometric mobile].freeze
 

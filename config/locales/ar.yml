@@ -2176,6 +2176,8 @@ ar:
         rejected_no_assignment: "مرفوض — لا وردية"
         rejected_spam: "مرفوض — مكرر"
         rejected_not_allowed: "مرفوض — غير مسموح"
+        rejected_stale_timestamp: "مرفوض — الوقت خارج النطاق"
+        rejected_payroll_locked: "مرفوض — فترة الرواتب مقفلة"
         error: "خطأ"
       back: "الرجوع للسجلات"
     dashboard:
@@ -3111,7 +3113,8 @@ ar:
       no_shift_assignment: "لا يوجد تعيين وردية نشط لتاريخ العمل هذا."
       employee_not_found: "الموظف غير موجود."
       invalid_timestamp: "الطابع الزمني مفقود أو غير صالح."
-      stale_timestamp: "الطابع الزمني خارج نافذة القبول (24 ساعة)."
+      stale_timestamp: "الطابع الزمني خارج النطاق المقبول (حتى 7 أيام في الماضي و5 دقائق في المستقبل)."
+      payroll_locked: "تقع هذه البصمة ضمن فترة رواتب معتمدة أو مدفوعة، ولم يتم تسجيلها."
       biometric_attendance_not_allowed: "هذا الموظف غير مسموح له باستخدام جهاز البصمة."
       mobile_attendance_not_allowed: "حسابك غير مسموح له بتسجيل الحضور من الهاتف. تواصل مع مديرك."
     attendance:

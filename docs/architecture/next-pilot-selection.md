@@ -385,7 +385,7 @@ characterization pins:
 * 404 for an employee outside the device's business
 * 422 for an invalid timestamp, for a timestamp outside the 24-hour window, and for an employee not allowed
   biometric attendance (*2026-10-20:* the 24-hour window is **no longer enforced** since `91da561`; that example
-  fails — unresolved security item SEC-P12-1, §27.2)
+  fails — unresolved security item SEC-P12-1, §27.2; fixed since, §32: 168 h past, 5 min future)
 
 **Payroll impact:** punches create or adjust `AttendanceRecord` check-in/check-out and lateness, which feed payroll
 (overtime, deductions). A regression would silently change pay.
@@ -1343,7 +1343,7 @@ database. The probe actor holds only `view_employees` unless stated otherwise.
 
 | ID | Severity | Path | Defect | Proof |
 |---|---|---|---|---|
-| **SEC-M2-1** | **High** | `Admin::BiometricDevicesController` (all actions) | **No `authorize` call, and no policy exists.** The gate is `Admin::BaseController#require_admin_access!`, which accepts any of 13 permissions (including `view_employees`, `view_attendance` and `view_payroll`; the default branch-manager and area-manager roles hold all three). Such a user can **read a device token, regenerate it, and create or destroy devices**. A token authenticates `POST /api/v1/attendance/punch` for **any active employee of the business** (24-hour window). That is attendance falsification, and through it payroll. The intended permission is `manage_devices` (the sidebar gate). *(Historical M0 wording, kept as recorded. 2026-10-20: the 24-hour window is no longer enforced since `91da561` — a token now authenticates punches with any past or future timestamp; unresolved, SEC-P12-1, §27.2.)* | Token shown (200), regenerated (changed), device created |
+| **SEC-M2-1** | **High** | `Admin::BiometricDevicesController` (all actions) | **No `authorize` call, and no policy exists.** The gate is `Admin::BaseController#require_admin_access!`, which accepts any of 13 permissions (including `view_employees`, `view_attendance` and `view_payroll`; the default branch-manager and area-manager roles hold all three). Such a user can **read a device token, regenerate it, and create or destroy devices**. A token authenticates `POST /api/v1/attendance/punch` for **any active employee of the business** (24-hour window). That is attendance falsification, and through it payroll. The intended permission is `manage_devices` (the sidebar gate). *(Historical M0 wording, kept as recorded. 2026-10-20: the 24-hour window is no longer enforced since `91da561` — a token now authenticates punches with any past or future timestamp; unresolved, SEC-P12-1, §27.2; fixed since, §32: 168 h past, 5 min future.)* | Token shown (200), regenerated (changed), device created |
 | **SEC-M2-2** | **High** | `Admin::AttendanceRecordsController#update` (`PATCH /admin/attendance_records/:id`) | **No `authorize`**, and the lookup is business-wide with no data scope. Any admin-gate holder can rewrite check-in/check-out of any employee **including their own** (`Attendance::AdjustmentService`, which checks no permission) and so change pay. The policy-based path (`AttendanceRecordsController`, `manage_attendance`) is bypassed | Another employee's record changed; the actor's **own** record changed |
 | **SEC-M2-3** | **High** | `Admin::PenaltyRulesController` (new/create/edit/update/destroy) | **No `authorize`.** `PenaltyRulePolicy` requires `manage_shifts`, but it is never called. Any admin-gate holder can create, edit or delete penalty rules on any shift in the business, changing payroll deductions | Rule created (0 → 1) |
 | **SEC-M2-4** | **High** (cross-business) | `Admin::EmployeeObligationsController#create` | `user_id` comes from params with **no business check** (and `EmployeeObligation` has no same-business validation), and no `manage_obligations` data-scope check. An obligation can be created in business A for a user of **business B**. `Payroll::ObligationDeductor` selects obligations by user only (`for_user`), so **business B's payroll would deduct it** | Created; `obligation.business` = A, `user.business` = B. Deduction effect is code-evident (`obligation_deductor.rb:27-31`) |
@@ -1688,7 +1688,7 @@ specs only; it does not decide Q-M2-1.
 |---|---|---|
 | `biometric_device_spec.rb` | 19 | Model: token generated on create (a supplied token is ignored), unique tokens, `regenerate_token!`, name presence and per-business case-insensitive uniqueness, active default and scopes, logs detached on destroy. Admin: business forced to the actor's, token never assignable, 422 re-render, ordering, flashes. Punch API: unknown, deactivated, regenerated and deleted tokens → 401; `last_seen_at` touched only on success |
 | `biometric_punch_log_spec.rb` | 8 | `ACTIONS` / `SOURCES`, required fields, `success?` / `rejected?` table, scopes and recency, the mobile `rejected_not_allowed` log. Admin visibility **as-is** (SEC-M2-8 deferred): any admin-gate holder sees all business logs; users without an admin-gate permission are redirected; another business's log → 404 |
-| `punch_api_spec.rb` | 13 | `employee_code` before user id; inactive or blank employee → 404 without a log; employee checked before timestamp; missing or > 24 h future timestamp → 422 (*2026-10-20:* the > 24 h rule is **no longer enforced** since `91da561`; that example fails — unresolved SEC-P12-1, §27.2); bare timestamps read in business-local time; check-in and check-out payloads; duplicate punch → 200 `rejected_spam`; unassigned employee → 422 + log; logged device, IP address and raw payload |
+| `punch_api_spec.rb` | 13 | `employee_code` before user id; inactive or blank employee → 404 without a log; employee checked before timestamp; missing or > 24 h future timestamp → 422 (*2026-10-20:* the > 24 h rule is **no longer enforced** since `91da561`; that example fails — unresolved SEC-P12-1, §27.2; fixed since, §32: 168 h past, 5 min future); bare timestamps read in business-local time; check-in and check-out payloads; duplicate punch → 200 `rejected_spam`; unassigned employee → 422 + log; logged device, IP address and raw payload |
 | `punch_service_spec.rb` | 10 | Spam-window membership: other devices, mobile, `rejected_spam` and `rejected_not_allowed` count; `rejected_no_assignment` and `error` do not; symmetric; per business. A punch equal to the check-out is spam. Late check-in refinement (`late_minutes` reset, status kept until check-out). Rejection log shape. **AP-D3 pinned** |
 | `timestamp_parser_spec.rb` | 9 | Business-zone result, whitespace, `+HHMM` and fractional `Z`, date-only / time-only, slash and day-first formats, epoch seconds and impossible dates → `nil`, `api` / unknown sources, non-string input |
 
@@ -5287,7 +5287,7 @@ failed only the two SEC-P12-1 examples below (9111 examples), so the specs cited
 | TD-P11-1 | Open (§26.4) | `Laundry::Reports::BranchConsumptionController#scoped_branch_id` returns `nil` without a `branch_id` param |
 | TD-P11-2 | Open (§26.4) | `Laundry::DashboardController:13` still uses `branch_type_laundry.first` |
 
-**New — SEC-P12-1 (security, unresolved; not accepted behaviour; outside Pilot 12).** `91da561` "remove stable
+**New — SEC-P12-1 (security; not accepted behaviour; outside Pilot 12) — FIXED since, §32.** `91da561` "remove stable
 timestamp" (committed directly on `main` after PR #46, parent `bfbef9a`) comments out the 24-hour window in
 `Api::V1::PunchesController#create` (`app/controllers/api/v1/punches_controller.rb:27-29`). The window
 (`TIMESTAMP_TOLERANCE = 24.hours`, `:18`; `stale_timestamp?`, `:67-68`; message `api.punch.stale_timestamp`,
@@ -5723,3 +5723,87 @@ permissive policy restored in memory, 10 of the 17 request examples fail.
 **Not covered / limitations:** logs without an employee (none are written by the device API, which refuses unknown
 employees) are visible only to `manage_devices`; the navigation link stays `manage_devices`-only, so `view_attendance`
 holders reach the screen by URL only.
+
+---
+
+## 32. SEC-P12-1 — biometric punch timestamp window and locked payroll periods (standalone security fix)
+
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `0432da2`. Separate from the
+migration batches. No schema, dependency, route or permission change.
+
+**Finding (§27.2):** `91da561` commented out the 24-hour check in `Api::V1::PunchesController#create`, so a device-token
+holder could post a punch with any past or future timestamp for any active employee of the business — creating or
+widening attendance on any date with a shift assignment (pay changes at the next `Payroll::AutoGenerator` run) — and
+`Attendance::PunchService` never checked a locked payroll period. Failing examples:
+`spec/characterization/attendance_payroll/punch_api_spec.rb:67` and
+`spec/requests/api/v1/characterization/biometric_punch_spec.rb:59`. There is no server-side sync cursor (the API takes
+one punch per request; `BiometricDevice#last_seen_at` is liveness only), so no cursor bookkeeping was involved.
+
+**Decisions (approved 2026-10-20):** D-T1 — at most 7 × 24 hours (elapsed) before the server's receive time; D-T2 — at
+most 5 minutes after it; D-T3 — 422 for a stale or future timestamp, nothing recorded, the refusal logged if it fits the
+existing log model; D-T4 — refuse punches whose work date is in a finalized / paid payroll period.
+
+**Fix:**
+
+* `Api::V1::PunchesController#create`: after parsing (parser unchanged — explicit offsets respected, bare values read as
+  business-local), the server time is taken once and the punch must satisfy
+  `received_at - PAST_WINDOW <= punched_at <= received_at + FUTURE_SKEW` with `PAST_WINDOW = 168.hours` (fixed elapsed
+  time, not calendar days) and `FUTURE_SKEW = 5.minutes`, both bounds inclusive. Otherwise: 422
+  `api.punch.stale_timestamp` ("…up to 7 days in the past and 5 minutes in the future", en + ar; the old "24-hour"
+  text is gone), a `rejected_stale_timestamp` log, nothing passed to `PunchService`.
+* `Attendance::PunchService#call`: right after the work date is derived and before any attendance read-for-write, the
+  payroll period of the work date's calendar month is looked up as every attendance write path does
+  (`PayrollPeriod.find_by(business:, period_year:, period_month:)&.locked?`, as
+  `Attendance::BulkManualEntryService#period_locked?`; no period → not locked). Locked (finalized or paid) → a
+  `rejected_payroll_locked` log and a failed result with `api.punch.payroll_locked` (422 through the controller);
+  nothing created or updated. Draft and under-review periods accept the punch. Because the guard is in the service, no
+  caller can bypass it.
+* `BiometricPunchLog`: two actions, `rejected_stale_timestamp` and `rejected_payroll_locked` (no schema change —
+  `action` is a validated string); `rejected?` is true and `success?` false for both; no attendance record attached;
+  the payload is the request parameters (the device token is a header and is never stored). `NOT_SPAM_ACTIONS` adds
+  both to the actions the duplicate check already ignored (`rejected_no_assignment`, `error`), so a refusal cannot make
+  a later genuine punch within 60 s look like a duplicate. en / ar labels for the punch-log screens. Viewing these logs
+  follows the SEC-M2-8 policy (§31).
+
+**Tests:** new `spec/requests/api/v1/punch_timestamp_window_spec.rb` (24): exact boundaries (168 h accepted, +1 s
+refused; 5 min accepted, +1 s refused; 23 h old accepted; 25 h ahead refused), explicit offset and business-local
+timestamps at the boundary, the work date before the 06:00 business-day start, duplicate still 200 spam, out-of-order
+check-in still updated, stale / future punches cannot change an existing record, `last_seen_at` still touched on a
+refused request, finalized and paid periods refuse both a new record and an update, draft / under review / no period
+accept, a locked May refuses a 31 May punch received on 2 June, the guard enforced at service level, a refusal does not
+turn a later punch into spam, no device token in the logged payload, refused-punch logs under the SEC-M2-8 policy.
+Updated: `biometric_punch_spec.rb:59` sends an 8-day-old punch (3 days is inside the approved window); two example
+titles in `punch_api_spec.rb`; the pinned action list in `biometric_punch_log_spec.rb`. Probes (in memory): window
+always passing → 9 failures (including the two original examples); lock guard disabled → 6 failures.
+
+| Run | Result |
+|---|---|
+| Focused set — the new spec, `punch_api_spec`, `biometric_punch_spec`, `punch_service_spec` (characterization and service), `timestamp_parser_spec`, `biometric_device_spec`, `biometric_punch_log_spec`, `biometric_punch_logs_authorization_spec`, `attendance_payroll_biometric_boundary_spec`, `payroll_period_spec`, `bulk_manual_entry_service_spec`, `punch_correction_period_lock_spec`, `anomaly_detector_spec` — seed 20261006 | 202 examples, 0 failures |
+| The same set with `CI=1` | 202 examples, 0 failures |
+
+`zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `bin/brakeman` 0 warnings; `git diff --check`
+clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+
+**Limitations (open, recorded — not fixed here):**
+
+* **TD-T-1 — payroll-period race (concurrency).** The lock check is a plain read outside any transaction:
+  `PunchService` reads the period (`find_by`), then later saves the attendance record and the log in separate
+  statements. `Payroll::Approver` locks the period row (`@period.lock!`, inside its transaction) before finalizing or
+  paying, but the punch takes no lock on that row. A finalization that commits **between the punch's lock check and
+  its `record.save`** is therefore not seen: the punch is written into a month that has just been finalized (its entries
+  computed without it). The window is the duration of one punch request. `Attendance::PunchCorrectionEffects` closes the
+  same window by reading the period `FOR UPDATE` inside its transaction; the device path does not (no transaction or
+  row lock was added in this fix). Same limitation as `Attendance::BulkManualEntryService#period_locked?`.
+* **TD-T-2 — anomaly detector counts refused punches (no defect established).**
+  `Attendance::AnomalyDetector#detect_biometric_mismatch` treats the calendar day of **every** punch log of the
+  employee in the range as a "biometric day", with no filter on action, and reports `biometric_mismatch` (info) when at
+  least 3 active attendance records on such days have no `shift_assignment_id` (manual entries). The two new refusal
+  actions therefore count exactly like the existing `rejected_no_assignment` / `rejected_not_allowed` /
+  `rejected_spam` / `error` logs always have; the signal's statement ("a device punch exists for a day whose attendance
+  was entered manually") stays literally true for a refused punch, so no false signal is established and the detector
+  is unchanged. Whether refused punches should count at all is a product question for every rejection action, not only
+  the new ones. Note: `spec/services/attendance/anomaly_detector_spec.rb` stubs the punch-log query in every example, so
+  the detector's handling of log actions is not exercised by any test.
+* Device behaviour after a 422 (retry or drop) remains unknown (no device code in the repository).
+* Another caller of `PunchService` does not get the time window (a device-API rule in the controller); it does get the
+  locked-period guard.
