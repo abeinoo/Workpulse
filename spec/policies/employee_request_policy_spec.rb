@@ -281,6 +281,33 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
     end
   end
 
+  # pay? is instance-level (the request's business); bulk_pay? is the class-level
+  # gate (per-request scoping via policy_scope). F-A3: the retired mark_all_paid
+  # called pay? on the class.
+  describe "pay? / bulk_pay?" do
+    let(:accountant) { create(:user, :accountant, business: business) }
+    let(:advance)    { create(:employee_request, :salary_advance, :approved, user: employee) }
+
+    it "pay?: permits a pay_advances holder for a request of the same business" do
+      expect(accountant.can?(:pay_advances)).to be true
+      expect(subject.new(accountant, advance).pay?).to be true
+    end
+
+    it "pay?: denies a pay_advances holder for a request of another business" do
+      foreign = create(:employee_request, :salary_advance, :approved, user: create(:user, business: create(:business)))
+      expect(subject.new(accountant, foreign).pay?).to be false
+    end
+
+    it "pay?: denies a user without pay_advances" do
+      expect(subject.new(employee, advance).pay?).to be false
+    end
+
+    it "bulk_pay?: authorizes the class by permission alone" do
+      expect(subject.new(accountant, EmployeeRequest).bulk_pay?).to be true
+      expect(subject.new(employee, EmployeeRequest).bulk_pay?).to be false
+    end
+  end
+
   describe "Scope" do
     let!(:my_request)    { create(:employee_request, user: employee) }
     let!(:other_request) { create(:employee_request) }

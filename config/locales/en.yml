@@ -1254,7 +1254,6 @@ en:
       paid: "Paid / Disbursed"
       cancelled: "Cancelled"
     pay: "Mark as Paid"
-    mark_all_paid: "Mark All Paid"
     bulk:
       toolbar_label: "Bulk advance actions"
       selected: "selected"
@@ -3191,8 +3190,6 @@ en:
     request_rejected: "Request rejected."
     request_cancelled: "Request cancelled."
     advance_paid: "Salary advance marked as paid."
-    advances_paid_one: "1 advance marked as paid."
-    advances_paid_other: "%{count} advances marked as paid."
     bulk_pay:
       paid:
         one: "1 advance marked as paid (%{total})."
@@ -3229,7 +3226,6 @@ en:
     deduction_rejected: "Deduction rejected and reversed from net salary."
     welcome_registered: "Welcome! You have registered successfully."
     no_payroll_entry: "No payroll entry found for this period."
-    advances_partial_failure: "Some advances could not be processed: %{errors}"
     locale_updated: "Language updated."
     permission_role_created: "Permission role created."
     permission_role_updated: "Permission role updated."

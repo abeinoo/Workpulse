@@ -64,29 +64,6 @@ module Requests
       new(request: request, reviewed_by: paid_by, response_note: note, paid_at: paid_at).pay
     end
 
-    # Marks every approved salary advance in `requests` as paid in one
-    # transaction. Returns a struct with paid_count and any per-request errors.
-    BulkResult = Struct.new(:paid_count, :errors, keyword_init: true)
-
-    def self.pay_all(requests:, paid_by:)
-      paid  = 0
-      errs  = []
-
-      ActiveRecord::Base.transaction do
-        requests.each do |req|
-          result = new(request: req, reviewed_by: paid_by).pay
-          if result.success?
-            paid += 1
-          else
-            errs << "#{req.user.full_name}: #{result.error}"
-          end
-        end
-        raise ActiveRecord::Rollback if errs.any?
-      end
-
-      BulkResult.new(paid_count: paid, errors: errs)
-    end
-
     def initialize(request:, reviewed_by:, response_note: nil, approved_time: nil, paid_at: nil,
                    approved_at: nil, confirm_out_of_window: false)
       @confirm_out_of_window = ActiveModel::Type::Boolean.new.cast(confirm_out_of_window) || false

@@ -56,8 +56,7 @@ module ArchitectureSpecs
       ],
       "app/controllers/employee_requests_controller.rb" => [
         /\Abase\.left_joins\(:advance\)\z/,            # index sort
-        /includes\(:user, :advance\)/,                 # index / bulk_pay preload (two lines)
-        /\.reject \{ \|r\| r\.advance\.present\? \}\z/ # mark_all_paid filter
+        /includes\(:user, :advance\)/                  # index / bulk_pay preload (two lines)
       ],
       "app/views/employee_requests/index.html.erb" => [ /\b(?:r|req)\.advance\.nil\?/ ], # awaiting-payment display (two lines)
       "app/helpers/application_helper.rb"            => [ /\Arequest\.advance\.nil\?\z/ ],
@@ -65,7 +64,7 @@ module ArchitectureSpecs
       APPROVER                                        => [ /@request\.advance\.nil\?/ ]    # payable?
     }.freeze
     READ_SITE_COUNTS = {
-      "app/models/employee_request.rb" => 2, "app/controllers/employee_requests_controller.rb" => 4,
+      "app/models/employee_request.rb" => 2, "app/controllers/employee_requests_controller.rb" => 3,
       "app/views/employee_requests/index.html.erb" => 2, "app/helpers/application_helper.rb" => 1,
       "app/services/requests/bulk_payment_service.rb" => 1, APPROVER => 1
     }.freeze

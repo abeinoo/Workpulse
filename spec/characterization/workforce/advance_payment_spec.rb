@@ -6,9 +6,9 @@ require "rails_helper"
 # the Attendance & Payroll Advance in one transaction; BulkPaymentService pays a
 # selection through #pay. Recorded against the code at fa81c7d (after the F-A1
 # lock fix, whose race behaviour is pinned in
-# spec/services/requests/advance_payment_lock_spec.rb). Not characterized here:
-# EmployeeRequestsController#mark_all_paid / Approver.pay_all (known defect F-A3,
-# next-pilot-selection.md §29).
+# spec/services/requests/advance_payment_lock_spec.rb). The former
+# EmployeeRequestsController#mark_all_paid / Approver.pay_all (defect F-A3,
+# next-pilot-selection.md §29) were removed; bulk payment is BulkPaymentService.
 RSpec.describe "Characterization: salary advance approval and payment", type: :model do
   around { |ex| travel_to(Time.zone.local(2026, 10, 15, 12, 0, 0)) { ex.run } }
 
