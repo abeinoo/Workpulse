@@ -6,8 +6,9 @@ module Requests
   #           is created until an accountant/admin calls pay.
   # reject  — pending → rejected
   # pay     — approved → paid (salary advances only).
-  #           Creates the Advance record so the amount is deducted in the next
-  #           payroll generation run.
+  #           Records the Advance — through the Workforce contract
+  #           Requests::AdvanceEffects, implemented by Attendance & Payroll — so
+  #           the amount is deducted in the next payroll generation run.
   class Approver
     include AuditLoggable
     Result = Struct.new(:success, :request, :error, keyword_init: true) do
@@ -148,14 +149,9 @@ module Requests
         update_attrs = { status: "paid", reviewed_by: @reviewed_by, reviewed_at: Time.current }
         update_attrs[:response_note] = @response_note if @response_note.present?
         @request.update!(update_attrs)
-        Advance.create!(
-          user:             @request.user,
-          employee_request: @request,
-          total_amount:     @request.amount,
-          remaining_amount: @request.amount,
-          status:           "active",
-          issued_at:        paid_at
-        )
+        # The Advance (Attendance & Payroll), through the Workforce contract, in
+        # this transaction (Batch A).
+        Requests::AdvanceEffects.advance_paid(request: @request, paid_at: paid_at)
         log_audit(
           actor:     @reviewed_by,
           auditable: @request,
