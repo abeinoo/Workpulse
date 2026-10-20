@@ -42,8 +42,7 @@ class Admin::UsersController < Admin::BaseController
 
   def show
     authorize @user
-    @active_salary_profile = @user.active_salary_profile
-    @salary_profiles = @user.salary_profiles.order(effective_from: :desc)
+    load_salary
 
     # Performance tab — finalized reviews for this employee, newest first.
     if current_user.can?(:view_monthly_reviews)
@@ -111,6 +110,21 @@ class Admin::UsersController < Admin::BaseController
 
   def set_user
     @user = current_user.business.users.find(params[:id])
+  end
+
+  # The employee page shows salary only under SalaryProfilePolicy, never
+  # because the employee page itself is visible (SEC-M2-5): the current profile
+  # only (no history), audited when shown. The obligations card is read in the
+  # view — the documented Attendance & Payroll exception
+  # (attendance_payroll_obligation_boundary_spec) — under EmployeeObligationPolicy.
+  def load_salary
+    probe = SalaryProfile.new(user_id: @user.id) # standalone: never built into @user.salary_profiles
+    @salary_visible    = policy(probe).view_salary?
+    @salary_manageable = policy(probe).create?
+    # The salary in force today (the scope resolves the effective profile).
+    @active_salary_profile = @salary_visible ? policy_scope(SalaryProfile).find_by(user: @user) : nil
+    Salary::ViewAudit.record(actor: current_user, employee: @user, profiles: [ @active_salary_profile ],
+                             source: "admin_employee_page")
   end
 
   # ── Shift timeline helpers ────────────────────────────────────────────────

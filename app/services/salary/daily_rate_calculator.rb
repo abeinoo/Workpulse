@@ -44,11 +44,10 @@ module Salary
       (daily_rate / shift_hours).round(4)
     end
 
+    # The effective profile on @date (SalaryProfile.effective_for — the same rule
+    # salary display and the advance limit use).
     def profile
-      @profile ||= @user.salary_profiles
-                        .where("effective_from <= ?", @date)
-                        .order(effective_from: :desc, id: :desc)
-                        .first
+      @profile ||= SalaryProfile.effective_for(@user, date: @date)
     end
   end
 end

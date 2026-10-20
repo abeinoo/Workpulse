@@ -11,7 +11,9 @@ module Api
           period  = find_period
           authorize period, :show?
           entries = scoped_entries(period)
-          render_success(::Reports::PayrollSummary.call(period: period, entries: entries))
+          summary = ::Reports::PayrollSummary.call(period: period, entries: entries)
+          Payroll::EntryViewAudit.record(actor: current_user, entries: entries.to_a, source: "api_payroll_report_summary")
+          render_success(summary)
         end
 
         def export
@@ -19,6 +21,7 @@ module Api
           authorize period, :show?
           entries = scoped_entries(period)
           csv = ::Reports::PayrollCsvExporter.call(period: period, business: current_user.business, entries: entries)
+          Payroll::EntryViewAudit.record(actor: current_user, entries: entries.to_a, source: "api_payroll_report_export")
           send_data csv,
                     filename:    "payroll_#{period.period_label.parameterize}.csv",
                     type:        "text/csv",

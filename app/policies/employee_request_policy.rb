@@ -51,8 +51,16 @@ class EmployeeRequestPolicy < ApplicationPolicy
     # their configured scope, resolved most-specific-first
     # (approve_requests → view_requests → view_employees), not just direct reports.
     return false unless can?(:approve_requests)
+    return false unless in_approver_scope?(effective_user.id)
 
-    in_approver_scope?(effective_user.id)
+    # A salary advance is checked against a limit derived from the employee's
+    # salary, so whether it is accepted reveals that limit. On another
+    # employee's behalf it may be submitted only by an actor who may view their
+    # salary (view_payroll inside its scope — SalaryProfilePolicy), decided here,
+    # before any limit is computed (decision of 2026-10-19).
+    return true unless record.salary_advance?
+
+    SalaryProfilePolicy.viewable_employees(user).exists?(id: effective_user.id)
   end
 
   class Scope < ApplicationPolicy::Scope

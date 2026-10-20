@@ -227,12 +227,17 @@ class EmployeeRequest < ApplicationRecord
     result = Salary::AdvanceEligibilityCalculator.for(user: user)
     return unless result  # no limit configured — unrestricted
 
-    if result.no_profile?
-      errors.add(:amount, I18n.t("requests.errors.no_salary_profile"))
-      return
-    end
+    return unless result.no_profile? || amount.to_f > result.available
 
-    if amount.to_f > result.available
+    # The limit is derived from the employee's salary. Only the employee is told
+    # why (no salary profile / the remaining amount); someone submitting on their
+    # behalf gets one message for both, so it reveals neither the amount nor
+    # whether a salary profile exists (SEC-M2-5).
+    if submitted_by_id.present? && submitted_by_id != user_id
+      errors.add(:amount, I18n.t("requests.errors.exceeds_advance_limit_on_behalf"))
+    elsif result.no_profile?
+      errors.add(:amount, I18n.t("requests.errors.no_salary_profile"))
+    else
       errors.add(:amount,
                  I18n.t("requests.errors.exceeds_advance_limit",
                         available: result.available,

@@ -8,6 +8,10 @@
     <%= link_to t("payroll_dashboard.all_periods"), payroll_periods_path, class: "btn btn-secondary btn-sm" %>
   </div>
 
+  <% if @scope_limited %>
+    <p class="form-hint mb-4"><%= t("payroll_dashboard.scope_note") %></p>
+  <% end %>
+
   <%# ── Health score + KPI strip ────────────────────────────────────────────── %>
   <div class="pdash-kpi-row">
     <div class="pdash-health pdash-health--<%= @health[:label] %>">
@@ -64,7 +68,8 @@
         <h3 class="section-title"><%= t("payroll_dashboard.net_trend_title") %></h3>
         <%
           net_values   = @trend.map { |m| m[:net] }.compact
-          net_max      = net_values.max || 1
+          # Never 0: a month whose (visible) net pay is all zero would divide 0 by 0.
+          net_max      = net_values.max.to_f.positive? ? net_values.max : 1
         %>
         <div class="pdash-bar-chart">
           <% @trend.each do |m| %>

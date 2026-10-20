@@ -81,6 +81,41 @@ RSpec.describe EmployeeRequestPolicy, type: :model do
       new_req    = build(:employee_request, user: unmanaged)
       expect(subject).not_to permit(restricted, new_req)
     end
+
+    # Decision of 2026-10-19: a salary advance on another employee's behalf
+    # needs the right to view that employee's salary (view_payroll + scope).
+    describe "a salary advance on another employee's behalf" do
+      def approver_with(*permissions, scopes: {})
+        role = create(:permission_role, business: business,
+                      permissions: %w[view_requests approve_requests] + permissions.map(&:to_s),
+                      permission_scopes: { "approve_requests" => "business" }.merge(scopes))
+        create(:user, business: business, permission_role: role)
+      end
+
+      let(:advance) { build(:employee_request, user: employee, request_type: "salary_advance", amount: 100) }
+
+      it "denies an approver without view_payroll" do
+        expect(subject).not_to permit(approver_with, advance)
+      end
+
+      it "denies an approver whose view_payroll scope excludes the employee" do
+        expect(subject).not_to permit(approver_with(:view_payroll), advance) # no managed branch, no configured scope
+      end
+
+      it "permits an approver who may view the employee's salary" do
+        expect(subject).to permit(approver_with(:view_payroll, scopes: { "view_payroll" => "business" }), advance)
+        expect(subject).to permit(manager, advance) # branch manager of the employee's branch, view_payroll
+      end
+
+      it "permits the owner" do
+        expect(subject).to permit(super_admin, advance)
+      end
+
+      it "still permits the employee's own advance, and other request types on behalf" do
+        expect(subject).to permit(employee, advance)
+        expect(subject).to permit(approver_with, build(:employee_request, user: employee))
+      end
+    end
   end
 
   describe "approve?" do

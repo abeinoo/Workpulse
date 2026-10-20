@@ -3,8 +3,12 @@ class Laundry::Reports::CostSummaryController < Laundry::BaseController
 
   def index
     @from, @to = date_range
+    # Payroll cost only with view_payroll and the laundry branch inside its
+    # scope (Finance::PayrollCostAccess).
+    payroll_access = Finance::PayrollCostAccess.new(current_user)
     @summary = Finance::Reports::LaundryCostSummary.new(
-      current_user.business, from: @from, to: @to, include_payroll: current_user.can?(:view_payroll)
+      current_user.business, from: @from, to: @to, include_payroll: current_user.can?(:view_payroll),
+      payroll_branch_ids: payroll_access.branch_ids
     ).call
     @material_lines = authorized_material_lines(@summary.material_lines)
     @material_details_withheld = @material_lines.size < Array(@summary.material_lines).size

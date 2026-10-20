@@ -5,7 +5,9 @@ require "rails_helper"
 # spec/requests/api/v1/characterization/self_service_spec.rb.
 RSpec.describe "API v1 standard contract — advances", type: :request do
   let(:business) { create(:business) }
-  let(:viewer)   { api_user_with(business, :view_payroll) }
+  # A business-wide payroll viewer: since SEC-M2-7, view_payroll alone (no
+  # configured scope, no managed branch) no longer reaches other employees.
+  let(:viewer)   { api_user_with(business, :view_payroll, scopes: { "view_payroll" => "business" }) }
   let(:employee) { create(:user, business: business) }
 
   let!(:older)   { create(:advance, business: business, user: employee, issued_at: 3.days.ago, total_amount: 300, remaining_amount: 300) }

@@ -30,7 +30,7 @@
   <% end %>
   <% expenses, = @kpi_expenses %>
   <div class="stat"><div class="stat__label"><%= t("finance.dashboard.kpi.expenses") %></div><div class="stat__value"><%= format_currency(expenses) %></div></div>
-  <% if @show_profitability %>
+  <% if @show_profitability && @show_net_profit %>
     <div class="stat"><div class="stat__label"><%= t("finance.dashboard.kpi.net_profit") %></div><div class="stat__value"><%= format_currency(@kpi_profitability[:net]) %></div></div>
   <% end %>
 </div>
@@ -53,7 +53,9 @@
         <th><%= t("finance.expenses.branch") %></th>
         <th class="text-end"><%= t("finance.reports.revenue") %></th>
         <th class="text-end"><%= t("finance.reports.branch_expenses") %></th>
-        <th class="text-end"><%= t("finance.reports.net_profit") %></th>
+        <% if @show_net_profit %>
+          <th class="text-end"><%= t("finance.reports.net_profit") %></th>
+        <% end %>
       </tr>
     </thead>
     <tbody>
@@ -62,7 +64,9 @@
           <td><%= row[:branch] %></td>
           <td class="text-end"><%= format_currency(row[:revenue]) %></td>
           <td class="text-end"><%= format_currency(row[:expenses]) %></td>
-          <td class="text-end"><%= format_currency(row[:net]) %></td>
+          <% if @show_net_profit %>
+            <td class="text-end"><%= format_currency(row[:net]) %></td>
+          <% end %>
         </tr>
       <% end %>
     </tbody>

@@ -17,8 +17,8 @@ RSpec.describe "Laundry cost summary — web contract (characterization)", type:
   let!(:laundry_branch) { create(:branch, business: business, branch_type: "laundry") }
   let(:owner)           { create(:user, :owner, business: business) }
 
-  def user_with(*perms)
-    role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}", permissions: perms)
+  def user_with(*perms, scopes: {})
+    role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}", permissions: perms, permission_scopes: scopes)
     create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
   end
 
@@ -66,8 +66,9 @@ RSpec.describe "Laundry cost summary — web contract (characterization)", type:
     def card_labels   = html.css(".stat-card .stat-card__label").map { |n| n.text.strip }
     def section_titles = html.css(".card .card-header .card-title").map { |n| n.text.strip }
 
+    # view_payroll whose scope covers the laundry branch (decision of 2026-10-19).
     it "shows the full card set, in order, to a viewer with view_payroll" do
-      sign_in user_with("view_laundry_cost_reports", "view_payroll")
+      sign_in user_with("view_laundry_cost_reports", "view_payroll", scopes: { "view_payroll" => "business" })
       get laundry_reports_cost_summary_path
 
       expect(card_labels).to eq(%w[towels_consumed standard_branch_cost payroll_cost direct_expenses material_cost

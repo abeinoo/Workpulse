@@ -10,8 +10,8 @@
   if @show_profitability
     revenue, revenue_prev = @kpi_revenue
     revenue_change = revenue_prev.to_f.zero? ? nil : ((revenue.to_f - revenue_prev.to_f) / revenue_prev.to_f.abs * 100)
-    net = @kpi_profitability[:net]
-    margin = @kpi_profitability[:revenue].zero? ? 0 : (net / @kpi_profitability[:revenue] * 100)
+    net = @kpi_profitability[:net] # nil without payroll access to every branch in view
+    margin = net && (@kpi_profitability[:revenue].zero? ? 0 : (net / @kpi_profitability[:revenue] * 100))
   end
 %>
 <div class="exec-card exec-span-12 exec-summary">
@@ -23,7 +23,9 @@
       <%= t("finance.dashboard.executive_summary.revenue_line",
             amount: format_currency(revenue),
             trend: revenue_change ? t("finance.dashboard.executive_summary.#{revenue_change >= 0 ? 'up' : 'down'}", pct: number_with_precision(revenue_change.abs, precision: 1)) : t("finance.dashboard.executive_summary.no_comparison")) %>
-      <%= t("finance.dashboard.executive_summary.net_line", amount: format_currency(net), margin: number_with_precision(margin, precision: 1)) %>
+      <% if net %>
+        <%= t("finance.dashboard.executive_summary.net_line", amount: format_currency(net), margin: number_with_precision(margin, precision: 1)) %>
+      <% end %>
     <% end %>
     <%= t("finance.dashboard.executive_summary.expenses_line",
           amount: format_currency(expenses),

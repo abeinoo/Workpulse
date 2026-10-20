@@ -64,6 +64,8 @@ module Salary
       percentage = @business.max_salary_advance_percentage
       return nil unless percentage.present?
 
+      # The salary in force today (SalaryProfile.current_for) — a profile entered
+      # with a future effective_from does not count before that date.
       profile = SalaryProfile.current_for(@user)
       return no_profile_result unless profile
 
@@ -109,8 +111,9 @@ module Salary
     def earned_salary_to_date(profile)
       return profile.base_amount.to_f if profile.monthly?
 
+      # Priced on the same day current_for resolved the profile on.
       daily_rate = Salary::DailyRateCalculator.for(
-        user: @user, business: @business
+        user: @user, business: @business, date: SalaryProfile.effective_date_for(@business)
       ).daily_rate
 
       (daily_rate * complete_days_in_current_cycle).round(2)

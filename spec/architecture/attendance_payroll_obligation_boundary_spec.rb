@@ -59,7 +59,7 @@ module ArchitectureSpecs
     EXCEPTION_FILES = {
       "app/models/business.rb"              => "Organization & Access inverse association: has_many :employee_obligations",
       "app/models/user.rb"                  => "Organization & Access inverse association: has_many :employee_obligations",
-      "app/views/admin/users/show.html.erb" => "Workforce employee-page obligations card (documented read; visibility is the deferred SEC-M2-5 / Q-M2-5)",
+      "app/views/admin/users/show.html.erb" => "Workforce employee-page obligations card (documented read, under EmployeeObligationPolicy — SEC-M2-5 / Q-M2-5)",
       "app/views/layouts/_sidebar.html.erb" => "UI shell: obligations nav entry (admin path and label key)"
     }.freeze
 

@@ -59,8 +59,8 @@ RSpec.describe "Laundry cost summary — visibility", type: :request do
                                 amount: 411, expense_date: from + 2.days)
   end
 
-  def user_with(*perms, warehouses: [])
-    role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}", permissions: perms)
+  def user_with(*perms, warehouses: [], scopes: {})
+    role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}", permissions: perms, permission_scopes: scopes)
     create(:user, business: business).tap do |u|
       u.update_column(:permission_role_id, role.id)
       warehouses.each { |wh| u.assigned_warehouses << wh }
@@ -110,13 +110,34 @@ RSpec.describe "Laundry cost summary — visibility", type: :request do
       expect(response.body).not_to include(t_cost("payroll_restricted"))
     end
 
+    # Payroll cost needs view_payroll with the laundry branch inside its scope
+    # (Finance::PayrollCostAccess, decision of 2026-10-19).
     it "shows a view_payroll holder every payroll-dependent figure" do
-      sign_in user_with("view_laundry_cost_reports", "view_payroll")
+      sign_in user_with("view_laundry_cost_reports", "view_payroll", scopes: { "view_payroll" => "business" })
       get_report
 
       payroll_figures.each { |figure| expect(response.body).to include(figure) }
       expect(response.body).to include(t_cost("cards.payroll_cost"), t_cost("cards.total_actual_cost"),
                                        t_cost("cards.coverage_variance"), t_cost("cards.actual_cost_per_towel"))
+    end
+
+    it "withholds them from a view_payroll holder whose scope does not cover the laundry branch" do
+      outsider = user_with("view_laundry_cost_reports", "view_payroll") # default scope: managed branches — none
+      create(:branch, business: business).update_column(:branch_manager_id, outsider.id)
+      sign_in outsider
+      get_report
+
+      expect(response.body).to include(t_cost("payroll_restricted"))
+      payroll_figures.each { |figure| expect(response.body).not_to include(figure) }
+    end
+
+    it "shows them to the laundry branch's manager (default view_payroll scope)" do
+      manager = user_with("view_laundry_cost_reports", "view_payroll")
+      laundry_branch.update_column(:branch_manager_id, manager.id)
+      sign_in manager
+      get_report
+
+      payroll_figures.each { |figure| expect(response.body).to include(figure) }
     end
 
     it "withholds payroll and every payroll-derived figure without view_payroll, keeping the independent ones" do
@@ -167,7 +188,7 @@ RSpec.describe "Laundry cost summary — visibility", type: :request do
 
   describe "payroll figures (CSV)" do
     it "keeps the payroll rows and their values for a view_payroll holder" do
-      sign_in user_with("view_laundry_cost_reports", "view_payroll")
+      sign_in user_with("view_laundry_cost_reports", "view_payroll", scopes: { "view_payroll" => "business" })
       get_report(format: :csv)
 
       expect(response).to have_http_status(:ok)

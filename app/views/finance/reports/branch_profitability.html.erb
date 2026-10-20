@@ -88,10 +88,14 @@
     </div>
     <div class="kpi-card">
       <span class="kpi-card__label"><%= t("finance.reports.profitability_dashboard.margin") %></span>
-      <span class="kpi-card__value"><%= number_with_precision(@margin, precision: 1) %>%</span>
+      <span class="kpi-card__value"><%= @margin.nil? ? "—" : "#{number_with_precision(@margin, precision: 1)}%" %></span>
       <%= render "finance/dashboard/kpi_delta", current: @margin, previous: @previous_margin, is_percentage_points: true %>
     </div>
   </div>
+
+  <% if @payroll_restricted %>
+    <p class="form-hint"><%= t("finance.reports.payroll_restricted_note") %></p>
+  <% end %>
 
   <div class="exec-grid">
     <%= render "profitability_chart", rows: @branch_rows %>

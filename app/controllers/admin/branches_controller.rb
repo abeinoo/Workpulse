@@ -34,10 +34,7 @@ class Admin::BranchesController < Admin::BaseController
                                  .includes({ user: { profile_photo_attachment: :blob } }, shift: :penalty_rules)
                                  .order(:id)
 
-    @payroll_period = @branch.payroll_periods
-                              .where(period_month: today.month, period_year: today.year)
-                              .includes(payroll_entries: { user: { profile_photo_attachment: :blob } })
-                              .first
+    load_payroll_summary(today)
 
     branch_user_ids = ShiftAssignment.user_ids_for_branches([ @branch.id ])
 
@@ -106,6 +103,23 @@ class Admin::BranchesController < Admin::BaseController
   end
 
   private
+
+  # The branch's payroll for this month: per-employee pay, so shown only with
+  # view_payroll and only the entries its data scope allows (PayrollEntryPolicy
+  # scope) — managing branches alone shows none. Audited when shown.
+  def load_payroll_summary(today)
+    @show_payroll_summary = current_user.can?(:view_payroll)
+    return unless @show_payroll_summary
+
+    @payroll_period  = @branch.payroll_periods.find_by(period_month: today.month, period_year: today.year)
+    @payroll_entries = if @payroll_period
+      policy_scope(PayrollEntry).where(payroll_period: @payroll_period)
+                                .includes(user: { profile_photo_attachment: :blob }).to_a
+    else
+      []
+    end
+    Payroll::EntryViewAudit.record(actor: current_user, entries: @payroll_entries, source: "branch_payroll_summary")
+  end
 
   def find_branch
     current_user.business.branches.find(params[:id])

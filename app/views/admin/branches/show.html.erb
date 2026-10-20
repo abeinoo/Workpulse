@@ -66,10 +66,12 @@
     <%= render "shifts" %>
   </div>
 
-  <%# Payroll %>
-  <div class="dashboard-section">
-    <%= render "payroll_summary" %>
-  </div>
+  <%# Payroll — only with view_payroll, the entries its scope allows (loaded in the controller). %>
+  <% if @show_payroll_summary %>
+    <div class="dashboard-section">
+      <%= render "payroll_summary" %>
+    </div>
+  <% end %>
 
   <%# Requests %>
   <div class="dashboard-section">

@@ -36,7 +36,8 @@
     <%= render "kpi_delta", current: expenses, previous: expenses_prev, invert: true %>
   <% end %>
 
-  <% if @show_profitability %>
+  <%# Net profit and margin reveal payroll cost: only with payroll access to every branch in view. %>
+  <% if @show_profitability && @show_net_profit %>
     <% net = @kpi_profitability[:net]; net_prev = @kpi_profitability_previous[:net] %>
     <%= link_to finance_branch_profitability_report_path(year: @focus_month.year, month: @focus_month.month, branch_id: single_branch_id), class: "kpi-card #{net.negative? ? 'kpi-card--danger' : 'kpi-card--success'}" do %>
       <div class="kpi-card__top">
@@ -52,7 +53,7 @@
     <% end %>
 
     <% margin = @kpi_profitability[:revenue].zero? ? 0 : (net / @kpi_profitability[:revenue] * 100)
-       margin_prev = @kpi_profitability_previous[:revenue].zero? ? 0 : (net_prev / @kpi_profitability_previous[:revenue] * 100) %>
+       margin_prev = net_prev.nil? ? nil : (@kpi_profitability_previous[:revenue].zero? ? 0 : (net_prev / @kpi_profitability_previous[:revenue] * 100)) %>
     <%= link_to finance_branch_profitability_report_path(year: @focus_month.year, month: @focus_month.month, branch_id: single_branch_id), class: "kpi-card" do %>
       <div class="kpi-card__top">
         <span class="kpi-card__label-group">
