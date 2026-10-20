@@ -5476,3 +5476,107 @@ same messages: `punch_api_spec.rb:67` and `biometric_punch_spec.rb:59` (SEC-P12-
 `expenses_index_responsive_spec.rb:121` (TD-P12-2, unexplained, recurred locally with the same 2 px overflow under a
 different seed; not labelled flaky). **No new failing ID.** Remaining: commit (four reviewed groups), push and merge
 only on approval.
+
+---
+
+## 28. Batches R + W — Reporting read-only enforcement; Organization & Access → Inventory & Purchasing warehouse access
+
+**Status (2026-10-20): implemented and verified with focused tests; committed locally** (W M1 `996522b`, W refactor
+`f77e59b`, R + W boundary specs `0ccfaba`, then this documentation commit), not pushed or merged, on
+`feature/pilot-12-pos-terminals` on top of the four Pilot 12 commits (`5355211`). Run as batches (the user's 2026-10-20 instruction), from the
+post-Pilot-12 migration matrix. No full-suite run (not a designated milestone). No schema, route, permission, API or
+dependency change.
+
+### 28.1 Decisions (approved 2026-10-20)
+
+| ID | Decision |
+|---|---|
+| D-R1 | Single-domain Finance & Sales report services under `app/services/finance/reports/` stay Finance & Sales-owned in place; not moved |
+| D-R2 | `Payroll::EntryViewAudit` / `Salary::ViewAudit` calls from Reporting are documented Infrastructure exceptions (an `AuditLog` row only); they never permit writing domain data |
+
+### 28.2 Batch R — `spec/architecture/reporting_read_only_boundary_spec.rb` (10 examples; no application change)
+
+* **Rule 1 — no writes:** the Reporting controllers (`dashboard`, `operations_dashboard`, `admin/dashboard`,
+  `finance/dashboard`, `laundry/reports/cost_summary`), services (`dashboard/{owner_data,area_manager_data}`,
+  `finance/dashboard/*`, `finance/dashboard_filters`, `finance/reports/{branch_profitability,expense_sources,
+  verified_revenue,laundry_cost_summary,expense_details,expense_details_csv_exporter}`), their views, and the FS host
+  `Finance::ReportsController` + `app/views/finance/reports/` make no write call. **Found: none.**
+* **D-R2 sites:** view audits allowed exactly at `dashboard_controller.rb` (1, `dashboard_latest_payslip`) and
+  `finance/reports_controller.rb` (2, `finance_expense_details` HTML / CSV); the two audit services may only call
+  `log_audit`. `Salary::ViewAudit` is not called from Reporting today.
+* **Rule 2 — nothing depends on Reporting:** no file outside Reporting (and the host) names a Reporting service.
+  **Found: none.**
+* **Rule 3 — every file classified** in `app/services/{dashboard,finance/dashboard,finance/reports}/` (a new report
+  fails until its owner is decided).
+* **Classifications (ownership in place, following the existing `module-boundaries.md` §5 / §6 / §9):**
+  `expense_details` + `expense_details_csv_exporter` are **Reporting** (cross-domain via `expense_sources`, including
+  payroll — added to §9, which omitted them); `payroll_dashboard_controller` is **Attendance & Payroll** (§6 lists it;
+  it reads payroll and AP-allowed `ShiftAssignment`); `dashboard/birthdays` is **Workforce** (§5 lists it; it is also
+  used by `BirthdayCelebrationsController` and writes only a `Rails.cache` marker).
+* **Probes:** a real planted FS report naming `ExpenseSources` (caught by rules 2 and 3, removed); in-memory planted
+  write, extra view audit, comment / string false positives.
+* **Recorded, not fixed (TD-R-1):** IP laundry report controllers use `Finance::Reports::{Column,Table,CsvExporter}`
+  (FS report infrastructure) — an IP → FS read of CSV helpers; candidate for the Shared Kernel / Infrastructure
+  (`module-boundaries.md` §15), outside R.
+
+### 28.3 Batch W — warehouse access write boundary (§14.2 #10)
+
+**M1 characterization** (`spec/characterization/organization_access/user_warehouse_access_spec.rb`, 11, green against
+unchanged code): update replaces the set (blank hidden value ignored); `[""]` clears it and the user becomes
+unrestricted (fail-open, `inventory_warehouse_ids` → `nil`); field absent → untouched; another business's warehouse →
+422 with nothing changed; unknown id → 404; no `AuditLog`; create saves the assignments with the user and an invalid
+create saves neither; the checkbox markup (`user[assigned_warehouse_ids][]`, blank hidden input, checked state).
+
+**Finding — TD-W-1 (correctness, pinned, not fixed; not a privilege escalation):** for a persisted user the
+`has_many :through` ids writer saves the join rows **immediately**, during `assign_attributes` — so an update that then
+fails validation (422) or whose role change is refused (422) **keeps the new warehouse assignments**. The actor was
+already authorized for the account tier (`UserPolicy::ACCOUNT_ATTRIBUTES`), so no authority is gained, but the form is
+not atomic. Making it atomic is a behaviour change and needs its own decision; Batch W preserves it exactly.
+**Decision (user, 2026-10-20):** keep the timing unchanged in this migration; TD-W-1 stays **open** as a
+behaviour-consistency improvement. A future all-or-nothing save is a separate, explicitly approved change, preceded by
+characterization of the validation-failure and refused-role-change cases (both already pinned here as current
+behaviour).
+
+**Contract (as Pilot 12, adapted to the preserved timing):** `OrganizationAccess::UserWarehouseAccess.assign(user:,
+warehouse_ids:)` (`app/services/organization_access/user_warehouse_access.rb`), implemented by Inventory & Purchasing
+`Inventory::UserWarehouseAssignments` (`app/services/inventory/user_warehouse_assignments.rb`, the same ids writer —
+immediate for a persisted user, on save for a new one), registered in `config/initializers/user_warehouse_access.rb`.
+`Admin::UsersController#create` / `#update` take `assigned_warehouse_ids` out of the permitted params and apply it
+through the contract right after `assign_attributes` — before the role check and the save, where the writer ran
+before. `UserPolicy` tiers, the form, `User#inventory_warehouse_ids` (the fail-open rule) and every error path are
+unchanged. (Recorded edge: a request whose other attributes raise during `assign_attributes` — e.g. a tampered enum —
+now raises before the warehouse ids are applied, where before it depended on parameter order; an error path only.)
+The User ≠ Employee split (#7) is untouched. Contract spec `spec/services/organization_access/user_warehouse_access_spec.rb`
+(7): registration, `NotRegistered`, dispatch, immediate vs on-save timing, `RecordInvalid` for a foreign warehouse.
+
+**M6 — `spec/architecture/organization_access_outbound_boundary_spec.rb` (13):**
+
+* warehouse-access internals (`WarehouseAssignment`, `warehouse_assignments`, `assigned_warehouses`,
+  `assigned_warehouse_ids=`, the implementation) only in IP files and three pinned `User` lines (lifecycle
+  association, read traversal for the form, the unchanged fail-open rule); the controller applies access only through
+  the contract; the contract names nothing from IP; only the composition root names the implementation, which is the
+  registered handler;
+* the inverse associations of `Business`, `Branch` and `User` into WF / AP / IP / FS are listed per owning domain
+  (`module-boundaries.md` §10) and frozen — a new or removed association fails until classified;
+* `WorkspaceHelper` (UI-shell navigation registry) names other domains' models only as `policy(Model)` gates, plus
+  two classified workspace permission lists (`Finance::BaseController::FINANCE_PERMISSIONS`,
+  `Laundry::BaseController::LAUNDRY_PERMISSIONS`, found by the spec);
+* probes: a real planted OA service writing `assigned_warehouse_ids` (caught, removed); in-memory planted write and
+  `WorkspaceHelper` query.
+
+### 28.4 Verification (focused, sequential; 2026-10-20)
+
+| Run | Result |
+|---|---|
+| `spec/architecture` after R (seed 20261006) | 329 examples, 0 failures |
+| W set — `spec/characterization/organization_access`, `spec/requests/admin/{users,role_assignment_entry_points}_spec.rb`, `spec/requests/employee_sidebar_and_creation_spec.rb`, `spec/requests/security/organization_access_{security,scope_hierarchy,view_and_role_scope}_spec.rb`, `spec/requests/permission_matrix_verification_spec.rb`, `spec/requests/inventory/warehouse_access_spec.rb`, the W contract spec, `spec/architecture` | 772 examples, 0 failures (seed 20261006) and with `CI=1` |
+
+`zeitwerk:check` clean; RuboCop on the 8 new / changed Ruby files no offenses; `bin/brakeman` 0 warnings;
+`git diff --check` clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+
+### 28.5 Still open (unchanged by R + W)
+
+SEC-P12-1 (punch timestamp window; the intended seven-day sync behaviour undecided), TD-P12-1 and TD-P12-2 (cause
+unknown, not labelled flaky), SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2; new TD-R-1 and TD-W-1 above. Remaining
+migration work (§28 matrix): Advances (§14.2 #2), the IP ↔ FS settlement cycle (§14.2 #6 — now ~28 code lines in 14
+files, more than the "6 / 6" in `module-boundaries.md` §12.2), the account fields (#7, User ≠ Employee decision).

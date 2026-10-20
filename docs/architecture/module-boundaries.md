@@ -9,7 +9,10 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
 * **Organization & Access is partially migrated:** the `PermissionRole` pilot (`app/models/organization_access/`,
   `app/services/organization_access/`); see `permission-role-migration-plan.md`. Since Pilot 5 the access scopes read
   branch membership through `OrganizationAccess::MembershipProvider` (implemented by `Workforce::MembershipProvider`);
-  see `next-pilot-selection.md` §20.
+  see `next-pilot-selection.md` §20. Since Batch W (on `feature/pilot-12-pos-terminals`, not yet merged) the employee form applies warehouse access only through
+  the OA contract `OrganizationAccess::UserWarehouseAccess` (implemented by IP, `Inventory::UserWarehouseAssignments`),
+  and OA's inverse associations and the `WorkspaceHelper` navigation registry are classified and frozen by
+  `spec/architecture/organization_access_outbound_boundary_spec.rb` (`next-pilot-selection.md` §28).
 * **Workforce is partially migrated:** `Department`, `JobTitle`, the Performance evaluation group and
   `EmployeeInsuranceProfile` (Pilot 8, behind the `Employee::InsuranceProfileEffects` contract) are in
   `app/models/workforce/`; see `next-pilot-selection.md`. Since Pilot 9 the `EmployeeRequest` lifecycle reaches the
@@ -25,7 +28,7 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
   implement WF contracts.
 * **Finance & Sales is partially migrated (Milestone 2):** the Expenses group (`app/models/finance_sales/`), with a
   boundary spec; it implements `Payroll::FinalizationEffects` (`Finance::PayrollFinalizationEffects`). Since Pilot 12
-  (uncommitted, `feature/pilot-12-pos-terminals`) it also implements the OA contract
+  (on `feature/pilot-12-pos-terminals`, not yet merged) it also implements the OA contract
   `OrganizationAccess::BranchTerminalSettings` (`Finance::BranchPosTerminals`): the branch form stages POS terminal rows
   only through it (`spec/architecture/finance_sales_pos_terminal_boundary_spec.rb`; `next-pilot-selection.md` §27).
 * **Inventory & Purchasing is partially migrated (Pilots 6 and 7):** `Supplier`, `Brand` and `ProductCategory` live
@@ -34,6 +37,10 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
 * **Reporting is partially migrated (Pilot 11):** the laundry operating-cost report `Finance::Reports::LaundryCostSummary`
   (`app/services/finance/reports/`, moved from `Laundry::LaundryCostSummaryReport`), with a read-only boundary spec;
   see `next-pilot-selection.md` §26. Its controller stays under `/laundry/reports/cost_summary` as Reporting UI.
+  Since Batch R (on `feature/pilot-12-pos-terminals`, not yet merged) the whole Reporting surface is enforced read-only by
+  `spec/architecture/reporting_read_only_boundary_spec.rb`: no writes (the approved view-audit calls excepted, D-R2),
+  nothing outside Reporting names a Reporting service, every file of the Reporting-adjacent service folders classified
+  (single-domain Finance & Sales reports stay FS-owned in place, D-R1) — `next-pilot-selection.md` §28.
 * The cross-domain violations recorded in §12.2 remain until their owning steps; those resolved in Milestone 2 are
   marked there and in §14.2.
 
@@ -248,7 +255,7 @@ property); no behaviour change is part of this document.
 2. **Responsibilities.** Dashboards, reports, analytics and cross-domain aggregations only.
 3. **Models / 4. Tables.** None.
 5. **Controllers.** `dashboard` (home), `operations_dashboard`, `admin/dashboard`, `finance/dashboard` (+ PDF export), cross-domain `finance/reports` actions (`branch_profitability`), `laundry/reports/cost_summary` (Reporting UI under the laundry URL, Pilot 11).
-6. **Services.** `dashboard/{owner_data,area_manager_data}`, `finance/dashboard/*`, `finance/dashboard_filters`, `finance/reports/{branch_profitability,expense_sources,verified_revenue,laundry_cost_summary}` (`laundry_cost_summary`: the whole laundry operating-cost report, reads AP + WF + FS + IP — Pilot 11).
+6. **Services.** `dashboard/{owner_data,area_manager_data}`, `finance/dashboard/*`, `finance/dashboard_filters`, `finance/reports/{branch_profitability,expense_sources,verified_revenue,laundry_cost_summary,expense_details,expense_details_csv_exporter}` (`laundry_cost_summary`: the whole laundry operating-cost report, reads AP + WF + FS + IP — Pilot 11; `expense_details` + its CSV: the per-source breakdown of profitability costs, cross-domain through `expense_sources` — classified in Batch R). The other `finance/reports/*` files are single-domain Finance & Sales reports and FS report infrastructure (D-R1). `Finance::ReportsController` is an FS controller hosting the two Reporting actions `branch_profitability` and `expense_details`.
 7. **Queries.** The services above.
 8. **Jobs.** None.
 9. **Policies.** `operations_dashboard`, `finance/dashboard`.
@@ -383,7 +390,7 @@ of rules 4–5 of §18.
 | FS → WF (`TillHandoversController` → `ShiftAssignment`) | 1 file | **Allowed** via read interface |
 | OA → WF (`EmployeeScope`/`BranchScope` → `BranchMembership`) | — | **Resolved (Pilot 5):** through the OA-defined membership contract |
 | OA → WF (branch staff view, API login `checkin_branch_ids`, `User` helper / inverse associations) | 4 files | **Classified exceptions** (Pilot 5 M6, shape-pinned); targets: Reporting / composition, session payload via WF interface, User / Employee stewardship |
-| OA → FS/IP/AP (inverse `has_many`; `WorkspaceHelper`; ~~branch form writes `pos_terminals`~~) | model + 2 files | **Violation** → move inverse associations to owning domains; navigation registry (infrastructure). The branch-form terminal write is **resolved (Pilot 12)** through the OA contract `OrganizationAccess::BranchTerminalSettings` (FS implementation); `Branch` / `Business has_many :pos_terminals` stay as classified lifecycle exceptions |
+| OA → FS/IP/AP (inverse `has_many`; `WorkspaceHelper`; ~~branch form writes `pos_terminals`~~; ~~user form writes `warehouse_assignments`~~) | model + 2 files | **Classified exceptions (Batch W)**: the inverse associations of `Business`, `Branch` and `User` into WF / AP / IP / FS are listed per owning domain and frozen (a new one fails the spec); `WorkspaceHelper` is the UI-shell navigation registry, limited to `policy(Model)` gates and two workspace permission lists (`spec/architecture/organization_access_outbound_boundary_spec.rb`). Writes resolved: the branch-form terminal write **(Pilot 12)** through `OrganizationAccess::BranchTerminalSettings` (FS implementation); the user-form warehouse write **(Batch W)** through `OrganizationAccess::UserWarehouseAccess` (IP implementation). Moving the inverse associations to their owning domains stays the long-term target |
 | WF → AP (request writes, salary display, request validation reads) | 19 / 9 | **Violation** → events + WF-defined contracts + UI composition. The insurance recalculation and payroll-notice edges are **resolved (Pilot 8)** through `Employee::InsuranceProfileEffects`. The permission payroll effects (approve / cancel of late and early-leave requests) are **resolved (Pilot 9)** through `Requests::PermissionPayrollEffects`. The punch-correction reads and writes (assessment, approval, cancellation) are **resolved (Pilot 10 M2–M4, on the pilot branch)** through `Requests::PunchCorrectionEffects`; the canceller's pre-M4 legacy rollback was removed in Pilot 10 M6 |
 | ~~AP → FS (`Payroll::InsuranceExpenseGenerator` writes `expenses`)~~ | — | **Resolved (Milestone 2, Pilot 3):** generator removed; AP calls only its `Payroll::FinalizationEffects` contract, FS implements it (cycle F3 eliminated) |
 | ~~WF → AP penalty-rule write (`Shift` nested attributes, §14.2 #9)~~ | — | **Resolved (Milestone 2, Pilot 4):** WF `Shifts::PenaltyRuleSettings` contract, AP implementation; `Shift` keeps only the inverse lifecycle association (`dependent: :destroy, autosave: true`), a classified exception |
@@ -491,7 +498,7 @@ Today the approval creates a `users` row without a password (§3.2).
 | 7 | `admin/users` form and onboarding approval write account fields (`email`, `phone_number`, `active`, `permission_role_id`) together with employee fields | OA (account columns) | One combined form; onboarding creates the record | WF edits employee fields; account fields via OA interface | **Interface** (`create_account_for`, `assign_role`, `deactivate`) | Medium — central table and form |
 | 8 | **Resolved (Pilot 12).** Was: `admin/branches` form writes `pos_terminals` (nested attributes); now the branch form stages terminal rows through the OA contract `OrganizationAccess::BranchTerminalSettings`, implemented by FS (`Finance::BranchPosTerminals`), and the branch's own save persists them (markup, parameters and validation unchanged) | FS | Terminals are edited on the branch form | FS owns terminal editing (UI stays embedded) | **Interface** (OA-defined contract, synchronous, in the branch save) | Low |
 | 9 | **Resolved for the shift form (Milestone 2, Pilot 4).** Was: Shift form wrote `penalty_rules` through nested attributes; now it stages rows through the WF `Shifts::PenaltyRuleSettings` contract (AP implementation). `admin/penalty_rules` and `api/v1/penalty_rules` are AP controllers | AP | Penalty rules configured per shift | AP owns penalty-rule editing (UI may stay embedded) | **Interface** | Low–medium (API paths stay as they are) |
-| 10 | `admin/users` assigns `assigned_warehouse_ids` (`WarehouseAssignment`) | IP | Warehouse access set on the user form | IP owns warehouse-access editing | **Interface** | Low |
+| 10 | **Resolved (Batch W).** Was: `admin/users` assigns `assigned_warehouse_ids` (`WarehouseAssignment`) directly; now the employee form applies the submitted set through the OA contract `OrganizationAccess::UserWarehouseAccess`, implemented by IP (`Inventory::UserWarehouseAssignments`). Behaviour unchanged, including the timing (immediate for a persisted user — not atomic with the rest of the form, TD-W-1) and the fail-open read rule `User#inventory_warehouse_ids` | IP | Warehouse access set on the user form | IP owns warehouse-access editing (UI stays embedded) | **Interface** (OA-defined contract) | Low |
 | 11 | Attendance services call `Payroll::DraftRegenerator` | AP | Keep drafts current | Internal to AP | Internal event | Low |
 | 12 | `Finance::PosImports::ExpenseGenerator` creates fee expenses | FS | Card fees | Internal to FS | Internal | Low |
 | 13 | `Laundry::BatchMaterialConsumer` inserts `InventoryMovement` | IP | Laundry consumes stock | Internal to IP | Internal `post_consumption` | Low–medium |
