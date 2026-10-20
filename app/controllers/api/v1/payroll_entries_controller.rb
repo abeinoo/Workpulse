@@ -9,11 +9,14 @@ module Api
                     .includes(:user, :payroll_period)
                     .order(created_at: :desc)
         entries = entries.where(payroll_period_id: params[:payroll_period_id]) if params[:payroll_period_id]
+        entries = entries.to_a
+        Payroll::EntryViewAudit.record(actor: current_user, entries: entries, source: "api_payroll_entries")
         render_success(entries.map { |e| entry_json(e) })
       end
 
       def show
         authorize @entry
+        Payroll::EntryViewAudit.record(actor: current_user, entries: [ @entry ], source: "api_payroll_entry")
         render_success(entry_json(@entry, detailed: true))
       end
 
@@ -26,6 +29,7 @@ module Api
         end
 
         @entry.update!(notes: entry_params[:notes]) if entry_params[:notes]
+        Payroll::EntryViewAudit.record(actor: current_user, entries: [ @entry ], source: "api_payroll_entry_update")
         render_success(entry_json(@entry, detailed: true))
       rescue ActiveRecord::RecordInvalid => e
         render_error(e.record.errors.full_messages.join(", "))

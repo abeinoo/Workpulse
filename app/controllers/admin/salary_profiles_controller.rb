@@ -2,57 +2,54 @@ class Admin::SalaryProfilesController < Admin::BaseController
   before_action :set_employee
   before_action :set_profile, only: [ :edit, :update ]
 
+  # Standalone records (never built into @employee.salary_profiles).
   def new
-    @profile = @employee.salary_profiles.new(currency: @employee.business.currency, active: true)
+    @profile = SalaryProfile.new(user_id: @employee.id, currency: @employee.business.currency, active: true)
     authorize @profile
   end
 
   def create
-    @profile = @employee.salary_profiles.new(profile_params.merge(currency: @employee.business.currency, active: true))
-    authorize @profile
+    authorize SalaryProfile.new(user_id: @employee.id)
+    result = Salary::ProfileUpdater.call(user: @employee, actor: current_user, source: "admin",
+                                         params: profile_params.merge(currency: @employee.business.currency))
 
-    if @profile.save
-      recalculate_open_periods
+    if result.success?
       redirect_to admin_user_path(@employee), notice: t("flash.salary_profile_created")
     else
+      @profile = result.profile
       render :new, status: :unprocessable_entity
     end
   end
 
   def edit
     authorize @profile
+    Salary::ViewAudit.record(actor: current_user, employee: @employee, profiles: [ @profile ],
+                             source: "admin_salary_profile_edit")
   end
 
   def update
     authorize @profile
+    result = Salary::ProfileCorrector.call(profile_id: @profile.id, attributes: profile_params,
+                                           actor: current_user, source: "admin")
 
-    if @profile.update(profile_params)
-      recalculate_open_periods
+    if result.success?
       redirect_to admin_user_path(@employee), notice: t("flash.salary_profile_updated")
     else
+      @profile = result.profile
       render :edit, status: :unprocessable_entity
     end
   end
 
   private
 
-  # A salary profile change should be reflected in every currently editable
-  # period, not just the next full generation. Never allowed to fail the
-  # salary profile change itself.
-  def recalculate_open_periods
-    Payroll::EntryRecalculator.recalculate_all_open_periods_for(user: @employee, triggered_by: current_user)
-  rescue => e
-    Rails.logger.error("[Admin::SalaryProfilesController] payroll recalc failed user=#{@employee.id}: #{e.class}: #{e.message}")
-  end
-
+  # Only employees whose salary the actor may manage — never the actor
+  # (SEC-M2-6); anyone else is not found.
   def set_employee
-    @employee = current_user.business.users.find(params[:user_id])
+    @employee = SalaryProfilePolicy.manageable_employees(current_user).find(params[:user_id])
   end
 
   def set_profile
-    @profile = policy_scope(SalaryProfile)
-                 .where(user: @employee)
-                 .find(params[:id])
+    @profile = @employee.salary_profiles.find(params[:id])
   end
 
   def profile_params

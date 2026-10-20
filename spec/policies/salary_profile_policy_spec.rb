@@ -12,6 +12,10 @@ RSpec.describe SalaryProfilePolicy, type: :model do
 
   before do
     branch.update_column(:branch_manager_id, manager.id)
+    # The employee works at the manager's branch (current shift assignment), so
+    # the manager's hierarchy-default view_payroll scope covers them.
+    create(:shift_assignment, business: business, user: employee, branch: branch,
+                              effective_from: 1.month.ago.to_date, effective_to: nil)
   end
 
   let(:active_profile)     { create(:salary_profile, user: employee) }
@@ -114,14 +118,16 @@ RSpec.describe SalaryProfilePolicy, type: :model do
       expect(scope).not_to include(other_profile)
     end
 
-    it "manager with view_payroll sees all business profiles regardless of branch" do
-      other_branch   = create(:branch, business: business)
-      cross_emp      = create(:user, business: business)
-      cross_profile  = create(:salary_profile, user: cross_emp)
-      # Permission-driven: view_payroll grants business-wide salary profile visibility.
-      # Branch isolation requires an explicit data scope override on the role.
+    # SEC-M2-7: view_payroll no longer grants business-wide salary visibility.
+    # Without a configured scope the hierarchy default (managed branches) applies.
+    it "manager with view_payroll does not see profiles of employees outside their branches" do
+      other_branch  = create(:branch, business: business)
+      cross_emp     = create(:user, business: business)
+      create(:shift_assignment, business: business, user: cross_emp, branch: other_branch,
+                                effective_from: 1.month.ago.to_date, effective_to: nil)
+      cross_profile = create(:salary_profile, user: cross_emp)
       scope = SalaryProfilePolicy::Scope.new(manager, SalaryProfile).resolve
-      expect(scope).to include(cross_profile)
+      expect(scope).not_to include(cross_profile)
     end
 
     it "returns only own profile for employee" do

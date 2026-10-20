@@ -11,7 +11,7 @@ module Finance
     # which is strictly flat and cannot represent nested sections/groups/rows).
     class ExpenseDetails
       Result = Struct.new(:year, :month, :to_year, :to_month, :branch_filter, :expense_type_filter,
-                          :sections, :reconciliation, :recurring_note, keyword_init: true)
+                          :sections, :reconciliation, :recurring_note, :payroll_restricted, keyword_init: true)
       Section = Struct.new(:key, :title, :total, :applies_type_filter, :groups, keyword_init: true)
       Group   = Struct.new(:label, :branch_id, :subtotal, :rows, keyword_init: true)
       Reconciliation = Struct.new(:report_total, :branch_profitability_total, keyword_init: true) do
@@ -22,7 +22,14 @@ module Finance
       # to_year/to_month default to year/month — every existing caller (specs,
       # the pre-range controller action) that passes only year/month keeps
       # resolving to the exact same single-month range as before.
-      def initialize(business, year:, month:, to_year: nil, to_month: nil, branch_id: nil, expense_type_id: nil)
+      #
+      # payroll_branch_ids (Finance::PayrollCostAccess#branch_ids) limits whose
+      # payroll cost is shown: the payroll section keeps only those branches
+      # (and is left out when none is in the report), its total and the
+      # reconciliation count only them, and payroll_restricted says so. nil
+      # (the default) = every branch.
+      def initialize(business, year:, month:, to_year: nil, to_month: nil, branch_id: nil, expense_type_id: nil,
+                     payroll_branch_ids: nil)
         @business         = business
         @year             = year
         @month            = month
@@ -33,6 +40,7 @@ module Finance
         @end              = Date.new(@months.last.first, @months.last.last, 1).end_of_month
         @branch_id        = branch_id.presence
         @expense_type_id  = expense_type_id.presence
+        @payroll_branch_ids = payroll_branch_ids
       end
 
       # Section keys whose totals are directly comparable to Branch
@@ -44,14 +52,15 @@ module Finance
         sections = [
           payroll_section, laundry_section, inventory_section,
           branch_expenses_section, shared_expenses_section, other_section
-        ]
+        ].compact
 
         Result.new(
           year: @year, month: @month, to_year: @to_year, to_month: @to_month,
           branch_filter: @branch_id, expense_type_filter: @expense_type_id,
           sections: sections,
           reconciliation: reconciliation(sections),
-          recurring_note: RecurringNote.new(generated_this_period_amount: recurring_generated_amount)
+          recurring_note: RecurringNote.new(generated_this_period_amount: recurring_generated_amount),
+          payroll_restricted: payroll_branches_in_scope.size < branches_in_scope.size
         )
       end
 
@@ -111,19 +120,29 @@ module Finance
         @branch_id ? sales_branches.select { |b| b.id == @branch_id } : sales_branches
       end
 
+      # The branches in the report whose payroll cost may be shown.
+      def payroll_branches_in_scope
+        return branches_in_scope if @payroll_branch_ids.nil?
+
+        branches_in_scope.select { |b| @payroll_branch_ids.include?(b.id) }
+      end
+
       # ── Section 1: الرواتب ──────────────────────────────────────────────────
       # Total is GROSS (base + overtime + bonus) — identical arithmetic to
       # ExpenseSources#payroll_costs, the figure BranchProfitability/reconciliation
       # use. Employee `net_salary` rows are informational detail only — their
       # sum will NOT equal this total (net is post-deduction/advance/obligation).
       def payroll_section
+        return nil if payroll_branches_in_scope.empty?
+
         entries_by_branch = merged_records(:payroll_entries_by_branch)
-        groups = branches_in_scope.filter_map do |branch|
+        groups = payroll_branches_in_scope.filter_map do |branch|
           entries = entries_by_branch[branch.id]
           next if entries.blank?
 
           rows = entries.map do |entry|
             {
+              payroll_entry_id:  entry.id, # lets the caller show only the entries the viewer may see
               employee_name:     entry.user.full_name,
               base_salary:       entry.base_salary,
               total_overtime:    entry.total_overtime,
@@ -140,7 +159,8 @@ module Finance
         end
 
         Section.new(key: :payroll, title: I18n.t("finance.reports.expense_details.sections.payroll"),
-                    total: section_total(merged_totals(:payroll_costs)), applies_type_filter: false, groups: groups)
+                    total: section_total(merged_totals(:payroll_costs), payroll_branches_in_scope),
+                    applies_type_filter: false, groups: groups)
       end
 
       # ── Section 2: المغسلة ──────────────────────────────────────────────────
@@ -301,8 +321,8 @@ module Finance
       # total include money no group/row on the page ever displays, and would
       # silently drift from Branch Profitability's total, which excludes them
       # by design (see Finance::Reports::BranchProfitability's class comment).
-      def section_total(hash)
-        branches_in_scope.sum { |b| hash[b.id] || 0 }
+      def section_total(hash, branches = branches_in_scope)
+        branches.sum { |b| hash[b.id] || 0 }
       end
 
       # Recurring-sourced expenses already flow through branch_expenses_section
@@ -337,14 +357,15 @@ module Finance
         Reconciliation.new(report_total: report_total, branch_profitability_total: bp_total)
       end
 
+      # The same branches as the report (one, under a branch filter; every sales
+      # branch otherwise — the rows BranchProfitability returns), with payroll
+      # counted only where this report shows it (nil there = not shown).
       def branch_profitability_total_for(year, month)
-        table = Finance::Reports::BranchProfitability.new(@business, year: year, month: month).call
-        if @branch_id
-          row = table.rows.find { |r| r[:branch] == branches_in_scope.first&.name }
-          row ? row[:payroll] + row[:inventory] + row[:expenses] : 0
-        else
-          table.totals[:payroll] + table.totals[:inventory] + table.totals[:expenses]
-        end
+        table = Finance::Reports::BranchProfitability.new(@business, year: year, month: month,
+                                                          payroll_branch_ids: @payroll_branch_ids).call
+        names = branches_in_scope.map(&:name)
+        table.rows.select { |r| names.include?(r[:branch]) }
+             .sum { |r| (r[:payroll] || 0) + r[:inventory] + r[:expenses] }
       end
     end
   end

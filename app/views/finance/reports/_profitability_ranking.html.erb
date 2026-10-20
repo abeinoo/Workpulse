@@ -17,8 +17,10 @@
               <span class="leaderboard__name"><%= row[:branch] %></span>
             </div>
             <div class="leaderboard__stats">
-              <span class="leaderboard__net <%= "leaderboard__net--negative" if row[:net].negative? %>"><%= format_currency(row[:net]) %></span>
-              <span class="leaderboard__margin"><%= number_with_precision(row[:margin], precision: 1) %>% <%= t("finance.reports.profitability_dashboard.margin") %></span>
+              <span class="leaderboard__net <%= "leaderboard__net--negative" if row[:net]&.negative? %>"><%= format_currency(row[:net]) %></span>
+              <% if row[:margin] %>
+                <span class="leaderboard__margin"><%= number_with_precision(row[:margin], precision: 1) %>% <%= t("finance.reports.profitability_dashboard.margin") %></span>
+              <% end %>
             </div>
           <% end %>
         </li>

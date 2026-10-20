@@ -61,13 +61,14 @@ module Reports
       format("payroll_bank_transfer_%04d_%02d.csv", @period.period_year, @period.period_month)
     end
 
-    private
-
+    # The entries the CSV contains (for the payroll-entry view audit).
     def eligible_entries
-      scope = (@entries || @period.payroll_entries).includes(:user)
-      scope.reject { |entry| entry.disputed? || entry.net_salary.to_f <= 0 }
-           .sort_by { |entry| entry.user.employee_code.to_i }
+      @eligible_entries ||= (@entries || @period.payroll_entries).includes(:user)
+                            .reject { |entry| entry.disputed? || entry.net_salary.to_f <= 0 }
+                            .sort_by { |entry| entry.user.employee_code.to_i }
     end
+
+    private
 
     def build_row(entry)
       national_id = entry.user.identity_card_number.presence

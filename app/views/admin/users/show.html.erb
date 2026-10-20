@@ -231,15 +231,19 @@
   <% end %>
 
   <%# Salary Profiles %>
+  <%# The current profile only, shown under SalaryProfilePolicy (loaded in the controller). %>
+  <% if @salary_visible || @salary_manageable %>
   <div class="card" style="margin-top: var(--space-6);">
     <div class="card-header">
       <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("admin.users.salary_profile") %></h2>
-      <% if policy(SalaryProfile.new(user: @user)).create? %>
+      <% if @salary_manageable %>
         <%= link_to t("admin.users.new_profile"), new_admin_user_salary_profile_path(@user), class: "btn btn-sm btn-primary" %>
       <% end %>
     </div>
 
-    <% if @active_salary_profile %>
+    <% if !@salary_visible %>
+      <%# Manage-only: no amounts and no statement about the current profile. %>
+    <% elsif @active_salary_profile %>
       <dl class="data-list">
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("salary_profiles.type") %></dt>
@@ -274,43 +278,8 @@
     <% else %>
       <p style="padding: var(--space-4); color: var(--text-2);"><%= t("salary_profiles.no_active") %></p>
     <% end %>
-
-    <% if @salary_profiles.size > 1 %>
-      <div style="padding: 0 var(--space-4) var(--space-4);">
-        <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin-bottom: var(--space-2);"><%= t("salary_profiles.history") %></h3>
-        <div class="table-wrap table-wrap--cards">
-          <table>
-            <thead>
-              <tr>
-                <th><%= t("salary_profiles.type") %></th>
-                <th><%= t("salary_profiles.base_salary") %></th>
-                <th><%= t("salary_profiles.ot_multiplier") %></th>
-                <th><%= t("salary_profiles.effective_from") %></th>
-                <th><%= t("admin.users.status") %></th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @salary_profiles.each do |profile| %>
-                <tr>
-                  <td data-label="<%= t('salary_profiles.type') %>"><%= t("salary_profiles.salary_types.#{profile.salary_type}") %></td>
-                  <td data-label="<%= t('salary_profiles.base_salary') %>"><%= format_currency(profile.base_amount) %></td>
-                  <td data-label="<%= t('salary_profiles.ot_multiplier') %>"><%= profile.overtime_multiplier ? "#{profile.overtime_multiplier}x" : "—" %></td>
-                  <td data-label="<%= t('salary_profiles.effective_from') %>"><%= local_date(profile.effective_from) %></td>
-                  <td data-label="<%= t('admin.users.status') %>">
-                    <% if profile.active? %>
-                      <span class="badge badge-success"><%= t("salary_profiles.active") %></span>
-                    <% else %>
-                      <span class="badge badge-neutral"><%= t("salary_profiles.historical") %></span>
-                    <% end %>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    <% end %>
   </div>
+  <% end %>
 
   <%# Social Insurance %>
   <% insurance_profile = @user.employee_insurance_profile %>
@@ -396,14 +365,17 @@
   </div>
 
   <%# Active Obligations %>
-  <% active_obligations = @user.employee_obligations.where(status: %w[active paused]).order(created_at: :desc) %>
+  <%# Read under EmployeeObligationPolicy only: manage_obligations within its scope (SEC-M2-5). Without it nothing is loaded. %>
+  <% active_obligations = policy(EmployeeObligation).index? ? policy_scope(EmployeeObligation).where(user: @user, status: %w[active paused]).order(created_at: :desc).to_a : [] %>
   <% if active_obligations.any? %>
     <div class="card" style="margin-top: var(--space-6);">
       <div class="card-header">
         <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("admin.employee_obligations.user_section_title") %></h2>
-        <%= link_to t("admin.employee_obligations.index.add"),
-              new_admin_employee_obligation_path(user_id: @user.id),
-              class: "btn btn-sm btn-primary" %>
+        <% if policy(EmployeeObligation.new(user_id: @user.id)).create? %>
+          <%= link_to t("admin.employee_obligations.index.add"),
+                new_admin_employee_obligation_path(user_id: @user.id),
+                class: "btn btn-sm btn-primary" %>
+        <% end %>
       </div>
       <div class="table-wrap table-wrap--cards">
         <table>

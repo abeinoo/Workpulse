@@ -26,7 +26,9 @@ module Finance
     # payroll cost, nor any figure derived from it (actual operating cost,
     # coverage variance, cost per towel) — those would let payroll be recovered
     # by arithmetic from the remaining components. They come back nil, with
-    # payroll_included? false.
+    # payroll_included? false. payroll_branch_ids (Finance::PayrollCostAccess
+    # #branch_ids) does the same when the laundry branch is outside the
+    # viewer's payroll access; nil = no branch restriction.
     class LaundryCostSummary
       # One Stock Issue line item counted toward laundry material cost — carries
       # everything the report's drill-down needs (issue #, date, warehouse,
@@ -44,11 +46,12 @@ module Finance
         def payroll_included?           = payroll_included == true
       end
 
-      def initialize(business, from:, to:, include_payroll: true)
+      def initialize(business, from:, to:, include_payroll: true, payroll_branch_ids: nil)
         @business        = business
         @from            = from
         @to              = to
         @include_payroll = include_payroll
+        @payroll_branch_ids = payroll_branch_ids
       end
 
       def call
@@ -57,6 +60,8 @@ module Finance
 
         laundry_branch = laundry_branches.first
         return Result.new(laundry_branch: nil, payroll_included: @include_payroll) unless laundry_branch
+
+        @include_payroll &&= @payroll_branch_ids.nil? || @payroll_branch_ids.include?(laundry_branch.id)
 
         consumption = Laundry::BranchTowelConsumptionReport.new(@business, from: @from, to: @to).call
         standard_towels, standard_cost = standard_coverage(consumption, laundry_branch)

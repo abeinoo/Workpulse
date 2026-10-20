@@ -305,8 +305,9 @@ RSpec.describe "Architecture: Workforce employee insurance profile boundary" do
     end
 
     it "does not count `profile.save` in files that never name the insurance profile" do
-      expect(boundary.profile_writes("app/controllers/admin/salary_profiles_controller.rb")).to be_empty
-      expect(boundary.matches_in("app/controllers/admin/salary_profiles_controller.rb", boundary::CONTEXTUAL_PROFILE_WRITE)).not_to be_empty
+      # Salary-profile writes live in Salary::ProfileCorrector (`profile.save!`).
+      expect(boundary.profile_writes("app/services/salary/profile_corrector.rb")).to be_empty
+      expect(boundary.matches_in("app/services/salary/profile_corrector.rb", boundary::CONTEXTUAL_PROFILE_WRITE)).not_to be_empty
     end
 
     it "catches a new reference to the profile from another domain" do

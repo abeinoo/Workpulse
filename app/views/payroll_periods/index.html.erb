@@ -65,6 +65,10 @@
 
     <%# ── Management / Admin view ──────────────────────────────────────────── %>
 
+    <% if @payroll_scope_limited %>
+      <p class="form-hint mb-4"><%= t("payroll_dashboard.scope_note") %></p>
+    <% end %>
+
     <%# KPI summary strip — analytics permission only %>
     <% if current_user.can?(:view_payroll_analytics) && @summary %>
       <div class="payroll-kpi-grid">

@@ -36,13 +36,20 @@ module Finance
     # that computes them, also consumed by Finance::Reports::ExpenseDetails
     # for its per-employee/per-product/per-expense breakdown. See that class
     # for the query-level reasoning behind each figure.
+    #
+    # payroll_branch_ids (Finance::PayrollCostAccess#branch_ids) limits whose
+    # payroll cost is shown: for any other branch, payroll and net (which
+    # would reveal it) are nil, and so are the payroll and net totals unless
+    # every row shows them. nil (the default) = every branch; the figures
+    # themselves are computed exactly the same either way.
     class BranchProfitability
-      def initialize(business, year:, month:)
+      def initialize(business, year:, month:, payroll_branch_ids: nil)
         @business = business
         @year     = year
         @month    = month
         @start    = Date.new(year, month, 1)
         @end      = @start.end_of_month
+        @payroll_branch_ids = payroll_branch_ids
       end
 
       def call
@@ -53,13 +60,14 @@ module Finance
           payroll   = payroll_costs[branch.id] || 0
           inventory = inventory_costs[branch.id] || 0
           expenses  = (direct_expenses[branch.id] || 0) + (allocated_expenses[branch.id] || 0) + (laundry_costs[branch.id] || 0)
+          shown     = payroll_shown?(branch.id)
 
           { branch:    branch.name,
             revenue:   revenue,
-            payroll:   payroll,
+            payroll:   shown ? payroll : nil,
             inventory: inventory,
             expenses:  expenses,
-            net:       revenue - payroll - inventory - expenses }
+            net:       shown ? revenue - payroll - inventory - expenses : nil }
         end
 
         Table.new(
@@ -73,11 +81,15 @@ module Finance
             Column.new(key: :net,       label: I18n.t("finance.reports.net_profit"), money: true)
           ],
           rows:    rows,
-          totals:  %i[revenue payroll inventory expenses net].index_with { |k| rows.sum { |r| r[k] } }
+          totals:  %i[revenue payroll inventory expenses net].index_with do |k|
+            rows.any? { |r| r[k].nil? } ? nil : rows.sum { |r| r[k] }
+          end
         )
       end
 
       private
+
+      def payroll_shown?(branch_id) = @payroll_branch_ids.nil? || @payroll_branch_ids.include?(branch_id)
 
       def revenues
         @revenues ||= Finance::Reports::VerifiedRevenue.new(@business, from: @start, to: @end).by_branch

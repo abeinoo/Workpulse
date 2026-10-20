@@ -4,7 +4,7 @@
 </div>
 
 <% if @payroll_period %>
-  <% entries = @payroll_period.payroll_entries.to_a %>
+  <% entries = @payroll_entries %>
 
   <div class="stats-grid" style="margin-bottom: var(--space-5);">
     <div class="stat-card">

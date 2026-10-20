@@ -53,6 +53,9 @@ class Finance::DashboardController < Finance::BaseController
       @kpi_revenue                = period_over_period(->(from, to) { verified_revenue(from, to).total })
       @kpi_profitability          = profitability_for(@focus_month)
       @kpi_profitability_previous = profitability_for(@focus_month - 1.month)
+      # Net profit (and margin) reveal payroll cost: shown only when the viewer
+      # may see the payroll cost of every branch in view (Finance::PayrollCostAccess).
+      @show_net_profit = !@kpi_profitability[:net].nil?
 
       # Shared "is there any verified-DR revenue at all" checks, reused by
       # every revenue-dependent widget (Revenue by Branch, Branch
@@ -98,9 +101,12 @@ class Finance::DashboardController < Finance::BaseController
     [ previous_to - (@filters.to - @filters.from), previous_to ]
   end
 
+  # payroll / net are nil when any branch in view withholds them.
   def profitability_for(month)
     rows = profitability_rows_for(month)
-    %i[revenue payroll inventory expenses net].index_with { |k| rows.sum { |r| r[k] } }
+    %i[revenue payroll inventory expenses net].index_with do |k|
+      rows.any? { |r| r[k].nil? } ? nil : rows.sum { |r| r[k] }
+    end
   end
 
   # Memoized per month so the KPI cards (revenue/net/margin) and the branch
@@ -110,7 +116,8 @@ class Finance::DashboardController < Finance::BaseController
   def profitability_rows_for(month)
     @profitability_rows_by_month ||= {}
     @profitability_rows_by_month[month] ||= begin
-      table = Finance::Reports::BranchProfitability.new(current_user.business, year: month.year, month: month.month).call
+      table = Finance::Reports::BranchProfitability.new(current_user.business, year: month.year, month: month.month,
+                                                        payroll_branch_ids: payroll_branch_ids).call
       table.rows.select { |r| branch_names_by_id.value?(r[:branch]) }
     end
   end
@@ -371,9 +378,16 @@ class Finance::DashboardController < Finance::BaseController
       by_category_previous: @by_category_previous,
       by_branch: by_branch,
       total_expenses: @kpi_expenses.first,
-      payroll_cost: @show_profitability ? @kpi_profitability[:payroll] : nil,
-      operating_cost: @show_profitability ? @kpi_profitability.values_at(:payroll, :inventory, :expenses).sum : nil,
-      profitability_rows: @show_profitability ? @profitability : nil
+      # Payroll share, operating cost and best/worst branch by net all derive
+      # from payroll cost — only when it is shown for every branch in view.
+      payroll_cost: @show_net_profit ? @kpi_profitability[:payroll] : nil,
+      operating_cost: @show_net_profit ? @kpi_profitability.values_at(:payroll, :inventory, :expenses).sum : nil,
+      profitability_rows: @show_net_profit ? @profitability : nil
     ).insights
+  end
+
+  # Branches whose payroll cost the viewer may see (view_payroll + its scope).
+  def payroll_branch_ids
+    @payroll_branch_ids ||= Finance::PayrollCostAccess.new(current_user).branch_ids
   end
 end

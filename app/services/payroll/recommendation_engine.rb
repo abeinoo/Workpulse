@@ -4,6 +4,12 @@ module Payroll
   #
   # Usage:
   #   Payroll::RecommendationEngine.new(business: business).recommendations
+  #
+  # The payroll-derived recommendations (branch overtime ratio, payroll cost
+  # change) read only `payroll_entries` — the viewer's visible entries
+  # (policy_scope(PayrollEntry); PayrollEntry.none without view_payroll) — and
+  # name only branches in `payroll_branch_ids` (PayrollEntryPolicy.visible_branch_ids).
+  # nil for either = unrestricted (console / jobs).
   class RecommendationEngine
     OVERTIME_BRANCH_THRESHOLD = 0.20   # branch OT / branch net > 20%
     PAYROLL_SPIKE_THRESHOLD   = 0.15   # 15% increase vs rolling average
@@ -14,9 +20,11 @@ module Payroll
       keyword_init: true
     )
 
-    def initialize(business:, lookback_months: 3)
-      @business        = business
-      @lookback_months = lookback_months
+    def initialize(business:, lookback_months: 3, payroll_entries: nil, payroll_branch_ids: nil)
+      @business           = business
+      @lookback_months    = lookback_months
+      @payroll_entries    = payroll_entries
+      @payroll_branch_ids = payroll_branch_ids
     end
 
     def recommendations
@@ -62,7 +70,7 @@ module Payroll
       return [] if periods.size < 2
 
       net_totals = periods.map { |p|
-        p.payroll_entries.sum(:net_salary).to_f
+        entries_for(p).sum(:net_salary).to_f
       }
 
       current = net_totals.first
@@ -204,20 +212,27 @@ module Payroll
         .where(business: @business)
         .order(period_year: :desc, period_month: :desc)
         .limit(count)
-        .includes(:payroll_entries)
         .to_a
     end
 
+    def entries_for(period) = (@payroll_entries || PayrollEntry.all).where(payroll_period: period)
+
+    # Net and overtime per branch worked at during the period (the latest
+    # assignment, as before), for branches the viewer may see only.
     def branch_data(period)
-      entries  = period.payroll_entries.pluck(:user_id, :net_salary, :total_overtime)
+      entries  = entries_for(period).pluck(:user_id, :net_salary, :total_overtime)
       user_ids = entries.map(&:first)
 
-      branch_map = ShiftAssignment.branch_names_by_user(
+      branch_map = ShiftAssignment.branch_ids_by_user(
         user_ids, from: period.period_start, to: period.period_end
       )
+      names = @business.branches.where(id: branch_map.values.uniq).pluck(:id, :name).to_h
 
       entries.each_with_object(Hash.new { |h, k| h[k] = { net: 0.0, overtime: 0.0 } }) do |(uid, net, ot), h|
-        name = branch_map[uid] || I18n.t("payroll_dashboard.no_branch")
+        branch_id = branch_map[uid]
+        next if branch_id && @payroll_branch_ids && !@payroll_branch_ids.include?(branch_id)
+
+        name = branch_id ? names[branch_id] : I18n.t("payroll_dashboard.no_branch")
         h[name][:net]      += net.to_f
         h[name][:overtime] += ot.to_f
       end

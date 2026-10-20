@@ -22,12 +22,16 @@ class PayrollPeriodsController < ApplicationController
         filtered = filtered.where(period_month: @filter_month) if @filter_month
         @periods = filtered.order(period_year: :desc, period_month: :desc)
 
+        # Per-period totals over the entries the viewer may see (view_payroll
+        # scope — PayrollEntryPolicy::Scope), never the whole business.
+        @payroll_scope_limited = !(current_user.owner? || current_user.scope_for(:view_payroll) == "business")
         period_ids = @periods.pluck(:id)
         if period_ids.any?
-          @employee_counts   = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).count
-          @period_net_totals = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:net_salary)
-          @period_deductions = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:total_deductions)
-          @period_overtime   = PayrollEntry.where(payroll_period_id: period_ids).group(:payroll_period_id).sum(:total_overtime)
+          visible            = policy_scope(PayrollEntry).where(payroll_period_id: period_ids).group(:payroll_period_id)
+          @employee_counts   = visible.count
+          @period_net_totals = visible.sum(:net_salary)
+          @period_deductions = visible.sum(:total_deductions)
+          @period_overtime   = visible.sum(:total_overtime)
         else
           @employee_counts = @period_net_totals = @period_deductions = @period_overtime = {}
         end
@@ -39,6 +43,7 @@ class PayrollPeriodsController < ApplicationController
       @my_entries = PayrollEntry
                       .where(user: current_user, payroll_period: @periods)
                       .index_by(&:payroll_period_id)
+      Payroll::EntryViewAudit.record(actor: current_user, entries: @my_entries.values, source: "my_payslips")
     end
 
     if current_user.can?(:view_payroll)
@@ -74,6 +79,7 @@ class PayrollPeriodsController < ApplicationController
     @needs_review_count = @entries.count(&:needs_review?)
     @filter_needs_review = params[:needs_review] == "1"
     @entries = @entries.select(&:needs_review?) if @filter_needs_review
+    Payroll::EntryViewAudit.record(actor: current_user, entries: @entries.to_a, source: "period_entries")
 
     @pending_counts = @entries.each_with_object({}) do |entry, h|
       h[entry.id] = entry.payroll_line_items.count(&:pending_review?)
@@ -408,8 +414,10 @@ class PayrollPeriodsController < ApplicationController
 
     entries  = policy_scope(PayrollEntry).where(payroll_period: @period)
     exporter = Reports::BankTransferCsvExporter.new(period: @period, entries: entries)
+    csv      = exporter.to_csv
+    Payroll::EntryViewAudit.record(actor: current_user, entries: exporter.eligible_entries, source: "bank_transfer_export")
 
-    send_data exporter.to_csv, filename: exporter.filename, type: "text/csv"
+    send_data csv, filename: exporter.filename, type: "text/csv"
   end
 
   # "إعادة احتساب الوقت الإضافي" — read-only preview; nothing is written.

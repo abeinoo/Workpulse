@@ -56,9 +56,14 @@ class Finance::ReportsController < Finance::BaseController
     # @table is exactly what CSV export has always used — untouched, and the
     # CSV action below still reads only @table, so the export is byte-for-byte
     # identical to before this page was redesigned.
-    @table          = Finance::Reports::BranchProfitability.new(business, year: @year, month: @month).call
+    # Payroll cost (and net profit, which reveals it) only for the branches of
+    # the viewer's view_payroll scope — the HTML, CSV and charts all read @table.
+    @table          = Finance::Reports::BranchProfitability.new(business, year: @year, month: @month,
+                                                                payroll_branch_ids: payroll_branch_ids).call
     previous_month  = Date.new(@year, @month, 1) - 1.month
-    @previous_table = Finance::Reports::BranchProfitability.new(business, year: previous_month.year, month: previous_month.month).call
+    @previous_table = Finance::Reports::BranchProfitability.new(business, year: previous_month.year, month: previous_month.month,
+                                                                payroll_branch_ids: payroll_branch_ids).call
+    @payroll_restricted = @table.rows.any? { |row| row[:payroll].nil? }
 
     # Branch Profitability is a Sales-branch report (see Finance::Reports::
     # BranchProfitability) — narrowing the same assignable_branches collection
@@ -69,7 +74,8 @@ class Finance::ReportsController < Finance::BaseController
     @accessible_branches = assignable_branches.where(branch_type: "sales")
     @branch_ids_by_name  = @accessible_branches.pluck(:name, :id).to_h
     @branch_rows         = branch_profitability_rows(@table.rows, @previous_table.rows)
-    @ranked_branch_rows  = @branch_rows.sort_by { |r| -r[:net] }
+    # Branches whose net profit is not shown (nil) rank last.
+    @ranked_branch_rows  = @branch_rows.sort_by { |r| r[:net].nil? ? [ 1, 0 ] : [ 0, -r[:net] ] }
 
     @margin          = margin_pct(@table.totals[:net], @table.totals[:revenue])
     @previous_margin = margin_pct(@previous_table.totals[:net], @previous_table.totals[:revenue])
@@ -126,15 +132,21 @@ class Finance::ReportsController < Finance::BaseController
     @result = Finance::Reports::ExpenseDetails.new(
       business, year: @period.from_year, month: @period.from_month,
       to_year: @period.to_year, to_month: @period.to_month,
-      branch_id: @selected_branch_id, expense_type_id: @expense_type_id
+      branch_id: @selected_branch_id, expense_type_id: @expense_type_id,
+      payroll_branch_ids: payroll_branch_ids
     ).call
     @result.sections = @result.sections.select { |s| s.key == @selected_section.to_sym } if @selected_section
+    shown_payroll_entries = restrict_payroll_rows!(@result)
 
     respond_to do |format|
-      format.html { render :expense_details }
+      format.html do
+        Payroll::EntryViewAudit.record(actor: current_user, entries: shown_payroll_entries, source: "finance_expense_details")
+        render :expense_details
+      end
       format.csv do
-        send_data Finance::Reports::ExpenseDetailsCsvExporter.new(@result).to_csv,
-                  filename: "expense_details_#{Date.current.iso8601}.csv", type: "text/csv"
+        csv = Finance::Reports::ExpenseDetailsCsvExporter.new(@result).to_csv
+        Payroll::EntryViewAudit.record(actor: current_user, entries: shown_payroll_entries, source: "finance_expense_details_csv")
+        send_data csv, filename: "expense_details_#{Date.current.iso8601}.csv", type: "text/csv"
       end
     end
   end
@@ -143,6 +155,27 @@ class Finance::ReportsController < Finance::BaseController
 
   def business
     current_user.business
+  end
+
+  # Branches whose payroll cost the viewer may see (view_payroll + its scope).
+  def payroll_branch_ids
+    @payroll_branch_ids ||= Finance::PayrollCostAccess.new(current_user).branch_ids
+  end
+
+  # The payroll section's employee rows name each employee's pay, so they are
+  # shown only for the entries the viewer may see (PayrollEntryPolicy scope:
+  # view_payroll and its data scope); the branch subtotals and the section
+  # total stay the report's cost figures, as in Branch Profitability. Returns
+  # the entries left shown (for the payroll-entry view audit).
+  def restrict_payroll_rows!(result)
+    payroll = result.sections.find { |section| section.key == :payroll }
+    return [] unless payroll
+
+    ids     = payroll.groups.flat_map { |group| group.rows.map { |row| row[:payroll_entry_id] } }
+    visible = policy_scope(PayrollEntry).where(id: ids).select(:id, :user_id, :payroll_period_id).to_a
+    visible_ids = visible.to_set(&:id)
+    payroll.groups.each { |group| group.rows = group.rows.select { |row| visible_ids.include?(row[:payroll_entry_id]) } }
+    visible
   end
 
   # Reports are business-wide; gated by the dedicated report permission.
@@ -226,6 +259,8 @@ class Finance::ReportsController < Finance::BaseController
     current_rows.map do |row|
       prev = previous_by_branch[row[:branch]] || { revenue: 0, payroll: 0, inventory: 0, expenses: 0, net: 0 }
       change = %i[revenue expenses payroll inventory net].index_with do |key|
+        next nil if row[key].nil? || prev[key].nil? # payroll / net not shown for this branch
+
         p = prev[key].to_f
         p.zero? ? nil : ((row[key].to_f - p) / p.abs * 100)
       end
@@ -238,7 +273,10 @@ class Finance::ReportsController < Finance::BaseController
     end
   end
 
+  # nil when net profit is not shown (payroll outside the viewer's access).
   def margin_pct(net, revenue)
+    return nil if net.nil?
+
     revenue.to_f.zero? ? 0 : (net.to_f / revenue.to_f * 100)
   end
 

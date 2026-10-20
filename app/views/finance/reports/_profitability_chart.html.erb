@@ -1,14 +1,17 @@
-<%# locals: rows (array of branch_profitability_rows, already period-filtered) %>
+<%# locals: rows (array of branch_profitability_rows, already period-filtered)
+    Payroll and net (nil for a branch outside the viewer's payroll access) are
+    left out of the chart entirely when any row withholds them. %>
+<% payroll_metrics = rows.none? { |r| r[:payroll].nil? || r[:previous][:payroll].nil? } %>
 <div class="chart-card exec-span-8 chart-card--primary" data-controller="profitability-metric-chart"
-     data-profitability-metric-chart-rows-value="<%= rows.map { |r| {
-       branch: r[:branch], revenue: r[:revenue].to_f, expenses: r[:expenses].to_f,
-       payroll: r[:payroll].to_f, inventory: r[:inventory].to_f, net: r[:net].to_f,
-       previous: {
-         revenue: r[:previous][:revenue].to_f, expenses: r[:previous][:expenses].to_f,
-         payroll: r[:previous][:payroll].to_f, inventory: r[:previous][:inventory].to_f, net: r[:previous][:net].to_f
-       },
-       url: finance_branch_profitability_report_path(year: @year, month: @month, branch_id: @branch_ids_by_name[r[:branch]])
-     } }.to_json %>"
+     data-profitability-metric-chart-initial-metric-value="<%= payroll_metrics ? 'net' : 'revenue' %>"
+     data-profitability-metric-chart-rows-value="<%= rows.map { |r|
+       metrics = ->(h) { { revenue: h[:revenue].to_f, expenses: h[:expenses].to_f, inventory: h[:inventory].to_f }
+                          .merge(payroll_metrics ? { payroll: h[:payroll].to_f, net: h[:net].to_f } : {}) }
+       metrics.(r).merge(
+         branch: r[:branch],
+         previous: metrics.(r[:previous]),
+         url: finance_branch_profitability_report_path(year: @year, month: @month, branch_id: @branch_ids_by_name[r[:branch]])
+       ) }.to_json %>"
      data-profitability-metric-chart-metric-labels-value="<%= {
        net: t('finance.reports.net_profit'), revenue: t('finance.reports.revenue'),
        expenses: t('finance.reports.branch_expenses'), payroll: t('finance.reports.payroll_cost'),
@@ -20,10 +23,14 @@
     <h2 class="section-title--exec"><%= t("finance.reports.profitability_dashboard.chart_title") %></h2>
     <% if rows.present? %>
       <div class="chart-card__toggle">
-        <button type="button" class="btn btn-ghost btn-xs is-active" data-profitability-metric-chart-target="option" data-action="profitability-metric-chart#switch" data-metric="net"><%= t("finance.reports.net_profit") %></button>
-        <button type="button" class="btn btn-ghost btn-xs" data-profitability-metric-chart-target="option" data-action="profitability-metric-chart#switch" data-metric="revenue"><%= t("finance.reports.revenue") %></button>
+        <% if payroll_metrics %>
+          <button type="button" class="btn btn-ghost btn-xs is-active" data-profitability-metric-chart-target="option" data-action="profitability-metric-chart#switch" data-metric="net"><%= t("finance.reports.net_profit") %></button>
+        <% end %>
+        <button type="button" class="btn btn-ghost btn-xs <%= 'is-active' unless payroll_metrics %>" data-profitability-metric-chart-target="option" data-action="profitability-metric-chart#switch" data-metric="revenue"><%= t("finance.reports.revenue") %></button>
         <button type="button" class="btn btn-ghost btn-xs" data-profitability-metric-chart-target="option" data-action="profitability-metric-chart#switch" data-metric="expenses"><%= t("finance.reports.branch_expenses") %></button>
-        <button type="button" class="btn btn-ghost btn-xs" data-profitability-metric-chart-target="option" data-action="profitability-metric-chart#switch" data-metric="payroll"><%= t("finance.reports.payroll_cost") %></button>
+        <% if payroll_metrics %>
+          <button type="button" class="btn btn-ghost btn-xs" data-profitability-metric-chart-target="option" data-action="profitability-metric-chart#switch" data-metric="payroll"><%= t("finance.reports.payroll_cost") %></button>
+        <% end %>
         <button type="button" class="btn btn-ghost btn-xs" data-profitability-metric-chart-target="option" data-action="profitability-metric-chart#switch" data-metric="inventory"><%= t("finance.reports.inventory_cost") %></button>
       </div>
     <% end %>

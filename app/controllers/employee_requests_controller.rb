@@ -100,7 +100,7 @@ class EmployeeRequestsController < ApplicationController
     @managed_employees     = managed_employees_for_form
     @permission_limits     = permission_limits_for(target_user)
     @allowed_request_types = allowed_request_types_for(target_user)
-    @advance_limit         = Salary::AdvanceEligibilityCalculator.for(user: target_user)
+    @advance_limit         = advance_limit_for(target_user)
     @punch_check_ins       = punch_check_ins_for(target_user)
   end
 
@@ -127,7 +127,7 @@ class EmployeeRequestsController < ApplicationController
       @managed_employees     = managed_employees_for_form
       @permission_limits     = permission_limits_for(@request.user)
       @allowed_request_types = allowed_request_types_for(@request.user)
-      @advance_limit         = Salary::AdvanceEligibilityCalculator.for(user: @request.user)
+      @advance_limit         = advance_limit_for(@request.user)
       @punch_check_ins       = punch_check_ins_for(@request.user)
       render :new, status: :unprocessable_entity
     end
@@ -288,6 +288,30 @@ class EmployeeRequestsController < ApplicationController
     nil
   end
 
+  # The advance limit is derived from the employee's salary — for a monthly
+  # salary it is a fixed percentage of it, so the salary can be read off it. For
+  # one's own request it is shown as before. On behalf of another employee it is
+  # shown only to an actor who may view that employee's salary
+  # (SalaryProfilePolicy#view_salary?) and recorded as a salary view; anyone else
+  # gets no figures (@advance_limit_hidden) — the limit is still enforced on
+  # submission.
+  def advance_limit_for(target_user)
+    @advance_limit_hidden = false
+    limit = Salary::AdvanceEligibilityCalculator.for(user: target_user)
+    return limit if limit.nil? || target_user == current_user
+
+    unless policy(SalaryProfile.new(user_id: target_user.id)).view_salary?
+      @advance_limit_hidden = true
+      return nil
+    end
+
+    unless limit.no_profile?
+      Salary::ViewAudit.record(actor: current_user, employee: target_user,
+                               profiles: [ SalaryProfile.current_for(target_user) ], source: "request_advance_limit")
+    end
+    limit
+  end
+
   def resolve_for_user
     return nil unless current_user.can?(:approve_requests)
     id = params[:for_user_id].presence || params.dig(:employee_request, :for_user_id).presence
@@ -325,11 +349,17 @@ class EmployeeRequestsController < ApplicationController
 
   def allowed_request_types_for(target_user)
     assignment = ShiftAssignment.current.find_by(user: target_user)
-    if assignment&.shift&.hour_based?
+    types = if assignment&.shift&.hour_based?
       EmployeeRequest::REQUEST_TYPES.reject { |t| t == "late_permission" }
     else
       EmployeeRequest::REQUEST_TYPES
     end
+    # Not offered on behalf of an employee the actor may not file a salary
+    # advance for (EmployeeRequestPolicy#create? — enforced there on submit).
+    # A standalone probe (user_id), never built into target_user's requests.
+    advance = EmployeeRequest.new(user_id: target_user.id, request_type: "salary_advance")
+    types -= [ "salary_advance" ] unless policy(advance).create?
+    types
   end
 
   def permission_limits_for(target_user)

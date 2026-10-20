@@ -4,7 +4,11 @@
   invert = local_assigns.fetch(:invert, false)
   is_pp  = local_assigns.fetch(:is_percentage_points, false)
 
-  delta = if is_pp
+  # nil current/previous: a figure the viewer may not see (e.g. net profit
+  # without payroll access) — no delta, which would reveal it.
+  delta = if current.nil? || previous.nil?
+    nil
+  elsif is_pp
     current.to_f - previous.to_f
   elsif previous.to_f.zero?
     nil

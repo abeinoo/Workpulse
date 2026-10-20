@@ -8,7 +8,8 @@ import { buildChartDefaults, chartPalette } from "charts/defaults"
 // VerifiedRevenue) — this controller only re-shapes and re-sorts them.
 export default class extends Controller {
   static targets = [ "canvas", "option" ]
-  static values = { rows: Array, metricLabels: Object, currentLabel: String, previousLabel: String }
+  static values = { rows: Array, metricLabels: Object, currentLabel: String, previousLabel: String,
+                    initialMetric: { type: String, default: "net" } }
 
   async connect() {
     // The empty state renders instead of the canvas when there are no
@@ -17,7 +18,8 @@ export default class extends Controller {
 
     const { default: Chart } = await import("chart.js/auto")
     this.Chart = Chart
-    this.render("net")
+    // "revenue" when payroll and net are withheld (the server leaves them out).
+    this.render(this.initialMetricValue)
   }
 
   disconnect() {

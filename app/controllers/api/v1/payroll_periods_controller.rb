@@ -167,7 +167,12 @@ module Api
         }
 
         if detailed
-          data[:entries]        = period.payroll_entries.includes(:user).map { |e| entry_summary_json(e) }
+          # Per-employee pay: only the entries the viewer may see
+          # (PayrollEntryPolicy scope) — an employee their own, a payroll viewer
+          # those inside the view_payroll scope — never the whole period.
+          entries = policy_scope(PayrollEntry).where(payroll_period: period).includes(:user).to_a
+          Payroll::EntryViewAudit.record(actor: current_user, entries: entries, source: "api_payroll_period")
+          data[:entries]        = entries.map { |e| entry_summary_json(e) }
           data[:branch_reviews] = period.payroll_period_branch_reviews.includes(:branch, :reviewer).map do |r|
             {
               branch_id:    r.branch_id,

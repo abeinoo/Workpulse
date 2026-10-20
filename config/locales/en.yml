@@ -620,6 +620,7 @@ en:
         biometric_mismatch: "Biometric Mismatch"
 
   payroll_dashboard:
+    scope_note: "Payroll figures cover only the employees and branches within your payroll access."
     title: "Payroll Dashboard"
     subtitle: "Company-wide payroll health and trends"
     all_periods: "All Periods"
@@ -1126,6 +1127,7 @@ en:
       advance_outstanding: "%{amount} %{currency} already outstanding."
       advance_available: "Available: %{amount} %{currency}"
       advance_no_salary_profile: "No salary profile is configured for this employee, so a salary advance cannot be calculated. Contact an administrator to set one up."
+      advance_limit_hidden: "The advance limit for this employee is checked when the request is submitted."
       duration_label: "Duration (minutes)"
       duration_placeholder: "e.g. 30"
       duration_hint: "How many minutes of late arrival or early leave are you requesting?"
@@ -1281,6 +1283,7 @@ en:
       exceeds_monthly_limit: "exceeds the monthly limit (%{remaining} minutes remaining out of %{limit})"
       unavailable_for_hour_based: "is not available for employees assigned to hour-based (flexible) shifts"
       exceeds_advance_limit: "exceeds your available advance limit (%{available} %{currency} remaining)"
+      exceeds_advance_limit_on_behalf: "exceeds the employee's available advance limit"
       no_salary_profile: "cannot be requested because no salary profile is configured for this employee"
       already_cancelled: "This request has already been cancelled."
       cannot_cancel_paid: "Paid requests cannot be cancelled."
@@ -7325,6 +7328,7 @@ en:
       generated: "Pending expense generated."
       generate_failed: "Could not generate: %{reason}"
     reports:
+      payroll_restricted_note: "Payroll cost — and net profit and totals that include it — is shown only for branches within your payroll access."
       title: "Reports"
       total: "Total"
       total_amount: "Total"

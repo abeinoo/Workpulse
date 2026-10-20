@@ -15,7 +15,9 @@ export default class extends Controller {
 
     const { default: Chart } = await import("chart.js/auto")
     this.Chart = Chart
-    this.render("net")
+    // Net profit is left out (no `net` label) when the viewer may not see
+    // payroll cost for every branch in view — sort by revenue instead.
+    this.render(this.labelsValue.net ? "net" : "revenue")
   }
 
   disconnect() {
@@ -47,9 +49,11 @@ export default class extends Controller {
     this.currentUrls = rows.map((r) => r.url)
     const datasets = [
       { label: this.labelsValue.revenue, data: rows.map((r) => r.revenue), backgroundColor: palette.success },
-      { label: this.labelsValue.expenses, data: rows.map((r) => r.expenses), backgroundColor: palette.danger },
-      { label: this.labelsValue.net, data: rows.map((r) => r.net), backgroundColor: palette.accent }
+      { label: this.labelsValue.expenses, data: rows.map((r) => r.expenses), backgroundColor: palette.danger }
     ]
+    if (this.labelsValue.net) {
+      datasets.push({ label: this.labelsValue.net, data: rows.map((r) => r.net), backgroundColor: palette.accent })
+    }
 
     // Update the existing chart in place (animated re-sort) instead of
     // destroying and recreating it — same three datasets, same data.

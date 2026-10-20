@@ -623,6 +623,7 @@ ar:
         biometric_mismatch: "تعارض بيومتري"
 
   payroll_dashboard:
+    scope_note: "تشمل أرقام الرواتب الموظفين والفروع الواقعة ضمن صلاحية الرواتب الخاصة بك فقط."
     title: "لوحة الرواتب"
     subtitle: "صحة الرواتب والاتجاهات على مستوى الشركة"
     all_periods: "جميع الفترات"
@@ -1133,6 +1134,7 @@ ar:
       advance_outstanding: "مبلغ %{amount} %{currency} قائم بالفعل."
       advance_available: "المتاح: %{amount} %{currency}"
       advance_no_salary_profile: "لا يوجد ملف راتب مُهيَّأ لهذا الموظف، لذا لا يمكن احتساب سلفة راتب. يرجى التواصل مع مسؤول النظام لإعداده."
+      advance_limit_hidden: "يتم التحقق من الحد المسموح للسلفة لهذا الموظف عند إرسال الطلب."
       duration_label: "المدة (بالدقائق)"
       duration_placeholder: "مثال: 30"
       duration_hint: "كم دقيقة تريد إذن التأخر أو المغادرة المبكرة؟"
@@ -1288,6 +1290,7 @@ ar:
       exceeds_monthly_limit: "يتجاوز الحد الشهري (%{remaining} دقيقة متبقية من أصل %{limit})"
       unavailable_for_hour_based: "غير متاح للموظفين المعيَّنين على ورديات مرنة (بالساعة)"
       exceeds_advance_limit: "يتجاوز الحد المتاح للسلفة (%{available} %{currency} متبقية)"
+      exceeds_advance_limit_on_behalf: "يتجاوز الحد المتاح للسلفة لهذا الموظف"
       no_salary_profile: "لا يمكن طلبها لعدم وجود ملف راتب مُهيَّأ لهذا الموظف"
       already_cancelled: "تم إلغاء هذا الطلب بالفعل."
       cannot_cancel_paid: "لا يمكن إلغاء الطلبات المصروفة."
@@ -7380,6 +7383,7 @@ ar:
       generated: "تم إنشاء مصروف بانتظار الاعتماد."
       generate_failed: "تعذّر الإنشاء: %{reason}"
     reports:
+      payroll_restricted_note: "تُعرض تكلفة الرواتب — وصافي الربح والإجماليات التي تتضمنها — للفروع الواقعة ضمن صلاحية الرواتب الخاصة بك فقط."
       title: "التقارير"
       total: "الإجمالي"
       total_amount: "الإجمالي"

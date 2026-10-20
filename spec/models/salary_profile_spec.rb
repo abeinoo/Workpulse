@@ -95,11 +95,16 @@ RSpec.describe SalaryProfile, type: :model do
       expect(SalaryProfile.current_for(user)).to eq(recent)
     end
 
-    it "ignores inactive profiles" do
-      inactive = create(:salary_profile, user: user, effective_from: 1.month.ago.to_date, active: false)
-      active   = create(:salary_profile, user: user, effective_from: 2.months.ago.to_date, active: true)
+    # The effective-date rule, not the `active` flag (which marks the latest
+    # entered profile): the same profile payroll prices with.
+    it "selects by effective date, not by the active flag — as payroll does" do
+      later_dated = create(:salary_profile, user: user, effective_from: 1.month.ago.to_date, active: false)
+      create(:salary_profile, user: user, effective_from: 2.months.ago.to_date, active: true)
 
-      expect(SalaryProfile.current_for(user)).to eq(active)
+      expect(SalaryProfile.current_for(user)).to eq(later_dated)
+      expect(Salary::DailyRateCalculator.for(user: user, business: user.business,
+                                            date: SalaryProfile.effective_date_for(user.business)).profile)
+        .to eq(later_dated)
     end
 
     it "returns nil when the user has no active profile" do

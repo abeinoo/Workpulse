@@ -37,6 +37,20 @@ class PayrollEntryPolicy < ApplicationPolicy
       record.payroll_period&.editable?
   end
 
+  # The branches whose payroll a user may see in aggregate (payroll cost per
+  # branch, branch breakdowns): none without view_payroll; with it, the
+  # branches of the view_payroll data scope, resolved by BranchScope from the
+  # configured scope (self → none, branch → managed, area → area-managed,
+  # business → all) or, none configured, its default (managed + area-managed;
+  # every branch for the owner). The branch form of the same view_payroll scope
+  # Scope applies to entries — the single definition Payroll analytics and the
+  # Finance & Sales reports (which read it) use (decisions of 2026-10-19).
+  def self.visible_branch_ids(user)
+    return Set.new.freeze unless user.can?(:view_payroll)
+
+    BranchScope.new(user).for_scope(user.scope_for(:view_payroll)).to_set.freeze
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       business_scoped = scope.joins(:payroll_period)

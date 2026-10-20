@@ -70,7 +70,13 @@ class OperationsDashboardController < ApplicationController
     @perf_results = build_performance_summary(business, employee_ids, monthly_records_by_user)
 
     # ── Recommendations ───────────────────────────────────────────────────────
-    @recommendations = Payroll::RecommendationEngine.new(business: business).recommendations
+    # Payroll-derived recommendations only from the payroll the viewer may see
+    # (view_payroll and its scope); none without view_payroll.
+    payroll_entries = current_user.can?(:view_payroll) ? policy_scope(PayrollEntry) : PayrollEntry.none
+    @recommendations = Payroll::RecommendationEngine.new(
+      business: business, payroll_entries: payroll_entries,
+      payroll_branch_ids: PayrollEntryPolicy.visible_branch_ids(current_user)
+    ).recommendations
   end
 
   private

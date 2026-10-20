@@ -188,6 +188,7 @@ class DashboardController < ApplicationController
                                   .joins(:payroll_period)
                                   .order("payroll_periods.period_year DESC, payroll_periods.period_month DESC")
                                   .first
+    Payroll::EntryViewAudit.record(actor: current_user, entries: [ @latest_payroll ], source: "dashboard_latest_payslip")
 
     # Whether any personal widget will render — lets the view skip the personal
     # grid wrapper entirely (and its surrounding gap) for users with nothing

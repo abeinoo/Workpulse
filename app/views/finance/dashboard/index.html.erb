@@ -19,7 +19,7 @@
   # header badge and the full Financial Health card (see FinanceHelper).
   health_status, health_factors = finance_dashboard_health(
     show_profitability:      @show_profitability,
-    net_profit:               @show_profitability ? @kpi_profitability[:net] : nil,
+    net_profit:               @show_profitability ? @kpi_profitability[:net] : nil, # nil without payroll access
     pending_count:            @alert_pending_count,
     overdue_count:            @rdb_overdue_count,
     negative_custody_count:   @alert_negative_custody&.size

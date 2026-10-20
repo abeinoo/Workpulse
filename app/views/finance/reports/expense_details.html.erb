@@ -152,6 +152,10 @@
     <%= render "reconciliation_banner", reconciliation: @result.reconciliation %>
   <% end %>
 
+  <% if @result.payroll_restricted %>
+    <p class="form-hint mb-4"><%= t("finance.reports.payroll_restricted_note") %></p>
+  <% end %>
+
   <div class="kpi-grid">
     <% @result.sections.each do |section| %>
       <div class="kpi-card">

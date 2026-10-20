@@ -71,7 +71,9 @@
               placeholder: t("requests.new.amount_placeholder") %>
         <p class="form-hint"><%= t("requests.new.amount_hint") %></p>
         <%# Advance eligibility hint — rendered server-side so it's visible on first load %>
-        <% if @advance_limit&.no_profile? %>
+        <% if @advance_limit_hidden %>
+          <p class="form-hint" id="advance-limit-hint"><%= t("requests.new.advance_limit_hidden") %></p>
+        <% elsif @advance_limit&.no_profile? %>
           <p class="form-hint form-hint--warning" id="advance-limit-hint">
             <%= t("requests.new.advance_no_salary_profile") %>
           </p>
