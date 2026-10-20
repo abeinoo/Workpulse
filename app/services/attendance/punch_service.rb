@@ -36,6 +36,20 @@ module Attendance
                           error: I18n.t("api.punch.biometric_attendance_not_allowed"))
       end
 
+      # One transaction from the payroll-period lock to the punch log (TD-T-1): the
+      # period row is held FOR SHARE until commit, so Payroll::Approver (FOR UPDATE)
+      # cannot finalize or pay between the lock check and the attendance write, and
+      # the attendance change and its log are committed together or not at all.
+      # #process returns the Result (no return across the transaction block).
+      ActiveRecord::Base.transaction { process }
+    end
+
+    private
+
+    # Lock order: payroll period (FOR SHARE) → attendance record → punch log — the
+    # "period first" order of Payroll::Approver, Payroll::OvertimeRecalculator and
+    # Attendance::PunchCorrectionEffects. Concurrent punches share the period lock.
+    def process
       @work_date  = BusinessDay.work_date_for(@punched_at, context: @business)
 
       # Finalized / paid payroll is immutable: a punch whose work date belongs to
@@ -73,8 +87,6 @@ module Attendance
         perform_check_out(record)
       end
     end
-
-    private
 
     def perform_check_in(record)
       late_mins = Attendance::TimeCalculator.late_minutes(
@@ -164,11 +176,13 @@ module Attendance
       end
     end
 
-    # The payroll period of the work date's calendar month, as every attendance
-    # write path finds it (e.g. Attendance::BulkManualEntryService#period_locked?);
-    # no period yet → not locked.
+    # The canonical payroll period of the work date's calendar month (unique per
+    # business + year + month — the row Payroll::Approver locks), read FOR SHARE
+    # inside #call's transaction (TD-T-1): a finalization in progress is waited
+    # for and its committed status seen; a finalization started afterwards waits
+    # for this punch. No period yet → not locked (nothing to lock).
     def payroll_locked?
-      PayrollPeriod.find_by(
+      PayrollPeriod.lock("FOR SHARE").find_by(
         business: @business, period_year: @work_date.year, period_month: @work_date.month
       )&.locked? || false
     end

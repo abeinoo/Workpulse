@@ -5786,7 +5786,7 @@ clean; `Gemfile.lock` and `db/schema.rb` unchanged.
 
 **Limitations (open, recorded — not fixed here):**
 
-* **TD-T-1 — payroll-period race (concurrency).** The lock check is a plain read outside any transaction:
+* **TD-T-1 — payroll-period race (concurrency) — fixed since, §33.** At the time of this fix the lock check is a plain read outside any transaction:
   `PunchService` reads the period (`find_by`), then later saves the attendance record and the log in separate
   statements. `Payroll::Approver` locks the period row (`@period.lock!`, inside its transaction) before finalizing or
   paying, but the punch takes no lock on that row. A finalization that commits **between the punch's lock check and
@@ -5807,3 +5807,91 @@ clean; `Gemfile.lock` and `db/schema.rb` unchanged.
 * Device behaviour after a 422 (retry or drop) remains unknown (no device code in the repository).
 * Another caller of `PunchService` does not get the time window (a device-API rule in the controller); it does get the
   locked-period guard.
+
+---
+
+## 33. TD-T-1 — device punches serialized against payroll finalization
+
+**Status (2026-10-20): FIXED, uncommitted**, on `feature/pilot-12-pos-terminals` on top of `ffd1906` (§32). No schema,
+dependency, route, API or behaviour change for a single punch.
+
+**Race (§32):** `Attendance::PunchService` read the payroll period with a plain `find_by` outside any transaction, then
+saved the attendance record and the punch log as separate statements; `Payroll::Approver#advance` locks the period
+`FOR UPDATE` inside its transaction. A finalization committing between the punch's lock check and `record.save` was
+not seen, so a punch could be written into a just-finalized month. A failed log insert also left the attendance change
+committed without its log.
+
+**Decisions (approved 2026-10-20):** D-L1 — `FOR SHARE` on the canonical period row; one transaction around the punch
+processing. D-L2 — `Attendance::BulkManualEntryService` and the CSV import stay out of scope. D-L3 — no payroll-entry
+recalculation on a punch (a separate product decision).
+
+**Fix (`app/services/attendance/punch_service.rb`):**
+
+* `#call` keeps the `allow_biometric_attendance?` refusal (no period, no attendance involved) and then runs
+  `ActiveRecord::Base.transaction { process }`; the former body moved unchanged into the private `#process`, which
+  returns the `Result` (no `return` across the transaction block). The work date, the period lock and status check,
+  the assignment lookup, the duplicate check, the attendance mutation and every punch log (accepted, spam, no
+  assignment, locked period, save error) are inside the transaction.
+* `#payroll_locked?` reads the canonical period — unique per business + year + month
+  (`idx_payroll_periods_business_ym`), the calendar month of the business-day work date, the row `Payroll::Approver`
+  locks — with `PayrollPeriod.lock("FOR SHARE")`. Behaviour per status is unchanged: finalized / paid refused
+  (`rejected_payroll_locked`), draft / under review / no period accepted.
+* `Api::V1::PunchesController` (the timestamp window) is unchanged.
+
+**Lock order and deadlock analysis:** punch: period (`FOR SHARE`) → attendance record (insert / update) → punch log
+(insert). `Payroll::Approver`: period (`FOR UPDATE`) → period, payroll audit log, finance effects — no attendance row.
+`Payroll::OvertimeRecalculator#apply!`: period (`FOR UPDATE`) → rows. Punch corrections: request → period
+(`FOR UPDATE`) → entry → attendance. Every path takes the period first; a punch locks no request or entry, and a
+correction reaches an attendance row only after its `FOR UPDATE` on the period, which it cannot hold while a punch
+holds `FOR SHARE` — so no cycle. Shared locks do not conflict with each other: concurrent punches of one business and
+month do not serialize. Outcomes: finalization first → the punch waits, then reads the committed `finalized` row and is
+refused; punch first → finalization waits until the punch commits; a failed log insert → the attendance change rolls
+back with it. Only `Payroll::Approver` sets `finalized` / `paid` (verified), always after its `FOR UPDATE`.
+
+**Tests:** new two-connection spec `spec/services/attendance/punch_period_lock_spec.rb` (5; the non-transactional
+harness of `spec/services/requests/punch_correction_period_lock_spec.rb` — empty-database guard, truncation after,
+`Queue` handshakes, threads on their own connections, `FOR UPDATE NOWAIT` / `FOR SHARE NOWAIT` probes, a 250 ms
+`lock_timeout`, a bounded wait for an ungranted lock in `pg_locks`): a punch paused after its lock blocks finalization
+(lock timeout; status unchanged) while another shared lock is still possible, and finalization succeeds after the
+punch commits; a finalization paused after its `FOR UPDATE` makes a punch wait (observed in `pg_locks`), which then
+sees `finalized` — `rejected_payroll_locked`, no attendance; two punches of different employees in the same month hold
+the shared lock at the same time; a failing log insert rolls the attendance change back (committed state read on a
+real connection); no period → accepted. Probes (in memory): period read without `FOR SHARE` → 2 failures; `#process`
+outside the transaction → 2 failures; `FOR UPDATE` instead of `FOR SHARE` → 2 failures (punches serialize). A first
+version of the "punch waits" helper looked for an ungranted lock on the `payroll_periods` relation only and silently
+fell back after 10 s (a row-lock waiter waits on the holder's transaction id); it now detects any ungranted lock and
+fails on timeout.
+
+**Harness safety (cleanup):** the empty-database guard sets a flag only once it passes, and the `after` hook (which RSpec
+runs even when the guard fails) never touches a database the guard refused. Cleanup releases every pause queue, joins
+each worker (bounded; a worker's exception is captured per worker), kills and re-joins any worker still alive (its
+`ensure` blocks roll back its transaction and return its connection), and — through an `ensure` — still shuts the
+workers down if something unexpected escapes. It truncates only when the guard passed, no worker is alive, only the
+example's own connection is checked out, and no other session of the test database is active or in a transaction
+(`pg_stat_activity`); otherwise it skips truncation and fails, saying "truncation SKIPPED". Waits on database work are
+bounded by `NOWAIT`, `lock_timeout` or a deadline loop — never `Timeout.timeout` around a query (which could interrupt it
+mid-flight); `Timeout` only wraps `Queue#pop`.
+
+### 33.1 Verification
+
+| Run | Result |
+|---|---|
+| Focused set — `spec/services/attendance/punch_period_lock_spec.rb`, `spec/requests/api/v1/punch_timestamp_window_spec.rb`, `spec/characterization/attendance_payroll/punch_api_spec.rb`, `spec/characterization/attendance_payroll/punch_service_spec.rb`, `spec/services/attendance/punch_service_spec.rb`, `spec/requests/api/v1/characterization/biometric_punch_spec.rb`, `spec/services/requests/punch_correction_period_lock_spec.rb`, `spec/models/payroll_period_spec.rb`, `spec/architecture/attendance_payroll_{biometric_boundary,model_location}_spec.rb` — seed 20261006 | 145 examples, 0 failures |
+| The same set with `CI=1` | 145 examples, 0 failures |
+
+`zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `git diff --check` clean; `Gemfile.lock` and
+`db/schema.rb` unchanged.
+
+**Residual risks (open, not fixed here):**
+
+* `Attendance::BulkManualEntryService#period_locked?` and the manual-records CSV import still check the lock with a
+  plain read (the same race class) — out of scope by D-L2.
+* A punch accepted in an under-review month just before finalization changes attendance but not the payroll entry
+  unless a regeneration runs in between: `PunchService` never recalculates (D-L3, a separate product decision).
+* Two simultaneous *first* punches of the same employee and work date both pass the duplicate read; the unique index
+  `index_attendance_records_on_user_id_and_work_date` makes the second insert raise `ActiveRecord::RecordNotUnique`
+  (not rescued) — pre-existing, unchanged; the shared period lock does not serialize them.
+* Every punch now runs in a transaction and holds the shared period lock until commit; finalization waits for punches
+  in flight (milliseconds). The lock behaviour assumes PostgreSQL and that only `Payroll::Approver` sets locked
+  statuses.
+* TD-T-2 (anomaly detector counts refused punches) is unchanged and open.
