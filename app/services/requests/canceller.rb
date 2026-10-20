@@ -47,8 +47,11 @@ module Requests
         # Punch corrections lock the request row first (lock order: request →
         # payroll period) and re-check the committed state against what the
         # caller saw, so a stale cancellation can neither cancel twice nor skip
-        # the rollback of an approval committed since it was loaded.
-        if @request.punch_correction?
+        # the rollback of an approval committed since it was loaded. Salary
+        # advances do the same (F-A1): Approver#pay locks the same row, so a
+        # payment committed since this copy was loaded is never overwritten by
+        # a cancellation (its Advance would stay active and be deducted).
+        if @request.punch_correction? || @request.salary_advance?
           rollback_error = locked_state_error(prior_status)
           raise ActiveRecord::Rollback if rollback_error
         end

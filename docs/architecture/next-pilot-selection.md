@@ -5580,3 +5580,56 @@ SEC-P12-1 (punch timestamp window; the intended seven-day sync behaviour undecid
 unknown, not labelled flaky), SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2; new TD-R-1 and TD-W-1 above. Remaining
 migration work (§28 matrix): Advances (§14.2 #2), the IP ↔ FS settlement cycle (§14.2 #6 — now ~28 code lines in 14
 files, more than the "6 / 6" in `module-boundaries.md` §12.2), the account fields (#7, User ≠ Employee decision).
+
+---
+
+## 29. F-A1 — salary advance pay / cancel race (standalone fix, before Batch A)
+
+**Status (2026-10-20): FIXED** in its own `fix:` commit on `feature/pilot-12-pos-terminals`, before and separate from
+the Batch A Advance contract refactor (§14.2 #2). No contract, ownership, schema, permission or API change.
+
+**Finding (from the Batch A investigation, code-evident):** `Requests::Approver#pay` checked `payable?` on the copy it
+was given, without a row lock, and `Requests::Canceller` locked the request only for punch corrections. Either side
+could therefore overwrite a change the other had committed: a stale payment turned a **cancelled** request into
+**paid** and created an `Advance` (deducted by payroll); a stale cancellation turned a **paid** request into
+**cancelled** while its `Advance` stayed active and kept being deducted.
+
+**Fix (Workforce request lifecycle, existing convention):**
+
+* `Requests::Approver#pay`: inside its existing transaction, `@request.lock!` (`SELECT … FOR UPDATE` + reload, which
+  also resets the cached `advance` association) and `payable?` re-checked; a refusal rolls back and returns the same
+  message as before (now the constant `Requests::Approver::NOT_PAYABLE`). Amounts, `issued_at`, the note, the pay audit
+  and the transaction boundary are unchanged. Inside `BulkPaymentService` / `Approver.pay_all` the pay transaction
+  joins the outer one, so the `Rollback` is a no-op there — correct, because the refusal precedes every write.
+* `Requests::Canceller#cancel`: the existing `locked_state_error` (lock, reload, refuse cancelled / paid / changed
+  status) now also runs for salary advances, not only punch corrections.
+* **Shared lock order: request row first** — payment then inserts the `Advance`; cancellation of a punch correction
+  then takes the payroll period (unchanged, Pilot 10). No new locking mechanism.
+
+**Regression coverage:** `spec/services/requests/advance_payment_lock_spec.rb` (8): pay refuses a request cancelled
+after it was loaded (stale copy; still cancelled, no `Advance`, no pay audit); pay re-checks under the lock on a
+freshly loaded request (cancellation, and a payment, written just before the lock — refused, no `RecordNotUnique`);
+the normal payment still works (lock taken, full-amount `Advance`, `issued_at`, note, one pay audit); cancellation
+refuses a request paid after it was loaded (still paid, `Advance` active, no cancel audit) and re-checks under the
+lock; an approved unpaid advance still cancels; bulk payment reports a request cancelled just before its lock as
+skipped and pays the rest. Probe: with `EmployeeRequest#lock!` made a no-op in memory (the pre-fix behaviour), 6 of
+the 8 fail (all race examples).
+
+**Limitation (explicit):** every example runs on **one database connection** inside the test transaction — none is a
+true two-connection concurrency test. That a second concurrent transaction waits for the row lock and then reads the
+committed state is PostgreSQL `SELECT … FOR UPDATE` semantics, not observed by these specs. In the lock-injection
+examples the competing change is rolled back with the refused operation, so they prove the refusal and the absence of
+its effects; the persisted end state is proven by the stale-copy examples.
+
+**Still open (not changed, not verified):**
+
+| ID | Item |
+|---|---|
+| F-A2 | Two truly concurrent payments: the unique index `index_advances_on_employee_request_id` prevents a second `Advance`; with the lock the second payment should now wait and be refused instead of raising `RecordNotUnique` (500), but this is **not verified under real concurrency** |
+| F-A3 | `EmployeeRequestsController#mark_all_paid` authorizes the class (`authorize EmployeeRequest, :pay?`) and `pay?` evaluates `record.user` on it — `NoMethodError` for a `pay_advances` holder (code-evident; routed, no view or spec uses it) |
+| F-A4 | `log_audit` inside a transaction has no savepoint: a database-level `AuditLog` failure aborts the PostgreSQL transaction while the rescue swallows it (general `AuditLoggable` debt) |
+| F-A5 | `User has_many :employee_requests, dependent: :destroy` → `EmployeeRequest has_one :advance, dependent: :destroy` can delete financial records |
+| F-A6 | `Advance#repay!` / `Payroll::AdvanceDeductor` use Float arithmetic for money |
+| F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one) |
+
+SEC-P12-1, TD-P12-1, TD-P12-2, SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1 and TD-W-1 remain open.

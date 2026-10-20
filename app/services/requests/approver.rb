@@ -14,6 +14,8 @@ module Requests
       def success? = success
     end
 
+    NOT_PAYABLE = "Only approved salary advance requests can be marked as paid".freeze
+
     # confirm_out_of_window — the reviewer explicitly acknowledged that a punch
     # correction falls outside the expected attendance window or produces an
     # abnormal worked duration. Required (server-side) for such corrections.
@@ -127,11 +129,22 @@ module Requests
     end
 
     def pay
-      return err("Only approved salary advance requests can be marked as paid") unless payable?
+      return err(NOT_PAYABLE) unless payable?
 
       paid_at = @paid_at || Time.current
+      refused = false
 
       ActiveRecord::Base.transaction do
+        # Lock the request row and re-check on the committed state (F-A1): a
+        # cancellation or payment committed since this copy was loaded wins, so a
+        # stale copy can neither pay a cancelled request nor pay twice. lock!
+        # reloads the row and resets the cached advance association.
+        @request.lock!
+        unless payable?
+          refused = true
+          raise ActiveRecord::Rollback
+        end
+
         update_attrs = { status: "paid", reviewed_by: @reviewed_by, reviewed_at: Time.current }
         update_attrs[:response_note] = @response_note if @response_note.present?
         @request.update!(update_attrs)
@@ -151,6 +164,8 @@ module Requests
           metadata:  { amount: @request.amount, paid_at: paid_at, note: @response_note }.compact
         )
       end
+
+      return err(NOT_PAYABLE) if refused
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
