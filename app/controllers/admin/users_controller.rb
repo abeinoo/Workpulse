@@ -27,7 +27,9 @@ class Admin::UsersController < Admin::BaseController
     p.delete(:remove_profile_photo)
     p.delete(:remove_national_id_front)
     p.delete(:remove_national_id_back)
+    warehouse_ids = p.delete(:assigned_warehouse_ids)
     @user.assign_attributes(p.except(:permission_role_id))
+    assign_warehouse_access(@user, warehouse_ids)
 
     if !assign_role(@user, p)
       render :new, status: :unprocessable_entity
@@ -63,7 +65,9 @@ class Admin::UsersController < Admin::BaseController
 
     p = user_params
     removals = p.extract!(:remove_profile_photo, :remove_national_id_front, :remove_national_id_back)
+    warehouse_ids = p.delete(:assigned_warehouse_ids)
     @user.assign_attributes(p.except(:permission_role_id))
+    assign_warehouse_access(@user, warehouse_ids)
 
     if !assign_role(@user, p)
       render :edit, status: :unprocessable_entity
@@ -82,8 +86,14 @@ class Admin::UsersController < Admin::BaseController
     if @user == current_user
       return redirect_to admin_users_path, alert: t("flash.cannot_delete_self")
     end
-    @user.destroy
-    redirect_to admin_users_path, notice: t("flash.employee_removed")
+
+    result = OrganizationAccess::DeleteUser.new(@user.id, actor: current_user).call
+    if result.ok?
+      redirect_to admin_users_path, notice: t("flash.employee_removed")
+    else
+      # Back to the list, where the employee's Deactivate action is.
+      redirect_to admin_users_path, alert: t("flash.employee_delete_refused.#{result.error}", name: @user.full_name)
+    end
   end
 
   def transfer_ownership
@@ -205,6 +215,15 @@ class Admin::UsersController < Admin::BaseController
   # (OA-S1/S3/S5). Anything else in the request is dropped.
   def user_params
     params.require(:user).permit(*policy(@user).permitted_attributes)
+  end
+
+  # Warehouse access (Inventory & Purchasing) goes through the Organization &
+  # Access UserWarehouseAccess contract, at the point the attribute was assigned
+  # before (Batch W): after the other attributes, before the role check and the
+  # save — for a persisted user it applies immediately, as it always has.
+  # Absent from the request (or not permitted by the account tier): untouched.
+  def assign_warehouse_access(user, warehouse_ids)
+    OrganizationAccess::UserWarehouseAccess.assign(user: user, warehouse_ids: warehouse_ids) unless warehouse_ids.nil?
   end
 
   # Stages a requested role change on the (possibly unsaved) user, saved with

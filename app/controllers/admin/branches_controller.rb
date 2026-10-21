@@ -135,21 +135,40 @@ class Admin::BranchesController < Admin::BaseController
     params.require(:branch).permit(
       :name, :address, :phone_number, :active, :branch_type,
       :branch_manager_id, :area_manager_id,
-      :geolocation_enabled, :latitude, :longitude, :radius_meters,
-      pos_terminals_attributes: [ :id, :terminal_id, :label, :active, :_destroy ]
+      :geolocation_enabled, :latitude, :longitude, :radius_meters
     )
   end
+
+  POS_TERMINAL_FIELDS = %i[id terminal_id label active _destroy].freeze
 
   # Branch#branch_type is a Rails enum — assigning an unsupported string
   # raises ArgumentError immediately (before any validation runs), which
   # would otherwise surface as an unhandled 500 for a tampered request
   # rather than a normal form re-render. Guard against that here so an
   # invalid value is always a clean validation-style failure.
+  #
+  # POS terminals are owned by Finance & Sales: the form's terminal rows are
+  # staged through the Organization & Access BranchTerminalSettings contract,
+  # after the branch's own attributes, and saved by the branch's own save in
+  # the same transaction (Pilot 12 — POS terminals write boundary, M3).
   def assign_branch_params(branch)
     branch.assign_attributes(branch_params)
+    rows = pos_terminal_rows
+    OrganizationAccess::BranchTerminalSettings.assign(branch: branch, rows: rows) unless rows.nil?
     true
   rescue ArgumentError
     branch.errors.add(:branch_type, :inclusion)
     false
+  end
+
+  # The permitted rows as plain hashes, in submitted order. An index-keyed hash
+  # becomes its rows; a single row (an "id" at the top level) stays one row —
+  # the same reading nested attributes gave the raw params.
+  def pos_terminal_rows
+    rows = params.require(:branch).permit(pos_terminals_attributes: POS_TERMINAL_FIELDS)[:pos_terminals_attributes]
+    return if rows.nil?
+
+    rows = rows.key?(:id) ? [ rows ] : rows.values if rows.is_a?(ActionController::Parameters)
+    rows.map(&:to_hash)
   end
 end

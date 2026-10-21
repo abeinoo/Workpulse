@@ -384,7 +384,8 @@ characterization pins:
 * the success payload
 * 404 for an employee outside the device's business
 * 422 for an invalid timestamp, for a timestamp outside the 24-hour window, and for an employee not allowed
-  biometric attendance
+  biometric attendance (*2026-10-20:* the 24-hour window is **no longer enforced** since `91da561`; that example
+  fails — unresolved security item SEC-P12-1, §27.2; fixed since, §32: 168 h past, 5 min future)
 
 **Payroll impact:** punches create or adjust `AttendanceRecord` check-in/check-out and lateness, which feed payroll
 (overtime, deductions). A regression would silently change pay.
@@ -1330,8 +1331,9 @@ Reproduce: the AP file list and grep patterns used are recorded in §9.
 
 ## 5. Security audit
 
-**Status:** SEC-M2-1, -2, -3, -4 and -9 are **fixed** (§5.1). SEC-M2-5, -6, -7 and -8 and AP-D1 are **deferred**
-(§5.2). The table below is the original M0 record, kept unchanged as evidence; SEC-M2-9 was added when it was found.
+**Status:** SEC-M2-1, -2, -3, -4 and -9 are **fixed** (§5.1). SEC-M2-5, -6 and -7 and AP-D1 are **resolved** by
+`8342c01` (merged into `main` in PR #46, merge commit `bfbef9a`; §5.2, §27.2). SEC-M2-8 remains **deferred** (§5.2).
+The table below is the original M0 record, kept unchanged as evidence; SEC-M2-9 was added when it was found.
 
 These findings **block** any pilot that touches the affected path. Following the SEC-P3-1 precedent, each is
 fixed in its own approved commit before characterization (`migration-pattern.md` §4, Pilot 3 lessons).
@@ -1341,7 +1343,7 @@ database. The probe actor holds only `view_employees` unless stated otherwise.
 
 | ID | Severity | Path | Defect | Proof |
 |---|---|---|---|---|
-| **SEC-M2-1** | **High** | `Admin::BiometricDevicesController` (all actions) | **No `authorize` call, and no policy exists.** The gate is `Admin::BaseController#require_admin_access!`, which accepts any of 13 permissions (including `view_employees`, `view_attendance` and `view_payroll`; the default branch-manager and area-manager roles hold all three). Such a user can **read a device token, regenerate it, and create or destroy devices**. A token authenticates `POST /api/v1/attendance/punch` for **any active employee of the business** (24-hour window). That is attendance falsification, and through it payroll. The intended permission is `manage_devices` (the sidebar gate) | Token shown (200), regenerated (changed), device created |
+| **SEC-M2-1** | **High** | `Admin::BiometricDevicesController` (all actions) | **No `authorize` call, and no policy exists.** The gate is `Admin::BaseController#require_admin_access!`, which accepts any of 13 permissions (including `view_employees`, `view_attendance` and `view_payroll`; the default branch-manager and area-manager roles hold all three). Such a user can **read a device token, regenerate it, and create or destroy devices**. A token authenticates `POST /api/v1/attendance/punch` for **any active employee of the business** (24-hour window). That is attendance falsification, and through it payroll. The intended permission is `manage_devices` (the sidebar gate). *(Historical M0 wording, kept as recorded. 2026-10-20: the 24-hour window is no longer enforced since `91da561` — a token now authenticates punches with any past or future timestamp; unresolved, SEC-P12-1, §27.2; fixed since, §32: 168 h past, 5 min future.)* | Token shown (200), regenerated (changed), device created |
 | **SEC-M2-2** | **High** | `Admin::AttendanceRecordsController#update` (`PATCH /admin/attendance_records/:id`) | **No `authorize`**, and the lookup is business-wide with no data scope. Any admin-gate holder can rewrite check-in/check-out of any employee **including their own** (`Attendance::AdjustmentService`, which checks no permission) and so change pay. The policy-based path (`AttendanceRecordsController`, `manage_attendance`) is bypassed | Another employee's record changed; the actor's **own** record changed |
 | **SEC-M2-3** | **High** | `Admin::PenaltyRulesController` (new/create/edit/update/destroy) | **No `authorize`.** `PenaltyRulePolicy` requires `manage_shifts`, but it is never called. Any admin-gate holder can create, edit or delete penalty rules on any shift in the business, changing payroll deductions | Rule created (0 → 1) |
 | **SEC-M2-4** | **High** (cross-business) | `Admin::EmployeeObligationsController#create` | `user_id` comes from params with **no business check** (and `EmployeeObligation` has no same-business validation), and no `manage_obligations` data-scope check. An obligation can be created in business A for a user of **business B**. `Payroll::ObligationDeductor` selects obligations by user only (`for_user`), so **business B's payroll would deduct it** | Created; `obligation.business` = A, `user.business` = B. Deduction effect is code-evident (`obligation_deductor.rb:27-31`) |
@@ -1392,17 +1394,21 @@ attack cases fail, and against the fix, where all pass.
 `Admin::BiometricPunchLogsController` (SEC-M2-8, read-only, deferred). `Admin::DashboardController` (a read-only
 overview) also has none; it is outside this hardening.
 
-### 5.2 Deferred findings (recorded follow-up, not fixed)
+### 5.2 Deferred findings (original M0 record, with later resolution updates)
+
+*Update (2026-10-20, Pilot 12 M0):* SEC-M2-5, -6, -7 and AP-D1 are **resolved** by `8342c01` `fix: enforce payroll
+and financial data access scopes`, merged into `main` in PR #46 (merge commit `bfbef9a`); the code and spec evidence
+is in §27.2. The "Why deferred" column below is the original record. SEC-M2-8 and the SEC-M2-2 follow-up remain open.
 
 | ID | Severity | Item | Why deferred / follow-up |
 |---|---|---|---|
-| SEC-M2-5 | Medium | Employee page shows salary and obligations without the AP policies | Needs Q-M2-5 (AP policy gate in the WF view vs AP-contributed panel) |
-| SEC-M2-6 | Medium | Salary-profile create/update ignores the `manage_salary_profiles` scope; self-salary changes allowed | Needs Q-M2-4 (segregation-of-duties rule) |
-| SEC-M2-7 | Medium | Advance and salary-profile scopes ignore the configured `view_payroll` scope | Needs a scope decision; fix before P-3 / P-6 |
-| SEC-M2-8 | Low–Medium | Punch logs visible business-wide to any admin-gate holder | Needs Q-M2-2; it is in Pilot 1's scope (CG-4), so it should be decided before Pilot 1's M1 |
-| AP-D1 | Defect (not security) | `GET /api/v1/users/:id/salary_profiles` raises `NoMethodError` for callers without salary/payroll permission | Fix with SEC-M2-6/7 (same policy) |
+| SEC-M2-5 | Medium | Employee page shows salary and obligations without the AP policies | Needs Q-M2-5 (AP policy gate in the WF view vs AP-contributed panel). **Resolved** by `8342c01` / `bfbef9a` (§27.2) |
+| SEC-M2-6 | Medium | Salary-profile create/update ignores the `manage_salary_profiles` scope; self-salary changes allowed | Needs Q-M2-4 (segregation-of-duties rule). **Resolved** by `8342c01` / `bfbef9a` (§27.2) |
+| SEC-M2-7 | Medium | Advance and salary-profile scopes ignore the configured `view_payroll` scope | Needs a scope decision; fix before P-3 / P-6. **Resolved** by `8342c01` / `bfbef9a` (§27.2) |
+| SEC-M2-8 | Low–Medium | Punch logs visible business-wide to any admin-gate holder | Needs Q-M2-2; it is in Pilot 1's scope (CG-4), so it should be decided before Pilot 1's M1. **Fixed** (2026-10-20, §31: `BiometricPunchLogPolicy` — manage_devices business-wide, view_attendance within its scope) |
+| AP-D1 | Defect (not security) | `GET /api/v1/users/:id/salary_profiles` raises `NoMethodError` for callers without salary/payroll permission | Fix with SEC-M2-6/7 (same policy). **Resolved** by `8342c01` / `bfbef9a` (§27.2) |
 | SEC-M2-4 follow-up | Medium (product decision) | Obligation creation is not limited to the creator's `manage_obligations` data scope; the employee picker is intentionally business-wide | Decide with P-2 (Obligations) |
-| SEC-M2-2 follow-up | Low (product decision) | Admin and web attendance updates both use the `view_attendance` scope for the lookup (not the `manage_attendance` scope), and allow a `manage_attendance` holder to edit their own record — the existing web-path rule, kept for parity | Decide with P-7 (Attendance records) |
+| SEC-M2-2 follow-up | Low (product decision) | Admin and web attendance updates both use the `view_attendance` scope for the lookup (not the `manage_attendance` scope), and allow a `manage_attendance` holder to edit their own record — the existing web-path rule, kept for parity | Decide with P-7 (Attendance records). **Still open** (2026-10-20) |
 
 **Related defects (not security):**
 
@@ -1682,7 +1688,7 @@ specs only; it does not decide Q-M2-1.
 |---|---|---|
 | `biometric_device_spec.rb` | 19 | Model: token generated on create (a supplied token is ignored), unique tokens, `regenerate_token!`, name presence and per-business case-insensitive uniqueness, active default and scopes, logs detached on destroy. Admin: business forced to the actor's, token never assignable, 422 re-render, ordering, flashes. Punch API: unknown, deactivated, regenerated and deleted tokens → 401; `last_seen_at` touched only on success |
 | `biometric_punch_log_spec.rb` | 8 | `ACTIONS` / `SOURCES`, required fields, `success?` / `rejected?` table, scopes and recency, the mobile `rejected_not_allowed` log. Admin visibility **as-is** (SEC-M2-8 deferred): any admin-gate holder sees all business logs; users without an admin-gate permission are redirected; another business's log → 404 |
-| `punch_api_spec.rb` | 13 | `employee_code` before user id; inactive or blank employee → 404 without a log; employee checked before timestamp; missing or > 24 h future timestamp → 422; bare timestamps read in business-local time; check-in and check-out payloads; duplicate punch → 200 `rejected_spam`; unassigned employee → 422 + log; logged device, IP address and raw payload |
+| `punch_api_spec.rb` | 13 | `employee_code` before user id; inactive or blank employee → 404 without a log; employee checked before timestamp; missing or > 24 h future timestamp → 422 (*2026-10-20:* the > 24 h rule is **no longer enforced** since `91da561`; that example fails — unresolved SEC-P12-1, §27.2; fixed since, §32: 168 h past, 5 min future); bare timestamps read in business-local time; check-in and check-out payloads; duplicate punch → 200 `rejected_spam`; unassigned employee → 422 + log; logged device, IP address and raw payload |
 | `punch_service_spec.rb` | 10 | Spam-window membership: other devices, mobile, `rejected_spam` and `rejected_not_allowed` count; `rejected_no_assignment` and `error` do not; symmetric; per business. A punch equal to the check-out is spam. Late check-in refinement (`late_minutes` reset, status kept until check-out). Rejection log shape. **AP-D3 pinned** |
 | `timestamp_parser_spec.rb` | 9 | Business-zone result, whitespace, `+HHMM` and fractional `Z`, date-only / time-only, slash and day-first formats, epoch seconds and impossible dates → `nil`, `api` / unknown sources, non-string input |
 
@@ -2100,14 +2106,14 @@ issues were all fixed:
 |---|---|---|
 | SEC-M2-1, -2, -3, -4, -9, -10, -11; SEC-M2-4 follow-up | **Fixed** | §5.1, §17.3 |
 | AP-D4, AP-D5 | **Fixed** | §17.3 |
-| SEC-M2-5 | **Deferred** (security, Medium) | Employee page shows salary and obligations without the AP policies. Needs Q-M2-5 |
-| SEC-M2-6 | **Deferred** (security, Medium) | Salary-profile scope; self-salary changes. Needs Q-M2-4 |
-| SEC-M2-7 | **Deferred** (security, Medium) | Advance and salary-profile scopes ignore the `view_payroll` scope |
+| SEC-M2-5 | **Deferred** (security, Medium) — **resolved 2026-10-20** by `8342c01` / `bfbef9a` (§27.2) | Employee page shows salary and obligations without the AP policies. Needs Q-M2-5 |
+| SEC-M2-6 | **Deferred** (security, Medium) — **resolved 2026-10-20** by `8342c01` / `bfbef9a` (§27.2) | Salary-profile scope; self-salary changes. Needs Q-M2-4 |
+| SEC-M2-7 | **Deferred** (security, Medium) — **resolved 2026-10-20** by `8342c01` / `bfbef9a` (§27.2) | Advance and salary-profile scopes ignore the `view_payroll` scope |
 | SEC-M2-8 | **Deferred** (security, Low–Medium) | Punch-log visibility, business-wide for the admin gate. Pinned in Pilot 1 M1 |
 | SEC-M2-4 follow-up — obligation scope decision | **Resolved** by `869cadd` | Create and reassignment respect the effective scope (was a product decision) |
 | SEC-M2-2 follow-up — attendance edit lookup | **Product decision** (open) | Admin and web attendance edits use the `view_attendance` scope for lookup and allow editing one's own record |
 | AP-D3 | **Known defect** (pinned, not fixed) | A punch updates a soft-deleted attendance record |
-| AP-D1 | **Known defect** (deferred with SEC-M2-6/-7) | API salary-profile index raises `NoMethodError` |
+| AP-D1 | **Known defect** (deferred with SEC-M2-6/-7) — **resolved 2026-10-20** by `8342c01` / `bfbef9a` (§27.2) | API salary-profile index raises `NoMethodError` |
 | AP-D2 | **Known baseline failure** | API line-item `waive?` (pinned in API characterization) |
 | TD-AP9 | **Technical debt** | Obligation lifecycle in the controller: no service, audit or reason |
 | TD-AP10 | **Technical debt** | Duplicated installment-count rule; create derivations in the controller |
@@ -5228,3 +5234,839 @@ The four outstanding items of §26.11 are satisfied:
 (`b2afa03`); M1, M4, M6, M8 and the TD-P11-7 fix in PR #44 (`96cc194`). **TD-P11-7 is resolved** by `7ac20da` (root
 cause and validation: §26.11); the two system specs were never recorded as flaky. Debt TD-P11-1…6 (§26.4) and the M4
 formatting deviation (§26.8) stand as recorded. No next pilot is selected here.
+
+---
+
+## 27. Pilot 12 — Finance & Sales: POS terminals write boundary (Organization & Access → Finance & Sales)
+
+**Status (2026-10-20): M0, M1, M2–M4, M6 and M8 COMPLETE (M8 full suite: no new failing ID, §27.13); M5 and M7 not
+done (not needed / optional, D-P12-7); committed locally (M1 `4b7b452`, M2–M4 `07a7e99`, M6 `55153fa`, then this
+documentation commit), not pushed or merged** — on `feature/pilot-12-pos-terminals`,
+created from local `main` `91da561` (= the locally recorded `origin/main`; no fetch was made, so remote freshness is
+unknown). Decisions D-P12-1…8 approved by the user (§27.7). M0 baseline (§27.9): full suite 9314 / 3 (two SEC-P12-1,
+one TD-P12-2), pilot set 964 / 0. Progress record: §27.13. No schema, route, permission or API change.
+
+### 27.1 Selection
+
+Selected by the user on 2026-10-20 from the post-PR-#46 review (`migration-pattern.md` §12, scored on `91da561`).
+The per-criterion scores behind the earlier totals (§26.1) are not recorded, so the re-derived figures are
+provisional:
+
+| Candidate | §26.1 total | Re-derived (provisional) | Why not now |
+|---|---|---|---|
+| **POS terminals — OA branch form → FS (§14.2 #8)** | 34 | **37** | Selected |
+| Reporting-wide read-only boundary | — | 46 | Needs two ownership decisions first: which `app/services/finance/reports/*` are Finance & Sales (single-domain) vs Reporting (the boundary specs glob the whole directory as Reporting, `module-boundaries.md` §9 names four services), and whether the PR #46 view-audit writes (`Payroll::EntryViewAudit`) from Reporting controllers are an Infrastructure exception to "Reporting writes nothing" |
+| Warehouse access — OA → IP (§14.2 #10) | 40 | 52 | The write is in `admin/users#update` through `UserPolicy::ACCOUNT_ATTRIBUTES` — the combined form whose #7 split is disqualified (User ≠ Employee); "no assignment = every warehouse" is a fail-open security decision |
+| Advances (§14.2 #2, P-6) | 62 | ≈56–62 | No longer blocked by SEC-M2-7 (resolved, §27.2), but money, the WF ↔ AP request cycle and approval + advance atomicity need full M2–M5 |
+| Shifts & Scheduling | — | 64 | Not one component: `ShiftAssignment` backs the OA membership contract, AP calculations, FS till screens and Reporting; scheduling eligibility is undefined (`module-boundaries.md` §22) |
+
+**Why POS terminals:** one write path, no database phase, every step a single `git revert`, and an exact precedent —
+Pilot 4 (§19.11) separated the same shape (an upstream form staging a downstream domain's child rows) with an
+upstream-defined, downstream-implemented contract.
+
+### 27.2 Outstanding items register (2026-10-20, on `91da561`)
+
+**Resolved by PR #46** — `8342c01` `fix: enforce payroll and financial data access scopes`, merged with merge commit
+`bfbef9a` (parents `7bfab1c`, `006936a`; `006936a` is a system-spec-only follow-up for the deposit-transfer action).
+Verified by code reading; CI on `bfbef9a` (run 39365893468): `test` passed. CI on `91da561` (run 39366174167): `test`
+failed only the two SEC-P12-1 examples below (9111 examples), so the specs cited here passed there.
+
+| ID | Resolution in code | Spec evidence |
+|---|---|---|
+| SEC-M2-5 | `Admin::UsersController#load_salary` (`app/controllers/admin/users_controller.rb:120`) shows salary only under `SalaryProfilePolicy#view_salary?`, current profile only, audited (`Salary::ViewAudit`); the obligations card (`app/views/admin/users/show.html.erb:367-369`) loads nothing without `EmployeeObligationPolicy#index?` and uses `policy_scope(EmployeeObligation)` | `spec/requests/security/salary_profile_access_spec.rb`, `spec/requests/security/employee_page_obligations_spec.rb` |
+| SEC-M2-6 | `Admin::SalaryProfilesController#set_employee` (`:47-48`) resolves the employee through `SalaryProfilePolicy.manageable_employees` (the `manage_salary_profiles` scope, never the actor); `SalaryProfilePolicy#create?` (`:28`) refuses one's own profile, the owner included; writes go through `Salary::ProfileUpdater` / `Salary::ProfileCorrector` | `spec/requests/security/salary_profile_access_spec.rb` |
+| SEC-M2-7 | `AdvancePolicy::Scope` (`app/policies/advance_policy.rb:10`) and `SalaryProfilePolicy::Scope` / `.viewable_employees` (`app/policies/salary_profile_policy.rb:34, :47`) use `EmployeeScope#for_permissions(:view_payroll)` — the configured `view_payroll` scope, else the hierarchy default; own records always | `spec/requests/security/advance_view_scope_spec.rb`, `spec/policies/salary_profile_policy_spec.rb`, `spec/requests/api/v1/standard_contract/advances_spec.rb`, `spec/requests/security/salary_profile_access_spec.rb` |
+| AP-D1 | `SalaryProfilePolicy#index? = true` (`:21`): collection access is decided by the Scope; no instance rule is evaluated on the class | `spec/requests/security/salary_profile_access_spec.rb` |
+
+**Still open (re-checked in code on `91da561`):**
+
+| ID | Status | Evidence |
+|---|---|---|
+| SEC-M2-8 | Open (§5.2) | `Admin::BiometricPunchLogsController` has no `authorize`; logs are business-wide |
+| SEC-M2-2 follow-up | Open, product decision (§5.2) | Not touched by PR #46 |
+| TD-P11-1 | Open (§26.4) | `Laundry::Reports::BranchConsumptionController#scoped_branch_id` returns `nil` without a `branch_id` param |
+| TD-P11-2 | Open (§26.4) | `Laundry::DashboardController:13` still uses `branch_type_laundry.first` |
+
+**New — SEC-P12-1 (security; not accepted behaviour; outside Pilot 12) — FIXED since, §32.** `91da561` "remove stable
+timestamp" (committed directly on `main` after PR #46, parent `bfbef9a`) comments out the 24-hour window in
+`Api::V1::PunchesController#create` (`app/controllers/api/v1/punches_controller.rb:27-29`). The window
+(`TIMESTAMP_TOLERANCE = 24.hours`, `:18`; `stale_timestamp?`, `:67-68`; message `api.punch.stale_timestamp`,
+`config/locales/en.yml:3115`, `ar.yml:3114`) existed since `c7a71ca` (2026-05-19); it was commented out once before
+(`6d72480`, 2026-05-19) and restored in `48a3e1a` (2026-06-22). The constant, the method and the i18n key are now
+unused.
+
+* **Behaviour now:** the device-supplied `timestamp` is checked only for format (`Attendance::TimestampParser`);
+  `Attendance::PunchService` has no age or future limit, and no layer checks a locked (finalized / paid) payroll
+  period for device punches (`PayrollPeriod#locked?` is checked by the bulk manual entry, CSV import, punch-correction
+  and adjustment paths, not by `PunchService`). Any holder of a device token can write a check-in / check-out for any
+  active employee of the device's business, on any date with a shift assignment. Open periods pick the change up in
+  the daily `Payroll::AutoGenerator` run; finalized periods keep their entries but their attendance history changes,
+  and a reopened period would recompute from it. (Code-traced; the locked-period path was not executed.)
+* **Failing examples (deterministic; reproduced locally with seed 20261006 and in CI run 39366174167):**
+  * `spec/characterization/attendance_payroll/punch_api_spec.rb:67` — "returns 422 stale_timestamp for a timestamp
+    more than 24 hours ahead": expected 422, got 200.
+  * `spec/requests/api/v1/characterization/biometric_punch_spec.rb:59` — "returns 422 for a timestamp outside the
+    24-hour window": expected 422, got 200.
+  * `punch_api_spec.rb:73` ("accepts a timestamp just inside the 24-hour window") still passes.
+* **Open decision (product / security, not taken here):** restore the window, make it configurable (separate past
+  and future tolerances), or accept no window with compensating safeguards (a locked-period refusal in
+  `PunchService`, a future limit, logged and reviewable late punches). The locked-period gap exists under every option.
+* **Effect on Pilot 12:** none on the touched path (`migration-pattern.md` §5 rule L). The two IDs are recorded in the
+  Pilot 12 baseline as unresolved, never as accepted behaviour (D-P12-8), and the two files are not in the pilot set.
+
+**New — TD-P12-1 (CI, cause unknown; not recorded as flaky).** The `system-test` job failed on `main` twice:
+
+| Commit | CI run | Result |
+|---|---|---|
+| `96cc194` (PR #44 merge) | 39206655135, system-test | 203 examples, 1 failure: `spec/system/inventory/stock_issue_import_spec.rb:88` — `Selenium::WebDriver::Error::UnknownError` "unhandled inspector error: Node with given id does not belong to the document" |
+| `bfbef9a` (PR #46 merge) | 39365893468, system-test | 203 examples, 1 failure: `spec/system/inventory/stock_issue_import_spec.rb:54` — `Selenium::WebDriver::Error::UnknownError` "unhandled inspector error: Node with given id does not belong to the document" |
+| `91da561` | 39366174167, system-test | passed |
+
+Both failures (different examples of the same file) show the same WebDriver error; the run details were read with
+`gh run view` (read-only). The root cause is not identified. Neither file is touched by Pilot 12. Per
+`migration-pattern.md` §7 it is not labelled flaky; it needs its own investigation. It passed in the Pilot 12 M0
+full-suite run (§27.9).
+
+**New — TD-P12-2 (local test failure, cause unknown; not recorded as flaky).** The Pilot 12 M0 full-suite run failed
+`spec/system/finance/expenses_index_responsive_spec.rb:121` ("EN LTR @ 1440px: compact table fits without horizontal
+scrolling"): `.expense-list__table` `scrollWidth - clientWidth` expected `<= 1`, got `2` (line 128). It is in no
+earlier baseline, and CI `system-test` passed on the same commit `91da561` (run 39366174167), so it has been seen
+locally only. A local browser or font difference is a hypothesis, not verified. Not touched by Pilot 12.
+
+### 27.3 Scope
+
+**In scope:** the Organization & Access → Finance & Sales write of `pos_terminals` from the branch form
+(`module-boundaries.md` §14.2 #8): `Branch accepts_nested_attributes_for :pos_terminals`, the
+`pos_terminals_attributes` permitted by `Admin::BranchesController`, the terminal section of
+`admin/branches/_form.html.erb`, and the `PosTerminal` model (Finance & Sales, `module-boundaries.md` §10, §11).
+
+**Out of scope:** the POS import pipeline (`Finance::PosImports::*`) beyond reading terminals; the coexisting
+`pos_*` / `sales_*` tables; audit of terminal changes; the branch-destroy notice defect; `manage_branches`
+scopability; `admin/users`; Reporting; SEC-P12-1; TD-P12-1; any schema, route, permission or API change.
+
+### 27.4 Reference inventory (`app/ lib/ config/ db/ spec/`, on `91da561`)
+
+| Class | References |
+|---|---|
+| Finance & Sales internal | `app/models/pos_terminal.rb` — `belongs_to :business` / `:branch`; `before_validation :default_business_from_branch` (`business_id` always from the branch); `terminal_id` presence and uniqueness per business; `branch_in_same_business`; `active` / `ordered` scopes. `Finance::PosImports::BranchResolver` (`app/services/finance/pos_imports/branch_resolver.rb:26`) reads `PosTerminal.active.where(business:)` — the only consumer of the mapping |
+| OA write path (the only one) | `app/models/branch.rb:45-46` `accepts_nested_attributes_for :pos_terminals, allow_destroy: true, reject_if: ->(attrs) { attrs["terminal_id"].blank? }`; `Admin::BranchesController#branch_params` (`:134`) permits `pos_terminals_attributes: [ :id, :terminal_id, :label, :active, :_destroy ]`; `#create` (`:60`) and `#update` (`:82`) call `assign_branch_params` (`:148`, `assign_attributes` with an `ArgumentError` rescue for `branch_type`) and then `@branch.save` |
+| Read-only use (OA UI) | `app/views/admin/branches/_form.html.erb:80-106` — `f.fields_for :pos_terminals`, the `branch.pos_terminals.any?` empty state, the `NEW_INDEX` template from `PosTerminal.new`; partial `app/views/admin/branches/_pos_terminal_fields.html.erb` (hidden `id` / `_destroy` for persisted rows, `terminal_id`, `label`, `active`) |
+| Association / lifecycle | `app/models/branch.rb:40` `has_many :pos_terminals, dependent: :restrict_with_error` (autosave implied today by nested attributes); `app/models/business.rb:82` `has_many :pos_terminals, dependent: :destroy` — no code path destroys a `Business` |
+| Migration / history | `db/migrate/20260730150000_create_pos_terminals.rb` (table name only), `db/migrate/20260730150400_remove_manage_pos_terminals_permission.rb` (strips the retired `manage_pos_terminals` string). Neither names the `PosTerminal` constant |
+| Test-only | `spec/factories/pos_terminals.rb`; `spec/models/pos_terminal_spec.rb`; `spec/requests/admin/branches_spec.rb` ("Terminal IDs (nested)"); `spec/characterization/organization_access/branches_and_settings_spec.rb:59-65`; setup in `spec/requests/finance/pos_imports_spec.rb` and `spec/services/finance/pos_imports/{importer,bank_verification_invalidation,row_ignorer,branch_resolver,pipeline,summary_builder}_spec.rb` |
+
+**No other write path:** nothing else mass-assigns `Branch` params (`params.require(:branch)` only in
+`Admin::BranchesController`); `lib/tasks/laundry.rake:26` updates only `branch_type`; no seed, rake task or raw SQL
+writes `pos_terminals`.
+
+### 27.5 Authorization and isolation (current behaviour)
+
+* `BranchPolicy` requires `manage_branches` for every action; `manage_branches` (permission group `settings`) is not
+  in `BRANCH_SCOPABLE_PERMISSIONS`, so it is business-wide. `find_branch` is scoped to `current_user.business`.
+* Nested ids resolve only inside `branch.pos_terminals`; any other id raises `ActiveRecord::RecordNotFound` (Rails
+  nested-attributes behaviour — not yet pinned, G2).
+* `business_id` is never taken from input (pinned: `branches_spec.rb` "sets business_id from the branch").
+* No audit on branch or terminal changes (pinned for branch creation only, G7).
+
+### 27.6 Pilot 4 comparison
+
+| Aspect | Pilot 4 (`Shifts::PenaltyRuleSettings` → `Attendance::ShiftPenaltyRules`) | Pilot 12 |
+|---|---|---|
+| Contract owner | Upstream Workforce | Upstream Organization & Access: `OrganizationAccess::BranchTerminalSettings.assign(branch:, rows:)` |
+| Implementation | Downstream AP stages rows on the association; writes nothing itself | Downstream FS: `Finance::BranchPosTerminals`, same staging |
+| Registration | `config/initializers/shift_penalty_rule_settings.rb`, `to_prepare` | A `to_prepare` initializer (name fixed at M2) |
+| Persistence / transaction | `Shift has_many :penalty_rules, dependent: :destroy, autosave: true`; the shift's save validates and persists | `Branch has_many :pos_terminals, dependent: :restrict_with_error, autosave: true` (D-P12-4) |
+| Form markup | `fields_for :penalty_rules_attributes, rule, index:` keeps names byte-identical | Same technique for rows and for the `NEW_INDEX` template — **unproven until G4** |
+| Rejection rule | All-blank rows ignored | **Different:** a row whose `terminal_id` is blank is rejected (even with a label); for an existing row without `_destroy` this is expected to be silently ignored (Rails `call_reject_if`) — to be pinned in M1 before any implementation (D-P12-5) |
+| Foreign id | `RecordNotFound` → 404 | Same expected; to be pinned (G2) |
+| Downstream constant in the upstream view | `PenaltyRule` option lists: classified read-only exception | `PosTerminal.new` (template) and `branch.pos_terminals` (rows, empty state): classified UI-composition exception (D-P12-6) |
+| Inverse lifecycle association | `Shift has_many :penalty_rules` kept as an exception | `Branch has_many :pos_terminals` kept; `Business has_many :pos_terminals, dependent: :destroy` documented exception (D-P12-4) |
+
+### 27.7 Decisions (approved 2026-10-20)
+
+| ID | Decision |
+|---|---|
+| D-P12-1 | `PosTerminal` remains owned by Finance & Sales |
+| D-P12-2 | Organization & Access defines the upstream contract; Finance & Sales implements it |
+| D-P12-3 | Contract `OrganizationAccess::BranchTerminalSettings`, method `assign(branch:, rows:)`; implementation `Finance::BranchPosTerminals` |
+| D-P12-4 | Keep `restrict_with_error` and declare `autosave: true` explicitly on `Branch`; keep the `Business` inverse association as a documented lifecycle exception |
+| D-P12-5 | Preserve the terminal-row rejection semantics exactly; characterize the existing-record / blank-`terminal_id` case before changing the implementation |
+| D-P12-6 | Read-only `PosTerminal` use in the branch form is a UI-composition exception |
+| D-P12-7 | No audit logging added; the known branch-destroy notice defect is not fixed; M5 is unnecessary; M7 is optional and must not widen the scope |
+| D-P12-8 | The two SEC-P12-1 failures are recorded as an unresolved security issue, not accepted behaviour; the `stock_issue_import_spec` CI history (TD-P12-1) stays unexplained, not labelled flaky |
+
+### 27.8 Characterization coverage (G1–G8, from reading the existing specs)
+
+| Gap | Status | Existing coverage / missing |
+|---|---|---|
+| G1 — create / update without `manage_branches` | Partial | `branches_spec.rb:172, :182` deny a branch create and a `branch_type` change, without terminal rows and without asserting the response. Missing: terminal rows refused and nothing written, on create and update |
+| G2 — nested-id isolation | Missing | Another branch's or another business's terminal `id` (edit and `_destroy`) |
+| G3 — atomicity | Partial | `branches_spec.rb:138`: a duplicate terminal → 422, terminal not added. Missing: a branch attribute change is not saved when a terminal is invalid; an invalid branch (including an unsupported `branch_type`) saves no terminal |
+| G4 — byte-identical terminal markup | Missing | New, edit, 422 re-render (with staged and errored rows) and the `NEW_INDEX` template |
+| G5 — blank rows, `active`, inactive resolution | Partial | Inactive terminals excluded (`branch_resolver_spec.rb:57`, `pos_terminal_spec.rb:40`). Missing: blank new row rejected via the form; existing row with blank `terminal_id` (D-P12-5); `active` toggled via the form |
+| G6 — branch destroy with terminals | Covered | `branches_and_settings_spec.rb:50, :59` (known defect pinned) |
+| G7 — audit behaviour | Partial | `branches_and_settings_spec.rb:67`: branch creation writes no `AuditLog`, without terminal rows. Missing: terminal add / edit / delete write no `AuditLog` |
+| G8 — form edit → import resolution | Missing | Resolver specs build terminals with the factory; nothing goes from a branch-form change to an import |
+
+**Required in M1:** G1, G2, G3, G4, G5, G7, G8 (G6 is covered). New specs only, against unchanged code.
+
+### 27.9 Baseline (executed 2026-10-20 on `91da561`)
+
+`docs/architecture/finance-sales-pos-terminals-baseline-failures.txt` holds the pilot set (`# set` lines), the
+commands and the results:
+
+| Run | Result |
+|---|---|
+| Full suite, lazy, seed 20261006 | 9314 examples, 3 failures (21 min 58 s): the two SEC-P12-1 IDs (unresolved, not accepted) and `expenses_index_responsive_spec.rb:121` (TD-P12-2, unexplained, not flaky) |
+| Pilot set (10 entries), lazy, seeds 20261006 / 12345 / 98765 | 964 examples, 0 failures under each |
+| Pilot set, `CI=1` (eager), seed 20261006 | 964 examples, 0 failures |
+
+No failing ID in the pilot set: any failure there during Pilot 12 is new and stops the work. The full suite runs again
+only at M8.
+
+### 27.10 Risks
+
+| Risk | Mitigation |
+|---|---|
+| Markup differs once nested attributes are removed (names, ids, hidden `id`, row order with staged / destroyed records) | G4 byte-identical specs before M4 |
+| 422 error messages change source (nested attributes → autosave validation of the association) | G3 / G4 assert the rendered messages |
+| The rejection rule for existing rows is reproduced wrongly | D-P12-5: pinned in M1 first |
+| Assignment order in M3 vs the `branch_type` `ArgumentError` rescue in `assign_branch_params` | G3 includes an unsupported `branch_type` with terminal rows |
+| A foreign id gives 404 or raises, depending on the test environment's exception handling | G2 pins the observed behaviour |
+| SEC-P12-1 / TD-P12-1 failures appear in the full suite | Compared by exact ID with the baseline file; neither is in the pilot set |
+
+### 27.11 Stop conditions
+
+`migration-pattern.md` §10, and specifically: another write path to `pos_terminals`; any database change; a form
+parameter or markup change; an authorization change or a need for a separate security decision; a failing ID that is
+not in the baseline file; `zeitwerk:check` or eager-load failure.
+
+### 27.12 Proposed path (standard IDs)
+
+**M0** (this) → **M1** characterization (G1–G5, G7, G8) → **M2** OA contract + FS implementation delegating to
+nested attributes + initializer → **M3** `Admin::BranchesController` stages terminal rows only through the contract
+(same transaction and call order) → **M4** staging moved into `Finance::BranchPosTerminals`; `Branch` drops
+`accepts_nested_attributes_for` and declares `autosave: true`; form markup byte-identical → **M6** boundary spec
+(probe-proven) → **M7** optional (`git mv` to `app/models/finance_sales/`, constant and table unchanged) → **M8**
+verification and `module-boundaries.md`. M5 not needed (D-P12-7).
+
+### 27.13 M1–M6 and M8 documentation (2026-10-20, uncommitted, on `91da561` + working tree)
+
+Run as one batch (the user's 2026-10-20 instruction: coherent batches, focused tests, the full suite only at M0 / M8).
+
+| Step | Files | What |
+|---|---|---|
+| **M1** | `spec/characterization/finance_sales/pos_terminal_branch_form_spec.rb` (22), `…_markup_spec.rb` (4), golden fixtures `spec/fixtures/files/pos_terminal_branch_form/` (8 files) | G1–G3, G5, G7, G8 pinned against unchanged code; G4: the raw bytes of the terminal section and error block on new / edit / update 422 / create 422, recorded from unchanged code (only the terminals' database ids are normalized). **Finding (pinned, D-P12-5):** `reject_if` also drops an existing row that *omits* `terminal_id` (`attrs["terminal_id"].blank?` is true for a missing key) — a label-only change is silently ignored; the form always submits `terminal_id`, so only hand-built requests are affected. Other pins: a row marked `_destroy` is re-rendered on 422 with `_destroy` value `"0"` (the partial forces it); the 422 message is `Pos terminals terminal has already been taken`; a foreign or sibling-branch id → 404 with nothing changed; an unsupported `branch_type` → 422 with nothing changed; no `AuditLog` row for terminal changes. Probes (in memory): `reject_if` disabled → 5 failures; partial without `data-destroy-field` → 2 markup failures |
+| **M2** | `app/services/organization_access/branch_terminal_settings.rb`, `app/services/finance/branch_pos_terminals.rb`, `config/initializers/branch_terminal_settings.rb` | OA contract `OrganizationAccess::BranchTerminalSettings.assign(branch:, rows:)` (register / handler / `NotRegistered`, as `Shifts::PenaltyRuleSettings`); FS implementation first delegating to the nested-attributes writer; `to_prepare` registration |
+| **M3** | `app/controllers/admin/branches_controller.rb` | `branch_params` no longer permits terminal rows; `assign_branch_params` assigns the branch's attributes, then stages `pos_terminal_rows` (plain hashes, submitted order, same reading as nested attributes) through the contract — inside the same `ArgumentError` rescue, so an unsupported `branch_type` still stops before any terminal is staged (Rails assigns nested attributes after scalar ones) |
+| **M4** | `app/services/finance/branch_pos_terminals.rb`, `app/models/branch.rb`, `app/views/admin/branches/_form.html.erb` | Staging moved into `Finance::BranchPosTerminals` (Rails' collection rules: new / existing / `_destroy` / `reject?` on blank-or-missing `terminal_id` / `RecordNotFound` for other ids; writes nothing). `Branch` drops `accepts_nested_attributes_for` and declares `has_many :pos_terminals, dependent: :restrict_with_error, autosave: true`. The form renders rows with `fields_for :pos_terminals_attributes, terminal, index:` inside one output tag (the per-row indentation and the trimmed `<% end %>` line of the nested version reproduced) and the template with `index: "NEW_INDEX"` — **G4 byte-identical on all four pages** |
+| **M5** | — | Not needed (D-P12-7): no business rule in the controller; audit is a separate decision |
+| **M6** | `spec/architecture/finance_sales_pos_terminal_boundary_spec.rb` (16), `spec/services/organization_access/branch_terminal_settings_spec.rb` (8) | Boundary 1: `PosTerminal` / `pos_terminals` / `BranchPosTerminals` only in FS files (model, implementation, `Finance::PosImports::BranchResolver`) and the classified exceptions — `Branch` / `Business` lifecycle lines exactly as D-P12-4 (no nested attributes, no `pos_terminals_attributes=`), the branch form limited to its three read shapes (D-P12-6); tight allow-list. Boundary 2: OA code (models, services, branch controller / views / policy) writes no terminal, uses no nested-attributes mechanism and names no FS implementation; the controller stages through the contract; the contract names nothing from FS; only the composition root and FS name the implementation, which is the registered handler. Self-tests plus a real planted probe (an OA service calling `branch.pos_terminals.destroy_all` — caught by both boundaries, 2 failures; removed). Contract spec: registration, `NotRegistered`, dispatch, staging-only, Hash / single-row input, `RecordNotFound`, `ArgumentError` |
+| **M7** | — | Not done: optional, and it would add a model-loading change (rule K) without boundary value (D-P12-7) |
+| **M8 docs** | `module-boundaries.md` | Status header, §10 note, §12.1 inversion row, §12.2 OA → FS row, §14.2 #8 marked resolved |
+
+**Verification (focused; the full suite was not re-run):** pilot set (13 entries) 1014 examples, 0 failures under seeds
+20261006, 12345 and 98765 (lazy) and with `CI=1`; after M2 + M3 the M1 + branch request + OA characterization files
+59 / 0; `zeitwerk:check` clean; RuboCop on the 9 changed / new Ruby files no offenses; `bin/brakeman` 0 warnings;
+`git diff --check` clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+
+**M8 full suite (2026-10-20, approved; lazy, seed 20261020, on the uncommitted working tree):** 9364 examples
+(M0 9314 + the 50 new Pilot 12 examples), 3 failures, exit 1 (22 min 7 s) — exactly the M0 failing IDs, with the
+same messages: `punch_api_spec.rb:67` and `biometric_punch_spec.rb:59` (SEC-P12-1, unresolved, not accepted) and
+`expenses_index_responsive_spec.rb:121` (TD-P12-2, unexplained, recurred locally with the same 2 px overflow under a
+different seed; not labelled flaky). **No new failing ID.** Remaining: commit (four reviewed groups), push and merge
+only on approval.
+
+---
+
+## 28. Batches R + W — Reporting read-only enforcement; Organization & Access → Inventory & Purchasing warehouse access
+
+**Status (2026-10-20): implemented and verified with focused tests; committed locally** (W M1 `996522b`, W refactor
+`f77e59b`, R + W boundary specs `0ccfaba`, then this documentation commit), not pushed or merged, on
+`feature/pilot-12-pos-terminals` on top of the four Pilot 12 commits (`5355211`). Run as batches (the user's 2026-10-20 instruction), from the
+post-Pilot-12 migration matrix. No full-suite run (not a designated milestone). No schema, route, permission, API or
+dependency change.
+
+### 28.1 Decisions (approved 2026-10-20)
+
+| ID | Decision |
+|---|---|
+| D-R1 | Single-domain Finance & Sales report services under `app/services/finance/reports/` stay Finance & Sales-owned in place; not moved |
+| D-R2 | `Payroll::EntryViewAudit` / `Salary::ViewAudit` calls from Reporting are documented Infrastructure exceptions (an `AuditLog` row only); they never permit writing domain data |
+
+### 28.2 Batch R — `spec/architecture/reporting_read_only_boundary_spec.rb` (10 examples; no application change)
+
+* **Rule 1 — no writes:** the Reporting controllers (`dashboard`, `operations_dashboard`, `admin/dashboard`,
+  `finance/dashboard`, `laundry/reports/cost_summary`), services (`dashboard/{owner_data,area_manager_data}`,
+  `finance/dashboard/*`, `finance/dashboard_filters`, `finance/reports/{branch_profitability,expense_sources,
+  verified_revenue,laundry_cost_summary,expense_details,expense_details_csv_exporter}`), their views, and the FS host
+  `Finance::ReportsController` + `app/views/finance/reports/` make no write call. **Found: none.**
+* **D-R2 sites:** view audits allowed exactly at `dashboard_controller.rb` (1, `dashboard_latest_payslip`) and
+  `finance/reports_controller.rb` (2, `finance_expense_details` HTML / CSV); the two audit services may only call
+  `log_audit`. `Salary::ViewAudit` is not called from Reporting today.
+* **Rule 2 — nothing depends on Reporting:** no file outside Reporting (and the host) names a Reporting service.
+  **Found: none.**
+* **Rule 3 — every file classified** in `app/services/{dashboard,finance/dashboard,finance/reports}/` (a new report
+  fails until its owner is decided).
+* **Classifications (ownership in place, following the existing `module-boundaries.md` §5 / §6 / §9):**
+  `expense_details` + `expense_details_csv_exporter` are **Reporting** (cross-domain via `expense_sources`, including
+  payroll — added to §9, which omitted them); `payroll_dashboard_controller` is **Attendance & Payroll** (§6 lists it;
+  it reads payroll and AP-allowed `ShiftAssignment`); `dashboard/birthdays` is **Workforce** (§5 lists it; it is also
+  used by `BirthdayCelebrationsController` and writes only a `Rails.cache` marker).
+* **Probes:** a real planted FS report naming `ExpenseSources` (caught by rules 2 and 3, removed); in-memory planted
+  write, extra view audit, comment / string false positives.
+* **Recorded, not fixed (TD-R-1):** IP laundry report controllers use `Finance::Reports::{Column,Table,CsvExporter}`
+  (FS report infrastructure) — an IP → FS read of CSV helpers; candidate for the Shared Kernel / Infrastructure
+  (`module-boundaries.md` §15), outside R.
+
+### 28.3 Batch W — warehouse access write boundary (§14.2 #10)
+
+**M1 characterization** (`spec/characterization/organization_access/user_warehouse_access_spec.rb`, 11, green against
+unchanged code): update replaces the set (blank hidden value ignored); `[""]` clears it and the user becomes
+unrestricted (fail-open, `inventory_warehouse_ids` → `nil`); field absent → untouched; another business's warehouse →
+422 with nothing changed; unknown id → 404; no `AuditLog`; create saves the assignments with the user and an invalid
+create saves neither; the checkbox markup (`user[assigned_warehouse_ids][]`, blank hidden input, checked state).
+
+**Finding — TD-W-1 (correctness, pinned, not fixed; not a privilege escalation):** for a persisted user the
+`has_many :through` ids writer saves the join rows **immediately**, during `assign_attributes` — so an update that then
+fails validation (422) or whose role change is refused (422) **keeps the new warehouse assignments**. The actor was
+already authorized for the account tier (`UserPolicy::ACCOUNT_ATTRIBUTES`), so no authority is gained, but the form is
+not atomic. Making it atomic is a behaviour change and needs its own decision; Batch W preserves it exactly.
+**Decision (user, 2026-10-20):** keep the timing unchanged in this migration; TD-W-1 stays **open** as a
+behaviour-consistency improvement. A future all-or-nothing save is a separate, explicitly approved change, preceded by
+characterization of the validation-failure and refused-role-change cases (both already pinned here as current
+behaviour).
+
+**Contract (as Pilot 12, adapted to the preserved timing):** `OrganizationAccess::UserWarehouseAccess.assign(user:,
+warehouse_ids:)` (`app/services/organization_access/user_warehouse_access.rb`), implemented by Inventory & Purchasing
+`Inventory::UserWarehouseAssignments` (`app/services/inventory/user_warehouse_assignments.rb`, the same ids writer —
+immediate for a persisted user, on save for a new one), registered in `config/initializers/user_warehouse_access.rb`.
+`Admin::UsersController#create` / `#update` take `assigned_warehouse_ids` out of the permitted params and apply it
+through the contract right after `assign_attributes` — before the role check and the save, where the writer ran
+before. `UserPolicy` tiers, the form, `User#inventory_warehouse_ids` (the fail-open rule) and every error path are
+unchanged. (Recorded edge: a request whose other attributes raise during `assign_attributes` — e.g. a tampered enum —
+now raises before the warehouse ids are applied, where before it depended on parameter order; an error path only.)
+The User ≠ Employee split (#7) is untouched. Contract spec `spec/services/organization_access/user_warehouse_access_spec.rb`
+(7): registration, `NotRegistered`, dispatch, immediate vs on-save timing, `RecordInvalid` for a foreign warehouse.
+
+**M6 — `spec/architecture/organization_access_outbound_boundary_spec.rb` (13):**
+
+* warehouse-access internals (`WarehouseAssignment`, `warehouse_assignments`, `assigned_warehouses`,
+  `assigned_warehouse_ids=`, the implementation) only in IP files and three pinned `User` lines (lifecycle
+  association, read traversal for the form, the unchanged fail-open rule); the controller applies access only through
+  the contract; the contract names nothing from IP; only the composition root names the implementation, which is the
+  registered handler;
+* the inverse associations of `Business`, `Branch` and `User` into WF / AP / IP / FS are listed per owning domain
+  (`module-boundaries.md` §10) and frozen — a new or removed association fails until classified;
+* `WorkspaceHelper` (UI-shell navigation registry) names other domains' models only as `policy(Model)` gates, plus
+  two classified workspace permission lists (`Finance::BaseController::FINANCE_PERMISSIONS`,
+  `Laundry::BaseController::LAUNDRY_PERMISSIONS`, found by the spec);
+* probes: a real planted OA service writing `assigned_warehouse_ids` (caught, removed); in-memory planted write and
+  `WorkspaceHelper` query.
+
+### 28.4 Verification (focused, sequential; 2026-10-20)
+
+| Run | Result |
+|---|---|
+| `spec/architecture` after R (seed 20261006) | 329 examples, 0 failures |
+| W set — `spec/characterization/organization_access`, `spec/requests/admin/{users,role_assignment_entry_points}_spec.rb`, `spec/requests/employee_sidebar_and_creation_spec.rb`, `spec/requests/security/organization_access_{security,scope_hierarchy,view_and_role_scope}_spec.rb`, `spec/requests/permission_matrix_verification_spec.rb`, `spec/requests/inventory/warehouse_access_spec.rb`, the W contract spec, `spec/architecture` | 772 examples, 0 failures (seed 20261006) and with `CI=1` |
+
+`zeitwerk:check` clean; RuboCop on the 8 new / changed Ruby files no offenses; `bin/brakeman` 0 warnings;
+`git diff --check` clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+
+### 28.5 Still open (unchanged by R + W)
+
+SEC-P12-1 (punch timestamp window; the intended seven-day sync behaviour undecided), TD-P12-1 and TD-P12-2 (cause
+unknown, not labelled flaky), SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2; new TD-R-1 and TD-W-1 above. Remaining
+migration work (§28 matrix): Advances (§14.2 #2), the IP ↔ FS settlement cycle (§14.2 #6 — now ~28 code lines in 14
+files, more than the "6 / 6" in `module-boundaries.md` §12.2), the account fields (#7, User ≠ Employee decision).
+
+---
+
+## 29. F-A1 — salary advance pay / cancel race (standalone fix, before Batch A)
+
+**Status (2026-10-20): FIXED** in its own `fix:` commit on `feature/pilot-12-pos-terminals`, before and separate from
+the Batch A Advance contract refactor (§14.2 #2). No contract, ownership, schema, permission or API change.
+
+**Finding (from the Batch A investigation, code-evident):** `Requests::Approver#pay` checked `payable?` on the copy it
+was given, without a row lock, and `Requests::Canceller` locked the request only for punch corrections. Either side
+could therefore overwrite a change the other had committed: a stale payment turned a **cancelled** request into
+**paid** and created an `Advance` (deducted by payroll); a stale cancellation turned a **paid** request into
+**cancelled** while its `Advance` stayed active and kept being deducted.
+
+**Fix (Workforce request lifecycle, existing convention):**
+
+* `Requests::Approver#pay`: inside its existing transaction, `@request.lock!` (`SELECT … FOR UPDATE` + reload, which
+  also resets the cached `advance` association) and `payable?` re-checked; a refusal rolls back and returns the same
+  message as before (now the constant `Requests::Approver::NOT_PAYABLE`). Amounts, `issued_at`, the note, the pay audit
+  and the transaction boundary are unchanged. Inside `BulkPaymentService` / `Approver.pay_all` (since removed, F-A3) the pay
+  transaction joins the outer one, so the `Rollback` is a no-op there — correct, because the refusal precedes every write.
+* `Requests::Canceller#cancel`: the existing `locked_state_error` (lock, reload, refuse cancelled / paid / changed
+  status) now also runs for salary advances, not only punch corrections.
+* **Shared lock order: request row first** — payment then inserts the `Advance`; cancellation of a punch correction
+  then takes the payroll period (unchanged, Pilot 10). No new locking mechanism.
+
+**Regression coverage:** `spec/services/requests/advance_payment_lock_spec.rb` (8): pay refuses a request cancelled
+after it was loaded (stale copy; still cancelled, no `Advance`, no pay audit); pay re-checks under the lock on a
+freshly loaded request (cancellation, and a payment, written just before the lock — refused, no `RecordNotUnique`);
+the normal payment still works (lock taken, full-amount `Advance`, `issued_at`, note, one pay audit); cancellation
+refuses a request paid after it was loaded (still paid, `Advance` active, no cancel audit) and re-checks under the
+lock; an approved unpaid advance still cancels; bulk payment reports a request cancelled just before its lock as
+skipped and pays the rest. Probe: with `EmployeeRequest#lock!` made a no-op in memory (the pre-fix behaviour), 6 of
+the 8 fail (all race examples).
+
+**Limitation (explicit):** every example runs on **one database connection** inside the test transaction — none is a
+true two-connection concurrency test. That a second concurrent transaction waits for the row lock and then reads the
+committed state is PostgreSQL `SELECT … FOR UPDATE` semantics, not observed by these specs. In the lock-injection
+examples the competing change is rolled back with the refused operation, so they prove the refusal and the absence of
+its effects; the persisted end state is proven by the stale-copy examples.
+
+**Still open (not changed, not verified):**
+
+| ID | Item |
+|---|---|
+| F-A2 | **Closed (`46c0bcd`, §36).** Two truly concurrent payments: the unique index `index_advances_on_employee_request_id` prevents a second `Advance`; with the lock the second payment should now wait and be refused instead of raising `RecordNotUnique` (500) — now **verified with two real connections** for single vs single, bulk vs single and same-order overlapping batches (the scenarios tested, not every interleaving) |
+| F-A3 | **Closed (`3490e6a`).** `EmployeeRequestsController#mark_all_paid` authorized the class (`authorize EmployeeRequest, :pay?`) and `pay?` evaluates `record.user` on it — `NoMethodError` for a `pay_advances` holder or the owner, a Pundit refusal for everyone else (routed, no view or spec used it). Investigation found **no unauthorized payment mutation**: the endpoint failed inside `authorize`, before any query or write, so it could never pay anything. Resolution: the unused route, the controller action, `Requests::Approver.pay_all` / `BulkResult` and the translations only it used (`requests.mark_all_paid`, `flash.advances_paid_one` / `_other`, `flash.advances_partial_failure`, en + ar) were removed; the retired route is pinned as unroutable (`spec/requests/employee_requests_spec.rb`) and `pay?` / `bulk_pay?` have policy examples. `bulk_pay` (selected, class-authorized by `bulk_pay?`, policy-scoped, `paid_at` and note, bulk audit — `Requests::BulkPaymentService`) remains the supported bulk-payment path and was not changed. Whether production ever called the route is unknown (not inspected) |
+| F-A4 | `log_audit` inside a transaction has no savepoint: a database-level `AuditLog` failure aborts the PostgreSQL transaction while the rescue swallows it (general `AuditLoggable` debt) |
+| F-A5 | **Closed (`195a08b`).** Was: `User has_many :employee_requests, dependent: :destroy` → `EmployeeRequest has_one :advance, dependent: :destroy` can delete financial records (deleting an employee cascaded through their history). Now: User's history associations (payroll entries, advances, employee requests, attendance records, salary profiles, obligations, insurance profile, performance reviews / observations) are `dependent: :restrict_with_error`, so an employee with any of it is never deleted — the refusal points to deactivation; `OrganizationAccess::DeleteUser` locks the user row, deletes and writes a `delete_employee` audit in one transaction (an audit failure rolls the deletion back; a refused deletion writes no audit). Unchanged: `EmployeeRequest has_one :advance, dependent: :destroy` — no application path destroys a request (no route, `EmployeeRequestPolicy#destroy?` is false) |
+| F-A6 | `Advance#repay!` / `Payroll::AdvanceDeductor` use Float arithmetic for money |
+| F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one). **Bulk deadlock fixed (`49f5a04`, §36):** batches lock in ascending id; reproduced without the fix, prevented with it. **Approval race closed (`0c0b57b`):** `Requests::Approver#approve_standard` and `#reject` run in one transaction that first locks and reloads the request row and re-checks its state (`locked_state_error`: still pending, no self-approval); `Requests::Canceller` locks and re-checks the observed status for every request type (no longer only salary advances and punch corrections). Standard approval is atomic — status update, permission payroll effect and approve audit commit together or not at all. Regression coverage: two-connection races (approve vs cancel, approve vs approve, approve vs reject in both orders, a late permission with a real payroll effect in both orders — the loser waits on the request row lock and is refused), stale-copy examples for approve, reject and a permission cancel, and approval atomicity with a real effect |
+
+SEC-P12-1, TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1 and TD-W-1 remain open.
+
+---
+
+## 30. Batch A — salary-advance payment boundary (Workforce → Attendance & Payroll, §14.2 #2)
+
+**Status (2026-10-20): implemented and verified with focused tests; committed locally** (M1 `9a628ad`, M2–M4
+`375f1ba`, M6 `f1e89f3`, then this documentation commit), not pushed or merged, on `feature/pilot-12-pos-terminals` on
+top of the F-A1 fix `fa81c7d` (§29). No full-suite run (not a designated milestone). No schema, route, permission,
+API or dependency change.
+
+**Approved scope (2026-10-20):** D-A1 — Attendance & Payroll implements (the Advance ledger is AP's,
+`module-boundaries.md` §10.1; Finance & Sales records nothing for an advance disbursement, §14.1 A). D-A2 — one
+operation; Workforce keeps reading `request.advance` at classified sites, no second read contract. D-A3 — F-A1 fixed
+first, separately (§29). D-A4 — `mark_all_paid` (F-A3) not changed and not pinned as acceptable
+(later removed, `3490e6a` — §29). D-A5 — eligibility
+and salary reads for the advance limit stay out of this batch.
+
+| Step | Files | What |
+|---|---|---|
+| **M1** | `spec/characterization/workforce/advance_payment_spec.rb` (11) | Against `fa81c7d` (unchanged): approval creates no Advance (one approve audit); payment with time and note (request paid, reviewer, note, full-amount Advance issued at the time, one pay audit with exact changes / metadata); default time and approval note kept, no note in the audit; atomicity (the Advance cannot be saved → request stays approved, no Advance, no pay audit, the record's error returned); refusal of pending / rejected / cancelled / paid advances and an approved non-advance request (same message, nothing written); an approved request with an existing Advance row refused (one Advance stays); bulk payment through `#pay` with the batch time and note, skipped reasons, one bulk audit. Not characterized: `mark_all_paid` / `Approver.pay_all` (F-A3; both since removed, `3490e6a`) |
+| **M2–M4** | `app/services/requests/advance_effects.rb`, `app/services/payroll/advance_effects.rb`, `config/initializers/request_advance_effects.rb`, `app/services/requests/approver.rb` | WF contract `Requests::AdvanceEffects.advance_paid(request:, paid_at:)` → `nil` (register / handler / `NotRegistered`, Pilot 9 shape); AP implementation `Payroll::AdvanceEffects` (the same `Advance.create!`: user, request, total = remaining = amount, `active`, `issued_at` = paid time); `to_prepare` registration. `Requests::Approver#pay` calls the contract at the line of the former `Advance.create!` — inside the existing transaction, after the F-A1 `lock!` + `payable?` re-check and the `paid` update, before the pay audit. Amounts, status, note, audit metadata, errors (`RecordInvalid` → the record's message), authorization and the transaction boundary unchanged |
+| **M5** | — | Not needed: no business rule moved |
+| **M6** | `spec/architecture/workforce_request_advance_boundary_spec.rb` (12), contract spec `spec/services/requests/advance_effects_spec.rb` (9) | Workforce request code (requests services, `EmployeeRequest`, its controllers / views / policy, the shared helper) names no `Advance`, creates / builds / writes none and names no implementation; reads only at the classified sites, pinned by shape and count: `EmployeeRequest has_one :advance, dependent: :destroy` and its sort scope `left_joins(:advance)`; the controller's sort `left_joins`, two `includes(:user, :advance)` preloads and the `mark_all_paid` filter (removed with the endpoint in `3490e6a`; the controller count is now 3); the index view's two "awaiting payment" checks; `ApplicationHelper#employee_request_awaiting_payment?`; `BulkPaymentService`'s skip reason; `Approver#payable?`. Only `Payroll::AdvanceEffects` creates an Advance; the approver calls the contract once; the contract names nothing from AP; the implementation never calls back into the request lifecycle; only the composition root names it, and it is the registered handler. Real planted probe (an `Advance.create!` in a Requests service — caught by two rules, removed) plus in-memory self-tests. Contract spec: registration, `NotRegistered`, dispatch, error propagation, the AP record, routing (called once in `pay`, not when refused, rollback of the paid status on a handler error) |
+| **M7** | — | Not needed (no model moved) |
+
+**Verification (focused, sequential; 2026-10-20):** see §30.1. `zeitwerk:check` clean; RuboCop on the new / changed
+Ruby files no offenses; `git diff --check` clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+
+### 30.1 Verification
+
+| Run | Result |
+|---|---|
+| M1 characterization on `fa81c7d` (unchanged code) | 11 examples, 0 failures |
+| After M2–M4: M1 + the F-A1 lock spec + `approver_spec` + `bulk_payment_service_spec` | 58 examples, 0 failures |
+| Focused set — `spec/characterization/workforce/advance_payment_spec.rb`, `spec/services/requests` (incl. the contract and F-A1 specs), `spec/requests/employee_requests_spec.rb`, `spec/policies/employee_request_policy_spec.rb`, `spec/requests/security/advance_{view_scope,limit_disclosure}_spec.rb`, `spec/requests/api/v1/standard_contract/advances_spec.rb`, `spec/services/payroll/advance_deductor_spec.rb`, `spec/characterization/workforce/request_permission_payroll_effects_spec.rb`, `spec/architecture` — seed 20261006 | 739 examples, 0 failures |
+| The same set with `CI=1` (eager loading) | 739 examples, 0 failures |
+
+Classifying `EmployeeRequest has_one :advance, dependent: :destroy` as a read / lifecycle exception does **not** fix
+F-A5: destroying a request (or its user) can still delete the Advance — F-A5 stays an open risk (later closed for user
+deletion, `195a08b`, §29).
+
+**Still open, unchanged by Batch A:** F-A2 (not verified under real concurrency — later closed, `46c0bcd`, §36), F-A3 (`mark_all_paid` class
+authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29; F-A5 later closed, `195a08b`, §29; F-A7's bulk deadlock later fixed, `49f5a04`, §36, and its approval race, `0c0b57b`, §29); the WF → AP request-validation reads (D-A5); SEC-P12-1,
+TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1, TD-W-1.
+
+---
+
+## 31. SEC-M2-8 — biometric punch-log authorization (standalone security fix)
+
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `a21625a`. Separate from the
+migration batches. No schema, route, permission, navigation or API change.
+
+**Finding (confirmed):** `Admin::BiometricPunchLogsController` called no `authorize` / `policy_scope`, and no policy
+existed; the only gate was `Admin::BaseController#require_admin_access!`, which admits any of 13 permissions. Any such
+holder (e.g. only `view_employees`, `view_payroll`, `manage_evaluation_templates` or `manage_branches`) could open the
+URL directly (the navigation link is `manage_devices`-only) and read every punch log of the business — employee, punch
+and received times, work date, result, IP address, error message and raw payload (`employee_id` + `timestamp`; the
+device token is in a header and is not stored) — and a branch-scoped attendance viewer saw every branch. No
+cross-business path. The characterization pinned this as "current behaviour; SEC-M2-8 deferred".
+
+**Decisions (approved 2026-10-20):** D-S8-1 — `manage_devices`: every punch log of the business (a global,
+non-scopable permission); `view_attendance`: only logs of employees inside its configured scope, else the hierarchy
+default (own + managed); everyone else refused. D-S8-2 — no field-level restriction (IP address, raw payload); the
+detail page is protected by the same authorization and record scope. Navigation unchanged (`manage_devices`-only).
+
+**Fix:**
+
+* `app/policies/biometric_punch_log_policy.rb` (AP-owned): `index?` = `manage_devices || view_attendance`; `show?` =
+  the record is a `BiometricPunchLog` inside `Scope` (never evaluated on the class); `Scope` as above, through
+  `filter_by_data_scope(…, user_id_column: :employee_id)` / `EmployeeScope#relation` — the same path as
+  `AttendanceRecordPolicy::Scope`; `.visible_employees` (the filter's employees: the business, or
+  `EmployeeScope#for_permissions(:view_attendance)` + self).
+* `Admin::BiometricPunchLogsController`: `index` authorizes and builds on `policy_scope`; `show` authorizes the class
+  (`:index?` — a refused role gets the same not-authorized redirect as on the index), finds through `policy_scope`
+  (out of scope → 404) and authorizes the record; the employee filter uses `.visible_employees`. Ordering, filters,
+  eager loading, the 100-row limit and views unchanged. The branch filter still lists the business's branches (names
+  only); choosing another branch shows no logs and no employees.
+* `spec/architecture/attendance_payroll_biometric_boundary_spec.rb`: the policy classified AP-owned; the controller's
+  reason updated.
+
+**Tests:** `spec/requests/security/biometric_punch_logs_authorization_spec.rb` (17) and
+`spec/policies/biometric_punch_log_policy_spec.rb` (10): refusal of the four non-attendance gate permissions (index and
+show) and of a non-gate user; `manage_devices`, the owner and business-wide `view_attendance` see the business;
+branch-scoped `view_attendance` sees only its branch (another branch's log 404; an out-of-scope employee filter
+reveals neither the employee nor records; another branch selected shows nothing); unconfigured `view_attendance` sees
+own + managed; cross-business 404. The characterization's insecure example now asserts the refusal (plus a
+`manage_devices` example); its no-gate redirect and cross-business 404 examples are unchanged. Probe: with the pre-fix
+permissive policy restored in memory, 10 of the 17 request examples fail.
+
+**Not covered / limitations:** logs without an employee (none are written by the device API, which refuses unknown
+employees) are visible only to `manage_devices`; the navigation link stays `manage_devices`-only, so `view_attendance`
+holders reach the screen by URL only.
+
+---
+
+## 32. SEC-P12-1 — biometric punch timestamp window and locked payroll periods (standalone security fix)
+
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `0432da2`. Separate from the
+migration batches. No schema, dependency, route or permission change.
+
+**Finding (§27.2):** `91da561` commented out the 24-hour check in `Api::V1::PunchesController#create`, so a device-token
+holder could post a punch with any past or future timestamp for any active employee of the business — creating or
+widening attendance on any date with a shift assignment (pay changes at the next `Payroll::AutoGenerator` run) — and
+`Attendance::PunchService` never checked a locked payroll period. Failing examples:
+`spec/characterization/attendance_payroll/punch_api_spec.rb:67` and
+`spec/requests/api/v1/characterization/biometric_punch_spec.rb:59`. There is no server-side sync cursor (the API takes
+one punch per request; `BiometricDevice#last_seen_at` is liveness only), so no cursor bookkeeping was involved.
+
+**Decisions (approved 2026-10-20):** D-T1 — at most 7 × 24 hours (elapsed) before the server's receive time; D-T2 — at
+most 5 minutes after it; D-T3 — 422 for a stale or future timestamp, nothing recorded, the refusal logged if it fits the
+existing log model; D-T4 — refuse punches whose work date is in a finalized / paid payroll period.
+
+**Fix:**
+
+* `Api::V1::PunchesController#create`: after parsing (parser unchanged — explicit offsets respected, bare values read as
+  business-local), the server time is taken once and the punch must satisfy
+  `received_at - PAST_WINDOW <= punched_at <= received_at + FUTURE_SKEW` with `PAST_WINDOW = 168.hours` (fixed elapsed
+  time, not calendar days) and `FUTURE_SKEW = 5.minutes`, both bounds inclusive. Otherwise: 422
+  `api.punch.stale_timestamp` ("…up to 7 days in the past and 5 minutes in the future", en + ar; the old "24-hour"
+  text is gone), a `rejected_stale_timestamp` log, nothing passed to `PunchService`.
+* `Attendance::PunchService#call`: right after the work date is derived and before any attendance read-for-write, the
+  payroll period of the work date's calendar month is looked up as every attendance write path does
+  (`PayrollPeriod.find_by(business:, period_year:, period_month:)&.locked?`, as
+  `Attendance::BulkManualEntryService#period_locked?`; no period → not locked). Locked (finalized or paid) → a
+  `rejected_payroll_locked` log and a failed result with `api.punch.payroll_locked` (422 through the controller);
+  nothing created or updated. Draft and under-review periods accept the punch. Because the guard is in the service, no
+  caller can bypass it.
+* `BiometricPunchLog`: two actions, `rejected_stale_timestamp` and `rejected_payroll_locked` (no schema change —
+  `action` is a validated string); `rejected?` is true and `success?` false for both; no attendance record attached;
+  the payload is the request parameters (the device token is a header and is never stored). `NOT_SPAM_ACTIONS` adds
+  both to the actions the duplicate check already ignored (`rejected_no_assignment`, `error`), so a refusal cannot make
+  a later genuine punch within 60 s look like a duplicate. en / ar labels for the punch-log screens. Viewing these logs
+  follows the SEC-M2-8 policy (§31).
+
+**Tests:** new `spec/requests/api/v1/punch_timestamp_window_spec.rb` (24): exact boundaries (168 h accepted, +1 s
+refused; 5 min accepted, +1 s refused; 23 h old accepted; 25 h ahead refused), explicit offset and business-local
+timestamps at the boundary, the work date before the 06:00 business-day start, duplicate still 200 spam, out-of-order
+check-in still updated, stale / future punches cannot change an existing record, `last_seen_at` still touched on a
+refused request, finalized and paid periods refuse both a new record and an update, draft / under review / no period
+accept, a locked May refuses a 31 May punch received on 2 June, the guard enforced at service level, a refusal does not
+turn a later punch into spam, no device token in the logged payload, refused-punch logs under the SEC-M2-8 policy.
+Updated: `biometric_punch_spec.rb:59` sends an 8-day-old punch (3 days is inside the approved window); two example
+titles in `punch_api_spec.rb`; the pinned action list in `biometric_punch_log_spec.rb`. Probes (in memory): window
+always passing → 9 failures (including the two original examples); lock guard disabled → 6 failures.
+
+| Run | Result |
+|---|---|
+| Focused set — the new spec, `punch_api_spec`, `biometric_punch_spec`, `punch_service_spec` (characterization and service), `timestamp_parser_spec`, `biometric_device_spec`, `biometric_punch_log_spec`, `biometric_punch_logs_authorization_spec`, `attendance_payroll_biometric_boundary_spec`, `payroll_period_spec`, `bulk_manual_entry_service_spec`, `punch_correction_period_lock_spec`, `anomaly_detector_spec` — seed 20261006 | 202 examples, 0 failures |
+| The same set with `CI=1` | 202 examples, 0 failures |
+
+`zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `bin/brakeman` 0 warnings; `git diff --check`
+clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+
+**Limitations (open, recorded — not fixed here):**
+
+* **TD-T-1 — payroll-period race (concurrency) — fixed since, §33.** At the time of this fix the lock check is a plain read outside any transaction:
+  `PunchService` reads the period (`find_by`), then later saves the attendance record and the log in separate
+  statements. `Payroll::Approver` locks the period row (`@period.lock!`, inside its transaction) before finalizing or
+  paying, but the punch takes no lock on that row. A finalization that commits **between the punch's lock check and
+  its `record.save`** is therefore not seen: the punch is written into a month that has just been finalized (its entries
+  computed without it). The window is the duration of one punch request. `Attendance::PunchCorrectionEffects` closes the
+  same window by reading the period `FOR UPDATE` inside its transaction; the device path does not (no transaction or
+  row lock was added in this fix). Same limitation as `Attendance::BulkManualEntryService#period_locked?`.
+* **TD-T-2 — anomaly detector counts refused punches (no defect established).** *Resolved by an approved product
+  decision in §34 (evidence filtered by source and action); the text below records the state at §32.*
+  `Attendance::AnomalyDetector#detect_biometric_mismatch` treats the calendar day of **every** punch log of the
+  employee in the range as a "biometric day", with no filter on action, and reports `biometric_mismatch` (info) when at
+  least 3 active attendance records on such days have no `shift_assignment_id` (manual entries). The two new refusal
+  actions therefore count exactly like the existing `rejected_no_assignment` / `rejected_not_allowed` /
+  `rejected_spam` / `error` logs always have; the signal's statement ("a device punch exists for a day whose attendance
+  was entered manually") stays literally true for a refused punch, so no false signal is established and the detector
+  is unchanged. Whether refused punches should count at all is a product question for every rejection action, not only
+  the new ones. Note: `spec/services/attendance/anomaly_detector_spec.rb` stubs the punch-log query in every example, so
+  the detector's handling of log actions is not exercised by any test.
+* Device behaviour after a 422 (retry or drop) remains unknown (no device code in the repository).
+* Another caller of `PunchService` does not get the time window (a device-API rule in the controller); it does get the
+  locked-period guard.
+
+---
+
+## 33. TD-T-1 — device punches serialized against payroll finalization
+
+**Status (2026-10-20): FIXED** — committed locally (`5925411`), on `feature/pilot-12-pos-terminals` on top of `ffd1906` (§32). No schema,
+dependency, route, API or behaviour change for a single punch.
+
+**Race (§32):** `Attendance::PunchService` read the payroll period with a plain `find_by` outside any transaction, then
+saved the attendance record and the punch log as separate statements; `Payroll::Approver#advance` locks the period
+`FOR UPDATE` inside its transaction. A finalization committing between the punch's lock check and `record.save` was
+not seen, so a punch could be written into a just-finalized month. A failed log insert also left the attendance change
+committed without its log.
+
+**Decisions (approved 2026-10-20):** D-L1 — `FOR SHARE` on the canonical period row; one transaction around the punch
+processing. D-L2 — `Attendance::BulkManualEntryService` and the CSV import stay out of scope. D-L3 — no payroll-entry
+recalculation on a punch (a separate product decision).
+
+**Fix (`app/services/attendance/punch_service.rb`):**
+
+* `#call` keeps the `allow_biometric_attendance?` refusal (no period, no attendance involved) and then runs
+  `ActiveRecord::Base.transaction { process }`; the former body moved unchanged into the private `#process`, which
+  returns the `Result` (no `return` across the transaction block). The work date, the period lock and status check,
+  the assignment lookup, the duplicate check, the attendance mutation and every punch log (accepted, spam, no
+  assignment, locked period, save error) are inside the transaction.
+* `#payroll_locked?` reads the canonical period — unique per business + year + month
+  (`idx_payroll_periods_business_ym`), the calendar month of the business-day work date, the row `Payroll::Approver`
+  locks — with `PayrollPeriod.lock("FOR SHARE")`. Behaviour per status is unchanged: finalized / paid refused
+  (`rejected_payroll_locked`), draft / under review / no period accepted.
+* `Api::V1::PunchesController` (the timestamp window) is unchanged.
+
+**Lock order and deadlock analysis:** punch: period (`FOR SHARE`) → attendance record (insert / update) → punch log
+(insert). `Payroll::Approver`: period (`FOR UPDATE`) → period, payroll audit log, finance effects — no attendance row.
+`Payroll::OvertimeRecalculator#apply!`: period (`FOR UPDATE`) → rows. Punch corrections: request → period
+(`FOR UPDATE`) → entry → attendance. Every path takes the period first; a punch locks no request or entry, and a
+correction reaches an attendance row only after its `FOR UPDATE` on the period, which it cannot hold while a punch
+holds `FOR SHARE` — so no cycle. Shared locks do not conflict with each other: concurrent punches of one business and
+month do not serialize. Outcomes: finalization first → the punch waits, then reads the committed `finalized` row and is
+refused; punch first → finalization waits until the punch commits; a failed log insert → the attendance change rolls
+back with it. Only `Payroll::Approver` sets `finalized` / `paid` (verified), always after its `FOR UPDATE`.
+
+**Tests:** new two-connection spec `spec/services/attendance/punch_period_lock_spec.rb` (5; the non-transactional
+harness of `spec/services/requests/punch_correction_period_lock_spec.rb` — empty-database guard, truncation after,
+`Queue` handshakes, threads on their own connections, `FOR UPDATE NOWAIT` / `FOR SHARE NOWAIT` probes, a 250 ms
+`lock_timeout`, a bounded wait for an ungranted lock in `pg_locks`): a punch paused after its lock blocks finalization
+(lock timeout; status unchanged) while another shared lock is still possible, and finalization succeeds after the
+punch commits; a finalization paused after its `FOR UPDATE` makes a punch wait (observed in `pg_locks`), which then
+sees `finalized` — `rejected_payroll_locked`, no attendance; two punches of different employees in the same month hold
+the shared lock at the same time; a failing log insert rolls the attendance change back (committed state read on a
+real connection); no period → accepted. Probes (in memory): period read without `FOR SHARE` → 2 failures; `#process`
+outside the transaction → 2 failures; `FOR UPDATE` instead of `FOR SHARE` → 2 failures (punches serialize). A first
+version of the "punch waits" helper looked for an ungranted lock on the `payroll_periods` relation only and silently
+fell back after 10 s (a row-lock waiter waits on the holder's transaction id); it now detects any ungranted lock and
+fails on timeout.
+
+**Harness safety (cleanup):** the empty-database guard sets a flag only once it passes, and the `after` hook (which RSpec
+runs even when the guard fails) never touches a database the guard refused. Cleanup releases every pause queue, joins
+each worker (bounded; a worker's exception is captured per worker), kills and re-joins any worker still alive (its
+`ensure` blocks roll back its transaction and return its connection), and — through an `ensure` — still shuts the
+workers down if something unexpected escapes. It truncates only when the guard passed, no worker is alive, only the
+example's own connection is checked out, and no other session of the test database is active or in a transaction
+(`pg_stat_activity`); otherwise it skips truncation and fails, saying "truncation SKIPPED". Waits on database work are
+bounded by `NOWAIT`, `lock_timeout` or a deadline loop — never `Timeout.timeout` around a query (which could interrupt it
+mid-flight); `Timeout` only wraps `Queue#pop`.
+
+### 33.1 Verification
+
+| Run | Result |
+|---|---|
+| Focused set — `spec/services/attendance/punch_period_lock_spec.rb`, `spec/requests/api/v1/punch_timestamp_window_spec.rb`, `spec/characterization/attendance_payroll/punch_api_spec.rb`, `spec/characterization/attendance_payroll/punch_service_spec.rb`, `spec/services/attendance/punch_service_spec.rb`, `spec/requests/api/v1/characterization/biometric_punch_spec.rb`, `spec/services/requests/punch_correction_period_lock_spec.rb`, `spec/models/payroll_period_spec.rb`, `spec/architecture/attendance_payroll_{biometric_boundary,model_location}_spec.rb` — seed 20261006 | 145 examples, 0 failures |
+| The same set with `CI=1` | 145 examples, 0 failures |
+
+`zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `git diff --check` clean; `Gemfile.lock` and
+`db/schema.rb` unchanged.
+
+**Residual risks (open, not fixed here):**
+
+* `Attendance::BulkManualEntryService#period_locked?` and the manual-records CSV import still check the lock with a
+  plain read (the same race class) — out of scope by D-L2.
+* A punch accepted in an under-review month just before finalization changes attendance but not the payroll entry
+  unless a regeneration runs in between: `PunchService` never recalculates (D-L3, a separate product decision).
+* Two simultaneous *first* punches of the same employee and work date both pass the duplicate read; the unique index
+  `index_attendance_records_on_user_id_and_work_date` makes the second insert raise `ActiveRecord::RecordNotUnique`
+  (not rescued) — pre-existing, unchanged here; the shared period lock does not serialize them. *Fixed in §35
+  (`b14744a`): the losing punch is retried once.*
+* Every punch now runs in a transaction and holds the shared period lock until commit; finalization waits for punches
+  in flight (milliseconds). The lock behaviour assumes PostgreSQL and that only `Payroll::Approver` sets locked
+  statuses.
+* TD-T-2 (anomaly detector counts refused punches) was unchanged and open here; addressed in §34.
+
+---
+
+## 34. TD-T-2 — biometric_mismatch evidence filtered by source and action
+
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on
+`feature/pilot-12-pos-terminals` on top of `5925411` (§33). No schema, migration, backfill, dependency, route or API change.
+
+**Problem (§32):** `Attendance::AnomalyDetector#detect_biometric_mismatch` took the calendar day of **every** punch log
+of the employee in the range as a "biometric day" — any action, any source, including mobile-source
+`rejected_not_allowed` logs written by `Api::V1::AttendanceController` and refusals whose timestamp the server does
+not trust.
+
+**Approved rules (2026-10-20):** only `source: "biometric"` logs count, and only these actions —
+`BiometricPunchLog::BIOMETRIC_MISMATCH_EVIDENCE_ACTIONS`:
+
+| Action | Evidence? |
+|---|---|
+| `check_in`, `check_in_updated`, `check_out` | Yes |
+| `rejected_no_assignment` | Yes — the device saw the employee on a day with no assignment |
+| `rejected_spam` | Yes — neutral (always next to another punch within 60 s) |
+| `rejected_payroll_locked` | Yes — a real device punch, refused by policy |
+| `rejected_not_allowed` (biometric source) | No |
+| `rejected_stale_timestamp` | No — the day comes from an untrusted timestamp |
+| `error` | No |
+| any action with `source: "mobile"` | No |
+| any action not listed | No (an explicit allow-list; a new action counts only once added) |
+
+**Change:** `app/models/attendance_payroll/biometric_punch_log.rb` adds the constant next to `NOT_SPAM_ACTIONS`;
+`app/services/attendance/anomaly_detector.rb#detect_biometric_mismatch` adds
+`.where(source: "biometric", action: BiometricPunchLog::BIOMETRIC_MISMATCH_EVIDENCE_ACTIONS)` to its query.
+Unchanged: the range (business-time-zone midnight to 23:59:59), the threshold (`REPEAT_THRESHOLD` = 3 unassigned
+records), severity `:info`, the message and its translations, `count` / `dates`, the other detectors, and the
+operations dashboard (its only consumer — `OperationsDashboardController#build_anomaly_summary`). Effect: fewer
+employees can receive the signal, so the dashboard's top-8 ranking by anomaly count can change; it is computed at read
+time, so no data changes.
+
+**Deferred (separate task):** a "biometric day" is still the **calendar date of `punched_at` in the business time zone**,
+not the log's `work_date` / business day. A punch before `business_day_start_hour` belongs to the previous work date but
+counts for its calendar date; switching needs a fallback for logs with no `work_date` (the `rejected_not_allowed` log
+written before the work date is computed) and is a separate decision. The "manual" proxy (`shift_assignment_id` nil =
+attendance written while no assignment resolved) is also unchanged.
+
+**Tests (`spec/services/attendance/anomaly_detector_spec.rb`):** the seven `receive_message_chain(:where, :where,
+:pluck)` stubs of the punch-log query no longer matched the query and are removed — those examples create no logs, so
+the real query returns nothing; their expectations are unchanged. New `describe "biometric mismatch"` (24 examples,
+real `BiometricPunchLog` and `AttendanceRecord` rows, time frozen, Asia/Riyadh): three qualifying days → one `:info`
+anomaly with count 3, the dates and the unchanged message; two days → none; each evidence action counts; biometric
+`rejected_not_allowed` / `rejected_stale_timestamp` / `error` do not; every action with source `mobile` does not; a day
+whose only logs are excluded does not reach the threshold; logs outside the range (including 23:59:59 local on the day
+before) do not count; the calendar date of `punched_at` is used, not `work_date`; a record with a shift assignment is
+not counted. Probe (in memory, restored): without the new filter → 13 failures (the excluded-action, mobile-source and
+per-day examples).
+
+### 34.1 Verification
+
+| Run | Result |
+|---|---|
+| `spec/services/attendance/anomaly_detector_spec.rb`, `spec/characterization/attendance_payroll/biometric_punch_log_spec.rb`, `spec/architecture/attendance_payroll_biometric_boundary_spec.rb`, `spec/architecture/reporting_read_only_boundary_spec.rb` — seed 20261020 | 56 examples, 0 failures |
+| The same set with `CI=1` | 56 examples, 0 failures |
+
+No operations-dashboard request spec renders anomalies (only policy / navigation / permission checks exist), so none
+was run. `zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `git diff --check` clean; `Gemfile.lock`
+and `db/schema.rb` unchanged.
+
+---
+
+## 35. Concurrent first punch — RecordNotUnique retry
+
+**Status (2026-10-20): FIXED** — committed locally (`b14744a` "fix: retry a punch that loses the concurrent
+first-punch insert"), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `9ccff39` (§34). No schema,
+migration, dependency, route or API change. Resolves the §33 residual risk on simultaneous first punches.
+
+**Failure mode:** two simultaneous first punches of one employee and work date both passed the duplicate check and the
+record lookup (neither had committed) and both built a new record. The second insert waited on the first's uncommitted
+entry in `index_attendance_records_on_user_id_and_work_date` (`user_id, work_date`, unique), then failed when the first
+committed: `ActiveRecord::RecordNotUnique`, rescued nowhere on the path (`Api::V1::BiometricBaseController` maps no
+exceptions) → HTTP 500, and the loser's whole transaction — its punch log included — rolled back, so the punch left no
+audit row.
+
+**Fix (`app/services/attendance/punch_service.rb`):** `#call` rescues `ActiveRecord::RecordNotUnique` **outside** the
+failed transaction and runs the complete punch transaction (`#punch_transaction` →
+`ActiveRecord::Base.transaction(requires_new: true) { process }`) exactly once more; a second conflict propagates (no
+loop). The failed attempt left nothing behind, so the retry cannot duplicate a record or a log; it re-runs the period
+`FOR SHARE` guard, the assignment lookup, the duplicate check and the record lookup on the committed state and gets the
+outcome it would have had arriving second (`rejected_spam` within 60 s, otherwise `check_in_updated` / `check_out`), with
+its own durable log. `requires_new`: with no open transaction (the API path) it is a real transaction, as before; inside
+a caller's transaction it is a savepoint, so the unique violation rolls back to it and the retry never runs inside an
+aborted PostgreSQL transaction. Timestamp window, business day, assignment rules, rejection actions and log semantics
+are unchanged; no advisory lock; `Attendance::CheckInService` unchanged; the race is not mapped to a 409.
+
+**Tests:**
+
+* `spec/services/attendance/punch_service_spec.rb` (3, single connection; PostgreSQL itself raises the violation — a
+  wrapped `save` inserts a real duplicate row): one conflict → `check_in` (the failed insert did not survive), exactly
+  two saves, the period guard read twice, one record, one log; the same inside a caller's transaction (savepoint);
+  two conflicts → re-raised after exactly two saves, no record, no log.
+* `spec/services/attendance/punch_period_lock_spec.rb` (2, genuine two-connection race, existing harness unchanged):
+  the first punch pauses after its insert, before commit; the second is observed blocked on the unique index
+  (`pg_locks`); after the first commits the second retries — same second → `rejected_spam`, one record, logs
+  `check_in` + `rejected_spam`; two hours later → `check_out` on the winner's record (120 worked minutes), logs
+  `check_in` + `check_out`.
+* Probes (in memory, restored): without the retry → all 5 fail (the race examples raise `PG::UniqueViolation` in the
+  losing worker); without `requires_new` → the caller's-transaction example fails.
+
+### 35.1 Verification
+
+| Run | Result |
+|---|---|
+| `spec/services/attendance/{punch_service,punch_period_lock,punch_window}_spec.rb`, `spec/requests/api/v1/punch_timestamp_window_spec.rb`, `spec/characterization/attendance_payroll/{punch_service,punch_api}_spec.rb`, `spec/requests/api/v1/characterization/biometric_punch_spec.rb`, `spec/services/requests/punch_correction_period_lock_spec.rb`, `spec/architecture/attendance_payroll_biometric_boundary_spec.rb` — seed 20261020 | 127 examples, 0 failures |
+| The same set with `CI=1` | 127 examples, 0 failures |
+
+`zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `git diff --check` clean; `Gemfile.lock` and
+`db/schema.rb` unchanged.
+
+**Residual risk (open, separate):** concurrent punches on an **existing** attendance record (for example two check-outs)
+both read the old state and both update; the last commit wins, which can keep the earlier check-out (contrary to "keeps
+latest") and writes two `check_out` logs instead of one plus `rejected_spam`. A lost update, not a 500 — not addressed
+here (a per-employee advisory lock was considered and deferred).
+
+---
+
+## 36. F-A2 and F-A7 — concurrent salary advance payments
+
+**Status (2026-10-20): F-A2 CLOSED, F-A7 bulk deadlock FIXED** — committed locally (`46c0bcd` "test: cover concurrent
+salary advance payments", `49f5a04` "fix: prevent deadlocks in bulk salary advance payments"), not pushed or merged, on
+`feature/pilot-12-pos-terminals`. No schema, migration, dependency, route or permission change.
+
+**F-A2 (`46c0bcd`, tests only, no production change):** new two-connection spec
+`spec/services/requests/advance_payment_concurrency_spec.rb` (the non-transactional harness of
+`spec/services/attendance/punch_period_lock_spec.rb`, copied locally: empty-database guard, bounded worker shutdown with
+captured exceptions, truncation only when no worker or other session remains). The first payment is paused right after
+its Advance is created (request row locked and paid, uncommitted); the second is observed waiting on a lock while
+running the `employee_requests … FOR UPDATE` (`pg_stat_activity`), then the first is released:
+
+* single vs single — the second returns `Requests::Approver::NOT_PAYABLE`; one Advance, one pay audit, the first payer
+  recorded;
+* bulk vs single — the batch commits, the single payment is refused; one Advance, one pay audit, one bulk audit; an
+  unrelated request stays approved;
+* two batches with the same first lock (`[r1, r2]` / `[r1, r3]`) — the second waits, skips r1 with `NOT_PAYABLE` and
+  pays r3; one Advance and one pay audit per request, two bulk audits.
+
+Probe: without `@request.lock!` all three fail — no backend waits on the `FOR UPDATE`, and the loser raises
+`RecordNotUnique` on `index_advances_on_employee_request_id` (the index alone prevents the duplicate only as a 500).
+
+**F-A7 bulk deadlock (`49f5a04`):** `Requests::BulkPaymentService#call` now pays its payable requests in ascending id
+(`payable.sort_by(&:id)`), the one lock order for every batch (it is the only code holding several request row locks;
+approve / reject / cancel / single pay lock at most one request row). Only ordering changes: `result.paid` and the bulk
+audit's `request_ids` are in ascending id; authorization, scope, skip reasons, the locked re-check, transaction
+boundaries, Advances, audit content, `paid_at` and notes are unchanged. Tests: a two-connection example — batch A holds
+r1, batch B given `[r3, r2, r1]` waits on r1 while r2 and r3 stay lockable (`FOR UPDATE NOWAIT` probes), then skips
+r1 / r2 and pays r3, no `ActiveRecord::Deadlocked`; a service example (reversed selection → `paid`, per-request pay
+audits and `request_ids` in ascending id, skip reasons unchanged). Probe: without the sort, B holds r2 while waiting and
+PostgreSQL reports a real deadlock (`PG::TRDeadlockDetected`) — the risk is reproduced, not only inferred.
+
+### 36.1 Verification
+
+| Run | Result |
+|---|---|
+| `46c0bcd` set — the new concurrency spec, `spec/services/requests/{advance_payment_lock,bulk_payment_service,approver,canceller,advance_effects}_spec.rb`, `spec/characterization/workforce/advance_payment_spec.rb`, `spec/requests/employee_requests_spec.rb`, `spec/requests/security/employee_request_*` (3), `spec/architecture/workforce_request_advance_boundary_spec.rb` — seed 20261020 | 178 examples, 0 failures (normal and `CI=1`) |
+| `49f5a04` set — the same without `advance_effects_spec.rb` — seed 20261020 | 171 examples, 0 failures (normal and `CI=1`) |
+
+RuboCop on the changed Ruby files no offenses; `git diff --check` and `zeitwerk:check` clean; `Gemfile.lock` and
+`db/schema.rb` unchanged.
+
+**Limits and open items:** the tests prove the scenarios above, not every interleaving. Overlapping batches still wait
+for each other: each batch holds its request row locks for its whole transaction, so a batch (or a single payment of
+one of its requests) can wait for another batch's full duration; there is no `lock_timeout`. Still open, unchanged (F-A7's approval race since closed, `0c0b57b`, §29):
+the theoretical bulk "paid without an Advance" case (a
+`RecordInvalid` from the Advance after `update!`, rescued inside the joined batch transaction — unreachable today),
+F-A4, F-A6 and every other open finding (F-A5 since closed, `195a08b`, §29).

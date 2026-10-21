@@ -6,13 +6,16 @@ module Requests
   #           is created until an accountant/admin calls pay.
   # reject  — pending → rejected
   # pay     — approved → paid (salary advances only).
-  #           Creates the Advance record so the amount is deducted in the next
-  #           payroll generation run.
+  #           Records the Advance — through the Workforce contract
+  #           Requests::AdvanceEffects, implemented by Attendance & Payroll — so
+  #           the amount is deducted in the next payroll generation run.
   class Approver
     include AuditLoggable
     Result = Struct.new(:success, :request, :error, keyword_init: true) do
       def success? = success
     end
+
+    NOT_PAYABLE = "Only approved salary advance requests can be marked as paid".freeze
 
     # confirm_out_of_window — the reviewer explicitly acknowledged that a punch
     # correction falls outside the expected attendance window or produces an
@@ -61,29 +64,6 @@ module Requests
       new(request: request, reviewed_by: paid_by, response_note: note, paid_at: paid_at).pay
     end
 
-    # Marks every approved salary advance in `requests` as paid in one
-    # transaction. Returns a struct with paid_count and any per-request errors.
-    BulkResult = Struct.new(:paid_count, :errors, keyword_init: true)
-
-    def self.pay_all(requests:, paid_by:)
-      paid  = 0
-      errs  = []
-
-      ActiveRecord::Base.transaction do
-        requests.each do |req|
-          result = new(request: req, reviewed_by: paid_by).pay
-          if result.success?
-            paid += 1
-          else
-            errs << "#{req.user.full_name}: #{result.error}"
-          end
-        end
-        raise ActiveRecord::Rollback if errs.any?
-      end
-
-      BulkResult.new(paid_count: paid, errors: errs)
-    end
-
     def initialize(request:, reviewed_by:, response_note: nil, approved_time: nil, paid_at: nil,
                    approved_at: nil, confirm_out_of_window: false)
       @confirm_out_of_window = ActiveModel::Type::Boolean.new.cast(confirm_out_of_window) || false
@@ -106,20 +86,32 @@ module Requests
       return err("Request is already #{@request.status}") unless @request.pending?
       return err(Approvals::SelfApproval.error_message) if self_approval?
 
-      @request.update!(
-        status:        "rejected",
-        reviewed_by:   @reviewed_by,
-        reviewed_at:   Time.current,
-        response_note: @response_note
-      )
+      state_error = nil
 
-      log_audit(
-        actor:     @reviewed_by,
-        auditable: @request,
-        action:    "reject",
-        changes:   { status: ["pending", "rejected"] },
-        metadata:  { request_type: @request.request_type, response_note: @response_note }
-      )
+      ActiveRecord::Base.transaction do
+        # Request row first, then re-check on the committed state (F-A7): an
+        # approval, rejection or cancellation committed since this copy was
+        # loaded wins instead of being overwritten.
+        state_error = locked_state_error
+        raise ActiveRecord::Rollback if state_error
+
+        @request.update!(
+          status:        "rejected",
+          reviewed_by:   @reviewed_by,
+          reviewed_at:   Time.current,
+          response_note: @response_note
+        )
+
+        log_audit(
+          actor:     @reviewed_by,
+          auditable: @request,
+          action:    "reject",
+          changes:   { status: ["pending", "rejected"] },
+          metadata:  { request_type: @request.request_type, response_note: @response_note }
+        )
+      end
+
+      return err(state_error) if state_error
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
@@ -127,22 +119,28 @@ module Requests
     end
 
     def pay
-      return err("Only approved salary advance requests can be marked as paid") unless payable?
+      return err(NOT_PAYABLE) unless payable?
 
       paid_at = @paid_at || Time.current
+      refused = false
 
       ActiveRecord::Base.transaction do
+        # Lock the request row and re-check on the committed state (F-A1): a
+        # cancellation or payment committed since this copy was loaded wins, so a
+        # stale copy can neither pay a cancelled request nor pay twice. lock!
+        # reloads the row and resets the cached advance association.
+        @request.lock!
+        unless payable?
+          refused = true
+          raise ActiveRecord::Rollback
+        end
+
         update_attrs = { status: "paid", reviewed_by: @reviewed_by, reviewed_at: Time.current }
         update_attrs[:response_note] = @response_note if @response_note.present?
         @request.update!(update_attrs)
-        Advance.create!(
-          user:             @request.user,
-          employee_request: @request,
-          total_amount:     @request.amount,
-          remaining_amount: @request.amount,
-          status:           "active",
-          issued_at:        paid_at
-        )
+        # The Advance (Attendance & Payroll), through the Workforce contract, in
+        # this transaction (Batch A).
+        Requests::AdvanceEffects.advance_paid(request: @request, paid_at: paid_at)
         log_audit(
           actor:     @reviewed_by,
           auditable: @request,
@@ -152,6 +150,8 @@ module Requests
         )
       end
 
+      return err(NOT_PAYABLE) if refused
+
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
       err(e.record.errors.full_messages.join(", "))
@@ -159,24 +159,37 @@ module Requests
 
     private
 
+    # One transaction, request row first (F-A7): lock and re-check on the
+    # committed state, then the status, the permission's payroll effect and the
+    # audit — committed together or not at all (lock order: request → payroll
+    # entry / line items).
     def approve_standard
-      @request.update!(
-        status:        "approved",
-        reviewed_by:   @reviewed_by,
-        reviewed_at:   Time.current,
-        response_note: @response_note
-      )
+      state_error = nil
 
-      # The permission's payroll effect, through the Workforce contract (Pilot 9 M3).
-      Requests::PermissionPayrollEffects.permission_approved(request: @request)
+      ActiveRecord::Base.transaction do
+        state_error = locked_state_error
+        raise ActiveRecord::Rollback if state_error
 
-      log_audit(
-        actor:     @reviewed_by,
-        auditable: @request,
-        action:    "approve",
-        changes:   { status: ["pending", "approved"] },
-        metadata:  { request_type: @request.request_type, response_note: @response_note }
-      )
+        @request.update!(
+          status:        "approved",
+          reviewed_by:   @reviewed_by,
+          reviewed_at:   Time.current,
+          response_note: @response_note
+        )
+
+        # The permission's payroll effect, through the Workforce contract (Pilot 9 M3).
+        Requests::PermissionPayrollEffects.permission_approved(request: @request)
+
+        log_audit(
+          actor:     @reviewed_by,
+          auditable: @request,
+          action:    "approve",
+          changes:   { status: ["pending", "approved"] },
+          metadata:  { request_type: @request.request_type, response_note: @response_note }
+        )
+      end
+
+      return err(state_error) if state_error
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
@@ -256,8 +269,8 @@ module Requests
       self.class.parse_approved_at(@approved_at, business: @request.user.business)
     end
 
-    # Locks and reloads the request, then repeats approve's own checks on the
-    # committed state; nil when it may still be approved.
+    # Locks and reloads the request, then repeats approve's / reject's own checks
+    # on the committed state; nil when it may still be reviewed.
     def locked_state_error
       @request.lock!
       return "Request is already #{@request.status}" unless @request.pending?

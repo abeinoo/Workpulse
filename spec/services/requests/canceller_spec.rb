@@ -188,10 +188,11 @@ RSpec.describe Requests::Canceller do
     end
   end
 
-  # Requests::Canceller does not row-lock the request (unlike
-  # Finance::TillHandoverCanceller). This test documents the resulting
-  # guard behavior for a status change that happens between reads, rather
-  # than asserting true concurrent-transaction safety.
+  # Requests::Canceller locks the request row for every request type and
+  # re-checks the committed state against the status the caller saw (F-A1 for
+  # salary advances and punch corrections, F-A7 for every other type). These are
+  # single-connection examples; the genuine two-connection races are in
+  # spec/services/requests/advance_payment_concurrency_spec.rb.
   describe "status changed out from under a cancel attempt" do
     it "cleanly refuses when the request was rejected first" do
       request = create(:employee_request, user: employee)
@@ -201,6 +202,21 @@ RSpec.describe Requests::Canceller do
 
       expect(result).not_to be_success
       expect(request.reload.status).to eq("rejected")
+    end
+
+    it "refuses a stale pending copy of a permission approved since (it would skip reverting the approval's effect)" do
+      request = create(:employee_request, :late_permission, user: employee)
+      stale   = EmployeeRequest.find(request.id) # loaded while pending
+      expect(Requests::Approver.approve(request: EmployeeRequest.find(request.id), reviewed_by: manager)).to be_success
+      allow(Requests::PermissionPayrollEffects).to receive(:permission_cancelled).and_call_original
+
+      result = described_class.cancel(request: stale, cancelled_by: employee, reason: "too late")
+
+      expect(result).not_to be_success
+      expect(result.error).to eq(I18n.t("requests.errors.cannot_cancel"))
+      expect(request.reload).to have_attributes(status: "approved", cancelled_at: nil)
+      expect(Requests::PermissionPayrollEffects).not_to have_received(:permission_cancelled)
+      expect(AuditLog.where(auditable: request).pluck(:action)).to eq(%w[approve])
     end
   end
 end

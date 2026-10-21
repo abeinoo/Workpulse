@@ -62,13 +62,16 @@ RSpec.describe "Request permission payroll effects → Requests::PermissionPayro
       expect(Payroll::PermissionApplier).to have_received(:call).once.with(req)
     end
 
-    it "a contract error propagates as before: request already approved, no approve audit" do
+    # Until F-A7 the status was committed before the effect ran, so a failing
+    # effect left the request approved without it; approval is now one transaction.
+    it "a contract error propagates and rolls the approval back: request still pending, no approve audit" do
       req     = request_of(:early_leave)
       handler = double("handler", permission_cancelled: :reverted)
       allow(handler).to receive(:permission_approved).and_raise(StandardError, "boom")
 
       with_handler(handler) { expect { approve(req) }.to raise_error(StandardError, "boom") }
-      expect(req.reload.status).to eq("approved")
+      expect(req.reload.status).to eq("pending")
+      expect(req.reviewed_by_id).to be_nil
       expect(audits(req)).to be_empty
     end
 

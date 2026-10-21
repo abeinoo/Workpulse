@@ -200,7 +200,6 @@ Rails.application.routes.draw do
 
   resources :employee_requests, only: [ :index, :new, :create, :show ] do
     collection do
-      patch :mark_all_paid
       patch :bulk_pay
     end
     member do

@@ -85,10 +85,15 @@
     <h2 class="section-title"><%= t("admin.branches.form.terminal_ids_title") %></h2>
     <p class="form-hint"><%= t("admin.branches.form.terminal_ids_hint") %></p>
 
+    <%# The rows are written as one output tag so the markup stays byte-identical to the
+        nested-attributes form it replaced (Pilot 12 M4; pinned by
+        spec/characterization/finance_sales/pos_terminal_branch_form_markup_spec.rb). %>
     <div data-line-items-target="rows">
-      <%= f.fields_for :pos_terminals do |pt_f| %>
+      <%= safe_join(branch.pos_terminals.each_with_index.map do |terminal, index|
+            f.fields_for :pos_terminals_attributes, terminal, index: index do |pt_f| %>
         <%= render "pos_terminal_fields", f: pt_f %>
-      <% end %>
+      <% end
+          end) %>
     </div>
 
     <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if branch.pos_terminals.any? %>>
@@ -100,7 +105,7 @@
     </button>
 
     <template data-line-items-target="template">
-      <%= f.fields_for :pos_terminals, PosTerminal.new, child_index: "NEW_INDEX" do |pt_f| %>
+      <%= f.fields_for :pos_terminals_attributes, PosTerminal.new, index: "NEW_INDEX" do |pt_f| %>
         <%= render "pos_terminal_fields", f: pt_f %>
       <% end %>
     </template>

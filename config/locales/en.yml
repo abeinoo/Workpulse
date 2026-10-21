@@ -1254,7 +1254,6 @@ en:
       paid: "Paid / Disbursed"
       cancelled: "Cancelled"
     pay: "Mark as Paid"
-    mark_all_paid: "Mark All Paid"
     bulk:
       toolbar_label: "Bulk advance actions"
       selected: "selected"
@@ -2179,6 +2178,8 @@ en:
         rejected_no_assignment: "Rejected — no shift"
         rejected_spam: "Rejected — duplicate"
         rejected_not_allowed: "Rejected — not allowed"
+        rejected_stale_timestamp: "Rejected — timestamp outside window"
+        rejected_payroll_locked: "Rejected — payroll period locked"
         error: "Error"
       back: "Back to Logs"
     dashboard:
@@ -3112,7 +3113,8 @@ en:
       no_shift_assignment: "No active shift assignment for this work date."
       employee_not_found: "Employee not found."
       invalid_timestamp: "Invalid or missing timestamp."
-      stale_timestamp: "Timestamp is outside the accepted 24-hour window."
+      stale_timestamp: "Timestamp is outside the accepted window (up to 7 days in the past and 5 minutes in the future)."
+      payroll_locked: "This punch falls in a finalized or paid payroll period and was not recorded."
       biometric_attendance_not_allowed: "This employee is not allowed to use biometric attendance."
       mobile_attendance_not_allowed: "Your account is not allowed to use mobile attendance. Please contact your manager."
     attendance:
@@ -3146,6 +3148,10 @@ en:
     employee_created: "Employee created successfully."
     employee_updated: "Employee updated successfully."
     employee_removed: "Employee removed."
+    employee_delete_refused:
+      has_history: "%{name} has linked history (attendance, payroll, salary, advances, requests, obligations, insurance, performance or custody records) and cannot be deleted. Deactivate the employee instead."
+      linked_records: "%{name} is still referenced by other records and cannot be deleted. Deactivate the employee instead."
+      audit_failed: "%{name} was not deleted: the deletion could not be recorded in the audit log."
     cannot_delete_self: "You cannot delete your own account."
     branch_created: "Branch created."
     branch_updated: "Branch updated."
@@ -3188,8 +3194,6 @@ en:
     request_rejected: "Request rejected."
     request_cancelled: "Request cancelled."
     advance_paid: "Salary advance marked as paid."
-    advances_paid_one: "1 advance marked as paid."
-    advances_paid_other: "%{count} advances marked as paid."
     bulk_pay:
       paid:
         one: "1 advance marked as paid (%{total})."
@@ -3226,7 +3230,6 @@ en:
     deduction_rejected: "Deduction rejected and reversed from net salary."
     welcome_registered: "Welcome! You have registered successfully."
     no_payroll_entry: "No payroll entry found for this period."
-    advances_partial_failure: "Some advances could not be processed: %{errors}"
     locale_updated: "Language updated."
     permission_role_created: "Permission role created."
     permission_role_updated: "Permission role updated."

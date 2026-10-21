@@ -5,7 +5,8 @@ require "rails_helper"
 #
 #   approve: Requests::Approver#approve_standard — request.update!(approved) →
 #            Payroll::PermissionApplier.call(request) → log_audit("approve")
-#            (no surrounding transaction)
+#            (no surrounding transaction at M1; since F-A7 one transaction,
+#            request row locked and re-checked first)
 #   cancel:  Requests::Canceller#cancel — in one transaction:
 #            rollback_permission (re-derives the full penalty, restores /
 #            recreates / destroys the line item) → request.update!(cancelled) →
@@ -175,12 +176,14 @@ RSpec.describe "Characterization: request permission payroll effects" do
           expect(own_line.reload).to have_attributes(original_minutes: c[:raw], permission_minutes: 1, amount: c[:amount])
         end
 
-        it "a failure inside the applier is not rescued: the request stays approved, no approve audit, payroll unchanged" do
+        # Until F-A7 the status was committed first, so the request stayed
+        # approved without its effect; approval is now one transaction.
+        it "a failure inside the applier is not rescued and rolls the approval back: still pending, no approve audit, payroll unchanged" do
           req = permission(type, c[:below_threshold])
           allow(Payroll::PermissionApplier).to receive(:call).and_raise(StandardError, "boom")
 
           expect { approve(req) }.to raise_error(StandardError, "boom")
-          expect(req.reload.status).to eq("approved")
+          expect(req.reload).to have_attributes(status: "pending", reviewed_by_id: nil)
           expect(audits(req)).to be_empty
           expect(own_line.reload.amount).to eq(c[:amount])
         end

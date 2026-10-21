@@ -120,6 +120,25 @@ RSpec.describe Requests::BulkPaymentService do
     end
   end
 
+  # F-A7: one lock order for every batch — the genuine two-connection proof is in
+  # spec/services/requests/advance_payment_concurrency_spec.rb.
+  describe ".call — lock order" do
+    let!(:r1)      { approved_advance(amount: 1_000.0) }
+    let!(:r2)      { approved_advance(amount: 2_000.0) }
+    let!(:pending) { create(:employee_request, :salary_advance, amount: 500.0, user: create(:user, business: business)) }
+    let!(:r3)      { approved_advance(amount: 3_000.0) }
+
+    it "pays a reversed selection in ascending id order, skipped reasons unchanged" do
+      result = described_class.call(requests: [ r3, pending, r2, r1 ], paid_by: accountant)
+
+      expect(result.paid).to eq([ r1, r2, r3 ])
+      expect(AuditLog.where(action: "pay").order(:id).pluck(:auditable_id)).to eq([ r1.id, r2.id, r3.id ]) # processing order
+      expect(AuditLog.find_by!(action: "bulk_pay_advances").metadata["request_ids"]).to eq([ r1.id, r2.id, r3.id ])
+      expect(result.skipped.map { |s| [ s.request, s.reason ] }).to eq([ [ pending, :not_approved ] ])
+      expect(result.total_amount).to eq(6_000.0)
+    end
+  end
+
   describe ".call — nothing payable" do
     let!(:pending) { create(:employee_request, :salary_advance, amount: 500.0, user: create(:user, business: business)) }
 

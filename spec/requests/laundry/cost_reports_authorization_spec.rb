@@ -55,6 +55,10 @@ RSpec.describe "Laundry cost reports — authorization", type: :request do
     expect(response.body).not_to include(I18n.t("laundry.reports.cost_summary.payroll_cost"))
   end
 
+  # Page access only: other_branch has no transfers here, so its name could never
+  # appear in the rows. The data-level scope (HTML, totals, CSV, out-of-scope and
+  # empty scopes, with real transfers from two branches) is pinned in
+  # spec/requests/laundry/branch_consumption_scope_spec.rb (BUG-001).
   it "lets a branch manager view branch consumption scoped to only their own managed branch" do
     manager = user_with("view_laundry_consumption_reports")
     sales_branch.update!(branch_manager_id: manager.id)

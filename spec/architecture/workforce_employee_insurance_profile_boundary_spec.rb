@@ -86,7 +86,8 @@ module ArchitectureSpecs
       },
       "app/models/user.rb" => {
         kind: "lifecycle (Organization & Access inverse association)",
-        shapes: [ /\Ahas_one\s+:employee_insurance_profile,\s+dependent: :destroy\z/ ]
+        # restrict_with_error since F-A5 (a profile refuses the user's deletion)
+        shapes: [ /\Ahas_one\s+:employee_insurance_profile,\s+dependent: :restrict_with_error\z/ ]
       },
       "app/services/payroll/entry_calculator.rb" => {
         kind: "read (Attendance & Payroll snapshots the profile onto the payroll entry — the allowed direction)",
@@ -229,8 +230,8 @@ RSpec.describe "Architecture: Workforce employee insurance profile boundary" do
   it "the Organization & Access associations stay lifecycle associations only" do
     expect(Business.reflect_on_association(:employee_insurance_profiles))
       .to have_attributes(macro: :has_many, class_name: "EmployeeInsuranceProfile", options: { dependent: :destroy })
-    expect(User.reflect_on_association(:employee_insurance_profile))
-      .to have_attributes(macro: :has_one, class_name: "EmployeeInsuranceProfile", options: { dependent: :destroy })
+    expect(User.reflect_on_association(:employee_insurance_profile)) # restrict_with_error since F-A5
+      .to have_attributes(macro: :has_one, class_name: "EmployeeInsuranceProfile", options: { dependent: :restrict_with_error })
   end
 
   describe "self-tests (planted probes)" do
@@ -291,7 +292,7 @@ RSpec.describe "Architecture: Workforce employee insurance profile boundary" do
     end
 
     it "catches a widened exception and a write from outside Workforce" do
-      plant("app/models/user.rb", "has_one  :employee_insurance_profile, dependent: :destroy\nemployee_insurance_profile.update!(insured: false)\n" \
+      plant("app/models/user.rb", "has_one  :employee_insurance_profile, dependent: :restrict_with_error\nemployee_insurance_profile.update!(insured: false)\n" \
                                   "employee_insurance_profile&.destroy\n")
       expect(boundary.profile_violations("app/models/user.rb"))
         .to eq([ "app/models/user.rb:2: employee_insurance_profile.update!(insured: false)",

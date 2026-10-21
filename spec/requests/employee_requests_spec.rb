@@ -563,4 +563,28 @@ RSpec.describe "EmployeeRequests", type: :request do
       end
     end
   end
+
+  # ──────────────────────────────────────────────────────────────
+  # Retired "Mark All Paid" (F-A3): it authorized the class with the
+  # instance-level pay? and could never run; bulk_pay is the bulk payment.
+  # ──────────────────────────────────────────────────────────────
+  describe "retired PATCH /employee_requests/mark_all_paid" do
+    it "is no longer routed" do
+      expect { Rails.application.routes.recognize_path("/employee_requests/mark_all_paid", method: :patch) }
+        .to raise_error(ActionController::RoutingError)
+      expect(Rails.application.routes.url_helpers).not_to respond_to(:mark_all_paid_employee_requests_path)
+    end
+
+    it "answers 404 to an owner and pays nothing" do
+      owner   = create(:user, :owner, business: business)
+      advance = create(:employee_request, :salary_advance, :approved, amount: 1_000.0,
+                       user: create(:user, business: business))
+      sign_in owner
+
+      expect { patch "/employee_requests/mark_all_paid" }.not_to change(Advance, :count)
+
+      expect(response).to have_http_status(:not_found)
+      expect(advance.reload).to be_approved
+    end
+  end
 end

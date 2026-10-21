@@ -15,7 +15,11 @@ module Api
     #   — or —
     #   X-Device-Token: <device_token>
     class PunchesController < BiometricBaseController
-      TIMESTAMP_TOLERANCE = 24.hours
+      # Accepted device timestamps, measured against the server's receive time
+      # (SEC-P12-1, D-T1 / D-T2): at most 7 × 24 hours of elapsed time in the past
+      # (hours, not calendar days — no DST shift) and at most 5 minutes ahead.
+      PAST_WINDOW = 168.hours
+      FUTURE_SKEW = 5.minutes
 
       def create
         employee = find_employee
@@ -24,9 +28,11 @@ module Api
         punched_at = parse_timestamp
         return render_error(I18n.t("api.punch.invalid_timestamp")) unless punched_at
 
-        # if stale_timestamp?(punched_at)
-        #   return render_error(I18n.t("api.punch.stale_timestamp"), status: :unprocessable_entity)
-        # end
+        received_at = Time.current
+        unless within_window?(punched_at, received_at)
+          log_stale_timestamp(employee, punched_at, received_at)
+          return render_error(I18n.t("api.punch.stale_timestamp"), status: :unprocessable_entity)
+        end
 
         result = Attendance::PunchService.call(
           employee:    employee,
@@ -64,8 +70,28 @@ module Api
         )
       end
 
-      def stale_timestamp?(ts)
-        ts < TIMESTAMP_TOLERANCE.ago || ts > TIMESTAMP_TOLERANCE.from_now
+      # Both bounds inclusive: exactly PAST_WINDOW old or FUTURE_SKEW ahead is accepted.
+      def within_window?(punched_at, received_at)
+        punched_at >= received_at - PAST_WINDOW && punched_at <= received_at + FUTURE_SKEW
+      end
+
+      # The refused punch is recorded for audit as rejected_stale_timestamp — a
+      # rejection (never a success), with no attendance record — in the shape
+      # Attendance::PunchService logs every other punch. The device token is a
+      # header and is not part of the payload.
+      def log_stale_timestamp(employee, punched_at, received_at)
+        BiometricPunchLog.create!(
+          business:         current_business,
+          biometric_device: current_device,
+          employee:         employee,
+          work_date:        BusinessDay.work_date_for(punched_at, context: current_business),
+          punched_at:       punched_at,
+          received_at:      received_at,
+          source:           "biometric",
+          action:           "rejected_stale_timestamp",
+          ip_address:       request.remote_ip,
+          raw_payload:      punch_params.to_h.to_json
+        )
       end
 
       def punch_params

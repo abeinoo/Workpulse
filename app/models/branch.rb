@@ -37,13 +37,11 @@ class Branch < ApplicationRecord
   has_many :custody_accounts,    dependent: :restrict_with_error
   has_many :branch_revenues,     dependent: :restrict_with_error
   has_many :pos_transactions,    dependent: :restrict_with_error
-  has_many :pos_terminals,       dependent: :restrict_with_error
-
-  # Terminal IDs are managed entirely as a nested section of the Branch form —
-  # there is no standalone Terminal configuration page. reject_if skips blank
-  # new rows (an unused "add another" row left empty) without raising.
-  accepts_nested_attributes_for :pos_terminals, allow_destroy: true,
-                                reject_if: ->(attrs) { attrs["terminal_id"].blank? }
+  # Terminal IDs (Finance & Sales) are edited as a section of the Branch form —
+  # there is no standalone Terminal configuration page. The rows are staged
+  # through the OrganizationAccess::BranchTerminalSettings contract (Pilot 12);
+  # autosave persists them in the branch's own save.
+  has_many :pos_terminals,       dependent: :restrict_with_error, autosave: true
 
   # Laundry Operations — towel ledger rows and transfers reference a branch as
   # a physical location (any branch, not only branch_type: "laundry").

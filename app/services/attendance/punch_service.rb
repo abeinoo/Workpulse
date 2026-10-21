@@ -7,6 +7,8 @@ module Attendance
   #   - Later punch than check_in     → set/update check_out (keeps latest)
   #   - Punch within SPAM_WINDOW of a previous logged punch → rejected_spam
   #   - No active shift assignment    → rejected_no_assignment
+  #   - Work date in a finalized / paid payroll period → rejected_payroll_locked
+  #   - Lost a concurrent first-punch insert → the whole punch is retried once
   class PunchService
     SPAM_WINDOW            = 60.seconds
     CHECK_IN_UPDATE_WINDOW = 1.hour
@@ -35,7 +37,46 @@ module Attendance
                           error: I18n.t("api.punch.biometric_attendance_not_allowed"))
       end
 
+      # One transaction from the payroll-period lock to the punch log (TD-T-1): the
+      # period row is held FOR SHARE until commit, so Payroll::Approver (FOR UPDATE)
+      # cannot finalize or pay between the lock check and the attendance write, and
+      # the attendance change and its log are committed together or not at all.
+      # #process returns the Result (no return across the transaction block).
+      begin
+        punch_transaction
+      rescue ActiveRecord::RecordNotUnique
+        # A concurrent first punch of the same employee and work date won the
+        # (user_id, work_date) unique index. This attempt rolled back entirely (no
+        # record, no log), so the whole punch runs once more on the committed state
+        # — period guard included — and gets the outcome it would have had if it
+        # had arrived second. A second conflict propagates (no loop).
+        punch_transaction
+      end
+    end
+
+    private
+
+    # requires_new: a real transaction when none is open (as from the API); a
+    # savepoint inside a caller's transaction, so a unique violation rolls back to
+    # it and the retry does not run inside an aborted PostgreSQL transaction.
+    def punch_transaction
+      ActiveRecord::Base.transaction(requires_new: true) { process }
+    end
+
+    # Lock order: payroll period (FOR SHARE) → attendance record → punch log — the
+    # "period first" order of Payroll::Approver, Payroll::OvertimeRecalculator and
+    # Attendance::PunchCorrectionEffects. Concurrent punches share the period lock.
+    def process
       @work_date  = BusinessDay.work_date_for(@punched_at, context: @business)
+
+      # Finalized / paid payroll is immutable: a punch whose work date belongs to
+      # a locked period changes nothing (SEC-P12-1, D-T4).
+      if payroll_locked?
+        log = record_punch!(action: "rejected_payroll_locked")
+        return Result.new(success: false, action: "rejected_payroll_locked", log: log,
+                          error: I18n.t("api.punch.payroll_locked"))
+      end
+
       @assignment = Shifts::AssignmentResolver.for(user: @employee, date: @work_date)
 
       unless @assignment
@@ -63,8 +104,6 @@ module Attendance
         perform_check_out(record)
       end
     end
-
-    private
 
     def perform_check_in(record)
       late_mins = Attendance::TimeCalculator.late_minutes(
@@ -154,10 +193,21 @@ module Attendance
       end
     end
 
+    # The canonical payroll period of the work date's calendar month (unique per
+    # business + year + month — the row Payroll::Approver locks), read FOR SHARE
+    # inside #call's transaction (TD-T-1): a finalization in progress is waited
+    # for and its committed status seen; a finalization started afterwards waits
+    # for this punch. No period yet → not locked (nothing to lock).
+    def payroll_locked?
+      PayrollPeriod.lock("FOR SHARE").find_by(
+        business: @business, period_year: @work_date.year, period_month: @work_date.month
+      )&.locked? || false
+    end
+
     def spam_punch?
       BiometricPunchLog
         .where(employee: @employee, business: @business)
-        .where.not(action: %w[rejected_no_assignment error])
+        .where.not(action: BiometricPunchLog::NOT_SPAM_ACTIONS)
         .where(punched_at: (@punched_at - SPAM_WINDOW)..(@punched_at + SPAM_WINDOW))
         .exists?
     end

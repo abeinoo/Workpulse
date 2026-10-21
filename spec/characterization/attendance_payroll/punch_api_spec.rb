@@ -64,13 +64,13 @@ RSpec.describe "Characterization: biometric punch API", type: :request do
       expect(json["message"]).to eq(I18n.t("api.punch.invalid_timestamp"))
     end
 
-    it "returns 422 stale_timestamp for a timestamp more than 24 hours ahead" do
+    it "returns 422 stale_timestamp for a timestamp 25 hours ahead (beyond the 5-minute future tolerance)" do
       punch(employee_id: "E-100", timestamp: 25.hours.from_now.iso8601)
       expect(response).to have_http_status(:unprocessable_content)
       expect(json["message"]).to eq(I18n.t("api.punch.stale_timestamp"))
     end
 
-    it "accepts a timestamp just inside the 24-hour window" do
+    it "accepts a timestamp 23 hours old (inside the 7-day window)" do
       punch(employee_id: "E-100", timestamp: 23.hours.ago.iso8601)
       expect(response).to have_http_status(:ok)
     end

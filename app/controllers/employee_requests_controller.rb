@@ -225,25 +225,6 @@ class EmployeeRequestsController < ApplicationController
     redirect_to employee_requests_path, **bulk_pay_flash(result)
   end
 
-  def mark_all_paid
-    authorize EmployeeRequest, :pay?
-
-    pending_advances = policy_scope(EmployeeRequest)
-                         .where(status: "approved")
-                         .select(&:salary_advance?)
-                         .reject { |r| r.advance.present? }
-
-    result = Requests::Approver.pay_all(requests: pending_advances, paid_by: current_user)
-
-    if result.errors.empty?
-      redirect_to employee_requests_path,
-                  notice: t("flash.advances_paid_#{result.paid_count == 1 ? 'one' : 'other'}", count: result.paid_count)
-    else
-      redirect_to employee_requests_path,
-                  alert: t("flash.advances_partial_failure", errors: result.errors.join("; "))
-    end
-  end
-
   private
 
   # Reviewer-selected final punch datetime carried back to the show page after

@@ -18,11 +18,15 @@ module Laundry
                      keyword_init: true)
     Result = Struct.new(:rows, :total_towels, :total_cost, :rate_configured, keyword_init: true)
 
-    def initialize(business, from:, to:, branch_id: nil, towel_type_id: nil)
+    # branch_ids — the viewer's data scope: nil = every branch of the business
+    # (business-scoped viewers), otherwise only these source branches ([] = none).
+    # branch_id — an optional single-branch filter, applied within that scope.
+    def initialize(business, from:, to:, branch_id: nil, towel_type_id: nil, branch_ids: nil)
       @business      = business
       @from          = from
       @to            = to
       @branch_id     = branch_id
+      @branch_ids    = branch_ids
       @towel_type_id = towel_type_id
     end
 
@@ -75,6 +79,7 @@ module Laundry
                                .where(towel_transfers: { received_at: range })
                                .where.not(confirmed_quantity: nil)
                                .includes(:towel_type, towel_transfer: [ :source_branch, :destination_branch ])
+      scope = scope.where(towel_transfers: { source_branch_id: @branch_ids }) unless @branch_ids.nil?
       scope = scope.where(towel_transfers: { source_branch_id: @branch_id }) if @branch_id.present?
       scope = scope.where(towel_type_id: @towel_type_id) if @towel_type_id.present?
 

@@ -1,0 +1,66 @@
+# Pilot 12 (Finance & Sales — POS terminals write boundary, OA → FS) — baseline failing example IDs
+# Purpose: the reference list for every Pilot 12 step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs elsewhere keep their treatment.
+# Starting point: feature/pilot-12-pos-terminals created 2026-10-20 from local main 91da561 (= the locally recorded
+#   origin/main; no fetch, remote freshness unknown), before any Pilot 12 spec or code change.
+#
+# STATUS: M0 baseline EXECUTED 2026-10-20 on feature/pilot-12-pos-terminals @ 91da561 (working tree: the M0 docs
+#   only; no code or spec change). The full suite runs again only at M8.
+#
+# Planned full-suite baseline (lazy loading, no CI env):
+#   bundle exec rspec --seed 20261006
+# Planned pilot-set runs (lazy loading), then one eager run:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/finance-sales-pos-terminals-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 12345 $(grep '^# set ' docs/architecture/finance-sales-pos-terminals-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 98765 $(grep '^# set ' docs/architecture/finance-sales-pos-terminals-baseline-failures.txt | cut -d' ' -f3)
+#   CI=1 bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/finance-sales-pos-terminals-baseline-failures.txt | cut -d' ' -f3)
+#
+# Known failing IDs expected in the full suite (outside this set; recorded as UNRESOLVED, NOT accepted behaviour —
+#   SEC-P12-1, next-pilot-selection.md §27.2; D-P12-8). Observed on 91da561 locally (seed 20261006) and in CI run
+#   39366174167; confirmed by the M0 full-suite run below.
+# TD-P12-1 (spec/system/inventory/stock_issue_import_spec.rb, failed in CI on 96cc194 :88 and bfbef9a :54, passed on
+#   91da561): cause unknown, NOT labelled flaky. It passed in the M0 full-suite run below.
+#
+# Result at M0 (2026-10-20):
+# Full suite (lazy loading, no CI env), seed 20261006: 9314 examples, 3 failures, exit 1 (21 min 58 s). Failing IDs:
+#   ./spec/characterization/attendance_payroll/punch_api_spec.rb:67            — SEC-P12-1, UNRESOLVED, not accepted
+#   ./spec/requests/api/v1/characterization/biometric_punch_spec.rb:59          — SEC-P12-1, UNRESOLVED, not accepted
+#   ./spec/system/finance/expenses_index_responsive_spec.rb:121                 — TD-P12-2, UNEXPLAINED, not flaky
+#     ("EN LTR @ 1440px: compact table fits without horizontal scrolling": `.expense-list__table` scrollWidth -
+#     clientWidth expected <= 1, got 2, at line 128). Not in any earlier baseline; it passed in CI system-test on the
+#     same commit 91da561 (run 39366174167), so it is local-only so far; cause not identified (a local browser /
+#     font difference is a hypothesis, unverified). Outside this set; not touched by Pilot 12.
+# Pilot set, lazy loading: 964 examples, 0 failures, exit 0 — identical under seeds 20261006, 12345 and 98765.
+# Pilot set, CI=1 (eager), seed 20261006: 964 examples, 0 failures, exit 0.
+# No failing ID in the set: any failure in this set during Pilot 12 is new and stops the work.
+# (A first attempt at the four set runs stored the set in a shell variable; zsh does not word-split it, so rspec got
+#   one argument and aborted before loading specs — "No examples found", exit 1. A setup error, not a result; rerun
+#   with the documented command forms above.)
+#
+# M2–M6 (2026-10-20, working tree): this set (13 entries) 1014 examples, 0 failures under seeds 20261006, 12345 and
+#   98765 (lazy) and with CI=1.
+# M8 (2026-10-20, working tree = M0 docs + M1–M6, uncommitted): full suite (lazy, no CI env), seed 20261020:
+#   9364 examples (M0 9314 + the 50 new Pilot 12 examples), 3 failures, exit 1 (22 min 7 s) — exactly the M0 IDs:
+#   punch_api_spec.rb:67 and biometric_punch_spec.rb:59 (SEC-P12-1, UNRESOLVED, not accepted) and
+#   expenses_index_responsive_spec.rb:121 (TD-P12-2, UNEXPLAINED, not flaky; same message, got 2). No new failing ID.
+#
+# set spec/requests/admin/branches_spec.rb
+# set spec/characterization/organization_access/branches_and_settings_spec.rb
+# set spec/models/branch_spec.rb
+# set spec/models/business_spec.rb
+# set spec/policies/branch_policy_spec.rb
+# set spec/models/pos_terminal_spec.rb
+# set spec/services/finance/pos_imports
+# set spec/requests/finance/pos_imports_spec.rb
+# set spec/architecture
+# set spec/requests/security
+# set spec/characterization/finance_sales/pos_terminal_branch_form_spec.rb
+# set spec/characterization/finance_sales/pos_terminal_branch_form_markup_spec.rb
+# set spec/services/organization_access/branch_terminal_settings_spec.rb
+#
+# M1 (2026-10-20, on 91da561 + the two new spec files + golden fixtures spec/fixtures/files/pos_terminal_branch_form/,
+#   recorded from the unchanged code): the M1 files 26 examples, 0 failures under seeds 20261006, 12345 and 98765 and
+#   with CI=1; the rest of the set unchanged since M0 (no application change), so its M0 result (964 / 0) stands.
+#   Probes (in memory, no file change): reject_if disabled -> 5 failures; terminal partial without data-destroy-field
+#   -> 2 markup failures.
