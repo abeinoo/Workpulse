@@ -22,7 +22,7 @@ here only so its stable ID and history are kept.
 
 | ID | Title | Domain | Priority | Evidence | Status | Review milestone |
 |---|---|---|---|---|---|---|
-| BUG-001 | Laundry branch consumption report shows every branch when no branch is chosen | Inventory & Purchasing (Laundry) | **High — critical (unauthorized access)** | Confirmed | **Escalated — immediate remediation, not deferred** | Immediately (next task) |
+| BUG-001 | Laundry branch consumption report shows every branch when no branch is chosen | Inventory & Purchasing (Laundry) | **High — critical (unauthorized access)** | Confirmed | **Resolved** (`3139cf4`, was Escalated) | — |
 | BUG-002 | Concurrent check-outs on one attendance record: last commit wins | Attendance & Payroll | Medium | Confirmed (reasoning) | Deferred | After Pilot 12 |
 | BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Suspected | Deferred | After Pilot 12 |
 | BUG-004 | Manual-entry / CSV attendance check the payroll lock without a row lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
@@ -35,13 +35,14 @@ here only so its stable ID and history are kept.
 | BUG-011 | `stock_issue_import_spec` intermittent WebDriver failure in CI | Test infrastructure | Low | Confirmed (CI runs), cause unknown | Deferred | After Pilot 12 |
 | BUG-012 | `expenses_index_responsive_spec.rb:121` fails locally by 1 px | Test infrastructure | Low | Confirmed (one local run), cause unknown | Deferred | After Pilot 12 |
 | BUG-013 | Attendance can be created / edited in a finalized payroll month | Attendance & Payroll | Low | Improvement | Open | Product decision |
+| BUG-014 | Laundry consumption report: branch picker and report scope resolve differently | Inventory & Purchasing (Laundry) | Low (usability / filter consistency) | Confirmed (code) | Open | After Pilot 12 |
 
 ---
 
 ## BUG-001 — Laundry branch consumption report shows every branch when no branch is chosen
 
-* **Source:** TD-P11-1 (`next-pilot-selection.md` §26.4). **Discovered:** 2026-10-19. **Status:** **Escalated — requires
-  immediate remediation; not a deferred issue** (open until the fix and its focused verification complete).
+* **Source:** TD-P11-1 (`next-pilot-selection.md` §26.4). **Discovered:** 2026-10-19. **Status:** **Resolved** by `3139cf4`
+  "fix: enforce branch scope in laundry consumption reports" (2026-10-21; was Escalated — immediate remediation).
 * **Domain / files:** Inventory & Purchasing (Laundry) — `app/controllers/laundry/reports/branch_consumption_controller.rb:33-42`
   (`#scoped_branch_id`, line 34), `app/services/laundry/branch_towel_consumption_report.rb:78`.
 * **Observed:** `#scoped_branch_id` returns `nil` when `branch_id` is blank, before the scope check; the report filters
@@ -58,6 +59,12 @@ here only so its stable ID and history are kept.
 * **Regression tests:** another branch's real transfers hidden for a branch-scoped viewer (HTML and CSV); owner and
   business-scoped viewer still see all; an explicit out-of-scope `branch_id` still clamped.
 * **Review milestone:** immediate — the next task, before further laundry / reporting work.
+* **Resolution:** the report takes the viewer's branch scope (`branch_ids:`; nil for owner / business scope, `[]` for
+  none) and applies it in the query; the controller resolves it once, so the page, totals and CSV share one scoped
+  result; an out-of-scope `branch_id` is still clamped to the first allowed branch. Also fixed: a viewer with no allowed
+  branch got every branch for an explicit `branch_id`. Verified by
+  `spec/requests/laundry/branch_consumption_scope_spec.rb` (10, real transfers from two branches; the original
+  controller fails 5) and the focused laundry set (181 examples, 0 failures, normal and `CI=1`, seeds 20261021 and 7).
 
 ## BUG-002 — Concurrent check-outs on one attendance record: last commit wins
 
@@ -257,3 +264,28 @@ here only so its stable ID and history are kept.
 * **Recommended fix:** decide whether locked months refuse manual create / edit (like delete) or keep allowing them.
 * **Regression tests:** depend on the decision (update the pinned adjustment examples accordingly).
 * **Review milestone:** product decision.
+
+## BUG-014 — Laundry consumption report: branch picker and report scope resolve differently
+
+* **Source:** new (found while fixing BUG-001). **Discovered:** 2026-10-21. **Status:** Open.
+* **Domain / files:** Inventory & Purchasing (Laundry) — `app/controllers/laundry/reports/branch_consumption_controller.rb`
+  (`@branches = assignable_branches`, the filter picker) vs `#allowed_branch_ids` (the report data);
+  `app/controllers/laundry/base_controller.rb` (`#assignable_branches`).
+* **Observed (code):** the picker resolves branches from the `view_towel_balances` scope (default) with
+  `include_shift_assignments: true`; the report data uses the `view_laundry_consumption_reports` scope without shift
+  assignments (the resolution it already used for explicit filters before BUG-001).
+* **Expected vs actual:** the picker should offer exactly the branches the report can show; it can list a branch whose
+  results are then clamped away (the report shows the viewer's first allowed branch instead), or omit a branch the
+  report would show. Open scope question, not a defect claim: a shift-assigned (non-manager) viewer with a `branch`
+  scope gets an empty report, while the laundry policies count shift assignments.
+* **Classification:** usability / filter-consistency issue — **not a data leak**: the report data itself is scoped
+  (BUG-001); the picker only lists branch names.
+* **Impact:** confusing or misleading filter choices for scoped viewers.
+* **Evidence:** Confirmed by code; not reported by users.
+* **Reason for deferral / prioritization:** Low — no access-control or financial impact, so not critical under the
+  policy; fixing it needs a scope-rule decision (should the report scope count shift assignments, like the laundry
+  policies?) and was outside BUG-001.
+* **Recommended fix:** decide the rule, then derive both the picker and the report from the same resolution.
+* **Regression tests:** a viewer whose two permissions resolve differently sees the same branches in the picker and the
+  report; the decided shift-assignment case.
+* **Review milestone:** after Pilot 12.
