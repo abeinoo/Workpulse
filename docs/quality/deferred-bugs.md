@@ -36,6 +36,8 @@ here only so its stable ID and history are kept.
 | BUG-012 | `expenses_index_responsive_spec.rb:121` fails locally by 1 px | Test infrastructure | Low | Confirmed (one local run), cause unknown | Deferred | After Pilot 12 |
 | BUG-013 | Attendance can be created / edited in a finalized payroll month | Attendance & Payroll | Low | Improvement | Open | Product decision |
 | BUG-014 | Laundry consumption report: branch picker and report scope resolve differently | Inventory & Purchasing (Laundry) | Low (usability / filter consistency) | Confirmed (code) | Open | After Pilot 12 |
+| BUG-015 | Goods receipt void racing approval may overwrite a decided approval status | Inventory & Purchasing | Medium (audit / status integrity; money still balances) | Confirmed (two-connection reproduction, Batch S M1) | **Resolved** (receipt row lock in `GoodsReceiptVoider#call`) | — |
+| BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (same receipt row lock) | — |
 
 ---
 
@@ -289,3 +291,69 @@ here only so its stable ID and history are kept.
 * **Regression tests:** a viewer whose two permissions resolve differently sees the same branches in the picker and the
   report; the decided shift-assignment case.
 * **Review milestone:** after Pilot 12.
+
+## BUG-015 — Goods receipt void racing approval may overwrite a decided approval status
+
+* **Source:** new (Batch S M0 inventory, `docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt`). **Discovered:** 2026-10-21. **Status:** **Resolved**
+  (2026-10-21) by a separately approved fix on `batch-s/goods-receipt-payments`: `GoodsReceiptVoider#call` locks and
+  reloads the receipt (`@receipt.lock!`) first inside its transaction. Was: recorded as suspected at Batch S M0, then
+  reproduced at M1.
+* **Domain / files:** Inventory & Purchasing — `app/services/inventory/goods_receipt_voider.rb` (`#call`,
+  `#void_unconfirmed!`, `#cancel_undecided_approval!`), against `app/services/inventory/goods_receipt_approval.rb`
+  (`#approve!`, `receipt.with_lock`).
+* **Observed (code):** the voider takes no explicit lock on the receipt; it checks `voided?` and reads
+  `approval_status` from an unlocked load. Its first `update!` waits on the approval's row lock, then
+  `cancel_undecided_approval!` uses the stale in-memory `pending_approval` and writes `approval_status: "cancelled"`.
+* **Expected vs actual (suspected):** a decided approval is kept as history (the voider's own comment); if the void
+  commits after a concurrent approval, the receipt could read voided + cancelled although it was approved. Its
+  `reverse_all` runs after the approval committed and reverses the new payment, so the money balances.
+* **Impact:** approval history / status integrity; the void audit records a false `pending_approval → cancelled`
+  transition for an approved receipt.
+* **Evidence:** reproduced deterministically by
+  `spec/characterization/inventory_purchasing/goods_receipt_payments_concurrency_spec.rb` ("approval first, void
+  second"; two connections, queue handshake, no sleeps) under seeds 20261006, 12345, 98765 and CI=1: the approval
+  commits (`approve` audit `pending_approval → approved`, one 250.00 custody settlement); the void, which waited on the
+  receipt row, then writes `approval_status: "cancelled"` and audits `void` with `approval_status
+  ["pending_approval", "cancelled"]` — a transition that never happened. Money balances: the payment is reversed with a
+  custody credit and the cached balance equals the ledger (1,000.00). The example asserts the safe invariant (status
+  kept as `approved`) and therefore failed until fixed.
+* **Resolution evidence:** with the lock the void waits on the receipt row `FOR UPDATE`, reloads it after the approval
+  commits and keeps `approved` (it voids the receipt and reverses the payment, audit `void` without an approval
+  change); the same example passes unchanged under seeds 20261006, 12345, 98765 and CI=1. Lock order for every
+  goods-receipt path is now receipt first (approval, confirmation, later settlement, single reversal, void).
+* **Reason for deferral / prioritization (at M0):** not shown to occur; Batch S is a behaviour-preserving refactor (a
+  lock is a behaviour change needing its own approval). Superseded by the reproduction and the approved fix.
+* **Recommended fix:** lock the receipt (`@receipt.lock!`, reloading it) at the start of the void transaction and
+  re-check `voided?` / `approval_status` under the lock — the order the other goods-receipt paths use.
+* **Regression tests:** two-connection approve vs void in both orders: the receipt ends either approved-then-voided with
+  its approval status kept, or voided with the approval refused.
+* **Review milestone (at M0):** after Batch S — closed by the fix.
+
+## BUG-016 — Concurrent voids of a confirmed goods receipt may reverse its stock twice
+
+* **Source:** new (Batch S M0). **Discovered:** 2026-10-21. **Status:** **Resolved** (2026-10-21) by the
+  BUG-015 fix (same receipt row lock). Was: suspected at Batch S M0, then reproduced.
+* **Domain / files:** Inventory & Purchasing — `app/services/inventory/goods_receipt_voider.rb`,
+  `app/services/inventory/document_voider.rb` (`#call`).
+* **Observed (code):** `DocumentVoider` checks `voided?` on an unlocked load and inserts the reversal
+  `inventory_movements` before its `update!`; nothing locks the receipt first. Two concurrent voids could both pass the
+  guard and both commit their reversal movements (the second `update!` waits, then succeeds).
+* **Expected vs actual (suspected):** one stock reversal per receipt; possibly two, with a second `void` audit and an
+  overwritten `voided_at`. Settlements are not affected: `reverse_all` reads only unreversed originals and the unique
+  index on `reverses_settlement_id` blocks a second reversal.
+* **Impact:** stock quantities and moving-average cost of the receipt's products.
+* **Evidence:** reproduced on the unchanged code by `spec/services/inventory/goods_receipt_void_concurrency_spec.rb`
+  (two connections, queue handshake, no sleeps): both voids succeeded — a confirmed 10-unit receipt got two stock
+  reversals (on-hand 0 → **−10**), two `void` audits and an overwritten `voided_by`; settlements and custody were
+  already single (500 / −500, balance 1,000). With the receipt row lock the second void waits, reloads the receipt and
+  is refused (`has already been voided`): one reversal, on-hand 0, average cost 0, one audit — both examples
+  (confirmed and approved-unconfirmed) pass under seeds 20261006, 12345, 98765 and CI=1. `DocumentVoider` itself is
+  unchanged; the receipt is locked by its caller, `GoodsReceiptVoider` (stock issues, stock transfers and stock adjustments,
+  which call `DocumentVoider` directly from their controllers, were not examined — follow-up work).
+* **Reason for deferral / prioritization (at M0):** not shown to occur; outside the payment boundary of Batch S.
+  Superseded by the reproduction and the BUG-015 fix.
+* **Recommended fix:** lock the document row before the `voided?` guard in `DocumentVoider` (and in the goods-receipt
+  voider), so the second void sees it voided and is refused.
+* **Regression tests:** two-connection double void of a confirmed receipt → one set of reversal movements, the second
+  void refused with `already_voided`.
+* **Review milestone (at M0):** after Batch S — closed by the fix.

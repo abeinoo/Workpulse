@@ -15,6 +15,9 @@ module Inventory
   #     account (no CashAccount/BankAccount model exists — no balance moves).
   #   - supplier_credit: nothing — the receipt stays pending_settlement and is
   #     paid off later through Inventory::GoodsReceiptSettlementRecorder.
+  # Those settlement and custody rows are written by Finance & Sales through
+  # Inventory::GoodsReceiptPaymentEffects (Batch S), inside this transaction;
+  # the receipt, its lock, its audit and the advance arithmetic stay here.
   #
   # A receipt created from a Purchase Request first consumes that request's
   # unapplied confirmed ADVANCES (Inventory::PurchaseRequestAdvanceAllocator,
@@ -64,10 +67,9 @@ module Inventory
         allocator = Inventory::PurchaseRequestAdvanceAllocator.new(receipt)
         amount_due = allocator.amount_due
 
-        account = nil
-        if receipt.employee_custody_funded?
-          account = receipt.funding_source
-          return no_active_custody_error unless account.is_a?(CustodyAccount) && account.active?
+        if receipt.employee_custody_funded? &&
+           !Inventory::GoodsReceiptPaymentEffects.custody_account_active?(receipt: receipt)
+          return no_active_custody_error
         end
 
         transition(from: "pending_approval", to: "approved", action: "approve",
@@ -75,8 +77,10 @@ module Inventory
           receipt.decided_by = @actor
           receipt.decided_at = Time.current
           allocator.apply!(actor: @actor)
-          post_custody_deduction(account, amount_due) if account && amount_due.positive?
-          post_accountless_payment(amount_due) if receipt.accountless_payment_funded?
+          # The amount due after advances, paid from the receipt's funding by
+          # Finance & Sales (custody debit / cash / bank; nothing for supplier
+          # credit or zero) — inside this savepoint, so it rolls back with it.
+          Inventory::GoodsReceiptPaymentEffects.approval_payment(receipt: receipt, amount: amount_due, actor: @actor)
         end
       end
     end
@@ -127,50 +131,6 @@ module Inventory
     def no_active_custody_error
       Result.new(ok: false, receipt: receipt,
                 error: I18n.t("inventory.goods_receipts.errors.no_active_custody_account"))
-    end
-
-    # Creates the FinancialSettlement + linked CustodyTransaction and deducts
-    # the account balance. Called from inside the approval transaction — the
-    # financial event happens exactly once, at approval, never at confirmation.
-    def post_custody_deduction(account, amount)
-      # Serializes writes to the account's cached balance (never a limit).
-      account.lock!
-      settlement_result = FinancialSettlementService.create(
-        settleable:     receipt,
-        funding_source: account,
-        amount:         amount,
-        actor:          @actor,
-        notes:          I18n.t("finance.custody.inventory_purchase_note", reference: receipt.receipt_number)
-      )
-      raise ActiveRecord::RecordInvalid, settlement_result.settlement unless settlement_result.ok?
-
-      account.custody_transactions.create!(
-        business:             account.business,
-        txn_type:             "inventory_purchase",
-        amount:               -amount,
-        source:               receipt,
-        financial_settlement: settlement_result.settlement,
-        created_by:           @actor,
-        notes:                I18n.t("finance.custody.inventory_purchase_note", reference: receipt.receipt_number)
-      )
-      account.refresh_balance!
-    end
-
-    # Company cash / bank: the full amount is paid at approval. Same ledger
-    # (FinancialSettlementService) and the same reversal path on void as every
-    # other settlement; source_kind records where the money came from.
-    def post_accountless_payment(amount)
-      return unless amount.positive?
-
-      result = FinancialSettlementService.create(
-        settleable:  receipt,
-        source_kind: receipt.funding_source_kind,
-        reference:   receipt.receipt_number,
-        amount:      amount,
-        actor:       @actor,
-        notes:       I18n.t("finance.custody.inventory_purchase_note", reference: receipt.receipt_number)
-      )
-      raise ActiveRecord::RecordInvalid, result.settlement unless result.ok?
     end
 
     def advance_metadata(allocator, amount_due)

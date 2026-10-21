@@ -6244,3 +6244,126 @@ still reads "of your monthly salary"; every on-behalf 422 re-render records anot
 the check-in lookback counts from `Date.current`. The check-in query's `where.not(check_in_at: nil)` is not pinned
 (`attendance_records.check_in_at` is NOT NULL). No WF → AP edge remains open in `module-boundaries.md` §12.2; the
 remaining references are classified exceptions (Batch A's `request.advance` reads; the helper badge above).
+
+---
+
+## 38. Batch S — Inventory & Purchasing → Finance & Sales goods-receipt payment writes (§14.2 #6, write half)
+
+**Status (2026-10-21): M0, M1, M2, M3, M4, M6 and M8 COMPLETE; Batch S itself is not yet merged** — on
+`batch-s/goods-receipt-payments` (created from `251a69b`, the tip of `batch-v/request-validation-reads-2`, which was then
+stacked on `origin/main` `bc6682b`): the BUG-015 / BUG-016 fix `3f16e92`, M1 `981fc8b`, M2 `26f8192`, M3 `78a0c7d`, M4
+`64f1f22`, M6 `165ebd1`, M8 documentation `731584b`. Since then Batch V merged into `main` (PR #58, `872e55f`) and the
+Pilot 12 close-out (PR #59, `17fbcce`); this branch merged that `main` in `0d7a347` (no conflict) and is proposed for
+review as its own PR. M5 not needed (no business rule left in a controller), M7 not applicable.
+No schema, migration, route, permission, dependency or API change. Baseline and step results:
+`docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt`.
+
+**Decisions (approved 2026-10-21):** D-S1 — a synchronous, in-process contract inside the caller's transaction; the
+documented `goods_receipt.*` event target (`module-boundaries.md` §14.2 #6) is deferred. D-S2 — scope: settlements
+whose settleable is a `GoodsReceipt`; Purchase Request advance deposits and their reversals are deferred to **S2**.
+D-S3 — the financial decision reads of the migrated write paths move behind the contract with the writes; the receipt
+lifecycle, its locks, its audits, `Settleable` and the advance-allocation arithmetic (with its advance reads) stay in
+Inventory & Purchasing. D-S4 — the void lock (BUG-015 / BUG-016) fixed first, as its own approved commit.
+
+### 38.1 Inventory (M0)
+
+Direct Finance & Sales writes in Inventory code, all in scope:
+
+| Service | Writes before Batch S |
+|---|---|
+| `GoodsReceiptApproval#approve!` | custody: `FinancialSettlementService.create` + `inventory_purchase` debit + `refresh_balance!`; company cash / bank: an accountless settlement (reference = receipt number); advance application through `PurchaseRequestAdvanceAllocator#apply!` (one settlement per allocation, funded by the advance) |
+| `GoodsReceiptSettlementRecorder` | a later settlement (the actor's own active custody account, or none) + debit + refresh |
+| `GoodsReceiptSettlementReverser` | `FinancialSettlementService.reverse` + `inventory_purchase_reversal` credit + refresh |
+| `GoodsReceiptVoider` | `FinancialSettlementService.reverse_all` + one credit per custody reversal + refresh |
+
+No other Inventory → Finance & Sales write exists except `PurchaseRequestAdvanceWorkflow` (S2). Lock order: approval
+receipt → purchase request → custody account (inside the `requires_new` savepoint); later settlement receipt →
+account; single reversal receipt → settlement row → account; void — **no receipt lock** (BUG-015 / BUG-016, §38.2).
+
+### 38.2 BUG-015 / BUG-016 (fixed first, `3f16e92`)
+
+The M1 two-connection characterization reproduced BUG-015: a void waiting on the receipt row overwrote a concurrent
+approval's `approved` with `cancelled` and audited a transition that never happened (money balanced). A dedicated
+two-connection spec reproduced BUG-016 on the unchanged code: two concurrent voids of a confirmed receipt both
+succeeded — two stock reversals (on-hand −10), two void audits, `voided_by` overwritten. Fix: `GoodsReceiptVoider#call`
+locks and reloads the receipt (`@receipt.lock!`) first in its transaction, so every void path decides on the current
+row and every goods-receipt path now locks the receipt first. Both regressions pass under three seeds and `CI=1`
+(`docs/quality/deferred-bugs.md`). **Not examined:** stock issues, stock transfers and stock adjustments call
+`Inventory::DocumentVoider` directly from their controllers without a row lock and may carry the same double-void risk
+— follow-up work, unchanged here.
+
+### 38.3 Contract and implementation (M2, M3)
+
+**`Inventory::GoodsReceiptPaymentEffects`** (`app/services/inventory/goods_receipt_payment_effects.rb`, Inventory &
+Purchasing): register / handler / `NotRegistered` and result checks as the other contracts; it names nothing from
+Finance & Sales.
+
+| Operation | Returns | Used by |
+|---|---|---|
+| `custody_account_active?(receipt:)` | `true` / `false` | approval guard |
+| `approval_payment(receipt:, amount:, actor:)` | `nil` — custody debit / cash / bank by the receipt's funding; nothing for supplier credit or zero | approval (in the savepoint) |
+| `advance_applied(receipt:, advance:, amount:, actor:, reference:, notes:)` | `nil` | allocator `apply!` |
+| `payment_source_kind?(source_kind)` | `true` / `false` | later settlement |
+| `payer_custody_account_id(actor:)` | `Integer` or `nil` (the actor's own active account) | later settlement |
+| `record_settlement(receipt:, actor:, source_kind:, custody_account_id:, amount:, reference:, notes:, settled_at:)` | `Payment` (settlement, settlement_id, reference, custody_account_id, employee_id) | later settlement |
+| `reverse_settlement(receipt:, settlement_id:, actor:, reason:)` | `Reversal` (`:reversed` / `:already_reversed` / `:advance_application`, with the original's id, amount, source kind, funding source id and the reversal id); `RecordNotFound` for another receipt's settlement | single reversal |
+| `reverse_all(receipt:, actor:, notes:)` | `nil` | void |
+
+The settlement record is returned opaquely in `Payment` / `Reversal` for the services' existing `Result.settlement`;
+Inventory reads only the scalar fields (its audits). **`Finance::GoodsReceiptPaymentEffects`**
+(`app/services/finance/goods_receipt_payment_effects.rb`), registered in
+`config/initializers/goods_receipt_payment_effects.rb` (`to_prepare`): each operation is the code it replaces —
+`FinancialSettlementService` calls, `CustodyTransaction` rows and `finance.custody.*` notes, the custody-account lock
+(`lock!` / `with_lock`), `refresh_balance!`, the settlement row lock and the reversal predicates. It runs inside the
+caller's transaction and opens none of its own; a failed write raises `ActiveRecord::RecordInvalid` as before.
+
+### 38.4 Migration (M4)
+
+`GoodsReceiptApproval` calls `custody_account_active?` before the transition and `approval_payment` inside the
+`requires_new` savepoint after the advance applications; the allocator's `apply!` calls `advance_applied` per allocation
+(its arithmetic and note stay); the recorder calls `payment_source_kind?` and `payer_custody_account_id` before its
+transaction and `record_settlement` after the receipt lock and remaining-amount checks; the reverser calls
+`reverse_settlement` after the receipt lock and voided guard (the refusal messages stay in Inventory); the voider
+calls `reverse_all` after its receipt lock. Lock order, transactions, savepoints, rows, amounts, signs, notes,
+balances, audit metadata, messages and results are unchanged — the M1 characterization passes unmodified.
+
+### 38.5 Tests
+
+| Spec | Examples | What |
+|---|---|---|
+| `spec/characterization/inventory_purchasing/goods_receipt_payments_spec.rb` (M1) | 31 | Every settlement / custody field, balance, receipt state and audit for each path; refusals; failure injection at each later write |
+| `spec/characterization/inventory_purchasing/goods_receipt_payments_concurrency_spec.rb` (M1, with the fix) | 3 | Two connections: void vs approval in both orders (BUG-015), approval vs reversal on one custody account |
+| `spec/services/inventory/goods_receipt_void_concurrency_spec.rb` (fix) | 2 | Two connections: double void of a confirmed and of an unconfirmed receipt (BUG-016) |
+| `spec/services/inventory/goods_receipt_payment_effects_spec.rb` (M2) | 11 | Operations, value objects, registration (incl. boot), `NotRegistered`, dispatch, result checks, no Finance & Sales name |
+| `spec/services/finance/goods_receipt_payment_effects_spec.rb` (M3) | 15 | Each operation through the contract against the M1 fields |
+| `spec/architecture/inventory_finance_goods_receipt_payment_boundary_spec.rb` (M6) | 13 | No ledger write from Inventory outside the S2 workflow (frozen, 6 lines); the migrated files name nothing from Finance & Sales and call exactly their operations; 13 classified read files frozen; contract / implementation / composition-root rules; self-tests. Probe: a planted `FinancialSettlementService` call in the voider fails 3 rules |
+
+### 38.6 Verification
+
+| Run | Result |
+|---|---|
+| M0 baseline — 18-entry focused set, seeds 20261006 / 12345 / 98765 and `CI=1`; goods-receipt / advance system specs (9) | 602 examples, 0 failures each; system 54 / 0 |
+| M1 — both characterization specs, three seeds and `CI=1` | 34 examples, 1 failure each (BUG-015 reproduced) — 0 after the fix |
+| After the fix (`3f16e92`) — set + `spec/characterization/inventory_purchasing` + the BUG-016 spec | 756 examples, 0 failures each |
+| After M4 — the same + the contract and adapter specs | 782 examples, 0 failures each |
+| `spec/architecture` after M6, three seeds and `CI=1` | 378 examples, 0 failures each |
+| **Final (M8)** — the set + `spec/characterization/inventory_purchasing` + the BUG-016, contract and adapter specs, seeds 20261006 / 12345 / 98765 and `CI=1` | **795 examples, 0 failures each** |
+| **Final (M8)** — goods-receipt / advance system specs (9), seed 20261006 | **54 examples, 0 failures** |
+| `zeitwerk:check` | All is good |
+| RuboCop on the 14 changed / new Ruby files | no offenses |
+| `git diff --check` | clean |
+
+The full suite was not run (not authorized for this batch). `Gemfile.lock`, `db/schema.rb` and routes unchanged.
+
+### 38.7 Not changed / follow-up
+
+* **S2:** Purchase Request advance deposits and reversals (`PurchaseRequestAdvanceWorkflow` — 6 ledger write lines,
+  frozen; `PurchaseRequestAdvanceRecorder` — custody account choice) still write / read Finance & Sales directly.
+* **Classified reads** (frozen per file by the M6 spec): `GoodsReceipt` (`FUNDING_SOURCE_TYPES`, accountless kinds),
+  `PurchaseRequest` (advance and payment totals), `PurchaseRequestAdvance` (`SOURCE_KINDS`), `CustodyPaymentPreview`,
+  `GoodsReceiptDraftService` (own-custody funding default), the goods-receipt and settlement controllers' account
+  previews and preloads, the purchase-request and advance controllers, the settlement form's source options and the
+  receipt page's custody display.
+* **Stock-document voids:** the possible double-void risk of stock issues, transfers and adjustments
+  (`DocumentVoider` callers without a row lock) is uninvestigated — follow-up, not fixed here.
+* The event target of §14.2 #6 (`goods_receipt.*`) is deferred, not rejected.

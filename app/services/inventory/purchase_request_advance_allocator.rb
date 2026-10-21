@@ -59,17 +59,16 @@ module Inventory
     # total applied. Must run inside the approval transaction.
     def apply!(actor:)
       allocations.each do |allocation|
-        result = FinancialSettlementService.create(
-          settleable:     @receipt,
-          funding_source: allocation.advance,
-          source_kind:    FinancialSettlement::ADVANCE_APPLICATION_KIND,
-          reference:      @receipt.purchase_request.request_number,
-          amount:         allocation.amount,
-          actor:          actor,
-          notes:          I18n.t("inventory.purchase_request_advances.application_note",
-                                 advance: allocation.advance.id, reference: @receipt.purchase_request.request_number)
+        # The settlement row is Finance & Sales' (Inventory::GoodsReceiptPaymentEffects).
+        Inventory::GoodsReceiptPaymentEffects.advance_applied(
+          receipt:   @receipt,
+          advance:   allocation.advance,
+          amount:    allocation.amount,
+          actor:     actor,
+          reference: @receipt.purchase_request.request_number,
+          notes:     I18n.t("inventory.purchase_request_advances.application_note",
+                            advance: allocation.advance.id, reference: @receipt.purchase_request.request_number)
         )
-        raise ActiveRecord::RecordInvalid, result.settlement unless result.ok?
       end
       applied_total
     end
