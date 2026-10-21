@@ -1,0 +1,40 @@
+# F2 (Workforce → Attendance & Payroll attendance reads behind shift-assignment deletion, module-boundaries.md §13
+#   cycle F2; next-pilot-selection.md Milestone 2 §3.3 DS-4) — baseline failing example IDs
+# Purpose: the reference list for every F2 step; failing IDs compared by exact ID, never by count; any ID not listed
+#   stops the work. Contents are not edited to absorb new failures.
+# Starting point: migration/f2-shift-assignment-attendance, created 2026-10-22 from migration/dependency-inventory
+#   2120dbe (stacked on S2 5060779, on local main ec8ae59; no fetch made). BUG-017 (PR #61) not included.
+#
+# Design (module-boundaries.md §12.1 inversion rule, §18 rule 5; Batch V / Pilot 10 shape): Workforce defines the read
+#   contract Shifts::AttendanceUsage; Attendance & Payroll implements it (Attendance::ShiftAssignmentUsage), registered
+#   at boot. The index keeps one EXISTS column (identical SQL); the model keeps its per-call query and memoization.
+#
+# Commands (zsh: use ${=set}; bash: $set):
+#   set=$(grep '^# set ' docs/architecture/workforce-shift-assignment-attendance-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 20261006 ${=set}   (also 12345, 98765, and CI=1 with 20261006)
+# Result at M0 (2026-10-22, on 2120dbe, working tree: this file only; the M1 spec moved aside for the run):
+#   seeds 20261006 / 12345 / 98765 and CI=1 (20261006): 1401 examples, 0 failures each, exit 0.
+# No failing ID in the set: any failure in this set during F2 is new and stops the work.
+#
+# M1 (recorded against unchanged code; inside the spec/characterization/workforce entry from now on):
+#   spec/characterization/workforce/shift_assignment_attendance_usage_spec.rb (9): has_attendance_records? /
+#   deletable? results and query counts (false re-queries each call — only true is memoized), a soft-deleted
+#   attendance record still counts, a preloaded has_attendance attribute is read without a query; the index selects
+#   one EXISTS column with the exact SQL and runs exactly one attendance query for one or three rows (data-deletable
+#   per row); destroy refused (policy → root, not_authorized) with attendance; bulk delete removes only deletable rows,
+#   one EXISTS query per candidate. Seeds 20261006 / 12345 / 98765 and CI=1: 9 / 0 each.
+#   Observation (not F2): the index's total query count grows by ~4 per row for reasons unrelated to attendance (pinned
+#   only for attendance; not investigated here).
+#
+# set spec/models/shift_assignment_spec.rb
+# set spec/models/attendance_record_spec.rb
+# set spec/policies/shift_assignment_policy_spec.rb
+# set spec/services/shifts
+# set spec/services/scheduling
+# set spec/services/attendance
+# set spec/requests/shift_assignments_spec.rb
+# set spec/requests/attendance_records_spec.rb
+# set spec/requests/employee_request_attendance_window_spec.rb
+# set spec/requests/till_handovers_historical_shift_assignment_spec.rb
+# set spec/characterization/workforce
+# set spec/architecture
