@@ -25,6 +25,17 @@
 #   one EXISTS query per candidate. Seeds 20261006 / 12345 / 98765 and CI=1: 9 / 0 each.
 #   Observation (not F2): the index's total query count grows by ~4 per row for reasons unrelated to attendance (pinned
 #   only for attendance; not investigated here).
+# M2–M4 + M6 (one implementation commit): Shifts::AttendanceUsage + spec (7), Attendance::ShiftAssignmentUsage + spec
+#   (3), config/initializers/shift_attendance_usage.rb; ShiftAssignment#has_attendance_records? and the index select
+#   routed; spec/architecture/workforce_shift_scheduling_boundary_spec.rb (8). The M1 characterization unmodified.
+#   Real probe: the raw EXISTS … attendance_records put back in the controller → 2 failures (rules 2, 3); restored.
+# M8 (final, 2026-10-22): the set below (the new specs are inside its directory entries):
+#   seed 20261006: 1428 examples, 0 failures, exit 0
+#   seed 12345:    1428 examples, 0 failures, exit 0
+#   seed 98765:    1428 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 1428 examples, 0 failures, exit 0
+#   zeitwerk:check clean; RuboCop on the 8 changed / new Ruby files no offenses; git diff --check clean.
+#   Full suite not run (not a designated milestone). No failing ID at any step.
 #
 # set spec/models/shift_assignment_spec.rb
 # set spec/models/attendance_record_spec.rb
