@@ -51,6 +51,27 @@
 #   This set + spec/characterization/inventory_purchasing + that spec, seeds 20261006 / 12345 / 98765 and CI=1:
 #   756 examples, 0 failures each. No failing ID in the set.
 #
+# M2 (commit 26f8192): contract Inventory::GoodsReceiptPaymentEffects + spec/services/inventory/goods_receipt_payment_effects_spec.rb
+#   (10 at M2; 11 with the boot registration check added in M3) — 10 / 0 under the three seeds and CI=1; spec/architecture
+#   365 / 0; zeitwerk:check clean. Passes on its own (no implementation needed).
+# M3 (commit 78a0c7d): Finance::GoodsReceiptPaymentEffects, config/initializers/goods_receipt_payment_effects.rb,
+#   spec/services/finance/goods_receipt_payment_effects_spec.rb (15). Contract + adapter + both characterization specs:
+#   60 examples, 0 failures under the three seeds and CI=1; spec/architecture 365 / 0. No call site changed.
+# M4 (commit 64f1f22): the four goods-receipt services and PurchaseRequestAdvanceAllocator#apply! migrated; the M1
+#   characterization unmodified. Set + spec/characterization/inventory_purchasing + the BUG-016 spec + contract +
+#   adapter: 782 examples, 0 failures under the three seeds and CI=1.
+# M6 (commit 165ebd1): spec/architecture/inventory_finance_goods_receipt_payment_boundary_spec.rb (13, inside the
+#   spec/architecture entry). spec/architecture 378 / 0 under the three seeds and CI=1. Probe: a planted
+#   FinancialSettlementService call in GoodsReceiptVoider → 3 failures (rules 1, 2, 3); file restored.
+# M8 (final, 2026-10-21): the M4 command set (now with the boundary spec):
+#   seed 20261006: 795 examples, 0 failures, exit 0
+#   seed 12345:    795 examples, 0 failures, exit 0
+#   seed 98765:    795 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 795 examples, 0 failures, exit 0
+#   System specs (9 files), seed 20261006: 54 examples, 0 failures, exit 0
+#   zeitwerk:check clean; RuboCop on the 14 changed / new Ruby files no offenses; git diff --check clean.
+#   Full suite not run (not authorized). No failing ID at any step; the M0 baseline stands.
+#
 # set spec/services/inventory/goods_receipt_approval_spec.rb
 # set spec/services/inventory/goods_receipt_settlement_recorder_spec.rb
 # set spec/services/inventory/goods_receipt_settlement_reverser_spec.rb
