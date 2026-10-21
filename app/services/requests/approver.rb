@@ -86,20 +86,32 @@ module Requests
       return err("Request is already #{@request.status}") unless @request.pending?
       return err(Approvals::SelfApproval.error_message) if self_approval?
 
-      @request.update!(
-        status:        "rejected",
-        reviewed_by:   @reviewed_by,
-        reviewed_at:   Time.current,
-        response_note: @response_note
-      )
+      state_error = nil
 
-      log_audit(
-        actor:     @reviewed_by,
-        auditable: @request,
-        action:    "reject",
-        changes:   { status: ["pending", "rejected"] },
-        metadata:  { request_type: @request.request_type, response_note: @response_note }
-      )
+      ActiveRecord::Base.transaction do
+        # Request row first, then re-check on the committed state (F-A7): an
+        # approval, rejection or cancellation committed since this copy was
+        # loaded wins instead of being overwritten.
+        state_error = locked_state_error
+        raise ActiveRecord::Rollback if state_error
+
+        @request.update!(
+          status:        "rejected",
+          reviewed_by:   @reviewed_by,
+          reviewed_at:   Time.current,
+          response_note: @response_note
+        )
+
+        log_audit(
+          actor:     @reviewed_by,
+          auditable: @request,
+          action:    "reject",
+          changes:   { status: ["pending", "rejected"] },
+          metadata:  { request_type: @request.request_type, response_note: @response_note }
+        )
+      end
+
+      return err(state_error) if state_error
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
@@ -147,24 +159,37 @@ module Requests
 
     private
 
+    # One transaction, request row first (F-A7): lock and re-check on the
+    # committed state, then the status, the permission's payroll effect and the
+    # audit — committed together or not at all (lock order: request → payroll
+    # entry / line items).
     def approve_standard
-      @request.update!(
-        status:        "approved",
-        reviewed_by:   @reviewed_by,
-        reviewed_at:   Time.current,
-        response_note: @response_note
-      )
+      state_error = nil
 
-      # The permission's payroll effect, through the Workforce contract (Pilot 9 M3).
-      Requests::PermissionPayrollEffects.permission_approved(request: @request)
+      ActiveRecord::Base.transaction do
+        state_error = locked_state_error
+        raise ActiveRecord::Rollback if state_error
 
-      log_audit(
-        actor:     @reviewed_by,
-        auditable: @request,
-        action:    "approve",
-        changes:   { status: ["pending", "approved"] },
-        metadata:  { request_type: @request.request_type, response_note: @response_note }
-      )
+        @request.update!(
+          status:        "approved",
+          reviewed_by:   @reviewed_by,
+          reviewed_at:   Time.current,
+          response_note: @response_note
+        )
+
+        # The permission's payroll effect, through the Workforce contract (Pilot 9 M3).
+        Requests::PermissionPayrollEffects.permission_approved(request: @request)
+
+        log_audit(
+          actor:     @reviewed_by,
+          auditable: @request,
+          action:    "approve",
+          changes:   { status: ["pending", "approved"] },
+          metadata:  { request_type: @request.request_type, response_note: @response_note }
+        )
+      end
+
+      return err(state_error) if state_error
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e
@@ -244,8 +269,8 @@ module Requests
       self.class.parse_approved_at(@approved_at, business: @request.user.business)
     end
 
-    # Locks and reloads the request, then repeats approve's own checks on the
-    # committed state; nil when it may still be approved.
+    # Locks and reloads the request, then repeats approve's / reject's own checks
+    # on the committed state; nil when it may still be reviewed.
     def locked_state_error
       @request.lock!
       return "Request is already #{@request.status}" unless @request.pending?

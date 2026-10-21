@@ -18,7 +18,9 @@ require "rails_helper"
 # Not transactional (the other connection must see committed rows): every
 # example refuses to start unless the test database is empty and truncates every
 # table afterwards — the harness of spec/services/attendance/punch_period_lock_spec.rb.
-# Opposite-order bulk batches (a deadlock, F-A7) are deliberately not covered.
+# Also covered: opposite-order bulk batches (F-A7 deadlock, ascending-id locking)
+# and approve / reject / cancel racing on one request (F-A7 state transitions,
+# "request state transitions" below).
 RSpec.describe "Salary advance payment concurrency (two connections, F-A2)" do
   self.use_transactional_tests = false
 
@@ -312,5 +314,141 @@ RSpec.describe "Salary advance payment concurrency (two connections, F-A2)" do
 
     expect(bulk_audits.map { |log| [ log.actor_id, log.metadata["request_ids"] ] })
       .to contain_exactly([ accountant.id, [ r1.id, r2.id ] ], [ other_payer.id, [ r3.id ] ])
+  end
+
+  # F-A7 — approve / reject / cancel of one request on two connections. Every
+  # transition locks the request row first and re-checks the committed state, so
+  # the second waits on the row lock (observed in pg_stat_activity) and is then
+  # refused with the existing message instead of overwriting the first.
+  describe "request state transitions" do
+    let(:employee)   { create(:user, business: business) }
+    let(:reviewer_a) { create(:user, :branch_manager, business: business) }
+    let(:reviewer_b) { create(:user, :branch_manager, business: business) }
+
+    # Pauses the FIRST audit write (the winner's: its status update is done and
+    # its row lock held, nothing committed) until released.
+    def pause_before_first_audit
+      reached = Queue.new
+      release = Queue.new
+      calls   = 0
+      allow(AuditLog).to receive(:create!).and_wrap_original do |original, *args, **kwargs, &block|
+        calls += 1
+        if calls == 1
+          reached << true
+          release.pop
+        end
+        original.call(*args, **kwargs, &block)
+      end
+      @releases = (@releases || []) << release
+      [ reached, release ]
+    end
+
+    # Each operation loads its own copy on its own connection (as a controller does).
+    def approve(id, by) = Requests::Approver.approve(request: EmployeeRequest.find(id), reviewed_by: by)
+    def reject(id, by)  = Requests::Approver.reject(request: EmployeeRequest.find(id), reviewed_by: by)
+    def cancel(id, by)  = Requests::Canceller.cancel(request: EmployeeRequest.find(id), cancelled_by: by, reason: "withdrawn")
+    def actions_of(req) = AuditLog.where(auditable_type: "EmployeeRequest", auditable_id: req.id).order(:id).pluck(:action)
+
+    # Runs `winner` until it is paused at its audit, starts `loser`, proves it
+    # waits on the request row lock, releases the winner; returns both results.
+    def race(winner, loser)
+      reached, release = pause_before_first_audit
+      first = on_other_connection { winner.call }
+      wait_for(reached)
+
+      second = on_other_connection { loser.call }
+      wait_until_request_lock_waits
+      expect(second.join(0)).to be_nil
+
+      release << true
+      [ result_of(first), result_of(second) ]
+    end
+
+    it "approve vs cancel (salary advance): the approval waits, then is refused — cancelled stands, no approval, no Advance" do
+      req = create(:employee_request, :salary_advance, user: employee)
+
+      cancelled, approval = race(-> { cancel(req.id, employee) }, -> { approve(req.id, reviewer_a) })
+
+      expect(cancelled).to be_success
+      expect(approval).not_to be_success
+      expect(approval.error).to eq("Request is already cancelled")
+      expect(EmployeeRequest.find(req.id)).to have_attributes(status: "cancelled", reviewed_by_id: nil, cancelled_by_id: employee.id)
+      expect(actions_of(req)).to eq(%w[cancel])
+      expect(Advance.where(employee_request_id: req.id)).to be_empty
+    end
+
+    it "approve vs approve: one succeeds, the other waits and is refused — one approval audit, the first reviewer" do
+      req = create(:employee_request, :salary_advance, user: employee)
+
+      first, second = race(-> { approve(req.id, reviewer_a) }, -> { approve(req.id, reviewer_b) })
+
+      expect(first).to be_success
+      expect(second.error).to eq("Request is already approved")
+      expect(EmployeeRequest.find(req.id)).to have_attributes(status: "approved", reviewed_by_id: reviewer_a.id)
+      expect(actions_of(req)).to eq(%w[approve])
+    end
+
+    {
+      "approve wins over reject" => [ :approve, :reject, "approved" ],
+      "reject wins over approve" => [ :reject, :approve, "rejected" ]
+    }.each do |label, (winner, loser, final)|
+      it "approve vs reject (#{label}): exactly one transition — final state and audits agree" do
+        req = create(:employee_request, :salary_advance, user: employee)
+
+        won, lost = race(-> { public_send(winner, req.id, reviewer_a) }, -> { public_send(loser, req.id, reviewer_b) })
+
+        expect(won).to be_success
+        expect(lost.error).to eq("Request is already #{final}")
+        expect(EmployeeRequest.find(req.id)).to have_attributes(status: final, reviewed_by_id: reviewer_a.id)
+        expect(actions_of(req)).to eq([ winner.to_s ])
+      end
+    end
+
+    describe "a late permission with a real payroll effect" do
+      let(:business)  { create(:business, working_days_per_month: 22) }
+      let(:branch)    { create(:branch, business: business) }
+      let(:shift)     { create(:shift, :fixed_time, business: business, start_time: Time.zone.parse("09:00"), end_time: Time.zone.parse("17:00")) }
+      let(:work_date) { Date.new(2026, 6, 8) }
+      let(:period)    { create(:payroll_period, business: business, period_year: 2026, period_month: 6, working_days: 22, status: "under_review") }
+      let(:entry)     { create(:payroll_entry, payroll_period: period, user: employee, base_salary: 8_800, net_salary: 8_500, needs_review: false) }
+      let!(:line) do # 40 min late → 25 % of the 400 daily rate
+        assignment = create(:shift_assignment, user: employee, branch: branch, shift: shift, effective_from: Date.new(2026, 1, 1))
+        create(:salary_profile, :monthly, user: employee, base_amount: 8_800.0, effective_from: Date.new(2026, 1, 1))
+        create(:penalty_rule, shift: shift, rule_type: "late_arrival", threshold_minutes: 15,
+                              deduction_type: "percentage_of_daily", deduction_value: 25)
+        attendance = create(:attendance_record, user: employee, branch: branch, shift_assignment: assignment,
+                                                date: work_date, work_date: work_date, late_minutes: 40, status: "late",
+                                                check_in_at: Time.zone.local(2026, 6, 8, 9, 40))
+        create(:payroll_line_item, payroll_entry: entry, item_type: "late_penalty", amount: -100.0, review_status: "approved",
+                                   source_type: "AttendanceRecord", source_id: attendance.id,
+                                   original_minutes: 40, permission_minutes: 0)
+      end
+      let!(:req) do
+        build(:employee_request, :late_permission, user: employee, requested_for_date: work_date, duration_minutes: 20)
+          .tap { |r| r.save!(validate: false) }
+      end
+
+      def line_now = PayrollLineItem.find(line.id)
+
+      it "approval wins: the stale cancellation waits, is refused, and the applied effect stays with the approved request" do
+        approval, cancelled = race(-> { approve(req.id, reviewer_a) }, -> { cancel(req.id, employee) })
+
+        expect(approval).to be_success
+        expect(cancelled.error).to eq(I18n.t("requests.errors.cannot_cancel"))
+        expect(EmployeeRequest.find(req.id)).to have_attributes(status: "approved", cancelled_at: nil)
+        expect(line_now.permission_minutes).to eq(20) # the effect of the approval that stands
+        expect(actions_of(req)).to eq(%w[approve])
+      end
+
+      it "cancellation wins: the approval waits, is refused, and no effect is applied" do
+        cancelled, approval = race(-> { cancel(req.id, employee) }, -> { approve(req.id, reviewer_a) })
+
+        expect(cancelled).to be_success
+        expect(approval.error).to eq("Request is already cancelled")
+        expect(EmployeeRequest.find(req.id).status).to eq("cancelled")
+        expect(line_now).to have_attributes(amount: -100.0, permission_minutes: 0) # untouched
+        expect(actions_of(req)).to eq(%w[cancel])
+      end
+    end
   end
 end

@@ -264,4 +264,123 @@ RSpec.describe Requests::Approver do
       expect(correction.reload.status).to eq("pending")
     end
   end
+
+  # F-A7 — approve and reject lock the request row and re-check the committed
+  # state, so a copy loaded before another transition committed cannot
+  # overwrite it. (The genuine two-connection races are in
+  # spec/services/requests/advance_payment_concurrency_spec.rb.)
+  describe "a stale copy (another transition committed since it was loaded)" do
+    let(:employee) { create(:user, business: business) }
+    let(:other)    { create(:user, :branch_manager, business: business) }
+    let!(:request) { create(:employee_request, :salary_advance, user: employee) }
+    let!(:stale)   { EmployeeRequest.find(request.id) } # loaded while pending
+
+    def fresh = EmployeeRequest.find(request.id)
+    def audits = AuditLog.where(auditable: request).order(:id).pluck(:action)
+
+    {
+      "cancelled" => ->(req, by) { Requests::Canceller.cancel(request: req, cancelled_by: by, reason: "withdrawn") },
+      "rejected"  => ->(req, by) { described_class.reject(request: req, reviewed_by: by) }
+    }.each do |status, transition|
+      it "refuses to approve it after it was #{status}; the #{status} state and its fields stand" do
+        expect(transition.call(fresh, other)).to be_success
+
+        result = described_class.approve(request: stale, reviewed_by: manager)
+
+        expect(result).not_to be_success
+        expect(result.error).to eq("Request is already #{status}")
+        expect(fresh.status).to eq(status)
+        expect(audits).not_to include("approve")
+      end
+    end
+
+    it "refuses to approve it after it was approved and paid; the payment stands" do
+      described_class.approve(request: fresh, reviewed_by: other)
+      described_class.pay(request: fresh, paid_by: accountant)
+
+      result = described_class.approve(request: stale, reviewed_by: manager)
+
+      expect(result.error).to eq("Request is already paid")
+      expect(fresh).to have_attributes(status: "paid", reviewed_by_id: accountant.id)
+      expect(Advance.where(employee_request_id: request.id).count).to eq(1)
+      expect(audits).to eq(%w[approve pay])
+    end
+
+    it "refuses a second approval: the first reviewer and audit stand" do
+      described_class.approve(request: fresh, reviewed_by: other)
+
+      expect(described_class.approve(request: stale, reviewed_by: manager).error).to eq("Request is already approved")
+      expect(fresh.reviewed_by_id).to eq(other.id)
+      expect(audits).to eq(%w[approve])
+    end
+
+    it "refuses to reject it after it was approved" do
+      described_class.approve(request: fresh, reviewed_by: other)
+
+      result = described_class.reject(request: stale, reviewed_by: manager)
+
+      expect(result.error).to eq("Request is already approved")
+      expect(fresh).to have_attributes(status: "approved", reviewed_by_id: other.id)
+      expect(audits).to eq(%w[approve])
+    end
+
+    it "refuses to reject it after it was cancelled" do
+      Requests::Canceller.cancel(request: fresh, cancelled_by: employee, reason: "withdrawn")
+
+      result = described_class.reject(request: stale, reviewed_by: manager)
+
+      expect(result.error).to eq("Request is already cancelled")
+      expect(fresh.status).to eq("cancelled")
+      expect(audits).to eq(%w[cancel])
+    end
+  end
+
+  # F-A7 — standard approval is one transaction: the status, the permission's
+  # payroll effect and the audit commit together or not at all.
+  describe "standard approval atomicity (a real permission payroll effect)" do
+    around { |ex| travel_to(Time.zone.local(2026, 7, 15, 12, 0, 0)) { ex.run } }
+
+    let(:employee)  { create(:user, business: business) }
+    let(:branch)    { create(:branch, business: business) }
+    let(:shift)     { create(:shift, :fixed_time, business: business, start_time: Time.zone.parse("09:00"), end_time: Time.zone.parse("17:00")) }
+    let(:work_date) { Date.new(2026, 6, 8) }
+    let(:period)    { create(:payroll_period, business: business, period_year: 2026, period_month: 6, working_days: 22, status: "under_review") }
+    let(:entry)     { create(:payroll_entry, payroll_period: period, user: employee, base_salary: 8_800, net_salary: 8_500, needs_review: false) }
+    let!(:line) do
+      assignment = create(:shift_assignment, user: employee, branch: branch, shift: shift, effective_from: Date.new(2026, 1, 1))
+      create(:salary_profile, :monthly, user: employee, base_amount: 8_800.0, effective_from: Date.new(2026, 1, 1))
+      create(:penalty_rule, shift: shift, rule_type: "late_arrival", threshold_minutes: 15,
+                            deduction_type: "percentage_of_daily", deduction_value: 25)
+      attendance = create(:attendance_record, user: employee, branch: branch, shift_assignment: assignment,
+                                              date: work_date, work_date: work_date, late_minutes: 40, status: "late",
+                                              check_in_at: Time.zone.local(2026, 6, 8, 9, 40))
+      create(:payroll_line_item, payroll_entry: entry, item_type: "late_penalty", amount: -100.0, review_status: "approved",
+                                 source_type: "AttendanceRecord", source_id: attendance.id,
+                                 original_minutes: 40, permission_minutes: 0)
+    end
+    let!(:request) do
+      build(:employee_request, :late_permission, user: employee, requested_for_date: work_date, duration_minutes: 20)
+        .tap { |req| req.save!(validate: false) }
+    end
+
+    it "applies the effect with the approval (control)" do
+      expect(described_class.approve(request: request, reviewed_by: manager)).to be_success
+      expect(line.reload.permission_minutes).to eq(20) # 40 − 20 = 20 min still penalised
+      expect(request.reload.status).to eq("approved")
+    end
+
+    it "rolls the status and the applied effect back when the approval fails after the effect" do
+      allow(Payroll::PermissionApplier).to receive(:call).and_wrap_original do |original, req|
+        original.call(req)
+        raise ActiveRecord::RecordInvalid, line.reload # after the line item was rewritten
+      end
+
+      result = described_class.approve(request: request, reviewed_by: manager)
+
+      expect(result).not_to be_success
+      expect(request.reload).to have_attributes(status: "pending", reviewed_by_id: nil, reviewed_at: nil)
+      expect(line.reload).to have_attributes(amount: -100.0, permission_minutes: 0)
+      expect(AuditLog.where(auditable: request, action: "approve")).to be_empty
+    end
+  end
 end
