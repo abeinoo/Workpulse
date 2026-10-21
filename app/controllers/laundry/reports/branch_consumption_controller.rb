@@ -6,12 +6,15 @@ class Laundry::Reports::BranchConsumptionController < Laundry::BaseController
     @branches     = assignable_branches
     @towel_types  = laundry_towel_types
 
-    branch_id     = scoped_branch_id
+    allowed_ids   = allowed_branch_ids
+    branch_id     = scoped_branch_id(allowed_ids)
     towel_type_id = params[:towel_type_id].presence
     @towel_type_filter = @towel_types.find { |t| t.id.to_s == towel_type_id.to_s } if towel_type_id
 
+    # One scoped result feeds the page, its totals and the CSV export.
     @report = Laundry::BranchTowelConsumptionReport.new(
-      current_user.business, from: @from, to: @to, branch_id: branch_id, towel_type_id: towel_type_id
+      current_user.business, from: @from, to: @to, branch_id: branch_id, towel_type_id: towel_type_id,
+      branch_ids: allowed_ids
     ).call
 
     respond_to do |format|
@@ -28,17 +31,29 @@ class Laundry::Reports::BranchConsumptionController < Laundry::BaseController
     redirect_to laundry_root_path, alert: t("flash.not_authorized")
   end
 
-  # Branch managers (scoped, not business-wide) are restricted to their own
-  # branch's rows regardless of the branch_id param they pass.
-  def scoped_branch_id
-    return params[:branch_id].presence unless params[:branch_id].present?
-    return params[:branch_id] if current_user.owner?
+  # The viewer's branch data scope for this report (BUG-001 / TD-P11-1): nil for
+  # the owner and business-scoped viewers (every branch of the business),
+  # otherwise the branches their view_laundry_consumption_reports scope resolves
+  # to — [] when none. Applied to the report itself, so no branch filter (the
+  # default page) never widens a scoped viewer to every branch.
+  def allowed_branch_ids
+    return nil if current_user.owner?
 
     scope_type = current_user.scope_for(:view_laundry_consumption_reports)
-    return params[:branch_id] if scope_type.to_s == "business"
+    return nil if scope_type.to_s == "business"
 
-    allowed = BranchScope.new(current_user).for_scope(scope_type)
-    allowed.include?(params[:branch_id].to_i) ? params[:branch_id] : allowed.first
+    BranchScope.new(current_user).for_scope(scope_type)
+  end
+
+  # The optional single-branch filter. A scoped viewer requesting a branch
+  # outside their scope is clamped to their first allowed branch (the existing
+  # behaviour); with no allowed branch there is no filter, and the empty scope
+  # above returns nothing.
+  def scoped_branch_id(allowed_ids)
+    requested = params[:branch_id].presence
+    return requested if requested.nil? || allowed_ids.nil?
+
+    allowed_ids.include?(requested.to_i) ? requested : allowed_ids.first
   end
 
   def date_range
