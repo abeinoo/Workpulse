@@ -20,7 +20,7 @@
 #   unmapped: 0
 #
 ## Cross-domain references (distinct file + constant / reference lines) by status
-#   allowed: 236 / 341
+#   allowed: 223 / 324
 #   classified: 57 / 70
 #   unclassified: 12 / 19
 #
@@ -43,7 +43,7 @@
 #   organization_access → finance_sales: allowed 0, classified 1, unclassified 0
 #   organization_access → workforce: allowed 0, classified 4, unclassified 1
 #   reporting → attendance_payroll: allowed 23, classified 0, unclassified 0
-#   reporting → finance_sales: allowed 37, classified 0, unclassified 0
+#   reporting → finance_sales: allowed 24, classified 0, unclassified 0
 #   reporting → inventory_purchasing: allowed 9, classified 0, unclassified 0
 #   reporting → organization_access: allowed 9, classified 0, unclassified 0
 #   reporting → workforce: allowed 13, classified 0, unclassified 0
@@ -269,26 +269,13 @@ reporting → finance_sales  app/controllers/laundry/reports/cost_summary_contro
 reporting → finance_sales  app/controllers/laundry/reports/cost_summary_controller.rb  Finance::Reports::Column ×3
 reporting → finance_sales  app/controllers/laundry/reports/cost_summary_controller.rb  Finance::Reports::CsvExporter ×1
 reporting → finance_sales  app/controllers/laundry/reports/cost_summary_controller.rb  Finance::Reports::Table ×1
-reporting → finance_sales  app/services/finance/dashboard/activity_presenter.rb  Finance::Dashboard ×1
-reporting → finance_sales  app/services/finance/dashboard/capabilities.rb  Finance::Dashboard ×1
-reporting → finance_sales  app/services/finance/dashboard/insights_generator.rb  Finance::Dashboard ×1
-reporting → finance_sales  app/services/finance/dashboard/pdf_renderer.rb  Finance::Dashboard ×1
 reporting → finance_sales  app/services/finance/dashboard_filters.rb  Expense::PAYMENT_SOURCES ×1
-reporting → finance_sales  app/services/finance/dashboard_filters.rb  Finance::Result ×1
 reporting → finance_sales  app/services/finance/dashboard_filters.rb  PaymentMethod ×1
-reporting → finance_sales  app/services/finance/reports/branch_profitability.rb  Finance::Reports ×1
 reporting → finance_sales  app/services/finance/reports/branch_profitability.rb  Finance::Reports::Column ×6
 reporting → finance_sales  app/services/finance/reports/branch_profitability.rb  Finance::Reports::Table ×1
-reporting → finance_sales  app/services/finance/reports/expense_details.rb  Finance::Reports ×1
-reporting → finance_sales  app/services/finance/reports/expense_details.rb  Finance::Result ×2
-reporting → finance_sales  app/services/finance/reports/expense_details_csv_exporter.rb  Finance::Reports ×1
 reporting → finance_sales  app/services/finance/reports/expense_sources.rb  ExpenseAllocation ×1
-reporting → finance_sales  app/services/finance/reports/expense_sources.rb  Finance::Reports ×1
 reporting → finance_sales  app/services/finance/reports/laundry_cost_summary.rb  ExpenseAllocation ×1
-reporting → finance_sales  app/services/finance/reports/laundry_cost_summary.rb  Finance::Reports ×1
-reporting → finance_sales  app/services/finance/reports/laundry_cost_summary.rb  Finance::Result ×4
 reporting → finance_sales  app/services/finance/reports/verified_revenue.rb  DailyReconciliation ×1
-reporting → finance_sales  app/services/finance/reports/verified_revenue.rb  Finance::Reports ×1
 reporting → finance_sales  app/views/finance/dashboard/_action_center.html.erb  Expense ×1
 reporting → finance_sales  app/views/finance/dashboard/_active_filters.html.erb  Expense::PAYMENT_SOURCES ×1
 reporting → finance_sales  app/views/finance/dashboard/_filter_bar.html.erb  Expense::PAYMENT_SOURCES ×1

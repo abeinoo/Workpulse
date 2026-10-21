@@ -6475,7 +6475,7 @@ enforcement for those. Dotfiles (`.keep`) are not listed.
 ### 40.2 First report (on this branch)
 
 1240 files: OA 68, WF 173, AP 193, IP 306, FS 310, Reporting 60, Shared Kernel 4, Infrastructure 41, frontend 85,
-**unmapped 0**. Cross-domain references (distinct file + constant / lines): allowed 236 / 341, classified 57 / 70,
+**unmapped 0**. Cross-domain references (distinct file + constant / lines): allowed 223 / 324, classified 57 / 70,
 **unclassified 12 / 19**:
 
 | Edge | File → constant | Roadmap item |
@@ -6511,4 +6511,13 @@ reference" with the same probes.
 ### 40.4 Verification
 
 `spec/architecture` (with the new spec): 394 examples, 0 failures under seeds 20261006, 12345, 98765 and `CI=1`.
+
+*Correction (determinism fix, separate commit after `9468678`):* in the first commit, an unqualified constant was
+resolved against its file's namespace with a runtime lookup (`safe_constantize`), so the answer depended on what was
+already autoloaded — `dependency_inventory_spec.rb`'s determinism example failed under seed 12345 (`allowed …/341` vs
+`…/342`; `Finance::Result` counted once or twice). The lookup is now static: the constants `app/` files define, as
+Zeitwerk expects them (`cpath_expected_at`, loads nothing), and bare directory namespaces (`Finance::Dashboard`) no
+longer count as references. Allowed references dropped to 223 / 324; classified and unclassified unchanged. The spec
+passes under seeds 20261006, 12345, 98765, 1, 2 and `CI=1`, and the report is byte-identical when generated in
+development, in test, and in an eager-loaded process.
 `zeitwerk:check` clean; RuboCop on the three new Ruby files no offenses; `git diff --check` clean.

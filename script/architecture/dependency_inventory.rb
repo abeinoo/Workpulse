@@ -29,6 +29,8 @@
 #   prose never count.
 # * Not autoloaded (script/ is outside Zeitwerk); loaded only by the spec and the
 #   rake task. It changes no application behaviour.
+require "set"
+
 module ArchitectureTools
   module DependencyInventory
     module_function
@@ -333,13 +335,29 @@ module ArchitectureTools
       constant
     end
 
-    def existing_constant?(name)
-      return false unless defined?(ActiveSupport)
+    # Static: the constants app/ files define, as Zeitwerk expects them
+    # (cpath_expected_at loads nothing), so the answer never depends on what
+    # happens to be autoloaded already.
+    def existing_constant?(name) = defined_constants.include?(name)
 
-      found = name.safe_constantize
-      found.respond_to?(:name) && found.name == name
-    rescue StandardError, LoadError
-      false
+    def defined_constants
+      @defined_constants ||= begin
+        loader = Rails.autoloaders.main
+        Dir.glob(File.join(root, "app", "**", "*.rb")).filter_map do |file|
+          loader.cpath_expected_at(file)
+        rescue StandardError
+          nil
+        end.to_set
+      end
+    end
+
+    # Directory namespaces with no file of their own (`Finance::Dashboard`): a
+    # namespace token is not a dependency on any class.
+    def implicit_namespaces
+      @implicit_namespaces ||= defined_constants.flat_map do |cpath|
+        parts = cpath.split("::")
+        (1...parts.size).map { |i| parts.first(i).join("::") }
+      end.to_set - defined_constants
     end
 
     def code_lines(path, content = nil)
@@ -366,6 +384,8 @@ module ArchitectureTools
       code_lines(path, content).flat_map do |line, number|
         line.scan(CONSTANT).flatten.filter_map do |written|
           constant = resolve(written, path)
+          next if implicit_namespaces.include?(constant.delete_prefix("::"))
+
           target = owner_of(constant)
           next if target.nil? || target == source || [ SHARED, INFRA ].include?(target)
 
