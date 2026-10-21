@@ -6249,10 +6249,12 @@ remaining references are classified exceptions (Batch A's `request.advance` read
 
 ## 38. Batch S — Inventory & Purchasing → Finance & Sales goods-receipt payment writes (§14.2 #6, write half)
 
-**Status (2026-10-21): M0, M1, M2, M3, M4, M6 and M8 COMPLETE** — committed locally on `batch-s/goods-receipt-payments`
-(from `251a69b`, the tip of `batch-v/request-validation-reads-2`, which is stacked on `origin/main` `bc6682b`): the
-BUG-015 / BUG-016 fix `3f16e92`, M1 `981fc8b`, M2 `26f8192`, M3 `78a0c7d`, M4 `64f1f22`, M6 `165ebd1`, then this
-documentation commit; not pushed or merged. M5 not needed (no business rule left in a controller), M7 not applicable.
+**Status (2026-10-21): M0, M1, M2, M3, M4, M6 and M8 COMPLETE; Batch S itself is not yet merged** — on
+`batch-s/goods-receipt-payments` (created from `251a69b`, the tip of `batch-v/request-validation-reads-2`, which was then
+stacked on `origin/main` `bc6682b`): the BUG-015 / BUG-016 fix `3f16e92`, M1 `981fc8b`, M2 `26f8192`, M3 `78a0c7d`, M4
+`64f1f22`, M6 `165ebd1`, M8 documentation `731584b`. Since then Batch V merged into `main` (PR #58, `872e55f`) and the
+Pilot 12 close-out (PR #59, `17fbcce`); this branch merged that `main` in `0d7a347` (no conflict) and is proposed for
+review as its own PR. M5 not needed (no business rule left in a controller), M7 not applicable.
 No schema, migration, route, permission, dependency or API change. Baseline and step results:
 `docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt`.
 

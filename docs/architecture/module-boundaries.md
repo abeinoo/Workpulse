@@ -39,7 +39,8 @@ Milestone 2 on `feature/milestone-2-attendance-payroll`, see `next-pilot-selecti
   only through it (`spec/architecture/finance_sales_pos_terminal_boundary_spec.rb`; `next-pilot-selection.md` §27).
 * **Inventory & Purchasing is partially migrated (Pilots 6 and 7):** `Supplier`, `Brand` and `ProductCategory` live
   in the collapsed `app/models/inventory_purchasing/` (top-level constants and tables unchanged), each with a boundary
-  spec; see `next-pilot-selection.md` §21 and §22. Since Batch S (on `batch-s/goods-receipt-payments`, not yet merged)
+  spec; see `next-pilot-selection.md` §21 and §22. Since Batch S (on `batch-s/goods-receipt-payments`, not yet merged;
+  it now includes `main` with Batch V, PR #58, and the Pilot 12 close-out, PR #59)
   the goods-receipt services write the settlement and custody ledgers only through the IP contract
   `Inventory::GoodsReceiptPaymentEffects`, implemented by FS (`Finance::GoodsReceiptPaymentEffects`); enforced by
   `spec/architecture/inventory_finance_goods_receipt_payment_boundary_spec.rb` (`next-pilot-selection.md` §38).
