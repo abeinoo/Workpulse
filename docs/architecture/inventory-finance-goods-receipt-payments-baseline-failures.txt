@@ -1,0 +1,81 @@
+# Batch S (Inventory & Purchasing → Finance & Sales goods-receipt payment writes, module-boundaries.md §14.2 #6,
+#   write half) — baseline failing example IDs
+# Purpose: the reference list for every Batch S step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs elsewhere keep their treatment.
+# Starting point: batch-s/goods-receipt-payments, created 2026-10-21 in the original checkout from 251a69b (tip of
+#   batch-v/request-validation-reads-2, stacked on origin/main bc6682b; approved option 1), before any Batch S spec or
+#   code change.
+#
+# Approved design (2026-10-21): synchronous, in-process contract inside the caller's transaction (the documented
+#   goods_receipt.* event target deferred); scope = settlements whose settleable is a GoodsReceipt; PurchaseRequest
+#   advance deposits / reversals deferred to S2.
+#
+# Commands (lazy loading, no CI env), then one eager run:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 12345 $(grep '^# set ' docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 98765 $(grep '^# set ' docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt | cut -d' ' -f3)
+#   CI=1 bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt | cut -d' ' -f3)
+# System specs (M0 and M8 only):
+#   bundle exec rspec --seed 20261006 $(grep '^# system ' docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt | cut -d' ' -f3)
+#
+# Result at M0 (2026-10-21, on 251a69b, working tree: this file only; no code or spec change):
+#   seed 20261006: 602 examples, 0 failures, exit 0
+#   seed 12345:    602 examples, 0 failures, exit 0
+#   seed 98765:    602 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 602 examples, 0 failures, exit 0
+#   System specs (9 files), seed 20261006: 54 examples, 0 failures, exit 0
+# No failing ID in the set: any failure in this set during Batch S is new and stops the work.
+#
+# M1 (2026-10-21, on 251a69b + two new specs, recorded against unchanged code; NOT yet in the set entries below):
+#   spec/characterization/inventory_purchasing/goods_receipt_payments_spec.rb (31, transactional) and
+#   spec/characterization/inventory_purchasing/goods_receipt_payments_concurrency_spec.rb (3, two connections,
+#   non-transactional, empty-database guard + truncation). Together, seeds 20261006 / 12345 / 98765 and CI=1:
+#   34 examples, 1 failure each — always the same ID:
+#     ./spec/characterization/inventory_purchasing/goods_receipt_payments_concurrency_spec.rb:200
+#       — BUG-015 REPRODUCED (docs/quality/deferred-bugs.md): approval commits first, the void that waited on the
+#       receipt row then overwrites approval_status "approved" with "cancelled" and audits a pending_approval →
+#       cancelled transition that never happened. Money balances (payment reversed, custody balance = ledger). The
+#       example asserts the safe invariant; it is NOT a baseline failure to absorb — Batch S is stopped on it pending a
+#       decision.
+#   The other two concurrency examples pass: void first → the approval waits on the receipt row and is refused, nothing
+#   paid; approval vs reversal on one custody account → the reversal's credit waits on the account row, both commit,
+#   cached balance = ledger.
+#   Probes (in memory, -r a scratch file; the 31-example spec): CustodyAccount#refresh_balance! no-op → 19 failures;
+#   FinancialSettlementService.create without notes → 7; inventory custody rows with the sign flipped → 16.
+#   RuboCop on both files: no offenses.
+#
+# BUG-015 / BUG-016 fix (2026-10-21, commit 3f16e92, receipt row lock in GoodsReceiptVoider#call, separately approved):
+#   the BUG-015 example (goods_receipt_payments_concurrency_spec.rb:200) now passes unchanged; new
+#   spec/services/inventory/goods_receipt_void_concurrency_spec.rb (2) failed before / passes after.
+#   This set + spec/characterization/inventory_purchasing + that spec, seeds 20261006 / 12345 / 98765 and CI=1:
+#   756 examples, 0 failures each. No failing ID in the set.
+#
+# set spec/services/inventory/goods_receipt_approval_spec.rb
+# set spec/services/inventory/goods_receipt_settlement_recorder_spec.rb
+# set spec/services/inventory/goods_receipt_settlement_reverser_spec.rb
+# set spec/services/inventory/goods_receipt_voider_spec.rb
+# set spec/services/inventory/purchase_request_advances_spec.rb
+# set spec/services/financial_settlement_service_spec.rb
+# set spec/services/finance/settlement_linked_custody_void_spec.rb
+# set spec/requests/inventory/goods_receipt_cancel_spec.rb
+# set spec/requests/inventory/goods_receipt_extra_products_spec.rb
+# set spec/requests/inventory/goods_receipt_immediate_payment_spec.rb
+# set spec/requests/inventory/goods_receipt_settlement_own_custody_spec.rb
+# set spec/requests/inventory/goods_receipt_settlements_spec.rb
+# set spec/requests/inventory/goods_receipt_status_consistency_spec.rb
+# set spec/requests/inventory/goods_receipts_index_actions_spec.rb
+# set spec/requests/inventory/purchase_request_advances_spec.rb
+# set spec/requests/inventory/purchase_request_goods_receipt_actions_spec.rb
+# set spec/requests/finance/settlement_linked_custody_void_spec.rb
+# set spec/architecture
+#
+# system spec/system/inventory/goods_receipt_extra_products_spec.rb
+# system spec/system/inventory/goods_receipt_settlement_own_custody_spec.rb
+# system spec/system/inventory/goods_receipt_settlement_responsive_spec.rb
+# system spec/system/inventory/goods_receipt_settlement_spec.rb
+# system spec/system/inventory/goods_receipt_show_actions_spec.rb
+# system spec/system/inventory/goods_receipt_status_consistency_spec.rb
+# system spec/system/inventory/goods_receipts_index_actions_spec.rb
+# system spec/system/inventory/purchase_request_advances_spec.rb
+# system spec/system/inventory/purchase_request_goods_receipt_actions_spec.rb
