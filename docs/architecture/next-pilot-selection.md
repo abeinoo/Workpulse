@@ -6449,3 +6449,66 @@ run (not a designated milestone).
 * The goods-receipt settlement screen is still hosted under `inventory/` (GR-UI, `module-boundaries.md` §8 item 5) —
   not part of D-S2.
 * The `goods_receipt.*` event target stays deferred, not rejected (D-S1).
+
+---
+
+## 40. Repository-wide domain dependency inventory (report-only, `module-boundaries.md` §19 step 0)
+
+**Status (2026-10-22): implemented in REPORT-ONLY mode; committed locally, not pushed or merged** — on
+`migration/dependency-inventory`, stacked on the S2 branch (`5060779`) because the classification reflects the
+post-S2 code and both touch the same documents. No application, route, schema, permission, dependency or API change.
+
+### 40.1 What it is
+
+| Piece | Role |
+|---|---|
+| `script/architecture/dependency_inventory.rb` | Maps every file under `app/` to a domain / Shared Kernel / Infrastructure / frontend (first matching rule; models through the `module-boundaries.md` §10 table, policies through their model), resolves the constants each Ruby / ERB file names (comments, strings, i18n keys and ERB text ignored; unqualified constants resolved against the file's namespace only when that exact constant exists), and classifies each cross-domain reference: **allowed** (§12.1 direction; Reporting reads all), **classified** (an exception already recorded and enforced — each entry cites the spec or section), **unclassified**. Not autoloaded (`script/` is outside Zeitwerk); no runtime effect |
+| `lib/tasks/architecture.rake` | `bin/rails architecture:dependency_report` writes the report; never fails on findings |
+| `docs/architecture/dependency-inventory-report.txt` | Deterministic report (sorted, no timestamps or line numbers): file counts per layer, unmapped files, per-edge counts, then every unclassified, classified and allowed file + constant |
+| `spec/architecture/dependency_inventory_spec.rb` (12) | Proves the tool only: file mapping (incl. an unmapped file reported, every `app/` file counted), constant resolution (longest prefix, policies, nested, Reporting overrides, namespace resolution, Ruby / Rails constants ignored), direction and classification (each classification cites a source), comment / string / ERB-text immunity, determinism, and planted upward references detected. It never asserts an empty report |
+
+**Limits (by design, stated in the report header):** constant references only — association macros
+(`has_many :shift_assignments`), table names in SQL strings (e.g. `ShiftAssignmentsController`'s `EXISTS …
+attendance_records`) and calls on associations are not resolved; the per-component boundary specs remain the
+enforcement for those. Dotfiles (`.keep`) are not listed.
+
+### 40.2 First report (on this branch)
+
+1240 files: OA 68, WF 173, AP 193, IP 306, FS 310, Reporting 60, Shared Kernel 4, Infrastructure 41, frontend 85,
+**unmapped 0**. Cross-domain references (distinct file + constant / lines): allowed 236 / 341, classified 57 / 70,
+**unclassified 12 / 19**:
+
+| Edge | File → constant | Roadmap item |
+|---|---|---|
+| WF → AP | `app/models/shift_assignment.rb` → `AttendanceRecord` | **F2** (§41) |
+| WF → AP | `app/controllers/admin/users_controller.rb` → `SalaryProfile`, `Salary::ViewAudit` | **SAL** (Q-M2-5) |
+| IP → FS | `app/controllers/laundry/reports/branch_consumption_controller.rb` → `Finance::Reports::{Column,Table,CsvExporter}` | **TD-R-1** (§28.2) |
+| OA → WF / AP | `app/controllers/admin/branches_controller.rb` → `EmployeeRequest`, `PayrollEntry`, `Payroll::EntryViewAudit` | **New:** the branch page's pending / recent requests and its payroll summary + view audit (the payroll part since PR #46, `8342c01`) — the same cross-domain branch dashboard as the OA-X staff view (target: Reporting / composition), but outside the four classified exception lines |
+| Infrastructure → FS | `app/controllers/application_controller.rb` → `PaymentMethod` (`#business_payment_methods`) | **New:** an FS lookup in the shared controller |
+| Infrastructure → WF | `app/helpers/application_helper.rb` → `ShiftAssignment` (`#requested_permission_summary`) | **New:** a Workforce request-display helper in the shared helper |
+| Shared Kernel → OA | `app/lib/phone_number.rb` → `User` (phone normalization) | **New:** the shared phone primitive reuses the `User` normalizer |
+
+Everything the per-component specs already classify (OA inverse associations, the OA-X lines, `WorkspaceHelper` and
+the sidebar's navigation gates, the penalty-rule option lists, the obligations card, the helper badge, the 13 IP → FS
+display reads, the Reporting host) reports as **classified** with its source.
+
+**Planted probes:** a real file `app/services/organization_access/probe_dependency.rb` naming `PayrollEntry` appeared
+in the regenerated report as `organization_access → attendance_payroll … unclassified`, and disappeared after removal
+(report regenerated); in-memory probes in the spec (IP service writing `CustodyTransaction`, OA service reading
+`PayrollEntry`, an AP constant in an unclassified admin view).
+
+### 40.3 Enforcement decision
+
+**Stays report-only.** `module-boundaries.md` §19 step 0 asks for report-only mode; rule J of `migration-pattern.md`
+enforces a boundary only "once the boundary exists and cross-domain callers are routed". The report shows 12 unclassified
+references, two of them approved roadmap work in progress (F2, SAL), one recorded debt (TD-R-1) and four new findings
+that need an ownership decision (the branch dashboard is an OA-X target; the three shared-layer reads need a Shared
+Kernel / Infrastructure placement decision, §15). Turning the report into a failing check now would either fail the
+build or require classifying those items without a decision. Enforcement is part of the completion-gate decision
+(D3): when every remaining item is migrated or classified by its owner, the spec can assert "no unclassified
+reference" with the same probes.
+
+### 40.4 Verification
+
+`spec/architecture` (with the new spec): 394 examples, 0 failures under seeds 20261006, 12345, 98765 and `CI=1`.
+`zeitwerk:check` clean; RuboCop on the three new Ruby files no offenses; `git diff --check` clean.

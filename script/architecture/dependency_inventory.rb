@@ -1,0 +1,445 @@
+# frozen_string_literal: true
+
+# Repository-wide domain dependency inventory (module-boundaries.md §19 step 0:
+# "dependency checks in report-only mode record every current violation").
+#
+# Maps every file under app/ to one of the six domains of module-boundaries.md
+# (or the Shared Kernel / Infrastructure / frontend layers), finds the constants
+# each Ruby / ERB file names, resolves each constant to its owning domain, and
+# classifies every cross-domain reference:
+#
+#   allowed      — the direction module-boundaries.md §12.1 allows (a downstream
+#                  domain reading an upstream one; Reporting reading any domain;
+#                  any file using the Shared Kernel / Infrastructure);
+#   classified   — an upward or sideways reference already classified by an
+#                  existing boundary spec or decision (CLASSIFIED, each entry
+#                  citing where);
+#   unclassified — everything else.
+#
+# REPORT-ONLY: nothing here fails a build. spec/architecture/dependency_inventory_spec.rb
+# proves the tool (self-tests, planted probes) without asserting an empty report;
+# `bin/rails architecture:dependency_report` writes the deterministic report
+# docs/architecture/dependency-inventory-report.txt.
+#
+# Scope and limits (by design, recorded in the report header):
+# * Constant references only. Association macros (`has_many :shift_assignments`),
+#   table names in SQL strings and method calls on associations are NOT resolved —
+#   those stay covered by the per-component boundary specs.
+# * Strings and comments are ignored, so i18n keys, `class_name: "X"` strings and
+#   prose never count.
+# * Not autoloaded (script/ is outside Zeitwerk); loaded only by the spec and the
+#   rake task. It changes no application behaviour.
+module ArchitectureTools
+  module DependencyInventory
+    module_function
+
+    OA = :organization_access
+    WF = :workforce
+    AP = :attendance_payroll
+    IP = :inventory_purchasing
+    FS = :finance_sales
+    RP = :reporting
+    SHARED   = :shared_kernel
+    INFRA    = :infrastructure
+    FRONTEND = :frontend
+
+    DOMAINS = [ OA, WF, AP, IP, FS, RP ].freeze
+    LAYERS  = (DOMAINS + [ SHARED, INFRA, FRONTEND ]).freeze
+
+    # module-boundaries.md §12.1: the upstream domains each domain may depend on.
+    UPSTREAM = {
+      OA => [],
+      WF => [ OA ],
+      AP => [ OA, WF ],
+      IP => [ OA ],
+      FS => [ OA, WF, AP, IP ],
+      RP => [ OA, WF, AP, IP, FS ]
+    }.freeze
+
+    # ---------------------------------------------------------------- files ---
+
+    # Ordered: the first matching rule decides. Paths are relative to Rails.root.
+    FILE_RULES = [
+      # Frontend assets: mapped, never scanned (no Ruby constants).
+      [ %r{\Aapp/(assets|javascript)/}, FRONTEND ],
+
+      # Reporting (module-boundaries.md §9; reporting_read_only_boundary_spec.rb).
+      [ %r{\Aapp/controllers/(dashboard|operations_dashboard)_controller\.rb\z}, RP ],
+      [ %r{\Aapp/controllers/admin/dashboard_controller\.rb\z}, RP ],
+      [ %r{\Aapp/controllers/finance/dashboard_controller\.rb\z}, RP ],
+      [ %r{\Aapp/controllers/laundry/reports/cost_summary_controller\.rb\z}, RP ],
+      [ %r{\Aapp/services/dashboard/(owner_data|area_manager_data)\.rb\z}, RP ],
+      [ %r{\Aapp/services/finance/(dashboard/|dashboard_filters\.rb)}, RP ],
+      [ %r{\Aapp/services/finance/reports/(branch_profitability|expense_sources|verified_revenue|laundry_cost_summary|expense_details|expense_details_csv_exporter)\.rb\z}, RP ],
+      [ %r{\Aapp/views/(dashboard|operations_dashboard)/}, RP ],
+      [ %r{\Aapp/views/admin/dashboard/}, RP ],
+      [ %r{\Aapp/views/finance/dashboard/}, RP ],
+      [ %r{\Aapp/views/laundry/reports/cost_summary/}, RP ],
+      [ %r{\Aapp/policies/(operations_dashboard_policy|finance/dashboard_policy)\.rb\z}, RP ],
+
+      # Domain files kept in shared folders (ownership by content, as already classified).
+      [ %r{\Aapp/views/shared/_adjustment_already_paid_section\.html\.erb\z}, AP ], # module-boundaries.md §4.1 G (AP partial)
+      [ %r{\Aapp/views/shared/_job_title_select\.html\.erb\z}, WF ],               # workforce_catalog_boundary_spec.rb
+      [ %r{\Aapp/controllers/api/v1/biometric_base_controller\.rb\z}, AP ],          # device-token base of the punch API (Pilot 1)
+
+      # Shared Kernel (§15) and Infrastructure (§16).
+      [ %r{\Aapp/lib/(business_day|phone_number)\.rb\z}, SHARED ],
+      [ %r{\Aapp/models/concerns/(voidable|immutable_document)\.rb\z}, SHARED ],
+      [ %r{\Aapp/models/concerns/settleable\.rb\z}, FS ],
+      [ %r{\Aapp/models/concerns/}, INFRA ],
+      [ %r{\Aapp/models/(application_record|audit_log)\.rb\z}, INFRA ],
+      [ %r{\Aapp/lib/api/}, INFRA ],
+      [ %r{\Aapp/controllers/concerns/}, INFRA ],
+      [ %r{\Aapp/controllers/application_controller\.rb\z}, INFRA ],
+      [ %r{\Aapp/controllers/api/v1/base_controller\.rb\z}, INFRA ],
+      [ %r{\Aapp/controllers/admin/base_controller\.rb\z}, INFRA ],
+      [ %r{\Aapp/serializers/api/v1/base_serializer\.rb\z}, INFRA ],
+      [ %r{\Aapp/policies/application_policy\.rb\z}, INFRA ],
+      [ %r{\Aapp/helpers/(application|attachment|workspace)_helper\.rb\z}, INFRA ],
+      [ %r{\Aapp/views/(layouts|shared|pwa)/}, INFRA ],
+      [ %r{\Aapp/(jobs/application_job|mailers/application_mailer)\.rb\z}, INFRA ],
+
+      # Organization & Access (§4).
+      [ %r{\Aapp/models/organization_access/}, OA ],
+      [ %r{\Aapp/models/(business|branch|user|user_audit_log)\.rb\z}, OA ],
+      [ %r{\Aapp/services/(organization_access|users|approvals)/}, OA ],
+      [ %r{\Aapp/services/(employee_scope|branch_scope)\.rb\z}, OA ],
+      [ %r{\Aapp/controllers/(users|profile)/}, OA ],
+      [ %r{\Aapp/controllers/(preferences|locale)_controller\.rb\z}, OA ],
+      [ %r{\Aapp/controllers/admin/(branches|settings|permission_roles|user_passwords)_controller\.rb\z}, OA ],
+      [ %r{\Aapp/controllers/api/v1/sessions_controller\.rb\z}, OA ],
+      [ %r{\Aapp/views/(users|profile)/}, OA ],
+      [ %r{\Aapp/views/admin/(branches|settings|permission_roles|user_passwords)/}, OA ],
+      [ %r{\Aapp/policies/(branch|permission_role)_policy\.rb\z}, OA ],
+
+      # Attendance & Payroll (§6) — before Workforce, for services/employee/performance_scorer.rb (§10.1).
+      [ %r{\Aapp/services/employee/performance_scorer\.rb\z}, AP ],
+      [ %r{\Aapp/models/attendance_payroll/}, AP ],
+      [ %r{\Aapp/services/(attendance|payroll|salary|adjustments|reports)/}, AP ],
+      [ %r{\Aapp/jobs/payroll/}, AP ],
+      [ %r{\Aapp/serializers/api/v1/advance_serializer\.rb\z}, AP ],
+      [ %r{\Aapp/controllers/(attendance|attendance_records|adjustments|bulk_adjustments|payroll_adjustments|payroll_dashboard|payroll_entries|payroll_line_items|payroll_periods)_controller\.rb\z}, AP ],
+      [ %r{\Aapp/controllers/admin/(attendance_imports|attendance_records|biometric_devices|biometric_punch_logs|penalty_rules|salary_profiles|employee_obligations)_controller\.rb\z}, AP ],
+      [ %r{\Aapp/controllers/api/v1/(advances|attendance|attendance_records|payroll_adjustments|payroll_entries|payroll_line_items|payroll_periods|penalty_rules|punches|salary_profiles)_controller\.rb\z}, AP ],
+      [ %r{\Aapp/controllers/api/v1/reports/}, AP ],
+      [ %r{\Aapp/views/(attendance_records|adjustments|bulk_adjustments|payroll_adjustments|payroll_dashboard|payroll_entries|payroll_periods)/}, AP ],
+      [ %r{\Aapp/views/admin/(attendance_imports|attendance_records|biometric_devices|biometric_punch_logs|penalty_rules|salary_profiles|employee_obligations)/}, AP ],
+
+      # Workforce (§5).
+      [ %r{\Aapp/models/workforce/}, WF ],
+      [ %r{\Aapp/services/(employee_data_requests|employee|shifts|scheduling|requests|performance|workforce)/}, WF ],
+      [ %r{\Aapp/services/(branch_membership\.rb|dashboard/birthdays\.rb)\z}, WF ],
+      [ %r{\Aapp/controllers/(shifts|shift_assignments|employee_requests|employee_data_requests|birthday_celebrations)_controller\.rb\z}, WF ],
+      [ %r{\Aapp/controllers/performance/}, WF ],
+      [ %r{\Aapp/controllers/admin/(users|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)_controller\.rb\z}, WF ],
+      [ %r{\Aapp/controllers/api/v1/(shifts|shift_assignments|employee_requests)_controller\.rb\z}, WF ],
+      [ %r{\Aapp/views/(shifts|shift_assignments|employee_requests|employee_data_requests|performance)/}, WF ],
+      [ %r{\Aapp/views/admin/(users|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)/}, WF ],
+      [ %r{\Aapp/helpers/(employee_data_requests|shift_assignment|shift_template)_helper\.rb\z}, WF ],
+
+      # Inventory & Purchasing (§7).
+      [ %r{\Aapp/models/inventory_purchasing/}, IP ],
+      [ %r{\Aapp/services/(inventory|laundry)/}, IP ],
+      [ %r{\Aapp/controllers/(inventory|laundry)/}, IP ],
+      [ %r{\Aapp/views/(inventory|laundry)/}, IP ],
+      [ %r{\Aapp/helpers/(inventory|laundry)_helper\.rb\z}, IP ],
+
+      # Finance & Sales (§8).
+      [ %r{\Aapp/models/finance_sales/}, FS ],
+      [ %r{\Aapp/services/finance/}, FS ],
+      [ %r{\Aapp/services/financial_settlement_service\.rb\z}, FS ],
+      [ %r{\Aapp/jobs/finance/}, FS ],
+      [ %r{\Aapp/controllers/finance/}, FS ],
+      [ %r{\Aapp/controllers/(till_deposits|till_handovers|till_refunds|opening_floats|deposit_responsibility_transfers)_controller\.rb\z}, FS ],
+      [ %r{\Aapp/views/finance/}, FS ],
+      [ %r{\Aapp/views/(till_deposits|till_handovers|till_refunds|opening_floats|deposit_responsibility_transfers)/}, FS ],
+      [ %r{\Aapp/helpers/finance_helper\.rb\z}, FS ]
+    ].freeze
+
+    # Top-level models (app/models/*.rb) → owner, from module-boundaries.md §10
+    # (constants, not files: a model file maps through its constant).
+    MODEL_OWNERS = {
+      OA => %w[Business Branch User UserAuditLog PermissionRole],
+      WF => %w[EmployeeDataRequest EmployeeDataRequestEvent EmployeeDataRequestRevision EmployeeInsuranceProfile Department
+               JobTitle Shift ShiftAssignment ShiftTemplate ShiftTemplateEntry ShiftRuleProfile EmployeeRequest
+               EvaluationTemplate EvaluationCriterion PerformanceReview PerformanceReviewScore PerformanceObservation],
+      AP => %w[AttendanceRecord AttendanceAdjustment AttendanceImportLog BiometricDevice BiometricPunchLog PenaltyRule
+               SalaryProfile PayrollPeriod PayrollEntry PayrollLineItem PayrollAdjustment PayrollAdjustmentEdit
+               PayrollAuditLog PayrollSnapshot PayrollPeriodBranchReview Advance EmployeeObligation ObligationDeduction
+               ObligationPostponement],
+      IP => %w[Warehouse WarehouseAssignment WarehouseBranchSupply Product ProductBarcode ProductCategory Brand
+               ProductWarehouseSetting InventoryMovement StockIssue StockIssueItem StockIssueImportBatch
+               StockIssueImportRow StockTransfer StockTransferItem StockAdjustment StockAdjustmentItem StockCount
+               StockCountItem Supplier PurchaseRequest PurchaseRequestItem PurchaseRequestAdvance GoodsReceipt
+               GoodsReceiptItem TowelType TowelLedgerEntry TowelTransfer TowelTransferItem TowelAdjustment LaundryBatch
+               LaundryBatchConsumption LaundryStandardCostRate Service],
+      FS => %w[Expense ExpenseAllocation ExpenseCategory ExpenseType ExpenseTag ExpenseTagging RecurringExpense
+               RecurringExpenseAllocation CustodyAccount CustodyTransaction BalanceRequest FinancialSettlement
+               PaymentMethod FinancialAdjustment DailyReconciliation TillSession TillSessionAmount TillHandover
+               TillHandoverAmount TillDeposit TillRefund DepositResponsibilityTransfer RemainingDepositBalance
+               RemainingDepositBalanceTransaction EmployeeReconciliationSummary EmployeeReconciliationSummaryAmount
+               BankStatement BankStatementTransaction DepositMatch BankDispute SalesImport SalesTransaction PosImport
+               PosImportIgnoredRow PosTransaction PosTerminal BranchRevenue],
+      INFRA => %w[ApplicationRecord AuditLog]
+    }.flat_map { |domain, names| names.map { |name| [ name, domain ] } }.to_h.freeze
+
+    # Non-model constants (exact name or namespace prefix "X::") → owner. The
+    # longest matching key wins, so specific overrides beat their namespace.
+    CONSTANT_OWNERS = {
+      # Organization & Access
+      "OrganizationAccess::" => OA, "Approvals::" => OA, "Users::" => OA,
+      "EmployeeScope" => OA, "BranchScope" => OA,
+      # Workforce
+      "Workforce::" => WF, "Requests::" => WF, "Shifts::" => WF, "Scheduling::" => WF,
+      "EmployeeDataRequests::" => WF, "Performance::" => WF, "Employee::" => WF, "BranchMembership" => WF,
+      "Dashboard::Birthdays" => WF, "EmployeeDataRequestsHelper" => WF, "ShiftAssignmentHelper" => WF,
+      "ShiftTemplateHelper" => WF,
+      # Attendance & Payroll (Employee::PerformanceScorer — module-boundaries.md §10.1)
+      "Payroll::" => AP, "Attendance::" => AP, "Salary::" => AP, "Adjustments::" => AP, "Reports::" => AP,
+      "Employee::PerformanceScorer" => AP, "Geo::" => AP,
+      "Api::V1::AdvanceSerializer" => AP,
+      # Inventory & Purchasing
+      "Inventory::" => IP, "Laundry::" => IP, "InventoryHelper" => IP, "LaundryHelper" => IP,
+      # Finance & Sales
+      "Finance::" => FS, "FinancialSettlementService" => FS, "Settleable" => FS, "FinanceHelper" => FS,
+      # Reporting (module-boundaries.md §9)
+      "Dashboard::" => RP, "Finance::Dashboard::" => RP, "Finance::DashboardFilters" => RP,
+      "Finance::Reports::BranchProfitability" => RP, "Finance::Reports::ExpenseSources" => RP,
+      "Finance::Reports::VerifiedRevenue" => RP, "Finance::Reports::LaundryCostSummary" => RP,
+      "Finance::Reports::ExpenseDetails" => RP, "Finance::Reports::ExpenseDetailsCsvExporter" => RP,
+      "OperationsDashboardPolicy" => RP, "Finance::DashboardPolicy" => RP,
+      # Shared Kernel / Infrastructure
+      "BusinessDay" => SHARED, "PhoneNumber" => SHARED, "Voidable" => SHARED, "ImmutableDocument" => SHARED,
+      "AuditLoggable" => INFRA, "Attachable" => INFRA, "ApplicationPolicy" => INFRA, "ApplicationController" => INFRA,
+      "ApplicationHelper" => INFRA, "WorkspaceHelper" => INFRA, "AttachmentHelper" => INFRA, "ApplicationJob" => INFRA,
+      "ApplicationMailer" => INFRA, "ApiResponder" => INFRA, "Api::" => INFRA
+    }.freeze
+
+    # Policies whose owner is not the owner of the model named in their prefix.
+    POLICY_OWNERS = {
+      "OperationsDashboardPolicy" => RP, "PayrollDashboardPolicy" => AP, "DepositVerificationPolicy" => FS,
+      "UserPolicy" => WF # employee management (module-boundaries.md §5 item 9)
+    }.freeze
+
+    # ------------------------------------------------------- classification ---
+
+    # Upward / sideways references already classified by an existing boundary
+    # spec or decision: [source path regexp, constant regexp, reason]. A reason
+    # always names where the classification is recorded and enforced.
+    CLASSIFIED = [
+      # Organization & Access inverse associations and helper (organization_access_outbound_boundary_spec.rb,
+      # organization_access_membership_boundary_spec.rb, permission-role / membership exceptions).
+      [ %r{\Aapp/models/(user|business|branch)\.rb\z}, /./,
+        "OA inverse associations / stewardship helpers — frozen by organization_access_outbound_boundary_spec.rb and organization_access_membership_boundary_spec.rb (OA-INV / OA-X)" ],
+      [ %r{\Aapp/controllers/admin/branches_controller\.rb\z}, /\AShiftAssignment(::|\z)/,
+        "branch staff view — OA-X exception, organization_access_membership_boundary_spec.rb" ],
+      [ %r{\Aapp/views/admin/branches/}, /\A(ShiftAssignment|PosTerminal)(::|\z)/,
+        "branch staff view / terminal form composition — organization_access_membership_boundary_spec.rb, finance_sales_pos_terminal_boundary_spec.rb (D-P12-6)" ],
+      [ %r{\Aapp/controllers/api/v1/sessions_controller\.rb\z}, /\AShiftAssignment(::|\z)/,
+        "API login checkin_branch_ids — OA-X exception, organization_access_membership_boundary_spec.rb" ],
+
+      # Infrastructure UI shell (organization_access_outbound_boundary_spec.rb; module-boundaries.md §15).
+      [ %r{\Aapp/helpers/workspace_helper\.rb\z}, /./,
+        "WorkspaceHelper navigation registry — policy(Model) gates and workspace permission lists, organization_access_outbound_boundary_spec.rb" ],
+      [ %r{\Aapp/views/layouts/_sidebar\.html\.erb\z}, /./,
+        "UI shell navigation entries (policy(Model) gates, admin paths) — classified per file in workforce_catalog_boundary_spec.rb, attendance_payroll_{biometric,obligation}_boundary_spec.rb, permission_role_boundary_spec.rb; module-boundaries.md §15" ],
+      [ %r{\Aapp/policies/application_policy\.rb\z}, /\A(EmployeeScope|BranchScope)\z/,
+        "Pundit mechanism (Infrastructure) delegating to the Organization & Access scope rules — module-boundaries.md §16 and §18 rule 11" ],
+      [ %r{\Aapp/helpers/application_helper\.rb\z}, /\ABusiness::CURRENCIES\z/,
+        "format_currency reads the business currency table — Shared Kernel money formatting, module-boundaries.md §15" ],
+      [ %r{\Aapp/helpers/application_helper\.rb\z}, /\APayrollAdjustment::POSITIVE_TYPES\z/,
+        "shared helper payroll-adjustment badge — workforce_request_validation_reads_boundary_spec.rb (count frozen at 1)" ],
+
+      # Workforce → Attendance & Payroll classified sites.
+      [ %r{\Aapp/views/admin/shifts/}, /\APenaltyRule(::|\z)/,
+        "shift form penalty-rule option lists — Pilot 4 read-only exception, attendance_payroll_penalty_rule_boundary_spec.rb" ],
+      [ %r{\Aapp/views/admin/users/show\.html\.erb\z}, /\AEmployeeObligation(::|\z)/,
+        "employee-page obligations card under EmployeeObligationPolicy — attendance_payroll_obligation_boundary_spec.rb (SEC-M2-5)" ],
+
+      # Inventory & Purchasing → Finance & Sales classified reads (inventory_finance_goods_receipt_payment_boundary_spec.rb rule 3, IP-R).
+      [ %r{\Aapp/(models/(goods_receipt|purchase_request|purchase_request_advance)\.rb|services/inventory/(custody_payment_preview|goods_receipt_draft_service)\.rb|controllers/inventory/(goods_receipt_settlements|goods_receipts|purchase_requests)_controller\.rb|views/inventory/(goods_receipt_settlements/new|goods_receipts/show)\.html\.erb)\z},
+        /\A(FinancialSettlement|CustodyAccount|CustodyTransaction|CustodyAccountPolicy|Settleable|Finance::CustodyBalance)(::|\z)/,
+        "IP → FS classified display read (IP-R) — frozen per file by inventory_finance_goods_receipt_payment_boundary_spec.rb rule 3" ],
+
+      # Reporting host (reporting_read_only_boundary_spec.rb, D-R1).
+      [ %r{\Aapp/controllers/finance/reports_controller\.rb\z}, /\AFinance::Reports::(BranchProfitability|ExpenseSources|ExpenseDetails|ExpenseDetailsCsvExporter)\z/,
+        "FS controller hosting the two Reporting actions — reporting_read_only_boundary_spec.rb (D-R1)" ]
+    ].freeze
+
+    # ------------------------------------------------------------- scanning ---
+
+    CONSTANT = /(?<![\w:@$.])(?:::)?([A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*)/
+
+    Reference = Struct.new(:path, :source, :target, :constant, :line, :status, :reason, keyword_init: true)
+
+    def root
+      defined?(Rails) ? Rails.root.to_s : File.expand_path("../..", __dir__)
+    end
+
+    def app_files
+      Dir.glob(File.join(root, "app", "**", "*")).select { |f| File.file?(f) }
+         .map { |f| f.delete_prefix("#{root}/") }.sort
+    end
+
+    # The domain of a file, or nil when no rule maps it (reported as unmapped).
+    def domain_of_file(path)
+      if (model = path[%r{\Aapp/models/([a-z0-9_]+)\.rb\z}, 1])
+        return MODEL_OWNERS[camelize(model)]
+      end
+      if (policy = path[%r{\Aapp/policies/([a-z0-9_]+)_policy\.rb\z}, 1])
+        name = "#{camelize(policy)}Policy"
+        return POLICY_OWNERS[name] || MODEL_OWNERS[camelize(policy)] || rule_domain(path)
+      end
+      rule_domain(path)
+    end
+
+    def rule_domain(path)
+      FILE_RULES.find { |pattern, _| pattern.match?(path) }&.last
+    end
+
+    # The owner of a constant, or nil when it is not an application constant
+    # (Ruby, Rails, gems) — those are never dependencies between domains.
+    def owner_of(constant)
+      name = constant.delete_prefix("::")
+      return MODEL_OWNERS[name] if MODEL_OWNERS.key?(name)
+      return POLICY_OWNERS[name] if POLICY_OWNERS.key?(name)
+
+      key = CONSTANT_OWNERS.keys.select { |k| k.end_with?("::") ? name.start_with?(k) : (name == k || name.start_with?("#{k}::")) }
+                           .max_by(&:length)
+      return CONSTANT_OWNERS[key] if key
+
+      if (base = name[/\A([A-Z][A-Za-z0-9]*)Policy(::Scope)?\z/, 1])
+        return MODEL_OWNERS[base]
+      end
+      if (head = name[/\A([A-Z][A-Za-z0-9]*)::/, 1]) && MODEL_OWNERS.key?(head)
+        return MODEL_OWNERS[head] # Model::CONSTANT, Model::Nested
+      end
+
+      nil
+    end
+
+    # A constant written unqualified inside a namespaced file (`ExpenseSources`
+    # inside app/services/finance/reports/) is resolved against the namespaces
+    # its path implies, innermost first — only when that exact constant exists
+    # (Ruby's lexical lookup would otherwise also find top-level ones).
+    def resolve(constant, path)
+      return constant if constant.start_with?("::") || owner_of(constant)
+
+      namespaces = path.sub(%r{\Aapp/[^/]+/}, "").split("/")[0..-2].map { |segment| camelize(segment) }
+      namespaces.size.downto(1).each do |depth|
+        candidate = "#{namespaces.first(depth).join('::')}::#{constant}"
+        return candidate if owner_of(candidate) && existing_constant?(candidate)
+      end
+      constant
+    end
+
+    def existing_constant?(name)
+      return false unless defined?(ActiveSupport)
+
+      found = name.safe_constantize
+      found.respond_to?(:name) && found.name == name
+    rescue StandardError, LoadError
+      false
+    end
+
+    def code_lines(path, content = nil)
+      source = content || File.read(File.join(root, path))
+      source = source.gsub(/<%#.*?%>/m) { |c| "\n" * c.count("\n") } if path.end_with?(".erb")
+      if path.end_with?(".erb")
+        # Only Ruby inside ERB tags is code; HTML text never is.
+        source = source.gsub(/(?:\A|%>)(.*?)(?=<%|\z)/m) { |m| m.gsub(/[^\n]/, " ") }
+      end
+      source.each_line.with_index(1)
+            .reject { |line, _| line.lstrip.start_with?("#") }
+            .map { |line, number| [ strip_strings(line).sub(/\s#(?![{]).*$/, ""), number ] }
+    end
+
+    def strip_strings(line)
+      line.gsub(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|%[iIwW]\[[^\]]*\]/, '""')
+    end
+
+    def references_in(path, content = nil)
+      source = domain_of_file(path)
+      return [] if source.nil? || source == FRONTEND
+      return [] unless content || path.end_with?(".rb", ".erb")
+
+      code_lines(path, content).flat_map do |line, number|
+        line.scan(CONSTANT).flatten.filter_map do |written|
+          constant = resolve(written, path)
+          target = owner_of(constant)
+          next if target.nil? || target == source || [ SHARED, INFRA ].include?(target)
+
+          status, reason = classify(path, source, target, constant)
+          Reference.new(path: path, source: source, target: target, constant: constant.delete_prefix("::"),
+                        line: number, status: status, reason: reason)
+        end
+      end
+    end
+
+    def classify(path, source, target, constant)
+      return [ :allowed, "§12.1 #{source} → #{target}" ] if UPSTREAM.fetch(source, []).include?(target)
+
+      entry = CLASSIFIED.find { |file, const, _| file.match?(path) && const.match?(constant.delete_prefix("::")) }
+      entry ? [ :classified, entry.last ] : [ :unclassified, nil ]
+    end
+
+    def inventory(files = app_files)
+      mapped, unmapped = files.partition { |path| domain_of_file(path) }
+      { files: files, unmapped: unmapped, mapped: mapped.group_by { |path| domain_of_file(path) },
+        references: mapped.flat_map { |path| references_in(path) } }
+    end
+
+    def camelize(snake) = snake.split("_").map(&:capitalize).join
+
+    # ------------------------------------------------------------- report ---
+
+    def report(result = inventory)
+      refs = result[:references]
+      grouped = refs.group_by { |r| [ r.status, r.source, r.target, r.path, r.constant ] }
+      lines = []
+      lines << "# Domain dependency inventory — REPORT-ONLY (module-boundaries.md §19 step 0)"
+      lines << "# Generated by: bin/rails architecture:dependency_report  (script/architecture/dependency_inventory.rb)"
+      lines << "# Deterministic: sorted, no timestamps, no line numbers (counts per file and constant)."
+      lines << "# Scope: constant references in app/**/*.rb and *.erb code; associations, SQL strings and"
+      lines << "#   string/i18n contents are not resolved (per-component boundary specs cover those)."
+      lines << "#   Dotfiles (app/**/.keep placeholders) are not files of any domain and are not listed."
+      lines << "# allowed = §12.1 direction; classified = recorded and enforced elsewhere (reason cites where);"
+      lines << "#   unclassified = upward / sideways reference with no recorded classification."
+      lines << "#"
+      lines << "## Files under app/: #{result[:files].size}"
+      LAYERS.each do |layer|
+        lines << "#   #{layer}: #{result[:mapped].fetch(layer, []).size}"
+      end
+      lines << "#   unmapped: #{result[:unmapped].size}"
+      lines << "#"
+      lines << "## Cross-domain references (distinct file + constant / reference lines) by status"
+      %i[allowed classified unclassified].each do |status|
+        subset = refs.select { |r| r.status == status }
+        lines << "#   #{status}: #{subset.map { |r| [ r.path, r.constant ] }.uniq.size} / #{subset.size}"
+      end
+      lines << "#"
+      lines << "## Edges (source → target: distinct file + constant, by status)"
+      refs.group_by { |r| [ r.source, r.target ] }.sort_by { |k, _| k.map(&:to_s) }.each do |(source, target), subset|
+        counts = %i[allowed classified unclassified].map { |s| "#{s} #{subset.select { |r| r.status == s }.map { |r| [ r.path, r.constant ] }.uniq.size}" }
+        lines << "#   #{source} → #{target}: #{counts.join(', ')}"
+      end
+      lines << ""
+      lines << "[unmapped]"
+      result[:unmapped].each { |path| lines << path }
+      %i[unclassified classified].each do |status|
+        lines << ""
+        lines << "[#{status}]"
+        grouped.select { |(s, *), _| s == status }.sort_by { |k, _| k.map(&:to_s) }.each do |(_, source, target, path, constant), group|
+          suffix = status == :classified ? "  — #{group.first.reason}" : ""
+          lines << "#{source} → #{target}  #{path}  #{constant} ×#{group.size}#{suffix}"
+        end
+      end
+      lines << ""
+      lines << "[allowed]"
+      grouped.select { |(s, *), _| s == :allowed }.sort_by { |k, _| k.map(&:to_s) }.each do |(_, source, target, path, constant), group|
+        lines << "#{source} → #{target}  #{path}  #{constant} ×#{group.size}"
+      end
+      "#{lines.join("\n")}\n"
+    end
+  end
+end
