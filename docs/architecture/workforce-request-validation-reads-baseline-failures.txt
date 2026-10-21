@@ -44,6 +44,30 @@
 #     AttendanceRecord#duration_severity -> nil, #status -> "absent"   4 failures (sites 3, 6)
 #   Not pinned: punch_check_ins_for's `where.not(check_in_at: nil)` — attendance_records.check_in_at is NOT NULL.
 #
+# M2 (2026-10-21, commit 2f7cd91): contract Requests::RequestFormReads + spec/services/requests/request_form_reads_spec.rb
+#   (inside the spec/services/requests entry). During M2 the contract spec had 14 examples, 0 failures under the three
+#   seeds and CI=1; spec/architecture 354 / 0; zeitwerk:check clean. The commit holds the final contract spec (15: the
+#   boot registration check was added in M3), so at 2f7cd91 alone that one example fails — the implementation it
+#   checks arrives in 1d1def7.
+# M3 (2026-10-21, commit 1d1def7): Payroll::RequestFormReads, config/initializers/request_form_reads.rb,
+#   spec/services/payroll/request_form_reads_spec.rb (18; NOT in the set entries above — passed explicitly, see M4).
+#   The M3 focused set (contract + adapter + M1 + calculator / policy / security / resulting-duration / employee-request
+#   specs + spec/architecture): 668 examples, 0 failures under the three seeds and CI=1. No call site changed.
+# M4 (2026-10-21, commit 84e7275): the seven sites migrated; spec/architecture/workforce_request_validation_reads_boundary_spec.rb
+#   (11, inside the spec/architecture entry). The M1 spec passed unmodified. Final run — the set above plus
+#   spec/services/payroll/request_form_reads_spec.rb, i.e. the commands above with that path appended:
+#   seed 20261006: 1378 examples, 0 failures, exit 0
+#   seed 12345:    1378 examples, 0 failures, exit 0
+#   seed 98765:    1378 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 1378 examples, 0 failures, exit 0
+#   (A first M4 run failed spec/architecture/workforce_punch_correction_boundary_spec.rb:110 under every seed: a reworded
+#   ERB comment in _resulting_duration.html.erb named Requests::PunchCorrectionEffects, which that Pilot 10 spec reads as
+#   code. Comment reworded, no rendered change; spec/architecture then 365 / 0 under the three seeds and CI=1.)
+#   zeitwerk:check clean; RuboCop on the 10 changed Ruby files no offenses; git diff --check clean.
+#   The M1 probe of EmployeeRequestsController::PUNCH_CHECK_IN_LOOKBACK no longer applies (constant removed in M4; the
+#   lookback is Requests::RequestFormReads::RECENT_CHECK_INS_DAYS).
+# No failing ID at any step; the baseline above stands.
+#
 # set spec/models/employee_request_spec.rb
 # set spec/requests/employee_requests_spec.rb
 # set spec/requests/employee_request_attendance_window_spec.rb

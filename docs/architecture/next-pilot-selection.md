@@ -5675,7 +5675,7 @@ F-A5: destroying a request (or its user) can still delete the Advance — F-A5 s
 deletion, `195a08b`, §29).
 
 **Still open, unchanged by Batch A:** F-A2 (not verified under real concurrency — later closed, `46c0bcd`, §36), F-A3 (`mark_all_paid` class
-authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29; F-A5 later closed, `195a08b`, §29; F-A7's bulk deadlock later fixed, `49f5a04`, §36, and its approval race, `0c0b57b`, §29); the WF → AP request-validation reads (D-A5); SEC-P12-1,
+authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29; F-A5 later closed, `195a08b`, §29; F-A7's bulk deadlock later fixed, `49f5a04`, §36, and its approval race, `0c0b57b`, §29); the WF → AP request-validation reads (D-A5 — later resolved, Batch V, §37); SEC-P12-1,
 TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1, TD-W-1.
 
 ---
@@ -6070,3 +6070,111 @@ one of its requests) can wait for another batch's full duration; there is no `lo
 the theoretical bulk "paid without an Advance" case (a
 `RecordInvalid` from the Advance after `update!`, rescued inside the joined batch transaction — unreachable today),
 F-A4, F-A6 and every other open finding (F-A5 since closed, `195a08b`, §29).
+
+---
+
+## 37. Batch V — Workforce → Attendance & Payroll request-validation reads (D-A5)
+
+**Status (2026-10-21): M0, M1, M2, M3, M4 and M8 COMPLETE** — committed locally on `batch-v/request-validation-reads-2`
+(from `origin/main` `bc6682b`, the PR #57 merge): M1 `180962f`, M2 `2f7cd91`, M3 `1d1def7`, M4 `84e7275`, then this
+documentation commit; not pushed or merged. M5 not needed (no business rule in the controller), M6 folded into M4 (the
+boundary spec lands with the migration), M7 not applicable. No schema, migration, route, permission, dependency or API
+change. Closes the last open item of the `module-boundaries.md` §12.2 WF → AP row, left out of Batch A as D-A5 (§30).
+Baseline and step results: `docs/architecture/workforce-request-validation-reads-baseline-failures.txt`.
+
+### 37.1 Inventory (M0)
+
+The M0 scan of the Workforce request files (the globs of `workforce_request_advance_boundary_spec.rb`, code only)
+found seven read sites — four planned, three more (5–7) found by the scan and approved into scope (Option A):
+
+| # | Site | Read before Batch V |
+|---|---|---|
+| 1 | `EmployeeRequest#within_advance_limit` | `Salary::AdvanceEligibilityCalculator.for(user:)` |
+| 2 | `EmployeeRequestsController#advance_limit_for` | the calculator, `policy(SalaryProfile.new(user_id:)).view_salary?`, `Salary::ViewAudit.record(... SalaryProfile.current_for ...)` |
+| 3 | `EmployeeRequestsController#show` + `show.html.erb` | `AttendanceRecord.find_by(user:, work_date:)`; the view reads `check_in_at`, `check_out_at`, `status`, `worked_minutes`, `duration_severity` |
+| 4 | `EmployeeRequestsController#punch_check_ins_for` | `AttendanceRecord` check-ins of the last 62 days |
+| 5 | `EmployeeRequestPolicy#create?` | `SalaryProfilePolicy.viewable_employees(user)` (on-behalf salary advances, decision of 2026-10-19) |
+| 6 | `show.html.erb` (duration alert) | `Attendance::DurationCheck.threshold_hours` |
+| 7 | `_resulting_duration.html.erb` (punch-correction panel) | `Attendance::DurationCheck.threshold_hours` |
+
+Not a D-A5 site: `app/helpers/application_helper.rb` `PayrollAdjustment::POSITIVE_TYPES` (the shared helper's
+payroll-adjustment badge, used by payroll screens; unchanged since `6b4a5a1`) — classified, not migrated.
+
+**Authorization comparison (sites 2 and 5):** for another employee both evaluate
+`SalaryProfilePolicy.viewable_employees(actor).exists?(id: employee.id)` (`view_salary?` is
+`own? || viewable_employees…`, and both callers decide one's own request first; `ApplicationPolicy` has no owner
+bypass), confirmed by the M1 outcome matrix. They were kept as two operations, not consolidated.
+
+### 37.2 Contract and implementation (M2, M3)
+
+**`Requests::RequestFormReads`** (`app/services/requests/request_form_reads.rb`, Workforce): register / handler /
+`NotRegistered` as the other Workforce contracts; every result is type-checked; it names nothing from Attendance &
+Payroll. Operations:
+
+| Operation | Returns | Used by |
+|---|---|---|
+| `advance_limit(user:)` | `AdvanceLimit` or `nil` (no limit configured; no profile → `no_profile` true, never `nil`) | site 1 |
+| `advance_limit_for(user:, viewer:)` | `AdvanceLimitView(limit, hidden)`: no limit → nil, not hidden, nothing recorded; own → limit, nothing recorded; viewer may not see the salary → hidden; otherwise the limit and one salary view (source `request_advance_limit`) unless `no_profile` | site 2 |
+| `salary_visible?(viewer:, employee:)` | `true` / `false` — authorization only: no limit computed, nothing recorded; false for viewer == employee | site 5 |
+| `attendance_day(user:, date:)` | `AttendanceDay` (the five fields above) or `nil` | site 3 |
+| `recent_check_ins(user:)` | `Hash` work date → business-local check-in, `RECENT_CHECK_INS_DAYS = 62` before `Date.current`, inclusive | site 4 |
+| `duration_threshold_hours(severity:, business:)` | `Integer` — critical for `:critical`, suspicious otherwise | sites 6, 7 |
+
+Value objects `AdvanceLimit` (`description_key`, `max_amount`, `outstanding`, `available`, `no_profile`),
+`AdvanceLimitView` and `AttendanceDay` carry only what Workforce reads; amounts pass through unchanged (the existing
+Float rendering of the validation messages is kept). `Requests::PunchCorrectionEffects::Facts` is unchanged: the
+threshold is a business setting, not a correction fact.
+
+**`Payroll::RequestFormReads`** (`app/services/payroll/request_form_reads.rb`, Attendance & Payroll), registered in
+`config/initializers/request_form_reads.rb` (`to_prepare`): each operation is the code it replaces, unchanged — the
+calculator; the form's `SalaryProfilePolicy#view_salary?` decision and `Salary::ViewAudit` (computed in the form's
+order: limit first, then visibility, then the audit); `SalaryProfilePolicy.viewable_employees` for `salary_visible?`;
+`AttendanceRecord.find_by`; the form's check-in query; `Attendance::DurationCheck.threshold_hours`.
+
+### 37.3 Migration (M4)
+
+The seven sites call the contract: the model (`advance_limit`); the controller (`advance_limit_for` sets
+`@advance_limit_hidden` from `hidden?`; `show` assigns `@attendance_day` — renamed from `@attendance_record`, as it
+now holds a value object; `punch_check_ins_for` calls `recent_check_ins` and the controller's
+`PUNCH_CHECK_IN_LOOKBACK` is removed); the policy (`salary_visible?`, same rule, same position in `create?`); both views
+(`duration_threshold_hours`, each with its former `business:` argument). Markup, messages, HTTP and API responses,
+authorization outcomes and salary-view audits are unchanged.
+
+### 37.4 Tests
+
+| Spec | Examples | What |
+|---|---|---|
+| `spec/characterization/workforce/request_validation_reads_spec.rb` (M1) | 38 | Recorded from the unchanged code on `bc6682b`, compared byte-for-byte, and passing unmodified after M4: validation messages (own, outstanding, no profile, on-behalf, unrestricted); the form hint in every visibility case with exact salary-view audit counts, actor, employee, business and metadata (including one audit per 422 re-render on behalf); the policy outcome matrix (7 actor kinds) and `create?` = `view_salary?` whenever the approver gate passes; web create accepted / refused; the API path (own requests only, `for_user_id` ignored, exact 422 JSON); the original-attendance card, duration alert and resulting-duration panel at configured thresholds; the check-in hint (62-day inclusive boundary, work-date keys, business-local time). Probes (in memory): 4, 6, 17, 3, 3 and 4 failures for the six probed reads |
+| `spec/services/requests/request_form_reads_spec.rb` (M2) | 15 | Operations, value-object members, registration (including the boot registration), `NotRegistered`, dispatch, nil handling, result type checks, no AP constant in the contract |
+| `spec/services/payroll/request_form_reads_spec.rb` (M3) | 18 | Each operation through the contract against the AP code it wraps; audit conditions and metadata; `salary_visible?` = `viewable_employees` membership, never computing or recording |
+| `spec/architecture/workforce_request_validation_reads_boundary_spec.rb` (M4) | 11 | No AP constant in Workforce request code outside the one classified exception (count frozen at 1); the seven call shapes exactly, no other caller; the contract names nothing from AP; the implementation never calls back into Workforce, is named only by the composition root and is the registered handler; self-tests for each former direct read |
+
+**Commit-by-commit note:** `2f7cd91` (M2) on its own fails one example — the contract spec's boot-registration check —
+because the implementation arrives in `1d1def7` (M3); from M3 onward the branch passes.
+
+**M4 finding (resolved):** a first M4 run failed `workforce_punch_correction_boundary_spec.rb:110` in every seed: the
+reworded ERB comment of `_resulting_duration.html.erb` named `Requests::PunchCorrectionEffects`, and the Pilot 10
+spec reads ERB continuation lines as code. The comment was reworded (no rendered change); no behaviour was involved.
+
+### 37.5 Verification
+
+| Run | Result |
+|---|---|
+| M0 baseline — 24-entry focused set, seeds 20261006 / 12345 / 98765 and `CI=1` | 1296 examples, 0 failures each |
+| M1 — the set with the characterization spec | 1334 examples, 0 failures each |
+| Final, after M4 — the set plus the adapter spec, seeds 20261006 / 12345 / 98765 and `CI=1` | **1378 examples, 0 failures each** |
+| `spec/architecture` after the M4 comment fix, three seeds and `CI=1` | 365 examples, 0 failures each |
+| `zeitwerk:check` | All is good |
+| RuboCop on the changed Ruby files (10) | no offenses |
+| `git diff --check` (tracked and new files) | clean |
+
+The full suite was not run (not a designated milestone). `Gemfile.lock`, `db/schema.rb` and routes unchanged.
+
+### 37.6 Not changed (recorded, not fixed here)
+
+Existing behaviour pinned by M1 and left as it is: the advance-limit validation messages print Float amounts
+("3210.0 SAR remaining") and the form hint uses `number_with_precision`, not `format_currency`; the on-behalf hint
+still reads "of your monthly salary"; every on-behalf 422 re-render records another salary view, for any request type;
+the check-in lookback counts from `Date.current`. The check-in query's `where.not(check_in_at: nil)` is not pinned
+(`attendance_records.check_in_at` is NOT NULL). No WF → AP edge remains open in `module-boundaries.md` §12.2; the
+remaining references are classified exceptions (Batch A's `request.advance` reads; the helper badge above).
