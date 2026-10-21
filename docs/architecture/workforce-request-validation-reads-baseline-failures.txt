@@ -1,0 +1,94 @@
+# Batch V (Workforce → Attendance & Payroll request-validation reads, D-A5) — baseline failing example IDs
+# Purpose: the reference list for every Batch V step. After each step the failing IDs of the set below are compared
+# with this list by exact ID (never by count); any ID not listed stops the work. Contents are not edited to absorb
+# new failures. Documented flaky IDs elsewhere keep their treatment.
+# Starting point: batch-v/request-validation-reads, worktree ../WorkPulse-batch-v, created 2026-10-21 from
+#   origin/main bc6682b (PR #57 merge; remote main verified at bc6682b by a read-only API call, no fetch), before any
+#   Batch V spec or code change.
+#
+# Scope (approved 2026-10-21, Option A): the seven Workforce → Attendance & Payroll read sites
+#   1. app/models/employee_request.rb #within_advance_limit — Salary::AdvanceEligibilityCalculator.for(user:)
+#   2. app/controllers/employee_requests_controller.rb #advance_limit_for — the calculator,
+#      policy(SalaryProfile.new(user_id:)).view_salary?, Salary::ViewAudit.record(..., SalaryProfile.current_for(...))
+#   3. app/controllers/employee_requests_controller.rb #show — AttendanceRecord.find_by(user:, work_date:); the show
+#      view reads duration_severity, worked_minutes, check_in_at, check_out_at, status
+#   4. app/controllers/employee_requests_controller.rb #punch_check_ins_for — AttendanceRecord check-ins (62 days)
+#   5. app/policies/employee_request_policy.rb #create? — SalaryProfilePolicy.viewable_employees(user)
+#   6. app/views/employee_requests/show.html.erb — Attendance::DurationCheck.threshold_hours (duration alert)
+#   7. app/views/employee_requests/_resulting_duration.html.erb — Attendance::DurationCheck.threshold_hours
+# Not a D-A5 site: app/helpers/application_helper.rb PayrollAdjustment::POSITIVE_TYPES (shared helper, payroll
+#   adjustment badge; not Workforce request code).
+#
+# Commands (lazy loading, no CI env), then one eager run:
+#   bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/workforce-request-validation-reads-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 12345 $(grep '^# set ' docs/architecture/workforce-request-validation-reads-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 98765 $(grep '^# set ' docs/architecture/workforce-request-validation-reads-baseline-failures.txt | cut -d' ' -f3)
+#   CI=1 bundle exec rspec --seed 20261006 $(grep '^# set ' docs/architecture/workforce-request-validation-reads-baseline-failures.txt | cut -d' ' -f3)
+#
+# Result at M0 (2026-10-21, on bc6682b, working tree: this file only; no code or spec change):
+#   seed 20261006: 1296 examples, 0 failures, exit 0
+#   seed 12345:    1296 examples, 0 failures, exit 0
+#   seed 98765:    1296 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 1296 examples, 0 failures, exit 0
+# No failing ID in the set: any failure in this set during Batch V is new and stops the work.
+#
+# M1 (2026-10-21, on bc6682b + spec/characterization/workforce/request_validation_reads_spec.rb, recorded from the
+#   unchanged code; inside the spec/characterization/workforce entry of the set): the set 1334 examples (M0 1296 + 38),
+#   0 failures under seeds 20261006, 12345 and 98765 (lazy) and with CI=1.
+#   Probes (in memory, `-r` a scratch file, no file change; the M1 spec alone, 38 examples):
+#     Attendance::DurationCheck.threshold_hours -> 99                  4 failures (sites 6, 7)
+#     SalaryProfilePolicy.viewable_employees -> User.none             6 failures (sites 2, 5)
+#     Salary::AdvanceEligibilityCalculator.for -> nil                 17 failures (sites 1, 2, API)
+#     Salary::ViewAudit.record -> no-op                                3 failures (site 2 audit)
+#     EmployeeRequestsController::PUNCH_CHECK_IN_LOOKBACK -> 61 days   3 failures (site 4)
+#     AttendanceRecord#duration_severity -> nil, #status -> "absent"   4 failures (sites 3, 6)
+#   Not pinned: punch_check_ins_for's `where.not(check_in_at: nil)` — attendance_records.check_in_at is NOT NULL.
+#
+# M2 (2026-10-21, commit 2f7cd91): contract Requests::RequestFormReads + spec/services/requests/request_form_reads_spec.rb
+#   (inside the spec/services/requests entry). During M2 the contract spec had 14 examples, 0 failures under the three
+#   seeds and CI=1; spec/architecture 354 / 0; zeitwerk:check clean. The commit holds the final contract spec (15: the
+#   boot registration check was added in M3), so at 2f7cd91 alone that one example fails — the implementation it
+#   checks arrives in 1d1def7.
+# M3 (2026-10-21, commit 1d1def7): Payroll::RequestFormReads, config/initializers/request_form_reads.rb,
+#   spec/services/payroll/request_form_reads_spec.rb (18; NOT in the set entries above — passed explicitly, see M4).
+#   The M3 focused set (contract + adapter + M1 + calculator / policy / security / resulting-duration / employee-request
+#   specs + spec/architecture): 668 examples, 0 failures under the three seeds and CI=1. No call site changed.
+# M4 (2026-10-21, commit 84e7275): the seven sites migrated; spec/architecture/workforce_request_validation_reads_boundary_spec.rb
+#   (11, inside the spec/architecture entry). The M1 spec passed unmodified. Final run — the set above plus
+#   spec/services/payroll/request_form_reads_spec.rb, i.e. the commands above with that path appended:
+#   seed 20261006: 1378 examples, 0 failures, exit 0
+#   seed 12345:    1378 examples, 0 failures, exit 0
+#   seed 98765:    1378 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 1378 examples, 0 failures, exit 0
+#   (A first M4 run failed spec/architecture/workforce_punch_correction_boundary_spec.rb:110 under every seed: a reworded
+#   ERB comment in _resulting_duration.html.erb named Requests::PunchCorrectionEffects, which that Pilot 10 spec reads as
+#   code. Comment reworded, no rendered change; spec/architecture then 365 / 0 under the three seeds and CI=1.)
+#   zeitwerk:check clean; RuboCop on the 10 changed Ruby files no offenses; git diff --check clean.
+#   The M1 probe of EmployeeRequestsController::PUNCH_CHECK_IN_LOOKBACK no longer applies (constant removed in M4; the
+#   lookback is Requests::RequestFormReads::RECENT_CHECK_INS_DAYS).
+# No failing ID at any step; the baseline above stands.
+#
+# set spec/models/employee_request_spec.rb
+# set spec/requests/employee_requests_spec.rb
+# set spec/requests/employee_request_attendance_window_spec.rb
+# set spec/requests/employee_request_branch_manager_punch_correction_spec.rb
+# set spec/requests/employee_request_check_out_order_spec.rb
+# set spec/requests/employee_request_punch_facts_routing_spec.rb
+# set spec/requests/employee_request_resulting_duration_spec.rb
+# set spec/requests/employee_request_review_changes_spec.rb
+# set spec/requests/employee_request_reviewer_datetime_spec.rb
+# set spec/requests/employee_request_reviewer_visibility_spec.rb
+# set spec/requests/security/advance_limit_disclosure_spec.rb
+# set spec/requests/security/effective_salary_spec.rb
+# set spec/requests/security/employee_request_approve_scope_spec.rb
+# set spec/requests/security/employee_request_pay_advances_cancel_spec.rb
+# set spec/requests/security/employee_request_submitter_spec.rb
+# set spec/requests/security/salary_profile_access_spec.rb
+# set spec/requests/api/v1/employee_requests_spec.rb
+# set spec/requests/api/v1/employee_request_scope_spec.rb
+# set spec/policies/employee_request_policy_spec.rb
+# set spec/policies/salary_profile_policy_spec.rb
+# set spec/services/salary/advance_eligibility_calculator_spec.rb
+# set spec/services/requests
+# set spec/characterization/workforce
+# set spec/architecture

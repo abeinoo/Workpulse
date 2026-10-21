@@ -1,7 +1,8 @@
 <%# Worked duration the attendance record has with this correction applied.
     assessment: Requests::PunchCorrectionAssessment — projected_worked_minutes
-    comes from Attendance::RecordRecomputer, severity from
-    Attendance::DurationCheck (the business's configurable thresholds). %>
+    and severity come from Attendance & Payroll through the assessment's
+    correction facts, the threshold from Requests::RequestFormReads (the
+    business's configurable thresholds). %>
 <% minutes  = assessment.projected_worked_minutes %>
 <% severity = assessment.duration_severity %>
 <div class="info-card resulting-duration <%= "resulting-duration--#{severity}" if severity %>"
@@ -24,7 +25,7 @@
       <p class="window-alert__title">
         <%= severity == :critical ? "🔴" : "⚠️" %> <%= t("requests.show.resulting_duration.abnormal") %>
       </p>
-      <p><%= t("requests.show.resulting_duration.exceeds", hours: Attendance::DurationCheck.threshold_hours(severity, business: assessment.request.user.business)) %></p>
+      <p><%= t("requests.show.resulting_duration.exceeds", hours: Requests::RequestFormReads.duration_threshold_hours(severity: severity, business: assessment.request.user.business)) %></p>
     </div>
   <% end %>
 </div>

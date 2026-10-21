@@ -224,7 +224,7 @@ class EmployeeRequest < ApplicationRecord
   def within_advance_limit
     return unless amount.present? && user.present?
 
-    result = Salary::AdvanceEligibilityCalculator.for(user: user)
+    result = Requests::RequestFormReads.advance_limit(user: user)
     return unless result  # no limit configured — unrestricted
 
     return unless result.no_profile? || amount.to_f > result.available
