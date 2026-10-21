@@ -120,18 +120,20 @@ class ShiftAssignment < ApplicationRecord
     effective_to.present? && effective_to < Date.current
   end
 
-  # True when at least one AttendanceRecord was matched against this assignment.
+  # True when at least one attendance record was matched against this assignment.
+  # Attendance belongs to Attendance & Payroll: the question is asked through the
+  # Workforce contract Shifts::AttendanceUsage (F2), never by reading its tables.
   #
-  # Fast path: when the index action SELECTs the EXISTS subquery as `has_attendance`
-  # (to avoid N+1 queries), we read that preloaded value directly via `self[:has_attendance]`.
-  # Slow path: any other context (form renders, API, specs) fires one DB query per call
-  # and caches the result in an instance variable so repeated calls in the same request
-  # don't pile up queries.
+  # Fast path: when the index action SELECTs the contract's EXISTS expression as
+  # `has_attendance` (to avoid N+1 queries), we read that preloaded value directly via
+  # `self[:has_attendance]`. Slow path: any other context (form renders, API, specs)
+  # fires one DB query per call and caches the result in an instance variable so
+  # repeated calls in the same request don't pile up queries.
   def has_attendance_records?
     if has_attribute?(:has_attendance)
       ActiveModel::Type::Boolean.new.cast(self[:has_attendance])
     else
-      @has_attendance_records_cache ||= AttendanceRecord.where(shift_assignment_id: id).exists?
+      @has_attendance_records_cache ||= Shifts::AttendanceUsage.recorded_against?(assignment_id: id)
     end
   end
 
