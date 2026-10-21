@@ -25,6 +25,18 @@
 #   no audit without view_payroll / manage_salary_profiles; view-only, view-and-manage, no-profile, manage-only (a
 #   header-only card with the new-profile action) and own-page cards; exact view_salary audits (one when a profile is
 #   shown, none otherwise; self_view on the own page). Seeds 20261006 / 12345 / 98765 and CI=1: 6 / 0 each.
+# M2–M4 + M6 (one implementation commit): Employee::ProfilePanels + spec (5), Payroll::EmployeeSalaryPanel + spec (4),
+#   config/initializers/employee_profile_panels.rb, the AP partial admin/salary_profiles/_employee_panel.html.erb;
+#   Admin::UsersController#load_salary and the employee page migrated; the M1 golden cards unmodified.
+#   spec/architecture/workforce_employee_salary_panel_boundary_spec.rb (4); spec/architecture 406 / 0. Real probe:
+#   policy_scope(SalaryProfile) added back to the controller → rule 1 fails; restored.
+# M8 (final, 2026-10-22): the set below (with the two new service specs):
+#   seed 20261006: 964 examples, 0 failures, exit 0
+#   seed 12345:    964 examples, 0 failures, exit 0
+#   seed 98765:    964 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 964 examples, 0 failures, exit 0
+#   zeitwerk:check clean; RuboCop on the 7 changed / new Ruby files no offenses; git diff --check clean.
+#   Full suite not run (not a designated milestone). No failing ID at any step.
 #
 # set spec/requests/security/salary_profile_access_spec.rb
 # set spec/requests/security/employee_page_obligations_spec.rb
@@ -36,3 +48,5 @@
 # set spec/characterization/workforce
 # set spec/services/salary
 # set spec/architecture
+# set spec/services/employee/profile_panels_spec.rb
+# set spec/services/payroll/employee_salary_panel_spec.rb

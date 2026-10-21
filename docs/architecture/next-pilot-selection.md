@@ -1628,7 +1628,7 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
 | Q-M2-2 | **Resolved** (§14): `BiometricPunchLog` is AP-owned; its authorization and visibility belong to AP and use the existing attendance permission/scope model. No permission redesign now; SEC-M2-8 stays deferred exactly as documented (§5.2) |
 | Q-M2-3 | After SEC-M2-2 (now gated like `AttendanceRecordsController`): keep `Admin::AttendanceRecordsController`, or retire it in favour of `AttendanceRecordsController`? |
 | Q-M2-4 | SEC-M2-6: may a salary manager change their **own** salary (segregation of duties), and should `manage_salary_profiles` scope apply to the web path? |
-| Q-M2-5 | Employee-page salary and obligations cards (SEC-M2-5): gate them with AP policies inside the WF view (exception), or render them as an AP-contributed panel (UI composition, `module-boundaries.md` §12.1)? |
+| Q-M2-5 | Employee-page salary and obligations cards (SEC-M2-5): gate them with AP policies inside the WF view (exception), or render them as an AP-contributed panel (UI composition, `module-boundaries.md` §12.1)? *(2026-10-22: salary card → UI composition, following the resolution `module-boundaries.md` §12.1 already names (SAL, §42); obligations card unchanged — the classified exception of `attendance_payroll_obligation_boundary_spec.rb`.)* |
 | Q-M2-6 | Should `BiometricPunchLog` be documented as the channel-neutral "punch log" (DS-8)? Naming only; the constant stays |
 | Q-P3-1 | `Employee::PerformanceScorer` ownership (carried over) |
 
@@ -6573,3 +6573,52 @@ lists F2: 11 unclassified file + constant pairs remain.
 Final set 1428 / 0 under seeds 20261006, 12345, 98765 and `CI=1` (M0 1401 / 0). RuboCop on the 8 changed / new Ruby files no offenses; `zeitwerk:check` clean; `git diff --check`
 clean. Recorded observation, not F2 and not investigated: the assignment index's total query count grows by about 4 per
 row for reasons unrelated to attendance.
+
+---
+
+## 42. SAL — the employee-page salary panel as an Attendance & Payroll-contributed panel (Q-M2-5, salary card)
+
+**Status (2026-10-22): M0, M1, M2–M4, M6 and M8 COMPLETE; committed locally, not pushed or merged** — on
+`migration/sal-employee-salary-panel`, stacked on F2 (`1a715da`). M5 not needed, M7 not applicable. No schema,
+migration, route, permission, dependency or API change. Baseline and results:
+`docs/architecture/workforce-employee-salary-panel-baseline-failures.txt`.
+
+**Choice and its source:** `module-boundaries.md` §12.1 already states the resolution for this need — "UI composition:
+AP contributes the salary panel (infrastructure-level view composition), WF does not read AP" — so the open question
+Q-M2-5 is answered for the salary card from that existing direction, not newly decided. The **obligations card is
+unchanged**: it remains the classified, enforced exception (SEC-M2-5, `attendance_payroll_obligation_boundary_spec.rb`).
+
+### 42.1 Inventory (M0)
+
+`Admin::UsersController#load_salary` (`SalaryProfile` probe, `SalaryProfilePolicy#view_salary?` / `#create?`,
+`policy_scope(SalaryProfile)`, `Salary::ViewAudit` source `admin_employee_page`) and the salary card of
+`app/views/admin/users/show.html.erb` (`@salary_visible`, `@salary_manageable`, `@active_salary_profile`). The
+dependency inventory (§40) reported `SalaryProfile` ×2 and `Salary::ViewAudit` ×1 as unclassified WF → AP references.
+
+### 42.2 Contract, implementation, migration (M2–M4)
+
+**`Employee::ProfilePanels`** (Workforce, `app/services/employee/profile_panels.rb`): `salary_panel(viewer:, employee:)`
+→ `Panel(partial, locals)` or `nil`; register / handler / `NotRegistered` / result check; names nothing from AP.
+**`Payroll::EmployeeSalaryPanel`** (AP): the former `load_salary`, unchanged (same policy decisions, current profile
+through the policy scope, the same audit call), returning the AP partial
+`admin/salary_profiles/_employee_panel.html.erb` (the former card markup, ivars → locals) or nil when the viewer may
+neither see nor manage the salary; registered in `config/initializers/employee_profile_panels.rb`. The controller asks
+once (`@salary_panel`); the view renders it. Authorization, displayed data, markup and audits unchanged — the M1
+golden cards pass unmodified.
+
+### 42.3 Tests
+
+| Spec | Examples | What |
+|---|---|---|
+| `spec/characterization/workforce/employee_salary_panel_spec.rb` (M1) + 5 golden files | 6 | No card / no audit; view-only, view-and-manage, no-profile, manage-only, own-page cards (markup) and exact `view_salary` audits |
+| `spec/services/employee/profile_panels_spec.rb` (M2) | 5 | Operation, boot registration, incomplete handler, `NotRegistered`, dispatch, result checks, no AP name |
+| `spec/services/payroll/employee_salary_panel_spec.rb` (M3) | 4 | nil + no audit; partial, locals and one audit; manage-only; another business's employee never shown |
+| `spec/architecture/workforce_employee_salary_panel_boundary_spec.rb` (M6) | 4 | The page's controller and views name no salary constant / table / former panel ivar; one contract call, rendered only from `@salary_panel`; contract / implementation / composition root / partial location; self-tests. Real probe: `policy_scope(SalaryProfile)` added back to the controller → rule 1 fails; file restored |
+
+Dependency inventory regenerated on this branch: **no unclassified WF → AP reference**; 9 unclassified file + constant
+pairs remain (TD-R-1, the OA branch dashboard, three shared-layer reads).
+
+### 42.4 Verification
+
+Final set 964 / 0 under seeds 20261006, 12345, 98765 and `CI=1` (M0 945 / 0). RuboCop on the 7 changed / new Ruby files no offenses; `zeitwerk:check` clean;
+`spec/architecture` 406 / 0 (seed 20261006).
