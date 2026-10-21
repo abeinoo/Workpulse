@@ -46,6 +46,22 @@
 #   Both, seeds 20261006 / 12345 / 98765 and CI=1: 28 examples, 0 failures each.
 #   Probes (in memory, -r a scratch file; the 25-example spec): CustodyAccount#refresh_balance! no-op → 4 failures;
 #   custody debit sign flipped → 8 failures.
+# M2–M4 (one implementation commit): Inventory::PurchaseRequestAdvanceEffects + spec (13), Finance::PurchaseRequestAdvanceEffects
+#   + spec (9), config/initializers/purchase_request_advance_effects.rb; the workflow, recorder, advance controller and
+#   form migrated; Inventory::PurchaseRequestAdvanceRecorder.selectable_custody_accounts removed. The M1 characterization
+#   unmodified: M1 + the existing advance service / request specs 85 / 0 (seed 20261006); contract + adapter 22 / 0.
+# M6 (same commit): spec/architecture/inventory_finance_goods_receipt_payment_boundary_spec.rb extended (13 → 17): rule 1
+#   without the S2 exception; S2 files name nothing from Finance & Sales and call exactly their operations; both
+#   contracts' rule-4 checks; self-tests. spec/architecture 382 / 0. Real probe: a FinancialSettlementService.reverse line
+#   planted in the workflow → 3 failures (rules 1, 2, 3); file restored.
+# M8 (final, 2026-10-22): the set below (now with the contract and adapter specs):
+#   seed 20261006: 849 examples, 0 failures, exit 0
+#   seed 12345:    849 examples, 0 failures, exit 0
+#   seed 98765:    849 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 849 examples, 0 failures, exit 0
+#   System specs (9 files), seed 20261006: 54 examples, 0 failures, exit 0
+#   zeitwerk:check clean; RuboCop on the changed Ruby files no offenses; git diff --check clean.
+#   Full suite not run (not a designated milestone). No failing ID at any step; the M0 baseline stands.
 #
 # set spec/services/inventory/goods_receipt_approval_spec.rb
 # set spec/services/inventory/goods_receipt_settlement_recorder_spec.rb
@@ -69,6 +85,8 @@
 # set spec/services/inventory/goods_receipt_payment_effects_spec.rb
 # set spec/services/finance/goods_receipt_payment_effects_spec.rb
 # set spec/services/inventory/goods_receipt_void_concurrency_spec.rb
+# set spec/services/inventory/purchase_request_advance_effects_spec.rb
+# set spec/services/finance/purchase_request_advance_effects_spec.rb
 #
 # system spec/system/inventory/goods_receipt_extra_products_spec.rb
 # system spec/system/inventory/goods_receipt_settlement_own_custody_spec.rb
