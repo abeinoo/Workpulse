@@ -25,11 +25,11 @@
       </dl>
     </div>
   <% end %>
-  <% if @reviewer_view && (severity = @attendance_record&.duration_severity) %>
+  <% if @reviewer_view && (severity = @attendance_day&.duration_severity) %>
     <div class="alert <%= severity == :critical ? 'alert-danger' : 'alert-warning' %> window-alert"
          role="alert" data-testid="duration-alert">
-      <p class="window-alert__title">⚠️ <%= t("attendance.abnormal_duration", duration: format_duration_hm(@attendance_record.worked_minutes)) %></p>
-      <p><%= t("attendance.abnormal_duration_hint", hours: Attendance::DurationCheck.threshold_hours(severity, business: current_user.business)) %></p>
+      <p class="window-alert__title">⚠️ <%= t("attendance.abnormal_duration", duration: format_duration_hm(@attendance_day.worked_minutes)) %></p>
+      <p><%= t("attendance.abnormal_duration_hint", hours: Requests::RequestFormReads.duration_threshold_hours(severity: severity, business: current_user.business)) %></p>
     </div>
   <% end %>
 
@@ -116,18 +116,18 @@
   <% if @request.punch_correction? %>
     <div class="info-card" style="margin-top: 1rem;">
       <p class="info-card__section-title"><%= t("requests.show.original_attendance") %></p>
-      <% if @attendance_record %>
+      <% if @attendance_day %>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("requests.show.original_check_in") %></span>
-          <span><%= @attendance_record.check_in_at ? local_datetime_12h(@attendance_record.check_in_at, separator: " — ") : "—" %></span>
+          <span><%= @attendance_day.check_in_at ? local_datetime_12h(@attendance_day.check_in_at, separator: " — ") : "—" %></span>
         </div>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("requests.show.original_check_out") %></span>
-          <span><%= @attendance_record.check_out_at ? local_datetime_12h(@attendance_record.check_out_at, separator: " — ") : t("requests.show.missing") %></span>
+          <span><%= @attendance_day.check_out_at ? local_datetime_12h(@attendance_day.check_out_at, separator: " — ") : t("requests.show.missing") %></span>
         </div>
         <div class="info-card__row">
           <span class="info-card__label"><%= t("attendance.status") %></span>
-          <span><%= t("attendance.statuses.#{@attendance_record.status}", default: @attendance_record.status.humanize) %></span>
+          <span><%= t("attendance.statuses.#{@attendance_day.status}", default: @attendance_day.status.humanize) %></span>
         </div>
       <% else %>
         <p class="info-card__empty"><%= t("requests.show.no_attendance_record") %></p>

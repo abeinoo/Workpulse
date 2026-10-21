@@ -56,11 +56,12 @@ class EmployeeRequestPolicy < ApplicationPolicy
     # A salary advance is checked against a limit derived from the employee's
     # salary, so whether it is accepted reveals that limit. On another
     # employee's behalf it may be submitted only by an actor who may view their
-    # salary (view_payroll inside its scope — SalaryProfilePolicy), decided here,
-    # before any limit is computed (decision of 2026-10-19).
+    # salary (view_payroll inside its scope — the Attendance & Payroll rule, read
+    # through Requests::RequestFormReads.salary_visible?), decided here, before
+    # any limit is computed (decision of 2026-10-19).
     return true unless record.salary_advance?
 
-    SalaryProfilePolicy.viewable_employees(user).exists?(id: effective_user.id)
+    Requests::RequestFormReads.salary_visible?(viewer: user, employee: effective_user)
   end
 
   class Scope < ApplicationPolicy::Scope

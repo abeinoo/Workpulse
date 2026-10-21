@@ -75,10 +75,7 @@ class EmployeeRequestsController < ApplicationController
     @request = policy_scope(EmployeeRequest).find(params[:id])
     authorize @request
     if @request.punch_correction?
-      @attendance_record = AttendanceRecord.find_by(
-        user:      @request.user,
-        work_date: @request.requested_for_date
-      )
+      @attendance_day = Requests::RequestFormReads.attendance_day(user: @request.user, date: @request.requested_for_date)
       # Validation data is computed only for reviewers, so it never reaches the
       # requester's rendered page (not merely hidden).
       @reviewer_view = policy(@request).review_details?
@@ -272,25 +269,14 @@ class EmployeeRequestsController < ApplicationController
   # The advance limit is derived from the employee's salary — for a monthly
   # salary it is a fixed percentage of it, so the salary can be read off it. For
   # one's own request it is shown as before. On behalf of another employee it is
-  # shown only to an actor who may view that employee's salary
-  # (SalaryProfilePolicy#view_salary?) and recorded as a salary view; anyone else
-  # gets no figures (@advance_limit_hidden) — the limit is still enforced on
-  # submission.
+  # shown only to an actor who may view that employee's salary, and recorded as a
+  # salary view; anyone else gets no figures (@advance_limit_hidden) — the limit
+  # is still enforced on submission. Decided and recorded by Attendance & Payroll
+  # through Requests::RequestFormReads.advance_limit_for.
   def advance_limit_for(target_user)
-    @advance_limit_hidden = false
-    limit = Salary::AdvanceEligibilityCalculator.for(user: target_user)
-    return limit if limit.nil? || target_user == current_user
-
-    unless policy(SalaryProfile.new(user_id: target_user.id)).view_salary?
-      @advance_limit_hidden = true
-      return nil
-    end
-
-    unless limit.no_profile?
-      Salary::ViewAudit.record(actor: current_user, employee: target_user,
-                               profiles: [ SalaryProfile.current_for(target_user) ], source: "request_advance_limit")
-    end
-    limit
+    view = Requests::RequestFormReads.advance_limit_for(user: target_user, viewer: current_user)
+    @advance_limit_hidden = view.hidden?
+    view.limit
   end
 
   def resolve_for_user
@@ -315,17 +301,12 @@ class EmployeeRequestsController < ApplicationController
                  .for_permissions(:approve_requests, :view_requests, :view_employees)
   end
 
-  PUNCH_CHECK_IN_LOOKBACK = 62.days
-
-  # Recent check-ins as { "YYYY-MM-DD" work date => business-local "YYYY-MM-DDTHH:MM" },
-  # for the request form's live check-out ordering hint (punch_order_guard).
+  # Recent check-ins as { "YYYY-MM-DD" work date => business-local "YYYY-MM-DDTHH:MM" }
+  # (Requests::RequestFormReads::RECENT_CHECK_INS_DAYS back), for the request form's
+  # live check-out ordering hint (punch_order_guard).
   # EmployeeRequest validates server-side; this is display only.
   def punch_check_ins_for(target_user)
-    tz = target_user.business.timezone_object
-    AttendanceRecord.where(user: target_user, work_date: (Date.current - PUNCH_CHECK_IN_LOOKBACK)..)
-                    .where.not(check_in_at: nil)
-                    .pluck(:work_date, :check_in_at)
-                    .to_h { |date, at| [ date.iso8601, at.in_time_zone(tz).strftime("%Y-%m-%dT%H:%M") ] }
+    Requests::RequestFormReads.recent_check_ins(user: target_user)
   end
 
   def allowed_request_types_for(target_user)
