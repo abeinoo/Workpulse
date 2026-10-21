@@ -85,11 +85,13 @@ RSpec.describe "Characterization: employee insurance profile lifecycle" do
       expect(build(insured: false).covers_period?(Date.new(2026, 3, 1), Date.new(2026, 3, 31))).to be(false)
     end
 
-    it "associations: business, user, created_by; Business and User own the inverse (dependent: :destroy)" do
+    # User's inverse was dependent: :destroy until F-A5: a profile now refuses the
+    # employee's deletion (spec/models/user_deletion_guard_spec.rb).
+    it "associations: business, user, created_by; Business owns the inverse (dependent: :destroy), User's restricts deletion (restrict_with_error, F-A5)" do
       expect(EmployeeInsuranceProfile.reflect_on_all_associations.map(&:name)).to contain_exactly(:business, :user, :created_by)
       expect(Business.reflect_on_association(:employee_insurance_profiles).options).to include(dependent: :destroy)
       expect(User.reflect_on_association(:employee_insurance_profile)).to have_attributes(macro: :has_one)
-      expect(User.reflect_on_association(:employee_insurance_profile).options).to include(dependent: :destroy)
+      expect(User.reflect_on_association(:employee_insurance_profile).options).to include(dependent: :restrict_with_error)
     end
   end
 
