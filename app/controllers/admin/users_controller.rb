@@ -122,19 +122,15 @@ class Admin::UsersController < Admin::BaseController
     @user = current_user.business.users.find(params[:id])
   end
 
-  # The employee page shows salary only under SalaryProfilePolicy, never
-  # because the employee page itself is visible (SEC-M2-5): the current profile
-  # only (no history), audited when shown. The obligations card is read in the
-  # view — the documented Attendance & Payroll exception
+  # The salary card is Attendance & Payroll's: its visibility (SalaryProfilePolicy —
+  # never because the employee page itself is visible, SEC-M2-5), the current
+  # profile, the salary-view audit and the markup come from the Workforce
+  # UI-composition contract Employee::ProfilePanels (SAL; module-boundaries.md §12.1).
+  # nil when the viewer may neither see nor manage that salary. The obligations
+  # card is read in the view — the documented Attendance & Payroll exception
   # (attendance_payroll_obligation_boundary_spec) — under EmployeeObligationPolicy.
   def load_salary
-    probe = SalaryProfile.new(user_id: @user.id) # standalone: never built into @user.salary_profiles
-    @salary_visible    = policy(probe).view_salary?
-    @salary_manageable = policy(probe).create?
-    # The salary in force today (the scope resolves the effective profile).
-    @active_salary_profile = @salary_visible ? policy_scope(SalaryProfile).find_by(user: @user) : nil
-    Salary::ViewAudit.record(actor: current_user, employee: @user, profiles: [ @active_salary_profile ],
-                             source: "admin_employee_page")
+    @salary_panel = Employee::ProfilePanels.salary_panel(viewer: current_user, employee: @user)
   end
 
   # ── Shift timeline helpers ────────────────────────────────────────────────

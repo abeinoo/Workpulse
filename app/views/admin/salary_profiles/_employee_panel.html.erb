@@ -1,0 +1,50 @@
+<%# Attendance & Payroll's salary card of the Workforce employee page, contributed
+    through Employee::ProfilePanels (Payroll::EmployeeSalaryPanel, SAL). Locals:
+    employee, salary_visible, salary_manageable, profile (the current profile only,
+    shown under SalaryProfilePolicy). %>
+<div class="card" style="margin-top: var(--space-6);">
+  <div class="card-header">
+    <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("admin.users.salary_profile") %></h2>
+    <% if salary_manageable %>
+      <%= link_to t("admin.users.new_profile"), new_admin_user_salary_profile_path(employee), class: "btn btn-sm btn-primary" %>
+    <% end %>
+  </div>
+
+  <% if !salary_visible %>
+    <%# Manage-only: no amounts and no statement about the current profile. %>
+  <% elsif profile %>
+    <dl class="data-list">
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("salary_profiles.type") %></dt>
+        <dd class="data-list__value"><%= t("salary_profiles.salary_types.#{profile.salary_type}") %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("salary_profiles.base_salary") %></dt>
+        <dd class="data-list__value"><%= format_currency(profile.base_amount) %></dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("salary_profiles.overtime_multiplier") %></dt>
+        <dd class="data-list__value">
+          <% if profile.overtime_multiplier %>
+            <%= profile.overtime_multiplier %>x
+          <% else %>
+            <span class="text-muted">—</span>
+          <% end %>
+        </dd>
+      </div>
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("salary_profiles.effective_from") %></dt>
+        <dd class="data-list__value"><%= local_date(profile.effective_from) %></dd>
+      </div>
+    </dl>
+    <% if policy(profile).update? %>
+      <div class="form-actions">
+        <%= link_to t("admin.users.edit_active_profile"),
+              edit_admin_user_salary_profile_path(employee, profile),
+              class: "btn btn-sm btn-secondary" %>
+      </div>
+    <% end %>
+  <% else %>
+    <p style="padding: var(--space-4); color: var(--text-2);"><%= t("salary_profiles.no_active") %></p>
+  <% end %>
+</div>
