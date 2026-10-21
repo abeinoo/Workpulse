@@ -1332,7 +1332,8 @@ Reproduce: the AP file list and grep patterns used are recorded in §9.
 ## 5. Security audit
 
 **Status:** SEC-M2-1, -2, -3, -4 and -9 are **fixed** (§5.1). SEC-M2-5, -6 and -7 and AP-D1 are **resolved** by
-`8342c01` (merged into `main` in PR #46, merge commit `bfbef9a`; §5.2, §27.2). SEC-M2-8 remains **deferred** (§5.2).
+`8342c01` (merged into `main` in PR #46, merge commit `bfbef9a`; §5.2, §27.2). SEC-M2-8, deferred at M0 (§5.2), is
+now **fixed** (`0432da2`, §31; merged into `main` in PR #57, merge commit `bc6682b`).
 The table below is the original M0 record, kept unchanged as evidence; SEC-M2-9 was added when it was found.
 
 These findings **block** any pilot that touches the affected path. Following the SEC-P3-1 precedent, each is
@@ -1399,6 +1400,9 @@ overview) also has none; it is outside this hardening.
 *Update (2026-10-20, Pilot 12 M0):* SEC-M2-5, -6, -7 and AP-D1 are **resolved** by `8342c01` `fix: enforce payroll
 and financial data access scopes`, merged into `main` in PR #46 (merge commit `bfbef9a`); the code and spec evidence
 is in §27.2. The "Why deferred" column below is the original record. SEC-M2-8 and the SEC-M2-2 follow-up remain open.
+
+*Update (2026-10-21, Pilot 12 close-out):* SEC-M2-8 is **fixed** by `0432da2` `fix: authorize biometric punch log
+access (SEC-M2-8)` (§31), merged into `main` in PR #57 (merge commit `bc6682b`). The SEC-M2-2 follow-up remains open.
 
 | ID | Severity | Item | Why deferred / follow-up |
 |---|---|---|---|
@@ -4971,7 +4975,7 @@ examples, 0 failures, 0 pending; the pilot set 1016 / 0 under seeds 20261006, 12
 
 | ID | Item |
 |---|---|
-| TD-P11-1 (security, separate) | `Laundry::Reports::BranchConsumptionController#scoped_branch_id` returns nil without a `branch_id` param, so a branch-scoped viewer sees every branch's rows (code reading). Not in this pilot |
+| TD-P11-1 (security, separate) | `Laundry::Reports::BranchConsumptionController#scoped_branch_id` returns nil without a `branch_id` param, so a branch-scoped viewer sees every branch's rows (code reading). Not in this pilot. *Resolved since (2026-10-21):* `3139cf4` `fix: enforce branch scope in laundry consumption reports`, tracked as BUG-001 (`docs/quality/deferred-bugs.md`); merged into `main` in PR #57 (`bc6682b`) |
 | TD-P11-2 | `Laundry::DashboardController:13` still uses `branch_type_laundry.first` (inactive branches included) — can disagree with the report. Not in this pilot |
 | TD-P11-3 | Payroll attribution counts a user's whole period `net_salary` for any overlapping laundry assignment (no proration — documented in the class) |
 | TD-P11-4 | Material lines have no explicit order (view order is the query's) |
@@ -5239,7 +5243,10 @@ formatting deviation (§26.8) stand as recorded. No next pilot is selected here.
 
 ## 27. Pilot 12 — Finance & Sales: POS terminals write boundary (Organization & Access → Finance & Sales)
 
-**Status (2026-10-20): M0, M1, M2–M4, M6 and M8 COMPLETE (M8 full suite: no new failing ID, §27.13); M5 and M7 not
+**Status (2026-10-21): CLOSED.** Merged into `main` in PR #57 (https://github.com/abeinoo/Workpulse/pull/57) on
+2026-10-21 07:51:37 UTC with merge commit `bc6682b` (parents `91da561`, `ea1dca1`); close-out record §27.14.
+
+*Status at M8 (2026-10-20), kept as recorded:* **M0, M1, M2–M4, M6 and M8 COMPLETE (M8 full suite: no new failing ID, §27.13); M5 and M7 not
 done (not needed / optional, D-P12-7); committed locally (M1 `4b7b452`, M2–M4 `07a7e99`, M6 `55153fa`, then this
 documentation commit), not pushed or merged** — on `feature/pilot-12-pos-terminals`,
 created from local `main` `91da561` (= the locally recorded `origin/main`; no fetch was made, so remote freshness is
@@ -5282,9 +5289,9 @@ failed only the two SEC-P12-1 examples below (9111 examples), so the specs cited
 
 | ID | Status | Evidence |
 |---|---|---|
-| SEC-M2-8 | Open (§5.2) | `Admin::BiometricPunchLogsController` has no `authorize`; logs are business-wide |
+| SEC-M2-8 | Open (§5.2) — **fixed since**, `0432da2`, §31 | `Admin::BiometricPunchLogsController` has no `authorize`; logs are business-wide |
 | SEC-M2-2 follow-up | Open, product decision (§5.2) | Not touched by PR #46 |
-| TD-P11-1 | Open (§26.4) | `Laundry::Reports::BranchConsumptionController#scoped_branch_id` returns `nil` without a `branch_id` param |
+| TD-P11-1 | Open (§26.4) — **resolved since**, `3139cf4` (BUG-001) | `Laundry::Reports::BranchConsumptionController#scoped_branch_id` returns `nil` without a `branch_id` param |
 | TD-P11-2 | Open (§26.4) | `Laundry::DashboardController:13` still uses `branch_type_laundry.first` |
 
 **New — SEC-P12-1 (security; not accepted behaviour; outside Pilot 12) — FIXED since, §32.** `91da561` "remove stable
@@ -5417,7 +5424,7 @@ commands and the results:
 
 | Run | Result |
 |---|---|
-| Full suite, lazy, seed 20261006 | 9314 examples, 3 failures (21 min 58 s): the two SEC-P12-1 IDs (unresolved, not accepted) and `expenses_index_responsive_spec.rb:121` (TD-P12-2, unexplained, not flaky) |
+| Full suite, lazy, seed 20261006 | 9314 examples, 3 failures (21 min 58 s): the two SEC-P12-1 IDs (unresolved, not accepted) and `expenses_index_responsive_spec.rb:121` (TD-P12-2, unexplained, not flaky). Historical, on `91da561`; SEC-P12-1 fixed since by `ffd1906`, §32 (see §27.14) |
 | Pilot set (10 entries), lazy, seeds 20261006 / 12345 / 98765 | 964 examples, 0 failures under each |
 | Pilot set, `CI=1` (eager), seed 20261006 | 964 examples, 0 failures |
 
@@ -5468,14 +5475,69 @@ Run as one batch (the user's 2026-10-20 instruction: coherent batches, focused t
 **Verification (focused; the full suite was not re-run):** pilot set (13 entries) 1014 examples, 0 failures under seeds
 20261006, 12345 and 98765 (lazy) and with `CI=1`; after M2 + M3 the M1 + branch request + OA characterization files
 59 / 0; `zeitwerk:check` clean; RuboCop on the 9 changed / new Ruby files no offenses; `bin/brakeman` 0 warnings;
-`git diff --check` clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+`git diff --check` reported clean; `Gemfile.lock` and `db/schema.rb` unchanged.
+
+*Correction (2026-10-21):* `git diff --check` is not clean for the committed Pilot 12 changes. On the merged range,
+`git diff --check 91da561 ea1dca1` reports trailing whitespace and a new blank line at end of file in the four
+`*_section.html` golden fixtures of `spec/fixtures/files/pos_terminal_branch_form/` (`create_422`, `edit`, `new`,
+`update_422`), and nothing else. The fixtures were added in M1 `4b7b452` and have not changed since. These bytes are
+part of the recorded rendering: `pos_terminal_branch_form_markup_spec.rb` extracts the terminal section's raw bytes
+(from `<div data-controller="line-items">` up to, not including, the following `<div class="divider"></div>`) and
+compares them with the fixture using `eq`. Before the comparison, it replaces only each terminal's database id in its
+hidden `[id]` input (narrowed to that input by `ea1dca1`). The spec's header records the fixtures as the current bytes
+for gap G4 and says never to re-record them to absorb a difference. Because the comparison is exact and CI passes on
+`ea1dca1` and `bc6682b`, removing the whitespace from the fixtures would be expected to fail these G4 examples. This
+is inferred and was not run. `git diff --check` does not examine untracked files, and the fixtures were new and uncommitted
+when the check above was run; whether that explains the "clean" result is not recorded.
 
 **M8 full suite (2026-10-20, approved; lazy, seed 20261020, on the uncommitted working tree):** 9364 examples
 (M0 9314 + the 50 new Pilot 12 examples), 3 failures, exit 1 (22 min 7 s) — exactly the M0 failing IDs, with the
 same messages: `punch_api_spec.rb:67` and `biometric_punch_spec.rb:59` (SEC-P12-1, unresolved, not accepted) and
 `expenses_index_responsive_spec.rb:121` (TD-P12-2, unexplained, recurred locally with the same 2 px overflow under a
 different seed; not labelled flaky). **No new failing ID.** Remaining: commit (four reviewed groups), push and merge
-only on approval.
+only on approval. *(Historical. SEC-P12-1 was fixed since by `ffd1906`, §32; Pilot 12 was committed and merged,
+§27.14.)*
+
+### 27.14 Close-out — Pilot 12 CLOSED (2026-10-21)
+
+**Merge:** PR #57 (https://github.com/abeinoo/Workpulse/pull/57), "Pilot 12: POS terminal write boundary, plus
+follow-up boundary batches and security/concurrency fixes", merged 2026-10-21 07:51:37 UTC with a merge commit,
+`bc6682b` (parents `91da561`, `ea1dca1`). The merge tree is identical to the PR head `ea1dca1`. The PR carried the 33
+commits `91da561..ea1dca1` (34 with the merge commit): Pilot 12 M1 `4b7b452`, M2–M4 `07a7e99`, M6 `55153fa` and M8 documentation `5355211`
+(§27.13), followed by the later work recorded in §28–§36 (Batches R + W, F-A1, Batch A, SEC-M2-8, SEC-P12-1, TD-T-1,
+TD-T-2, the concurrent first punch, F-A2 / F-A7, F-A3, F-A5), the deferred-bugs backlog, BUG-001 and the CI test fix
+`ea1dca1`.
+
+**CI:**
+
+| Run | Commit | Result |
+|---|---|---|
+| 39558054936 (PR) | `5ab6f70` | **failed** — `test` failed; `lint`, `scan_ruby`, `scan_js`, `system-test` passed |
+| 39561503017 (PR) | `ea1dca1` | **passed** — `lint`, `scan_ruby`, `scan_js`; `test` 9394 examples, 0 failures; `system-test` 203 examples, 0 failures |
+| 39564972842 (push to `main`) | `bc6682b` | **passed** — `lint`, `scan_ruby`, `scan_js`; `test` 9394 examples, 0 failures; `system-test` 203 examples, 0 failures |
+
+The `5ab6f70` failure was corrected test-only by `ea1dca1` (its commit message: `pos_terminal_branch_form_markup_spec`
+normalized terminal ids globally, so on a fresh CI database id 1 also rewrote the Active checkbox's literal
+`value="1"` — now replaced only in the hidden `[id]` input, fixtures byte-for-byte unchanged; and the Pilot 8
+characterization `employee_insurance_profile_lifecycle_spec.rb:88` still pinned `dependent: :destroy`, which F-A5
+`195a08b` intentionally changed to `restrict_with_error`). No application code or fixture changed in `ea1dca1`.
+
+**Findings resolved and merged in PR #57:**
+
+* **SEC-M2-8** — fixed by `0432da2` (§31).
+* **SEC-P12-1** — fixed by `ffd1906` (§32: D-T1 at most 168 h in the past, D-T2 at most 5 min in the future, D-T4 punches
+  refused in a finalized / paid payroll period). The two baseline examples keep their IDs but were revised by the fix
+  to the approved rules (`punch_api_spec.rb:67` now refuses a punch 25 h ahead; `biometric_punch_spec.rb:59` now sends
+  an 8-day-old punch); their M0 / M8 failures stand as recorded (§27.9, §27.13). They are not named individually in
+  the CI output; they are covered by the `test` job's 0 failures.
+* **TD-P11-1** — resolved by `3139cf4` (BUG-001, `docs/quality/deferred-bugs.md`).
+
+**Still open, as recorded:** TD-P12-1 (`stock_issue_import_spec` CI failures, cause unknown) and TD-P12-2
+(`expenses_index_responsive_spec.rb:121`, local-only, unexplained) — neither is labelled flaky; passing CI does not
+explain either. Other open items stand as recorded in their own sections. No local full suite was run for this
+close-out (documentation only).
+
+**Pilot 12 — Finance & Sales: POS terminals write boundary — is CLOSED.** No next pilot is selected here.
 
 ---
 
@@ -5576,8 +5638,11 @@ The User ≠ Employee split (#7) is untouched. Contract spec `spec/services/orga
 
 ### 28.5 Still open (unchanged by R + W)
 
-SEC-P12-1 (punch timestamp window; the intended seven-day sync behaviour undecided), TD-P12-1 and TD-P12-2 (cause
-unknown, not labelled flaky), SEC-M2-8, the SEC-M2-2 follow-up, TD-P11-1 / -2; new TD-R-1 and TD-W-1 above. Remaining
+*As recorded at §28; later resolutions are noted in brackets.* SEC-P12-1 (punch timestamp window; the intended
+seven-day sync behaviour undecided — *at §28; since decided and
+fixed: D-T1 168 h past, D-T2 5 min future, `ffd1906`, §32*), TD-P12-1 and TD-P12-2 (cause unknown, not labelled
+flaky), SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 (later resolved, `3139cf4`, BUG-001) / -2; new
+TD-R-1 and TD-W-1 above. Remaining
 migration work (§28 matrix): Advances (§14.2 #2), the IP ↔ FS settlement cycle (§14.2 #6 — now ~28 code lines in 14
 files, more than the "6 / 6" in `module-boundaries.md` §12.2), the account fields (#7, User ≠ Employee decision).
 
@@ -5632,7 +5697,7 @@ its effects; the persisted end state is proven by the stale-copy examples.
 | F-A6 | `Advance#repay!` / `Payroll::AdvanceDeductor` use Float arithmetic for money |
 | F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one). **Bulk deadlock fixed (`49f5a04`, §36):** batches lock in ascending id; reproduced without the fix, prevented with it. **Approval race closed (`0c0b57b`):** `Requests::Approver#approve_standard` and `#reject` run in one transaction that first locks and reloads the request row and re-checks its state (`locked_state_error`: still pending, no self-approval); `Requests::Canceller` locks and re-checks the observed status for every request type (no longer only salary advances and punch corrections). Standard approval is atomic — status update, permission payroll effect and approve audit commit together or not at all. Regression coverage: two-connection races (approve vs cancel, approve vs approve, approve vs reject in both orders, a late permission with a real payroll effect in both orders — the loser waits on the request row lock and is refused), stale-copy examples for approve, reject and a permission cancel, and approval atomicity with a real effect |
 
-SEC-P12-1, TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1 and TD-W-1 remain open.
+SEC-P12-1 (later fixed, `ffd1906`, §32), TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 (later resolved, `3139cf4`, BUG-001) / -2, TD-R-1 and TD-W-1 remained open at Batch A (later resolutions noted in brackets).
 
 ---
 
@@ -5675,8 +5740,9 @@ F-A5: destroying a request (or its user) can still delete the Advance — F-A5 s
 deletion, `195a08b`, §29).
 
 **Still open, unchanged by Batch A:** F-A2 (not verified under real concurrency — later closed, `46c0bcd`, §36), F-A3 (`mark_all_paid` class
-authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29; F-A5 later closed, `195a08b`, §29; F-A7's bulk deadlock later fixed, `49f5a04`, §36, and its approval race, `0c0b57b`, §29); the WF → AP request-validation reads (D-A5 — later resolved, Batch V, §37); SEC-P12-1,
-TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1, TD-W-1.
+authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29; F-A5 later closed, `195a08b`, §29; F-A7's bulk deadlock later fixed, `49f5a04`, §36, and its approval race, `0c0b57b`, §29); the WF → AP request-validation reads (D-A5 — later resolved, Batch V, §37); SEC-P12-1 (later fixed, `ffd1906`, §32),
+TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 (later resolved, `3139cf4`,
+BUG-001) / -2, TD-R-1, TD-W-1.
 
 ---
 

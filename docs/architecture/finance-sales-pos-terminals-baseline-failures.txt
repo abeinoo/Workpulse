@@ -45,6 +45,20 @@
 #   punch_api_spec.rb:67 and biometric_punch_spec.rb:59 (SEC-P12-1, UNRESOLVED, not accepted) and
 #   expenses_index_responsive_spec.rb:121 (TD-P12-2, UNEXPLAINED, not flaky; same message, got 2). No new failing ID.
 #
+# CLOSE-OUT (2026-10-21) — current verification; the historical M0 / M1 / M8 results above stand as recorded.
+#   Merged into main in PR #57, merge commit bc6682b (parents 91da561, ea1dca1); next-pilot-selection.md §27.14.
+#   SEC-P12-1 FIXED by ffd1906 "fix: validate biometric punch timestamps and locked payroll periods"
+#   (next-pilot-selection.md §32): D-T1 at most 168 h in the past, D-T2 at most 5 min in the future, D-T4 punches
+#   refused in a finalized / paid payroll period. The fix revised both examples to the approved rules (same IDs; the
+#   M0 / M8 assertions are not the current ones): punch_api_spec.rb:67 now asserts a punch 25 h ahead is refused
+#   (5-minute future tolerance); biometric_punch_spec.rb:59 now sends an 8-day-old punch. Neither ID is expected to
+#   fail any more.
+#   CI on PR head ea1dca1, run 39561503017: test 9394 examples, 0 failures; system-test 203 examples, 0 failures;
+#   lint, scan_ruby and scan_js passed. CI on merge commit bc6682b, run 39564972842: all five jobs passed, with the
+#   same counts. (CI output does not name the two examples; they are covered by the test job's 0 failures.)
+#   TD-P12-2 (expenses_index_responsive_spec.rb:121) remains UNEXPLAINED, not flaky: it was only ever seen locally,
+#   and passing in CI does not explain the local failure. No local full suite was run for this close-out.
+#
 # set spec/requests/admin/branches_spec.rb
 # set spec/characterization/organization_access/branches_and_settings_spec.rb
 # set spec/models/branch_spec.rb
