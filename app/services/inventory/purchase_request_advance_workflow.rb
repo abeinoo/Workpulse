@@ -1,15 +1,17 @@
 module Inventory
   # Lifecycle of one PurchaseRequestAdvance (see that model):
   #
-  #   confirm!  pending → confirmed   THE financial event: posts one
-  #             FinancialSettlement on the Purchase Request and, for employee
-  #             custody, its linked "inventory_purchase" CustodyTransaction
-  #             debit — exactly how Goods Receipt payments are recorded. No
-  #             balance check: the custody balance may go negative.
+  #   confirm!  pending → confirmed   THE financial event: one settlement on
+  #             the Purchase Request and, for employee custody, its linked
+  #             custody debit — exactly how Goods Receipt payments are recorded.
+  #             No balance check: the custody balance may go negative.
   #   cancel!   pending → cancelled   nothing financial ever happened.
-  #   reverse!  confirmed → reversed  equal-and-opposite settlement
-  #             (FinancialSettlementService.reverse) + custody credit
-  #             ("inventory_purchase_reversal"); the originals are never touched.
+  #   reverse!  confirmed → reversed  equal-and-opposite settlement + custody
+  #             credit; the originals are never touched.
+  #
+  # The ledger writes are Finance & Sales': since S2 they go only through the
+  # Inventory contract Inventory::PurchaseRequestAdvanceEffects (implemented by
+  # Finance & Sales), inside this transaction, after the locks below.
   #
   # Every step runs in one transaction with the Purchase Request row locked
   # first (the same lock receipt approval takes before applying advances), then
@@ -41,21 +43,15 @@ module Inventory
         capacity = purchase_request.advance_capacity
         return err(:exceeds_remaining, remaining: format_amount(capacity)) if advance.amount > capacity
 
-        account = advance.custody_account
-        if account
-          # Serializes writes to the account's cached balance; never a limit.
-          account.lock!
-          return err(:custody_account_inactive) unless account.active?
-        end
-
-        settlement = post_settlement!
-        debit_custody!(account, settlement) if account
+        # Locks the custody account (if any) after the request and the advance.
+        confirmation = Inventory::PurchaseRequestAdvanceEffects.advance_confirmed(advance: advance, actor: @actor)
+        return err(:custody_account_inactive) unless confirmation.confirmed?
 
         advance.update!(status: "confirmed", confirmed_by: @actor, confirmed_at: Time.current,
-                        financial_settlement: settlement)
+                        financial_settlement_id: confirmation.settlement_id)
         log_audit(actor: @actor, auditable: advance, action: "confirm",
                   changes: { status: %w[pending confirmed] },
-                  metadata: audit_metadata(settlement_id: settlement.id))
+                  metadata: audit_metadata(settlement_id: confirmation.settlement_id))
       end
     end
 
@@ -81,17 +77,13 @@ module Inventory
         return err(:invalid_transition) unless advance.confirmed?
         return err(:already_applied) if advance.applied_amount.positive?
 
-        original = advance.financial_settlement
-        result   = FinancialSettlementService.reverse(settlement: original, actor: @actor, notes: reason)
-        raise ActiveRecord::RecordInvalid, result.settlement unless result.ok?
-
-        reversal = result.settlement
-        credit_custody!(original, reversal, reason) if original.funding_source.is_a?(CustodyAccount)
+        reversal = Inventory::PurchaseRequestAdvanceEffects.advance_reversed(advance: advance, actor: @actor, reason: reason)
 
         advance.update!(status: "reversed", reversed_by: @actor, reversed_at: Time.current, reversal_reason: reason)
         log_audit(actor: @actor, auditable: advance, action: "reverse",
                   changes: { status: %w[confirmed reversed] },
-                  metadata: audit_metadata(settlement_id: original.id, reversal_id: reversal.id, reason: reason))
+                  metadata: audit_metadata(settlement_id: reversal.settlement_id, reversal_id: reversal.reversal_id,
+                                           reason: reason))
       end
     end
 
@@ -110,7 +102,8 @@ module Inventory
     end
 
     # Lock order matches receipt approval: Purchase Request, then the advance
-    # (reloaded by lock!), then — inside the block — the custody account.
+    # (reloaded by lock!), then — inside the block, in the Finance & Sales
+    # handler — the custody account.
     def in_locked_transaction
       ActiveRecord::Base.transaction do
         purchase_request.lock!
@@ -120,55 +113,6 @@ module Inventory
       Result.new(ok: true, advance: advance)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, advance: advance, error: e.record.errors.full_messages.to_sentence)
-    end
-
-    def post_settlement!
-      result = FinancialSettlementService.create(
-        settleable:     purchase_request,
-        funding_source: advance.custody_account,
-        source_kind:    advance.source_kind,
-        reference:      advance.reference.presence || purchase_request.request_number,
-        amount:         advance.amount,
-        actor:          @actor,
-        notes:          I18n.t("inventory.purchase_request_advances.settlement_note",
-                               reference: purchase_request.request_number, advance: advance.id),
-        settled_at:     advance.paid_on
-      )
-      raise ActiveRecord::RecordInvalid, result.settlement unless result.ok?
-
-      result.settlement
-    end
-
-    def debit_custody!(account, settlement)
-      account.custody_transactions.create!(
-        business:             account.business,
-        txn_type:             "inventory_purchase",
-        amount:               -advance.amount,
-        source:               purchase_request,
-        financial_settlement: settlement,
-        created_by:           @actor,
-        notes:                I18n.t("finance.custody.purchase_request_advance_note",
-                                     reference: purchase_request.request_number, advance: advance.id,
-                                     supplier: purchase_request.supplier&.name ||
-                                               I18n.t("inventory.purchase_requests.no_supplier"))
-      )
-      account.refresh_balance!
-    end
-
-    def credit_custody!(original, reversal, reason)
-      account = original.funding_source
-      account.lock!
-      account.custody_transactions.create!(
-        business:             account.business,
-        txn_type:             "inventory_purchase_reversal",
-        amount:               original.amount,
-        source:               purchase_request,
-        financial_settlement: reversal,
-        created_by:           @actor,
-        notes:                I18n.t("finance.custody.purchase_request_advance_reversal_note",
-                                     reference: purchase_request.request_number, advance: advance.id, reason: reason)
-      )
-      account.refresh_balance!
     end
 
     def audit_metadata(**extra)

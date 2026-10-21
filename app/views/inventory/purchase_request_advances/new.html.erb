@@ -73,13 +73,12 @@
       <div data-funding-source-target="panel" class="form-group <%= 'hidden' unless custody_selected %>"
            style="grid-column: 1 / -1;" <%= "hidden" unless custody_selected %>>
         <%= f.label :custody_account_id, t("#{scope}.fields.custody_account"), class: "form-label" %>
-        <% if @custody_accounts.any? %>
+        <% if @custody_options.any? %>
           <%= f.select :custody_account_id,
                 options_for_select(
-                  @custody_accounts.map { |a|
-                    balance = @custody_balances[a.id] || 0
-                    [ t("#{scope}.custody_option", name: a.user&.full_name || a.name, balance: format_currency(balance)),
-                      a.id, { "data-balance" => balance.to_d.to_s } ]
+                  @custody_options.map { |option|
+                    [ t("#{scope}.custody_option", name: option.holder_name, balance: format_currency(option.balance)),
+                      option.id, { "data-balance" => option.balance.to_d.to_s } ]
                   },
                   @advance.custody_account_id
                 ),
