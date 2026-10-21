@@ -42,6 +42,13 @@ module Inventory
       @receipt = GoodsReceipt.where(business_id: @actor.business_id).find(@goods_receipt_id)
 
       ActiveRecord::Base.transaction do
+        # Row lock first, reloading the receipt (BUG-015 / BUG-016): every decision
+        # below — confirmed?, voided?, the approval status to cancel — is made on
+        # the current row, not a stale copy. A concurrent approval, settlement,
+        # reversal or second void (all of which lock the receipt first too) is
+        # waited for and then seen; a second void is refused as already voided.
+        @receipt.lock!
+
         if @receipt.confirmed?
           result = Inventory::DocumentVoider.new(@receipt, user: @actor, reason: @reason).call
           raise ActiveRecord::Rollback unless result.ok?
