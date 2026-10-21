@@ -99,6 +99,7 @@ RSpec.describe "Salary advance payment concurrency (two connections, F-A2)" do
       SELECT COUNT(*) FROM pg_stat_activity
       WHERE datname = current_database() AND pid <> pg_backend_pid()
         AND state IN ('active', 'idle in transaction', 'idle in transaction (aborted)')
+        AND backend_type = 'client backend' -- not autovacuum or other PostgreSQL background workers
     SQL
     problems << "#{others} other database session(s) still active or in a transaction" if others.positive?
     problems
