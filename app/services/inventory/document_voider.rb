@@ -22,24 +22,17 @@ module Inventory
       @reason   = reason.to_s.strip
     end
 
+    # The document row is locked (and reloaded) before any guard runs, inside the
+    # one transaction that also writes the reversal (BUG-017): a concurrent second
+    # void waits for the first to commit, then sees it voided — and the stock it
+    # checks is the stock after the first void — so it is refused and writes
+    # nothing. Callers that already hold the lock (GoodsReceiptVoider) re-lock the
+    # same row harmlessly.
     def call
-      if @document.voided?
-        @document.errors.add(:base, :already_voided)
-        return failure
-      end
-
-      if @reason.blank?
-        @document.errors.add(:void_reason, :blank)
-        return failure
-      end
-
-      shortfalls = availability_errors
-      if shortfalls.any?
-        shortfalls.each { |attrs| @document.errors.add(:base, :void_would_oversell, **attrs) }
-        return failure
-      end
-
       ActiveRecord::Base.transaction do
+        @document.lock!
+        next failure unless voidable?
+
         @document.reversal_entries.each do |entry|
           @document.inventory_movements.create!(
             entry.merge(business: @document.business, reason: :reversal,
@@ -50,12 +43,30 @@ module Inventory
         @document.update!(voided_at: Time.current, voided_by: @user, void_reason: @reason)
 
         @document.affected_products.each { |product| ProductCostRecalculator.new(product).recompute! }
-      end
 
-      Result.new(ok: true, document: @document)
+        Result.new(ok: true, document: @document)
+      end
     end
 
     private
+
+    # The existing guards, in their original order and with their original
+    # messages, on the locked row.
+    def voidable?
+      if @document.voided?
+        @document.errors.add(:base, :already_voided)
+        return false
+      end
+
+      if @reason.blank?
+        @document.errors.add(:void_reason, :blank)
+        return false
+      end
+
+      shortfalls = availability_errors
+      shortfalls.each { |attrs| @document.errors.add(:base, :void_would_oversell, **attrs) }
+      shortfalls.empty?
+    end
 
     # For each reversal entry that REMOVES stock, confirm the warehouse holds
     # enough to reverse without going negative. Quantities for the same
