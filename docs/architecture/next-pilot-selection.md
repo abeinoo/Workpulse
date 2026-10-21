@@ -5630,7 +5630,7 @@ its effects; the persisted end state is proven by the stale-copy examples.
 | F-A4 | `log_audit` inside a transaction has no savepoint: a database-level `AuditLog` failure aborts the PostgreSQL transaction while the rescue swallows it (general `AuditLoggable` debt) |
 | F-A5 | `User has_many :employee_requests, dependent: :destroy` → `EmployeeRequest has_one :advance, dependent: :destroy` can delete financial records |
 | F-A6 | `Advance#repay!` / `Payroll::AdvanceDeductor` use Float arithmetic for money |
-| F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one). **Bulk deadlock fixed (`49f5a04`, §36):** batches lock in ascending id; reproduced without the fix, prevented with it. **The approval race stays open** (`approve_standard` still takes no lock) |
+| F-A7 | Remaining lifecycle races outside F-A1: approval is not locked (an approve racing a cancel of a *pending* advance can overwrite the cancellation; nothing financial happens before a payment, which now re-checks); bulk payment holds row locks until the batch commits, in input order — overlapping concurrent bulk runs could deadlock (PostgreSQL would abort one). **Bulk deadlock fixed (`49f5a04`, §36):** batches lock in ascending id; reproduced without the fix, prevented with it. **Approval race closed (`0c0b57b`):** `Requests::Approver#approve_standard` and `#reject` run in one transaction that first locks and reloads the request row and re-checks its state (`locked_state_error`: still pending, no self-approval); `Requests::Canceller` locks and re-checks the observed status for every request type (no longer only salary advances and punch corrections). Standard approval is atomic — status update, permission payroll effect and approve audit commit together or not at all. Regression coverage: two-connection races (approve vs cancel, approve vs approve, approve vs reject in both orders, a late permission with a real payroll effect in both orders — the loser waits on the request row lock and is refused), stale-copy examples for approve, reject and a permission cancel, and approval atomicity with a real effect |
 
 SEC-P12-1, TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1 and TD-W-1 remain open.
 
@@ -5674,7 +5674,7 @@ Classifying `EmployeeRequest has_one :advance, dependent: :destroy` as a read / 
 F-A5: destroying a request (or its user) can still delete the Advance — F-A5 stays an open risk.
 
 **Still open, unchanged by Batch A:** F-A2 (not verified under real concurrency — later closed, `46c0bcd`, §36), F-A3 (`mark_all_paid` class
-authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29; F-A7's bulk deadlock later fixed, `49f5a04`, §36); the WF → AP request-validation reads (D-A5); SEC-P12-1,
+authorization — later closed by removing the endpoint, `3490e6a`, §29), F-A4 to F-A7 (§29; F-A7's bulk deadlock later fixed, `49f5a04`, §36, and its approval race, `0c0b57b`, §29); the WF → AP request-validation reads (D-A5); SEC-P12-1,
 TD-P12-1, TD-P12-2, SEC-M2-8 (later fixed, §31), the SEC-M2-2 follow-up, TD-P11-1 / -2, TD-R-1, TD-W-1.
 
 ---
@@ -6065,7 +6065,7 @@ RuboCop on the changed Ruby files no offenses; `git diff --check` and `zeitwerk:
 
 **Limits and open items:** the tests prove the scenarios above, not every interleaving. Overlapping batches still wait
 for each other: each batch holds its request row locks for its whole transaction, so a batch (or a single payment of
-one of its requests) can wait for another batch's full duration; there is no `lock_timeout`. Still open, unchanged:
-F-A7's approval race (`approve_standard` takes no lock), the theoretical bulk "paid without an Advance" case (a
+one of its requests) can wait for another batch's full duration; there is no `lock_timeout`. Still open, unchanged (F-A7's approval race since closed, `0c0b57b`, §29):
+the theoretical bulk "paid without an Advance" case (a
 `RecordInvalid` from the Advance after `update!`, rescued inside the joined batch transaction — unreachable today),
 F-A4, F-A5, F-A6 and every other open finding.
