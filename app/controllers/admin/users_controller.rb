@@ -86,8 +86,14 @@ class Admin::UsersController < Admin::BaseController
     if @user == current_user
       return redirect_to admin_users_path, alert: t("flash.cannot_delete_self")
     end
-    @user.destroy
-    redirect_to admin_users_path, notice: t("flash.employee_removed")
+
+    result = OrganizationAccess::DeleteUser.new(@user.id, actor: current_user).call
+    if result.ok?
+      redirect_to admin_users_path, notice: t("flash.employee_removed")
+    else
+      # Back to the list, where the employee's Deactivate action is.
+      redirect_to admin_users_path, alert: t("flash.employee_delete_refused.#{result.error}", name: @user.full_name)
+    end
   end
 
   def transfer_ownership

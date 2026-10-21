@@ -37,22 +37,29 @@ class User < ApplicationRecord
 
   has_many :warehouse_assignments, dependent: :destroy
   has_many :assigned_warehouses,   through: :warehouse_assignments, source: :warehouse
-  has_many :salary_profiles,       dependent: :destroy
+  # Employee history is never deleted with the user (F-A5): any of these rows
+  # refuses the deletion (restrict_with_error) — deactivate the employee instead.
+  # See OrganizationAccess::DeleteUser.
+  has_many :salary_profiles,       dependent: :restrict_with_error
   has_one  :active_salary_profile,
            -> { active.order(effective_from: :desc) },
            class_name: "SalaryProfile"
-  has_many :shift_assignments,     dependent: :destroy
-  has_many :attendance_records,    dependent: :destroy
-  has_many :employee_requests,     dependent: :destroy
-  has_many :advances,              dependent: :destroy
-  has_many :payroll_entries,       dependent: :destroy
-  has_many :employee_obligations,  dependent: :destroy, foreign_key: :user_id
-  has_one  :employee_insurance_profile, dependent: :destroy
+  has_many :attendance_records,    dependent: :restrict_with_error
+  has_many :employee_requests,     dependent: :restrict_with_error
+  has_many :advances,              dependent: :restrict_with_error
+  has_many :payroll_entries,       dependent: :restrict_with_error
+  has_many :employee_obligations,  dependent: :restrict_with_error, foreign_key: :user_id
+  has_one  :employee_insurance_profile, dependent: :restrict_with_error
 
   # Performance evaluation (new module). employee_id is the subject of reviews
   # and observations; reviewer_id / observed_by_id are tracked separately.
-  has_many :performance_reviews,      dependent: :destroy, foreign_key: :employee_id
-  has_many :performance_observations, dependent: :destroy, foreign_key: :employee_id
+  has_many :performance_reviews,      dependent: :restrict_with_error, foreign_key: :employee_id
+  has_many :performance_observations, dependent: :restrict_with_error, foreign_key: :employee_id
+
+  # Declared after the history checks above (dependent: callbacks run in
+  # declaration order): attendance records reference shift assignments, so the
+  # assignments are destroyed only once no history refused the deletion.
+  has_many :shift_assignments,     dependent: :destroy
 
   # Custody (عهد) — any employee may hold one or more custody accounts. Restricted
   # on delete so a user with custody history can't be silently removed.

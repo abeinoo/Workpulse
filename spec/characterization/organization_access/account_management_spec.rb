@@ -101,22 +101,25 @@ RSpec.describe "Characterization: Organization & Access accounts", type: :reques
     end
   end
 
+  # F-A5 (fixed): history refuses the deletion (it used to be destroyed with the
+  # user), and a refusal is reported as one (the success notice used to be shown
+  # even when a custody account blocked it). Full matrix:
+  # spec/requests/admin/user_deletion_spec.rb.
   describe "deletion" do
-    it "deletes an employee without restricting history" do
+    it "deletes an employee without history" do
       sign_in owner
       delete admin_user_path(employee)
       expect(User.exists?(employee.id)).to be(false)
+      expect(flash[:notice]).to eq(I18n.t("flash.employee_removed"))
     end
 
-    # KNOWN DEFECT (existing behaviour): Admin::UsersController#destroy ignores
-    # the result of destroy. A user with a custody account (restrict_with_error)
-    # is NOT deleted, yet the success notice is shown.
-    it "reports success even when deletion is blocked by restricted history (known defect)" do
+    it "refuses an employee with history and reports the refusal, not success" do
       create(:custody_account, business: business, user: employee)
       sign_in owner
       delete admin_user_path(employee)
       expect(User.exists?(employee.id)).to be(true)
-      expect(flash[:notice]).to eq(I18n.t("flash.employee_removed"))
+      expect(flash[:notice]).to be_nil
+      expect(flash[:alert]).to eq(I18n.t("flash.employee_delete_refused.has_history", name: employee.full_name))
     end
   end
 end

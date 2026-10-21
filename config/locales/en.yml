@@ -3148,6 +3148,10 @@ en:
     employee_created: "Employee created successfully."
     employee_updated: "Employee updated successfully."
     employee_removed: "Employee removed."
+    employee_delete_refused:
+      has_history: "%{name} has linked history (attendance, payroll, salary, advances, requests, obligations, insurance, performance or custody records) and cannot be deleted. Deactivate the employee instead."
+      linked_records: "%{name} is still referenced by other records and cannot be deleted. Deactivate the employee instead."
+      audit_failed: "%{name} was not deleted: the deletion could not be recorded in the audit log."
     cannot_delete_self: "You cannot delete your own account."
     branch_created: "Branch created."
     branch_updated: "Branch updated."

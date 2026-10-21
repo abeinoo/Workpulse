@@ -7,12 +7,13 @@ RSpec.describe User, type: :model do
   describe "associations" do
     it { is_expected.to belong_to(:business) }
     it { is_expected.to belong_to(:permission_role).optional }
-    it { is_expected.to have_many(:salary_profiles).dependent(:destroy) }
+    # History refuses the user's deletion (F-A5): spec/models/user_deletion_guard_spec.rb.
+    it { is_expected.to have_many(:salary_profiles).dependent(:restrict_with_error) }
     it { is_expected.to have_many(:shift_assignments).dependent(:destroy) }
-    it { is_expected.to have_many(:attendance_records).dependent(:destroy) }
-    it { is_expected.to have_many(:employee_requests).dependent(:destroy) }
-    it { is_expected.to have_many(:advances).dependent(:destroy) }
-    it { is_expected.to have_many(:payroll_entries).dependent(:destroy) }
+    it { is_expected.to have_many(:attendance_records).dependent(:restrict_with_error) }
+    it { is_expected.to have_many(:employee_requests).dependent(:restrict_with_error) }
+    it { is_expected.to have_many(:advances).dependent(:restrict_with_error) }
+    it { is_expected.to have_many(:payroll_entries).dependent(:restrict_with_error) }
   end
 
   # ── Validations ───────────────────────────────────────────────────────────
