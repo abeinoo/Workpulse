@@ -67,6 +67,10 @@ RSpec.describe Inventory::GoodsReceiptPaymentEffects do
   end
 
   describe "registration" do
+    it "has the Finance & Sales implementation registered at boot" do
+      expect(described_class.handler).to equal(Finance::GoodsReceiptPaymentEffects)
+    end
+
     it "rejects a handler that does not implement every operation, keeping the current one" do
       partial = Module.new { def self.approval_payment(**) = nil }
 
