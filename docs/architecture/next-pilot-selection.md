@@ -6367,3 +6367,85 @@ The full suite was not run (not authorized for this batch). `Gemfile.lock`, `db/
 * **Stock-document voids:** the possible double-void risk of stock issues, transfers and adjustments
   (`DocumentVoider` callers without a row lock) is uninvestigated — follow-up, not fixed here.
 * The event target of §14.2 #6 (`goods_receipt.*`) is deferred, not rejected.
+
+---
+
+## 39. S2 — Inventory & Purchasing → Finance & Sales Purchase Request advance writes (§14.2 #6, the D-S2 half)
+
+**Status (2026-10-22): M0, M1, M2–M4, M6 and M8 COMPLETE; committed locally, not pushed or merged** — on
+`migration/s2-purchase-request-advances`, created in the primary checkout from local `main` `ec8ae59` (PR #60; contains
+PRs #58, #59, #60; no fetch made, so remote freshness is unknown; BUG-017 / PR #61 not included). M5 not needed (no
+business rule in a controller), M7 not applicable (no model moved). No schema, migration, route, permission, dependency
+or API change. Baseline and step results:
+`docs/architecture/inventory-finance-purchase-request-advances-baseline-failures.txt`.
+
+**Decisions (inherited, not new):** Batch S D-S1 (a synchronous, in-process contract inside the caller's transaction;
+the event target stays deferred) and D-S3 (the financial decision reads of a migrated write path move behind the
+contract with it; the lifecycle, locks, refusals, audits and capacity arithmetic stay in Inventory & Purchasing). Scope
+= D-S2: the Purchase Request advance deposit / reversal writes and the advance's custody-account choice.
+
+### 39.1 Inventory (M0)
+
+| File | Finance & Sales use before S2 |
+|---|---|
+| `Inventory::PurchaseRequestAdvanceWorkflow#confirm!` | custody account lock + active check; `FinancialSettlementService.create` on the Purchase Request; `inventory_purchase` debit; `refresh_balance!` |
+| `Inventory::PurchaseRequestAdvanceWorkflow#reverse!` | `FinancialSettlementService.reverse`; `inventory_purchase_reversal` credit (account lock); `refresh_balance!` |
+| `Inventory::PurchaseRequestAdvanceRecorder.selectable_custody_accounts` | custody visibility: `CustodyAccountPolicy::Scope` (with `manage_employee_balances`) or the actor's own account |
+| `Inventory::PurchaseRequestAdvancesController#load_options` | the recorder's account list + `CustodyTransaction` ledger balances for the form |
+
+No other Inventory → Finance & Sales write existed (Batch S §38.1). Lock order: request → advance → custody account.
+
+### 39.2 Contract and implementation (M2, M3)
+
+**`Inventory::PurchaseRequestAdvanceEffects`** (`app/services/inventory/purchase_request_advance_effects.rb`) — a
+sibling of `GoodsReceiptPaymentEffects`, because the settleable is the Purchase Request (that contract is documented as
+receipt settlements only). Register / handler / `NotRegistered` and result checks as the other contracts; it names
+nothing from Finance & Sales.
+
+| Operation | Returns | Used by |
+|---|---|---|
+| `custody_account_options(actor:)` | `Array<CustodyAccountOption(id, holder_name, balance)>` (ledger balance, 0 when none), display order | advance form |
+| `selectable_custody_account_id(actor:, custody_account_id:)` | `Integer` or `nil` | recorder |
+| `advance_confirmed(advance:, actor:)` | `Confirmation(:confirmed, settlement_id)` or `Confirmation(:custody_account_inactive)` (nothing written) | `confirm!` |
+| `advance_reversed(advance:, actor:, reason:)` | `Reversal(settlement_id, reversal_id)` | `reverse!` |
+
+**`Finance::PurchaseRequestAdvanceEffects`** (`app/services/finance/purchase_request_advance_effects.rb`), registered in
+`config/initializers/purchase_request_advance_effects.rb` (`to_prepare`): each operation is the code it replaces —
+the same custody visibility, `FinancialSettlementService` calls, custody rows, notes, locks and `refresh_balance!`. It
+opens no transaction; a failed write raises `ActiveRecord::RecordInvalid` as before.
+
+### 39.3 Migration (M4)
+
+The workflow calls `advance_confirmed` after its request / advance locks and capacity check (the inactive-account
+refusal keeps its message and position) and stores `financial_settlement_id`; `reverse!` calls `advance_reversed` after
+its applied-amount refusal; the recorder asks `selectable_custody_account_id` and stores `custody_account_id`; the
+controller's form options come from `custody_account_options` (the view renders the same labels, values and
+`data-balance`). `Inventory::PurchaseRequestAdvanceRecorder.selectable_custody_accounts` is removed (its only caller
+was the controller). Messages, audits (actions, changes, metadata), lock order, rows, amounts, signs, notes and
+balances are unchanged — the M1 characterization passes unmodified.
+
+### 39.4 Tests
+
+| Spec | Examples | What |
+|---|---|---|
+| `spec/characterization/inventory_purchasing/purchase_request_advance_payments_spec.rb` (M1) | 25 | Custody choice when recording and the form's options; confirmation / reversal rows, notes, balances, advance, audits; every refusal with nothing written; rollback on a refused settlement and on a failed custody write |
+| `spec/characterization/inventory_purchasing/purchase_request_advance_concurrency_spec.rb` (M1) | 3 | Two connections: confirm vs confirm; receipt approval applying the advance vs reversal; reversal vs approval |
+| `spec/services/inventory/purchase_request_advance_effects_spec.rb` (M2) | 13 | Operations, value objects, registration (incl. boot), `NotRegistered`, dispatch, error propagation, result checks, no Finance & Sales name |
+| `spec/services/finance/purchase_request_advance_effects_spec.rb` (M3) | 9 | Each operation through the contract, including foreign / inactive / unknown accounts and a refused second reversal |
+| `spec/architecture/inventory_finance_goods_receipt_payment_boundary_spec.rb` (M6, extended) | 17 | Rule 1 now has **no exception** (the `S2_WORKFLOW` freeze is gone); the S2 files name nothing from Finance & Sales and call exactly their operations; the classified-read list drops the recorder, workflow and advance controller; contract / implementation / composition-root rules for both contracts; self-tests. Real planted probe: a `FinancialSettlementService.reverse` line in the workflow → 3 failures (rules 1, 2, 3); file restored |
+
+### 39.5 Verification
+
+Baseline file: M0 795 / 0; final set 849 / 0 under seeds 20261006, 12345, 98765 and `CI=1`; system specs (9 files)
+54 / 0; `spec/architecture` 382 / 0.
+`zeitwerk:check` clean; RuboCop on the changed Ruby files no offenses; `git diff --check` clean. The full suite was not
+run (not a designated milestone).
+
+### 39.6 Not changed / follow-up
+
+* **Classified reads remain** (frozen per file): the model-level Settleable / funding constants and totals, the
+  receiving and settlement screens' account previews, the draft's own-custody default, the receipt page's custody
+  display — display-direction references, not writes.
+* The goods-receipt settlement screen is still hosted under `inventory/` (GR-UI, `module-boundaries.md` §8 item 5) —
+  not part of D-S2.
+* The `goods_receipt.*` event target stays deferred, not rejected (D-S1).

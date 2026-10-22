@@ -85,10 +85,9 @@ class Inventory::PurchaseRequestAdvancesController < Inventory::BaseController
   end
 
   def load_options
-    @custody_accounts = Inventory::PurchaseRequestAdvanceRecorder.selectable_custody_accounts(current_user).to_a
-    # Ledger balances (SUM of non-voided rows) for every option in one query.
-    @custody_balances = CustodyTransaction.active.where(custody_account_id: @custody_accounts.map(&:id))
-                                          .group(:custody_account_id).sum(:amount)
+    # The accounts the user may pay from, with their ledger balances — decided by
+    # Finance & Sales (S2).
+    @custody_options = Inventory::PurchaseRequestAdvanceEffects.custody_account_options(actor: current_user)
     @capacity = @purchase_request.advance_capacity(pending_total: @purchase_request.advances.pending.sum(:amount))
   end
 end

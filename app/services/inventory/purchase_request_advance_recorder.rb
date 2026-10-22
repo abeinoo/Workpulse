@@ -10,8 +10,9 @@ module Inventory
   #     confirmed advances, direct receipt payments and other PENDING advances;
   #   - source_kind must be a real payment kind;
   #   - employee custody: the employee must already HAVE an active custody
-  #     account, and it must be one the actor may pay from
-  #     (.selectable_custody_accounts) — never created on the fly. Its balance
+  #     account, and it must be one the actor may pay from — decided by Finance &
+  #     Sales through Inventory::PurchaseRequestAdvanceEffects
+  #     .selectable_custody_account_id (S2) — never created on the fly. Its balance
   #     is NOT a limit: custody is an accounting balance and may go negative
   #     (the employee paid on the business's behalf beyond their float);
   #   - idempotency_key: a retried/double submission returns the advance
@@ -21,20 +22,6 @@ module Inventory
     include AuditLoggable
 
     Result = Struct.new(:ok, :advance, :error, keyword_init: true) { def ok? = ok }
-
-    # Custody accounts an actor may pay an advance from — never a new
-    # authorization system: their OWN active account always; anyone else's
-    # only with manage_employee_balances, and then only within their existing
-    # custody visibility (CustodyAccountPolicy::Scope, branch-scoped).
-    def self.selectable_custody_accounts(actor)
-      relation =
-        if actor.can?(:manage_employee_balances)
-          CustodyAccountPolicy::Scope.new(actor, CustodyAccount).resolve
-        else
-          CustodyAccount.for_business(actor.business).where(user_id: actor.id)
-        end
-      relation.active.includes(:user).ordered
-    end
 
     def initialize(purchase_request_id:, actor:, params:, idempotency_key: nil)
       @purchase_request_id = purchase_request_id
@@ -59,10 +46,12 @@ module Inventory
       return err(:invalid_payment_date) unless paid_on
       return err(:future_payment_date) if paid_on > BusinessDay.current(context: @actor.business)
 
-      account = nil
+      account_id = nil
       if source_kind == "employee_custody"
-        account = self.class.selectable_custody_accounts(@actor).find_by(id: @params[:custody_account_id])
-        return err(:custody_account_required) unless account
+        account_id = Inventory::PurchaseRequestAdvanceEffects.selectable_custody_account_id(
+          actor: @actor, custody_account_id: @params[:custody_account_id]
+        )
+        return err(:custody_account_required) unless account_id
       end
 
       advance = nil
@@ -79,7 +68,7 @@ module Inventory
           business:        @purchase_request.business,
           amount:          amount,
           source_kind:     source_kind,
-          custody_account: account,
+          custody_account_id: account_id,
           paid_on:         paid_on,
           reference:       @params[:reference].to_s.strip.presence,
           notes:           @params[:notes].to_s.strip.presence,
