@@ -52,6 +52,8 @@ RSpec.describe "Employee own custody ledger — responsive layout", type: :syste
 
   def js(script) = page.evaluate_script(script)
 
+  def business_date_of(time) = time.in_time_zone(business.timezone_object).to_date
+
   def assert_no_page_overflow(context)
     overflow = js("document.documentElement.scrollWidth - window.innerWidth")
     expect(overflow).to be <= 1, "#{context}: page scrolls horizontally by #{overflow}px"
@@ -87,7 +89,9 @@ RSpec.describe "Employee own custody ledger — responsive layout", type: :syste
           within(row) do
             # Badges are uppercased by CSS.
             expect(page).to have_content(/#{Regexp.escape(I18n.t("finance.custody.transactions.types.#{txn.txn_type}", locale: locale))}/i)
-            expect(page).to have_content(I18n.l(txn.created_at.to_date, format: :long, locale: locale))
+            # The page renders the date inside the business timezone (set_business_timezone);
+            # the UTC date differs every evening (21:00–24:00 UTC for Asia/Riyadh).
+            expect(page).to have_content(I18n.l(business_date_of(txn.created_at), format: :long, locale: locale))
           end
         end
         within("#my-txn-#{long_note.id}") do
