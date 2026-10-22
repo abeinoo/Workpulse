@@ -5495,7 +5495,7 @@ when the check above was run; whether that explains the "clean" result is not re
 **M8 full suite (2026-10-20, approved; lazy, seed 20261020, on the uncommitted working tree):** 9364 examples
 (M0 9314 + the 50 new Pilot 12 examples), 3 failures, exit 1 (22 min 7 s) — exactly the M0 failing IDs, with the
 same messages: `punch_api_spec.rb:67` and `biometric_punch_spec.rb:59` (SEC-P12-1, unresolved, not accepted) and
-`expenses_index_responsive_spec.rb:121` (TD-P12-2, unexplained, recurred locally with the same 2 px overflow under a
+`expenses_index_responsive_spec.rb:121` (TD-P12-2, unexplained, recurred locally with the same 2 px overflow under a *[Updated 2026-10-22: BUG-012's cause was established (San Francisco font metrics; a real 2 px layout overflow on macOS, not an environment-only failure) and it was fixed on `fix/bug-012-expenses-status-badge-wrap` — §49.]*
 different seed; not labelled flaky). **No new failing ID.** Remaining: commit (four reviewed groups), push and merge
 only on approval. *(Historical. SEC-P12-1 was fixed since by `ffd1906`, §32; Pilot 12 was committed and merged,
 §27.14.)*
@@ -5534,7 +5534,7 @@ characterization `employee_insurance_profile_lifecycle_spec.rb:88` still pinned 
   the CI output; they are covered by the `test` job's 0 failures.
 * **TD-P11-1** — resolved by `3139cf4` (BUG-001, `docs/quality/deferred-bugs.md`).
 
-**Still open, as recorded:** TD-P12-1 (`stock_issue_import_spec` CI failures, cause unknown) and TD-P12-2
+**Still open, as recorded:** TD-P12-1 (`stock_issue_import_spec` CI failures, cause unknown) and TD-P12-2 *[TD-P12-2 = BUG-012: cause established and fixed, §49.]*
 (`expenses_index_responsive_spec.rb:121`, local-only, unexplained) — neither is labelled flaky; passing CI does not
 explain either. Other open items stand as recorded in their own sections. No local full suite was run for this
 close-out (documentation only).
@@ -6630,7 +6630,7 @@ Final set 964 / 0 under seeds 20261006, 12345, 98765 and `CI=1` (M0 945 / 0). Ru
 ## 43. Reconciliation and migration-completion status (2026-10-22)
 
 **Basis:** local `main` = `origin/main` = `ec8ae59` (PR #60); GitHub (read-only `gh`, 2026-10-22) lists PR #60 as the
-latest merge and **PR #61 (BUG-017, head `6c2a20e`) as OPEN, not merged**. No fetch or pull was made. Work after
+latest merge and **PR #61 (BUG-017, head `6c2a20e`) as OPEN, not merged**. No fetch or pull was made. *[Updated 2026-10-22: PR #61 was merged on GitHub at 05:40:48 UTC as `ca4b43d`; the migration stack was brought up to it by `d11cfd1` — §49.]* Work after
 `ec8ae59` is committed locally on stacked branches and is **not pushed, not merged**.
 
 ### 43.1 Merged pilots and batches (deduplicated)
@@ -6686,7 +6686,7 @@ service (`deactivate` / `reactivate`) — but it was not done without the decisi
 ### 43.4 Stock-document double-void (BUG-017)
 
 The §38.7 follow-up was investigated as BUG-017: reproduced and fixed by a row lock in `Inventory::DocumentVoider#call`
-on `fix/bug-017-document-voider-lock` (`6c2a20e`, PR #61). **PR #61 is OPEN, not merged** (GitHub, 2026-10-22); on
+on `fix/bug-017-document-voider-lock` (`6c2a20e`, PR #61). **PR #61 is OPEN, not merged** (GitHub, 2026-10-22); on *[Updated 2026-10-22: PR #61 was merged on GitHub at 05:40:48 UTC as `ca4b43d`; the migration stack was brought up to it by `d11cfd1` — §49.]*
 `main` the defect is still present. It is a correctness fix, tracked separately — not a migration batch.
 `docs/quality/deferred-bugs.md` on `main` has no BUG-017 entry yet (it arrives with PR #61); it was deliberately not
 edited here to avoid a conflict with that PR.
@@ -6724,7 +6724,7 @@ Reviewed on `main`'s register: BUG-001, -015, -016 resolved; BUG-002, -003, -004
 (review milestone "After Pilot 12") remain Deferred / Open — none is critical under the policy (no unauthorized access,
 no financial corruption shown, no integrity failure in a touched path) and none blocks S2, F2 or SAL; they need a
 triage slot before API work. BUG-007, -008, -010 are "After Modular Monolith completion"; BUG-013 needs a product
-decision. BUG-017 is fixed on the open PR #61 (§43.4). No new bug was found by S2, F2 or SAL; the F2 characterization
+decision. BUG-017 is fixed on the open PR #61 (§43.4). *[Updated 2026-10-22: PR #61 was merged on GitHub at 05:40:48 UTC as `ca4b43d`; the migration stack was brought up to it by `d11cfd1` — §49.]* No new bug was found by S2, F2 or SAL; the F2 characterization
 recorded an unrelated observation (the assignment index's total query count grows ~4 per row), not filed as a bug.
 
 ### 43.7 Completion gate — NOT satisfied *[superseded by §48 after D1–D4]*
@@ -6908,7 +6908,7 @@ exception with an owner, a reason and a guard (`docs/architecture/dependency-exc
 
 ## 47. Deferred-bug triage (2026-10-22, the "After Pilot 12" items)
 
-Register: `docs/quality/deferred-bugs.md` on `main` (unchanged here; BUG-017 arrives with the open PR #61).
+Register: `docs/quality/deferred-bugs.md` on `main` (unchanged here; BUG-017 arrives with the open PR #61). *[Updated 2026-10-22: PR #61 was merged on GitHub at 05:40:48 UTC as `ca4b43d`; the migration stack was brought up to it by `d11cfd1` — §49.]*
 
 | ID | Owner | Severity / evidence | Reproducible? | Risk | Blocks the migration gate? | Recommendation |
 |---|---|---|---|---|---|---|
@@ -6919,11 +6919,11 @@ Register: `docs/quality/deferred-bugs.md` on `main` (unchanged here; BUG-017 arr
 | BUG-006 | AP | Low; suspected | No | Device punch lands on a soft-deleted record | No | Needs a behaviour decision (restore / refuse / log); before API punching |
 | BUG-009 | IP (laundry) | Low; confirmed by code | Yes (code) | Dashboard may show an inactive laundry branch | No | Small fix, any time |
 | BUG-011 | Test infra | Low; CI-confirmed, cause unknown | Intermittent (failed again in the 2026-10-22 full run, `stock_issue_import_spec.rb:88`; passed on rerun) | Unreliable CI signal | **Affects the full-suite gate** (a failure there must be explained, not waived) | Investigate the Turbo / WebDriver timing |
-| BUG-012 | Test infra | Low; seen once locally | Not seen in the 2026-10-22 runs | Local noise | No | Keep open |
+| BUG-012 | Test infra | Low; seen once locally | Not seen in the 2026-10-22 runs | Local noise | No | Keep open | *[Superseded: cause established and fixed, §49.]*
 | BUG-014 | IP (laundry) | Low; confirmed by code | Yes (code) | Picker vs report scope mismatch (not a leak) | No | Needs a scope-rule decision |
 
 No bug was fixed in a migration commit. None of these is critical under the register's policy; none is in a path the
-migration changed. BUG-017 (stock-document double void) is fixed on the open PR #61 and stays separate.
+migration changed. BUG-017 (stock-document double void) is fixed on the open PR #61 and stays separate. *[Updated 2026-10-22: PR #61 was merged on GitHub at 05:40:48 UTC as `ca4b43d`; the migration stack was brought up to it by `d11cfd1` — §49.]*
 
 ---
 
@@ -6932,7 +6932,7 @@ migration changed. BUG-017 (stock-document double void) is fixed on the open PR 
 **Branch stack (local, linear, not pushed or merged)** on `main` `ec8ae59`: `migration/s2-purchase-request-advances`
 → `migration/dependency-inventory` → `migration/f2-shift-assignment-attendance` → `migration/sal-employee-salary-panel`
 → `migration/docs-reconciliation` → `migration/d1-account-interface` → `migration/dependency-checker-enforcement`
-(tip `26ff99b` before this documentation commit). PR #61 (BUG-017) OPEN, untouched.
+(tip `26ff99b` before this documentation commit). PR #61 (BUG-017) OPEN, untouched. *[Updated 2026-10-22: PR #61 was merged on GitHub at 05:40:48 UTC as `ca4b43d`; the migration stack was brought up to it by `d11cfd1` — §49.]*
 
 ### 48.1 Full-suite runs (lazy, seed 20261006, process TZ unset → system zone EEST; test `Time.zone` UTC; factory business zone Asia/Riyadh, UTC+3)
 
@@ -6957,7 +6957,7 @@ expected business date in the business zone (or `travel_to` a fixed instant). Ea
 **The SAL characterization defect** (run 2): the golden cards embedded the run date of a "1.year.ago" profile; fixed in
 `26ff99b` by normalizing that one token (golden files otherwise byte-identical).
 
-**The remaining failure — BUG-012** (`expenses_index_responsive_spec.rb[1:5]`, EN @ 1440 px, table overflows by 2 px):
+**The remaining failure — BUG-012** (`expenses_index_responsive_spec.rb[1:5]`, EN @ 1440 px, table overflows by 2 px): *[Updated 2026-10-22: BUG-012's cause was established (San Francisco font metrics; a real 2 px layout overflow on macOS, not an environment-only failure) and it was fixed on `fix/bug-012-expenses-status-badge-wrap` — §49.]*
 reproduced 3 / 3 in isolation on this machine **and on unchanged `main` `ec8ae59`** (same 2 px); no migration commit
 touches an expenses view, asset or JavaScript; CI passes it (register). Local browser / font environment — cause
 still unverified; **not** labelled flaky.
@@ -6978,7 +6978,41 @@ still unverified; **not** labelled flaky.
 | 10 | Deferred bugs triaged; blockers addressed or resolved | **PASS (triage)** | §47 — no migration blocker; BUG-011 / BUG-012 and the date-window defects affect only the suite gate |
 | 11 | Branch stack and commits ready for review | **PASS** | Linear stack, clean tree, one logical unit per commit |
 
-**Domain migration completion gate: BLOCKED on criterion 9 only.** Every migration criterion passes; the full suite is
+**Domain migration completion gate: BLOCKED on criterion 9 only.** *[Superseded by §49.]* Every migration criterion passes; the full suite is
 not clean on this machine because of one pre-existing, environment-dependent system spec (BUG-012) that also fails on
 `main`. Resolving it needs an owner choice: accept CI as the reference environment for the gate (CI passes it), or fix
 BUG-012 (and the date-window spec defects) in separately scoped bug-fix commits before declaring completion.
+
+---
+
+## 49. Integration with `main` `ca4b43d` and the final-gate bug fixes (2026-10-22)
+
+### 49.1 Integration (owner decision, 2026-10-22)
+
+PR #61 (BUG-017, `6c2a20e`) was merged on GitHub at 05:40:48 UTC as `ca4b43d` — after §43–§48 were written. It adds
+only `Inventory::DocumentVoider`'s row lock, `spec/services/inventory/document_voider_concurrency_spec.rb` and the
+BUG-017 register entry; the migration stack touches none of these files. The stack is brought up to it by a merge
+commit, **`d11cfd1`**, on a new branch `migration/integrate-main-ca4b43d` created from
+`migration/dependency-checker-enforcement` (`7fd26a0`): no conflict; relative to the stack the merge adds exactly
+`ca4b43d`'s 3 files (+276 / −18). The seven migration branches, their commits and the BUG-017 branch are unchanged (no
+rebase, amend or reset). Statements in §38.7, §43, §47 and §48 that said PR #61 was open are annotated in place.
+
+| # | Branch | Tip | Contents |
+|---|---|---|---|
+| 1 | `migration/s2-purchase-request-advances` | `5060779` | S2 (§39) |
+| 2 | `migration/dependency-inventory` | `2120dbe` | report-only inventory (§40) |
+| 3 | `migration/f2-shift-assignment-attendance` | `1a715da` | F2 (§41) |
+| 4 | `migration/sal-employee-salary-panel` | `5d55423` | SAL (§42) |
+| 5 | `migration/docs-reconciliation` | `0f073e4` | reconciliation (§43) |
+| 6 | `migration/d1-account-interface` | `934751b` | D1 / #7 (§44) |
+| 7 | `migration/dependency-checker-enforcement` | `7fd26a0` | D3 / D4 (§45–§48) |
+| 8 | `migration/integrate-main-ca4b43d` | `d11cfd1` + this documentation | merge of `main` `ca4b43d` |
+
+### 49.2 Bug fixes kept outside the migration commits
+
+| Branch | Base | Commits | What |
+|---|---|---|---|
+| `fix/test-business-day-specs` | `main` `ec8ae59` | `48240b7` fix, `a220835` docs | **BUG-018**: four spec files computed UTC dates while the application uses the business day; 24 examples failed every day 21:00–24:00 UTC. Specs now compute business-day dates; new `spec/requests/business_day_boundary_spec.rb` (8) |
+| `fix/bug-012-expenses-status-badge-wrap` | `fix/test-business-day-specs` (for the register entries only) | `b6ac0c9` fix, `8e950cc` docs | **BUG-012**: the status badge may wrap in table mode (payment-source pattern) — the 2 px San Francisco overflow at 1440 px is gone; regression examples at a 940 px list prove it on any font. **BUG-019** recorded: English table mode still overflows at list widths ~860–900 px (pre-existing, reduced, UX decision) |
+
+Both merge cleanly with `ca4b43d` and with the migration stack (checked with `git merge-tree`).

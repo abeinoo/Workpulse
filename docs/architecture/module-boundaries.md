@@ -5,7 +5,10 @@ Milestone 1 (`eef3b68`), Milestone 2 (PRs #28, #29), Pilots 5–12 (PRs #30, #31
 W, A (PR #57), V (PR #58) and S (PR #60). **Local only, committed, not pushed or merged (2026-10-22):** S2, the
 report-only dependency inventory, F2 and SAL, on stacked branches `migration/s2-purchase-request-advances` →
 `migration/dependency-inventory` → `migration/f2-shift-assignment-attendance` → `migration/sal-employee-salary-panel`
-(→ `migration/docs-reconciliation` → `migration/d1-account-interface` → `migration/dependency-checker-enforcement`).
+(→ `migration/docs-reconciliation` → `migration/d1-account-interface` → `migration/dependency-checker-enforcement`
+→ `migration/integrate-main-ca4b43d`, which merges `main` `ca4b43d` — PR #61, BUG-017 — into the stack). Test / UI
+fixes found at the final gate are kept on separate bug-fix branches (`fix/test-business-day-specs`,
+`fix/bug-012-expenses-status-badge-wrap`; `next-pilot-selection.md` §49).
 Reconciled against Git / GitHub on 2026-10-22 (`next-pilot-selection.md` §43). Owner decisions D1–D4: §20.3. The
 domain dependency inventory is an **enforced** gate (`spec/architecture/dependency_inventory_spec.rb`, D3); the
 remaining classified exceptions are registered in `docs/architecture/dependency-exceptions.md` (D4).
