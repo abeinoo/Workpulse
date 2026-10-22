@@ -4,8 +4,10 @@
 #   app/ file, no unmapped schema table, no stale exception; exceptions: docs/architecture/dependency-exceptions.md
 # Deterministic: sorted, no timestamps, no line numbers (counts per file and constant).
 # Detects (static): constants in app/**/*.rb and *.erb code; association macros (class_name: or the
-#   inflected name); table names after upper-case FROM / JOIN / INTO / UPDATE inside string literals.
-# Does NOT detect: dynamic constants (constantize, send, const_get), polymorphic / through: associations
+#   inflected name); table names after upper-case FROM / JOIN / INTO / UPDATE inside string literals;
+#   models named as polymorphic *_type strings.
+# Does NOT detect: dynamic constants (constantize, send, const_get — today only the two NumberSequencers,
+#   each resolving its own domain's configured models), polymorphic / through: associations
 #   whose name is not a model, queries built without a literal table name or with lower-case SQL keywords
 #   (none exist today), method calls on associations,
 #   i18n keys and other string contents, runtime behaviour. Those stay covered by the per-component

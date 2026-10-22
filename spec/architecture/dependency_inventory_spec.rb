@@ -124,6 +124,13 @@ RSpec.describe "Architecture: domain dependency inventory (enforced)" do
       expect(planted.map { [ _1.constant, _1.kind, _1.status ] }).to eq([ [ "AttendanceRecord", :sql, :unclassified ] ])
     end
 
+    it "a polymorphic type string: an Organization & Access service naming a payroll model is a violation" do
+      planted = refs("app/services/organization_access/x.rb", "PayrollLineItem.where(source_type: \"Advance\")\n")
+      expect(planted.map { [ _1.constant, _1.kind, _1.status ] })
+        .to eq([ [ "PayrollLineItem", :constant, :unclassified ], [ "Advance", :polymorphic_type, :unclassified ] ])
+      expect(refs("app/services/payroll/x.rb", "x.where(source_type: \"Advance\", label_type: \"Weekly\")\n")).to be_empty
+    end
+
     it "an exception covers only its own scope" do
       classified = refs("app/views/admin/shifts/_form.html.erb", "<%= select_tag :x, PenaltyRule::RULE_TYPES %>\n")
       expect(classified.map { [ _1.status, _1.exception.id ] }).to eq([ [ :classified, "X-WF-PENALTY-OPTIONS" ] ])

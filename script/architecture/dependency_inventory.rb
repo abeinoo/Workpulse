@@ -430,7 +430,8 @@ module ArchitectureTools
     #                 (polymorphic and through: associations whose name is not a
     #                 model resolve to nothing — a recorded limit);
     #   sql         — a table named after FROM / JOIN / INTO / UPDATE inside a
-    #                 string literal (raw SQL fragments).
+    #                 string literal (raw SQL fragments);
+    #   polymorphic_type — a model named as a polymorphic *_type string.
     def references_in(path, content = nil)
       source = domain_of_file(path)
       return [] if source.nil? || source == FRONTEND
@@ -444,6 +445,7 @@ module ArchitectureTools
           found << [ constant, :association ]
         end
         sql_tables(raw[number].to_s).each { |table| found << [ TABLE_OWNERS.fetch(table)[:model], :sql ] }
+        polymorphic_types(raw[number].to_s).each { |model| found << [ model, :polymorphic_type ] }
 
         found.filter_map do |constant, kind|
           next if implicit_namespaces.include?(constant.delete_prefix("::"))
@@ -471,6 +473,14 @@ module ArchitectureTools
       singular = %w[belongs_to has_one].include?(macro) ? name : singularize(name)
       model = camelize(singular)
       MODEL_OWNERS.key?(model) ? model : nil
+    end
+
+    # A polymorphic type written as a string (`source_type: "Advance"`,
+    # `settleable_type == "GoodsReceipt"`) names that model.
+    POLYMORPHIC_TYPE = /\b\w+_type["']?\s*(?:==|=>|:|=)\s*["']([A-Z]\w*)["']/
+
+    def polymorphic_types(line)
+      line.scan(POLYMORPHIC_TYPE).flatten.select { |model| MODEL_OWNERS.key?(model) }.uniq
     end
 
     SQL_TABLE = /\b(?:FROM|JOIN|INTO|UPDATE)\s+"?([a-z_][a-z0-9_]*)"?/ # upper-case keywords only (prose stays prose)
@@ -550,8 +560,10 @@ module ArchitectureTools
       lines << "#   app/ file, no unmapped schema table, no stale exception; exceptions: docs/architecture/dependency-exceptions.md"
       lines << "# Deterministic: sorted, no timestamps, no line numbers (counts per file and constant)."
       lines << "# Detects (static): constants in app/**/*.rb and *.erb code; association macros (class_name: or the"
-      lines << "#   inflected name); table names after upper-case FROM / JOIN / INTO / UPDATE inside string literals."
-      lines << "# Does NOT detect: dynamic constants (constantize, send, const_get), polymorphic / through: associations"
+      lines << "#   inflected name); table names after upper-case FROM / JOIN / INTO / UPDATE inside string literals;"
+      lines << "#   models named as polymorphic *_type strings."
+      lines << "# Does NOT detect: dynamic constants (constantize, send, const_get — today only the two NumberSequencers,"
+      lines << "#   each resolving its own domain's configured models), polymorphic / through: associations"
       lines << "#   whose name is not a model, queries built without a literal table name or with lower-case SQL keywords"
       lines << "#   (none exist today), method calls on associations,"
       lines << "#   i18n keys and other string contents, runtime behaviour. Those stay covered by the per-component"
