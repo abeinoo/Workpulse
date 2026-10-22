@@ -16,17 +16,18 @@
 #                  citing where);
 #   unclassified — everything else.
 #
-# REPORT-ONLY: nothing here fails a build. spec/architecture/dependency_inventory_spec.rb
-# proves the tool (self-tests, planted probes) without asserting an empty report;
-# `bin/rails architecture:dependency_report` writes the deterministic report
+# ENFORCED since 2026-10-22 (decision D3, module-boundaries.md §20.3; it was
+# report-only from 9468678): spec/architecture/dependency_inventory_spec.rb fails
+# on any unclassified reference, unmapped app/ file or schema table, or stale
+# exception, and proves detection with planted probes. `bin/rails
+# architecture:dependency_report` writes the deterministic report
 # docs/architecture/dependency-inventory-report.txt.
 #
-# Scope and limits (by design, recorded in the report header):
-# * Constant references only. Association macros (`has_many :shift_assignments`),
-#   table names in SQL strings and method calls on associations are NOT resolved —
-#   those stay covered by the per-component boundary specs.
-# * Strings and comments are ignored, so i18n keys, `class_name: "X"` strings and
-#   prose never count.
+# Scope and limits (by design, recorded in the report header): constants,
+# association macros and literal SQL table names are detected; dynamic constants,
+# polymorphic / through: associations, queries without a literal table name and
+# runtime behaviour are not — the per-component boundary specs cover those.
+# Comments, i18n keys and other string contents never count.
 # * Not autoloaded (script/ is outside Zeitwerk); loaded only by the spec and the
 #   rake task. It changes no application behaviour.
 require "set"
@@ -85,7 +86,9 @@ module ArchitectureTools
       [ %r{\Aapp/controllers/api/v1/biometric_base_controller\.rb\z}, AP ],          # device-token base of the punch API (Pilot 1)
 
       # Shared Kernel (§15) and Infrastructure (§16).
-      [ %r{\Aapp/lib/(business_day|phone_number)\.rb\z}, SHARED ],
+      [ %r{\Aapp/lib/business_day\.rb\z}, SHARED ],
+      # Phone-number login-identifier primitive: every caller is Organization & Access (User, API sessions, registration).
+      [ %r{\Aapp/lib/phone_number\.rb\z}, OA ],
       [ %r{\Aapp/models/concerns/(voidable|immutable_document)\.rb\z}, SHARED ],
       [ %r{\Aapp/models/concerns/settleable\.rb\z}, FS ],
       [ %r{\Aapp/models/concerns/}, INFRA ],
@@ -211,7 +214,7 @@ module ArchitectureTools
       "Finance::Reports::ExpenseDetails" => RP, "Finance::Reports::ExpenseDetailsCsvExporter" => RP,
       "OperationsDashboardPolicy" => RP, "Finance::DashboardPolicy" => RP,
       # Shared Kernel / Infrastructure
-      "BusinessDay" => SHARED, "PhoneNumber" => SHARED, "Voidable" => SHARED, "ImmutableDocument" => SHARED,
+      "BusinessDay" => SHARED, "PhoneNumber" => OA, "Voidable" => SHARED, "ImmutableDocument" => SHARED,
       "AuditLoggable" => INFRA, "Attachable" => INFRA, "ApplicationPolicy" => INFRA, "ApplicationController" => INFRA,
       "ApplicationHelper" => INFRA, "WorkspaceHelper" => INFRA, "AttachmentHelper" => INFRA, "ApplicationJob" => INFRA,
       "ApplicationMailer" => INFRA, "ApiResponder" => INFRA, "Api::" => INFRA
@@ -225,54 +228,98 @@ module ArchitectureTools
 
     # ------------------------------------------------------- classification ---
 
-    # Upward / sideways references already classified by an existing boundary
-    # spec or decision: [source path regexp, constant regexp, reason]. A reason
-    # always names where the classification is recorded and enforced.
+    # D4 exceptions (module-boundaries.md §20.3): every upward or sideways
+    # reference that may remain, each with an owner, its scope (source files and
+    # target constants), the reason, and the guard that protects it. The full
+    # record — disposition and review condition — is
+    # docs/architecture/dependency-exceptions.md; dependency_inventory_spec.rb
+    # requires both to list exactly the same IDs and every entry to still match a
+    # real reference (no stale exception).
+    Exception = Struct.new(:id, :owner, :files, :constants, :reason, :guard, keyword_init: true)
+
     CLASSIFIED = [
-      # Organization & Access inverse associations and helper (organization_access_outbound_boundary_spec.rb,
-      # organization_access_membership_boundary_spec.rb, permission-role / membership exceptions).
-      [ %r{\Aapp/models/(user|business|branch)\.rb\z}, /./,
-        "OA inverse associations / stewardship helpers — frozen by organization_access_outbound_boundary_spec.rb and organization_access_membership_boundary_spec.rb (OA-INV / OA-X)" ],
-      [ %r{\Aapp/controllers/admin/branches_controller\.rb\z}, /\AShiftAssignment(::|\z)/,
-        "branch staff view — OA-X exception, organization_access_membership_boundary_spec.rb" ],
-      [ %r{\Aapp/views/admin/branches/}, /\A(ShiftAssignment|PosTerminal)(::|\z)/,
-        "branch staff view / terminal form composition — organization_access_membership_boundary_spec.rb, finance_sales_pos_terminal_boundary_spec.rb (D-P12-6)" ],
-      [ %r{\Aapp/controllers/api/v1/sessions_controller\.rb\z}, /\AShiftAssignment(::|\z)/,
-        "API login checkin_branch_ids — OA-X exception, organization_access_membership_boundary_spec.rb" ],
-
-      # Infrastructure UI shell (organization_access_outbound_boundary_spec.rb; module-boundaries.md §15).
-      [ %r{\Aapp/helpers/workspace_helper\.rb\z}, /./,
-        "WorkspaceHelper navigation registry — policy(Model) gates and workspace permission lists, organization_access_outbound_boundary_spec.rb" ],
-      [ %r{\Aapp/views/layouts/_sidebar\.html\.erb\z}, /./,
-        "UI shell navigation entries (policy(Model) gates, admin paths) — classified per file in workforce_catalog_boundary_spec.rb, attendance_payroll_{biometric,obligation}_boundary_spec.rb, permission_role_boundary_spec.rb; module-boundaries.md §15" ],
-      [ %r{\Aapp/policies/application_policy\.rb\z}, /\A(EmployeeScope|BranchScope)\z/,
-        "Pundit mechanism (Infrastructure) delegating to the Organization & Access scope rules — module-boundaries.md §16 and §18 rule 11" ],
-      [ %r{\Aapp/helpers/application_helper\.rb\z}, /\ABusiness::CURRENCIES\z/,
-        "format_currency reads the business currency table — Shared Kernel money formatting, module-boundaries.md §15" ],
-      [ %r{\Aapp/helpers/application_helper\.rb\z}, /\APayrollAdjustment::POSITIVE_TYPES\z/,
-        "shared helper payroll-adjustment badge — workforce_request_validation_reads_boundary_spec.rb (count frozen at 1)" ],
-
-      # Workforce → Attendance & Payroll classified sites.
-      [ %r{\Aapp/views/admin/shifts/}, /\APenaltyRule(::|\z)/,
-        "shift form penalty-rule option lists — Pilot 4 read-only exception, attendance_payroll_penalty_rule_boundary_spec.rb" ],
-      [ %r{\Aapp/views/admin/users/show\.html\.erb\z}, /\AEmployeeObligation(::|\z)/,
-        "employee-page obligations card under EmployeeObligationPolicy — attendance_payroll_obligation_boundary_spec.rb (SEC-M2-5)" ],
-
-      # Inventory & Purchasing → Finance & Sales classified reads (inventory_finance_goods_receipt_payment_boundary_spec.rb rule 3, IP-R).
-      [ %r{\Aapp/(models/(goods_receipt|purchase_request|purchase_request_advance)\.rb|services/inventory/(custody_payment_preview|goods_receipt_draft_service)\.rb|controllers/inventory/(goods_receipt_settlements|goods_receipts|purchase_requests)_controller\.rb|views/inventory/(goods_receipt_settlements/new|goods_receipts/show)\.html\.erb)\z},
-        /\A(FinancialSettlement|CustodyAccount|CustodyTransaction|CustodyAccountPolicy|Settleable|Finance::CustodyBalance)(::|\z)/,
-        "IP → FS classified display read (IP-R) — frozen per file by inventory_finance_goods_receipt_payment_boundary_spec.rb rule 3" ],
-
-      # Reporting host (reporting_read_only_boundary_spec.rb, D-R1).
-      [ %r{\Aapp/controllers/finance/reports_controller\.rb\z}, /\AFinance::Reports::(BranchProfitability|ExpenseSources|ExpenseDetails|ExpenseDetailsCsvExporter)\z/,
-        "FS controller hosting the two Reporting actions — reporting_read_only_boundary_spec.rb (D-R1)" ]
+      Exception.new(id: "X-OA-INV", owner: OA, files: %r{\Aapp/models/(user|business|branch)\.rb\z}, constants: /./,
+                    reason: "inverse lifecycle associations of Business / Branch / User and the User stewardship helpers",
+                    guard: "organization_access_outbound_boundary_spec.rb, organization_access_membership_boundary_spec.rb"),
+      Exception.new(id: "X-OA-BRANCH-PAGE", owner: OA, files: %r{\Aapp/controllers/admin/branches_controller\.rb\z},
+                    constants: /\A(ShiftAssignment|EmployeeRequest|PayrollEntry|Payroll::EntryViewAudit)(::|\z)/,
+                    reason: "the branch page is a cross-domain dashboard: staff (WF), pending / recent requests (WF), payroll summary + its view audit (AP)",
+                    guard: "organization_access_membership_boundary_spec.rb (staff lines); this inventory (constant set)"),
+      Exception.new(id: "X-OA-BRANCH-VIEWS", owner: OA, files: %r{\Aapp/views/admin/branches/},
+                    constants: /\A(ShiftAssignment|PosTerminal)(::|\z)/,
+                    reason: "branch staff list and the terminal section composed into the branch form",
+                    guard: "organization_access_membership_boundary_spec.rb, finance_sales_pos_terminal_boundary_spec.rb (D-P12-6)"),
+      Exception.new(id: "X-OA-LOGIN-PAYLOAD", owner: OA, files: %r{\Aapp/controllers/api/v1/sessions_controller\.rb\z},
+                    constants: /\AShiftAssignment(::|\z)/,
+                    reason: "API login payload checkin_branch_ids (mixed OA / WF / AP session payload, module-boundaries.md §17)",
+                    guard: "organization_access_membership_boundary_spec.rb"),
+      Exception.new(id: "X-UI-WORKSPACE", owner: INFRA, files: %r{\Aapp/helpers/workspace_helper\.rb\z}, constants: /./,
+                    reason: "UI-shell navigation registry: policy(Model) gates and workspace permission lists",
+                    guard: "organization_access_outbound_boundary_spec.rb"),
+      Exception.new(id: "X-UI-SIDEBAR", owner: INFRA, files: %r{\Aapp/views/layouts/_sidebar\.html\.erb\z}, constants: /./,
+                    reason: "UI-shell navigation entries (policy(Model) gates, admin paths)",
+                    guard: "workforce_catalog_boundary_spec.rb, attendance_payroll_{biometric,obligation}_boundary_spec.rb, permission_role_boundary_spec.rb"),
+      Exception.new(id: "X-INFRA-PUNDIT", owner: INFRA, files: %r{\Aapp/policies/application_policy\.rb\z},
+                    constants: /\A(EmployeeScope|BranchScope)\z/,
+                    reason: "the Pundit mechanism delegates visibility to the Organization & Access scope rules (§16, §18 rule 11)",
+                    guard: "organization_access_membership_boundary_spec.rb; the security suites"),
+      Exception.new(id: "X-SK-CURRENCY", owner: SHARED, files: %r{\Aapp/helpers/application_helper\.rb\z},
+                    constants: /\ABusiness::CURRENCIES\z/,
+                    reason: "format_currency reads the business currency table (Shared Kernel money formatting, §15)",
+                    guard: "this inventory (constant set)"),
+      Exception.new(id: "X-AP-HELPER-BADGE", owner: AP, files: %r{\Aapp/helpers/application_helper\.rb\z},
+                    constants: /\APayrollAdjustment::POSITIVE_TYPES\z/,
+                    reason: "payroll-adjustment badge helper used by payroll screens, hosted in the shared helper",
+                    guard: "workforce_request_validation_reads_boundary_spec.rb (count frozen at 1)"),
+      Exception.new(id: "X-WF-HELPER-PERMISSION", owner: WF, files: %r{\Aapp/helpers/application_helper\.rb\z},
+                    constants: /\AShiftAssignment\z/,
+                    reason: "requested_permission_summary — a Workforce request-display helper (only caller: employee_requests/show) hosted in the shared helper",
+                    guard: "this inventory (constant set)"),
+      Exception.new(id: "X-FS-PAYMENT-METHODS", owner: FS, files: %r{\Aapp/controllers/application_controller\.rb\z},
+                    constants: /\APaymentMethod\z/,
+                    reason: "business_payment_methods — the single payment-method loader for the Finance & Sales controllers / views (two controller bases), hosted in ApplicationController",
+                    guard: "this inventory (constant set)"),
+      Exception.new(id: "X-WF-PENALTY-OPTIONS", owner: WF, files: %r{\Aapp/views/admin/shifts/}, constants: /\APenaltyRule(::|\z)/,
+                    reason: "shift form penalty-rule option lists (Pilot 4 read-only UI composition)",
+                    guard: "attendance_payroll_penalty_rule_boundary_spec.rb, workforce_shift_scheduling_boundary_spec.rb"),
+      Exception.new(id: "X-WF-REQUEST-ADVANCE", owner: WF, files: %r{\Aapp/models/employee_request\.rb\z}, constants: /\AAdvance\z/,
+                    reason: "EmployeeRequest has_one :advance — read / lifecycle association (Batch A classified site)",
+                    guard: "workforce_request_advance_boundary_spec.rb"),
+      Exception.new(id: "X-WF-SHIFT-PENALTY-RULES", owner: WF, files: %r{\Aapp/models/shift\.rb\z}, constants: /\APenaltyRule\z/,
+                    reason: "Shift has_many :penalty_rules (dependent: :destroy, autosave: true) — the lifecycle association behind the Pilot 4 staging contract",
+                    guard: "attendance_payroll_penalty_rule_boundary_spec.rb"),
+      Exception.new(id: "X-INFRA-AUDIT-ACTOR", owner: INFRA, files: %r{\Aapp/models/audit_log\.rb\z}, constants: /\A(Business|User)\z/,
+                    reason: "the cross-domain audit store references the acting account and its business (§16 Audit)",
+                    guard: "this inventory (constant set)"),
+      Exception.new(id: "X-SK-VOIDABLE-ACTOR", owner: SHARED, files: %r{\Aapp/models/concerns/voidable\.rb\z}, constants: /\AUser\z/,
+                    reason: "Voidable records who voided (belongs_to :voided_by, User) — the immutability contract of §15",
+                    guard: "this inventory (constant set)"),
+      Exception.new(id: "X-WF-OBLIGATIONS-CARD", owner: WF, files: %r{\Aapp/views/admin/users/show\.html\.erb\z},
+                    constants: /\AEmployeeObligation(::|\z)/,
+                    reason: "employee-page obligations card under EmployeeObligationPolicy (SEC-M2-5; Q-M2-5 obligations half)",
+                    guard: "attendance_payroll_obligation_boundary_spec.rb"),
+      Exception.new(id: "X-IP-FS-DISPLAY", owner: IP,
+                    files: %r{\Aapp/(models/(goods_receipt|purchase_request|purchase_request_advance)\.rb|services/inventory/(custody_payment_preview|goods_receipt_draft_service)\.rb|controllers/inventory/(goods_receipt_settlements|goods_receipts|purchase_requests)_controller\.rb|views/inventory/(goods_receipt_settlements/new|goods_receipts/show)\.html\.erb)\z},
+                    constants: /\A(FinancialSettlement|CustodyAccount|CustodyTransaction|CustodyAccountPolicy|Settleable|Finance::CustodyBalance)(::|\z)/,
+                    reason: "Inventory display reads and model references of the settlement / custody ledgers (IP-R; writes go through the Batch S / S2 contracts)",
+                    guard: "inventory_finance_goods_receipt_payment_boundary_spec.rb rule 3 (frozen per file)"),
+      Exception.new(id: "X-IP-REPORT-INFRA", owner: FS, files: %r{\Aapp/controllers/laundry/reports/branch_consumption_controller\.rb\z},
+                    constants: /\AFinance::Reports::(Column|Table|CsvExporter)\z/,
+                    reason: "TD-R-1: the laundry consumption CSV reuses the Finance & Sales report table / CSV infrastructure (no business data)",
+                    guard: "this inventory (constant set)"),
+      Exception.new(id: "X-RP-HOST", owner: FS, files: %r{\Aapp/controllers/finance/reports_controller\.rb\z},
+                    constants: /\AFinance::Reports::(BranchProfitability|ExpenseSources|ExpenseDetails|ExpenseDetailsCsvExporter)\z/,
+                    reason: "the Finance & Sales reports controller hosts the two Reporting actions (D-R1)",
+                    guard: "reporting_read_only_boundary_spec.rb")
     ].freeze
 
     # ------------------------------------------------------------- scanning ---
 
     CONSTANT = /(?<![\w:@$.])(?:::)?([A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*)/
 
-    Reference = Struct.new(:path, :source, :target, :constant, :line, :status, :reason, keyword_init: true)
+    Reference = Struct.new(:path, :source, :target, :constant, :kind, :line, :status, :exception, keyword_init: true) do
+      def reason = exception ? "#{exception.id} (owner #{exception.owner}) — #{exception.guard}" : nil
+    end
 
     def root
       defined?(Rails) ? Rails.root.to_s : File.expand_path("../..", __dir__)
@@ -376,31 +423,121 @@ module ArchitectureTools
       line.gsub(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|%[iIwW]\[[^\]]*\]/, '""')
     end
 
+    # Every cross-domain reference of a file, of three kinds:
+    #   constant    — an application constant named in code;
+    #   association — a belongs_to / has_one / has_many / habtm macro, resolved to
+    #                 its model by class_name: or by the inflected association name
+    #                 (polymorphic and through: associations whose name is not a
+    #                 model resolve to nothing — a recorded limit);
+    #   sql         — a table named after FROM / JOIN / INTO / UPDATE inside a
+    #                 string literal (raw SQL fragments);
+    #   polymorphic_type — a model named as a polymorphic *_type string.
     def references_in(path, content = nil)
       source = domain_of_file(path)
       return [] if source.nil? || source == FRONTEND
       return [] unless content || path.end_with?(".rb", ".erb")
 
-      code_lines(path, content).flat_map do |line, number|
-        line.scan(CONSTANT).flatten.filter_map do |written|
-          constant = resolve(written, path)
+      code = code_lines(path, content)
+      raw  = raw_lines(path, content).to_h { |line, number| [ number, line ] }
+      code.flat_map do |line, number|
+        found = line.scan(CONSTANT).flatten.map { |written| [ resolve(written, path), :constant ] }
+        if (constant = association_target(raw[number].to_s))
+          found << [ constant, :association ]
+        end
+        sql_tables(raw[number].to_s).each { |table| found << [ TABLE_OWNERS.fetch(table)[:model], :sql ] }
+        polymorphic_types(raw[number].to_s).each { |model| found << [ model, :polymorphic_type ] }
+
+        found.filter_map do |constant, kind|
           next if implicit_namespaces.include?(constant.delete_prefix("::"))
 
           target = owner_of(constant)
           next if target.nil? || target == source || [ SHARED, INFRA ].include?(target)
 
-          status, reason = classify(path, source, target, constant)
-          Reference.new(path: path, source: source, target: target, constant: constant.delete_prefix("::"),
-                        line: number, status: status, reason: reason)
+          status, exception = classify(path, source, target, constant)
+          Reference.new(path: path, source: source, target: target, constant: constant.delete_prefix("::"), kind: kind,
+                        line: number, status: status, exception: exception)
         end
       end
     end
 
-    def classify(path, source, target, constant)
-      return [ :allowed, "§12.1 #{source} → #{target}" ] if UPSTREAM.fetch(source, []).include?(target)
+    ASSOCIATION = /\A\s*(belongs_to|has_one|has_many|has_and_belongs_to_many)\s+:(\w+)(.*)\z/
 
-      entry = CLASSIFIED.find { |file, const, _| file.match?(path) && const.match?(constant.delete_prefix("::")) }
-      entry ? [ :classified, entry.last ] : [ :unclassified, nil ]
+    def association_target(line)
+      macro, name, rest = line.match(ASSOCIATION)&.captures
+      return nil unless macro
+      return nil if rest.match?(/\bpolymorphic:\s*true/)
+
+      explicit = rest[/\bclass_name:\s*["']:{0,2}([A-Z][\w:]*)["']/, 1]
+      return explicit if explicit
+
+      singular = %w[belongs_to has_one].include?(macro) ? name : singularize(name)
+      model = camelize(singular)
+      MODEL_OWNERS.key?(model) ? model : nil
+    end
+
+    # A polymorphic type written as a string (`source_type: "Advance"`,
+    # `settleable_type == "GoodsReceipt"`) names that model.
+    POLYMORPHIC_TYPE = /\b\w+_type["']?\s*(?:==|=>|:|=)\s*["']([A-Z]\w*)["']/
+
+    def polymorphic_types(line)
+      line.scan(POLYMORPHIC_TYPE).flatten.select { |model| MODEL_OWNERS.key?(model) }.uniq
+    end
+
+    SQL_TABLE = /\b(?:FROM|JOIN|INTO|UPDATE)\s+"?([a-z_][a-z0-9_]*)"?/ # upper-case keywords only (prose stays prose)
+
+    def sql_tables(line)
+      line.scan(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/).flat_map do |literal|
+        literal.scan(SQL_TABLE).flatten.map(&:downcase).select { |table| TABLE_OWNERS.key?(table) && TABLE_OWNERS[table][:model] }
+      end.uniq
+    end
+
+    # Comments dropped, strings KEPT (associations' class_name:, SQL literals).
+    def raw_lines(path, content = nil)
+      source = content || File.read(File.join(root, path))
+      source = source.gsub(/<%#.*?%>/m) { |c| "\n" * c.count("\n") } if path.end_with?(".erb")
+      source.each_line.with_index(1).reject { |line, _| line.lstrip.start_with?("#") }.map { |line, number| [ line.chomp, number ] }
+    end
+
+    def singularize(word) = defined?(ActiveSupport::Inflector) ? ActiveSupport::Inflector.singularize(word) : word.sub(/s\z/, "")
+
+    # ---------------------------------------------------------------- tables ---
+
+    # Every table of db/schema.rb → owner (and its model, when it has one):
+    # model tables from MODEL_OWNERS (Rails' tableize), plus the documented
+    # legacy and infrastructure tables (module-boundaries.md §11, §20.1).
+    NON_MODEL_TABLES = {
+      "notifications" => INFRA, "product_variants" => IP, "schema_migrations" => INFRA, "ar_internal_metadata" => INFRA
+    }.freeze
+    INFRA_TABLE_PREFIXES = %w[solid_queue_ solid_cache_ solid_cable_ active_storage_ action_text_ action_mailbox_].freeze
+
+    TABLE_OWNERS = MODEL_OWNERS.to_h do |model, domain|
+      table = defined?(ActiveSupport::Inflector) ? ActiveSupport::Inflector.tableize(model) : "#{model.downcase}s"
+      [ table, { owner: domain, model: model } ]
+    end.merge(NON_MODEL_TABLES.transform_values { |domain| { owner: domain, model: nil } }).freeze
+
+    def table_owner(table)
+      return { owner: INFRA, model: nil } if INFRA_TABLE_PREFIXES.any? { |prefix| table.start_with?(prefix) }
+
+      TABLE_OWNERS[table]
+    end
+
+    def schema_tables
+      File.read(File.join(root, "db/schema.rb")).scan(/create_table "([^"]+)"/).flatten.sort
+    end
+
+    def classify(path, source, target, constant)
+      return [ :allowed, nil ] if UPSTREAM.fetch(source, []).include?(target)
+
+      entry = CLASSIFIED.find { |e| e.files.match?(path) && e.constants.match?(constant.delete_prefix("::")) }
+      entry ? [ :classified, entry ] : [ :unclassified, nil ]
+    end
+
+    # Enforcement API (module-boundaries.md §20.3 D3).
+    def violations(result = inventory) = result[:references].select { |r| r.status == :unclassified }
+
+    def unused_exceptions(result = inventory)
+      used = result[:references].filter_map { |r| r.exception&.id }.to_set
+      CLASSIFIED.map(&:id).reject { |id| used.include?(id) }
     end
 
     def inventory(files = app_files)
@@ -415,16 +552,23 @@ module ArchitectureTools
 
     def report(result = inventory)
       refs = result[:references]
-      grouped = refs.group_by { |r| [ r.status, r.source, r.target, r.path, r.constant ] }
+      grouped = refs.group_by { |r| [ r.status, r.source, r.target, r.path, r.constant, r.kind ] }
       lines = []
-      lines << "# Domain dependency inventory — REPORT-ONLY (module-boundaries.md §19 step 0)"
+      lines << "# Domain dependency inventory — ENFORCED (module-boundaries.md §19 step 0, §20.3 D3)"
       lines << "# Generated by: bin/rails architecture:dependency_report  (script/architecture/dependency_inventory.rb)"
+      lines << "# Enforced by: spec/architecture/dependency_inventory_spec.rb — no unclassified reference, no unmapped"
+      lines << "#   app/ file, no unmapped schema table, no stale exception; exceptions: docs/architecture/dependency-exceptions.md"
       lines << "# Deterministic: sorted, no timestamps, no line numbers (counts per file and constant)."
-      lines << "# Scope: constant references in app/**/*.rb and *.erb code; associations, SQL strings and"
-      lines << "#   string/i18n contents are not resolved (per-component boundary specs cover those)."
-      lines << "#   Dotfiles (app/**/.keep placeholders) are not files of any domain and are not listed."
-      lines << "# allowed = §12.1 direction; classified = recorded and enforced elsewhere (reason cites where);"
-      lines << "#   unclassified = upward / sideways reference with no recorded classification."
+      lines << "# Detects (static): constants in app/**/*.rb and *.erb code; association macros (class_name: or the"
+      lines << "#   inflected name); table names after upper-case FROM / JOIN / INTO / UPDATE inside string literals;"
+      lines << "#   models named as polymorphic *_type strings."
+      lines << "# Does NOT detect: dynamic constants (constantize, send, const_get — today only the two NumberSequencers,"
+      lines << "#   each resolving its own domain's configured models), polymorphic / through: associations"
+      lines << "#   whose name is not a model, queries built without a literal table name or with lower-case SQL keywords"
+      lines << "#   (none exist today), method calls on associations,"
+      lines << "#   i18n keys and other string contents, runtime behaviour. Those stay covered by the per-component"
+      lines << "#   boundary specs (spec/architecture/*_boundary_spec.rb). Dotfiles (.keep) are not listed."
+      lines << "# allowed = §12.1 direction; classified = a D4 exception (ID, owner, guard); unclassified = a violation."
       lines << "#"
       lines << "## Files under app/: #{result[:files].size}"
       LAYERS.each do |layer|
@@ -449,15 +593,16 @@ module ArchitectureTools
       %i[unclassified classified].each do |status|
         lines << ""
         lines << "[#{status}]"
-        grouped.select { |(s, *), _| s == status }.sort_by { |k, _| k.map(&:to_s) }.each do |(_, source, target, path, constant), group|
+        grouped.select { |(s, *), _| s == status }.sort_by { |k, _| k.map(&:to_s) }.each do |(_, source, target, path, constant, _kind), group|
           suffix = status == :classified ? "  — #{group.first.reason}" : ""
-          lines << "#{source} → #{target}  #{path}  #{constant} ×#{group.size}#{suffix}"
+          kind = group.first.kind == :constant ? "" : " (#{group.first.kind})"
+          lines << "#{source} → #{target}  #{path}  #{constant}#{kind} ×#{group.size}#{suffix}"
         end
       end
       lines << ""
       lines << "[allowed]"
-      grouped.select { |(s, *), _| s == :allowed }.sort_by { |k, _| k.map(&:to_s) }.each do |(_, source, target, path, constant), group|
-        lines << "#{source} → #{target}  #{path}  #{constant} ×#{group.size}"
+      grouped.select { |(s, *), _| s == :allowed }.sort_by { |k, _| k.map(&:to_s) }.each do |(_, source, target, path, constant, kind), group|
+        lines << "#{source} → #{target}  #{path}  #{constant}#{kind == :constant ? '' : " (#{kind})"} ×#{group.size}"
       end
       "#{lines.join("\n")}\n"
     end
