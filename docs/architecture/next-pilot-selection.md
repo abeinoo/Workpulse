@@ -7016,3 +7016,26 @@ rebase, amend or reset). Statements in §38.7, §43, §47 and §48 that said PR 
 | `fix/bug-012-expenses-status-badge-wrap` | `fix/test-business-day-specs` (for the register entries only) | `b6ac0c9` fix, `8e950cc` docs | **BUG-012**: the status badge may wrap in table mode (payment-source pattern) — the 2 px San Francisco overflow at 1440 px is gone; regression examples at a 940 px list prove it on any font. **BUG-019** recorded: English table mode still overflows at list widths ~860–900 px (pre-existing, reduced, UX decision) |
 
 Both merge cleanly with `ca4b43d` and with the migration stack (checked with `git merge-tree`).
+
+### 49.3 Final verification — the completion gate is clean (2026-10-22)
+
+Run on a local verification merge (`verify/final-gate` `1a83222` = this branch at `24a9673` + `fix/bug-012-expenses-status-badge-wrap`,
+which carries `fix/test-business-day-specs`) — the exact combination proposed for publication; documentation-only
+commits after it change no tested file.
+
+| Check | Result |
+|---|---|
+| **Full suite** (lazy, seed 20261006; 07:30:57–07:58:05 UTC, outside the 21:00–24:00 UTC window; process zone EEST, test `Time.zone` UTC, business zone Asia/Riyadh) | **9925 examples, 0 failures** |
+| `spec/architecture` (incl. the enforced dependency gate) | 420 / 0 under seeds 20261006, 12345, 98765 and `CI=1` |
+| Dependency inventory | 0 unmapped files / tables, **0 unclassified**; allowed 393 / 570, classified 144 / 165 (report byte-identical) |
+| BUG-012 and responsive / table system specs, each alone | expenses index responsive 17 / 0; notes 5 / 0; the five other expense specs 1–4 / 0 each; custody own-balance responsive 13 / 0; goods-receipt settlement responsive 12 / 0; product recent documents responsive 7 / 0 |
+| BUG-012 regression proof | unfixed CSS fails the two 940 px examples with CI-like Arial metrics and four examples with San Francisco; fixed CSS passes all 17 with both |
+| Date-window specs and boundary spec, each alone | dashboard 32 / 0, payroll auto generator 11 / 0, attendance API 30 / 0, custody 13 / 0, business-day boundary 8 / 0, document voider concurrency (PR #61) 3 / 0 |
+| Same four groups under a fixed-clock harness at 20:59:30Z, 21:00:30Z, 22:30Z, 12:00Z | 56 / 0 each; attendance passes except the 7 examples that set their own clock (nested `travel_to` raises under the harness — a harness artifact) |
+| `zeitwerk:check`, RuboCop (43 changed Ruby files vs `ca4b43d`), `git diff --check` | clean |
+
+**Completion gate (§48.2) criterion 9 — full-suite gate clean: PASS.** With criteria 1–8, 10 and 11 as recorded in
+§48.2, **every completion criterion passes** on the integrated stack plus the two bug-fix branches. Open, outside the
+gate: BUG-019 (English table overflow at list widths ~860–900 px, UX decision), BUG-011 (intermittent CI WebDriver
+failure, not seen in this run), and the deferred items of §47. Nothing is pushed, merged or published; API work has not
+started.
