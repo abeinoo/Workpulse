@@ -6924,3 +6924,61 @@ Register: `docs/quality/deferred-bugs.md` on `main` (unchanged here; BUG-017 arr
 
 No bug was fixed in a migration commit. None of these is critical under the register's policy; none is in a path the
 migration changed. BUG-017 (stock-document double void) is fixed on the open PR #61 and stays separate.
+
+---
+
+## 48. Final verification and completion gate (2026-10-22)
+
+**Branch stack (local, linear, not pushed or merged)** on `main` `ec8ae59`: `migration/s2-purchase-request-advances`
+→ `migration/dependency-inventory` → `migration/f2-shift-assignment-attendance` → `migration/sal-employee-salary-panel`
+→ `migration/docs-reconciliation` → `migration/d1-account-interface` → `migration/dependency-checker-enforcement`
+(tip `26ff99b` before this documentation commit). PR #61 (BUG-017) OPEN, untouched.
+
+### 48.1 Full-suite runs (lazy, seed 20261006, process TZ unset → system zone EEST; test `Time.zone` UTC; factory business zone Asia/Riyadh, UTC+3)
+
+| Run | Window | Result | Failures |
+|---|---|---|---|
+| 1 — SAL tip `5d55423` | 02:40–03:04 EEST (23:40–00:04 UTC) | 9866 / 25 | 24 date-window failures (below) + `stock_issue_import_spec.rb:88` (BUG-011) |
+| 2 — `070b9af` | 08:27–08:54 EEST (05:27–05:54 UTC) | 9910 / 4 | `employee_salary_panel_spec.rb:69, :79, :101` (a defect in the SAL characterization's own input, fixed by `26ff99b`) + `expenses_index_responsive_spec.rb[1:5]` (BUG-012) |
+| 3 — **final, `26ff99b`** | 08:57–09:21 EEST (05:57–06:21 UTC) | **9910 / 1** | `expenses_index_responsive_spec.rb[1:5]` only |
+
+**The 24 run-1 failures — one root cause, outside the migration.** `dashboard_spec.rb` (4), `payroll/auto_generator_spec.rb`
+(6), `api/v1/attendance_spec.rb` (2) and `custody_own_balance_responsive_spec.rb` (12) compute "today" in the test
+process's zone (UTC: `Date.current`, `created_at.to_date`) while the application correctly uses the business zone
+(`BusinessDay` / `Time.current.in_time_zone(business)` / the request's business `Time.zone`). With the factory zone
+Asia/Riyadh they disagree every day from **21:00 to 24:00 UTC**, and run 1 fell in that window. Evidence: the custody
+messages (`expected "October 21, 2026"` / `"21 أكتوبر 2026"`, page shows `October 22, 2026`) and
+`Payroll::AutoGenerator#today_in_tz` vs the spec's `payroll_auto_generate_day: Date.current.day`; all 24 pass outside
+the window (runs 2 and 3) and in isolation. They are **pre-existing spec timezone defects, not flakiness**; recommended
+register entry after PR #61 lands (the register is not edited here, to avoid a conflict with that PR): compute the
+expected business date in the business zone (or `travel_to` a fixed instant). Earlier §43.8 called the custody group
+"unexplained" — now explained.
+
+**The SAL characterization defect** (run 2): the golden cards embedded the run date of a "1.year.ago" profile; fixed in
+`26ff99b` by normalizing that one token (golden files otherwise byte-identical).
+
+**The remaining failure — BUG-012** (`expenses_index_responsive_spec.rb[1:5]`, EN @ 1440 px, table overflows by 2 px):
+reproduced 3 / 3 in isolation on this machine **and on unchanged `main` `ec8ae59`** (same 2 px); no migration commit
+touches an expenses view, asset or JavaScript; CI passes it (register). Local browser / font environment — cause
+still unverified; **not** labelled flaky.
+
+### 48.2 Completion gate
+
+| # | Criterion | Status | Evidence |
+|---|---|---|---|
+| 1 | D1 implemented, #7 closed through the account interface | **PASS** | §44; `organization_access_account_interface_boundary_spec.rb` |
+| 2 | Checker enforced, tested, deterministic, honest about its limits | **PASS** | §45; report header; eager-load identity; planted probes |
+| 3 | All component groups protected by the checker or focused specs | **PASS** | §45.3 matrix (limits in §45.2) |
+| 4 | No unclassified cross-domain reference in the audited scope | **PASS** | Inventory: unclassified 0 |
+| 5 | Every remaining exception has an owner, reason and guard | **PASS** | `docs/architecture/dependency-exceptions.md` (20 checker + 3 outside); spec keeps code and register in sync |
+| 6 | Cross-domain writes and ownership maps match the approved architecture | **PASS** | No direct IP → FS, WF → AP or WF → OA write remains (S2, F2/SAL reads, D1); every `app/` file and schema table mapped; `PurchaseRequestAdvance` in §7 / §10 |
+| 7 | Documentation matches code and migration state | **PASS** | `module-boundaries.md` (header, §3.2, §12–§14, §19, §20.2–§20.3), `migration-pattern.md` rule J, this file §39–§48, the register, the baselines |
+| 8 | Focused tests and architecture checks pass | **PASS** | Every batch: its set under seeds 20261006 / 12345 / 98765 and `CI=1`; `spec/architecture` 420 / 0 |
+| 9 | Full-suite gate clean | **BLOCKED** | Final run 9910 / 1 — BUG-012, pre-existing (fails identically on `main`), local environment; not waived. Separately: the 21:00–24:00 UTC date-window spec defects make any run in that window fail 24 examples |
+| 10 | Deferred bugs triaged; blockers addressed or resolved | **PASS (triage)** | §47 — no migration blocker; BUG-011 / BUG-012 and the date-window defects affect only the suite gate |
+| 11 | Branch stack and commits ready for review | **PASS** | Linear stack, clean tree, one logical unit per commit |
+
+**Domain migration completion gate: BLOCKED on criterion 9 only.** Every migration criterion passes; the full suite is
+not clean on this machine because of one pre-existing, environment-dependent system spec (BUG-012) that also fails on
+`main`. Resolving it needs an owner choice: accept CI as the reference environment for the gate (CI passes it), or fix
+BUG-012 (and the date-window spec defects) in separately scoped bug-fix commits before declaring completion.
