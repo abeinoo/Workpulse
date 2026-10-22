@@ -120,6 +120,10 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
     I18n.with_locale(:ar) do
       upload(temp_file("stock.csv", "SKU,Quantity\nUYN1,1\n"))
 
+      # The upload is a full page load (data-turbo: false) and the upload page is
+      # RTL too: wait for the mapping step before checking the document, or the
+      # html[dir=rtl] check can match the page being left (BUG-011).
+      expect(page).to have_select("mapping_sku")
       expect(page).to have_css("html[dir=rtl]")
       expect(page).to have_content("تم تحميل الملف بنجاح. اختر الأعمدة المطابقة للحقول المطلوبة.")
       expect(page).to have_button("استيراد إذن الصرف", disabled: false)
