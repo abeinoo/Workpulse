@@ -1,6 +1,8 @@
 # Next Migration Pilot — Candidate Analysis
 
-**Status:** History of the pilot selections, plus the pilot status records.
+**Status:** History of the pilot selections, plus the pilot status records. Statuses are recorded as they were when
+written; merges verified later are annotated in place ("*[Merged since …]*") and listed in §43 (reconciled against
+Git / GitHub on 2026-10-22).
 
 * **Pilot 2, Workforce Department + JobTitle:** COMPLETE and pushed (`cafb6f6`, `b872d7a`, `0aa0066`).
 * **Pilot 3, Workforce Performance:** COMPLETE and pushed (`8c1e2df`, `309fcc4`, `d7e83ca`, `ae74dcc`). It is on
@@ -1160,7 +1162,7 @@ There are no database, schema, migration, route or API changes.
   `98edd8e`, M2 `4b94668`, M3 `d009f0d`, M4 `0ca2dc5`, M5 not needed, M6 `ddaceb1`, M7 `ee47554`, M8 docs. Cycle
   F3 eliminated; FS-D3 recorded as open debt (§10).
 * **Milestone 2 final gate (full suite vs `main`):** passed after review at `b28110f` (§18.9) and again with Pilot 4
-  at `ce3ce00` (§19.13). **Milestone 2 (security hardening, Pilots 1–4) is READY FOR PR** from
+  at `ce3ce00` (§19.13). **Milestone 2 (security hardening, Pilots 1–4) is READY FOR PR** *[merged since: PRs #28 `3b61d69`, #29 `3be2816` — §43]* from
   `feature/milestone-2-attendance-payroll` once Pilot 4 is fast-forwarded into it (PR not created, not merged).
 * **Pilot 4 — Attendance & Payroll Penalty Rules:** **COMPLETE** on `feature/pilot-4-penalty-rules` (from
   `b28110f`; to be fast-forwarded into the milestone branch): M0 `b73fc34`, M1 `3efb46b`, M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M5 not needed, M6
@@ -1650,12 +1652,12 @@ boundary or interface is required. M2–M5 are **skipped on evidence**:
   M2 `40e5ed0`, M3 `4d7ae92`, M4 `a2ae7aa`, M6 `3fd9ba2`, M7 `a3b6463`, M8 `ce3ce00`; M5 not needed. P4-D1 open
   (§19.11).
 * **Pilot 5 — Organization & Access ↔ Workforce membership contract:** on `feature/pilot-5-membership-contract`
-  **COMPLETE** (from `main` @ `3be2816`, not pushed): M0 done (read-only), M1 `114f771`, M2 `69031c1`, M3 `5d6b454`,
+  **COMPLETE** (from `main` @ `3be2816`, not pushed *[merged since: PR #30 `24f1573` — §43]*): M0 done (read-only), M1 `114f771`, M2 `69031c1`, M3 `5d6b454`,
   M4 / M5 not needed, M6 `1b5cd65`, M7 not needed, M8 docs (§20.6).
-* **Pilot 6 — Inventory & Purchasing Supplier:** **COMPLETE** on the same branch (on top of Pilot 5, not pushed): M0,
+* **Pilot 6 — Inventory & Purchasing Supplier:** **COMPLETE** on the same branch (on top of Pilot 5, not pushed): M0, *[Merged since: PR #30 — §43.]*
   security unblock (SEC-P6-1 – SEC-P6-6 fixed), M1 `bfbb88b`, M2 – M5 not needed, M6 `b34d959`, M7 `3348fbf`, M8 docs
   (§21.8). No next pilot started.
-* **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9
+* **Pushed, not merged:** `feature/milestone-2-attendance-payroll` is on origin at `b28110f` (pushed after the §18.9 *[Merged since: PRs #28 / #29 — §43.]*
   gate). The Pilot 4 commits are on `feature/pilot-4-penalty-rules` (a fast-forward of `b28110f`, not pushed) and are
   to be included in the milestone branch before the PR (§19.13).
 * **Q-M2-1 and Q-M2-2:** resolved (§14).
@@ -2520,7 +2522,7 @@ scope, all associated with each other); the custody, settlement, POS, reconcilia
 * **Accepted nuance (not debt):** `Payroll::EmployerInsuranceCost` runs before Finance's idempotency check, so it
   also runs on a call that creates nothing; it is read-only.
 
-**Pilot 3 (Finance & Sales Expenses) is COMPLETE.** Nothing was pushed or merged; `main` stays at `c054fa3`. No next
+**Pilot 3 (Finance & Sales Expenses) is COMPLETE.** Nothing was pushed or merged; `main` stays at `c054fa3`. No next *[Merged since: PR #28 — §43.]*
 pilot is selected.
 
 ### 18.9 Milestone 2 final gate — full suite vs `main` (READY FOR PR)
@@ -2860,7 +2862,7 @@ everything that remained.
   `spec/services/shifts/penalty_rule_settings_spec.rb` (still describes the M2 delegating implementation; comment
   only, left unchanged as this close-out is docs-only).
 
-**Pilot 4 (Attendance & Payroll Penalty Rules) is COMPLETE.** Nothing was pushed or merged; `main` stays at
+**Pilot 4 (Attendance & Payroll Penalty Rules) is COMPLETE.** Nothing was pushed or merged; `main` stays at *[Merged since: PR #29 — §43.]*
 `c054fa3`. No next pilot is selected.
 
 ### 19.13 Milestone 2 pre-PR gate with Pilot 4 (READY FOR PR)
@@ -3102,7 +3104,7 @@ references), which M7 forbids, for no boundary gain — ownership is expressed b
 * The API scope specs `payroll_waive_scope_spec` / `payroll_visibility_spec` still fail on `main` for non-scope reasons
   (AP-D2; response shape).
 
-**Pilot 5 (Organization & Access ↔ Workforce membership contract) is COMPLETE.** Nothing was pushed or merged; `main`
+**Pilot 5 (Organization & Access ↔ Workforce membership contract) is COMPLETE.** Nothing was pushed or merged; `main` *[Merged since: PR #30 — §43.]*
 stays at `3be2816`.
 
 ### 20.7 Pilot 6 recommendation (not started)
@@ -3318,7 +3320,7 @@ too (listed in `permission-role-baseline-failures.txt`); untouched.
 `zeitwerk:check`, RuboCop and `git diff --check` clean. `module-boundaries.md` status header synced (Inventory &
 Purchasing partially migrated).
 
-**Pilot 6 (Inventory & Purchasing — Supplier) is COMPLETE.** Nothing pushed or merged; `main` stays at `3be2816`.
+**Pilot 6 (Inventory & Purchasing — Supplier) is COMPLETE.** Nothing pushed or merged; `main` stays at `3be2816`. *[Merged since: PR #30 — §43.]*
 
 ### 21.9 Next-pilot recommendation (not started)
 
@@ -3572,7 +3574,7 @@ all catalogue logic was already in Inventory & Purchasing.
 `zeitwerk:check`, RuboCop on the changed files and `git diff --check` clean. `module-boundaries.md` status header
 synced (Inventory & Purchasing: `Supplier`, `Brand`, `ProductCategory`).
 
-**Pilot 7 (Inventory & Purchasing — Product Catalogue) is COMPLETE.** Nothing pushed or merged.
+**Pilot 7 (Inventory & Purchasing — Product Catalogue) is COMPLETE.** Nothing pushed or merged. *[Merged since: PR #31 `4655d18` — §43.]*
 
 ## 23. Pilot 8 — Workforce Employee Insurance Profile
 
@@ -3838,7 +3840,7 @@ cancellation) and the salary display remain.
 * SEC-M2-5 / -6 / -7 and AP-D1 (salary and advances) remain open, outside this pilot.
 * TD-OA1 remains known flaky debt.
 
-**Pilot 8 (Workforce — Employee Insurance Profile) is COMPLETE.** Nothing pushed or merged; the seven commits plus this
+**Pilot 8 (Workforce — Employee Insurance Profile) is COMPLETE.** Nothing pushed or merged; the seven commits plus this *[Merged since: PR #32 `a9f8ff3` — §43.]*
 close-out sit on `fix/pilot-8-insurance-security` on top of `main` `4655d18`.
 
 ## 24. Pilot 9 — Workforce Request Permission Payroll Effects (late / early-leave permissions)
@@ -4191,13 +4193,13 @@ boundary spec, 13 then 24 examples, and the routing spec); excluding them the pu
 unchanged by Pilot 9. `zeitwerk:check`, RuboCop (every Ruby file Pilot 9 changed, 32) and `git diff --check` clean.
 `module-boundaries.md`: status header, §12.1 inversion table, §12.2 WF → AP row and §14.2 #4 represent the final state.
 
-**Pilot 9 (Workforce — Request Permission Payroll Effects) is COMPLETE.** Nothing pushed or merged.
+**Pilot 9 (Workforce — Request Permission Payroll Effects) is COMPLETE.** Nothing pushed or merged. *[Merged since: PR #33 `82cce16` — §43.]*
 
 ## 25. Pilot 10 — Punch Correction payroll / attendance effects
 
 **Status (2026-10-17): Pilot 10 CLOSED** — M4, M6 and M8 complete; the production-only legacy check (§25.10.3) was
 reported empty on 2026-10-17 (§25.12.1). Known concurrency risks and helper duplication remain follow-up debt
-(§25.10.2, §25.11). On `feature/pilot-10-punch-correction` (not pushed): M1 `5c8729e`,
+(§25.10.2, §25.11). On `feature/pilot-10-punch-correction` (not pushed): M1 `5c8729e`, *[Merged since: PR #37 `7d2a8c8` — §43.]*
 M2 `e2aa155`, M3 `cf29212`, M4-0 merge `cd2296d`, M4-1 `3213425`, M4-2 `33e5add`, M4-3 `dee8a70`, M4-4 docs `2bcdcb4`,
 M6 cleanup `e4c8486`, M8 verification (§25.12). M0 and the unblock are merged (`66abcf5`, PR #34 →
 `fix/pilot-9-request-scope`, PR #33 → `main` `82cce16`). The assessment, approval and cancellation reach Attendance &
@@ -5543,7 +5545,7 @@ close-out (documentation only).
 
 ## 28. Batches R + W — Reporting read-only enforcement; Organization & Access → Inventory & Purchasing warehouse access
 
-**Status (2026-10-20): implemented and verified with focused tests; committed locally** (W M1 `996522b`, W refactor
+**Status (2026-10-20): implemented and verified with focused tests; committed locally** (W M1 `996522b`, W refactor *[Merged since: PR #57 `bc6682b` — §43.]*
 `f77e59b`, R + W boundary specs `0ccfaba`, then this documentation commit), not pushed or merged, on
 `feature/pilot-12-pos-terminals` on top of the four Pilot 12 commits (`5355211`). Run as batches (the user's 2026-10-20 instruction), from the
 post-Pilot-12 migration matrix. No full-suite run (not a designated milestone). No schema, route, permission, API or
@@ -5650,7 +5652,7 @@ files, more than the "6 / 6" in `module-boundaries.md` §12.2), the account fiel
 
 ## 29. F-A1 — salary advance pay / cancel race (standalone fix, before Batch A)
 
-**Status (2026-10-20): FIXED** in its own `fix:` commit on `feature/pilot-12-pos-terminals`, before and separate from
+**Status (2026-10-20): FIXED** in its own `fix:` commit on `feature/pilot-12-pos-terminals`, before and separate from *[Merged since: PR #57 — §43.]*
 the Batch A Advance contract refactor (§14.2 #2). No contract, ownership, schema, permission or API change.
 
 **Finding (from the Batch A investigation, code-evident):** `Requests::Approver#pay` checked `payable?` on the copy it
@@ -5703,7 +5705,7 @@ SEC-P12-1 (later fixed, `ffd1906`, §32), TD-P12-1, TD-P12-2, SEC-M2-8 (later fi
 
 ## 30. Batch A — salary-advance payment boundary (Workforce → Attendance & Payroll, §14.2 #2)
 
-**Status (2026-10-20): implemented and verified with focused tests; committed locally** (M1 `9a628ad`, M2–M4
+**Status (2026-10-20): implemented and verified with focused tests; committed locally** (M1 `9a628ad`, M2–M4 *[Merged since: PR #57 — §43.]*
 `375f1ba`, M6 `f1e89f3`, then this documentation commit), not pushed or merged, on `feature/pilot-12-pos-terminals` on
 top of the F-A1 fix `fa81c7d` (§29). No full-suite run (not a designated milestone). No schema, route, permission,
 API or dependency change.
@@ -5748,7 +5750,7 @@ BUG-001) / -2, TD-R-1, TD-W-1.
 
 ## 31. SEC-M2-8 — biometric punch-log authorization (standalone security fix)
 
-**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `a21625a`. Separate from the
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `a21625a`. Separate from the *[Merged since: PR #57 — §43.]*
 migration batches. No schema, route, permission, navigation or API change.
 
 **Finding (confirmed):** `Admin::BiometricPunchLogsController` called no `authorize` / `policy_scope`, and no policy
@@ -5796,7 +5798,7 @@ holders reach the screen by URL only.
 
 ## 32. SEC-P12-1 — biometric punch timestamp window and locked payroll periods (standalone security fix)
 
-**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `0432da2`. Separate from the
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `0432da2`. Separate from the *[Merged since: PR #57 — §43.]*
 migration batches. No schema, dependency, route or permission change.
 
 **Finding (§27.2):** `91da561` commented out the 24-hour check in `Api::V1::PunchesController#create`, so a device-token
@@ -5881,7 +5883,7 @@ clean; `Gemfile.lock` and `db/schema.rb` unchanged.
 
 ## 33. TD-T-1 — device punches serialized against payroll finalization
 
-**Status (2026-10-20): FIXED** — committed locally (`5925411`), on `feature/pilot-12-pos-terminals` on top of `ffd1906` (§32). No schema,
+**Status (2026-10-20): FIXED** — committed locally (`5925411`), on `feature/pilot-12-pos-terminals` on top of `ffd1906` (§32). No schema, *[Merged since: PR #57 — §43.]*
 dependency, route, API or behaviour change for a single punch.
 
 **Race (§32):** `Attendance::PunchService` read the payroll period with a plain `find_by` outside any transaction, then
@@ -5970,7 +5972,7 @@ mid-flight); `Timeout` only wraps `Queue#pop`.
 
 ## 34. TD-T-2 — biometric_mismatch evidence filtered by source and action
 
-**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on
+**Status (2026-10-20): FIXED** — committed locally (the `fix:` commit that adds this section), not pushed or merged, on *[Merged since: PR #57 — §43.]*
 `feature/pilot-12-pos-terminals` on top of `5925411` (§33). No schema, migration, backfill, dependency, route or API change.
 
 **Problem (§32):** `Attendance::AnomalyDetector#detect_biometric_mismatch` took the calendar day of **every** punch log
@@ -6034,7 +6036,7 @@ and `db/schema.rb` unchanged.
 
 ## 35. Concurrent first punch — RecordNotUnique retry
 
-**Status (2026-10-20): FIXED** — committed locally (`b14744a` "fix: retry a punch that loses the concurrent
+**Status (2026-10-20): FIXED** — committed locally (`b14744a` "fix: retry a punch that loses the concurrent *[Merged since: PR #57 — §43.]*
 first-punch insert"), not pushed or merged, on `feature/pilot-12-pos-terminals` on top of `9ccff39` (§34). No schema,
 migration, dependency, route or API change. Resolves the §33 residual risk on simultaneous first punches.
 
@@ -6089,7 +6091,7 @@ here (a per-employee advisory lock was considered and deferred).
 
 ## 36. F-A2 and F-A7 — concurrent salary advance payments
 
-**Status (2026-10-20): F-A2 CLOSED, F-A7 bulk deadlock FIXED** — committed locally (`46c0bcd` "test: cover concurrent
+**Status (2026-10-20): F-A2 CLOSED, F-A7 bulk deadlock FIXED** — committed locally (`46c0bcd` "test: cover concurrent *[Merged since: PR #57 — §43.]*
 salary advance payments", `49f5a04` "fix: prevent deadlocks in bulk salary advance payments"), not pushed or merged, on
 `feature/pilot-12-pos-terminals`. No schema, migration, dependency, route or permission change.
 
@@ -6141,7 +6143,7 @@ F-A4, F-A6 and every other open finding (F-A5 since closed, `195a08b`, §29).
 
 ## 37. Batch V — Workforce → Attendance & Payroll request-validation reads (D-A5)
 
-**Status (2026-10-21): M0, M1, M2, M3, M4 and M8 COMPLETE** — committed locally on `batch-v/request-validation-reads-2`
+**Status (2026-10-21): M0, M1, M2, M3, M4 and M8 COMPLETE** — committed locally on `batch-v/request-validation-reads-2` *[Merged since: PR #58 `872e55f` — §43.]*
 (from `origin/main` `bc6682b`, the PR #57 merge): M1 `180962f`, M2 `2f7cd91`, M3 `1d1def7`, M4 `84e7275`, then this
 documentation commit; not pushed or merged. M5 not needed (no business rule in the controller), M6 folded into M4 (the
 boundary spec lands with the migration), M7 not applicable. No schema, migration, route, permission, dependency or API
@@ -6249,7 +6251,7 @@ remaining references are classified exceptions (Batch A's `request.advance` read
 
 ## 38. Batch S — Inventory & Purchasing → Finance & Sales goods-receipt payment writes (§14.2 #6, write half)
 
-**Status (2026-10-21): M0, M1, M2, M3, M4, M6 and M8 COMPLETE; Batch S itself is not yet merged** — on
+**Status (2026-10-21): M0, M1, M2, M3, M4, M6 and M8 COMPLETE; Batch S itself is not yet merged** — on *[Merged since: PR #60 `ec8ae59` — §43.]*
 `batch-s/goods-receipt-payments` (created from `251a69b`, the tip of `batch-v/request-validation-reads-2`, which was then
 stacked on `origin/main` `bc6682b`): the BUG-015 / BUG-016 fix `3f16e92`, M1 `981fc8b`, M2 `26f8192`, M3 `78a0c7d`, M4
 `64f1f22`, M6 `165ebd1`, M8 documentation `731584b`. Since then Batch V merged into `main` (PR #58, `872e55f`) and the
@@ -6365,7 +6367,7 @@ The full suite was not run (not authorized for this batch). `Gemfile.lock`, `db/
   previews and preloads, the purchase-request and advance controllers, the settlement form's source options and the
   receipt page's custody display.
 * **Stock-document voids:** the possible double-void risk of stock issues, transfers and adjustments
-  (`DocumentVoider` callers without a row lock) is uninvestigated — follow-up, not fixed here.
+  (`DocumentVoider` callers without a row lock) is uninvestigated — follow-up, not fixed here. *[Since investigated as BUG-017 — reproduced and fixed on PR #61 (`6c2a20e`), which is OPEN, not merged (GitHub, 2026-10-22) — §43.4.]*
 * The event target of §14.2 #6 (`goods_receipt.*`) is deferred, not rejected.
 
 ---
@@ -6622,3 +6624,141 @@ pairs remain (TD-R-1, the OA branch dashboard, three shared-layer reads).
 
 Final set 964 / 0 under seeds 20261006, 12345, 98765 and `CI=1` (M0 945 / 0). RuboCop on the 7 changed / new Ruby files no offenses; `zeitwerk:check` clean;
 `spec/architecture` 406 / 0 (seed 20261006).
+
+---
+
+## 43. Reconciliation and migration-completion status (2026-10-22)
+
+**Basis:** local `main` = `origin/main` = `ec8ae59` (PR #60); GitHub (read-only `gh`, 2026-10-22) lists PR #60 as the
+latest merge and **PR #61 (BUG-017, head `6c2a20e`) as OPEN, not merged**. No fetch or pull was made. Work after
+`ec8ae59` is committed locally on stacked branches and is **not pushed, not merged**.
+
+### 43.1 Merged pilots and batches (deduplicated)
+
+| Unit (other names) | Merged in | Evidence |
+|---|---|---|
+| PermissionRole; Department + JobTitle ("Pilot 2", Milestone 1); Workforce Performance ("Pilot 3", Milestone 1) | `eef3b68` (api-foundation, 2026-10-03) | `7d957a6`, `0aa0066`, `ae74dcc` |
+| Milestone 2 Pilots 1 (Biometric), 2 (Obligations), 3 (FS Expenses / FinalizationEffects) | PR #28 `3b61d69` | `bea07f8`, `77239ce`, `ee47554` |
+| Pilot 4 (Penalty Rules) | PR #29 `3be2816` | `a3b6463` |
+| Pilot 5 (membership contract), Pilot 6 (Supplier) | PR #30 `24f1573` | `1b5cd65`, `3348fbf` |
+| Pilot 7 (Product Catalogue) | PR #31 `4655d18` | `ef52850` |
+| Pilot 8 (Insurance Profile) | PR #32 `a9f8ff3` | `7d9156a` |
+| Pilot 9 (Permission payroll effects) | PR #33 `82cce16` | `2d55172` |
+| Pilot 10 (Punch correction) | PR #37 `7d2a8c8` | `e2aa155` |
+| Pilot 11 (Reporting: laundry cost) | PRs #43 / #44 `96cc194`; close-out PR #45 | `c30c148` |
+| Pilot 12 (POS terminals) + Batches R, W, A + standalone fixes (§29–§36) | PR #57 `bc6682b`; Pilot 12 close-out docs PR #59 `17fbcce` (not a separate pilot) | `55153fa`, `0ccfaba`, `f1e89f3` |
+| Batch V (request-validation reads) | PR #58 `872e55f` | `84e7275` |
+| Batch S (goods-receipt payment writes; BUG-015 / BUG-016 fix `3f16e92` inside) | PR #60 `ec8ae59` | `165ebd1` |
+
+### 43.2 Completed locally on 2026-10-22 (not pushed, not merged)
+
+| Batch | Branch (stacked in this order) | Commits | Section |
+|---|---|---|---|
+| S2 — Purchase Request advance writes | `migration/s2-purchase-request-advances` (from `main` `ec8ae59`) | `d7ab79b` test, `c65ea1d` refactor, `5060779` docs | §39 |
+| Dependency inventory (report-only) | `migration/dependency-inventory` | `9468678` chore, `2120dbe` fix (determinism) | §40 |
+| F2 — shift-assignment attendance reads | `migration/f2-shift-assignment-attendance` | `bebeb4e` test, `160bf43` refactor, `1a715da` docs | §41 |
+| SAL — employee-page salary panel | `migration/sal-employee-salary-panel` | `dc453e5` test, `b9c1899` refactor, `5d55423` docs | §42 |
+| Documentation reconciliation (this section) | `migration/docs-reconciliation` | docs commit | §43 |
+
+The branches are stacked because each later batch's classification and documentation build on the earlier ones
+(shared `module-boundaries.md` / this file / the inventory report); each batch is its own reviewable commit range.
+
+### 43.3 #7 — account fields (OA ↔ WF): blocked, not implemented
+
+**Evidence.** Already through Organization & Access: the role decision (`OrganizationAccess::RoleAssignmentRule`,
+staged on the user and saved with the form), deletion (`OrganizationAccess::DeleteUser`), warehouse access (Batch W).
+Still written by the Workforce side: `Admin::UsersController#toggle_active` (`@user.update!(active: …)`), the combined
+form's `email` / `phone_number` / `active` (`UserPolicy` attribute tiers, `assign_attributes`), and onboarding's
+`EmployeeDataRequests::EmployeeAttributes.build_user` (`User.new` with `phone_number` and `business_id`, no password).
+
+**Why blocked.** `migration-pattern.md` §12 disqualifies a candidate that "requires the User ≠ Employee split" and §27.1
+applies it to #7; `module-boundaries.md` §20.2 leaves open whether `email` / `phone_number` are OA login identifiers or
+WF contact data — the core of what an OA account interface would own; §14.2 #7's `create_account_for(employee)`
+presumes an Employee separate from User, which does not exist (§3.2: one `users` table, column stewardship).
+
+**Options for the owner (D1):** (a) a narrow OA account interface over the shared table — `deactivate` / `reactivate`
+(from `toggle_active`), `change_login_identifiers`, `enable_login` — with WF writing only WF-stewarded columns and
+onboarding creating the row through OA; needs the §20.2 login-identifier answer; (b) a separate Employee model / table
+(a database phase, its own plan); (c) record the combined form and onboarding as permanent classified exceptions under
+§3.2 stewardship. A safe slice independent of the answer exists — moving `toggle_active`'s status write into an OA
+service (`deactivate` / `reactivate`) — but it was not done without the decision, to avoid a half-defined interface.
+
+### 43.4 Stock-document double-void (BUG-017)
+
+The §38.7 follow-up was investigated as BUG-017: reproduced and fixed by a row lock in `Inventory::DocumentVoider#call`
+on `fix/bug-017-document-voider-lock` (`6c2a20e`, PR #61). **PR #61 is OPEN, not merged** (GitHub, 2026-10-22); on
+`main` the defect is still present. It is a correctness fix, tracked separately — not a migration batch.
+`docs/quality/deferred-bugs.md` on `main` has no BUG-017 entry yet (it arrives with PR #61); it was deliberately not
+edited here to avoid a conflict with that PR.
+
+### 43.5 Remaining cross-domain inventory (after S2, F2, SAL)
+
+`docs/architecture/dependency-inventory-report.txt` (regenerated on `migration/sal-employee-salary-panel`): 1240 files,
+0 unmapped; allowed / classified references unchanged in kind; **9 unclassified file + constant pairs**:
+
+| ID | Edge | Item | Roadmap status | Needs |
+|---|---|---|---|---|
+| TD-R-1 | IP → FS | laundry branch-consumption report → `Finance::Reports::{Column,Table,CsvExporter}` | Recorded debt (§28.2) | §15 placement decision (D4) |
+| OA-X+ | OA → WF / AP | branch page: pending / recent `EmployeeRequest`s; payroll summary + `Payroll::EntryViewAudit` | New; same branch dashboard as OA-X (target Reporting / composition, "long-term") | End-state decision (D4) |
+| SH-1 | Infrastructure → FS | `ApplicationController#business_payment_methods` → `PaymentMethod` | New | Placement decision (D4) |
+| SH-2 | Infrastructure → WF | `ApplicationHelper#requested_permission_summary` → `ShiftAssignment` | New | Placement decision (D4) |
+| SH-3 | Shared Kernel → OA | `PhoneNumber` → `User` normalization | New | Placement decision (D4) |
+
+Not in the report (outside its constant-level scope, still open): **#7** (§43.3); **GR-UI** — the goods-receipt
+settlement screen hosted under `inventory/` although `module-boundaries.md` §8 item 5 makes it FS's (moving it changes
+routes, a stop condition; decision D4); **OA-INV** — inverse `has_many` associations (frozen, "long-term target");
+**IP-R** — 13 classified IP → FS display-read files (frozen); **PS** — `Employee::PerformanceScorer` (AP-owned) under a
+WF namespace (moving it renames a constant, rule F; optional). Constant-level coverage of every component group now
+comes from the report; a boundary spec per group (shifts & scheduling now has one, §41) remains part of D3.
+
+**Owner decisions still needed:** D1 (User ≠ Employee / #7), D2 (are the synchronous contracts the final form, or are
+the `goods_receipt.*` / `payroll.*` / `employee_request.*` events still targets?), D3 (the completion gate: enforcement
+of the inventory, per-group specs, whether M7 / controller slimming are required), D4 (end state of the classified
+exceptions and the five new / recorded items above, incl. GR-UI), D7 (`module-boundaries.md` §20.2 confirmations).
+**Answered from existing direction on 2026-10-22, not newly decided:** D5 / Q-M2-5 for the salary card (§12.1 UI
+composition, SAL) and D6 / F2 (contract, §12.1 inversion rule).
+
+### 43.6 Deferred-bugs review (policy: at the end of every pilot and before declaring the migration ready for API)
+
+Reviewed on `main`'s register: BUG-001, -015, -016 resolved; BUG-002, -003, -004, -005, -006, -009, -011, -012, -014
+(review milestone "After Pilot 12") remain Deferred / Open — none is critical under the policy (no unauthorized access,
+no financial corruption shown, no integrity failure in a touched path) and none blocks S2, F2 or SAL; they need a
+triage slot before API work. BUG-007, -008, -010 are "After Modular Monolith completion"; BUG-013 needs a product
+decision. BUG-017 is fixed on the open PR #61 (§43.4). No new bug was found by S2, F2 or SAL; the F2 characterization
+recorded an unrelated observation (the assignment index's total query count grows ~4 per row), not filed as a bug.
+
+### 43.7 Completion gate — NOT satisfied
+
+| Criterion (from the 2026-10-22 brief) | Status |
+|---|---|
+| 1. S2 done; no direct cross-domain write except approved permanent exceptions | S2 done (local). **#7 remains** — blocked (D1) |
+| 2. F2, SAL, OA-X, #7 migrated or owner-approved end-state exceptions | F2, SAL done (local); **OA-X (+ branch dashboard) and #7 open** (D4, D1) |
+| 3. Ownership map covers every `app/` file and every model / table | Every `app/` file mapped (inventory, 0 unmapped); `PurchaseRequestAdvance` added (S2); every model in §10 |
+| 4. Every cross-domain reference reported or covered by a tested alternative | Yes at constant level (inventory); associations / SQL strings covered only by per-component specs |
+| 5. Checker proven; enforcement only with evidence and a decision | Proven (self-tests, planted probes); **report-only** (9 unclassified; D3) |
+| 6. No unresolved cross-domain cycle unless accepted | IP ↔ FS write direction inverted (S2); F2 inverted; **OA ↔ WF / AP reads (branch dashboard, User helpers) open** |
+| 7. Boundary / architecture specs pass under 3 seeds and `CI=1` | Yes on each batch branch (see §39–§42) |
+| 8. `zeitwerk:check`, RuboCop, `git diff --check` | Clean on each batch |
+| 9. Documentation matches code and merged history | Reconciled here and in `module-boundaries.md` |
+| 10. Deferred-bugs register reviewed | Done (§43.6) |
+| 11. Full suite at the final gate | See §43.8 |
+| 12. No API work | None started |
+
+### 43.8 Final-gate full suite
+
+Run 2026-10-22 on the SAL tip `5d55423` (application code final; this documentation uncommitted at the time), lazy,
+seed 20261006: **9866 examples, 25 failures** (24 min 6 s), started ≈ 02:40 EEST and finished ≈ 03:04 EEST — it
+**crossed 00:00 UTC** (03:00 EEST) mid-run. Failing IDs, by group:
+
+| Group | IDs | Rerun (same seed, files only) | Assessment |
+|---|---|---|---|
+| `spec/requests/dashboard_spec.rb` | :83, :168, :189, :207 (yesterday's incomplete check-in; today's shift progress) | pass | Date-relative examples; consistent with the UTC date rolling over mid-run |
+| `spec/services/payroll/auto_generator_spec.rb` | :10, :14, :18, :22, :44, :74 ("when today matches the generate day") | pass | Date-relative (TD-AP1 class); same |
+| `spec/requests/api/v1/attendance_spec.rb` | :176, :193 (assignment not started yet / gap between assignments) | pass | Date-relative; same |
+| `spec/system/finance/custody_own_balance_responsive_spec.rb` | [1:1]–[1:12] | pass (seeds 20261006 and 12345) | **Unexplained** — not shown to be date-related; not labelled flaky (`migration-pattern.md` §7); needs its own look |
+| `spec/system/inventory/stock_issue_import_spec.rb` | :88 | pass | The known intermittent WebDriver failure (BUG-011 / TD-P12-1) |
+
+The five files rerun together after the suite: **91 examples, 0 failures**. None of these areas' application files
+differs from `main` (`git diff ec8ae59 -- app` touches only the S2, F2 and SAL files), and no failing ID is in an S2,
+F2, SAL or inventory spec. Conclusion: no evidence of a migration regression; the full suite was **not** re-run in a
+window away from the UTC date boundary, so a clean full-suite result is still outstanding before merge.
