@@ -239,7 +239,7 @@ here only so its stable ID and history are kept.
 
 ## BUG-012 — Expenses table scrolls by 2 px at 1440 px with the macOS system font (was: `expenses_index_responsive_spec.rb:121` fails locally by 1 px)
 
-* **Source:** TD-P12-2 (§27.2). **Discovered:** 2026-10-20. **Status:** Deferred.
+* **Source:** TD-P12-2 (§27.2). **Discovered:** 2026-10-20. **Status:** **Resolved** by `b6ac0c9` on `fix/bug-012-expenses-status-badge-wrap` (narrower widths: BUG-019, open).
 * **Domain / files:** test infrastructure — `spec/system/finance/expenses_index_responsive_spec.rb:121` (assertion at
   line 128).
 * **Observed:** `.expense-list__table` `scrollWidth - clientWidth` was 2 (expected ≤ 1) in one local full-suite run; CI
