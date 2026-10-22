@@ -226,13 +226,18 @@ here only so its stable ID and history are kept.
 ## BUG-011 — `stock_issue_import_spec` intermittent WebDriver failure in CI
 
 * **Source:** TD-P12-1 (§27.2). **Discovered:** 2026-10-20. **Status:** Deferred.
-* **Domain / files:** test infrastructure — `spec/system/inventory/stock_issue_import_spec.rb:54` and `:88`.
+* **Domain / files:** test infrastructure — `spec/system/inventory/stock_issue_import_spec.rb:54`, `:88` and `:118`.
 * **Observed:** two CI `system-test` runs on `main` failed with `Selenium::WebDriver::Error::UnknownError` ("Node with
   given id does not belong to the document"); the next run passed.
 * **Expected vs actual:** deterministic system tests; intermittent failure, cause unknown.
 * **Impact:** unreliable CI signal.
 * **Evidence:** Confirmed failures in CI runs 39206655135 and 39365893468; root cause not identified. Not labelled
   flaky.
+  * 2026-10-22: the same signature on PR branches that don't touch the import flow. PR #66, run 39765240358
+    (attempt 1), failed at `:118` ("Arabic RTL: the upload page and mapping step render right-to-left"). PR #62, run
+    39765149279 (attempt 1), failed at `:54`. Each had the same `UnknownError` ("Node with given id does not belong to the
+    document"), and `:118` failed through `Capybara::Selenium::Node#visible?` / `ChromeNode#visible?`, like `:88` and
+    `:54` in the runs above. Root cause still not identified; status unchanged.
 * **Reason for deferral:** not touched by the migration; needs its own investigation.
 * **Recommended fix:** investigate the element lookup / Turbo re-render timing in the import flow.
 * **Regression tests:** the spec itself, stable across repeated CI runs.
