@@ -7,10 +7,10 @@
 # allowed = §12.1 direction; classified = recorded and enforced elsewhere (reason cites where);
 #   unclassified = upward / sideways reference with no recorded classification.
 #
-## Files under app/: 1240
+## Files under app/: 1242
 #   organization_access: 68
-#   workforce: 173
-#   attendance_payroll: 193
+#   workforce: 174
+#   attendance_payroll: 194
 #   inventory_purchasing: 306
 #   finance_sales: 310
 #   reporting: 60
@@ -22,7 +22,7 @@
 ## Cross-domain references (distinct file + constant / reference lines) by status
 #   allowed: 223 / 324
 #   classified: 57 / 70
-#   unclassified: 12 / 19
+#   unclassified: 11 / 18
 #
 ## Edges (source → target: distinct file + constant, by status)
 #   attendance_payroll → organization_access: allowed 31, classified 0, unclassified 0
@@ -48,7 +48,7 @@
 #   reporting → organization_access: allowed 9, classified 0, unclassified 0
 #   reporting → workforce: allowed 13, classified 0, unclassified 0
 #   shared_kernel → organization_access: allowed 0, classified 0, unclassified 1
-#   workforce → attendance_payroll: allowed 0, classified 3, unclassified 3
+#   workforce → attendance_payroll: allowed 0, classified 3, unclassified 2
 #   workforce → organization_access: allowed 38, classified 0, unclassified 0
 
 [unmapped]
@@ -65,7 +65,6 @@ organization_access → workforce  app/controllers/admin/branches_controller.rb 
 shared_kernel → organization_access  app/lib/phone_number.rb  User ×1
 workforce → attendance_payroll  app/controllers/admin/users_controller.rb  Salary::ViewAudit ×1
 workforce → attendance_payroll  app/controllers/admin/users_controller.rb  SalaryProfile ×2
-workforce → attendance_payroll  app/models/shift_assignment.rb  AttendanceRecord ×1
 
 [classified]
 finance_sales → reporting  app/controllers/finance/reports_controller.rb  Finance::Reports::BranchProfitability ×2  — FS controller hosting the two Reporting actions — reporting_read_only_boundary_spec.rb (D-R1)

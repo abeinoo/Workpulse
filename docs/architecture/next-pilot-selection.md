@@ -6521,3 +6521,55 @@ longer count as references. Allowed references dropped to 223 / 324; classified 
 passes under seeds 20261006, 12345, 98765, 1, 2 and `CI=1`, and the report is byte-identical when generated in
 development, in test, and in an eager-loaded process.
 `zeitwerk:check` clean; RuboCop on the three new Ruby files no offenses; `git diff --check` clean.
+
+---
+
+## 41. F2 — Workforce → Attendance & Payroll shift-assignment attendance reads (cycle F2)
+
+**Status (2026-10-22): M0, M1, M2–M4, M6 and M8 COMPLETE; committed locally, not pushed or merged** — on
+`migration/f2-shift-assignment-attendance`, stacked on `migration/dependency-inventory` (`2120dbe`). M5 not needed,
+M7 not applicable. No schema, migration, route, permission, dependency or API change. Baseline and results:
+`docs/architecture/workforce-shift-assignment-attendance-baseline-failures.txt`.
+
+**Why a contract and not an exception:** no document classifies these reads as a permanent exception — Milestone 2
+§3.3 (DS-4) records them as *undocumented* upward reads, `module-boundaries.md` §13 lists F2 as a cycle to resolve,
+and §12.1 / §18 rule 5 require upstream needs to be met by an upstream-defined contract. The dependency inventory
+(§40) reported `ShiftAssignment` → `AttendanceRecord` as unclassified.
+
+### 41.1 Inventory (M0)
+
+| Site | Read before F2 |
+|---|---|
+| `ShiftAssignment#has_attendance_records?` (slow path) | `AttendanceRecord.where(shift_assignment_id: id).exists?` — behind `#deletable?`, `ShiftAssignmentPolicy#destroy?` and bulk delete |
+| `ShiftAssignmentsController#index` | raw SQL `EXISTS(SELECT 1 FROM attendance_records ar WHERE ar.shift_assignment_id = shift_assignments.id LIMIT 1) AS has_attendance` (no per-row query) |
+
+No other Shifts & Scheduling file reads attendance or payroll (the penalty-rule option lists of the shift form are the
+Pilot 4 classified exception).
+
+### 41.2 Contract, implementation, migration (M2–M4)
+
+**`Shifts::AttendanceUsage`** (Workforce, `app/services/shifts/attendance_usage.rb`): `recorded_against?(assignment_id:)`
+→ `true` / `false`; `recorded_against_sql(assignment_column:)` → a SQL boolean expression correlated to a qualified
+column (the only interpolated input, validated against `table.column`). Register / handler / `NotRegistered`; names
+nothing from Attendance & Payroll. **`Attendance::ShiftAssignmentUsage`** (AP) returns the former query's answer and
+the former SQL text unchanged; registered in `config/initializers/shift_attendance_usage.rb`. The model's slow path
+calls `recorded_against?` (memoization unchanged — only `true` is cached, as pinned); the index selects
+`"#{recorded_against_sql} AS has_attendance"` — the SQL sent to the database is byte-identical and still one query.
+
+### 41.3 Tests
+
+| Spec | Examples | What |
+|---|---|---|
+| `spec/characterization/workforce/shift_assignment_attendance_usage_spec.rb` (M1) | 9 | Results and query counts of `has_attendance_records?` / `deletable?`, soft-deleted attendance, the preloaded attribute, the index's exact `EXISTS` and single attendance query for 1 or 3 rows, refused destroy, bulk delete (one query per candidate) — passes unmodified after M4 |
+| `spec/services/shifts/attendance_usage_spec.rb` (M2) | 7 | Operations, boot registration, incomplete handler, `NotRegistered`, dispatch, result checks, column validation, no AP name |
+| `spec/services/attendance/shift_assignment_usage_spec.rb` (M3) | 3 | Both answers through the contract (incl. soft-deleted, in SQL), the exact expression, no call back into Workforce |
+| `spec/architecture/workforce_shift_scheduling_boundary_spec.rb` (M6) | 8 | First boundary spec for the Shifts & Scheduling group (models, services incl. `scheduling/` and `BranchMembership`, controllers incl. admin / API, views, policies, helpers): no AP constant except the 4 classified Pilot 4 lines; **no AP table name, strings included** (raw SQL); the contract called at exactly its two sites; contract / implementation / composition-root rules; self-tests. Real probe: the raw `EXISTS … attendance_records` put back in the controller → 2 failures (rules 2, 3); file restored |
+
+The dependency inventory (`docs/architecture/dependency-inventory-report.txt`, regenerated on this branch) no longer
+lists F2: 11 unclassified file + constant pairs remain.
+
+### 41.4 Verification
+
+Final set 1428 / 0 under seeds 20261006, 12345, 98765 and `CI=1` (M0 1401 / 0). RuboCop on the 8 changed / new Ruby files no offenses; `zeitwerk:check` clean; `git diff --check`
+clean. Recorded observation, not F2 and not investigated: the assignment index's total query count grows by about 4 per
+row for reasons unrelated to attendance.

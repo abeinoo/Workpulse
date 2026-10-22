@@ -78,16 +78,15 @@ class ShiftAssignmentsController < ApplicationController
     @page        = [ @page, @total_pages ].min
 
     # Includes for eager loading.
-    # SELECT also inlines a sub-exists for has_attendance so that
-    # policy(a).destroy? / a.deletable? never fires per-row queries.
+    # SELECT also inlines the attendance-usage expression (Attendance & Payroll's,
+    # through the Workforce contract Shifts::AttendanceUsage — F2) as has_attendance
+    # so that policy(a).destroy? / a.deletable? never fires per-row queries.
+    has_attendance = Shifts::AttendanceUsage.recorded_against_sql(assignment_column: "shift_assignments.id")
     @assignments = base
       .includes(:user, :shift, :branch, :created_by, :source_template)
       .select(
         "shift_assignments.*",
-        Arel.sql(
-          "EXISTS(SELECT 1 FROM attendance_records ar " \
-          "WHERE ar.shift_assignment_id = shift_assignments.id LIMIT 1) AS has_attendance"
-        )
+        Arel.sql("#{has_attendance} AS has_attendance")
       )
       .order(effective_from: :desc)
       .offset((@page - 1) * PER_PAGE)
