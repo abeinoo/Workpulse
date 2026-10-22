@@ -6762,3 +6762,65 @@ The five files rerun together after the suite: **91 examples, 0 failures**. None
 differs from `main` (`git diff ec8ae59 -- app` touches only the S2, F2 and SAL files), and no failing ID is in an S2,
 F2, SAL or inventory spec. Conclusion: no evidence of a migration regression; the full suite was **not** re-run in a
 window away from the UTC date boundary, so a clean full-suite result is still outstanding before merge.
+
+---
+
+## 44. D1 — Organization & Access account interface (#7 closed)
+
+**Status (2026-10-22): M0, M1, M2–M4, M6 and M8 COMPLETE; committed locally, not pushed or merged** — on
+`migration/d1-account-interface`, stacked on `migration/docs-reconciliation` (`0f073e4`). Decision D1 (owner,
+2026-10-22, `module-boundaries.md` §20.3). No schema, migration, route, permission, dependency or API change; no audit
+added (none existed for these writes). Baseline and results:
+`docs/architecture/organization-access-account-interface-baseline-failures.txt`. Supersedes the blocker of §43.3.
+
+### 44.1 Inventory (M0)
+
+| Site | Account write before D1 |
+|---|---|
+| `Admin::UsersController#new` / `#create` | `current_user.business.users.new` (the row's business membership) |
+| `#create` / `#update` | `assign_attributes` with `active`, `email`, `phone_number` (as `UserPolicy#permitted_attributes` allowed) |
+| `#assign_role` | `RoleAssignmentRule.decide` then `user.permission_role = decision.role` in the Workforce controller |
+| `#toggle_active` | `@user.update!(active: !@user.active?)` |
+| `#transfer_ownership` | `current_user.business.update!(owner: @user)` |
+| `EmployeeDataRequests::EmployeeAttributes.build_user` (approval + revision validation) | `User.new(... phone_number:, business_id:)` |
+
+Already through Organization & Access before D1: deletion (`DeleteUser`), warehouse access (`UserWarehouseAccess`),
+password flows, the role-screen role change (`ChangeUserRole`). No other `app/` file builds a user row or writes an
+account field (repository scan, now enforced).
+
+### 44.2 Interface and migration (M2–M4)
+
+`OrganizationAccess::Accounts` (`app/services/organization_access/accounts.rb`) — an Organization & Access service
+called directly (Workforce → Organization & Access is the allowed direction, so no inversion contract):
+
+| Operation | Replaces | Invariants it adds (raise `Accounts::Refused`, never reachable from the current callers) |
+|---|---|---|
+| `build(business_id:, login: {})` | `business.users.new`, onboarding's `User.new` | a business; login fields only |
+| `stage(actor:, user:, attributes:)` | the account part of `assign_attributes` | account fields only; same business; never the owner's status |
+| `stage_role(actor:, user:, role_id:)` → `RoleChange` | the controller's decision + staging | same business; same `RoleAssignmentRule` |
+| `toggle_active!(actor:, user:)` → new status | `update!(active:)` | same business; never the owner |
+| `transfer_ownership!(actor:, user:)` | `business.update!(owner:)` | same business |
+
+The controller extracts the account fields (`Accounts::FIELDS`) from the policy-permitted params, assigns the rest,
+then stages them (one save, one transaction as before); onboarding builds the row through `build` and assigns the
+profile. Authorization (`UserPolicy` tiers, `toggle_active?`, `transfer_ownership?`, the admin gate), messages,
+redirects, status codes and the BUG-008 warehouse timing are unchanged — the M1 characterization passes unmodified.
+
+### 44.3 Tests
+
+| Spec | Examples | What |
+|---|---|---|
+| `spec/characterization/organization_access/account_field_writes_spec.rb` (M1) | 18 | See the baseline file — status toggle, the combined form (tiers, silent drops, self-service, atomicity, duplicates, role), creation, ownership, onboarding |
+| `spec/services/organization_access/accounts_spec.rb` (M3) | 12 | Each operation and its invariants, cross-business refusals, owner protection, no audit row |
+| `spec/architecture/organization_access_account_interface_boundary_spec.rb` (M6) | 8 | Over every `app/` file not mapped to OA by the dependency inventory: no users-row construction, no account-field write (status, login identifiers, role, password, `update_all` on `User`, `Business#owner`); only the classified callers use the interface with exactly their operations; the form extracts the account fields first; self-tests incl. a planted write. Real probe: `@user.update!(active: …)` put back in `toggle_active` → 2 failures (rules 2, 3); restored |
+| `spec/architecture/permission_role_boundary_spec.rb` | — | Its stale-entry check removed `admin/users_controller.rb` from the allow-list: the form no longer names the role rule |
+
+**Precision limit (recorded, not hidden):** the write scan recognises a user by its receiver's name (`user`, `employee`,
+`account`, `owner`, `current_user`, `@user`, `@employee`, `record`) or by `User…update_all`; a static scan cannot type
+an arbitrary local, so `u.update!(active: …)` would pass the scan. The repository scan found no such write; the
+characterization and the service spec pin the behaviour of every real path.
+
+### 44.4 Verification
+
+Final set 1192 / 0 under seeds 20261006, 12345, 98765 and `CI=1` (M0 1154 / 0). `spec/architecture` 414 / 0 (seed 20261006); RuboCop on the 6 changed / new Ruby files no
+offenses; `zeitwerk:check` clean.

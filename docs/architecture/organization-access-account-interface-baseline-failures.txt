@@ -28,6 +28,17 @@
 #   oneself refused; onboarding approval (account row in the request's business, phone as login identifier, no email,
 #   active, no role, no password; a phone taken after submission refuses the approval and creates nothing; revision
 #   validation applies the same uniqueness). Seeds 20261006 / 12345 / 98765 and CI=1: 18 / 0 each.
+# M2–M4 + M6 (one implementation commit): OrganizationAccess::Accounts + spec (12); Admin::UsersController (new, create,
+#   update, assign_role, toggle_active, transfer_ownership) and EmployeeAttributes.build_user migrated; the M1
+#   characterization unmodified. spec/architecture/organization_access_account_interface_boundary_spec.rb (8);
+#   permission_role_boundary_spec.rb allow-list shrunk (admin/users_controller no longer needs it). spec/architecture
+#   414 / 0. Real probe: @user.update!(active: …) back in toggle_active → 2 failures; restored.
+# M8 (final, 2026-10-22): the set below (the new specs are inside its directory entries):
+#   seed 20261006: 1192 examples, 0 failures, exit 0
+#   seed 12345:    1192 examples, 0 failures, exit 0
+#   seed 98765:    1192 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 1192 examples, 0 failures, exit 0
+#   zeitwerk:check clean; RuboCop on the 6 changed / new Ruby files no offenses; git diff --check clean.
 #
 # set spec/characterization/organization_access
 # set spec/requests/admin/users_spec.rb
