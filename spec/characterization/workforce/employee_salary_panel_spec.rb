@@ -7,8 +7,9 @@ require "rails_helper"
 # docs/architecture/workforce-employee-salary-panel-baseline-failures.txt).
 #
 # Pins, per visibility case: whether the card renders, its markup (golden files,
-# whitespace between tags collapsed, record ids replaced by placeholders — never
-# re-record to absorb a difference), and the exact salary-view audits.
+# whitespace between tags collapsed, record ids and the run-date-relative
+# effective date replaced by placeholders — never re-record to absorb a
+# difference), and the exact salary-view audits.
 # Golden files were written once from the unchanged code with RECORD_SAL_GOLDEN=1.
 RSpec.describe "Characterization: employee-page salary panel (SAL M1)", type: :request do
   let(:business) { create(:business) }
@@ -47,7 +48,13 @@ RSpec.describe "Characterization: employee-page salary panel (SAL M1)", type: :r
     html = card.to_html.gsub(/>\s+</, "><").gsub(/\s+/, " ").strip
     ids = { "EMPLOYEE" => page_user.id }
     ids["PROFILE"] = history[:current].id if page_user == employee
-    ids.reduce(html) { |out, (name, id)| out.gsub(%r{/#{id}(?=[/"?])}, "/#{name}") }
+    html = ids.reduce(html) { |out, (name, id)| out.gsub(%r{/#{id}(?=[/"?])}, "/#{name}") }
+    # The profiles start "1.year.ago": the rendered date depends on the run date, so
+    # it is normalized like the record ids (added after the first full-suite run
+    # showed the recording date in the golden files).
+    page_user.salary_profiles.map(&:effective_from).uniq.reduce(html) do |out, date|
+      out.gsub(">#{I18n.l(date)}<", ">EFFECTIVE_FROM<")
+    end
   end
 
   def expect_golden(name, html)
