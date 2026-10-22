@@ -34,8 +34,15 @@ module EmployeeDataRequests
       end
     end
 
+    # The account row (business membership, phone as login identifier) is built
+    # by the Organization & Access account interface (decision D1); the employee
+    # profile attributes are Workforce's.
     def build_user(revision, business_id:)
-      User.new(self.for(revision).merge(business_id: business_id))
+      attributes = self.for(revision)
+      user = OrganizationAccess::Accounts.build(business_id: business_id,
+                                                login: { phone_number: attributes.delete(:phone_number) })
+      user.assign_attributes(attributes)
+      user
     end
   end
 end
