@@ -9,6 +9,10 @@ RSpec.describe "API V1 Attendance", type: :request do
   let(:branch)      { create(:branch, business: business) }
   let(:user)        { create(:user, business: business) }
   let(:shift)       { create(:shift, :fixed_time, business: business) }
+  # The check-in resolves "today" as the business day (BusinessDay), never the
+  # UTC calendar day — they differ every evening (21:00–24:00 UTC for the
+  # factory's Asia/Riyadh); assignment boundaries are set relative to it.
+  let(:business_today) { BusinessDay.current(context: business) }
 
   before do
     create(:shift_assignment, user: user, branch: branch, shift: shift,
@@ -167,7 +171,7 @@ RSpec.describe "API V1 Attendance", type: :request do
     end
 
     it "rejects check-in when the shift assignment is expired" do
-      ShiftAssignment.where(user: user).update_all(effective_to: 1.day.ago.to_date)
+      ShiftAssignment.where(user: user).update_all(effective_to: business_today - 1)
       post "/api/v1/attendance/check_in", params: { branch_id: branch.id }, as: :json
       expect(response).to have_http_status(:not_found)
       expect(AttendanceRecord.count).to eq(0)
@@ -175,7 +179,7 @@ RSpec.describe "API V1 Attendance", type: :request do
 
     it "rejects check-in when the shift assignment has not started yet" do
       ShiftAssignment.where(user: user).update_all(
-        effective_from: 1.day.from_now.to_date,
+        effective_from: business_today + 1,
         effective_to:   nil
       )
       post "/api/v1/attendance/check_in", params: { branch_id: branch.id }, as: :json
@@ -191,9 +195,9 @@ RSpec.describe "API V1 Attendance", type: :request do
     end
 
     it "rejects check-in when the employee is in a gap between two assignments" do
-      ShiftAssignment.where(user: user).update_all(effective_to: 1.day.ago.to_date)
+      ShiftAssignment.where(user: user).update_all(effective_to: business_today - 1)
       create(:shift_assignment, user: user, branch: branch, shift: shift,
-             effective_from: 1.day.from_now.to_date)
+             effective_from: business_today + 1)
       post "/api/v1/attendance/check_in", params: { branch_id: branch.id }, as: :json
       expect(response).to have_http_status(:not_found)
     end

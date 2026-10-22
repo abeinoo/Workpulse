@@ -1,7 +1,12 @@
 require "rails_helper"
 
 RSpec.describe Payroll::AutoGenerator do
-  let(:business) { create(:business, payroll_auto_generate_day: Date.current.day) }
+  # The generator decides on today in the business timezone
+  # (Payroll::AutoGenerator#today_in_tz), never the UTC calendar day — they
+  # differ every evening (21:00–24:00 UTC for Asia/Riyadh).
+  let(:timezone)       { "Asia/Riyadh" }
+  let(:business_today) { ActiveSupport::TimeZone[timezone].today }
+  let(:business)       { create(:business, timezone: timezone, payroll_auto_generate_day: business_today.day) }
   let(:actor)    { create(:user, :super_admin, business: business) }
 
   subject(:result) { described_class.call(business: business, actor: actor) }
@@ -39,7 +44,7 @@ RSpec.describe Payroll::AutoGenerator do
   end
 
   context "when today does NOT match the generate day" do
-    before { business.update_column(:payroll_auto_generate_day, (Date.current.day % 28) + 1) }
+    before { business.update_column(:payroll_auto_generate_day, (business_today.day % 28) + 1) }
 
     it "skips generation" do
       expect(result.skipped?).to be true
@@ -50,8 +55,8 @@ RSpec.describe Payroll::AutoGenerator do
     before do
       create(:payroll_period, :finalized,
              business:     business,
-             period_year:  Date.current.year,
-             period_month: Date.current.month)
+             period_year:  business_today.year,
+             period_month: business_today.month)
     end
 
     it "skips generation" do
@@ -67,8 +72,8 @@ RSpec.describe Payroll::AutoGenerator do
     before do
       create(:payroll_period, :draft,
              business:     business,
-             period_year:  Date.current.year,
-             period_month: Date.current.month)
+             period_year:  business_today.year,
+             period_month: business_today.month)
     end
 
     it "succeeds (regenerates the draft)" do

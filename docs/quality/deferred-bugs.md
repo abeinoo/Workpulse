@@ -33,9 +33,10 @@ here only so its stable ID and history are kept.
 | BUG-009 | Laundry dashboard may pick an inactive laundry branch | Inventory & Purchasing (Laundry) | Low | Confirmed | Deferred | After Pilot 12 |
 | BUG-010 | Bulk payment could mark a request paid without an Advance | Workforce | Low (unreachable today) | Suspected (theoretical) | Deferred | After Modular Monolith |
 | BUG-011 | `stock_issue_import_spec` intermittent WebDriver failure in CI | Test infrastructure | Low | Confirmed (CI runs), cause unknown | Deferred | After Pilot 12 |
-| BUG-012 | `expenses_index_responsive_spec.rb:121` fails locally by 1 px | Test infrastructure | Low | Confirmed (one local run), cause unknown | Deferred | After Pilot 12 |
+| BUG-012 | Expenses table scrolls by 2 px at 1440 px with the macOS system font (`expenses_index_responsive_spec.rb` EN @ 1440 px) | Finance & Sales (UI layout) | Low | **Confirmed, cause established** (2026-10-22): real layout defect under San Francisco; CI fonts fit | Open | Product / UX decision |
 | BUG-013 | Attendance can be created / edited in a finalized payroll month | Attendance & Payroll | Low | Improvement | Open | Product decision |
 | BUG-014 | Laundry consumption report: branch picker and report scope resolve differently | Inventory & Purchasing (Laundry) | Low (usability / filter consistency) | Confirmed (code) | Open | After Pilot 12 |
+| BUG-018 | Date-relative specs compute UTC dates; 24 examples fail every day 21:00–24:00 UTC | Test suite (dashboard, payroll, attendance API, custody) | Medium (full-suite gate) | Confirmed (reproduced with a fixed clock) | **Resolved** (`fix/test-business-day-specs`) | — |
 | BUG-015 | Goods receipt void racing approval may overwrite a decided approval status | Inventory & Purchasing | Medium (audit / status integrity; money still balances) | Confirmed (two-connection reproduction, Batch S M1) | **Resolved** (receipt row lock in `GoodsReceiptVoider#call`) | — |
 | BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (same receipt row lock) | — |
 | BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (row lock in `Inventory::DocumentVoider#call`) | — |
@@ -236,7 +237,7 @@ here only so its stable ID and history are kept.
 * **Regression tests:** the spec itself, stable across repeated CI runs.
 * **Review milestone:** after Pilot 12.
 
-## BUG-012 — `expenses_index_responsive_spec.rb:121` fails locally by 1 px
+## BUG-012 — Expenses table scrolls by 2 px at 1440 px with the macOS system font (was: `expenses_index_responsive_spec.rb:121` fails locally by 1 px)
 
 * **Source:** TD-P12-2 (§27.2). **Discovered:** 2026-10-20. **Status:** Deferred.
 * **Domain / files:** test infrastructure — `spec/system/finance/expenses_index_responsive_spec.rb:121` (assertion at
@@ -250,6 +251,26 @@ here only so its stable ID and history are kept.
 * **Recommended fix:** reproduce locally and compare fonts / browser version with CI.
 * **Regression tests:** the spec itself, passing locally and in CI.
 * **Review milestone:** after Pilot 12.
+* **Investigation (2026-10-22) — cause established; not flaky, not a test defect:**
+  * *Reproduction:* `expenses_index_responsive_spec.rb[1:5]` ("EN LTR @ 1440px: compact table fits") fails 3 / 3 in
+    isolation on a macOS workstation (HeadlessChrome 155, device scale factor 1, viewport 1440 × 1000 by CDP emulation)
+    and identically on unchanged `main` `ec8ae59`: `.expense-list__table` `scrollWidth − clientWidth` = 2. Every other
+    example of the file (AR @ 1440, all card widths) passes.
+  * *Measurement* (scratch CDP diagnostic, same data): the table text renders in **San Francisco** (`.SFNS-Regular` /
+    `-Bold`, from `--font: -apple-system, …`). The wrapper is `offsetWidth` 976 / `clientWidth` 974 (1 px border each
+    side); the auto-layout table's columns need **975.94 px** (reference 124.56, branch 100, category 100, amount
+    145.72, status 164.19, payment 143.47, creator 98.63, actions 99.38 — notes folded at this width), so it overflows by
+    ~2 px. With the same page forced to **Arial** (the metrics of Liberation Sans, which CI's `ubuntu-latest` falls back
+    to — it has none of `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `Roboto`), the table is exactly **974 px**:
+    no overflow. CI therefore passes and macOS does not.
+  * *Classification:* a **real layout defect** for users whose system font is San Francisco (Chrome / Safari on macOS)
+    at a 1440 px viewport in English with this kind of data — a 2 px horizontal scroll inside the table. The assertion
+    is correct (it encodes the documented "compact table fits" rule of the stylesheet header). Owner: Finance & Sales UI.
+  * *Not fixed* (2026-10-22): every fix changes the table for all users and is a UX choice — e.g. let the status badge
+    wrap in table mode (the pattern the payment-source badge already uses), trim the outer cell padding, or fold one
+    more column below a wider container breakpoint — and no CI test can prove it (CI cannot render San Francisco).
+    Needs a product / UX decision; a font-independent regression check would need a bundled web font or a slack
+    margin in the layout.
 
 ## BUG-013 — Attendance can be created / edited in a finalized payroll month
 
@@ -292,6 +313,30 @@ here only so its stable ID and history are kept.
 * **Regression tests:** a viewer whose two permissions resolve differently sees the same branches in the picker and the
   report; the decided shift-assignment case.
 * **Review milestone:** after Pilot 12.
+
+## BUG-018 — Date-relative specs compute UTC dates; 24 examples fail every day 21:00–24:00 UTC
+
+*(Placed before BUG-015 so this record does not collide with the BUG-017 entry PR #61 appends.)*
+
+* **Source:** new (final migration gate, `next-pilot-selection.md` §48 on the migration stack). **Discovered:**
+  2026-10-22. **Status:** **Resolved** by `48240b7` on `fix/test-business-day-specs` (from `main` `ec8ae59`).
+* **Domain / files:** test suite — `spec/requests/dashboard_spec.rb`, `spec/services/payroll/auto_generator_spec.rb`,
+  `spec/requests/api/v1/attendance_spec.rb`, `spec/system/finance/custody_own_balance_responsive_spec.rb`.
+* **Observed:** a full run from 23:40 to 00:04 UTC failed 24 examples (dashboard 4, auto generator 6, attendance API 2,
+  own custody ledger 12) that pass at other times.
+* **Cause:** the specs computed "today" from the UTC calendar (`Date.current`, the `:for_yesterday` factory trait's
+  `Date.yesterday`, `1.day.from_now` / `1.day.ago`, `created_at.to_date` in the test's UTC zone) while the application
+  correctly uses the business day (`BusinessDay`, `Payroll::AutoGenerator#today_in_tz`, the request's business
+  `Time.zone`). For the factory's Asia/Riyadh (UTC+3) business they disagree every day from 21:00 to 24:00 UTC.
+* **Evidence:** reproduced on unchanged `main` with a scratch clock harness (`travel_to` 2026-10-22 22:30 UTC → exactly
+  the 24 IDs fail; at 12:00 UTC none of them).
+* **Fix:** the four specs compute dates the way the application does (business day / business timezone); no
+  expectation weakened, no application change. New `spec/requests/business_day_boundary_spec.rb` (8) pins the
+  business-day behaviour of the four paths at fixed instants either side of business midnight (planted UTC-day
+  behaviour fails it: 5 and 3 failures).
+* **Regression tests:** the four specs pass under the harness at 2026-10-22 20:59:30Z, 21:00:30Z, 22:30Z, 12:00Z and
+  2026-10-31 22:30Z (month boundary), and with the real clock; the boundary spec.
+* **Review milestone:** — (resolved).
 
 ## BUG-015 — Goods receipt void racing approval may overwrite a decided approval status
 

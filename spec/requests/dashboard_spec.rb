@@ -4,6 +4,13 @@ RSpec.describe "Dashboard", type: :request do
   let(:business) { create(:business, timezone: "Asia/Riyadh") }
   let(:branch)   { create(:branch, business: business) }
   let(:employee) { create(:user, business: business) }
+  # "Today" is the business day the dashboard uses (BusinessDay.current: the
+  # business timezone and day-start hour), never the UTC calendar day — they
+  # differ every evening (21:00–24:00 UTC for Asia/Riyadh).
+  let(:business_today) { BusinessDay.current(context: business) }
+
+  # `hour`:00 business-local time on `date`.
+  def business_time(date, hour) = date.in_time_zone(business.timezone_object).change(hour: hour)
 
   before { sign_in employee }
 
@@ -77,6 +84,8 @@ RSpec.describe "Dashboard", type: :request do
       let!(:yesterday_record) do
         create(:attendance_record, :for_yesterday,
                user: employee, branch: branch,
+               date: business_today - 1, work_date: business_today - 1,
+               check_in_at: business_time(business_today - 1, 9),
                status: "incomplete")
       end
 
@@ -98,7 +107,9 @@ RSpec.describe "Dashboard", type: :request do
     context "when yesterday's record is complete (checked out)" do
       let!(:complete_record) do
         create(:attendance_record, :for_yesterday, :checked_out,
-               user: employee, branch: branch)
+               user: employee, branch: branch,
+               date: business_today - 1, work_date: business_today - 1,
+               check_in_at: business_time(business_today - 1, 9))
       end
 
       it "does not show the missing clock-out alert" do
@@ -155,8 +166,8 @@ RSpec.describe "Dashboard", type: :request do
       create(:attendance_record,
              user:             employee,
              branch:           branch,
-             date:             Date.current,
-             work_date:        Date.current,
+             date:             business_today,
+             work_date:        business_today,
              check_in_at:      2.hours.ago,
              status:           "incomplete",
              shift_assignment: assignment)
@@ -229,7 +240,7 @@ RSpec.describe "Dashboard", type: :request do
       let!(:present_record) do
         create(:attendance_record, :checked_out,
                user: employee, branch: branch,
-               date: Date.current, work_date: Date.current)
+               date: business_today, work_date: business_today)
       end
 
       it "renders the month stats widget and counts days attended" do
