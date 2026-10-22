@@ -612,7 +612,7 @@ OA 16 / 297 / 124 · WF 61 / 1,103 / 197 · AP 101 / 1,895 / 275 · FS 154 / 1,5
 
 | Step | Domain | Why at this point |
 |---|---|---|
-| 0 | **Shared Kernel / Infrastructure separation** | No behaviour change; dependency checks in report-only mode record every current violation |
+| 0 | **Shared Kernel / Infrastructure separation** | No behaviour change; dependency checks in report-only mode record every current violation. **Report-only checker implemented** (`script/architecture/dependency_inventory.rb`, `bin/rails architecture:dependency_report` → `docs/architecture/dependency-inventory-report.txt`, proven by `spec/architecture/dependency_inventory_spec.rb`; `next-pilot-selection.md` §40). Enforcement not enabled |
 | 1 | **Organization & Access** | Top of the graph; everything depends on it. Define the membership contract. Thin tests → add characterization specs for scopes (security suites exist) |
 | 2 | **Workforce** | Depends only on OA. Define `employee_request.*` events and request contracts; establish User ≠ Employee stewardship and scheduling eligibility as a documented responsibility |
 | 3 | **Attendance & Payroll** | Depends on OA + WF; strongest tests (≈1,900 examples) and the only characterized API; implements WF contracts; publishes `payroll.period_finalized` |
