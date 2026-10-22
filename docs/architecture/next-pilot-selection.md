@@ -6501,7 +6501,7 @@ in the regenerated report as `organization_access → attendance_payroll … unc
 
 ### 40.3 Enforcement decision
 
-**Stays report-only.** `module-boundaries.md` §19 step 0 asks for report-only mode; rule J of `migration-pattern.md`
+*[Superseded 2026-10-22 by decision D3: the inventory is now enforced — §45.]* **Stays report-only.** `module-boundaries.md` §19 step 0 asks for report-only mode; rule J of `migration-pattern.md`
 enforces a boundary only "once the boundary exists and cross-domain callers are routed". The report shows 12 unclassified
 references, two of them approved roadmap work in progress (F2, SAL), one recorded debt (TD-R-1) and four new findings
 that need an ownership decision (the branch dashboard is an OA-X target; the three shared-layer reads need a Shared
@@ -6663,7 +6663,7 @@ latest merge and **PR #61 (BUG-017, head `6c2a20e`) as OPEN, not merged**. No fe
 The branches are stacked because each later batch's classification and documentation build on the earlier ones
 (shared `module-boundaries.md` / this file / the inventory report); each batch is its own reviewable commit range.
 
-### 43.3 #7 — account fields (OA ↔ WF): blocked, not implemented
+### 43.3 #7 — account fields (OA ↔ WF): blocked, not implemented *[resolved by D1 — §44]*
 
 **Evidence.** Already through Organization & Access: the role decision (`OrganizationAccess::RoleAssignmentRule`,
 staged on the user and saved with the form), deletion (`OrganizationAccess::DeleteUser`), warehouse access (Batch W).
@@ -6727,7 +6727,7 @@ triage slot before API work. BUG-007, -008, -010 are "After Modular Monolith com
 decision. BUG-017 is fixed on the open PR #61 (§43.4). No new bug was found by S2, F2 or SAL; the F2 characterization
 recorded an unrelated observation (the assignment index's total query count grows ~4 per row), not filed as a bug.
 
-### 43.7 Completion gate — NOT satisfied
+### 43.7 Completion gate — NOT satisfied *[superseded by §48 after D1–D4]*
 
 | Criterion (from the 2026-10-22 brief) | Status |
 |---|---|
@@ -6824,3 +6824,103 @@ characterization and the service spec pin the behaviour of every real path.
 
 Final set 1192 / 0 under seeds 20261006, 12345, 98765 and `CI=1` (M0 1154 / 0). `spec/architecture` 414 / 0 (seed 20261006); RuboCop on the 6 changed / new Ruby files no
 offenses; `zeitwerk:check` clean.
+
+---
+
+## 45. D3 — the domain dependency inventory as an enforced gate
+
+**Status (2026-10-22): enforced; committed locally, not pushed or merged** — on
+`migration/dependency-checker-enforcement`, stacked on D1 (`934751b`): `d87e3f4` (hardening, D4 register, enforcement),
+`9d3858b` (polymorphic type strings). No application behaviour change.
+
+### 45.1 What changed from the report-only tool (§40)
+
+| Area | Report-only (§40) | Enforced (D3) |
+|---|---|---|
+| Detection | constants | constants; **association macros** (`class_name:` or the inflected name); **table names in literal SQL** (upper-case `FROM` / `JOIN` / `INTO` / `UPDATE`); **polymorphic `*_type` model strings** |
+| Mapping | every `app/` file | every `app/` file **and every `db/schema.rb` table** (model tables via Rails' `tableize`, checked against each model's `table_name`; legacy `notifications` / `product_variants`; infrastructure `solid_*`, `active_storage_*`, `schema_migrations`, `ar_internal_metadata`); `PhoneNumber` mapped to OA (all callers OA) |
+| Classification | `[file, constant, reason]` | **D4 exception records** — ID, owner, file × constant scope, reason, guard — mirrored with disposition and review condition in `docs/architecture/dependency-exceptions.md` |
+| Gate | none | `spec/architecture/dependency_inventory_spec.rb` fails on: any unclassified reference; an unmapped `app/` file or schema table; a register / code ID mismatch; a stale exception (one matching no reference) |
+| Proof | self-tests, one planted file | planted constant, association, SQL and polymorphic violations; scope-limited exceptions; a planted violation fails the gate; the report is identical before and after eager loading; real planted file `app/services/organization_access/probe_gate.rb` failed the gate (2 examples) and was removed |
+| CI | — | runs in CI's `test` job (all non-system specs); no workflow change needed |
+
+**Report now** (`docs/architecture/dependency-inventory-report.txt`, byte-identical in development, test and an
+eager-loaded process): 1246 files, 0 unmapped; allowed 393 / 570, classified 144 / 165, **unclassified 0**.
+`spec/architecture`: 420 / 0 under seeds 20261006, 12345, 98765 and `CI=1`.
+
+### 45.2 Coverage limits (stated in the report header, not hidden)
+
+Not detected statically: dynamic constants (`constantize` — today only the two `NumberSequencer`s, each resolving its
+own domain's configured models; `send`, `const_get`); polymorphic associations whose target comes from data;
+`through:` associations whose name is not a model; queries without a literal table name or with lower-case SQL
+keywords (none exist today); writes through objects obtained by an allowed read (e.g. a method called on a record
+another domain owns); i18n keys and other string contents; runtime behaviour.
+
+### 45.3 Component-group coverage (D3)
+
+| Domain | Group | Guard beyond the inventory |
+|---|---|---|
+| OA | PermissionRole / catalogue | `permission_role_boundary_spec.rb`, `permission_role_location_spec.rb` |
+| OA | Access scopes ↔ membership | `organization_access_membership_boundary_spec.rb` |
+| OA | Outbound associations, warehouse access, workspace registry | `organization_access_outbound_boundary_spec.rb` |
+| OA | Account fields (D1) | `organization_access_account_interface_boundary_spec.rb` (repository-wide write scan) |
+| WF | Departments, job titles, performance | `workforce_catalog_boundary_spec.rb`, `workforce_model_location_spec.rb` |
+| WF | Insurance profile | `workforce_employee_insurance_profile_boundary_spec.rb` |
+| WF | Employee requests (effects, advance, validation reads) | `workforce_request_{permission_payroll,advance,validation_reads}_boundary_spec.rb`, `workforce_punch_correction_boundary_spec.rb` |
+| WF | Shifts & scheduling (F2) | `workforce_shift_scheduling_boundary_spec.rb` (constants **and** table names in strings) |
+| WF | Employee page salary panel (SAL) | `workforce_employee_salary_panel_boundary_spec.rb` |
+| WF | Onboarding | the D1 account-interface spec (rows, account fields); inventory |
+| AP | Biometric channel, obligations, penalty rules | `attendance_payroll_{biometric,obligation,penalty_rule}_boundary_spec.rb` + location specs |
+| AP | Attendance records, salary profiles, payroll core, advances, adjustments | Inventory (no cross-domain write path exists — the inbound WF writes are guarded by the WF specs above; AP → FS by `finance_sales_expense_boundary_spec.rb`); `PayrollLineItem` polymorphic sources are AP-internal (`*_type` strings scanned) |
+| IP | Supplier, product catalogue | `inventory_purchasing_{supplier,product_catalogue}_boundary_spec.rb` + location specs |
+| IP | Purchasing / receiving payments and advances (Batch S, S2) | `inventory_finance_goods_receipt_payment_boundary_spec.rb` (scans **all** Inventory code for ledger writes and reads) |
+| IP | Warehouses, stock documents / ledger, laundry | Inventory (IP-internal; `InventoryMovement` / `TowelLedgerEntry` polymorphic sources are IP-internal) |
+| FS | Expenses | `finance_sales_expense_boundary_spec.rb` + location spec |
+| FS | POS terminals | `finance_sales_pos_terminal_boundary_spec.rb` |
+| FS | Settlements / custody polymorphism with IP | `inventory_finance_goods_receipt_payment_boundary_spec.rb` (FS → IP references are the allowed direction) |
+| FS | Cash management, bank, sales / POS imports | Inventory (FS-internal; `FinancialAdjustment` polymorphism is FS-internal) |
+| RP | All Reporting | `reporting_read_only_boundary_spec.rb` (no writes, nothing depends on Reporting), `reporting_laundry_cost_summary_boundary_spec.rb` |
+| INFRA | Audit (`AuditLog` polymorphic `auditable`) | X-INFRA-AUDIT-ACTOR; audit rows are written only through `AuditLoggable` / the view audits (D-R2) |
+
+---
+
+## 46. Remaining dependencies — dispositions under D2–D4 (2026-10-22)
+
+| Item | Owner / direction | Finding | Disposition | Guard |
+|---|---|---|---|---|
+| TD-R-1 | FS report infra ← IP laundry report | `Finance::Reports::{Column,Table,CsvExporter}` used by `Laundry::Reports::BranchConsumptionController`; no business data crosses | D4 exception **X-IP-REPORT-INFRA** (owner FS); move to the Shared Kernel if a third domain needs it | Inventory (constant set) |
+| Branch page | OA → WF / AP | `Admin::BranchesController#show`: staff (`ShiftAssignment`), pending / recent `EmployeeRequest`s, payroll summary + `Payroll::EntryViewAudit` | D4 **X-OA-BRANCH-PAGE** (owner OA): a read-only dashboard + an Infrastructure view audit (as D-R2); target Reporting / composition, review when the page changes | Membership spec (staff lines); inventory (constant set) |
+| `ApplicationController#business_payment_methods` | INFRA → FS | Loader used only by FS controllers / views (two controller bases) | D4 **X-FS-PAYMENT-METHODS** (owner FS) | Inventory |
+| `ApplicationHelper#requested_permission_summary` | INFRA → WF | WF request-display helper, one WF caller | D4 **X-WF-HELPER-PERMISSION** (owner WF) | Inventory |
+| `PhoneNumber` → `User` | — | `PhoneNumber` is OA's login-identifier primitive (callers: `User`, API sessions, registration) | **Not a dependency** — file and constant mapped to OA | Inventory mapping |
+| OA-X (staff view, login payload, User helpers) | OA → WF | Four classified sites (Pilot 5) | D4 **X-OA-INV**, **X-OA-BRANCH-PAGE**, **X-OA-BRANCH-VIEWS**, **X-OA-LOGIN-PAYLOAD** | `organization_access_membership_boundary_spec.rb` |
+| OA-INV (inverse associations) | OA → WF / AP / IP / FS | Lifecycle `has_many` on `Business` / `Branch` / `User` (now also detected as associations) | D4 **X-OA-INV** | `organization_access_outbound_boundary_spec.rb` |
+| IP-R (display reads) | IP → FS | 10 classified files | D4 **X-IP-FS-DISPLAY** | Batch S spec rule 3 (frozen per file), rule 1 (no write) |
+| Goods-receipt settlement screen (GR-UI) | FS workflow, IP host | Screen and routes under `/inventory`; writes already through the Batch S contract | Keep routes and host (a route / UX change is separately scoped); recorded **X-GR-UI** | Batch S spec |
+| `PerformanceScorer` location (PS) | AP | AP-owned constant in a WF folder | No exception — not a dependency; relocation optional (rule F) | Inventory mapping |
+| Associations found by the hardened scan | WF → AP; INFRA / SK → OA | `EmployeeRequest has_one :advance`, `Shift has_many :penalty_rules`, `AuditLog belongs_to :business / :actor`, `Voidable belongs_to :voided_by` | D4 **X-WF-REQUEST-ADVANCE**, **X-WF-SHIFT-PENALTY-RULES**, **X-INFRA-AUDIT-ACTOR**, **X-SK-VOIDABLE-ACTOR** | Batch A spec, Pilot 4 spec, inventory |
+| Domain events | all | §14.1 workflows | D2 — synchronous contracts are the standard; events a future option | — |
+
+No item was migrated only to make the graph look cleaner; every remaining cross-domain reference is allowed or a D4
+exception with an owner, a reason and a guard (`docs/architecture/dependency-exceptions.md`).
+
+---
+
+## 47. Deferred-bug triage (2026-10-22, the "After Pilot 12" items)
+
+Register: `docs/quality/deferred-bugs.md` on `main` (unchanged here; BUG-017 arrives with the open PR #61).
+
+| ID | Owner | Severity / evidence | Reproducible? | Risk | Blocks the migration gate? | Recommendation |
+|---|---|---|---|---|---|---|
+| BUG-002 | AP | Medium; confirmed by reasoning | Not reproduced (two-connection spec designed in the register) | Wrong check-out under simultaneous device punches → payroll minutes | No (pre-existing; no migrated path touches `PunchService`) | Fix before the API phase (mobile / device punching) |
+| BUG-003 | Shared (`AuditLoggable`) | Medium, low likelihood; suspected | No | A failed audit insert silently rolls back a reported success | No | One shared decision before the API phase |
+| BUG-004 | AP | Low; suspected | No | Manual / CSV attendance into a just-finalized month | No | TD-T-1 pattern (`FOR SHARE`), own fix |
+| BUG-005 | AP | Low; suspected | No | Permission effect in a just-finalized period | No | Lock the period in the approval transaction |
+| BUG-006 | AP | Low; suspected | No | Device punch lands on a soft-deleted record | No | Needs a behaviour decision (restore / refuse / log); before API punching |
+| BUG-009 | IP (laundry) | Low; confirmed by code | Yes (code) | Dashboard may show an inactive laundry branch | No | Small fix, any time |
+| BUG-011 | Test infra | Low; CI-confirmed, cause unknown | Intermittent (failed again in the 2026-10-22 full run, `stock_issue_import_spec.rb:88`; passed on rerun) | Unreliable CI signal | **Affects the full-suite gate** (a failure there must be explained, not waived) | Investigate the Turbo / WebDriver timing |
+| BUG-012 | Test infra | Low; seen once locally | Not seen in the 2026-10-22 runs | Local noise | No | Keep open |
+| BUG-014 | IP (laundry) | Low; confirmed by code | Yes (code) | Picker vs report scope mismatch (not a leak) | No | Needs a scope-rule decision |
+
+No bug was fixed in a migration commit. None of these is critical under the register's policy; none is in a path the
+migration changed. BUG-017 (stock-document double void) is fixed on the open PR #61 and stays separate.
