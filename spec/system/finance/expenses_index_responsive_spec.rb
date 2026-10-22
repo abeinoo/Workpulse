@@ -137,6 +137,59 @@ RSpec.describe "Expenses index — responsive layout", type: :system do
     end
   end
 
+  # BUG-012: the English table overflowed by 2px at 1440px with the macOS system
+  # font (the status badge "PENDING APPROVAL" could not wrap). A list width of
+  # 940px (table mode) reproduces the same shortage with any font — before the
+  # fix it overflowed by 21px with Arial / Liberation Sans metrics (CI) and 38px
+  # with San Francisco — so this example proves the fix on every machine.
+  describe "table mode with tight columns (BUG-012)" do
+    def force_list_width(px)
+      page.execute_script("document.querySelector('.expense-list').style.width = '#{px}px'")
+      expect(card_mode?).to be(false)
+    end
+
+    def overflow = find(".expense-list__table").evaluate_script("this.scrollWidth - this.clientWidth")
+    def badge(row, cell) = row_for(row).find(".expense-list__#{cell} .badge", match: :first)
+    def height(el) = el.evaluate_script("this.getBoundingClientRect().height")
+    def white_space(el) = el.evaluate_script("getComputedStyle(this).whiteSpace")
+
+    { "en" => "ltr", "ar" => "rtl" }.each do |locale, dir|
+      it "#{locale.upcase} #{dir.upcase}: the status and payment-source badges may wrap, so a 940px list still fits" do
+        visit_index(locale, 1440)
+        force_list_width(940)
+        expect(overflow).to be <= 1
+        expect(white_space(badge(pending, "status"))).to eq("normal")
+        expect(white_space(badge(approved, "source"))).to eq("normal")
+        # Every status label stays readable: present in full, never clipped.
+        [ pending, approved, rejected ].each do |expense|
+          status = badge(expense, "status")
+          expect(status.text.strip.downcase).to eq(I18n.t("finance.expenses.statuses.#{expense.status}", locale: locale).downcase)
+          expect(status.evaluate_script("this.scrollWidth <= this.clientWidth + 1")).to be(true)
+        end
+      end
+    end
+
+    it "a wrapped status label stays readable: complete, unclipped, at most two lines, no taller row" do
+      visit_index("en", 1440)
+      expect(overflow).to be <= 1
+      wrapped    = badge(pending, "status")  # "PENDING APPROVAL" — two words, may wrap
+      single     = badge(rejected, "status") # "REJECTED" — one word, one line
+      expect(wrapped.text.strip.downcase).to eq(I18n.t("finance.expenses.statuses.pending_approval", locale: "en").downcase)
+      expect(wrapped.evaluate_script("this.scrollWidth <= this.clientWidth + 1")).to be(true)
+      expect(height(wrapped)).to be <= (2 * height(single)) + 1
+      # The row is no taller than its tallest other cell: wrapping uses room the row already has.
+      others = row_for(pending).all("td:not(.expense-list__status)").map { |td| height(td) }.max
+      expect(height(row_for(pending))).to be <= others + 1
+    end
+
+    it "keeps both badges on one line in cards" do
+      visit_index("en", 390)
+      expect(card_mode?).to be(true)
+      expect(white_space(badge(pending, "status"))).to eq("nowrap")
+      expect(white_space(badge(approved, "source"))).to eq("nowrap")
+    end
+  end
+
   it "groups the setup links in the Manage menu" do
     visit_index("ar", 390)
 

@@ -33,10 +33,11 @@ here only so its stable ID and history are kept.
 | BUG-009 | Laundry dashboard may pick an inactive laundry branch | Inventory & Purchasing (Laundry) | Low | Confirmed | Deferred | After Pilot 12 |
 | BUG-010 | Bulk payment could mark a request paid without an Advance | Workforce | Low (unreachable today) | Suspected (theoretical) | Deferred | After Modular Monolith |
 | BUG-011 | `stock_issue_import_spec` intermittent WebDriver failure in CI | Test infrastructure | Low | Confirmed (CI runs), cause unknown | Deferred | After Pilot 12 |
-| BUG-012 | Expenses table scrolls by 2 px at 1440 px with the macOS system font (`expenses_index_responsive_spec.rb` EN @ 1440 px) | Finance & Sales (UI layout) | Low | **Confirmed, cause established** (2026-10-22): real layout defect under San Francisco; CI fonts fit | Open | Product / UX decision |
+| BUG-012 | Expenses table scrolls by 2 px at 1440 px with the macOS system font (`expenses_index_responsive_spec.rb` EN @ 1440 px) | Finance & Sales (UI layout) | Low | Confirmed, cause established (2026-10-22): real layout defect under San Francisco; CI fonts fit | **Resolved** (`fix/bug-012-expenses-status-badge-wrap`) | — |
 | BUG-013 | Attendance can be created / edited in a finalized payroll month | Attendance & Payroll | Low | Improvement | Open | Product decision |
 | BUG-014 | Laundry consumption report: branch picker and report scope resolve differently | Inventory & Purchasing (Laundry) | Low (usability / filter consistency) | Confirmed (code) | Open | After Pilot 12 |
 | BUG-018 | Date-relative specs compute UTC dates; 24 examples fail every day 21:00–24:00 UTC | Test suite (dashboard, payroll, attendance API, custody) | Medium (full-suite gate) | Confirmed (reproduced with a fixed clock) | **Resolved** (`fix/test-business-day-specs`) | — |
+| BUG-019 | English expenses table still overflows at list widths of ~860–900px (viewports ~1324–1364px) | Finance & Sales (UI layout) | Low | Confirmed (measured) | Open | Product / UX decision |
 | BUG-015 | Goods receipt void racing approval may overwrite a decided approval status | Inventory & Purchasing | Medium (audit / status integrity; money still balances) | Confirmed (two-connection reproduction, Batch S M1) | **Resolved** (receipt row lock in `GoodsReceiptVoider#call`) | — |
 | BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (same receipt row lock) | — |
 | BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (row lock in `Inventory::DocumentVoider#call`) | — |
@@ -239,7 +240,7 @@ here only so its stable ID and history are kept.
 
 ## BUG-012 — Expenses table scrolls by 2 px at 1440 px with the macOS system font (was: `expenses_index_responsive_spec.rb:121` fails locally by 1 px)
 
-* **Source:** TD-P12-2 (§27.2). **Discovered:** 2026-10-20. **Status:** Deferred.
+* **Source:** TD-P12-2 (§27.2). **Discovered:** 2026-10-20. **Status:** **Resolved** by `b6ac0c9` on `fix/bug-012-expenses-status-badge-wrap` (narrower widths: BUG-019, open).
 * **Domain / files:** test infrastructure — `spec/system/finance/expenses_index_responsive_spec.rb:121` (assertion at
   line 128).
 * **Observed:** `.expense-list__table` `scrollWidth - clientWidth` was 2 (expected ≤ 1) in one local full-suite run; CI
@@ -271,6 +272,14 @@ here only so its stable ID and history are kept.
     more column below a wider container breakpoint — and no CI test can prove it (CI cannot render San Francisco).
     Needs a product / UX decision; a font-independent regression check would need a bundled web font or a slack
     margin in the layout.
+* **Resolution (2026-10-22, owner decision: let the status badge wrap in table mode):** `.expense-list__status .badge
+  { white-space: normal; }` in table mode, `nowrap` in cards — the payment-source badge pattern, without its max-width
+  or line-height. With automatic table layout a two-word label ("PENDING APPROVAL" / "بانتظار الاعتماد") usually takes
+  two lines; measured, no row grows (rows are already tall from stacked / clamped cells) and the label stays complete
+  and unclipped. Overflow at forced list widths, San Francisco / Arial: 976px 2 → 0 / 0 → 0, 940px 38 → 0 / 21 → 0.
+  Regression examples in `expenses_index_responsive_spec.rb` (a 940px list fits in EN and AR — this fails before the
+  fix with CI-like Arial metrics too, so CI proves it; the wrapped label's readability; cards unchanged). The original
+  1440px assertion is unchanged and passes on macOS. Narrower table-mode widths: BUG-019.
 
 ## BUG-013 — Attendance can be created / edited in a finalized payroll month
 
@@ -337,6 +346,26 @@ here only so its stable ID and history are kept.
 * **Regression tests:** the four specs pass under the harness at 2026-10-22 20:59:30Z, 21:00:30Z, 22:30Z, 12:00Z and
   2026-10-31 22:30Z (month boundary), and with the real clock; the boundary spec.
 * **Review milestone:** — (resolved).
+
+## BUG-019 — English expenses table still overflows at list widths of ~860–900px
+
+*(Placed before BUG-015, like BUG-018, to keep clear of the BUG-017 entry.)*
+
+* **Source:** new (BUG-012 investigation, 2026-10-22). **Status:** Open.
+* **Domain / files:** Finance & Sales UI — `app/assets/stylesheets/application.css` (EXPENSES INDEX: table mode from a
+  list width of 860px), `app/views/finance/expenses/index.html.erb`.
+* **Observed (measured with forced list widths, English; Arabic never overflows):** before the BUG-012 fix, San
+  Francisco / Arial: 940px 38 / 21px, 900px 78 / 61px, 880px 98 / 81px, 860px 118 / 101px. After it: 940px 0 / 0,
+  900px 18 / 2px, 880px 38 / 22px, 860px 58 / 42px. The list is ~976px at a 1440px viewport, so ~860–900px corresponds
+  to viewports of roughly 1324–1364px.
+* **Expected vs actual:** the stylesheet's rule is that table mode fits without horizontal scrolling from 860px of list
+  width; English needs more there.
+* **Impact:** a horizontally scrolling table on mid-size desktop screens in English. No data or behaviour impact.
+* **Evidence:** Confirmed (measured); the existing spec checks table mode only at 1440px.
+* **Recommended fix (needs a UX decision):** raise the English card / table threshold, fold one more column into a
+  stacked cell between 860 and ~940px (as the notes column already folds), or let another long label wrap; add a table
+  example at a list width just above 860px.
+* **Review milestone:** product / UX decision.
 
 ## BUG-015 — Goods receipt void racing approval may overwrite a decided approval status
 
