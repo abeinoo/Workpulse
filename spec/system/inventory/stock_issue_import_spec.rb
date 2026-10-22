@@ -75,6 +75,10 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
     expect(page).to have_css("#preview-valid-count", text: "2")
 
     click_button mapping_t("import")
+    # Import is a full page load (data-turbo: false); have_content polls the
+    # document, so wait for the issue page first or it can inspect the page
+    # being left (BUG-011). have_current_path reads only the URL.
+    expect(page).to have_current_path(%r{\A/inventory/stock_issues/\d+\z})
     expect(page).to have_content(I18n.t("inventory.imports.submitted_for_approval"))
     expect(page).to have_css("#stock-not-deducted-notice")
     issue = business.stock_issues.last
@@ -94,6 +98,7 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
     expect(preview_rows).to eq([ [ "2", "ABC123", "Widget", "3" ] ])
 
     click_button mapping_t("import")
+    expect(page).to have_current_path(%r{\A/inventory/stock_issues/\d+\z}) # full page load, see the CSV example
     expect(page).to have_content(I18n.t("inventory.imports.submitted_for_approval"))
     expect(business.stock_issues.last.items.sole).to have_attributes(product: abc, quantity: 3)
   end
@@ -111,6 +116,7 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
     expect(page).to have_link(mapping_t("upload_corrected_file"))
 
     click_button mapping_t("import_partial")
+    expect(page).to have_current_path(%r{\A/inventory/stock_issue_import_batches/\d+\z}) # full page load, see the CSV example
     expect(page).to have_content(I18n.t("inventory.imports.draft_batch_title"))
     expect(business.stock_issue_import_batches.last.rows.count).to eq(2)
   end
