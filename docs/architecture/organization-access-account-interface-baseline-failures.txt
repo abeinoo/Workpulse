@@ -1,0 +1,48 @@
+# D1 (#7 — Organization & Access account interface: account-field writes from the Workforce employee screens and
+#   onboarding, module-boundaries.md §14.2 #7; decision D1 approved 2026-10-22) — baseline failing example IDs
+# Purpose: reference list for every D1 step; failing IDs compared by exact ID, never by count; any ID not listed stops
+#   the work. Contents are not edited to absorb new failures.
+# Starting point: migration/d1-account-interface, created 2026-10-22 from migration/docs-reconciliation 0f073e4
+#   (the stack S2 → dependency inventory → F2 → SAL → docs on local main ec8ae59; no fetch). BUG-017 (PR #61) excluded.
+#
+# Decision D1 (owner, 2026-10-22): keep the users table; a narrow Organization & Access account-management interface
+#   owns every authorized account-field write (status, login identifiers, role, business membership of a new row,
+#   ownership); no Employee table, no data migration; authorization, role assignment, deletion, warehouse access and
+#   account security unchanged.
+#
+# Commands (zsh: ${=set}):
+#   set=$(grep '^# set ' docs/architecture/organization-access-account-interface-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 20261006 ${=set}   (also 12345, 98765, and CI=1 with 20261006)
+# Result at M0 (2026-10-22, on 0f073e4, working tree: this file only; the M1 spec moved aside for the run):
+#   seeds 20261006 / 12345 / 98765 and CI=1 (20261006): 1154 examples, 0 failures each, exit 0.
+# No failing ID in the set: any failure in this set during D1 is new and stops the work.
+#
+# M1 (recorded against unchanged code; inside the spec/characterization/organization_access entry from now on):
+#   spec/characterization/organization_access/account_field_writes_spec.rb (18): status toggle (owner refused with its
+#   message, self refused, uncovered account refused, deactivate / reactivate notices, other business 404); the combined
+#   form (covering manager changes login identifiers + status; an uncovered account's login identifiers and status are
+#   silently dropped while its profile saves; an administrator on their own record changes login identifiers, never
+#   status; a plain employee is stopped by the admin gate; an invalid form or a duplicate login identifier saves
+#   nothing; role: allowed change saved with the form, field ignored without manage_roles, escalation → 422 and nothing
+#   saved; creation in the actor's business only, no password, no role; other business 404); ownership transfer to
+#   oneself refused; onboarding approval (account row in the request's business, phone as login identifier, no email,
+#   active, no role, no password; a phone taken after submission refuses the approval and creates nothing; revision
+#   validation applies the same uniqueness). Seeds 20261006 / 12345 / 98765 and CI=1: 18 / 0 each.
+#
+# set spec/characterization/organization_access
+# set spec/requests/admin/users_spec.rb
+# set spec/requests/admin/user_deletion_spec.rb
+# set spec/requests/admin/role_assignment_entry_points_spec.rb
+# set spec/requests/employee_sidebar_and_creation_spec.rb
+# set spec/requests/employee_data_requests_spec.rb
+# set spec/requests/security/organization_access_scope_hierarchy_spec.rb
+# set spec/requests/security/organization_access_security_spec.rb
+# set spec/requests/security/organization_access_view_and_role_scope_spec.rb
+# set spec/requests/permission_matrix_verification_spec.rb
+# set spec/requests/inventory/warehouse_access_spec.rb
+# set spec/policies/user_policy_spec.rb
+# set spec/models/user_spec.rb
+# set spec/models/employee_data_request_revision_spec.rb
+# set spec/services/employee_data_requests
+# set spec/services/organization_access
+# set spec/architecture
