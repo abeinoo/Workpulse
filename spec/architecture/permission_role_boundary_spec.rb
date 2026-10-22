@@ -34,7 +34,8 @@ module ArchitectureSpecs
       "app/policies/permission_role_policy.rb"              => "role administration policy",
       "app/policies/user_policy.rb"                         => "account/role attribute tiers, privilege hierarchy",
       "app/controllers/admin/permission_roles_controller.rb" => "role administration screens",
-      "app/controllers/admin/users_controller.rb"           => "role assignment on the employee form",
+      # app/controllers/admin/users_controller.rb: removed by D1 — the employee form stages roles through
+      # OrganizationAccess::Accounts.stage_role and no longer names the role rule itself.
       "app/views/admin/users/_form.html.erb"                => "assignable-role list",
       "app/views/admin/users/show.html.erb"                 => "role name display",
       "app/views/admin/branches/_employees.html.erb"        => "role name display (Organization & Access branch admin)",

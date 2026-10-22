@@ -15,12 +15,12 @@ class Admin::UsersController < Admin::BaseController
   end
 
   def new
-    @user = current_user.business.users.new
+    @user = OrganizationAccess::Accounts.build(business_id: current_user.business_id)
     authorize @user
   end
 
   def create
-    @user = current_user.business.users.new
+    @user = OrganizationAccess::Accounts.build(business_id: current_user.business_id)
     authorize @user
 
     p = user_params
@@ -28,7 +28,9 @@ class Admin::UsersController < Admin::BaseController
     p.delete(:remove_national_id_front)
     p.delete(:remove_national_id_back)
     warehouse_ids = p.delete(:assigned_warehouse_ids)
+    account = p.extract!(*OrganizationAccess::Accounts::FIELDS)
     @user.assign_attributes(p.except(:permission_role_id))
+    stage_account(@user, account)
     assign_warehouse_access(@user, warehouse_ids)
 
     if !assign_role(@user, p)
@@ -66,7 +68,9 @@ class Admin::UsersController < Admin::BaseController
     p = user_params
     removals = p.extract!(:remove_profile_photo, :remove_national_id_front, :remove_national_id_back)
     warehouse_ids = p.delete(:assigned_warehouse_ids)
+    account = p.extract!(*OrganizationAccess::Accounts::FIELDS)
     @user.assign_attributes(p.except(:permission_role_id))
+    stage_account(@user, account)
     assign_warehouse_access(@user, warehouse_ids)
 
     if !assign_role(@user, p)
@@ -98,7 +102,7 @@ class Admin::UsersController < Admin::BaseController
 
   def transfer_ownership
     authorize @user
-    current_user.business.update!(owner: @user)
+    OrganizationAccess::Accounts.transfer_ownership!(actor: current_user, user: @user)
     redirect_to admin_user_path(@user), notice: t("flash.ownership_transferred")
   end
 
@@ -111,8 +115,8 @@ class Admin::UsersController < Admin::BaseController
 
     authorize @user
 
-    @user.update!(active: !@user.active?)
-    flash_key = @user.active? ? :user_activated : :user_deactivated
+    active = OrganizationAccess::Accounts.toggle_active!(actor: current_user, user: @user)
+    flash_key = active ? :user_activated : :user_deactivated
     redirect_to admin_users_path, notice: t("flash.#{flash_key}", name: @user.full_name)
   end
 
@@ -213,6 +217,13 @@ class Admin::UsersController < Admin::BaseController
     params.require(:user).permit(*policy(@user).permitted_attributes)
   end
 
+  # Account fields (status, login identifiers) are Organization & Access's: the
+  # ones UserPolicy#permitted_attributes let through are staged by the account
+  # interface and saved with the rest of the form (decision D1, §14.2 #7).
+  def stage_account(user, account)
+    OrganizationAccess::Accounts.stage(actor: current_user, user: user, attributes: account)
+  end
+
   # Warehouse access (Inventory & Purchasing) goes through the Organization &
   # Access UserWarehouseAccess contract, at the point the attribute was assigned
   # before (Batch W): after the other attributes, before the role check and the
@@ -223,21 +234,17 @@ class Admin::UsersController < Admin::BaseController
   end
 
   # Stages a requested role change on the (possibly unsaved) user, saved with
-  # the rest of the form. The decision is OrganizationAccess::RoleAssignmentRule
-  # — the same rule as the role screen (OA-S2/S3). An unchanged value is a no-op.
+  # the rest of the form, through the account interface — decided by
+  # OrganizationAccess::RoleAssignmentRule, the same rule as the role screen
+  # (OA-S2/S3). An unchanged value is a no-op.
   def assign_role(user, attributes)
     return true unless attributes.key?(:permission_role_id)
 
-    requested_id = attributes[:permission_role_id].presence&.to_i
-    return true if requested_id == user.permission_role_id
+    change = OrganizationAccess::Accounts.stage_role(actor: current_user, user: user,
+                                                     role_id: attributes[:permission_role_id])
+    return true if change.allowed?
 
-    decision = OrganizationAccess::RoleAssignmentRule.decide(actor: current_user, user: user, role_id: requested_id)
-    unless decision.allowed?
-      user.errors.add(:permission_role_id, t("admin.users.errors.cannot_assign_role"))
-      return false
-    end
-
-    user.permission_role = decision.role
-    true
+    user.errors.add(:permission_role_id, t("admin.users.errors.cannot_assign_role"))
+    false
   end
 end

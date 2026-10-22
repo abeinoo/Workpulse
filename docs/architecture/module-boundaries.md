@@ -16,7 +16,11 @@ report-only dependency inventory, F2 and SAL, on stacked branches `migration/s2-
   see `next-pilot-selection.md` §20. Since Batch W (merged in PR #57, `bc6682b`) the employee form applies warehouse access only through
   the OA contract `OrganizationAccess::UserWarehouseAccess` (implemented by IP, `Inventory::UserWarehouseAssignments`),
   and OA's inverse associations and the `WorkspaceHelper` navigation registry are classified and frozen by
-  `spec/architecture/organization_access_outbound_boundary_spec.rb` (`next-pilot-selection.md` §28).
+  `spec/architecture/organization_access_outbound_boundary_spec.rb` (`next-pilot-selection.md` §28). Since D1 (on
+  `migration/d1-account-interface`, not yet merged) every account-field write from outside the domain — status, login
+  identifiers, role staging, the business membership of a new row, ownership — goes through the OA account interface
+  `OrganizationAccess::Accounts` (employee form, status toggle, ownership transfer, onboarding approval); enforced
+  repository-wide by `spec/architecture/organization_access_account_interface_boundary_spec.rb` (`next-pilot-selection.md` §44).
 * **Workforce is partially migrated:** `Department`, `JobTitle`, the Performance evaluation group and
   `EmployeeInsuranceProfile` (Pilot 8, behind the `Employee::InsuranceProfileEffects` contract) are in
   `app/models/workforce/`; see `next-pilot-selection.md`. Since Pilot 9 the `EmployeeRequest` lifecycle reaches the
@@ -151,6 +155,14 @@ the shared table until a future, separately approved change:
 | `allow_mobile_attendance`, `allow_biometric_attendance` | **AP** | Attendance-channel eligibility read by `Api::V1::AttendanceController` and `Attendance::PunchService` |
 | `notification_preferences` | Unused (legacy of the removed notification system) | No code reads it |
 
+**Decision D1 (owner, 2026-10-22):** the single `users` table stays; there is no Employee table and no data migration.
+Organization & Access owns every write of an account column (`active`, `email`, `phone_number`, `permission_role_id`,
+`encrypted_password`, the row's `business_id`) and of `Business#owner` through its account-management interface
+`OrganizationAccess::Accounts` (`build`, `stage`, `stage_role`, `toggle_active!`, `transfer_ownership!`) and its
+existing services (`DeleteUser`, `ChangeUserRole`, Devise / password flows, `UserWarehouseAccess`). Workforce writes
+only the Workforce-stewarded columns and may read the account columns (e.g. `email` / `phone_number` shown as contact
+data). Authorization of who may submit which field stays in `UserPolicy#permitted_attributes` (unchanged).
+
 Evidence that "Employee without User account" already occurs: onboarding approval creates the employee with
 `User.new(EmployeeAttributes.for(revision))` — **no password** (`encrypted_password` defaults to `""`), so the record
 cannot authenticate until an account is enabled. Evidence that "User without Employee" is intended but not modelled:
@@ -179,7 +191,7 @@ account can be selected" — superseded by the September 2026 eligibility change
 3. **Models.** `Business`, `Branch`, `User` (account concern — §3), `PermissionRole`, `UserAuditLog`.
 4. **Tables.** `businesses`, `branches`, `users` (shared, column stewardship §3.2), `permission_roles`, `user_audit_logs`.
 5. **Controllers.** `users/sessions`, `users/registrations`, `admin/branches`, `admin/settings`, `admin/permission_roles`, `admin/user_passwords`, `profile/passwords`, `preferences`, `locale`, `api/v1/sessions`; the **account part** of `admin/users` (`toggle_active`, `transfer_ownership`, `permission_role_id`, login identifiers — §20).
-6. **Services.** `EmployeeScope`, `BranchScope`, `Users::RegistrationService`, `Approvals::SelfApproval`.
+6. **Services.** `EmployeeScope`, `BranchScope`, `Users::RegistrationService`, `Approvals::SelfApproval`, `OrganizationAccess::Accounts` (account-management interface, D1).
 7. **Queries.** Scope resolution inside `EmployeeScope` / `BranchScope` / `ApplicationPolicy::Scope` helpers.
 8. **Jobs.** None.
 9. **Policies.** `branch`, `permission_role` (+ access rules consumed by every domain's policies).
@@ -530,7 +542,7 @@ Today the approval creates a `users` row without a password (§3.2).
 | 4 | **Resolved (permissions: Pilot 9; punch corrections: Pilot 10 M4).** Late / early-leave approval and cancellation go through `Requests::PermissionPayrollEffects` (`Payroll::PermissionPayrollEffects` → `PermissionApplier` / `PermissionReverter`); punch-correction cancellation goes through `Requests::PunchCorrectionEffects.correction_cancelled` (`Attendance::PunchCorrectionEffects`). The canceller's pre-M4 punch rollback methods were deleted in Pilot 10 M6 | AP | Undo permission / punch effects | Workflow C | **Interface** (WF-defined contract, synchronous, in the cancel transaction) | High — characterize first |
 | 5 | **Resolved (Pilot 8).** Was: `Employee::InsuranceProfileUpdater` triggers `Payroll::EntryRecalculator`; now it calls the WF contract `Employee::InsuranceProfileEffects.profile_changed`, implemented by AP (`Payroll::InsuranceProfileEffects`) | AP | Insurance affects open entries | AP reacts | **Interface** (WF-defined contract, synchronous after commit) | Low–medium |
 | 6 | Goods receipt approval/settlement/void call `FinancialSettlementService`; custody accounts chosen as funding | FS | Paying suppliers | Workflow D | **Event** `goods_receipt.*` + FS-owned settlement UI | Medium–high — today transactional with the receipt. **Goods-receipt writes resolved (Batch S, §38 of `next-pilot-selection.md`):** through the IP-defined `Inventory::GoodsReceiptPaymentEffects`, FS implementation, synchronous inside the receipt transaction (the event target deferred, approved 2026-10-21). Purchase Request advance deposits / reversals **resolved (S2, §39)** through the IP-defined `Inventory::PurchaseRequestAdvanceEffects`, FS implementation |
-| 7 | `admin/users` form and onboarding approval write account fields (`email`, `phone_number`, `active`, `permission_role_id`) together with employee fields | OA (account columns) | One combined form; onboarding creates the record | WF edits employee fields; account fields via OA interface | **Interface** (`create_account_for`, `assign_role`, `deactivate`) | Medium — central table and form. **Blocked (2026-10-22, `next-pilot-selection.md` §43.3):** already through OA — the role decision (`OrganizationAccess::RoleAssignmentRule`), deletion (`OrganizationAccess::DeleteUser`), warehouse access (Batch W). Open — `toggle_active`'s direct `update!(active:)`, the combined form's `email` / `phone_number` / `active`, and onboarding's `User.new` with `phone_number` (`EmployeeDataRequests::EmployeeAttributes`); they depend on the unresolved User ≠ Employee decision (§20.2 "login identifiers as contact data"; `migration-pattern.md` §12 disqualifier; `next-pilot-selection.md` §27.1) |
+| 7 | `admin/users` form and onboarding approval write account fields (`email`, `phone_number`, `active`, `permission_role_id`) together with employee fields | OA (account columns) | One combined form; onboarding creates the record | WF edits employee fields; account fields via OA interface | **Interface** (`create_account_for`, `assign_role`, `deactivate`) | Medium — central table and form. **Resolved (D1, `next-pilot-selection.md` §44, on `migration/d1-account-interface`, not yet merged):** `OrganizationAccess::Accounts` — `build` (form and onboarding rows), `stage` (status / login identifiers with the form), `stage_role` (the `RoleAssignmentRule` decision + staging), `toggle_active!`, `transfer_ownership!`; enforced repository-wide by `organization_access_account_interface_boundary_spec.rb`. *Superseded record —* **Blocked (2026-10-22, `next-pilot-selection.md` §43.3):** already through OA — the role decision (`OrganizationAccess::RoleAssignmentRule`), deletion (`OrganizationAccess::DeleteUser`), warehouse access (Batch W). Open — `toggle_active`'s direct `update!(active:)`, the combined form's `email` / `phone_number` / `active`, and onboarding's `User.new` with `phone_number` (`EmployeeDataRequests::EmployeeAttributes`); they depend on the unresolved User ≠ Employee decision (§20.2 "login identifiers as contact data"; `migration-pattern.md` §12 disqualifier; `next-pilot-selection.md` §27.1) |
 | 8 | **Resolved (Pilot 12).** Was: `admin/branches` form writes `pos_terminals` (nested attributes); now the branch form stages terminal rows through the OA contract `OrganizationAccess::BranchTerminalSettings`, implemented by FS (`Finance::BranchPosTerminals`), and the branch's own save persists them (markup, parameters and validation unchanged) | FS | Terminals are edited on the branch form | FS owns terminal editing (UI stays embedded) | **Interface** (OA-defined contract, synchronous, in the branch save) | Low |
 | 9 | **Resolved for the shift form (Milestone 2, Pilot 4).** Was: Shift form wrote `penalty_rules` through nested attributes; now it stages rows through the WF `Shifts::PenaltyRuleSettings` contract (AP implementation). `admin/penalty_rules` and `api/v1/penalty_rules` are AP controllers | AP | Penalty rules configured per shift | AP owns penalty-rule editing (UI may stay embedded) | **Interface** | Low–medium (API paths stay as they are) |
 | 10 | **Resolved (Batch W).** Was: `admin/users` assigns `assigned_warehouse_ids` (`WarehouseAssignment`) directly; now the employee form applies the submitted set through the OA contract `OrganizationAccess::UserWarehouseAccess`, implemented by IP (`Inventory::UserWarehouseAssignments`). Behaviour unchanged, including the timing (immediate for a persisted user — not atomic with the rest of the form, TD-W-1) and the fail-open read rule `User#inventory_warehouse_ids` | IP | Warehouse access set on the user form | IP owns warehouse-access editing (UI stays embedded) | **Interface** (OA-defined contract) | Low |
@@ -658,7 +670,7 @@ PermissionRole pilot).
 | `BranchRevenue` / `branch_revenues` | **Finance & Sales** | **Legacy / unused as a revenue source** | `Finance::DashboardController` comments and `spec/requests/finance/dashboard_spec.rb` / `spec/services/finance/reports/branch_profitability_spec.rb` state revenue now comes from verified daily reconciliations and a manual `BranchRevenue` row must **not** be used; no create path in `app/` | Yes — as legacy |
 | `admin/users` | **Workforce** (employee management) with **OA** actions | **Active, mixed** | Actions: index/new/create/show/edit/update/destroy (employee profile — WF), `toggle_active` (account status — OA), `transfer_ownership` (business ownership — OA); `user_params` mixes account fields (`email`, `phone_number`, `active`, `permission_role_id`), employee fields and `assigned_warehouse_ids` (IP) | Yes — split responsibilities documented (§14.2 #7, #10) |
 | Business settings on `businesses` | **OA** owns storage; each domain owns the meaning | **Active** | AP: `payroll_auto_generate_day`, `payroll_cutoff_day`, `working_days_per_month`, `max_salary_advance_percentage`, `overtime_grace_minutes`, attendance duration thresholds (`settings` JSON); WF: `employee_code_start`; IP: `barcode_prefix`, `barcode_next_number`; FS: finance thresholds (`settings` JSON); legacy: `variant_system_enabled` | Yes — future `settings_for(business, domain)` accessor; no schema change |
-| User vs Employee | OA (User) / WF (Employee) | Decided | §3 | — |
+| User vs Employee | OA (User) / WF (Employee) | Decided; **write ownership decided by D1 (2026-10-22)** | §3, §3.2, §20.3 | — |
 | `EmployeeInsuranceProfile`, `Department`, `JobTitle` | WF | Decided | §10.1 | — |
 | `PenaltyRule`, `Geo::Haversine`, `Advance`, `Employee::PerformanceScorer` | AP | Decided | §10.1 | — |
 | `WarehouseAssignment` | IP | Decided | §10.1 | — |
@@ -669,13 +681,22 @@ PermissionRole pilot).
 | Item | Question |
 |---|---|
 | "EmployeeUserProfile" | No model with this name exists. Confirm it refers to the Employee profile columns on `users` and/or `EmployeeInsuranceProfile` (both documented as Workforce) |
-| Login identifiers as contact data | `email` / `phone_number` are both login identifiers (OA) and employee contact details (WF). Documented as OA-stewarded, readable by WF — confirm |
+| Login identifiers as contact data | **Answered by D1 (2026-10-22):** OA owns every write (`OrganizationAccess::Accounts`); WF reads them as contact data |
 | Attendance-channel flags on `users` | `allow_mobile_attendance` / `allow_biometric_attendance` documented as AP-stewarded — confirm (alternative: WF scheduling/eligibility) |
 | Duplicated PDF renderers | Finance dashboard and Performance each wrap Grover — confirm as shared infrastructure |
 | Unmapped specs | ≈12 cross-cutting spec files (permission matrix, navigation, sidebar) to be assigned during step 0 *(step 0's report-only inventory, 2026-10-22, maps `app/` only; spec files are still unassigned)* |
 | Shared-layer reads found by the dependency inventory (2026-10-22) | `ApplicationController#business_payment_methods` → `PaymentMethod` (FS); `ApplicationHelper#requested_permission_summary` → `ShiftAssignment` (WF); `PhoneNumber` → `User` normalization (OA). Confirm their placement: move to the owning domain, or classify as Shared Kernel / Infrastructure (§15) |
 | OA branch dashboard (2026-10-22) | `Admin::BranchesController#show` also reads pending / recent `EmployeeRequest`s (WF) and the branch payroll summary + `Payroll::EntryViewAudit` (AP, since PR #46). Same target as the classified staff view (Reporting / composition, §12.2) — confirm the end state |
 | Report infrastructure (TD-R-1) | IP laundry report controllers use `Finance::Reports::{Column,Table,CsvExporter}` — move to the Shared Kernel / Infrastructure, or classify as an FS public interface |
+
+### 20.3 Owner decisions of 2026-10-22 (D1–D4)
+
+| ID | Decision | Where applied |
+|---|---|---|
+| **D1** | User vs Employee: keep the `users` table; a narrow Organization & Access account-management interface owns every authorized account-field write; no Employee table, no data migration; authorization, role assignment, deletion, warehouse access and account security unchanged | §3.2, §14.2 #7; `next-pilot-selection.md` §44 |
+| **D2** | **Synchronous, in-process contracts are the current integration standard.** The domain events named in §4–§8 and §14.1 (`payroll.period_finalized`, `goods_receipt.*`, `employee_request.*`, …) are a *possible future option*, not a completion requirement; none is introduced only because it was listed | §14.1, §18 rule 4 |
+| **D3** | Completion requires the repository-wide dependency checker to be an **enforced** gate once its coverage and reliability are shown: every relevant `app/` file and every domain-owned model / table mapped; references classified as allowed, classified exception or violation; unclassified references cannot pass; negative tests and planted probes; deterministic regardless of autoload order; component groups it cannot analyse covered by focused boundary specs. Moving every model into a domain folder and slimming large controllers are **not** completion requirements | §19 step 0; `next-pilot-selection.md` §45 |
+| **D4** | Classified exceptions may remain temporarily when each has an explicit owner, a documented reason and scope, a focused test or guard, and a recorded disposition (with a review condition where appropriate). A documented exception is not a violation; a new cross-domain dependency may never stay unclassified | `docs/architecture/dependency-exceptions.md`; `next-pilot-selection.md` §46 |
 
 ## 21. Future Extensibility
 
