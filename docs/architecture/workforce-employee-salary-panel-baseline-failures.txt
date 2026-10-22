@@ -1,0 +1,52 @@
+# SAL (Workforce employee page → Attendance & Payroll salary panel, module-boundaries.md §12.1 "AP contributes the
+#   salary panel (infrastructure-level view composition), WF does not read AP"; Q-M2-5) — baseline failing example IDs
+# Purpose: reference list for every SAL step; failing IDs compared by exact ID, never by count; any ID not listed stops
+#   the work. Contents are not edited to absorb new failures.
+# Starting point: migration/sal-employee-salary-panel, created 2026-10-22 from migration/f2-shift-assignment-attendance
+#   1a715da (stacked on the checker, S2 and local main ec8ae59; no fetch). BUG-017 (PR #61) not included.
+#
+# Design: Workforce defines the UI-composition contract Employee::ProfilePanels (salary_panel(viewer:, employee:) →
+#   Panel(partial, locals) or nil); Attendance & Payroll implements it (Payroll::EmployeeSalaryPanel: the former
+#   load_salary — SalaryProfilePolicy decision, current profile, Salary::ViewAudit) and owns the card partial
+#   (app/views/admin/salary_profiles/_employee_panel.html.erb). Salary visibility, displayed data and audits unchanged.
+#   The obligations card stays the classified exception it is (SEC-M2-5, attendance_payroll_obligation_boundary_spec).
+#
+# Commands (zsh: ${=set}):
+#   set=$(grep '^# set ' docs/architecture/workforce-employee-salary-panel-baseline-failures.txt | cut -d' ' -f3)
+#   bundle exec rspec --seed 20261006 ${=set}   (also 12345, 98765, and CI=1 with 20261006)
+# Result at M0 (2026-10-22, on 1a715da, working tree: this file and the M1 golden files; the M1 spec moved aside):
+#   seeds 20261006 / 12345 / 98765 and CI=1 (20261006): 945 examples, 0 failures each, exit 0.
+# No failing ID in the set: any failure in this set during SAL is new and stops the work.
+#
+# M1 (recorded against unchanged code; inside the spec/characterization/workforce entry from now on):
+#   spec/characterization/workforce/employee_salary_panel_spec.rb (6) + golden files
+#   spec/fixtures/files/employee_salary_panel/{view_only,view_and_manage,no_profile,manage_only,own_page}.html
+#   (written once with RECORD_SAL_GOLDEN=1 from unchanged code; never re-recorded to absorb a difference): no card and
+#   no audit without view_payroll / manage_salary_profiles; view-only, view-and-manage, no-profile, manage-only (a
+#   header-only card with the new-profile action) and own-page cards; exact view_salary audits (one when a profile is
+#   shown, none otherwise; self_view on the own page). Seeds 20261006 / 12345 / 98765 and CI=1: 6 / 0 each.
+# M2–M4 + M6 (one implementation commit): Employee::ProfilePanels + spec (5), Payroll::EmployeeSalaryPanel + spec (4),
+#   config/initializers/employee_profile_panels.rb, the AP partial admin/salary_profiles/_employee_panel.html.erb;
+#   Admin::UsersController#load_salary and the employee page migrated; the M1 golden cards unmodified.
+#   spec/architecture/workforce_employee_salary_panel_boundary_spec.rb (4); spec/architecture 406 / 0. Real probe:
+#   policy_scope(SalaryProfile) added back to the controller → rule 1 fails; restored.
+# M8 (final, 2026-10-22): the set below (with the two new service specs):
+#   seed 20261006: 964 examples, 0 failures, exit 0
+#   seed 12345:    964 examples, 0 failures, exit 0
+#   seed 98765:    964 examples, 0 failures, exit 0
+#   CI=1 (eager), seed 20261006: 964 examples, 0 failures, exit 0
+#   zeitwerk:check clean; RuboCop on the 7 changed / new Ruby files no offenses; git diff --check clean.
+#   Full suite not run (not a designated milestone). No failing ID at any step.
+#
+# set spec/requests/security/salary_profile_access_spec.rb
+# set spec/requests/security/employee_page_obligations_spec.rb
+# set spec/requests/security/effective_salary_spec.rb
+# set spec/requests/admin/users_spec.rb
+# set spec/requests/admin/user_deletion_spec.rb
+# set spec/policies/salary_profile_policy_spec.rb
+# set spec/policies/user_policy_spec.rb
+# set spec/characterization/workforce
+# set spec/services/salary
+# set spec/architecture
+# set spec/services/employee/profile_panels_spec.rb
+# set spec/services/payroll/employee_salary_panel_spec.rb

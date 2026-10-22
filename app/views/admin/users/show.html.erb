@@ -231,54 +231,9 @@
   <% end %>
 
   <%# Salary Profiles %>
-  <%# The current profile only, shown under SalaryProfilePolicy (loaded in the controller). %>
-  <% if @salary_visible || @salary_manageable %>
-  <div class="card" style="margin-top: var(--space-6);">
-    <div class="card-header">
-      <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("admin.users.salary_profile") %></h2>
-      <% if @salary_manageable %>
-        <%= link_to t("admin.users.new_profile"), new_admin_user_salary_profile_path(@user), class: "btn btn-sm btn-primary" %>
-      <% end %>
-    </div>
-
-    <% if !@salary_visible %>
-      <%# Manage-only: no amounts and no statement about the current profile. %>
-    <% elsif @active_salary_profile %>
-      <dl class="data-list">
-        <div class="data-list__item">
-          <dt class="data-list__label"><%= t("salary_profiles.type") %></dt>
-          <dd class="data-list__value"><%= t("salary_profiles.salary_types.#{@active_salary_profile.salary_type}") %></dd>
-        </div>
-        <div class="data-list__item">
-          <dt class="data-list__label"><%= t("salary_profiles.base_salary") %></dt>
-          <dd class="data-list__value"><%= format_currency(@active_salary_profile.base_amount) %></dd>
-        </div>
-        <div class="data-list__item">
-          <dt class="data-list__label"><%= t("salary_profiles.overtime_multiplier") %></dt>
-          <dd class="data-list__value">
-            <% if @active_salary_profile.overtime_multiplier %>
-              <%= @active_salary_profile.overtime_multiplier %>x
-            <% else %>
-              <span class="text-muted">—</span>
-            <% end %>
-          </dd>
-        </div>
-        <div class="data-list__item">
-          <dt class="data-list__label"><%= t("salary_profiles.effective_from") %></dt>
-          <dd class="data-list__value"><%= local_date(@active_salary_profile.effective_from) %></dd>
-        </div>
-      </dl>
-      <% if policy(@active_salary_profile).update? %>
-        <div class="form-actions">
-          <%= link_to t("admin.users.edit_active_profile"),
-                edit_admin_user_salary_profile_path(@user, @active_salary_profile),
-                class: "btn btn-sm btn-secondary" %>
-        </div>
-      <% end %>
-    <% else %>
-      <p style="padding: var(--space-4); color: var(--text-2);"><%= t("salary_profiles.no_active") %></p>
-    <% end %>
-  </div>
+  <%# Attendance & Payroll's salary card, contributed through Employee::ProfilePanels (SAL). %>
+  <% if @salary_panel %>
+    <%= render @salary_panel.partial, **@salary_panel.locals %>
   <% end %>
 
   <%# Social Insurance %>
