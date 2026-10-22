@@ -384,6 +384,15 @@ mechanical") and §19 (dependency order). No new top-level domains are introduce
   `feature/pilot-5-membership-contract`): M1 `114f771`, M2 `69031c1`, M3 `5d6b454`, M6 `1b5cd65`, M8 docs; M4, M5 and
   M7 not needed. The access scopes read membership only through the OA-defined `OrganizationAccess::MembershipProvider`
   (Workforce implementation), with four classified exceptions (`next-pilot-selection.md` §20).
+* **Merged on `main` since (verified against Git and GitHub on 2026-10-22; `next-pilot-selection.md` §43):**
+  * Pilot 5 and Pilot 6 (Inventory & Purchasing Supplier) — PR #30 (`24f1573`); Pilot 7 (Product Catalogue) — PR #31
+    (`4655d18`); Pilot 8 (Employee Insurance Profile) — PR #32 (`a9f8ff3`); Pilot 9 (Request Permission Payroll
+    Effects) — PR #33 (`82cce16`); Pilot 10 (Punch Correction) — PR #37 (`7d2a8c8`); Pilot 11 (Reporting: laundry
+    cost) — PRs #43 / #44 (`96cc194`), close-out PR #45.
+  * Pilot 12 (POS terminals) with Batches R (Reporting read-only), W (warehouse access) and A (advance payment) and the
+    standalone security / concurrency fixes — PR #57 (`bc6682b`); Pilot 12 close-out — PR #59 (`17fbcce`).
+  * Batch V (request-validation reads) — PR #58 (`872e55f`); Batch S (goods-receipt payment writes) — PR #60 (`ec8ae59`).
+  * Work committed locally after `ec8ae59` (S2, the dependency inventory, F2, SAL) is **not** listed here until merged.
 
 See `next-pilot-selection.md`, "Milestone 2 — Attendance & Payroll", §5.1–§5.2 and §13. Nothing below changes the standard
 sequence (§3) or the rules (§5).
