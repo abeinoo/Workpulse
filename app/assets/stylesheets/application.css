@@ -14752,6 +14752,13 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
    LINKED TO BALANCE" in English) — let it wrap inside the column instead of
    widening the table. Cards keep it on one line (reset below). */
 .expense-list__source .badge { white-space: normal; max-width: 130px; line-height: 1.3; }
+/* Table only, same pattern: the status badge may wrap inside its column instead
+   of widening the table — with the macOS system font the English table needed
+   976px in a 974px wrapper at 1440px (BUG-012). With the table's automatic
+   layout a two-word label ("PENDING APPROVAL", "بانتظار الاعتماد") usually takes
+   two lines; rows are already taller (stacked / clamped cells), so no row grows.
+   No max-width and no line-height change: single-word labels look as before. */
+.expense-list__status .badge { white-space: normal; }
 .expense-list__badges {
   display: flex;
   flex-wrap: wrap;
@@ -14993,6 +15000,7 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
   .expense-list__table .expense-list__source { margin-top: var(--space-2); border-top-color: var(--border); }
   .expense-list__badges { justify-content: flex-end; }
   .expense-list__source .badge { white-space: nowrap; max-width: none; }
+  .expense-list__status .badge { white-space: nowrap; }
   .expense-list__paid   { text-align: end; }
 
   .expense-list__table td.expense-list__actions {
