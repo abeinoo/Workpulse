@@ -38,6 +38,7 @@ here only so its stable ID and history are kept.
 | BUG-014 | Laundry consumption report: branch picker and report scope resolve differently | Inventory & Purchasing (Laundry) | Low (usability / filter consistency) | Confirmed (code) | Open | After Pilot 12 |
 | BUG-015 | Goods receipt void racing approval may overwrite a decided approval status | Inventory & Purchasing | Medium (audit / status integrity; money still balances) | Confirmed (two-connection reproduction, Batch S M1) | **Resolved** (receipt row lock in `GoodsReceiptVoider#call`) | — |
 | BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (same receipt row lock) | — |
+| BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (row lock in `Inventory::DocumentVoider#call`) | — |
 
 ---
 
@@ -357,3 +358,33 @@ here only so its stable ID and history are kept.
 * **Regression tests:** two-connection double void of a confirmed receipt → one set of reversal movements, the second
   void refused with `already_voided`.
 * **Review milestone (at M0):** after Batch S — closed by the fix.
+
+## BUG-017 — Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal
+
+* **Source:** new (follow-up of BUG-016, read-only investigation 2026-10-21). **Discovered:** 2026-10-21. **Status:**
+  **Resolved** (2026-10-22): `Inventory::DocumentVoider#call` opens its transaction first and locks and reloads the
+  document (`@document.lock!`) before its guards.
+* **Domain / files:** Inventory & Purchasing — `app/services/inventory/document_voider.rb` (`#call`), called by
+  `Inventory::StockIssuesController#void`, `Inventory::StockTransfersController#void`,
+  `Inventory::StockAdjustmentsController#void` (each on a `policy_scope(...).find` copy) and `GoodsReceiptVoider`.
+* **Observed (code, before the fix):** the `voided?`, reason and stock-availability guards ran on an unlocked copy
+  before the transaction; the reversal `inventory_movements` were inserted before the void `update!`, which was the
+  only statement that waited on the row; `inventory_movements` has no per-document uniqueness to stop a second set.
+* **Expected vs actual:** one reversal per document, the second void refused as already voided. Reproduced on the
+  unchanged code (two connections, the first void paused inside its transaction): both voids succeeded — a stock issue
+  of 4 returned 8 (stock 14 instead of 10), a transfer of 6 was reversed twice (Main 16 / Branch **−6**, past the
+  availability guard), an adjustment of −3 returned 6 (13 instead of 10); every time two reversal sets and
+  `voided_by` / `void_reason` overwritten by the second void.
+* **Impact:** stock quantities (including negative stock) and, through `ProductCostRecalculator`, moving-average cost.
+* **Evidence:** `spec/services/inventory/document_voider_concurrency_spec.rb` (3 examples: stock issue, transfer,
+  adjustment) — fails on the unchanged code (the lock neutralized in memory: the same duplicates and −6) and passes
+  with the fix under seeds 20261006, 12345, 98765 and CI=1: the second void waits on the document row, then is refused
+  (`already_voided`), one reversal set, stock restored once, the first voider kept.
+* **Fix:** the transaction opens first; `@document.lock!` reloads the row under the lock; the existing guards (same
+  order, same messages) run on it and a refusal leaves the block writing nothing; then the reversal movements, the void
+  metadata and the cost recompute, as before. `GoodsReceiptVoider` (which locks the receipt first, BUG-015) re-locks
+  the same row harmlessly.
+* **Not in scope:** stock-document voids still write no audit row (a separate product decision); a void racing a
+  confirmation or edit of the same document was not investigated.
+* **Regression tests:** the concurrency spec above; `document_voider_spec.rb` (sequential guards) unchanged and passing.
+* **Review milestone:** — (resolved).
