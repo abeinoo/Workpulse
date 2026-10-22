@@ -6367,7 +6367,7 @@ The full suite was not run (not authorized for this batch). `Gemfile.lock`, `db/
   previews and preloads, the purchase-request and advance controllers, the settlement form's source options and the
   receipt page's custody display.
 * **Stock-document voids:** the possible double-void risk of stock issues, transfers and adjustments
-  (`DocumentVoider` callers without a row lock) is uninvestigated — follow-up, not fixed here. *[Since investigated as BUG-017 — reproduced and fixed on PR #61 (`6c2a20e`), which is OPEN, not merged (GitHub, 2026-10-22) — §43.4.]*
+  (`DocumentVoider` callers without a row lock) is uninvestigated — follow-up, not fixed here. *[Since investigated as BUG-017 — reproduced and fixed on PR #61 (`6c2a20e`), which is OPEN, not merged (GitHub, 2026-10-22) — §43.4.]* *[Updated 2026-10-22: PR #61 was merged on GitHub at 05:40:48 UTC as `ca4b43d`; the migration stack was brought up to it by `d11cfd1` — §49.]*
 * The event target of §14.2 #6 (`goods_receipt.*`) is deferred, not rejected.
 
 ---
