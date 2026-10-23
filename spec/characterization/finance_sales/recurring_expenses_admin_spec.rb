@@ -85,6 +85,26 @@ RSpec.describe "Characterization: recurring expenses administration", type: :req
     end
   end
 
+  describe "show with generated expenses" do
+    let!(:template) { create(:recurring_expense, business: business, expense_category: category, branch: branch_a, amount: 300) }
+
+    before { sign_in manager }
+
+    it "lists each generated expense with its status badge" do
+      post generate_finance_recurring_expense_path(template)
+      expense = Expense.find_by!(source_recurring_expense: template)
+
+      get finance_recurring_expense_path(template)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(expense.reference_number)
+      expect(response.body).to include(%(<span class="badge badge-warning">#{I18n.t("finance.expenses.statuses.pending_approval")}</span>))
+
+      get finance_expense_path(expense)
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   describe "read-only access (view_expenses only)" do
     let!(:template) { create(:recurring_expense, business: business, expense_category: category, branch: branch_b, amount: 100) }
 

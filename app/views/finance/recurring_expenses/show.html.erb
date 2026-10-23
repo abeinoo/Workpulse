@@ -65,7 +65,7 @@
               <td><%= link_to expense.reference_number, finance_expense_path(expense), class: "link" %></td>
               <td><%= l(expense.expense_date, format: :long) %></td>
               <td style="text-align: end;"><%= format_currency(expense.amount) %></td>
-              <td><%= render "finance/expenses/status_badge", status: expense.display_status %></td>
+              <td><%= render "finance/expenses/status_badge", status: expense.status %></td>
             </tr>
           <% end %>
         </tbody>
