@@ -1,4 +1,4 @@
-<%# locals: total, previous_total, count %>
+<%# locals: total, previous_total, count, previous_label (optional — the comparison period's dates) %>
 <div class="kpi-grid">
   <div class="kpi-card">
     <span class="kpi-card__label"><%= t("finance.reports.breakdown.kpi_total") %></span>
@@ -8,6 +8,9 @@
   <div class="kpi-card">
     <span class="kpi-card__label"><%= t("finance.reports.breakdown.kpi_previous") %></span>
     <span class="kpi-card__value"><%= format_currency(previous_total) %></span>
+    <% if local_assigns[:previous_label].present? %>
+      <span class="form-hint"><%= previous_label %></span>
+    <% end %>
   </div>
   <div class="kpi-card">
     <span class="kpi-card__label"><%= t("finance.reports.breakdown.kpi_count") %></span>

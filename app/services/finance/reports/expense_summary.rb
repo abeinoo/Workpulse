@@ -6,13 +6,20 @@ module Finance
     # Branch grouping is special: a shared expense has no branch_id, so its cost
     # is attributed to branches through expense_allocations (allocated_amount).
     # The other groupings count each expense once under its category/type.
+    #
+    # branch_id (category / type grouping only) narrows those to one branch with
+    # the same attribution as the branch grouping: the branch's own expenses at
+    # their amount, plus its allocated_amount of each shared expense; expenses
+    # with neither a branch nor allocations belong to no branch and drop out.
+    # Without branch_id the report is business-wide, exactly as before.
     class ExpenseSummary
-      def initialize(business, group_by:, from:, to:, statuses: %w[approved])
-        @business = business
-        @group_by = group_by.to_sym
-        @from     = from
-        @to       = to
-        @statuses = statuses
+      def initialize(business, group_by:, from:, to:, statuses: %w[approved], branch_id: nil)
+        @business  = business
+        @group_by  = group_by.to_sym
+        @from      = from
+        @to        = to
+        @statuses  = statuses
+        @branch_id = branch_id
       end
 
       def call
@@ -47,12 +54,24 @@ module Finance
 
       def grouped
         column, resolver, title, label = group_config
-        totals = scoped.group(column).sum(:amount)
-        counts = scoped.group(column).count
+        totals, counts = @branch_id ? branch_totals(column) : [ scoped.group(column).sum(:amount), scoped.group(column).count ]
 
         rows = totals.map { |key, total| { label: resolver.call(key), count: counts[key].to_i, total: total } }
                      .sort_by { |r| -r[:total] }
         build(title, label, rows)
+      end
+
+      # {key => total}, {key => count} for one branch: direct expenses plus the
+      # branch's allocations of shared expenses (one allocation per expense and
+      # branch — unique index — so a shared expense counts once).
+      def branch_totals(column)
+        direct   = scoped.where(branch_id: @branch_id)
+        allocs   = ExpenseAllocation.joins(:expense)
+                                    .where(expense_id: scoped.where(is_shared: true).select(:id), branch_id: @branch_id)
+                                    .group("expenses.#{column}")
+        totals   = direct.group(column).sum(:amount).merge(allocs.sum(:allocated_amount)) { |_k, a, b| a + b }
+        counts   = direct.group(column).count.merge(allocs.count) { |_k, a, b| a + b }
+        [ totals, counts ]
       end
 
       def group_config

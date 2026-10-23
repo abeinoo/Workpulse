@@ -17,22 +17,19 @@ class Finance::ReportsController < Finance::BaseController
     render_report(table, template: :expenses_by_branch)
   end
 
+  # By Category / By Type take the period-preset + branch filter bar
+  # (Finance::Reports::ExpenseReportFilters). The page's KPIs, ranking, charts,
+  # table and CSV all read the same validated @filters.
   def expenses_by_category
-    range    = date_range
-    table    = Finance::Reports::ExpenseSummary.new(business, group_by: :category, **range).call
-    previous = Finance::Reports::ExpenseSummary.new(business, group_by: :category, **previous_range).call
-    load_breakdown_context(table, previous)
+    filtered_expense_breakdown(:category)
     @drill_down_ids = business.expense_categories.pluck(:name, :id).to_h
-    render_report(table, template: :expenses_by_category)
+    render_report(@breakdown_table, template: :expenses_by_category)
   end
 
   def expenses_by_type
-    range    = date_range
-    table    = Finance::Reports::ExpenseSummary.new(business, group_by: :type, **range).call
-    previous = Finance::Reports::ExpenseSummary.new(business, group_by: :type, **previous_range).call
-    load_breakdown_context(table, previous)
+    filtered_expense_breakdown(:type)
     @drill_down_ids = business.expense_types.pluck(:name, :id).to_h
-    render_report(table, template: :expenses_by_type)
+    render_report(@breakdown_table, template: :expenses_by_type)
   end
 
   def expense_trend
@@ -234,10 +231,26 @@ class Finance::ReportsController < Finance::BaseController
     end
   end
 
-  def load_breakdown_context(table, previous_table)
+  def load_breakdown_context(table, previous_table, branch_id: nil)
     @ranked_rows     = rows_with_change(table.rows, previous_table.rows)
     @previous_total  = previous_table.totals[:total]
-    @overall_trend   = Finance::Reports::ExpenseTrend.new(business, from: @from, to: @to).call
+    @overall_trend   = Finance::Reports::ExpenseTrend.new(business, from: @from, to: @to, branch_id: branch_id).call
+  end
+
+  # Resolves the filter bar once, then runs the current and comparison period
+  # with the same branch. view_expense_reports is business-wide, so the branch
+  # list is every branch of the viewer's business (inactive ones included —
+  # they still carry historical expenses); a branch_id outside it is ignored.
+  def filtered_expense_breakdown(group_by)
+    @filters = Finance::Reports::ExpenseReportFilters.new(business, params).call
+    @dated, @from, @to = true, @filters.from, @filters.to
+    @report_branches = business.branches.order(:name).select(:id, :name, :active)
+
+    branch_id = @filters.branch_id
+    @breakdown_table = Finance::Reports::ExpenseSummary.new(business, group_by: group_by, branch_id: branch_id, **@filters.range).call
+    previous = Finance::Reports::ExpenseSummary.new(business, group_by: group_by, branch_id: branch_id,
+                                                    **@filters.previous_range).call
+    load_breakdown_context(@breakdown_table, previous, branch_id: branch_id)
   end
 
   # Simple trailing N-period average over an already-computed numeric series

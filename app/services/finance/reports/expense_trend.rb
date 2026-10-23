@@ -1,19 +1,29 @@
 module Finance
   module Reports
     # Monthly expense spend over a date range (committed spend by default).
+    #
+    # branch_id narrows it to one branch with ExpenseSummary's branch
+    # attribution: the branch's own expenses plus its allocated_amount of each
+    # shared expense (by the shared expense's month). Without it the trend is
+    # business-wide, exactly as before.
     class ExpenseTrend
-      def initialize(business, from:, to:, statuses: %w[approved])
-        @business = business
-        @from     = from
-        @to       = to
-        @statuses = statuses
+      def initialize(business, from:, to:, statuses: %w[approved], branch_id: nil)
+        @business  = business
+        @from      = from
+        @to        = to
+        @statuses  = statuses
+        @branch_id = branch_id
       end
 
       def call
         scoped  = @business.expenses.where(status: @statuses).in_period(@from, @to)
         month   = Arel.sql("date_trunc('month', expense_date)")
-        totals  = scoped.group(month).sum(:amount)
-        counts  = scoped.group(month).count
+        totals, counts =
+          if @branch_id
+            branch_totals(scoped, month)
+          else
+            [ scoped.group(month).sum(:amount), scoped.group(month).count ]
+          end
 
         rows = totals.keys.sort.map do |period|
           { label: I18n.l(period.to_date, format: "%b %Y"),
@@ -31,6 +41,17 @@ module Finance
           rows:    rows,
           totals:  { count: rows.sum { |r| r[:count] }, total: rows.sum { |r| r[:total] } }
         )
+      end
+
+      private
+
+      def branch_totals(scoped, month)
+        direct = scoped.where(branch_id: @branch_id)
+        allocs = ExpenseAllocation.joins(:expense)
+                                  .where(expense_id: scoped.where(is_shared: true).select(:id), branch_id: @branch_id)
+                                  .group(Arel.sql("date_trunc('month', expenses.expense_date)"))
+        [ direct.group(month).sum(:amount).merge(allocs.sum(:allocated_amount)) { |_k, a, b| a + b },
+          direct.group(month).count.merge(allocs.count) { |_k, a, b| a + b } ]
       end
     end
   end

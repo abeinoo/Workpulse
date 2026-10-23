@@ -1,6 +1,9 @@
 <%# locals: title — shared header for every redesigned report page: back-link,
     title + active period, CSV export, and the date filter (when @dated).
-    Same back-link/.filter-bar conventions as the original show.html.erb. %>
+    Same back-link/.filter-bar conventions as the original show.html.erb.
+    Reports that resolve Finance::Reports::ExpenseReportFilters (@filters) get
+    the period-preset + branch filter bar instead, and their CSV link carries
+    the same validated filters. %>
 <%= link_to finance_reports_path, class: "back-link" do %>
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
   <%= t("finance.reports.title") %>
@@ -11,15 +14,23 @@
     <p class="exec-header__eyebrow"><%= t("finance.reports.title") %></p>
     <h1 class="page-title"><%= title %></h1>
     <% if @dated %>
-      <p class="exec-header__period"><%= l(@from, format: :long) %> – <%= l(@to, format: :long) %></p>
+      <p class="exec-header__period">
+        <%= l(@from, format: :long) %> – <%= l(@to, format: :long) %>
+        <% if @filters %>
+          · <%= @filters.branch ? @filters.branch.name : t("finance.reports.expense_filters.all_branches") %>
+        <% end %>
+      </p>
     <% end %>
   </div>
   <div class="page-header__actions">
-    <%= link_to t("finance.reports.export_csv"), url_for(format: :csv, from: @from, to: @to), class: "btn btn-secondary btn-sm" %>
+    <% csv_params = @filters ? @filters.to_params : { from: @from, to: @to } %>
+    <%= link_to t("finance.reports.export_csv"), url_for(format: :csv, **csv_params), class: "btn btn-secondary btn-sm" %>
   </div>
 </div>
 
-<% if @dated %>
+<% if @filters %>
+  <%= render "expense_filters", filters: @filters, branches: @report_branches %>
+<% elsif @dated %>
   <%= form_with url: request.path, method: :get, local: true, class: "filter-bar" do %>
     <div class="filter-bar__fields">
       <div class="filter-bar__field">

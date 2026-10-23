@@ -7383,6 +7383,23 @@ en:
         approvals: "Audit the approval history of every expense."
         branch_profitability: "Compare revenue, cost, and net profit across branches."
         expense_details: "One centralized, drill-down breakdown of every expense source."
+      expense_filters:
+        period: "Period"
+        presets:
+          current_month: "Current month"
+          previous_month: "Previous month"
+          last_3_months: "Last 3 months"
+          last_6_months: "Last 6 months"
+          current_year: "Current year"
+          custom: "Custom range"
+        all_branches: "All branches"
+        apply: "Apply Filters"
+        reset: "Reset Filters"
+        shared_note: "For a single branch, shared expenses count only that branch's allocated share; expenses with no branch are excluded."
+        errors:
+          invalid_date: "The custom dates are not valid — showing the last 6 months instead."
+          reversed_range: "The start date is after the end date — showing the last 6 months instead."
+          branch_unavailable: "That branch is not available — showing all branches instead."
       breakdown:
         kpi_total: "Total Expenses"
         kpi_previous: "Previous Period"

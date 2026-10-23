@@ -13662,6 +13662,11 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
    button; [hidden] must beat .filter-bar__field's display. The results turbo
    frame dims while a filter change is loading instead of the page flashing. */
 .report-auto-filters [hidden] { display: none !important; }
+
+/* Expenses by Type / by Category filter bar (period-filter_controller.js):
+   the custom from/to fields are toggled with [hidden], which must beat
+   .filter-bar__field's display. */
+.expense-report-filters .filter-bar__field[hidden] { display: none; }
 .report-auto-filters .filter-bar__fields { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 .report-auto-filters__error { margin: 0; }
 .report-results { display: block; transition: opacity 0.15s ease; }

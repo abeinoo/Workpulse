@@ -73,6 +73,7 @@ module ArchitectureSpecs
       "app/services/finance/reports/custody_balances.rb"     => "FS: custody balances",
       "app/services/finance/reports/custody_transactions.rb" => "FS: custody ledger",
       "app/services/finance/reports/expense_summary.rb"      => "FS: expenses by branch / category / type",
+      "app/services/finance/reports/expense_report_filters.rb" => "FS report infrastructure (by type / category period + branch filters)",
       "app/services/finance/reports/expense_trend.rb"        => "FS: expense trend",
       "app/services/finance/reports/negative_balances.rb"    => "FS: negative custody balances",
       "app/services/finance/reports/recurring_summary.rb"    => "FS: recurring expenses",

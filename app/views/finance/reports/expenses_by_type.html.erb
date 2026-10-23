@@ -3,7 +3,8 @@
 <div class="admin-page exec-dashboard">
   <%= render "report_header", title: @table.title %>
 
-  <%= render "summary_kpis", total: @table.totals[:total], previous_total: @previous_total, count: @table.totals[:count] %>
+  <%= render "summary_kpis", total: @table.totals[:total], previous_total: @previous_total, count: @table.totals[:count],
+             previous_label: "#{l(@filters.previous_from, format: :long)} – #{l(@filters.previous_to, format: :long)}" %>
 
   <div class="exec-grid">
     <div class="chart-card exec-span-6">
@@ -18,7 +19,7 @@
         <h2 class="section-title--exec"><%= t("finance.reports.breakdown.ranking_title") %> — <%= t("finance.expenses.type") %></h2>
       </div>
       <% if @ranked_rows.present? %>
-        <%= render "ranked_list", rows: @ranked_rows, link_for: ->(row) { finance_expenses_path(expense_type_id: @drill_down_ids[row[:label]], from: @from, to: @to) } %>
+        <%= render "ranked_list", rows: @ranked_rows, link_for: ->(row) { finance_expenses_path(expense_type_id: @drill_down_ids[row[:label]], from: @from, to: @to, branch_id: @filters.branch_id) } %>
       <% else %>
         <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("finance.reports.no_data") %></p></div>
       <% end %>
