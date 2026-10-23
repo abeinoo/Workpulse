@@ -64,6 +64,11 @@
         <%= f.label :active, t("finance.common.active"), class: "form-check-label" %>
       </div>
     </div>
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :notes, t("finance.recurring.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 3,
+            class: "form-control #{'is-error' if recurring.errors[:notes].any?}" %>
+    </div>
   </div>
 
   <div class="divider"></div>

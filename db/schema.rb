@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_23_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1581,6 +1581,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100000) do
     t.string "frequency", null: false
     t.date "last_generated_on"
     t.date "next_run_on", null: false
+    t.text "notes"
     t.date "start_date", null: false
     t.datetime "updated_at", null: false
     t.index ["branch_id"], name: "index_recurring_expenses_on_branch_id"

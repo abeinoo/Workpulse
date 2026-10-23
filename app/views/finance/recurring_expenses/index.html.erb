@@ -22,6 +22,7 @@
           <th style="text-align: end;"><%= t("finance.expenses.amount") %></th>
           <th><%= t("finance.recurring.next_run_on") %></th>
           <th><%= t("finance.common.status") %></th>
+          <th><%= t("finance.recurring.notes") %></th>
         </tr></thead>
         <tbody>
           <% @recurring_expenses.each do |rec| %>
@@ -37,6 +38,10 @@
                 <% else %>
                   <span class="badge"><%= t("finance.common.inactive") %></span>
                 <% end %>
+              </td>
+              <% notes = rec.notes.to_s.strip %>
+              <td class="expense-list__notes<%= ' expense-list__notes--empty' if notes.blank? %>">
+                <%= render "finance/expenses/note", notes: notes if notes.present? %>
               </td>
             </tr>
           <% end %>

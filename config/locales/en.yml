@@ -7319,6 +7319,8 @@ en:
       end_date_hint: "Leave blank to repeat indefinitely."
       next_run_on: "Next run"
       next_run_on_hint: "Defaults to the start date; the next date an expense is generated."
+      notes: "Notes"
+      section_schedule: "Schedule"
       last_generated_on: "Last generated"
       generated_expenses: "Generated Expenses"
       no_generated: "No expenses generated yet."

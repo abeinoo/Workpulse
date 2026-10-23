@@ -14841,6 +14841,15 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
   white-space: pre-line;
 }
 
+/* The same notes cell in a plain "table-wrap--cards" list (recurring expenses):
+   on phones it is a full-width label/value row like the other cells, and a
+   blank note leaves no empty row in the card. */
+@media (max-width: 768px) {
+  .table-wrap--cards tbody td.expense-list__notes { max-width: none; align-items: flex-start; }
+  .table-wrap--cards tbody td.expense-list__notes > * { flex: 1; min-width: 0; }
+  .table-wrap--cards tbody td.expense-list__notes--empty { display: none; }
+}
+
 /* The same note under the amount — used only on medium-width lists (below).
    width:0 + min-width:100% keeps it from widening the amount column. */
 .expense-list__amount-note {

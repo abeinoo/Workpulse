@@ -7374,6 +7374,8 @@ ar:
       end_date_hint: "اتركه فارغًا للتكرار بلا نهاية."
       next_run_on: "التشغيل القادم"
       next_run_on_hint: "يبدأ افتراضيًا من تاريخ البدء؛ التاريخ القادم لإنشاء مصروف."
+      notes: "الملحوظات"
+      section_schedule: "الجدولة"
       last_generated_on: "آخر إنشاء"
       generated_expenses: "المصروفات المُنشأة"
       no_generated: "لم يتم إنشاء مصروفات بعد."

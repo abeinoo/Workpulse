@@ -6,48 +6,124 @@
     <%= t("forms.back") %>
   <% end %>
 
-  <div class="page-header">
-    <h1 class="page-title">
-      <%= @recurring.expense_category.name %>
-      <% if @recurring.active? %><span class="badge badge-success"><%= t("finance.common.active") %></span>
-      <% else %><span class="badge"><%= t("finance.common.inactive") %></span><% end %>
-    </h1>
-    <div class="page-header__actions">
-      <% if policy(@recurring).update? %>
-        <%= link_to t("common.edit"), edit_finance_recurring_expense_path(@recurring), class: "btn btn-secondary btn-sm" %>
-      <% end %>
-      <% if policy(@recurring).generate? %>
-        <%= button_to t("finance.recurring.generate_now"), generate_finance_recurring_expense_path(@recurring),
-              method: :post, class: "btn btn-primary btn-sm",
-              data: { turbo_confirm: t("finance.recurring.generate_confirm") } %>
-      <% end %>
-      <% if policy(@recurring).destroy? %>
-        <%= button_to t("common.delete"), finance_recurring_expense_path(@recurring), method: :delete,
-              class: "btn btn-ghost btn-sm text-danger", data: { turbo_confirm: t("finance.recurring.confirm_delete") } %>
-      <% end %>
+  <%# ── Summary card ────────────────────────────────────────────────────────── %>
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+        <h1 class="card-title" style="margin: 0; font-size: var(--text-lg);"><%= @recurring.expense_category.name %></h1>
+        <% if @recurring.active? %>
+          <span class="badge badge-success badge--md"><%= t("finance.common.active") %></span>
+        <% else %>
+          <span class="badge badge-neutral badge--md"><%= t("finance.common.inactive") %></span>
+        <% end %>
+      </div>
+      <div class="page-header__actions">
+        <% if policy(@recurring).generate? %>
+          <%= button_to t("finance.recurring.generate_now"), generate_finance_recurring_expense_path(@recurring),
+                method: :post, class: "btn btn-primary btn-sm", form: { style: "display:inline" },
+                data: { turbo_confirm: t("finance.recurring.generate_confirm") } %>
+        <% end %>
+        <% if policy(@recurring).update? %>
+          <%= link_to t("common.edit"), edit_finance_recurring_expense_path(@recurring), class: "btn btn-secondary btn-sm" %>
+        <% end %>
+        <% if policy(@recurring).destroy? %>
+          <%= button_to t("common.delete"), finance_recurring_expense_path(@recurring), method: :delete,
+                class: "btn btn-ghost btn-sm text-danger", form: { style: "display:inline" },
+                data: { turbo_confirm: t("finance.recurring.confirm_delete") } %>
+        <% end %>
+      </div>
     </div>
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.amount") %></dt>
+        <dd><strong style="font-size: var(--text-lg);"><%= format_currency(@recurring.amount) %></strong></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.recurring.frequency") %></dt>
+        <dd><%= t("finance.recurring.frequencies.#{@recurring.frequency}") %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.category") %></dt>
+        <dd><%= @recurring.expense_category.name %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.type") %></dt>
+        <dd><%= @recurring.expense_type&.name || "—" %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.expenses.branch") %></dt>
+        <dd><%= @allocations.any? ? t("finance.expenses.shared") : (@recurring.branch&.name || "—") %></dd>
+      </div>
+      <% if @recurring.created_by %>
+        <div class="detail-list__row">
+          <dt><%= t("finance.expenses.created_by") %></dt>
+          <dd><%= @recurring.created_by.full_name %></dd>
+        </div>
+      <% end %>
+    </dl>
   </div>
 
-  <div class="detail-grid">
-    <div class="detail-item"><span class="detail-label"><%= t("finance.expenses.amount") %></span>
-      <span class="detail-value"><%= format_currency(@recurring.amount) %></span></div>
-    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.frequency") %></span>
-      <span class="detail-value"><%= t("finance.recurring.frequencies.#{@recurring.frequency}") %></span></div>
-    <div class="detail-item"><span class="detail-label"><%= t("finance.expenses.type") %></span>
-      <span class="detail-value"><%= @recurring.expense_type&.name || "—" %></span></div>
-    <div class="detail-item"><span class="detail-label"><%= t("finance.expenses.branch") %></span>
-      <span class="detail-value"><%= @recurring.recurring_expense_allocations.any? ? t("finance.expenses.shared") : (@recurring.branch&.name || "—") %></span></div>
-    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.start_date") %></span>
-      <span class="detail-value"><%= l(@recurring.start_date, format: :long) %></span></div>
-    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.end_date") %></span>
-      <span class="detail-value"><%= @recurring.end_date ? l(@recurring.end_date, format: :long) : "—" %></span></div>
-    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.next_run_on") %></span>
-      <span class="detail-value"><%= l(@recurring.next_run_on, format: :long) %></span></div>
-    <div class="detail-item"><span class="detail-label"><%= t("finance.recurring.last_generated_on") %></span>
-      <span class="detail-value"><%= @recurring.last_generated_on ? l(@recurring.last_generated_on, format: :long) : "—" %></span></div>
+  <%# ── Schedule card ───────────────────────────────────────────────────────── %>
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <div class="card-header">
+      <h2 class="card-title"><%= t("finance.recurring.section_schedule") %></h2>
+    </div>
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("finance.recurring.next_run_on") %></dt>
+        <dd><strong><%= l(@recurring.next_run_on, format: :long) %></strong></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.recurring.start_date") %></dt>
+        <dd><%= l(@recurring.start_date, format: :long) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.recurring.end_date") %></dt>
+        <dd><%= @recurring.end_date ? l(@recurring.end_date, format: :long) : "—" %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("finance.recurring.last_generated_on") %></dt>
+        <dd><%= @recurring.last_generated_on ? l(@recurring.last_generated_on, format: :long) : "—" %></dd>
+      </div>
+    </dl>
   </div>
 
-  <h2 class="section-title" style="margin-top: var(--space-5);"><%= t("finance.recurring.generated_expenses") %></h2>
+  <%# ── Allocations card ───────────────────────────────────────────────────── %>
+  <% if @allocations.any? %>
+    <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card-header">
+        <h2 class="card-title"><%= t("finance.expenses.section_allocations") %></h2>
+      </div>
+      <div class="table-wrap" style="margin-bottom: 0;">
+        <table>
+          <thead><tr>
+            <th><%= t("finance.expenses.branch") %></th>
+            <th style="text-align: end;"><%= t("finance.expenses.percentage") %></th>
+          </tr></thead>
+          <tbody>
+            <% @allocations.each do |alloc| %>
+              <tr>
+                <td><%= alloc.branch.name %></td>
+                <td style="text-align: end;"><%= number_with_precision(alloc.allocation_percentage, precision: 2) %>%</td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <%# ── Notes card ──────────────────────────────────────────────────────────── %>
+  <% if @recurring.notes.present? %>
+    <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card-header">
+        <h2 class="card-title"><%= t("finance.recurring.notes") %></h2>
+      </div>
+      <div style="overflow-wrap: anywhere;"><%= simple_format(@recurring.notes) %></div>
+    </div>
+  <% end %>
+
+  <h2 class="section-title"><%= t("finance.recurring.generated_expenses") %></h2>
   <% if @generated.empty? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("finance.recurring.no_generated") %></p></div>
   <% else %>
