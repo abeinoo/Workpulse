@@ -53,6 +53,20 @@ class PayrollPeriod < ApplicationRecord
     payroll_period_branch_reviews.where(status: "changes_requested").any?
   end
 
+  # Unresolved (pending_review) adjustments that pay into this period: review-time
+  # adjustments linked to it, plus standalone ones (no payroll_period_id) for its
+  # business + month — the same business/month resolution EntryCalculator,
+  # AdjustmentApplier and PayrollAdjustment#review_period use (one period per
+  # business + month, enforced by a unique index). Counted per adjustment, so an
+  # adjustment that is also materialised as a line item is counted once.
+  def pending_adjustments
+    PayrollAdjustment.pending
+                     .where(business_id: business_id)
+                     .where("payroll_adjustments.payroll_period_id = :id OR " \
+                            "(payroll_adjustments.period_year = :year AND payroll_adjustments.period_month = :month)",
+                            id: id, year: period_year, month: period_month)
+  end
+
   # Locking: finalized and paid periods are immutable.
   def locked?
     finalized? || paid?

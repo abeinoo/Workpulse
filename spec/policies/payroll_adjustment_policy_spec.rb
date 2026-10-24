@@ -105,6 +105,31 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
     it "denies a user without approve_adjustments" do
       expect(subject.new(employee, adjustment).approve?).to be false
     end
+
+    %w[approved rejected].each do |status|
+      it "denies reviewing an adjustment that is already #{status}" do
+        adjustment.update_column(:review_status, status)
+        expect(subject.new(super_admin, adjustment).approve?).to be false
+        expect(subject.new(super_admin, adjustment).reject?).to be false
+      end
+    end
+
+    %i[finalized paid].each do |status|
+      it "denies reviewing a pending adjustment in a #{status} period" do
+        adjustment.payroll_period.update_column(:status, status.to_s)
+        expect(subject.new(super_admin, adjustment).approve?).to be false
+        expect(subject.new(super_admin, adjustment).reject?).to be false
+      end
+
+      it "denies reviewing a standalone adjustment whose month's period is #{status}" do
+        standalone = create(:payroll_adjustment, :cash_incentive, payroll_period: nil, business: business,
+                            period_month: period.period_month, period_year: period.period_year,
+                            user: employee, created_by: manager)
+        period.update_column(:status, status.to_s)
+        expect(subject.new(super_admin, standalone).approve?).to be false
+        expect(subject.new(super_admin, standalone).reject?).to be false
+      end
+    end
   end
 
   # Adjustment Analytics & Reports are visible only to Business-scope users.
@@ -333,11 +358,14 @@ RSpec.describe PayrollAdjustmentPolicy, type: :model do
     let(:finalized_period) do
       create(:payroll_period, :finalized, business: business)
     end
+    # Created approved: a pending adjustment can no longer be created in a
+    # finalized period; each example sets the status it needs.
     let(:locked_adj) do
       create(:payroll_adjustment, :cash_incentive,
              payroll_period: finalized_period,
              user:           employee,
-             created_by:     super_admin)
+             created_by:     super_admin,
+             review_status:  :approved)
     end
 
     it "blocks create? on a finalized period even for super_admin" do

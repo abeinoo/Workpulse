@@ -9,6 +9,9 @@ module Payroll
   #   branch_review_completed → finalized   (normal final approval)
   #   under_review → finalized              (override: skip branch review)
   #   finalized → paid                      (settle advances)
+  #
+  # Both transitions are refused while the period still has adjustments pending
+  # review (PayrollPeriod#pending_adjustments), with the count in the error.
   class Approver
     TRANSITIONS = {
       "branch_review_completed" => "finalized",
@@ -46,6 +49,18 @@ module Payroll
         @period.lock!
         unless @period.status == observed_status
           transition_error = no_transition_error
+          raise ActiveRecord::Rollback
+        end
+
+        # Neither finalized nor paid while an adjustment still awaits review.
+        # Counted under the period lock: every review (PayrollAdjustment#approve_by!
+        # / #reject_by!) and every write that leaves an adjustment pending in this
+        # period (creation, AdjustmentEditor) locks the same row first, so the count
+        # cannot go stale before this transition commits.
+        pending = @period.pending_adjustments.count
+        if pending.positive?
+          transition_error = I18n.t("payroll.errors.pending_adjustments_#{next_status == 'paid' ? 'pay' : 'finalize'}",
+                                    count: pending)
           raise ActiveRecord::Rollback
         end
 

@@ -280,62 +280,16 @@ class PayrollPeriodsController < ApplicationController
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period, :approve_all_pending?
 
-    unless @period.editable?
-      return redirect_to payroll_period_path(@period),
-                         alert: t("flash.period_not_reviewable")
+    # Self-approval skipping, source-adjustment sync, the period lock and the
+    # audit log all live in the service shared with the API.
+    result = Payroll::PendingItemsApprover.call(period_id: @period.id, reviewer: current_user)
+    unless result.ok?
+      alert = result.error == :not_reviewable ? t("flash.period_not_reviewable") : t("flash.no_pending_items")
+      return redirect_to payroll_period_path(@period), alert: alert
     end
 
-    pending_items = PayrollLineItem
-      .joins(:payroll_entry)
-      .where(payroll_entries: { payroll_period_id: @period.id })
-      .where(review_status: :pending_review)
-      .includes(:payroll_entry)
-
-    return redirect_to payroll_period_path(@period),
-                       alert: t("flash.no_pending_items") if pending_items.empty?
-
-    entry_ids = Set.new
-    approved  = 0
-    skipped   = 0
-
-    ActiveRecord::Base.transaction do
-      pending_items.each do |item|
-        # Adjustment-sourced items obey the single approval rule: the bulk approver
-        # must hold approve_adjustments AND must not be the adjustment's creator.
-        # Such items are skipped (not approved) when the rule is not satisfied, so a
-        # manager can never self-approve their own adjustments via "approve all".
-        # System-generated attendance items have no creator and stay gated only by
-        # approve_payroll_items (the action-level authorization above).
-        if item.adjustment_sourced? &&
-           !Payroll::AdjustmentApproval.permitted?(reviewer: current_user, creator: item.source_creator)
-          skipped += 1
-          next
-        end
-
-        item.update!(
-          review_status: :approved,
-          reviewed_by:   current_user,
-          reviewed_at:   Time.current
-        )
-        item.source_adjustment&.approve_by!(current_user)
-        entry_ids << item.payroll_entry_id
-        approved  += 1
-      end
-      # Recalculate each entry exactly once rather than once per item
-      PayrollEntry.where(id: entry_ids.to_a)
-                  .includes(:payroll_line_items)
-                  .each(&:recalculate_totals!)
-    end
-
-    PayrollAuditLog.create!(
-      payroll_period: @period,
-      actor:          current_user,
-      action_type:    :adjustment_approved,
-      metadata:       JSON.generate(bulk_approved: true, count: approved, skipped: skipped, approved_at: Time.current.iso8601)
-    )
-
-    notice = t("flash.all_pending_approved", count: approved)
-    notice += " #{t('flash.pending_skipped_self', count: skipped)}" if skipped.positive?
+    notice = t("flash.all_pending_approved", count: result.approved)
+    notice += " #{t('flash.pending_skipped_self', count: result.skipped)}" if result.skipped.positive?
     redirect_to payroll_period_path(@period), notice: notice
   rescue StandardError => e
     redirect_to payroll_period_path(@period), alert: e.message

@@ -23,9 +23,18 @@ draft  →  under_review  →  branch_review_completed  →  finalized  →  pai
 | `finalized` | owner / finalize_payroll | `finalize` |
 | `paid` | owner | `mark_paid` |
 
-**Locked**: Any status other than `draft`. Locked periods reject new adjustments
-and block regeneration. The `PayrollPeriod#locked?` and `PayrollPeriod#lock_reason`
-methods express this.
+**Locked**: `PayrollPeriod#locked?` is true for `finalized` and `paid` (`#lock_reason`
+says which). Locked periods reject new adjustments and adjustment reviews; regeneration
+is limited to `draft`.
+
+**Pending adjustments block finalized and paid**: `Payroll::Approver.advance` — the
+only path to either status, behind the web and API `finalize` / `mark_paid` actions and
+the `under_review → finalized` override — refuses while `PayrollPeriod#pending_adjustments`
+is non-empty, with the count (`payroll.errors.pending_adjustments_finalize` /
+`_pay`). Pending = `pending_review` adjustments linked to the period or standalone for
+its business + month, counted once each. A period finalized before this rule may still
+hold pending adjustments; it must be reopened (`Payroll::Reopener`) to review them
+before it can be paid.
 
 ---
 
@@ -143,11 +152,20 @@ Validates all rows first (no partial saves). The `user.business` must match
 `current_user.business` — enforced via `PayrollAdjustment`'s `user_belongs_to_business`
 validation.
 
-### Adjustment Approval/Rejection — `Payroll::LineItemReviewer`
+### Adjustment Approval/Rejection
 
-Updates `PayrollAdjustment.review_status`, syncs the corresponding `PayrollLineItem`,
-and calls `entry.recalculate_totals!`. Fires `PayrollAuditLog` and optionally
-`Payroll::NotificationService`.
+Entry points: `Payroll::LineItemReviewer` (single line item), `AdjustmentsController`
+approve/reject and `Adjustments::BulkReview` (standalone adjustments),
+`PayrollAdjustmentsController` approve/reject (review-time), and
+`Payroll::PendingItemsApprover` ("approve all pending"). All change status only through
+`PayrollAdjustment#approve_by!` / `#reject_by!`, which allow only
+`pending_review → approved | rejected`, refuse a locked period, and lock the period row
+then the adjustment row before re-checking. Approval, line-item materialisation,
+`entry.recalculate_totals!` and the audit log commit together or not at all.
+
+Creating a pending adjustment in a finalized/paid period is refused by validation
+(`pending_not_in_locked_period`, period read `FOR SHARE`), and `Payroll::AdjustmentEditor`
+re-checks the current and target periods under `FOR SHARE` locks inside its transaction.
 
 ---
 
@@ -165,9 +183,12 @@ Owner: mark_paid → status: paid
 `PayrollPeriodBranchReview` row. The period advances to `branch_review_completed`
 only when all pending reviews are complete (`PayrollPeriod#reviewable?`).
 
-**Bulk approve**: `PayrollPeriodsController#approve_all_pending` approves all
-`pending_review` line items across the period in a single transaction, then
-recalculates each affected entry exactly once.
+**Bulk approve**: `PayrollPeriodsController#approve_all_pending` and the API action of
+the same name both call `Payroll::PendingItemsApprover`: under a period row lock it
+approves all `pending_review` line items in one transaction (moving each source
+adjustment to approved with its item), skips adjustment items the reviewer may not
+approve (creator, or no `approve_adjustments`), recalculates each affected entry once,
+and writes one audit log.
 
 ---
 
@@ -236,6 +257,10 @@ Runs on a period's entries at display time (not stored). Checks:
 | One period per business per month | DB unique index on (business_id, period_year, period_month) |
 | Regeneration only on draft periods | PeriodGenerator raises; Regenerator returns Result.error |
 | Adjustments cannot be created after submission | `PayrollAdjustment#period_not_locked` validation |
+| No pending adjustment is created in a finalized/paid period | `PayrollAdjustment#pending_not_in_locked_period` validation (period `FOR SHARE`) |
+| No finalize / pay while adjustments are pending | `Payroll::Approver.advance` counts `PayrollPeriod#pending_adjustments` under the period lock |
+| Review only `pending_review`, never in a locked period | `PayrollAdjustment#approve_by!` / `#reject_by!` (period → adjustment row locks) |
+| Lock order: payroll period row first | `Payroll::Approver`, review transitions, `PendingItemsApprover`, `LineItemReviewer`, `AdjustmentEditor` |
 | `user.business == adjustment.business` | `user_belongs_to_business` model validation |
 | Net salary formula is canonical | Only computed in EntryCalculator and `PayrollEntry#recalculate_totals!` |
 | Advance/obligation deduction is always re-derived | ObligationDeduction.destroy_all before regeneration; balance restored by callback |

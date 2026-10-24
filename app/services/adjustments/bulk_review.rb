@@ -11,7 +11,8 @@ module Adjustments
   # Outcome buckets:
   #   succeeded — transitioned to approved/rejected just now
   #   skipped   — already decided (approved/rejected) → nothing to do
-  #   failed    — not permitted (e.g. reviewer is the creator) or a save error
+  #   failed    — not permitted (e.g. reviewer is the creator), payroll period
+  #               finalized/paid, or a save error
   class BulkReview
     Result = Struct.new(:action, :succeeded, :skipped, :failed, :failures, keyword_init: true) do
       def total          = succeeded + skipped + failed
@@ -76,10 +77,15 @@ module Adjustments
       if @action == :reject
         adjustment.reject_by!(@reviewer, notes: @notes)
       else
-        adjustment.approve_by!(@reviewer)
-        # Materialise into an existing PayrollEntry so the entry stays in sync
-        # without requiring a full period regeneration. No-ops when no entry exists.
-        Payroll::AdjustmentApplier.call(adjustment: adjustment)
+        # Per-row transaction (rows stay independent of each other): if
+        # materialising fails, this row's approval is rolled back with it.
+        ActiveRecord::Base.transaction do
+          adjustment.approve_by!(@reviewer)
+          # Materialise into an existing PayrollEntry so the entry stays in sync
+          # without requiring a full period regeneration. No-ops when no entry exists.
+          applied = Payroll::AdjustmentApplier.call(adjustment: adjustment)
+          raise PayrollAdjustment::ReviewTransitionError, I18n.t("adjustments.errors.apply_failed") unless applied.success?
+        end
       end
     end
 

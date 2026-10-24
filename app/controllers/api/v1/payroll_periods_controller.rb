@@ -58,31 +58,18 @@ module Api
 
       def approve_all_pending
         authorize @period, :approve_all_pending?
-        return render_error("Period is not reviewable") unless @period.editable?
 
-        pending_items = PayrollLineItem
-                          .joins(:payroll_entry)
-                          .where(payroll_entries: { payroll_period_id: @period.id })
-                          .where(review_status: :pending_review)
-
-        return render_error("No pending items") if pending_items.empty?
-
-        entry_ids = Set.new
-        approved  = 0
-        ActiveRecord::Base.transaction do
-          pending_items.find_each do |item|
-            item.update!(
-              review_status: :approved,
-              reviewed_by:   current_user,
-              reviewed_at:   Time.current
-            )
-            entry_ids << item.payroll_entry_id
-            approved  += 1
-          end
-          PayrollEntry.where(id: entry_ids.to_a).find_each(&:recalculate_totals!)
+        # Same service as the web action: self-created adjustments are skipped,
+        # source adjustments follow their line items, the period is locked.
+        result = Payroll::PendingItemsApprover.call(period_id: @period.id, reviewer: current_user)
+        unless result.ok?
+          return render_error(result.error == :not_reviewable ? "Period is not reviewable" : "No pending items")
         end
 
-        render_success(period_json(@period.reload).merge(approved_count: approved))
+        render_success(period_json(@period.reload).merge(approved_count: result.approved,
+                                                         skipped_count:  result.skipped))
+      rescue PayrollAdjustment::ReviewTransitionError => e
+        render_error(e.message)
       end
 
       def reopen
