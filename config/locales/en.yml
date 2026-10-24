@@ -647,6 +647,9 @@ en:
     col_net: "Net"
 
   payroll:
+    errors:
+      pending_adjustments_finalize: "Payroll cannot be finalized: %{count} adjustment(s) are still pending review. Approve or reject them first."
+      pending_adjustments_pay: "Payroll cannot be marked as paid: %{count} adjustment(s) are still pending review. Reopen the payroll period to approve or reject them first."
     insurance_expense_void_reason: "Payroll period reopened: %{reason}"
     base_salary: "Base salary"
     overtime: "Overtime"
@@ -1311,6 +1314,9 @@ en:
       no_open_period: "There is no open payroll period available. Adjustments can only be added to periods that have not yet been processed."
       review_permission: "You do not have permission to approve adjustments."
       review_own: "You cannot approve or reject an adjustment you created. A different approver is required."
+      not_pending: "This adjustment has already been reviewed. Only pending adjustments can be approved or rejected."
+      review_period_locked: "Payroll for this period has been finalized or paid. Its adjustments can no longer be approved or rejected — reopen the payroll period first."
+      apply_failed: "The adjustment could not be applied to the payroll entry, so it was not approved. Please try again."
     index:
       title: "Adjustments"
       page_title: "Adjustments — WorkPulse"

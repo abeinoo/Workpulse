@@ -92,8 +92,10 @@ class PayrollAdjustmentsController < ApplicationController
                 alert: t("payroll.locked.#{@period.lock_reason}")
   end
 
+  # Scoped to the URL's period: audit logs, the editable check and redirects all
+  # use @period, so an adjustment from another period must not resolve here.
   def set_adjustment
-    @adjustment = policy_scope(PayrollAdjustment).find(params[:id])
+    @adjustment = policy_scope(PayrollAdjustment).where(payroll_period: @period).find(params[:id])
   end
 
   def entry_path_for(adjustment)

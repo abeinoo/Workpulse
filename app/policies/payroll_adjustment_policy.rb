@@ -114,8 +114,13 @@ class PayrollAdjustmentPolicy < ApplicationPolicy
     period&.locked?
   end
 
+  # Only a pending adjustment in an unlocked period can be reviewed. The lock
+  # resolves standalone adjustments by month too (PayrollAdjustment#review_period),
+  # because approval materialises them into that month's payroll entry.
   def can_review?
     return false unless same_business?
+    return false unless record.pending_review?
+    return false if record.review_period_locked?
 
     # The single approval rule for the entire payroll system.
     Payroll::AdjustmentApproval.permitted?(reviewer: user, creator: record.created_by_id)

@@ -39,11 +39,18 @@ module Payroll
         return err(I18n.t("adjustments.errors.review_own"))
       end
 
-      period = @line_item.payroll_entry.payroll_period
-      return err("Payroll period is already finalized") unless period.editable?
-      return err("Only pending items can be approved or rejected") unless @line_item.pending_review?
+      refusal = nil
 
       ActiveRecord::Base.transaction do
+        # Lock order "period first" (as Payroll::Approver): the period row, then
+        # the line item; both re-read under the lock, so a finalization and this
+        # review cannot both pass on stale state.
+        period = PayrollPeriod.lock.find(@line_item.payroll_entry.payroll_period_id)
+        @line_item.lock!
+        refusal   = "Payroll period is already finalized" unless period.editable?
+        refusal ||= "Only pending items can be approved or rejected" unless @line_item.pending_review?
+        raise ActiveRecord::Rollback if refusal
+
         @line_item.update!(
           review_status: target_status,
           reviewed_by:   @reviewed_by,
@@ -53,6 +60,8 @@ module Payroll
         sync_source_adjustment!
         @line_item.payroll_entry.recalculate_totals!
       end
+
+      return err(refusal) if refusal
 
       Result.new(success: true, line_item: @line_item)
     rescue => e

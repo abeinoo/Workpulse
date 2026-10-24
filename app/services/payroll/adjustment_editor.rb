@@ -47,7 +47,16 @@ module Payroll
         return Result.new(ok: false, error: :target_period_locked, record: @adjustment)
       end
 
-      ActiveRecord::Base.transaction do
+      refusal = nil
+
+      result = ActiveRecord::Base.transaction do
+        # Period first (as Payroll::Approver): lock the current and target periods
+        # FOR SHARE, in id order, and re-check them — a finalization committed
+        # since the checks above is seen here, and one started now waits for this
+        # edit (which leaves the adjustment pending, so it then refuses).
+        refusal = locked_period_refusal
+        raise ActiveRecord::Rollback if refusal
+
         snapshot = build_snapshot
 
         @adjustment.assign_attributes(permitted_params)
@@ -93,6 +102,8 @@ module Payroll
 
         Result.new(ok: true, record: @adjustment.reload)
       end
+
+      refusal ? Result.new(ok: false, error: refusal, record: @adjustment) : result
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, record: @adjustment, error: e.record.errors.full_messages.first)
     rescue ArgumentError => e
@@ -154,6 +165,26 @@ module Payroll
       return false unless tp
 
       Adjustments::SelectablePeriods::LOCKED_STATUSES.include?(tp.status)
+    end
+
+    # Same rules as current_period_finalized? / target_period_locked?, re-read
+    # under row locks. Returns the refusal key, or nil.
+    def locked_period_refusal
+      current = @adjustment.payroll_period_id ||
+                PayrollPeriod.where(business: @actor.business, period_month: @adjustment.period_month,
+                                    period_year: @adjustment.period_year).pick(:id)
+      target  = (resolved_target_period&.id if target_changes_period?)
+      periods = PayrollPeriod.where(id: [ current, target ].compact).order(:id).lock("FOR SHARE").index_by(&:id)
+
+      return :period_finalized if current && periods[current]&.locked?
+      return :target_period_locked if target && Adjustments::SelectablePeriods::LOCKED_STATUSES.include?(periods[target]&.status)
+
+      nil
+    end
+
+    def target_changes_period?
+      parsed = parsed_period_key
+      parsed && !(parsed[:year] == @adjustment.period_year && parsed[:month] == @adjustment.period_month)
     end
 
     def build_snapshot

@@ -197,6 +197,80 @@ RSpec.describe PayrollAdjustment, type: :model do
     end
   end
 
+  describe "review transitions (#approve_by! / #reject_by!)" do
+    let(:period)   { create(:payroll_period, status: "under_review") }
+    let(:reviewer) { create(:user, :accountant, business: period.business) }
+    let(:pending)  { create(:payroll_adjustment, payroll_period: period) }
+
+    it "moves a pending adjustment in an open period to approved" do
+      pending.approve_by!(reviewer)
+      expect(pending.reload).to be_approved
+      expect(pending.approved_by).to eq(reviewer)
+    end
+
+    it "moves a pending adjustment in an open period to rejected" do
+      pending.reject_by!(reviewer, notes: "No")
+      expect(pending.reload).to be_rejected
+      expect(pending.review_notes).to eq("No")
+    end
+
+    %w[approved rejected].each do |status|
+      it "refuses any transition out of #{status}" do
+        adj = create(:payroll_adjustment, payroll_period: period, review_status: status)
+
+        expect { adj.approve_by!(reviewer) }.to raise_error(described_class::ReviewTransitionError)
+        expect { adj.reject_by!(reviewer) }.to raise_error(described_class::ReviewTransitionError)
+        expect(adj.reload.review_status).to eq(status)
+        expect(adj.reviewed_by_id).to be_nil
+      end
+    end
+
+    %w[finalized paid].each do |status|
+      it "refuses to review a pending adjustment in a #{status} period" do
+        pending.payroll_period.update_column(:status, status)
+
+        expect { pending.approve_by!(reviewer) }.to raise_error(described_class::ReviewTransitionError)
+        expect { pending.reject_by!(reviewer) }.to raise_error(described_class::ReviewTransitionError)
+        expect(pending.reload).to be_pending_review
+      end
+
+      it "refuses a standalone adjustment whose month's period is #{status}" do
+        # Submitted while the month was still a draft; payroll was closed afterwards.
+        period.update_column(:status, "draft")
+        standalone = create(:payroll_adjustment, payroll_period: nil, business: period.business,
+                            period_month: period.period_month, period_year: period.period_year,
+                            user: create(:user, business: period.business),
+                            created_by: create(:user, business: period.business))
+        period.update_column(:status, status)
+
+        expect(standalone.review_period).to eq(period)
+        expect { standalone.approve_by!(reviewer) }.to raise_error(described_class::ReviewTransitionError)
+        expect(standalone.reload).to be_pending_review
+      end
+    end
+
+    it "re-reads the period under its lock: a finalization after the caller's check is seen" do
+      adj = pending
+      expect(adj.review_period_locked?).to be false # caller's (policy-time) view: open
+      PayrollPeriod.where(id: period.id).update_all(status: "finalized") # committed elsewhere meanwhile
+
+      expect { adj.approve_by!(reviewer) }.to raise_error(described_class::ReviewTransitionError,
+                                                          I18n.t("adjustments.errors.review_period_locked"))
+      expect(adj.reload).to be_pending_review
+    end
+
+    it "lets only one of two concurrent reviews win (stale copy re-checked under the row lock)" do
+      first  = described_class.find(pending.id)
+      second = described_class.find(pending.id)
+
+      first.approve_by!(reviewer)
+
+      expect { second.reject_by!(reviewer) }.to raise_error(described_class::ReviewTransitionError)
+      expect(pending.reload).to be_approved
+      expect(pending.rejected_by_id).to be_nil
+    end
+  end
+
   describe "associations" do
     it { is_expected.to belong_to(:payroll_period).optional }
     it { is_expected.to belong_to(:user) }

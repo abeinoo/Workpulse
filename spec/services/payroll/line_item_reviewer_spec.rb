@@ -142,4 +142,31 @@ RSpec.describe Payroll::LineItemReviewer do
       end
     end
   end
+
+  # The period and line item are re-read under their row locks (period first),
+  # so a caller holding stale copies cannot review on out-of-date state.
+  describe "stale caller state" do
+    it "refuses when the period was finalized after the caller loaded the line item" do
+      item = line_item
+      item.payroll_entry.payroll_period # caller's copy says the period is open
+      PayrollPeriod.where(id: period.id).update_all(status: "finalized")
+
+      result = described_class.call(line_item: item, action: "approve", reviewed_by: manager)
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Payroll period is already finalized")
+      expect(line_item.reload).to be_pending_review
+    end
+
+    it "refuses when the line item was reviewed after the caller loaded it" do
+      item = line_item
+      PayrollLineItem.where(id: item.id).update_all(review_status: "approved")
+
+      result = described_class.call(line_item: item, action: "reject", reviewed_by: manager)
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Only pending items can be approved or rejected")
+      expect(line_item.reload).to be_approved
+    end
+  end
 end

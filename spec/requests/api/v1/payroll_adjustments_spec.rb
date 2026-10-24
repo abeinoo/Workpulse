@@ -20,10 +20,13 @@ RSpec.describe "API::V1 PayrollAdjustments index", type: :request do
            user: employee, created_by: manager, payroll_period: period,
            period_month: period.period_month, period_year: period.period_year)
   end
+  # Legacy state: a pending adjustment can no longer be created in a paid
+  # period, so it is created approved and set back to pending.
   let!(:my_pending) do
-    create(:payroll_adjustment, :commission, business: business,
+    create(:payroll_adjustment, :commission, :approved, business: business,
            user: employee, created_by: manager, payroll_period: period,
            period_month: period.period_month, period_year: period.period_year)
+      .tap { |adj| adj.update_column(:review_status, "pending_review") }
   end
   let!(:coworker_approved) do
     create(:payroll_adjustment, :cash_incentive, :approved, business: business,

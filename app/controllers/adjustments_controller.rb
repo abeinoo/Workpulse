@@ -10,7 +10,7 @@ class AdjustmentsController < ApplicationController
     @filters = filter_params
 
     base_scope = policy_scope(PayrollAdjustment)
-                   .includes(:user, :created_by, :approved_by, :rejected_by,
+                   .includes(:user, :created_by, :approved_by, :rejected_by, :payroll_period,
                               user: { profile_photo_attachment: :blob })
 
     # Show ALL adjustments by default; every filter is optional and combinable.
@@ -129,10 +129,14 @@ class AdjustmentsController < ApplicationController
   def approve
     authorize @adjustment
 
-    @adjustment.approve_by!(current_user)
     # Materialise the approved adjustment into the existing PayrollEntry (if any)
     # so the entry and its totals stay in sync without requiring a full regeneration.
-    Payroll::AdjustmentApplier.call(adjustment: @adjustment)
+    # One transaction: if materialising fails, the approval is rolled back too.
+    ActiveRecord::Base.transaction do
+      @adjustment.approve_by!(current_user)
+      applied = Payroll::AdjustmentApplier.call(adjustment: @adjustment)
+      raise PayrollAdjustment::ReviewTransitionError, t("adjustments.errors.apply_failed") unless applied.success?
+    end
 
     redirect_back fallback_location: adjustments_path, notice: t("flash.adjustment_approved")
   rescue => e

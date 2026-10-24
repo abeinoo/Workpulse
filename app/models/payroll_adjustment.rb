@@ -44,6 +44,7 @@ class PayrollAdjustment < ApplicationRecord
   validates :payment_method, inclusion: { in: PAYMENT_METHODS }, allow_nil: true
   validate  :already_paid_only_for_positive, if: -> { already_paid? }
   validate  :period_not_locked, on: :create
+  validate  :pending_not_in_locked_period, on: :create, if: :pending_review?
   validate  :user_belongs_to_business
   validate  :creator_is_not_approver
 
@@ -69,29 +70,60 @@ class PayrollAdjustment < ApplicationRecord
     positive? ? amount : -amount
   end
 
+  # Raised when a review transition is attempted on an adjustment that is no
+  # longer pending, or whose payroll period is finalized/paid.
+  class ReviewTransitionError < StandardError; end
+
   # ── Approval transitions ──────────────────────────────────────────────────
   # The ONLY place an adjustment changes review_status. Callers must have already
   # checked Payroll::AdjustmentApproval.permitted? (policy or service layer); the
   # creator_is_not_approver validation is the final backstop on write.
+  #
+  # Only pending_review → approved | rejected is valid, and never inside a locked
+  # period. Lock order is "period first" (the order of Payroll::Approver, which
+  # locks the period row before finalizing or paying): payroll period row, then
+  # this adjustment's row. Both are re-read under their locks, so a review and a
+  # finalization cannot both pass on stale state, and of two concurrent reviews
+  # the second sees the first's decision and raises.
   def approve_by!(reviewer)
-    update!(
-      review_status: "approved",
-      approved_by:   reviewer,
-      approved_at:   Time.current,
-      reviewed_by:   reviewer,
-      reviewed_at:   Time.current
-    )
+    review_transaction do
+      update!(
+        review_status: "approved",
+        approved_by:   reviewer,
+        approved_at:   Time.current,
+        reviewed_by:   reviewer,
+        reviewed_at:   Time.current
+      )
+    end
   end
 
   def reject_by!(reviewer, notes: nil)
-    update!(
-      review_status: "rejected",
-      rejected_by:   reviewer,
-      rejected_at:   Time.current,
-      reviewed_by:   reviewer,
-      reviewed_at:   Time.current,
-      review_notes:  notes
-    )
+    review_transaction do
+      update!(
+        review_status: "rejected",
+        rejected_by:   reviewer,
+        rejected_at:   Time.current,
+        reviewed_by:   reviewer,
+        reviewed_at:   Time.current,
+        review_notes:  notes
+      )
+    end
+  end
+
+  # The payroll period this adjustment pays into: the linked period for
+  # review-time adjustments, otherwise the business's period for its month —
+  # the same resolution Payroll::AdjustmentApplier uses when materialising.
+  #
+  # Read-only lookup (policy / UI): uses the association, so a preloaded
+  # :payroll_period costs no query. The transitions re-read it under a row lock.
+  def review_period
+    return @review_period if defined?(@review_period)
+
+    @review_period = payroll_period_id ? payroll_period : review_period_relation.first
+  end
+
+  def review_period_locked?
+    review_period&.locked? || false
   end
 
   # Owner-created adjustments are auto-approved at creation: the business owner is
@@ -135,6 +167,30 @@ class PayrollAdjustment < ApplicationRecord
 
   private
 
+  def review_period_relation
+    if payroll_period_id
+      PayrollPeriod.where(id: payroll_period_id)
+    else
+      PayrollPeriod.where(business_id: business_id, period_month: period_month, period_year: period_year)
+    end
+  end
+
+  # Locks period → adjustment (both re-read FOR UPDATE), refuses unless still
+  # pending in an unlocked period, then yields the write. Joins the caller's
+  # transaction when there is one, so the caller's later writes (line item,
+  # entry totals, audit log) commit or roll back with it. Re-locking a row the
+  # caller already holds is a no-op.
+  def review_transaction
+    self.class.transaction do
+      @review_period = review_period_relation.lock.first
+      lock!
+      raise ReviewTransitionError, I18n.t("adjustments.errors.not_pending") unless pending_review?
+      raise ReviewTransitionError, I18n.t("adjustments.errors.review_period_locked") if review_period_locked?
+
+      yield
+    end
+  end
+
   def already_paid_only_for_positive
     errors.add(:already_paid, "is only valid for cash incentive adjustments") unless cash_incentive?
   end
@@ -163,6 +219,22 @@ class PayrollAdjustment < ApplicationRecord
     elsif period.under_review? || period.branch_review_completed?
       errors.add(:base, I18n.t("adjustments.errors.period_under_review"))
     end
+  end
+
+  # A finalized/paid period can never gain a pending adjustment (Payroll::Approver
+  # refuses to finalize or pay while one is pending, and reviews are refused in a
+  # locked period, so it could never be resolved). Covers linked adjustments too,
+  # which period_not_locked deliberately lets through while the period is open.
+  # The period row is read FOR SHARE: inside save's transaction it is held until
+  # commit, so a concurrent finalization (FOR UPDATE) either waits for this
+  # creation — and then counts it — or commits first and is seen here. Shared,
+  # so concurrent creations do not block each other.
+  def pending_not_in_locked_period
+    return unless business_id && period_month && period_year
+
+    period  = review_period_relation.lock("FOR SHARE").first
+    message = I18n.t("adjustments.errors.period_processed")
+    errors.add(:base, message) if period&.locked? && !errors.added?(:base, message)
   end
 
   # Enforces creator != approver at the data layer. Even if a controller or service

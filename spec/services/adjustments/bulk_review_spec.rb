@@ -107,6 +107,38 @@ RSpec.describe Adjustments::BulkReview do
     end
   end
 
+  describe "locked periods and atomicity" do
+    it "fails (and leaves untouched) a pending row whose period is finalized" do
+      finalized = create(:payroll_period, :finalized, business: business, period_year: period.period_year + 1)
+      # Legacy state (pending adjustments can no longer be created in a locked period).
+      locked = create(:payroll_adjustment, :cash_incentive, :approved, payroll_period: finalized, business: business,
+                      user: employee, created_by: manager)
+      locked.update_column(:review_status, "pending_review")
+      ok     = adjustment
+
+      result = described_class.approve(adjustments: [ locked, ok ], reviewer: approver)
+
+      expect(result.failed).to eq(1)
+      expect(result.succeeded).to eq(1)
+      expect(locked.reload).to be_pending_review
+      expect(ok.reload).to be_approved
+    end
+
+    it "rolls back a row's approval when materialising into the entry fails" do
+      create(:payroll_entry, payroll_period: period, user: employee,
+             base_salary: 5_000.0, net_salary: 5_000.0, total_bonuses: 0.0, total_deductions: 0.0)
+      adj = adjustment
+      allow_any_instance_of(PayrollEntry).to receive(:recalculate_totals!)
+        .and_raise(ActiveRecord::RecordInvalid.new(PayrollEntry.new))
+
+      result = described_class.approve(adjustments: [ adj ], reviewer: approver)
+
+      expect(result.failed).to eq(1)
+      expect(adj.reload).to be_pending_review
+      expect(PayrollLineItem.where(source_type: "PayrollAdjustment", source_id: adj.id)).to be_empty
+    end
+  end
+
   describe ".reject" do
     it "rejects each pending adjustment individually and records the note" do
       a = adjustment

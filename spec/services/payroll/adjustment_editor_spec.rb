@@ -348,4 +348,39 @@ RSpec.describe Payroll::AdjustmentEditor do
       expect(line_item.review_status).to eq("approved")
     end
   end
+
+  # The pre-checks run before the transaction; the periods are re-read under
+  # row locks inside it, so a finalization committed in between is seen.
+  describe "period finalized after the pre-checks" do
+    let(:period) { create(:payroll_period, business: business, status: "under_review") }
+
+    def finalize_before_the_transaction(target)
+      allow_any_instance_of(described_class).to receive(:locked_period_refusal).and_wrap_original do |original|
+        target.update_column(:status, "finalized") # committed by another request meanwhile
+        original.call
+      end
+    end
+
+    it "refuses (:period_finalized) and leaves the adjustment approved and unedited" do
+      finalize_before_the_transaction(period)
+
+      result = call
+
+      expect(result.ok?).to be false
+      expect(result.period_finalized?).to be true
+      expect(adjustment.reload).to have_attributes(review_status: "approved", amount: 500.0, reason: "Original reason")
+      expect(PayrollAdjustmentEdit.where(payroll_adjustment: adjustment)).to be_empty
+    end
+
+    it "refuses (:target_period_locked) when the target period was finalized meanwhile" do
+      target = create(:payroll_period, business: business, status: "draft",
+                      period_year: period.period_year + 1, period_month: period.period_month)
+      finalize_before_the_transaction(target)
+
+      result = call(period_key: "#{target.period_year}-#{target.period_month}")
+
+      expect(result.target_period_locked?).to be true
+      expect(adjustment.reload).to have_attributes(review_status: "approved", period_year: period.period_year)
+    end
+  end
 end
