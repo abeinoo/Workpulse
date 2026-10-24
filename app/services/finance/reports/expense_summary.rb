@@ -63,12 +63,14 @@ module Finance
 
       # {key => total}, {key => count} for one branch: direct expenses plus the
       # branch's allocations of shared expenses (one allocation per expense and
-      # branch — unique index — so a shared expense counts once).
+      # branch — unique index — so a shared expense counts once). Allocations are
+      # grouped by the EXPENSE's column (an Arel attribute — qualified, no SQL
+      # string interpolation).
       def branch_totals(column)
         direct   = scoped.where(branch_id: @branch_id)
         allocs   = ExpenseAllocation.joins(:expense)
                                     .where(expense_id: scoped.where(is_shared: true).select(:id), branch_id: @branch_id)
-                                    .group("expenses.#{column}")
+                                    .group(Expense.arel_table[column])
         totals   = direct.group(column).sum(:amount).merge(allocs.sum(:allocated_amount)) { |_k, a, b| a + b }
         counts   = direct.group(column).count.merge(allocs.count) { |_k, a, b| a + b }
         [ totals, counts ]

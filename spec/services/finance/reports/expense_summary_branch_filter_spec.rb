@@ -57,6 +57,17 @@ RSpec.describe "Finance::Reports expense summary / trend — branch filter" do
     expect(by_label(summary(:type, branch_id: south.id))).to eq(untyped => [ 1, 700 ], "Cleaning" => [ 1, 180 ])
   end
 
+  # Allocations are grouped by the shared EXPENSE's own column (category / type),
+  # and their keys — nil (untyped) included — merge with the branch's direct rows.
+  it "groups a branch's allocations by the shared expense's own column, merging an untyped share with direct untyped rows" do
+    shared_expense(category: rent, amount: 200, date: oct, shares: { north => 50, south => 150 }) # untyped
+    untyped = I18n.t("finance.reports.untyped")
+
+    expect(by_label(summary(:type, branch_id: north.id))).to eq(untyped => [ 2, 1050 ], "Cleaning" => [ 2, 170 ])
+    expect(by_label(summary(:category, branch_id: south.id))).to eq("Rent" => [ 2, 850 ], "Supplies" => [ 1, 180 ])
+    expect(by_label(summary(:category))).to eq("Rent" => [ 3, 1900 ], "Supplies" => [ 2, 350 ]) # counted once in full
+  end
+
   it "never counts a shared expense in full against every branch: branch totals add up to the business total" do
     branch_total = [ north, south ].sum { |b| summary(:category, branch_id: b.id).totals[:total] }
     expect(branch_total).to eq(summary(:category).totals[:total])
