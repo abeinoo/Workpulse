@@ -41,7 +41,7 @@ here only so its stable ID and history are kept.
 | BUG-015 | Goods receipt void racing approval may overwrite a decided approval status | Inventory & Purchasing | Medium (audit / status integrity; money still balances) | Confirmed (two-connection reproduction, Batch S M1) | **Resolved** (receipt row lock in `GoodsReceiptVoider#call`) | — |
 | BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (same receipt row lock) | — |
 | BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (row lock in `Inventory::DocumentVoider#call`) | — |
-| BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (policy scopes in `Admin::DashboardController#index`, uncommitted; was Escalated) | — |
+| BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (`60d851b`, PR #76; was Escalated) | — |
 
 ---
 
@@ -472,8 +472,9 @@ here only so its stable ID and history are kept.
 ## BUG-020 — Admin dashboard shows staff, requests and payroll periods outside the viewer's scope
 
 * **Source:** A1 (architecture / API-readiness audit, 2026-10-25). **Discovered:** 2026-10-25. **Status:** **Resolved**
-  (2026-10-25, uncommitted working-tree change on `main` `0ea42a1`; record the commit when it lands): the dashboard
-  reads through the existing policy scopes. Was **Escalated** — critical under the policy (cross-branch exposure).
+  by `60d851b` "fix: scope admin dashboard data to the viewer's policy scopes (BUG-020)" (2026-10-25; merged into
+  `main` in PR #76, merge commit `9be4145`): the dashboard reads through the existing policy scopes. Was
+  **Escalated** — critical under the policy (cross-branch exposure).
 * **Domain / files:** Reporting — `app/controllers/admin/dashboard_controller.rb` (`#index`),
   `app/views/admin/dashboard/index.html.erb`; gate `Admin::BaseController#require_admin_access!`.
 * **Observed (code, before the fix):** the gate admits any one of 13 permissions, six of them scopable
