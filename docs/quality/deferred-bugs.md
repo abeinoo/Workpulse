@@ -41,6 +41,7 @@ here only so its stable ID and history are kept.
 | BUG-015 | Goods receipt void racing approval may overwrite a decided approval status | Inventory & Purchasing | Medium (audit / status integrity; money still balances) | Confirmed (two-connection reproduction, Batch S M1) | **Resolved** (receipt row lock in `GoodsReceiptVoider#call`) | — |
 | BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (same receipt row lock) | — |
 | BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (row lock in `Inventory::DocumentVoider#call`) | — |
+| BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (policy scopes in `Admin::DashboardController#index`, uncommitted; was Escalated) | — |
 
 ---
 
@@ -466,4 +467,37 @@ here only so its stable ID and history are kept.
 * **Not in scope:** stock-document voids still write no audit row (a separate product decision); a void racing a
   confirmation or edit of the same document was not investigated.
 * **Regression tests:** the concurrency spec above; `document_voider_spec.rb` (sequential guards) unchanged and passing.
+* **Review milestone:** — (resolved).
+
+## BUG-020 — Admin dashboard shows staff, requests and payroll periods outside the viewer's scope
+
+* **Source:** A1 (architecture / API-readiness audit, 2026-10-25). **Discovered:** 2026-10-25. **Status:** **Resolved**
+  (2026-10-25, uncommitted working-tree change on `main` `0ea42a1`; record the commit when it lands): the dashboard
+  reads through the existing policy scopes. Was **Escalated** — critical under the policy (cross-branch exposure).
+* **Domain / files:** Reporting — `app/controllers/admin/dashboard_controller.rb` (`#index`),
+  `app/views/admin/dashboard/index.html.erb`; gate `Admin::BaseController#require_admin_access!`.
+* **Observed (code, before the fix):** the gate admits any one of 13 permissions, six of them scopable
+  (`view_employees`, `manage_employees`, `view_attendance`, `manage_attendance`, `view_payroll`,
+  `manage_salary_profiles`; the branch-manager role holds three). `#index` then read `business.users`,
+  `EmployeeRequest.for_business(...)` and `PayrollPeriod.where(branch: business.branches)` with no policy scope.
+* **Expected vs actual:** a viewer sees what `admin/users#index` (`UserPolicy::Scope`), the requests list
+  (`EmployeeRequestPolicy::Scope`) and `payroll_periods#index` (`PayrollPeriodPolicy::Scope`) show them; instead a
+  branch manager saw every employee's name, role and status, the business-wide headcount and pending-request count,
+  and branch-tagged payroll periods of other branches — drafts included, also for viewers without
+  `view_draft_payroll`. Same business only; no money figures; period links led to scoped pages (404).
+* **Impact:** cross-branch disclosure of staff identity / role / status and payroll-period existence and status. The
+  payroll part is limited to legacy branch-tagged periods (new periods carry no branch); production data not checked.
+* **Evidence:** `spec/requests/admin/dashboard_spec.rb` — on the unchanged code 10 of 12 examples fail (another
+  branch's employee and finalized period shown, counts 3 instead of 2, draft shown without draft access); with the fix
+  12 / 0.
+* **Fix:** `#index` uses `policy_scope(User)` for the list and headcount (owner still excluded from the count),
+  `policy_scope(EmployeeRequest)` for the pending count, and `policy_scope(PayrollPeriod)` intersected with the
+  existing branch-tagged selection. Owner and business-scoped viewers unchanged; the branch and active-shift counts
+  (business configuration) unchanged; no route, view, policy or gate change.
+* **Not in scope:** the gate still admits non-scopable admin permissions (they now see only their own data);
+  controller-wide Pundit enforcement (audit S5); the payroll section not listing current (branch-less) periods (a
+  feature decision).
+* **Regression tests:** `spec/requests/admin/dashboard_spec.rb` (12: branch manager with the hierarchy default and with
+  an explicit branch scope, business-scoped viewer without draft access, owner, `manage_devices`-only viewer, other
+  business, non-admin redirect, parity with the employee list).
 * **Review milestone:** — (resolved).
