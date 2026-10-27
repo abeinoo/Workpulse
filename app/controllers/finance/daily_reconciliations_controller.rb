@@ -1624,22 +1624,31 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @bank_missing_count      = @bank_statement_covers_day ? unmatched_count : 0
     @bank_not_imported_count = @bank_statement_covers_day ? 0 : unmatched_count
 
-    # Bank transactions with no matching WorkPulse deposit for this branch/day.
+    # Bank transactions with no matching WorkPulse deposit for this branch,
+    # dated on the business day or on any day one of its deposits (voided
+    # included) was made — a deposit made after midnight, or a transaction
+    # released when its deposit was voided, carries the deposit's own date.
+    unexpected_dates = ([ @reconciliation.business_date ] + @all_deposits.map { |d| d.deposited_at.to_date }).uniq
     @bank_unexpected_transactions = BankStatementTransaction
       .for_business(@reconciliation.business)
       .joins(:bank_statement)
       .where(bank_statements: { branch_id: [ nil, @reconciliation.branch_id ] })
       .where.missing(:deposit_matches)
-      .where(status: "unexpected", transaction_date: @reconciliation.business_date)
+      .where(status: "unexpected", transaction_date: unexpected_dates)
       .includes(:bank_statement)
       .to_a
 
-    # Bank transactions matched to this DR's deposits but needing manual review.
-    active_deposit_ids = @all_deposits.reject(&:voided?).map(&:id)
-    @bank_review_transactions = if active_deposit_ids.any?
+    # Bank transactions linked to any of this DR's deposits that need review —
+    # voided deposits included, so a needs_reverification transaction still
+    # linked to a voided deposit (voids before matches were released on void)
+    # can never drop out of view.
+    all_deposit_ids = @all_deposits.map(&:id)
+    @bank_review_transactions = if all_deposit_ids.any?
       BankStatementTransaction
         .joins(:deposit_matches)
-        .where(deposit_matches: { till_deposit_id: active_deposit_ids }, status: "needs_manual_review")
+        .where(deposit_matches: { till_deposit_id: all_deposit_ids },
+               status: %w[needs_manual_review needs_reverification])
+        .distinct
         .includes(:bank_statement, :till_deposits)
         .to_a
     else
@@ -1654,7 +1663,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @exceptions = []
 
     (@bank_review_transactions || []).each do |txn|
-      @exceptions << { type: :bank_needs_review, record: txn, amount: txn.amount, severity: :warning }
+      type = txn.needs_reverification? ? :bank_needs_reverification : :bank_needs_review
+      @exceptions << { type: type, record: txn, amount: txn.amount, severity: :warning }
     end
     (@bank_unexpected_transactions || []).each do |txn|
       @exceptions << { type: :bank_unexpected, record: txn, amount: txn.amount, severity: :danger }

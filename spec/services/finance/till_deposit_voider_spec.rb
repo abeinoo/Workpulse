@@ -148,4 +148,141 @@ RSpec.describe Finance::TillDepositVoider, type: :model do
       expect(original.id).not_to eq(replacement.id)
     end
   end
+
+  describe "bank statement matches held by the voided deposit" do
+    let(:statement) do
+      create(:bank_statement, :pending, business: business, branch: branch,
+             statement_from: Date.current - 2.days, statement_to: Date.current + 2.days)
+    end
+
+    # Dated on the deposit's own calendar day in the business timezone — the
+    # date the matching engine compares against.
+    def bank_txn(amount:)
+      BankStatementTransaction.create!(
+        bank_statement: statement, business: business, amount: amount, raw_data: {}, status: "pending",
+        transaction_date: Time.current.in_time_zone(business.timezone_object).to_date
+      )
+    end
+
+    def auto_match!
+      Finance::DepositVerification::MatchingEngine.call(statement.id, actor: actor)
+    end
+
+    def release_audits
+      AuditLog.where(auditable_type: "BankStatementTransaction", action: "released_by_deposit_void")
+    end
+
+    it "releases nothing when the voided deposit was never matched" do
+      d = deposit(amount: 15_750)
+      t = bank_txn(amount: 999)
+      auto_match!
+      status_before = t.reload.status
+
+      expect(void(d)).to be_ok
+      expect(release_audits).to be_empty
+      expect(t.reload.status).to eq(status_before)
+      expect(statement.reload.matched_rows).to eq(0)
+    end
+
+    it "releases the match, keeps the transaction, and audits the release" do
+      d = deposit(amount: 17_900)
+      t = bank_txn(amount: 17_900)
+      auto_match!
+      expect(t.reload.status).to eq("verified")
+      expect(statement.reload.matched_rows).to eq(1)
+
+      expect(void(d)).to be_ok
+
+      expect(d.reload).to be_voided
+      t.reload
+      expect(t.status).to eq("unexpected")
+      expect(t.matched_till_deposit).to be_nil
+      expect(DepositMatch.where(till_deposit_id: d.id)).to be_empty
+      expect(statement.reload.matched_rows).to eq(0)
+      expect(statement.unmatched_rows).to eq(1)
+
+      audit = release_audits.sole
+      expect(audit.auditable).to eq(t)
+      expect(audit.actor).to eq(actor)
+      expect(audit.metadata).to include("till_deposit_id" => d.id, "previous_till_deposit_id" => d.id,
+                                        "void_reason" => "Wrong amount entered")
+      # Released before the void, so the stale-link "re-verification" path never fires.
+      expect(AuditLog.where(auditable: t, action: "verification_invalidated")).to be_empty
+    end
+
+    it "never auto-matches the replacement, but lets it be matched manually" do
+      original = deposit(amount: 17_900)
+      t = bank_txn(amount: 17_900)
+      auto_match!
+      void(original)
+
+      replacement = deposit(amount: 17_900)
+      expect(t.reload.matched_till_deposit).to be_nil
+      expect(t.status).to eq("unexpected")
+
+      result = Finance::BankStatements::ManualMatcher.call(t.id, till_deposit_id: replacement.id,
+                                                           actor: actor, notes: "Re-deposit after void")
+      expect(result).to be_ok
+      t.reload
+      expect(t.matched_till_deposit).to eq(replacement)
+      expect(t.status).to eq("verified")
+      expect(t.match_method).to eq("manual")
+      expect(statement.reload.matched_rows).to eq(1)
+      expect(statement.unmatched_rows).to eq(0)
+    end
+
+    it "keeps DR totals and match figures consistent after the void and the replacement match" do
+      original = deposit(amount: 17_900)
+      t = bank_txn(amount: 17_900)
+      auto_match!
+      expect(dr.reload.total_matched_amount).to eq(17_900)
+
+      void(original)
+      expect(dr.reload.total_deposited).to eq(0)
+      expect(dr.total_matched_amount).to eq(0)
+
+      replacement = deposit(amount: 17_900)
+      Finance::BankStatements::ManualMatcher.call(t.id, till_deposit_id: replacement.id, actor: actor, notes: "ok")
+      expect(dr.reload.total_deposited).to eq(17_900)
+      expect(dr.total_matched_amount).to eq(17_900)
+      expect(DepositMatch.where(bank_statement_transaction_id: t.id).count).to eq(1)
+    end
+
+    it "refuses to match the released transaction to a second deposit, or to the voided one" do
+      original = deposit(amount: 17_900)
+      t = bank_txn(amount: 17_900)
+      auto_match!
+      void(original)
+      replacement = deposit(amount: 17_900)
+      Finance::BankStatements::ManualMatcher.call(t.id, till_deposit_id: replacement.id, actor: actor, notes: "ok")
+
+      other = TillDeposit.create!(daily_reconciliation: dr, payment_method: cash_pm, deposited_by: actor,
+                                  amount: 17_900, deposited_at: Time.current)
+      second = Finance::BankStatements::ManualMatcher.call(t.id, till_deposit_id: other.id, actor: actor, notes: "dup")
+      expect(second).not_to be_ok
+      expect(second.error).to eq(I18n.t("finance.bank_statements.errors.already_matched_to_another_deposit"))
+
+      to_voided = Finance::BankStatements::ManualMatcher.call(t.id, till_deposit_id: original.id, actor: actor, notes: "x")
+      expect(to_voided).not_to be_ok
+      expect(DepositMatch.where(bank_statement_transaction_id: t.id).pluck(:till_deposit_id)).to eq([ replacement.id ])
+    end
+
+    it "rolls back the release when the void itself fails" do
+      d = deposit(amount: 17_900)
+      t = bank_txn(amount: 17_900)
+      auto_match!
+
+      result = void(d, reason: "")
+
+      expect(result).not_to be_ok
+      expect(d.reload).not_to be_voided
+      t.reload
+      expect(t.status).to eq("verified")
+      expect(t.matched_till_deposit).to eq(d)
+      expect(statement.reload.matched_rows).to eq(1)
+      expect(statement.unmatched_rows).to eq(0)
+      expect(release_audits).to be_empty
+      expect(AuditLog.where(auditable: d, action: "void")).to be_empty
+    end
+  end
 end

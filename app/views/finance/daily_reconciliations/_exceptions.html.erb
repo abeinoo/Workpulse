@@ -29,6 +29,8 @@
                 <% case ex[:type] %>
                 <% when :bank_needs_review %>
                   <%= t("finance.daily_reconciliations.show.sections.exceptions.bank_needs_review") %>
+                <% when :bank_needs_reverification %>
+                  <%= t("finance.daily_reconciliations.show.sections.exceptions.bank_needs_reverification") %>
                 <% when :bank_unexpected %>
                   <%= t("finance.daily_reconciliations.show.sections.exceptions.bank_unexpected") %>
                 <% when :missing_from_bank %>
@@ -49,7 +51,7 @@
 
           <div class="exception-row__actions">
             <% case ex[:type] %>
-            <% when :bank_needs_review, :bank_unexpected %>
+            <% when :bank_needs_review, :bank_needs_reverification, :bank_unexpected %>
               <% txn = ex[:record] %>
               <%= link_to t("shared.view"), finance_bank_statement_transaction_path(txn), class: "btn btn-ghost btn-sm" %>
               <% if !txn.matched? && policy(txn).match? %>

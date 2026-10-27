@@ -58,7 +58,7 @@ module Finance
     # independently and refuses to auto-link anything short of it, surfacing
     # a "date_mismatch"/"amount_mismatch" instead. There is no day-tolerance
     # auto-match tier: deposit date is the source of truth (calendar date
-    # only — deposited_at.to_date / transaction_date are date columns, so
+    # only — the deposit's date in the business timezone / transaction_date, so
     # time-of-day never enters any comparison in this engine), and a
     # same-amount/different-date pair is always left unmatched for the
     # accountant's explicit Manual Match action, never silently linked.
@@ -127,7 +127,7 @@ module Finance
           # transactions that end up with no match (near-miss hints) — never
           # mutated, unlike @pool.
           all_deposit_amounts = @pool.map(&:amount).to_set
-          all_deposit_dates   = @pool.map { |d| d.deposited_at.to_date }.to_set
+          all_deposit_dates   = @pool.map { |d| deposit_date(d) }.to_set
 
           run_reference_tier!
           run_exact_date_tier!
@@ -189,7 +189,7 @@ module Finance
         end
 
         buckets.each do |(amount, date), txns|
-          deposits = @pool.select { |d| d.amount == amount && d.deposited_at.to_date == date }
+          deposits = @pool.select { |d| d.amount == amount && deposit_date(d) == date }
           next if deposits.empty?
 
           resolve_bucket!(txns, deposits, SCORE_AMOUNT_DATE)
@@ -228,6 +228,15 @@ module Finance
         # deposit stays in the pool so a later, better-suited pairing can
         # still claim it.
         return decline_match!(txn, status) unless status == "verified"
+
+        # Same row lock TillDepositVoider and ManualMatcher take: a deposit
+        # voided (or claimed) since the pool was loaded is dropped from the
+        # pool, and the transaction stays pending for later pairings.
+        deposit.lock!
+        if deposit.voided? || deposit.deposit_matches.exists?
+          @pool.delete(deposit)
+          return
+        end
 
         method = METHOD_FOR_SCORE.fetch(score)
         reason = match_reason(method, txn)
@@ -321,7 +330,7 @@ module Finance
       # rubber-stamped "verified".
       def derive_status(txn, deposit)
         amounts_match = txn.amount == deposit.amount
-        dates_match   = txn.transaction_date == deposit.deposited_at.to_date
+        dates_match   = txn.transaction_date == deposit_date(deposit)
 
         if amounts_match && dates_match
           "verified"
@@ -381,13 +390,29 @@ module Finance
         end
       end
 
+      # A deposit is a candidate when either its own calendar date (in the
+      # business timezone — the date every tier compares against the
+      # transaction date) or its DR's business_date falls in the statement
+      # range. The deposit-date half is what lets a deposit recorded just
+      # after midnight — previous business day, next calendar date — reach a
+      # statement covering only that calendar date. The business_date half
+      # keeps same-amount deposits on other dates in the pool as
+      # date_mismatch hints. Widening the pool never loosens matching:
+      # commit_match! still requires exact amount and date equality.
       def load_deposits(statement)
-        scope = TillDeposit
+        window = (business_time_zone.parse(statement.statement_from.to_s)...
+                  business_time_zone.parse(statement.statement_to.next_day.to_s))
+
+        base = TillDeposit
           .joins(:daily_reconciliation)
           .where(daily_reconciliations: { business_id: @actor.business.id })
-          .where(daily_reconciliations: { business_date: statement.statement_from..statement.statement_to })
           .where(voided_at: nil)
           .where.missing(:deposit_matches)
+
+        scope = base.where(deposited_at: window)
+                    .or(base.where(daily_reconciliations: {
+                      business_date: statement.statement_from..statement.statement_to
+                    }))
 
         if statement.branch_id?
           scope = scope.where(daily_reconciliations: { branch_id: statement.branch_id })
@@ -398,6 +423,16 @@ module Finance
 
       def normalize_ref(str)
         str.to_s.strip.downcase.gsub(/\s+/, "")
+      end
+
+      # Explicit, not the ambient Time.zone: the engine must give the same
+      # answer from a request, the console, or a job.
+      def business_time_zone
+        @business_time_zone ||= @actor.business.timezone_object
+      end
+
+      def deposit_date(deposit)
+        deposit.deposited_at.in_time_zone(business_time_zone).to_date
       end
     end
   end
