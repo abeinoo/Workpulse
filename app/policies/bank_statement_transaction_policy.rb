@@ -6,6 +6,12 @@ class BankStatementTransactionPolicy < ApplicationPolicy
   def match?   = can?(:manual_match_deposits) && same_business? && active_statement?
   def unmatch? = can?(:manual_match_deposits) && same_business?
   def ignore?  = can?(:manual_match_deposits) && same_business? && active_statement?
+  def unignore? = can?(:manual_match_deposits) && same_business? && active_statement?
+
+  # Collection gate for Deposit Verification's bulk ignore (record is the
+  # class). Each selected transaction is then re-checked by
+  # Finance::BankStatements::BulkIgnorer and the policy scope.
+  def bulk_ignore? = can?(:manual_match_deposits)
 
   class Scope < ApplicationPolicy::Scope
     def resolve

@@ -176,7 +176,7 @@ RSpec.describe "Bank statement match concurrency (two connections)" do
     statement.reload
     txns = statement.bank_statement_transactions
     expect(statement.matched_rows).to eq(txns.where.associated(:deposit_matches).count)
-    expect(statement.unmatched_rows).to eq(txns.where.missing(:deposit_matches).count)
+    expect(statement.unmatched_rows).to eq(txns.where.missing(:deposit_matches).where.not(status: "ignored").count)
   end
 
   def expect_single_match!(txn, winner, loser_result)
@@ -458,6 +458,63 @@ RSpec.describe "Bank statement match concurrency (two connections)" do
     expect(DepositMatch.where(bank_statement_transaction_id: txn.id)).to be_empty
     expect(AuditLog.where(auditable: txn, action: %w[released_by_deposit_void released_by_statement_deletion])
                    .pluck(:action)).to eq([ "released_by_deposit_void" ])
+    expect_counters_match_rows!
+  end
+
+  # ── Bulk ignore ─────────────────────────────────────────────────────────── #
+
+  def bulk_ignore(ids, user)
+    Finance::BankStatements::BulkIgnorer.new(transaction_ids: ids, actor: User.find(user.id), reason: "old noise").call
+  end
+
+  it "manual match commits first: a concurrent bulk ignore of that line refuses the whole batch", :aggregate_failures do
+    target = deposit!
+    txn    = bank_line!
+    other  = BankStatementTransaction.create!(bank_statement: statement, business: business, amount: 77,
+                                              transaction_date: day, raw_data: {}, status: "unexpected")
+    set_counters!
+
+    reached, release = pause_after_first(DepositMatch, :create_for!)
+    matching = on_other_connection { manual_match(txn.id, target.id, first_user) }
+    wait_for(reached) # transaction row locked, match inserted — not committed
+
+    ignoring = on_other_connection { bulk_ignore([ txn.id, other.id ], second_user) }
+    expect(wait_until_lock_waits("bank_statement_transactions")).to include("FOR UPDATE")
+    expect(ignoring.join(0)).to be_nil
+
+    release << true
+    expect(result_of(matching)).to be_ok
+    refused = result_of(ignoring)
+    expect(refused).not_to be_ok
+    expect(refused.error).to include("##{txn.id}")
+
+    expect(txn.reload.matched_till_deposit).to eq(target)
+    expect(other.reload.status).to eq("unexpected")
+    expect(AuditLog.where(action: "ignored")).to be_empty
+    expect_counters_match_rows!
+  end
+
+  it "two identical bulk ignores: one applies, the other is refused without a second audit", :aggregate_failures do
+    lines = Array.new(2) do |i|
+      BankStatementTransaction.create!(bank_statement: statement, business: business, amount: 10 + i,
+                                       transaction_date: day, raw_data: {}, status: "unexpected")
+    end
+    set_counters!
+
+    reached, release = pause_after_first(Finance::BankStatements::Ignorer, :call)
+    first = on_other_connection { bulk_ignore(lines.map(&:id), first_user) }
+    wait_for(reached) # both lines locked, first ignored — not committed
+
+    second = on_other_connection { bulk_ignore(lines.map(&:id), second_user) }
+    expect(wait_until_lock_waits("bank_statement_transactions")).to include("FOR UPDATE")
+
+    release << true
+    expect(result_of(first)).to be_ok
+    expect(result_of(second)).not_to be_ok
+
+    expect(lines.map { |l| l.reload.status }).to eq(%w[ignored ignored])
+    expect(AuditLog.where(action: "ignored").count).to eq(2)
+    expect(AuditLog.where(action: "ignored").pluck(:actor_id).uniq).to eq([ first_user.id ])
     expect_counters_match_rows!
   end
 

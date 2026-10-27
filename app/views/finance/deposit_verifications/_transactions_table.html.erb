@@ -9,10 +9,21 @@
     <p class="empty-state__text"><%= t("finance.deposit_verifications.empty.hint") %></p>
   </div>
 <% else %>
+  <%# bulk: true adds the selection column for Deposit Verification's bulk
+      ignore — eligibility comes from @bulk_ignore_eligible_ids (one query in
+      the controller); the server re-checks every id on submit. %>
+  <% bulk = local_assigns[:bulk] %>
   <div class="table-container">
     <table class="table">
       <thead>
         <tr>
+          <% if bulk %>
+            <th style="width: 1%;">
+              <input type="checkbox" class="dv-bulk-check-all"
+                     aria-label="<%= t("finance.deposit_verifications.bulk_ignore.select_all_page") %>"
+                     data-action="change->deposit-verification-bulk-ignore#toggleAll">
+            </th>
+          <% end %>
           <th><%= t("finance.deposit_verifications.cols.verification_status") %></th>
           <th><%= t("finance.deposit_verifications.cols.bank_date") %></th>
           <th class="text-end"><%= t("finance.deposit_verifications.cols.bank_amount") %></th>
@@ -25,6 +36,19 @@
       <tbody>
         <% transactions.each do |txn| %>
           <tr>
+            <% if bulk %>
+              <td>
+                <% if @bulk_ignore_eligible_ids.include?(txn.id) %>
+                  <input type="checkbox" class="dv-bulk-check-row" value="<%= txn.id %>"
+                         aria-label="<%= t("finance.deposit_verifications.bulk_ignore.select_row", id: txn.id) %>"
+                         data-action="change->deposit-verification-bulk-ignore#rowChanged">
+                <% else %>
+                  <input type="checkbox" class="dv-bulk-check-row" value="<%= txn.id %>" disabled
+                         title="<%= t("finance.deposit_verifications.bulk_ignore.ineligible_matched") %>"
+                         aria-label="<%= t("finance.deposit_verifications.bulk_ignore.ineligible_matched") %>">
+                <% end %>
+              </td>
+            <% end %>
             <td><%= render "finance/bank_statements/txn_status_badge", transaction: txn %></td>
             <td><%= l(txn.transaction_date, format: :short) %></td>
             <td class="text-end"><%= format_currency(txn.amount) %></td>

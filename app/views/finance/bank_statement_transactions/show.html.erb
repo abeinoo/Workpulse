@@ -236,6 +236,25 @@
           <% end %>
         </div>
       <% end %>
+
+      <% if @transaction.ignored? && policy(@transaction).unignore? %>
+        <div style="margin-top: var(--space-5); border-top: 1px solid var(--border); padding-top: var(--space-5);">
+          <p style="font-size: var(--text-sm); color: var(--text-2); margin-bottom: var(--space-3);">
+            <%= t("finance.bank_statement_transactions.show.unignore_hint") %>
+          </p>
+          <%= form_with url: unignore_finance_bank_statement_transaction_path(@transaction), method: :patch,
+                style: "display: flex; gap: var(--space-3); align-items: flex-end;" do |f| %>
+            <div class="form-group" style="flex: 1;">
+              <%= label_tag :unignore_reason, t("finance.bank_statement_transactions.show.unignore_reason"), class: "form-label" %>
+              <%= text_field_tag :unignore_reason, nil, class: "form-control", required: true,
+                    placeholder: t("finance.bank_statement_transactions.show.unignore_reason_placeholder") %>
+            </div>
+            <%= f.submit t("finance.bank_statement_transactions.show.unignore_button"),
+                  class: "btn btn-ghost btn-sm",
+                  data: { turbo_confirm: t("finance.bank_statement_transactions.show.unignore_confirm") } %>
+          <% end %>
+        </div>
+      <% end %>
     </div>
   <% end %>
 

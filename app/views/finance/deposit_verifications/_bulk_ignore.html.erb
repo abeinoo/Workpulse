@@ -1,0 +1,77 @@
+<%# ── Bulk ignore (bank-transaction tabs) ──────────────────────────────────
+    Selection over the current page's eligible rows, or — explicitly — every
+    eligible transaction matching the current tab and filters (server count
+    @bulk_ignore_eligible_total, re-resolved and re-counted on submit).
+    One reason for the batch, required. Finance::BankStatements::BulkIgnorer
+    re-checks every transaction under lock and ignores all or none. %>
+<% scope_total = @bulk_ignore_eligible_total %>
+<div data-controller="deposit-verification-bulk-ignore"
+     data-deposit-verification-bulk-ignore-modal-body-value="<%= t("finance.deposit_verifications.bulk_ignore.modal_body", count: "%{count}") %>"
+     data-deposit-verification-bulk-ignore-matching-total-value="<%= scope_total %>">
+
+  <div class="bulk-action-bar" style="display:none" data-deposit-verification-bulk-ignore-target="actionBar"
+       role="region" aria-label="<%= t("finance.deposit_verifications.bulk_ignore.button") %>">
+    <span class="bulk-action-bar__badge" aria-live="polite">
+      <strong data-deposit-verification-bulk-ignore-target="countBadge">0</strong>
+      <%= t("finance.deposit_verifications.bulk_ignore.selected") %>
+    </span>
+    <span class="bulk-action-bar__sep"></span>
+    <button type="button" class="btn btn-danger btn-sm"
+            data-deposit-verification-bulk-ignore-target="ignoreBtn"
+            data-action="click->deposit-verification-bulk-ignore#openModal" disabled>
+      <%= t("finance.deposit_verifications.bulk_ignore.button") %>
+    </button>
+    <button type="button" class="btn btn-ghost btn-sm" data-action="click->deposit-verification-bulk-ignore#clear">
+      <%= t("finance.deposit_verifications.bulk_ignore.clear") %>
+    </button>
+    <% if scope_total > @bulk_ignore_eligible_ids.size %>
+      <button type="button" class="btn btn-ghost btn-sm" style="display:none"
+              data-deposit-verification-bulk-ignore-target="selectMatchingBtn"
+              data-action="click->deposit-verification-bulk-ignore#selectAllMatching">
+        <%= t("finance.deposit_verifications.bulk_ignore.select_all_matching", count: scope_total) %>
+      </button>
+    <% end %>
+    <span class="bulk-action-bar__hint" style="display:none" data-deposit-verification-bulk-ignore-target="matchingNote">
+      <%= t("finance.deposit_verifications.bulk_ignore.all_matching_selected", count: scope_total) %>
+    </span>
+    <span class="bulk-action-bar__hint" data-deposit-verification-bulk-ignore-target="hint">
+      <%= t("finance.deposit_verifications.bulk_ignore.hint") %>
+    </span>
+  </div>
+
+  <%= render "finance/deposit_verifications/transactions_table",
+        transactions: transactions, empty_key: empty_key, bulk: true %>
+
+  <div class="modal-overlay" style="display:none"
+       data-deposit-verification-bulk-ignore-target="modal"
+       data-action="click->deposit-verification-bulk-ignore#overlayClick">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="dv-bulk-ignore-title">
+      <h3 class="modal-card__title" id="dv-bulk-ignore-title"><%= t("finance.deposit_verifications.bulk_ignore.modal_title") %></h3>
+      <p data-deposit-verification-bulk-ignore-target="modalBody"></p>
+      <p style="font-size: var(--text-sm); color: var(--text-2);"><%= t("finance.deposit_verifications.bulk_ignore.modal_consequences") %></p>
+      <%= form_with url: bulk_ignore_finance_deposit_verifications_path, method: :post, local: true,
+                    data: { action: "submit->deposit-verification-bulk-ignore#submit" } do %>
+        <%= hidden_field_tag :tab, @active_tab %>
+        <% params.permit(:branch_id, :from, :to).to_h.compact_blank.each do |key, value| %>
+          <%= hidden_field_tag key, value %>
+        <% end %>
+        <div data-deposit-verification-bulk-ignore-target="ids"></div>
+        <div class="form-group">
+          <%= label_tag :dv_bulk_ignore_reason, t("finance.deposit_verifications.bulk_ignore.reason_label"), class: "form-label" %>
+          <%= text_area_tag :reason, nil, id: "dv_bulk_ignore_reason", rows: 2, required: true, class: "form-control",
+                placeholder: t("finance.deposit_verifications.bulk_ignore.reason_placeholder"),
+                data: { deposit_verification_bulk_ignore_target: "reason",
+                        action: "input->deposit-verification-bulk-ignore#reasonChanged" } %>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-danger" disabled data-deposit-verification-bulk-ignore-target="confirmBtn">
+            <%= t("finance.deposit_verifications.bulk_ignore.confirm") %>
+          </button>
+          <button type="button" class="btn btn-ghost" data-action="click->deposit-verification-bulk-ignore#closeModal">
+            <%= t("common.cancel") %>
+          </button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

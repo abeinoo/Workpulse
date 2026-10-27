@@ -1,6 +1,13 @@
 class Finance::DepositVerificationsController < Finance::BaseController
   DEFAULT_PER_PAGE = 30
 
+  # Bank-transaction tabs that offer bulk ignore, and the statuses each lists.
+  BULK_IGNORE_TABS = {
+    "unexpected"   => %w[unexpected],
+    "needs_review" => %w[needs_manual_review],
+    "mismatches"   => %w[amount_mismatch date_mismatch]
+  }.freeze
+
   def index
     authorize :deposit_verification, :index?
 
@@ -28,9 +35,70 @@ class Finance::DepositVerificationsController < Finance::BaseController
     else
       load_all_deposits
     end
+
+    load_bulk_ignore_selection
+  end
+
+  # POST /finance/deposit_verifications/bulk_ignore
+  #
+  # Either the ids of rows ticked on the page (each must be visible to this
+  # user through the policy scope), or selection=all_matching: every eligible
+  # transaction matching the posted tab/branch/date filters, re-resolved here
+  # and refused when the count no longer equals the one the user confirmed
+  # (expected_count). Finance::BankStatements::BulkIgnorer re-checks every
+  # transaction under lock and ignores all of them or none.
+  def bulk_ignore
+    authorize BankStatementTransaction, :bulk_ignore?
+    @branch_ids = accessible_branch_ids
+    tab = params[:tab].to_s
+    return redirect_to(bulk_ignore_return_path, alert: t("finance.bank_statements.errors.bulk_ignore_none_selected")) unless BULK_IGNORE_TABS.key?(tab)
+
+    ids = if params[:selection] == "all_matching"
+      scope = bulk_ignore_scope(tab)
+      count = scope.count
+      unless count == params[:expected_count].to_i
+        return redirect_to(bulk_ignore_return_path,
+                           alert: t("finance.bank_statements.errors.bulk_ignore_selection_changed", count: count))
+      end
+      scope.limit(Finance::BankStatements::BulkIgnorer::MAX_TRANSACTIONS + 1).pluck(:id)
+    else
+      requested = Array(params[:transaction_ids]).filter_map { |id| Integer(id, exception: false) }.uniq
+      visible   = policy_scope(BankStatementTransaction).where(id: requested).count
+      return redirect_to(bulk_ignore_return_path, alert: t("finance.bank_statements.errors.bulk_ignore_unavailable")) if visible != requested.size
+
+      requested
+    end
+
+    result = Finance::BankStatements::BulkIgnorer.new(transaction_ids: ids, actor: current_user,
+                                                      reason: params[:reason]).call
+    if result.ok?
+      redirect_to bulk_ignore_return_path, notice: t("finance.deposit_verifications.bulk_ignore.done", count: result.ignored_count)
+    else
+      redirect_to bulk_ignore_return_path, alert: result.error
+    end
   end
 
   private
+
+  # Selectable rows on the current page (one query) and the eligible total
+  # across every page of the current filters — only on bank-transaction tabs,
+  # only for users who may bulk ignore.
+  def load_bulk_ignore_selection
+    return unless BULK_IGNORE_TABS.key?(@active_tab) && policy(BankStatementTransaction).bulk_ignore?
+
+    eligible = bulk_ignore_scope(@active_tab)
+    @bulk_ignore_eligible_ids   = eligible.where(id: @transactions.map(&:id)).pluck(:id).to_set
+    @bulk_ignore_eligible_total = eligible.count
+  end
+
+  def bulk_ignore_scope(tab)
+    Finance::BankStatements::BulkIgnorer.eligible(base_transaction_scope).where(status: BULK_IGNORE_TABS.fetch(tab))
+  end
+
+  # Back to the same tab and filters (page 1: ignored rows leave the list).
+  def bulk_ignore_return_path
+    finance_deposit_verifications_path(params.permit(:tab, :branch_id, :from, :to).to_h.compact_blank)
+  end
 
   def accessible_branch_ids
     return nil if current_user.owner?
