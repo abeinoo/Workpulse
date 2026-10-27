@@ -42,6 +42,7 @@ here only so its stable ID and history are kept.
 | BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (`3f16e92`, PR #60; same receipt row lock) | — |
 | BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (`6c2a20e`, PR #61; row lock in `Inventory::DocumentVoider#call`) | — |
 | BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (`60d851b`, PR #76; was Escalated) | — |
+| BUG-021 | Deposit Verification "Missing" tab compares statement dates with the UTC date of `deposited_at` | Finance & Sales (deposit verification) | Medium (wrong missing-from-bank list around business midnight) | Confirmed (request reproduction) | Open | Next finance fix |
 
 ---
 
@@ -103,6 +104,10 @@ here only so its stable ID and history are kept.
   main operation may be lost while reported as successful.
 * **Impact:** a payment / approval reported as done but not persisted (if an audit insert ever fails at the database).
 * **Evidence:** Suspected — code pattern only; no database-level audit failure is known to occur.
+  2026-10-27 (DR bank-matching review): the PostgreSQL half reproduced — after a swallowed SQL error inside
+  `ActiveRecord::Base.transaction`, the block returns normally and COMMIT silently becomes ROLLBACK. Callers where
+  `log_audit` is the last statement before commit include `Finance::BankStatements::Unmatcher`, `ManualMatcher` and
+  `Finance::TillDepositVoider` (when the DR is not `deposited`); still no database-level audit failure is known.
 * **Reason for deferral:** cross-cutting (every audited service), low likelihood; `OrganizationAccess::DeleteUser`
   already uses `AuditLog.create!` for this reason.
 * **Recommended fix:** write the audit in a savepoint (`requires_new`) or let audit errors propagate inside
@@ -514,3 +519,29 @@ here only so its stable ID and history are kept.
   an explicit branch scope, business-scoped viewer without draft access, owner, `manage_devices`-only viewer, other
   business, non-admin redirect, parity with the employee list).
 * **Review milestone:** — (resolved).
+
+## BUG-021 — Deposit Verification "Missing" tab compares statement dates with the UTC date of `deposited_at`
+
+* **Source:** new (DR #335 bank-matching investigation, branch `fix/dr-bank-matching-defects`). **Discovered:**
+  2026-10-27. **Status:** Open.
+* **Domain / files:** Finance & Sales — `app/controllers/finance/deposit_verifications_controller.rb`
+  (`#missing_deposits_scope`, `DATE(till_deposits.deposited_at) BETWEEN ? AND ?`).
+* **Observed:** `deposited_at` is a `timestamp without time zone` holding UTC, so `DATE(...)` yields the **UTC**
+  calendar date, while statement dates and everything else in deposit verification (the matching engine,
+  `DailyReconciliation#bank_statement_covers_deposits?`, the page's own `from`/`to` filters) use the business
+  timezone.
+* **Expected vs actual:** an unmatched deposit is "missing" when a completed statement covers its local deposit date.
+  For an Asia/Riyadh (UTC+3) business, a deposit at 00:23 local on 10 Oct (21:23 UTC on 9 Oct) is **not** listed
+  under a statement covering 10 Oct, and **is** listed under a statement covering only 9 Oct.
+* **Impact:** around business midnight (00:00–03:00 local for UTC+3; after-midnight deposits are common) the Missing
+  tab hides genuinely missing deposits and shows deposits whose day the statement does not cover. Display only — no
+  record is written from this list; matching itself is unaffected.
+* **Evidence:** Confirmed — a scratch request spec on the unchanged code: stored `2026-10-09 21:23 UTC`, local date
+  2026-10-10, `DATE()` = 2026-10-09; Missing tab `false` for a 10 Oct statement, `true` for a 9 Oct statement.
+* **Reason for deferral:** outside the DR bank-matching fix (scope kept to the three agreed defects).
+* **Recommended fix:** compare in the business timezone — e.g. `DATE(till_deposits.deposited_at AT TIME ZONE 'UTC'
+  AT TIME ZONE :tz)`, or turn each statement range into a `deposited_at` time window built with
+  `business.timezone_object` (as `MatchingEngine#load_deposits` now does).
+* **Regression tests:** a request spec for the Missing tab with a deposit just after local midnight, statements
+  covering the local day and the UTC day, at fixed instants either side of business midnight.
+* **Review milestone:** next finance fix.

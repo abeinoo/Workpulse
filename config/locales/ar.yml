@@ -6630,6 +6630,7 @@ ar:
             title: "الاستثناءات"
             none: "لا توجد استثناءات — كل شيء متطابق."
             bank_needs_review: "معاملة بنكية تحتاج مراجعة يدوية"
+            bank_needs_reverification: "مطابقة بنكية تحتاج إعادة تحقق — تم تعديل الإيداع أو إلغاؤه"
             bank_unexpected: "معاملة بنكية بدون إيداع مطابق"
             missing_from_bank:
               one: "إيداع واحد غير موجود في كشف البنك"
@@ -7823,6 +7824,7 @@ ar:
         auto_matched: "مطابقة تلقائية"
         manual_match: "مطابقة يدوية"
         manual_unmatch: "إلغاء مطابقة"
+        released_by_deposit_void: "فك المطابقة — تم إلغاء الإيداع"
         ignored: "تم التحديد كمتجاهل"
         verification_invalidated: "مطلوب إعادة تحقق"
         bank_statement_deleted: "تم حذف الكشف"
@@ -8317,6 +8319,8 @@ ar:
     no: "لا"
     move_up: "تحريك لأعلى"
     move_down: "تحريك لأسفل"
+    void: "إلغاء"
+    are_you_sure: "هل أنت متأكد؟"
 
   my_shift:
     title: "كاشيري"

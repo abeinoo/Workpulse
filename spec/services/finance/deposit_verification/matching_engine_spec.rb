@@ -36,7 +36,9 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       payment_method:       payment_method,
       deposited_by:         actor,
       amount:                amount,
-      deposited_at:          date.to_time + time_of_day,
+      # Anchored in the business timezone — the engine reads deposit dates
+      # there, so a machine-local Date#to_time would shift 23:59 across midnight.
+      deposited_at:          business.timezone_object.parse(date.to_s) + time_of_day,
       reference:             reference,
       notes:                 notes
     )
@@ -233,6 +235,113 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
       expect(t1.match_method).to be_nil
       expect(t1.status).to eq("date_mismatch")
       expect(d1.deposit_matches).to be_empty
+    end
+  end
+
+  # ── Candidate selection by deposit date (midnight deposits) ─────────────── #
+
+  describe "candidate selection uses the deposit's own date in the business timezone" do
+    let(:next_day) { business_date + 1.day }
+
+    # A statement covering only the calendar day after the DR's business date.
+    let(:next_day_statement) do
+      create(:bank_statement, :pending, business: business, branch: branch,
+             statement_from: next_day, statement_to: next_day)
+    end
+
+    it "matches a deposit recorded just after midnight (previous business day) on a statement covering only that calendar date" do
+      d1 = deposit(amount: 6100, date: next_day, time_of_day: 23.minutes)
+      t1 = transaction(amount: 6100, date: next_day, statement: next_day_statement)
+
+      run!(target_statement: next_day_statement)
+
+      t1.reload
+      expect(d1.daily_reconciliation.business_date).to eq(business_date)
+      expect(t1.matched_till_deposit&.id).to eq(d1.id)
+      expect(t1.status).to eq("verified")
+      expect(next_day_statement.reload.matched_rows).to eq(1)
+    end
+
+    it "uses the business timezone even when the ambient Time.zone differs (console/job context)" do
+      # 00:23 Riyadh on next_day is 21:23 UTC on business_date.
+      d1 = deposit(amount: 6100, date: next_day, time_of_day: 23.minutes)
+      t1 = transaction(amount: 6100, date: next_day, statement: next_day_statement)
+
+      Time.use_zone("UTC") { run!(target_statement: next_day_statement) }
+
+      expect(t1.reload.matched_till_deposit&.id).to eq(d1.id)
+    end
+
+    it "includes a deposit at 23:59:59 on the statement's last day and excludes one at 00:00 the day after" do
+      inside  = deposit(amount: 500, date: next_day, time_of_day: 1.day - 1.second)
+      outside = deposit(amount: 700, date: next_day + 1.day, time_of_day: 0.seconds)
+      t_in    = transaction(amount: 500, date: next_day, statement: next_day_statement)
+      t_out   = transaction(amount: 700, date: next_day, statement: next_day_statement)
+
+      run!(target_statement: next_day_statement)
+
+      expect(t_in.reload.matched_till_deposit&.id).to eq(inside.id)
+      # Had the 00:00 deposit entered the pool, the same-amount hint would be
+      # date_mismatch; it is excluded, so only the same-date 500 deposit
+      # informs the hint.
+      expect(t_out.reload.matched_till_deposit).to be_nil
+      expect(t_out.status).to eq("amount_mismatch")
+      expect(outside.deposit_matches).to be_empty
+    end
+
+    it "still refuses to auto-match a midnight deposit against a transaction on its business date" do
+      d1 = deposit(amount: 6100, date: next_day, time_of_day: 23.minutes)
+      t1 = transaction(amount: 6100, date: business_date)
+
+      run!
+
+      t1.reload
+      expect(t1.matched_till_deposit).to be_nil
+      expect(t1.status).to eq("date_mismatch")
+      expect(d1.deposit_matches).to be_empty
+    end
+
+    it "matches a transaction dated outside the statement range only on an exact amount and date (unchanged)" do
+      far_date = business_date + 10.days
+      exact    = deposit(amount: 900, date: far_date)
+      t_other  = transaction(amount: 900, date: far_date + 1.day)
+      t_exact  = transaction(amount: 900, date: far_date)
+
+      run!
+
+      expect(t_exact.reload.matched_till_deposit&.id).to eq(exact.id)
+      expect(t_other.reload.matched_till_deposit).to be_nil
+      expect(t_other.status).to eq("date_mismatch")
+    end
+
+    it "never pulls a voided or already-matched deposit into the pool via its deposit date" do
+      voided = deposit(amount: 6100, date: next_day, time_of_day: 23.minutes)
+      voided.update_columns(voided_at: Time.current, void_reason: "wrong")
+      t1 = transaction(amount: 6100, date: next_day, statement: next_day_statement)
+
+      run!(target_statement: next_day_statement)
+
+      expect(t1.reload.matched_till_deposit).to be_nil
+      expect(t1.status).to eq("unexpected")
+    end
+  end
+
+  describe "a deposit voided after the pool was loaded" do
+    it "is never linked; the transaction stays unmatched" do
+      d1 = deposit(amount: 300)
+      t1 = transaction(amount: 300)
+
+      engine = described_class.new(statement.id, actor: actor)
+      allow(engine).to receive(:load_deposits).and_wrap_original do |original, *args|
+        original.call(*args).tap { d1.update_columns(voided_at: Time.current, void_reason: "concurrent void") }
+      end
+      engine.call
+
+      t1.reload
+      expect(t1.matched_till_deposit).to be_nil
+      expect(t1.status).not_to eq("verified")
+      expect(d1.deposit_matches).to be_empty
+      expect(statement.reload.matched_rows).to eq(0)
     end
   end
 

@@ -3,8 +3,9 @@ module Finance
   # voided_at/voided_by/void_reason on a TillDeposit — never do it with a bare
   # #update from a controller.
   #
-  # By design this does nothing beyond voiding + auditing + the DR state
-  # check below. It deliberately does NOT try to restore or reassign the
+  # By design this does nothing beyond voiding + auditing + releasing any
+  # bank-statement matches the deposit held + the DR state check below. It
+  # deliberately does NOT try to restore or reassign the
   # original depositor's "responsibility" for the voided amount via
   # RemainingDepositBalance — an accountant/manager voids the wrong deposit
   # and simply records a correct replacement afterward. That replacement goes
@@ -47,6 +48,12 @@ module Finance
           next
         end
 
+        # Row lock on the deposit too: ManualMatcher and MatchingEngine lock it
+        # before linking a transaction, so a concurrent match either commits
+        # first (and is released below) or sees the void and backs off.
+        deposit.lock!
+        release_bank_matches!(deposit)
+
         deposit.update!(voided_at: Time.current, voided_by: @actor, void_reason: @void_reason)
 
         log_audit(actor: @actor, auditable: deposit, action: "void",
@@ -63,6 +70,24 @@ module Finance
     end
 
     private
+
+    # A voided deposit can no longer back a bank transaction. Each match is
+    # released through Unmatcher's shared release step — the transaction is
+    # kept, returns to "unexpected" (visible on the DR's Exceptions list and
+    # in Deposit Verification), and is left for an explicit Manual Match to a
+    # replacement deposit; nothing is re-matched automatically. Runs before
+    # the void update, so TillDeposit's needs_reverification callback finds
+    # no linked transaction left to flag.
+    def release_bank_matches!(deposit)
+      unmatcher = Finance::BankStatements::Unmatcher.new(nil, actor: @actor)
+
+      BankStatementTransaction.joins(:deposit_matches)
+                              .where(deposit_matches: { till_deposit_id: deposit.id })
+                              .order(:id).lock.each do |txn|
+        unmatcher.release!(txn, action: :released_by_deposit_void,
+                                metadata: { till_deposit_id: deposit.id, void_reason: @void_reason })
+      end
+    end
 
     def revert_deposited_state!(dr)
       return unless dr.deposited?

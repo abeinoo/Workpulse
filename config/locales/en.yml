@@ -6575,6 +6575,7 @@ en:
             title: "Exceptions"
             none: "No exceptions — everything reconciles."
             bank_needs_review: "Bank transaction needs manual review"
+            bank_needs_reverification: "Bank match needs re-verification — the deposit was changed or voided"
             bank_unexpected: "Bank transaction with no matching deposit"
             missing_from_bank:
               one: "1 deposit not found in the bank statement"
@@ -7768,6 +7769,7 @@ en:
         auto_matched: "Automatically Matched"
         manual_match: "Manually Matched"
         manual_unmatch: "Match Reversed"
+        released_by_deposit_void: "Match Released — Deposit Voided"
         ignored: "Marked as Ignored"
         verification_invalidated: "Re-verification Required"
         bank_statement_deleted: "Statement Deleted"
@@ -8261,6 +8263,8 @@ en:
     no: "No"
     move_up: "Move Up"
     move_down: "Move Down"
+    void: "Void"
+    are_you_sure: "Are you sure?"
 
   my_shift:
     title: "My Till"

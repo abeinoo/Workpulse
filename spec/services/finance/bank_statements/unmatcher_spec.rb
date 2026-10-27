@@ -38,6 +38,20 @@ RSpec.describe Finance::BankStatements::Unmatcher do
   end
 
   describe ".call" do
+    it "refuses a second release of the same match without touching the statement counters again" do
+      transaction = txn
+      link!(deposit, transaction)
+      statement.update_columns(matched_rows: 1, unmatched_rows: 0)
+
+      expect(described_class.call(transaction.id, actor: actor, notes: "first")).to be_ok
+      second = described_class.call(transaction.id, actor: actor, notes: "second")
+
+      expect(second).not_to be_ok
+      expect(statement.reload.matched_rows).to eq(0)
+      expect(statement.unmatched_rows).to eq(1)
+      expect(AuditLog.where(auditable: transaction, action: "manual_unmatch").count).to eq(1)
+    end
+
     it "clears the match and returns the transaction to unexpected" do
       dep = deposit
       transaction = txn

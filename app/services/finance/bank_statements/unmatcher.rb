@@ -28,38 +28,51 @@ module Finance
 
         return err("not_matched") unless txn.matched?
 
-        ActiveRecord::Base.transaction do
-          previous_deposit_id = txn.matched_till_deposit&.id
+        # Re-checked under the row lock: a concurrent unmatch (or a deposit
+        # void releasing this match) may have won the race, and releasing
+        # twice would double-adjust the statement's counters.
+        released = ActiveRecord::Base.transaction do
+          txn.lock!
+          next false unless txn.matched?
 
-          txn.deposit_matches.destroy_all
-
-          txn.update!(
-            match_method:     nil,
-            match_confidence: nil,
-            match_reason:     nil,
-            match_notes:      nil,
-            status:           "unexpected"
-          )
-
-          txn.bank_statement.decrement!(:matched_rows)
-          txn.bank_statement.increment!(:unmatched_rows)
-
-          log_audit(
-            actor:     @actor,
-            auditable: txn,
-            action:    :manual_unmatch,
-            metadata:  {
-              previous_till_deposit_id: previous_deposit_id,
-              notes:                    @notes
-            }
-          )
+          release!(txn, action: :manual_unmatch, metadata: { notes: @notes })
+          true
         end
+        return err("not_matched") unless released
 
         Result.new(ok: true, transaction: txn, error: nil)
       rescue ActiveRecord::RecordNotFound
         Result.new(ok: false, transaction: nil, error: I18n.t("errors.messages.not_found"))
       rescue ActiveRecord::RecordInvalid => e
         Result.new(ok: false, transaction: nil, error: e.message)
+      end
+
+      # The release step itself, shared with Finance::TillDepositVoider (which
+      # frees a voided deposit's matches). Never opens its own transaction —
+      # the caller must already hold one, so a failure anywhere in the
+      # caller's operation rolls the release back with it.
+      def release!(txn, action:, metadata: {})
+        previous_deposit_id = txn.matched_till_deposit&.id
+
+        txn.deposit_matches.destroy_all
+
+        txn.update!(
+          match_method:     nil,
+          match_confidence: nil,
+          match_reason:     nil,
+          match_notes:      nil,
+          status:           "unexpected"
+        )
+
+        txn.bank_statement.decrement!(:matched_rows)
+        txn.bank_statement.increment!(:unmatched_rows)
+
+        log_audit(
+          actor:     @actor,
+          auditable: txn,
+          action:    action,
+          metadata:  { previous_till_deposit_id: previous_deposit_id, **metadata }
+        )
       end
 
       private
