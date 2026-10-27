@@ -246,8 +246,8 @@ here only so its stable ID and history are kept.
     `:54` in the runs above. Root cause still not identified; status unchanged.
   * 2026-10-22, test-only fixes merged: PR #72 (`a67086e`, merge commit `60c858a`) waits for the mapping step before
     the RTL check; PR #73 (`68c87e1`, merge commit `4c35dfb`) waits for the destination URL after each import submit.
-    PR #71 (`f6e9134`) recorded the occurrences above. From #73's merge to 2026-10-25, 32 completed CI `system-test`
-    jobs passed (6 cancelled; the one re-run's first attempt passed it too) — too short a record to establish
+    PR #71 (`f6e9134`) recorded the occurrences above. From #73's merge to 2026-10-25, 34 completed CI `system-test`
+    jobs passed (4 cancelled; the one re-run's first attempt passed it too) — too short a record to establish
     stability, so the status stays Deferred.
 * **Reason for deferral:** not touched by the migration; needs its own investigation.
 * **Recommended fix:** investigate the element lookup / Turbo re-render timing in the import flow.
