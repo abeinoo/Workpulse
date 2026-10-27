@@ -55,4 +55,57 @@ RSpec.describe Finance::PosImports::Mapper do
       described_class.call(headers: incomplete_headers, data_rows: [ data_row ], starting_row: 8)
     }.to raise_error(described_class::MissingRequiredColumnsError)
   end
+
+  it "names every missing required column, with its accepted aliases" do
+    incomplete_headers = headers - [ "Gross Amount", "Paid At" ]
+
+    expect {
+      described_class.call(headers: incomplete_headers, data_rows: [ data_row ], starting_row: 8)
+    }.to raise_error(described_class::MissingRequiredColumnsError) { |error|
+      expect(error.missing_columns).to eq([ "Gross Amount / Transaction Amount", "Paid At / Paid Date" ])
+    }
+  end
+
+  context "with the provider's newer \"All Transactions\" layout" do
+    let(:new_headers) do
+      [ "Transaction ID", "Created Date", "Transaction Amount", "Refunded Amount", "Transaction Status",
+        "Lifecycle Status", "Payment Channel", "Payment Method", "Transaction Fees", "Admin Fee",
+        "Net Transaction Amount", "Paid Date", "Order ID", "Merchant Order ID", "Terminal ID" ]
+    end
+
+    let(:new_row) do
+      [ "560736704", "2026-10-25 23:53:57", "360", "---", "Success", "Sell", "POS", "Card", "4.92", "---",
+        "355.08", "2026-10-25 23:54:00", "639639463", "---", "948998" ]
+    end
+
+    it "maps the renamed columns onto the same system fields" do
+      result = described_class.call(headers: new_headers, data_rows: [ new_row ], starting_row: 2)
+
+      expect(result.first.attributes).to eq(
+        transaction_id:       "560736704",
+        reference_number:     "639639463",
+        amount:               "360",
+        payment_method:       "Card",
+        status:               "Success",
+        transaction_date:     "2026-10-25 23:54:00",
+        provider_created_at:  "2026-10-25 23:53:57",
+        terminal_id:          "948998",
+        fees:                 "4.92",
+        administrative_fees:  "---"
+      )
+    end
+
+    it "never reads Net Transaction Amount or Lifecycle Status in place of the gross amount / transaction status" do
+      result = described_class.call(headers: new_headers, data_rows: [ new_row ], starting_row: 2)
+
+      expect(result.first.attributes[:amount]).to eq("360")
+      expect(result.first.attributes[:status]).to eq("Success")
+    end
+
+    it "raises MissingRequiredColumnsError when Terminal ID is absent" do
+      expect {
+        described_class.call(headers: new_headers - [ "Terminal ID" ], data_rows: [ new_row ], starting_row: 2)
+      }.to raise_error(described_class::MissingRequiredColumnsError, /Terminal ID/)
+    end
+  end
 end

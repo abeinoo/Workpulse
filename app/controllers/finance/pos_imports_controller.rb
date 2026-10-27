@@ -96,7 +96,7 @@ class Finance::PosImportsController < Finance::BaseController
     rescue Finance::PosImports::Mapper::MissingRequiredColumnsError => e
       @pos_import.destroy
       @pos_import = PosImport.new(file_name: file.original_filename)
-      @pos_import.errors.add(:file, t("finance.pos_imports.errors.missing_required_columns", fields: e.message))
+      @pos_import.errors.add(:file, t("finance.pos_imports.errors.missing_required_columns", fields: e.missing_columns.join(", ")))
       return render :new, status: :unprocessable_entity
     end
 

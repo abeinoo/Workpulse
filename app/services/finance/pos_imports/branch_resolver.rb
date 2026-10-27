@@ -2,7 +2,7 @@ module Finance
   module PosImports
     # Resolves each valid row's Branch via its Terminal ID — the ONLY source of
     # truth for branch assignment. Branch Name/ID columns from the provider
-    # export are never read (see Mapper's FIELD_MAP, which excludes them
+    # export are never read (see Mapper's FIELD_ALIASES, which excludes them
     # entirely) and are never trusted.
     #
     # unknown_terminals is a per-row list (not grouped by terminal_id) so the

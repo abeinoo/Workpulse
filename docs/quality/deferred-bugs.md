@@ -26,21 +26,21 @@ here only so its stable ID and history are kept.
 | BUG-002 | Concurrent check-outs on one attendance record: last commit wins | Attendance & Payroll | Medium | Confirmed (reasoning) | Deferred | After Pilot 12 |
 | BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Suspected | Deferred | After Pilot 12 |
 | BUG-004 | Manual-entry / CSV attendance check the payroll lock without a row lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
-| BUG-005 | Permission payroll effect reads the open period without a lock | Attendance & Payroll | Low | Suspected | Open | After Pilot 12 |
-| BUG-006 | Device punch reuses a soft-deleted attendance record | Attendance & Payroll | Low | Suspected | Open | After Pilot 12 |
+| BUG-005 | Permission payroll effect reads the open period without a lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
+| BUG-006 | Device punch reuses a soft-deleted attendance record | Attendance & Payroll | Low | Confirmed (pinned) | Open | Behaviour decision (before API punching) |
 | BUG-007 | Advance repayment / deduction arithmetic uses Float | Attendance & Payroll | Low | Confirmed | Deferred | After Modular Monolith |
 | BUG-008 | User update keeps new warehouse assignments when the update fails | Organization & Access / Inventory | Low | Confirmed (pinned) | Deferred | After Modular Monolith |
 | BUG-009 | Laundry dashboard may pick an inactive laundry branch | Inventory & Purchasing (Laundry) | Low | Confirmed | Deferred | After Pilot 12 |
 | BUG-010 | Bulk payment could mark a request paid without an Advance | Workforce | Low (unreachable today) | Suspected (theoretical) | Deferred | After Modular Monolith |
-| BUG-011 | `stock_issue_import_spec` intermittent WebDriver failure in CI | Test infrastructure | Low | Confirmed (CI runs), cause unknown | Deferred | After Pilot 12 |
-| BUG-012 | Expenses table scrolls by 2 px at 1440 px with the macOS system font (`expenses_index_responsive_spec.rb` EN @ 1440 px) | Finance & Sales (UI layout) | Low | Confirmed, cause established (2026-10-22): real layout defect under San Francisco; CI fonts fit | **Resolved** (`fix/bug-012-expenses-status-badge-wrap`) | — |
+| BUG-011 | `stock_issue_import_spec` intermittent WebDriver failure in CI | Test infrastructure | Low | Confirmed (CI runs), cause unknown | Deferred (test fixes merged in PRs #72 / #73; stability not yet established) | After Pilot 12 |
+| BUG-012 | Expenses table scrolls by 2 px at 1440 px with the macOS system font (`expenses_index_responsive_spec.rb` EN @ 1440 px) | Finance & Sales (UI layout) | Low | Confirmed, cause established (2026-10-22): real layout defect under San Francisco; CI fonts fit | **Resolved** (`b6ac0c9`, PR #63) | — |
 | BUG-013 | Attendance can be created / edited in a finalized payroll month | Attendance & Payroll | Low | Improvement | Open | Product decision |
-| BUG-014 | Laundry consumption report: branch picker and report scope resolve differently | Inventory & Purchasing (Laundry) | Low (usability / filter consistency) | Confirmed (code) | Open | After Pilot 12 |
-| BUG-018 | Date-relative specs compute UTC dates; 24 examples fail every day 21:00–24:00 UTC | Test suite (dashboard, payroll, attendance API, custody) | Medium (full-suite gate) | Confirmed (reproduced with a fixed clock) | **Resolved** (`fix/test-business-day-specs`) | — |
+| BUG-014 | Laundry consumption report: branch picker and report scope resolve differently | Inventory & Purchasing (Laundry) | Low (usability / filter consistency) | Confirmed (code) | Open | Scope-rule decision |
+| BUG-018 | Date-relative specs compute UTC dates; 24 examples fail every day 21:00–24:00 UTC | Test suite (dashboard, payroll, attendance API, custody) | Medium (full-suite gate) | Confirmed (reproduced with a fixed clock) | **Resolved** (`48240b7`, PR #62) | — |
 | BUG-019 | English expenses table still overflows at list widths of ~860–900px (viewports ~1324–1364px) | Finance & Sales (UI layout) | Low | Confirmed (measured) | Open | Product / UX decision |
-| BUG-015 | Goods receipt void racing approval may overwrite a decided approval status | Inventory & Purchasing | Medium (audit / status integrity; money still balances) | Confirmed (two-connection reproduction, Batch S M1) | **Resolved** (receipt row lock in `GoodsReceiptVoider#call`) | — |
-| BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (same receipt row lock) | — |
-| BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (row lock in `Inventory::DocumentVoider#call`) | — |
+| BUG-015 | Goods receipt void racing approval may overwrite a decided approval status | Inventory & Purchasing | Medium (audit / status integrity; money still balances) | Confirmed (two-connection reproduction, Batch S M1) | **Resolved** (`3f16e92`, PR #60; receipt row lock in `GoodsReceiptVoider#call`) | — |
+| BUG-016 | Concurrent voids of a confirmed goods receipt may reverse its stock twice | Inventory & Purchasing | Medium (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (`3f16e92`, PR #60; same receipt row lock) | — |
+| BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (`6c2a20e`, PR #61; row lock in `Inventory::DocumentVoider#call`) | — |
 | BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (`60d851b`, PR #76; was Escalated) | — |
 
 ---
@@ -129,7 +129,8 @@ here only so its stable ID and history are kept.
 
 ## BUG-005 — Permission payroll effect reads the open period without a lock
 
-* **Source:** new (noted during the F-A7 approval-race investigation). **Discovered:** 2026-10-21. **Status:** Open.
+* **Source:** new (noted during the F-A7 approval-race investigation). **Discovered:** 2026-10-21. **Status:** Deferred
+  (triaged 2026-10-22, `next-pilot-selection.md` §47: lock the period in the approval transaction).
 * **Domain / files:** Attendance & Payroll — `app/services/payroll/permission_applier.rb` (`#open_period_covering`,
   plain `where.not(status: %w[finalized paid]).first`).
 * **Observed:** approving a late-permission / early-leave request rewrites a payroll line item of the open period; the
@@ -146,7 +147,9 @@ here only so its stable ID and history are kept.
 
 ## BUG-006 — Device punch reuses a soft-deleted attendance record
 
-* **Source:** new (noted during the concurrent first-punch investigation). **Discovered:** 2026-10-20. **Status:** Open.
+* **Source:** AP-D3 (`next-pilot-selection.md` §10, found in the Pilot 1 M1 characterization, §13); recorded here on
+  2026-10-20 as new during the concurrent first-punch investigation. **Discovered:** 2026-10-06 (AP-D3). **Status:**
+  Open (triaged 2026-10-22, §47: needs a behaviour decision — restore / refuse / log — before API punching).
 * **Domain / files:** Attendance & Payroll — `app/services/attendance/punch_service.rb:93`
   (`AttendanceRecord.find_or_initialize_by(user:, work_date:)`, no `active` scope; no default scope on the model); the
   unique index `index_attendance_records_on_user_id_and_work_date` is not partial.
@@ -155,12 +158,14 @@ here only so its stable ID and history are kept.
 * **Expected vs actual:** a punch on a day whose record was deleted should create a visible record or be refused
   explicitly; it may update a record that stays deleted (invisible to active scopes).
 * **Impact:** a device punch silently disappears from attendance and payroll inputs.
-* **Evidence:** Suspected — code-evident; not reproduced.
+* **Evidence:** Confirmed — pinned as current behaviour (`KNOWN DEFECT AP-D3`) in
+  `spec/characterization/attendance_payroll/punch_service_spec.rb:112-124`.
 * **Reason for deferral:** found outside the first-punch race scope; behaviour decision needed (restore, refuse, or
   log).
 * **Recommended fix:** decide the rule, then apply it in `PunchService` (and check the same lookup in the CSV import).
-* **Regression tests:** a punch on a work date with a soft-deleted record — the decided outcome, and its punch log.
-* **Review milestone:** after Pilot 12.
+* **Regression tests:** a punch on a work date with a soft-deleted record — the decided outcome, and its punch log
+  (update the pinned AP-D3 example accordingly).
+* **Review milestone:** behaviour decision (before API punching).
 
 ## BUG-007 — Advance repayment / deduction arithmetic uses Float
 
@@ -239,6 +244,11 @@ here only so its stable ID and history are kept.
     39765149279 (attempt 1), failed at `:54`. Each had the same `UnknownError` ("Node with given id does not belong to the
     document"), and `:118` failed through `Capybara::Selenium::Node#visible?` / `ChromeNode#visible?`, like `:88` and
     `:54` in the runs above. Root cause still not identified; status unchanged.
+  * 2026-10-22, test-only fixes merged: PR #72 (`a67086e`, merge commit `60c858a`) waits for the mapping step before
+    the RTL check; PR #73 (`68c87e1`, merge commit `4c35dfb`) waits for the destination URL after each import submit.
+    PR #71 (`f6e9134`) recorded the occurrences above. From #73's merge to 2026-10-25, 32 completed CI `system-test`
+    jobs passed (6 cancelled; the one re-run's first attempt passed it too) — too short a record to establish
+    stability, so the status stays Deferred.
 * **Reason for deferral:** not touched by the migration; needs its own investigation.
 * **Recommended fix:** investigate the element lookup / Turbo re-render timing in the import flow.
 * **Regression tests:** the spec itself, stable across repeated CI runs.
@@ -246,7 +256,8 @@ here only so its stable ID and history are kept.
 
 ## BUG-012 — Expenses table scrolls by 2 px at 1440 px with the macOS system font (was: `expenses_index_responsive_spec.rb:121` fails locally by 1 px)
 
-* **Source:** TD-P12-2 (§27.2). **Discovered:** 2026-10-20. **Status:** **Resolved** by `b6ac0c9` on `fix/bug-012-expenses-status-badge-wrap` (narrower widths: BUG-019, open).
+* **Source:** TD-P12-2 (§27.2). **Discovered:** 2026-10-20. **Status:** **Resolved** by `b6ac0c9` (merged into
+  `main` in PR #63, merge commit `3a6233e`; narrower widths: BUG-019, open).
 * **Domain / files:** test infrastructure — `spec/system/finance/expenses_index_responsive_spec.rb:121` (assertion at
   line 128).
 * **Observed:** `.expense-list__table` `scrollWidth - clientWidth` was 2 (expected ≤ 1) in one local full-suite run; CI
@@ -306,7 +317,8 @@ here only so its stable ID and history are kept.
 
 ## BUG-014 — Laundry consumption report: branch picker and report scope resolve differently
 
-* **Source:** new (found while fixing BUG-001). **Discovered:** 2026-10-21. **Status:** Open.
+* **Source:** new (found while fixing BUG-001). **Discovered:** 2026-10-21. **Status:** Open (triaged 2026-10-22,
+  `next-pilot-selection.md` §47: needs a scope-rule decision).
 * **Domain / files:** Inventory & Purchasing (Laundry) — `app/controllers/laundry/reports/branch_consumption_controller.rb`
   (`@branches = assignable_branches`, the filter picker) vs `#allowed_branch_ids` (the report data);
   `app/controllers/laundry/base_controller.rb` (`#assignable_branches`).
@@ -327,14 +339,14 @@ here only so its stable ID and history are kept.
 * **Recommended fix:** decide the rule, then derive both the picker and the report from the same resolution.
 * **Regression tests:** a viewer whose two permissions resolve differently sees the same branches in the picker and the
   report; the decided shift-assignment case.
-* **Review milestone:** after Pilot 12.
+* **Review milestone:** scope-rule decision.
 
 ## BUG-018 — Date-relative specs compute UTC dates; 24 examples fail every day 21:00–24:00 UTC
 
 *(Placed before BUG-015 so this record does not collide with the BUG-017 entry PR #61 appends.)*
 
 * **Source:** new (final migration gate, `next-pilot-selection.md` §48 on the migration stack). **Discovered:**
-  2026-10-22. **Status:** **Resolved** by `48240b7` on `fix/test-business-day-specs` (from `main` `ec8ae59`).
+  2026-10-22. **Status:** **Resolved** by `48240b7` (merged into `main` in PR #62, merge commit `2c27f85`).
 * **Domain / files:** test suite — `spec/requests/dashboard_spec.rb`, `spec/services/payroll/auto_generator_spec.rb`,
   `spec/requests/api/v1/attendance_spec.rb`, `spec/system/finance/custody_own_balance_responsive_spec.rb`.
 * **Observed:** a full run from 23:40 to 00:04 UTC failed 24 examples (dashboard 4, auto generator 6, attendance API 2,
@@ -376,9 +388,9 @@ here only so its stable ID and history are kept.
 ## BUG-015 — Goods receipt void racing approval may overwrite a decided approval status
 
 * **Source:** new (Batch S M0 inventory, `docs/architecture/inventory-finance-goods-receipt-payments-baseline-failures.txt`). **Discovered:** 2026-10-21. **Status:** **Resolved**
-  (2026-10-21) by a separately approved fix on `batch-s/goods-receipt-payments`: `GoodsReceiptVoider#call` locks and
-  reloads the receipt (`@receipt.lock!`) first inside its transaction. Was: recorded as suspected at Batch S M0, then
-  reproduced at M1.
+  (2026-10-21) by the separately approved fix `3f16e92` (merged into `main` with Batch S in PR #60, merge commit
+  `ec8ae59`): `GoodsReceiptVoider#call` locks and reloads the receipt (`@receipt.lock!`) first inside its transaction.
+  Was: recorded as suspected at Batch S M0, then reproduced at M1.
 * **Domain / files:** Inventory & Purchasing — `app/services/inventory/goods_receipt_voider.rb` (`#call`,
   `#void_unconfirmed!`, `#cancel_undecided_approval!`), against `app/services/inventory/goods_receipt_approval.rb`
   (`#approve!`, `receipt.with_lock`).
@@ -413,7 +425,7 @@ here only so its stable ID and history are kept.
 ## BUG-016 — Concurrent voids of a confirmed goods receipt may reverse its stock twice
 
 * **Source:** new (Batch S M0). **Discovered:** 2026-10-21. **Status:** **Resolved** (2026-10-21) by the
-  BUG-015 fix (same receipt row lock). Was: suspected at Batch S M0, then reproduced.
+  BUG-015 fix `3f16e92` (same receipt row lock; PR #60). Was: suspected at Batch S M0, then reproduced.
 * **Domain / files:** Inventory & Purchasing — `app/services/inventory/goods_receipt_voider.rb`,
   `app/services/inventory/document_voider.rb` (`#call`).
 * **Observed (code):** `DocumentVoider` checks `voided?` on an unlocked load and inserts the reversal
@@ -442,8 +454,8 @@ here only so its stable ID and history are kept.
 ## BUG-017 — Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal
 
 * **Source:** new (follow-up of BUG-016, read-only investigation 2026-10-21). **Discovered:** 2026-10-21. **Status:**
-  **Resolved** (2026-10-22): `Inventory::DocumentVoider#call` opens its transaction first and locks and reloads the
-  document (`@document.lock!`) before its guards.
+  **Resolved** (2026-10-22) by `6c2a20e` (PR #61, merge commit `ca4b43d`): `Inventory::DocumentVoider#call` opens its
+  transaction first and locks and reloads the document (`@document.lock!`) before its guards.
 * **Domain / files:** Inventory & Purchasing — `app/services/inventory/document_voider.rb` (`#call`), called by
   `Inventory::StockIssuesController#void`, `Inventory::StockTransfersController#void`,
   `Inventory::StockAdjustmentsController#void` (each on a `policy_scope(...).find` copy) and `GoodsReceiptVoider`.

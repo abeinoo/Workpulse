@@ -93,6 +93,107 @@ RSpec.describe "Finance::PosImports", type: :request do
       pos_import = PosImport.last
       expect(response).to redirect_to(preview_import_finance_pos_import_path(pos_import))
     end
+
+    context "with the provider's newer \"All Transactions\" layout (header on row 1, renamed columns)" do
+      let(:new_layout_headers) do
+        [ "Transaction ID", "Created Date", "Transaction Amount", "Refunded Amount", "Transaction Status",
+          "Lifecycle Status", "Payment Channel", "Payment Method", "Transaction Fees", "Admin Fee",
+          "Paid Date", "Order ID", "Terminal ID" ]
+      end
+
+      def new_layout_upload(rows, header: new_layout_headers)
+        bytes = XlsxBuilder.build([ header ] + rows)
+        file  = Tempfile.new([ "all_transactions", ".xlsx" ], binmode: true)
+        file.write(bytes)
+        file.rewind
+        Rack::Test::UploadedFile.new(file.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      end
+
+      def new_layout_row(transaction_id:, terminal_id:, amount: "360", status: "Success")
+        [ transaction_id, "2026-10-25 23:53:57", amount, "---", status, "Sell", "POS", "Card", "4.92", "---",
+          "2026-10-25 23:54:00", "ORD-#{transaction_id}", terminal_id ]
+      end
+
+      it "previews and imports it end to end" do
+        sign_in importer
+        upload = new_layout_upload([
+          new_layout_row(transaction_id: "560736704", terminal_id: "TERM-A"),
+          new_layout_row(transaction_id: "560736705", terminal_id: "TERM-A", status: "Failed")
+        ])
+
+        post finance_pos_imports_path, params: { pos_import: { file: upload } }
+        pos_import = PosImport.last
+        expect(response).to redirect_to(preview_import_finance_pos_import_path(pos_import))
+
+        post confirm_import_finance_pos_import_path(pos_import)
+
+        expect(pos_import.reload.status).to eq("imported")
+        expect(pos_import).to have_attributes(imported_rows: 1, ignored_rows: 1, total_amount: 360.to_d,
+                                              total_fees: "4.92".to_d)
+        expect(PosTransaction.find_by!(transaction_id: "560736704")).to have_attributes(
+          branch_id: branch.id, terminal_id: "TERM-A", amount: 360.to_d, reference_number: "ORD-560736704",
+          fees: "4.92".to_d, administrative_fees: 0.to_d
+        )
+      end
+
+      it "reports an unconfigured Terminal ID as an unknown terminal, not a header problem" do
+        sign_in importer
+        upload = new_layout_upload([ new_layout_row(transaction_id: "560736704", terminal_id: "948998") ])
+
+        post finance_pos_imports_path, params: { pos_import: { file: upload } }
+        pos_import = PosImport.last
+        expect(response).to redirect_to(preview_import_finance_pos_import_path(pos_import))
+
+        post confirm_import_finance_pos_import_path(pos_import)
+
+        expect(pos_import.reload.status).to eq("pending")
+        expect(PosTransaction.where(transaction_id: "560736704")).to be_empty
+      end
+
+      it "names the missing column (once, without a doubled prefix) when a required column is absent" do
+        sign_in importer
+        upload = new_layout_upload([ new_layout_row(transaction_id: "1", terminal_id: "TERM-A").first(10) ],
+                                   header: new_layout_headers.first(10) + [ "Order ID", "Terminal ID" ])
+
+        expect {
+          post finance_pos_imports_path, params: { pos_import: { file: upload } }
+        }.not_to change(PosImport, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        body = CGI.unescapeHTML(response.body)
+        expect(body).to include("Missing required columns: Paid At / Paid Date")
+        expect(body).not_to include("Missing required columns: Missing required columns")
+      end
+    end
+
+    it "reports header-not-found for a spreadsheet that is not a transactions export" do
+      sign_in importer
+      bytes = XlsxBuilder.build([ [ "Settlement ID", "Gross Amount", "Paid At" ], [ "S-1", "100", "2026-10-01" ] ])
+      file  = Tempfile.new([ "other", ".xlsx" ], binmode: true)
+      file.write(bytes)
+      file.rewind
+      upload = Rack::Test::UploadedFile.new(file.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+      expect {
+        post finance_pos_imports_path, params: { pos_import: { file: upload } }
+      }.not_to change(PosImport, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(CGI.unescapeHTML(response.body)).to include(I18n.t("finance.pos_imports.errors.header_not_found"))
+    end
+
+    it "reports a malformed file distinctly from a header problem" do
+      sign_in importer
+      file = Tempfile.new([ "broken", ".xlsx" ], binmode: true)
+      file.write("not a real xlsx")
+      file.rewind
+      upload = Rack::Test::UploadedFile.new(file.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+      post finance_pos_imports_path, params: { pos_import: { file: upload } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(CGI.unescapeHTML(response.body)).to include(I18n.t("finance.pos_imports.errors.malformed_file"))
+    end
   end
 
   describe "GET /finance/pos_imports/:id/preview_import" do
