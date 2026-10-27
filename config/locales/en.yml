@@ -6528,7 +6528,7 @@ en:
             title: "Bank Deposits"
             subtitle: "Recorded deposits and their match against the imported bank statement."
             expected: "Expected Deposits"
-            imported: "Imported Bank Statement"
+            imported: "Confirmed by Bank"
             difference: "Difference"
             view_verification: "Open Deposit Verification"
             matched:
@@ -6543,6 +6543,13 @@ en:
             not_imported:
               one: "1 not imported"
               other: "%{count} not imported"
+            needs_reverification:
+              one: "1 match needs re-verification (%{amount})"
+              other: "%{count} matches need re-verification (%{amount})"
+            stale_link:
+              one: "1 match on a deleted statement (%{amount})"
+              other: "%{count} matches on a deleted statement (%{amount})"
+            review_match_action: "Review bank match"
             deposited_prefix: "Deposited:"
             by_prefix: "by"
             voided_badge: "Voided"
@@ -6576,6 +6583,7 @@ en:
             none: "No exceptions — everything reconciles."
             bank_needs_review: "Bank transaction needs manual review"
             bank_needs_reverification: "Bank match needs re-verification — the deposit was changed or voided"
+            bank_stale_link: "Bank match on deleted statement #%{id} — unmatch it to release the deposit"
             bank_unexpected: "Bank transaction with no matching deposit"
             missing_from_bank:
               one: "1 deposit not found in the bank statement"
@@ -7579,6 +7587,8 @@ en:
         not_matched: "This transaction is not matched to any deposit."
         already_ignored: "This transaction is already ignored."
         reason_required: "A reason is required to manually match a transaction."
+        already_deleted: "This bank statement has already been deleted."
+        statement_deleted: "This transaction belongs to a deleted bank statement and cannot be matched."
       row_errors:
         transaction_date_required: "Transaction date is required."
         transaction_date_invalid: "Unsupported date format: %{value}"
@@ -7714,6 +7724,9 @@ en:
           one: "%{count} deposit shares the same amount/date — could not determine automatically whether it is the right one."
           other: "%{count} deposits share the same amount/date — could not determine automatically which one is correct."
         manual: "Manually matched by %{actor}."
+        linked_elsewhere:
+          one: "A WorkPulse deposit with the same amount and date exists, but it is already linked to another bank transaction. Review that link before matching."
+          other: "%{count} WorkPulse deposits with the same amount and date exist, but each is already linked to another bank transaction. Review those links before matching."
       show:
         title: "Transaction Detail"
         bank_side: "Bank Statement"
@@ -7734,6 +7747,11 @@ en:
         match_reason: "Reason"
         candidates_title: "Why this needs manual review"
         candidates_col_deposit: "Deposit"
+        statement_deleted_title: "Bank statement #%{id} has been deleted"
+        statement_deleted_body: "Deleted on %{date} by %{name}. This line is kept for audit history and can no longer be matched or ignored; a link left on it can still be removed."
+        candidates_col_linked_to: "Currently linked to"
+        candidates_linked_to: "Transaction #%{transaction_id} · Statement #%{statement_id}"
+        candidates_statement_deleted: "deleted statement"
         actions_title: "Matching Actions"
         unmatch_notes: "Reason for unmatching"
         unmatch_notes_placeholder: "Optional note"
@@ -7770,6 +7788,7 @@ en:
         manual_match: "Manually Matched"
         manual_unmatch: "Match Reversed"
         released_by_deposit_void: "Match Released — Deposit Voided"
+        released_by_statement_deletion: "Match Released — Statement Deleted"
         ignored: "Marked as Ignored"
         verification_invalidated: "Re-verification Required"
         bank_statement_deleted: "Statement Deleted"
@@ -8213,6 +8232,7 @@ en:
         needs_review: "Needs Review"
         rate: "Verification Rate"
       statuses:
+        linked_to_deleted_statement: "Linked to a deleted statement"
         missing: "Missing from Bank"
         ignored: "Ignored"
       match_statuses:

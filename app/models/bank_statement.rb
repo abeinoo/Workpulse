@@ -29,31 +29,10 @@ class BankStatement < ApplicationRecord
   def failed?     = status == "failed"
   def deleted?    = deleted_at.present?
 
-  # Soft-delete: preserves the record and all child transactions for audit
-  # purposes. The policy scope filters deleted statements from normal queries.
-  def soft_destroy!(actor:, notes: nil)
-    raise ActiveRecord::RecordNotDestroyed, "Already deleted" if deleted?
-
-    update_columns(
-      deleted_at:     Time.current,
-      deleted_by_id:  actor.id,
-      deletion_notes: notes
-    )
-
-    log_audit(
-      actor:     actor,
-      auditable: self,
-      action:    :bank_statement_deleted,
-      metadata:  {
-        file_name:      file_name,
-        statement_from: statement_from.to_s,
-        statement_to:   statement_to.to_s,
-        total_rows:     total_rows,
-        matched_rows:   matched_rows,
-        notes:          notes
-      }
-    )
-  end
+  # Soft-deleted only through Finance::BankStatements::Deleter, which also
+  # releases the deposit matches held by its transactions. The record and its
+  # transactions are kept for audit; the policy scope filters deleted
+  # statements from normal queries.
 
   # Denotes what fraction of imported rows were matched. Uses matched_rows /
   # total_rows because the index page shows this before ignores are known.

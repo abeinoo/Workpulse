@@ -328,11 +328,13 @@ class DailyReconciliation < ApplicationRecord
     loaded_active_deposits.size
   end
 
-  # Sum of every active deposit's matched-in-bank contribution — the
-  # "Matched in Bank" figure on the workspace card. Reuses
-  # TillDeposit#matched_total; no new query beyond active_deposits itself.
+  # Sum of every active deposit's CONFIRMED bank match — the "Matched in
+  # Bank" figure on the workspace card, the index summary and the export.
+  # Links needing re-verification or left on a deleted statement are not
+  # confirmation and are excluded (TillDeposit#verified_matched_total); they
+  # surface as review items instead (#bank_transactions_need_review?).
   def total_matched_amount
-    loaded_active_deposits.sum(&:matched_total)
+    loaded_active_deposits.sum(&:verified_matched_total)
   end
 
   # Every still-open BankDispute on this DR, regardless of which anchor it
@@ -637,13 +639,15 @@ class DailyReconciliation < ApplicationRecord
 
   # True when either (a) a transaction already matched to one of these
   # deposits was flagged needs_reverification (a post-match edit invalidated
-  # it — see TillDeposit#invalidate_bank_verification_if_critical_change), or
+  # it — see TillDeposit#invalidate_bank_verification_if_critical_change) or
+  # sits on a deleted statement (a link left by a deletion that predates
+  # Finance::BankStatements::Deleter releasing matches), or
   # (b) an unmatched candidate transaction in the same branch/date range is
   # needs_manual_review. (b) transactions have no deposit link by definition
   # (that's precisely why they're ambiguous), so they can only be attributed
   # to this DR by branch + date-range overlap, not by association.
   def bank_transactions_need_review?(deposits, preloaded = nil)
-    return true if deposits.any? { |d| d.bank_statement_transactions.any?(&:needs_reverification?) }
+    return true if deposits.any? { |d| d.bank_statement_transactions.any?(&:link_needs_attention?) }
 
     dates = deposits.map { |d| d.deposited_at.to_date }
     from, to = dates.min, dates.max

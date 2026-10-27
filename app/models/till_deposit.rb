@@ -15,10 +15,15 @@ class TillDeposit < ApplicationRecord
   # i.e. not yet fully (or over-) matched. Used to offer a deposit as a valid
   # target from the transaction-initiated manual-match flow even when it
   # already has some (but not all) of its transactions linked.
+  #
+  # A correlated subquery, not LEFT JOIN + GROUP BY: a grouped scope breaks
+  # any relation that composes it with includes/eager_load or other joins
+  # (PG::GroupingError on the joined tables' columns), and needs no DISTINCT.
   scope :not_fully_matched, -> {
-    left_joins(:deposit_matches)
-      .group(:id)
-      .having("COALESCE(SUM(deposit_matches.matched_amount), 0) < till_deposits.amount")
+    where(<<~SQL.squish)
+      COALESCE((SELECT SUM(dm.matched_amount) FROM deposit_matches dm
+                WHERE dm.till_deposit_id = till_deposits.id), 0) < till_deposits.amount
+    SQL
   }
 
   validates :amount,       presence: true, numericality: { greater_than: 0 }
@@ -38,6 +43,23 @@ class TillDeposit < ApplicationRecord
   # preloaded across a whole list.
   def matched_total
     deposit_matches.loaded? ? deposit_matches.sum(&:matched_amount) : deposit_matches.sum(:matched_amount)
+  end
+
+  # The part of matched_total the bank currently CONFIRMS: links to a
+  # transaction that is "verified" on a statement that still exists. A link
+  # whose transaction needs re-verification, or that sits on a deleted
+  # statement, still occupies the deposit (matched_total / match_status — the
+  # capacity ManualMatcher checks) but is not confirmed bank evidence. Uses
+  # the preloaded deposit_matches → bank_statement_transaction → bank_statement
+  # chain when present (the DR index and export preload it).
+  def verified_matched_total
+    if deposit_matches.loaded?
+      deposit_matches.select { |m| m.bank_statement_transaction.confirms_deposit? }.sum(&:matched_amount)
+    else
+      deposit_matches.joins(bank_statement_transaction: :bank_statement)
+                     .where(bank_statement_transactions: { status: "verified" }, bank_statements: { deleted_at: nil })
+                     .sum(:matched_amount)
+    end
   end
 
   # The active bank dispute case, if any — a resolved dispute (refunded,

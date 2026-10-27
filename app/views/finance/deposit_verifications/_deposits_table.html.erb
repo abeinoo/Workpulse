@@ -42,6 +42,16 @@
                 <span class="badge badge-danger">
                   <%= t("finance.deposit_verifications.statuses.missing") %>
                 </span>
+              <% elsif txns.any? { |t| t.bank_statement.deleted? } %>
+                <%# A link left on a deleted statement is not bank evidence, even if
+                    the line still reads "verified" — never show it as healthy. %>
+                <span class="badge badge-danger">
+                  <%= t("finance.deposit_verifications.statuses.linked_to_deleted_statement") %>
+                </span>
+              <% elsif (stale = txns.find(&:needs_reverification?)) %>
+                <%# A link needing re-verification is not confirmed bank evidence —
+                    it outranks the aggregate "Fully Matched" of several links. %>
+                <%= render "finance/bank_statements/txn_status_badge", transaction: stale %>
               <% elsif txns.one? %>
                 <%= render "finance/bank_statements/txn_status_badge", transaction: txn %>
               <% else %>

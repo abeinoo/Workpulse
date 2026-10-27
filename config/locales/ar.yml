@@ -6583,7 +6583,7 @@ ar:
             title: "الإيداعات البنكية"
             subtitle: "الإيداعات المسجلة ومطابقتها مع كشف الحساب البنكي المستورد."
             expected: "الإيداعات المتوقعة"
-            imported: "كشف الحساب البنكي المستورد"
+            imported: "مؤكد من البنك"
             difference: "الفرق"
             view_verification: "فتح التحقق من الإيداعات"
             matched:
@@ -6598,6 +6598,13 @@ ar:
             not_imported:
               one: "واحد غير مستورد"
               other: "%{count} غير مستورد"
+            needs_reverification:
+              one: "مطابقة واحدة تحتاج إعادة تحقق (%{amount})"
+              other: "%{count} مطابقات تحتاج إعادة تحقق (%{amount})"
+            stale_link:
+              one: "مطابقة واحدة على كشف محذوف (%{amount})"
+              other: "%{count} مطابقات على كشف محذوف (%{amount})"
+            review_match_action: "مراجعة المطابقة البنكية"
             deposited_prefix: "تم الإيداع:"
             by_prefix: "بواسطة"
             voided_badge: "ملغى"
@@ -6631,6 +6638,7 @@ ar:
             none: "لا توجد استثناءات — كل شيء متطابق."
             bank_needs_review: "معاملة بنكية تحتاج مراجعة يدوية"
             bank_needs_reverification: "مطابقة بنكية تحتاج إعادة تحقق — تم تعديل الإيداع أو إلغاؤه"
+            bank_stale_link: "مطابقة بنكية على الكشف المحذوف رقم %{id} — ألغِ المطابقة لتحرير الإيداع"
             bank_unexpected: "معاملة بنكية بدون إيداع مطابق"
             missing_from_bank:
               one: "إيداع واحد غير موجود في كشف البنك"
@@ -7634,6 +7642,8 @@ ar:
         not_matched: "هذه المعاملة غير مرتبطة بأي إيداع."
         already_ignored: "هذه المعاملة متجاهلة بالفعل."
         reason_required: "يجب إدخال سبب لمطابقة المعاملة يدويًا."
+        already_deleted: "تم حذف كشف الحساب هذا بالفعل."
+        statement_deleted: "هذه المعاملة تتبع كشف حساب محذوفًا ولا يمكن مطابقتها."
       row_errors:
         transaction_date_required: "تاريخ المعاملة مطلوب."
         transaction_date_invalid: "صيغة التاريخ غير مدعومة: %{value}"
@@ -7769,6 +7779,9 @@ ar:
           one: "يشترك إيداع واحد في نفس المبلغ/التاريخ — تعذر تحديد ما إذا كان هو الصحيح تلقائيًا."
           other: "تشترك %{count} إيداعات في نفس المبلغ/التاريخ — تعذر تحديد الإيداع الصحيح تلقائيًا."
         manual: "تمت المطابقة يدويًا بواسطة %{actor}."
+        linked_elsewhere:
+          one: "يوجد إيداع في WorkPulse بنفس المبلغ والتاريخ، لكنه مرتبط بالفعل بمعاملة بنكية أخرى. راجع هذا الربط قبل المطابقة."
+          other: "توجد %{count} إيداعات في WorkPulse بنفس المبلغ والتاريخ، لكن كلًّا منها مرتبط بالفعل بمعاملة بنكية أخرى. راجع هذه الروابط قبل المطابقة."
       show:
         title: "تفاصيل المعاملة"
         bank_side: "كشف الحساب البنكي"
@@ -7789,6 +7802,11 @@ ar:
         match_reason: "السبب"
         candidates_title: "لماذا تحتاج هذه الحالة إلى مراجعة يدوية"
         candidates_col_deposit: "الإيداع"
+        statement_deleted_title: "تم حذف كشف الحساب رقم %{id}"
+        statement_deleted_body: "حُذف في %{date} بواسطة %{name}. يُحتفظ بهذا السطر لسجل التدقيق ولا يمكن مطابقته أو تجاهله؛ ويمكن إزالة أي ربط متبقٍّ عليه."
+        candidates_col_linked_to: "مرتبط حاليًا بـ"
+        candidates_linked_to: "المعاملة رقم %{transaction_id} · الكشف رقم %{statement_id}"
+        candidates_statement_deleted: "كشف محذوف"
         actions_title: "إجراءات المطابقة"
         unmatch_notes: "سبب إلغاء المطابقة"
         unmatch_notes_placeholder: "ملاحظة اختيارية"
@@ -7825,6 +7843,7 @@ ar:
         manual_match: "مطابقة يدوية"
         manual_unmatch: "إلغاء مطابقة"
         released_by_deposit_void: "فك المطابقة — تم إلغاء الإيداع"
+        released_by_statement_deletion: "فك المطابقة — تم حذف الكشف"
         ignored: "تم التحديد كمتجاهل"
         verification_invalidated: "مطلوب إعادة تحقق"
         bank_statement_deleted: "تم حذف الكشف"
@@ -8268,6 +8287,7 @@ ar:
         needs_review: "بحاجة إلى مراجعة"
         rate: "نسبة التحقق"
       statuses:
+        linked_to_deleted_statement: "مرتبط بكشف محذوف"
         missing: "غير موجود في البنك"
         ignored: "متجاهل"
       match_statuses:

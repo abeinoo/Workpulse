@@ -43,6 +43,14 @@ class BankStatementTransaction < ApplicationRecord
   def matched?               = deposit_matches.exists?
   def manual_match?          = match_method == "manual"
 
+  # Verified, on a statement that still exists — the only state in which this
+  # transaction's deposit link counts as confirmed bank evidence.
+  def confirms_deposit?      = verified? && !bank_statement.deleted?
+
+  # A deposit link held by this transaction that someone must act on: the
+  # bank verification was invalidated, or its statement has been deleted.
+  def link_needs_attention?  = needs_reverification? || bank_statement.deleted?
+
   # A transaction backs at most one deposit today (see DepositMatch's
   # uniqueness constraint) — these delegate to that single pairing for the
   # many call sites that only care about "the" match. Once partial

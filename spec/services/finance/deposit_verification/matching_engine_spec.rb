@@ -345,6 +345,115 @@ RSpec.describe Finance::DepositVerification::MatchingEngine do
     end
   end
 
+  # ── Classification when no tier matches ("Missing from WorkPulse") ──────── #
+
+  describe "a deposit already linked to a transaction on another statement" do
+    let(:other_statement) do
+      create(:bank_statement, :pending, business: business, branch: branch,
+             statement_from: business_date - 1.day, statement_to: business_date + 1.day)
+    end
+
+    def link_on_other_statement!(dep)
+      line = transaction(amount: dep.amount, statement: other_statement,
+                         date: dep.deposited_at.in_time_zone(business.timezone_object).to_date)
+      run!(target_statement: other_statement)
+      expect(line.reload.matched_till_deposit).to eq(dep)
+      line
+    end
+
+    it "is never taken over: the line needs manual review, naming the deposit and its current link", :aggregate_failures do
+      d1 = deposit(amount: 6100)
+      held_by = link_on_other_statement!(d1)
+      t1 = transaction(amount: 6100)
+
+      run!
+
+      t1.reload
+      expect(t1.status).to eq("needs_manual_review")
+      expect(t1.deposit_matches).to be_empty
+      expect(held_by.reload.matched_till_deposit).to eq(d1)
+      expect(t1.match_reason).to eq(I18n.t("finance.bank_statement_transactions.match_reasons.linked_elsewhere", count: 1))
+      candidates = AuditLog.for_auditable(t1).where(action: "needs_manual_review").sole.metadata["candidates"]
+      expect(candidates).to eq([ { "till_deposit_id" => d1.id, "amount" => d1.amount.to_s, "date" => business_date.to_s,
+                                   "reference" => nil, "linked_transaction_id" => held_by.id,
+                                   "linked_statement_id" => other_statement.id, "linked_statement_deleted" => false } ])
+      expect(statement.reload.unmatched_rows).to eq(1)
+    end
+
+    it "flags a link left on a deleted statement as such, still without matching" do
+      d1 = deposit(amount: 6100)
+      link_on_other_statement!(d1)
+      other_statement.update_columns(deleted_at: Time.current) # legacy state: deleted without release
+      t1 = transaction(amount: 6100)
+
+      run!
+
+      expect(t1.reload.status).to eq("needs_manual_review")
+      expect(t1.deposit_matches).to be_empty
+      candidate = AuditLog.for_auditable(t1).where(action: "needs_manual_review").sole.metadata["candidates"].sole
+      expect(candidate).to include("till_deposit_id" => d1.id, "linked_statement_deleted" => true)
+    end
+
+    it "does not add review audit rows when rematching unchanged data" do
+      d1 = deposit(amount: 6100)
+      link_on_other_statement!(d1)
+      t1 = transaction(amount: 6100)
+
+      run!
+      2.times { described_class.call(statement.id, actor: actor, rematch: true) }
+
+      expect(t1.reload.status).to eq("needs_manual_review")
+      expect(AuditLog.for_auditable(t1).where(action: "needs_manual_review").count).to eq(1)
+    end
+
+    it "only considers an exact amount and date: a linked deposit on another day is not a candidate" do
+      d1 = deposit(amount: 6100, date: business_date - 1.day)
+      link_on_other_statement!(d1)
+      t1 = transaction(amount: 6100)
+
+      run!
+
+      expect(t1.reload.status).to eq("unexpected")
+    end
+  end
+
+  describe "Missing from WorkPulse (unexpected) only when nothing explains the line" do
+    it "prefers the same-amount hint over Missing when deposits share only the amount or only the date" do
+      deposit(amount: 6100, date: business_date - 1.day) # same amount, other day
+      deposit(amount: 250)                                # same day, other amount
+      t1 = transaction(amount: 6100)
+
+      run!
+
+      expect(t1.reload.status).to eq("date_mismatch")
+      expect(t1.deposit_matches).to be_empty
+    end
+
+    it "is unexpected when no deposit shares the amount or the date" do
+      deposit(amount: 250, date: business_date - 1.day)
+      t1 = transaction(amount: 6100)
+
+      run!
+
+      expect(t1.reload.status).to eq("unexpected")
+    end
+  end
+
+  describe "a deleted statement" do
+    it "refuses to match and changes nothing" do
+      d1 = deposit(amount: 300)
+      t1 = transaction(amount: 300)
+      statement.update_columns(deleted_at: Time.current)
+
+      result = run!
+
+      expect(result).not_to be_ok
+      expect(result.error).to eq(I18n.t("finance.bank_statements.errors.already_deleted"))
+      expect(t1.reload.status).to eq("pending")
+      expect(d1.deposit_matches).to be_empty
+    end
+  end
+
   # ── Time-of-day must never affect matching ─────────────────────────────────── #
 
   describe "time of day is completely ignored — only the calendar date matters" do

@@ -163,3 +163,62 @@ namespace :finance do
     end
   end
 end
+
+namespace :finance do
+  desc <<~DESC
+    Stale bank matches: deposit matches left on transactions of DELETED bank
+    statements (deleted before statement deletion released its matches). Such a
+    match keeps its deposit "matched" to bank evidence no one can see, so no
+    later statement can match that deposit.
+
+    DRY RUN BY DEFAULT — lists every stale match of the business with a safety
+    verdict and writes nothing. Releasing requires BOTH an explicit list of
+    MATCH_IDS and EXECUTE=1; there is no "release all" mode. Each release goes
+    through Finance::BankStatements::Unmatcher (audit action
+    released_by_statement_deletion with repair: true) in its own transaction,
+    re-checking safety under row locks; unsafe or ambiguous records are skipped.
+    It never matches anything — run Rematch on the affected statement
+    afterwards, from the UI, as a separate decision.
+
+    Options (all via ENV):
+      BUSINESS_ID=2      Required.
+      MATCH_IDS=652,653  Matches to release (from the dry-run list).
+      ACTOR_ID=12        Required with EXECUTE=1 — the audited user (same business).
+      EXECUTE=1          Actually release. Without it, MATCH_IDS are only previewed.
+
+    Usage:
+      bin/rails finance:stale_bank_matches BUSINESS_ID=2
+      bin/rails finance:stale_bank_matches BUSINESS_ID=2 MATCH_IDS=652
+      bin/rails finance:stale_bank_matches BUSINESS_ID=2 MATCH_IDS=652 ACTOR_ID=12 EXECUTE=1
+  DESC
+  task stale_bank_matches: :environment do
+    business  = Business.find(ENV.fetch("BUSINESS_ID"))
+    match_ids = ENV["MATCH_IDS"].to_s.split(",").map(&:strip).reject(&:empty?)
+    execute   = ENV["EXECUTE"] == "1"
+    actor     = ENV["ACTOR_ID"].presence && User.find_by!(id: ENV["ACTOR_ID"], business_id: business.id)
+    repair    = Finance::BankStatements::StaleMatchRepair.new(business: business, actor: actor)
+
+    if match_ids.empty?
+      abort "EXECUTE=1 needs MATCH_IDS — nothing is released without naming it." if execute
+
+      items = repair.report
+      puts "[DRY RUN] #{items.size} stale match(es) on deleted statements for business ##{business.id}:"
+      items.each do |i|
+        puts "  match##{i.match_id} txn##{i.transaction_id} stmt##{i.statement_id} deposit##{i.deposit_id} " \
+             "DR##{i.daily_reconciliation_id} amount=#{i.amount.to_s('F')} txn_status=#{i.transaction_status} " \
+             "=> #{i.verdict}#{" (#{i.reason})" if i.reason}"
+      end
+      puts "Nothing was changed."
+      next
+    end
+
+    abort "EXECUTE=1 needs ACTOR_ID (a user of this business) for the audit trail." if execute && actor.nil?
+
+    outcomes = repair.repair!(match_ids: match_ids, execute: execute)
+    puts "[#{execute ? 'EXECUTE' : 'DRY RUN'}] business ##{business.id}:"
+    outcomes.each { |o| puts "  match##{o.match_id} => #{o.result}#{" (#{o.reason})" if o.reason}" }
+    tally = outcomes.group_by(&:result).transform_values(&:size)
+    puts "Summary: #{tally}"
+    puts "Nothing was changed." unless execute
+  end
+end

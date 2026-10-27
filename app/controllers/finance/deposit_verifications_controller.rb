@@ -67,9 +67,11 @@ class Finance::DepositVerificationsController < Finance::BaseController
   end
 
   def base_transaction_scope
+    # Lines of a deleted statement are kept for audit only, never listed.
     scope = BankStatementTransaction
               .for_business(current_user.business)
               .joins(:bank_statement)
+              .where(bank_statements: { deleted_at: nil })
 
     if @branch_ids
       scope = scope.where(bank_statements: { branch_id: [ nil, *@branch_ids ] })
@@ -143,7 +145,7 @@ class Finance::DepositVerificationsController < Finance::BaseController
                  .left_joins(:bank_statement_transactions)
                  .distinct
                  .includes(:payment_method, :deposited_by,
-                           :bank_statement_transactions, :bank_disputes,
+                           { bank_statement_transactions: :bank_statement }, :bank_disputes,
                            daily_reconciliation: :branch)
                  .order(deposited_at: :desc)
 

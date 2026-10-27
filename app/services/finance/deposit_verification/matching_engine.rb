@@ -84,6 +84,8 @@ module Finance
       # "date_mismatch" and left unmatched, never silently auto-linked — an
       # accountant who believes it's a genuine banking delay must use the
       # explicit Manual Match action instead (see commit_match!'s gate).
+      StatementDeletedError = Class.new(StandardError)
+
       SCORE_REFERENCE   = 100
       SCORE_AMOUNT_DATE = 90
 
@@ -113,6 +115,13 @@ module Finance
         @previous_outcomes = {}
 
         ActiveRecord::Base.transaction do
+          # Every transaction of the statement, by id — the order
+          # Finance::BankStatements::Deleter locks them in — then re-read the
+          # statement: a statement deleted meanwhile has released its matches
+          # and must not be matched again.
+          statement.bank_statement_transactions.order(:id).lock.pluck(:id)
+          raise StatementDeletedError, I18n.t("finance.bank_statements.errors.already_deleted") if statement.reload.deleted?
+
           if @rematch
             capture_previous_outcomes!(statement)
             reset_rematchable!(statement)
@@ -123,19 +132,22 @@ module Finance
           @pending = load_transactions(statement).sort_by(&:id)
           @pool    = load_deposits(statement).sort_by(&:id)
 
-          # Snapshots of the full initial pool, used only for classifying
+          # Snapshot of the full initial pool, used only for classifying
           # transactions that end up with no match (near-miss hints) — never
           # mutated, unlike @pool.
-          all_deposit_amounts = @pool.map(&:amount).to_set
-          all_deposit_dates   = @pool.map { |d| deposit_date(d) }.to_set
+          @pool_snapshot = @pool.dup
+
+          # Deposits in the same window that are already linked to a
+          # transaction on ANOTHER statement — never auto-matched (that link is
+          # left alone), only reported so a bank line is not called "Missing
+          # from WorkPulse" while its deposit exists.
+          @linked_elsewhere = load_linked_elsewhere(statement)
 
           run_reference_tier!
           run_exact_date_tier!
 
           # Anything still pending after every tier had no usable candidate.
-          @pending.each do |txn|
-            classify_no_match!(txn, all_deposit_amounts, all_deposit_dates)
-          end
+          @pending.each { |txn| classify_no_match!(txn) }
 
           # Recompute counters from the database rather than tallying in
           # memory, so they reflect the true state of every transaction
@@ -285,19 +297,58 @@ module Finance
         @pending.delete(txn)
       end
 
-      def classify_no_match!(txn, all_deposit_amounts, all_deposit_dates)
-        same_amount = all_deposit_amounts.include?(txn.amount)
-        same_date   = all_deposit_dates.include?(txn.transaction_date)
+      # Classifies a transaction no tier could match. "unexpected" (shown as
+      # "Missing from WorkPulse") is the residual: only when no deposit of the
+      # window explains the line at all.
+      #
+      #   needs_manual_review — a deposit with this exact amount and date exists
+      #     but is already linked to a transaction on another statement (an
+      #     overlapping re-import, or a link left on a deleted statement). The
+      #     link is never overwritten; the candidates are recorded for review.
+      #   date_mismatch       — an unmatched deposit has this amount, other date.
+      #   amount_mismatch     — an unmatched deposit has this date, other amount.
+      #   unexpected          — none of the above.
+      def classify_no_match!(txn)
+        linked = @linked_elsewhere.select { |d| d.amount == txn.amount && deposit_date(d) == txn.transaction_date }
+        return flag_linked_elsewhere!(txn, linked) if linked.any?
 
-        status = if same_amount && !same_date
+        status = if @pool_snapshot.any? { |d| d.amount == txn.amount && deposit_date(d) != txn.transaction_date }
           "date_mismatch"
-        elsif same_date && !same_amount
+        elsif @pool_snapshot.any? { |d| deposit_date(d) == txn.transaction_date && d.amount != txn.amount }
           "amount_mismatch"
         else
           "unexpected"
         end
 
         txn.update!(status: status, match_confidence: nil, match_reason: nil)
+      end
+
+      # Same audit-carried candidate list the transaction page already renders
+      # for needs_manual_review (BankStatementTransactionsController#review_candidates).
+      # Re-logged only when the candidate set changes, so repeated rematches
+      # against unchanged data add no audit rows.
+      def flag_linked_elsewhere!(txn, deposits)
+        candidates = deposits.sort_by(&:id).map do |d|
+          other = d.deposit_matches.map(&:bank_statement_transaction).find { |t| t.bank_statement_id != txn.bank_statement_id }
+          {
+            till_deposit_id:          d.id,
+            amount:                   d.amount.to_s,
+            date:                     deposit_date(d).to_s,
+            reference:                d.reference,
+            linked_transaction_id:    other.id,
+            linked_statement_id:      other.bank_statement_id,
+            linked_statement_deleted: other.bank_statement.deleted?
+          }
+        end
+        reason = I18n.t("finance.bank_statement_transactions.match_reasons.linked_elsewhere", count: candidates.size)
+
+        txn.update!(status: "needs_manual_review", match_method: nil, match_confidence: nil, match_reason: reason)
+
+        last = AuditLog.for_auditable(txn).where(action: "needs_manual_review").order(:created_at, :id).last
+        return if last && Array(last.metadata["candidates"]).map { |c| c["till_deposit_id"] } == candidates.map { |c| c[:till_deposit_id] }
+
+        log_audit(actor: @actor, auditable: txn, action: :needs_manual_review,
+                  metadata: { reason: reason, candidates: candidates })
       end
 
       # True when the transaction's previously-recorded outcome (before this
@@ -390,16 +441,16 @@ module Finance
         end
       end
 
-      # A deposit is a candidate when either its own calendar date (in the
-      # business timezone — the date every tier compares against the
-      # transaction date) or its DR's business_date falls in the statement
+      # A deposit is in the statement's window when either its own calendar
+      # date (in the business timezone — the date every tier compares against
+      # the transaction date) or its DR's business_date falls in the statement
       # range. The deposit-date half is what lets a deposit recorded just
       # after midnight — previous business day, next calendar date — reach a
       # statement covering only that calendar date. The business_date half
       # keeps same-amount deposits on other dates in the pool as
-      # date_mismatch hints. Widening the pool never loosens matching:
+      # date_mismatch hints. Widening the window never loosens matching:
       # commit_match! still requires exact amount and date equality.
-      def load_deposits(statement)
+      def deposit_window(statement)
         window = (business_time_zone.parse(statement.statement_from.to_s)...
                   business_time_zone.parse(statement.statement_to.next_day.to_s))
 
@@ -407,7 +458,6 @@ module Finance
           .joins(:daily_reconciliation)
           .where(daily_reconciliations: { business_id: @actor.business.id })
           .where(voided_at: nil)
-          .where.missing(:deposit_matches)
 
         scope = base.where(deposited_at: window)
                     .or(base.where(daily_reconciliations: {
@@ -418,7 +468,22 @@ module Finance
           scope = scope.where(daily_reconciliations: { branch_id: statement.branch_id })
         end
 
-        scope.to_a
+        scope
+      end
+
+      # The matching pool: window deposits with no match at all.
+      def load_deposits(statement)
+        deposit_window(statement).where.missing(:deposit_matches).to_a
+      end
+
+      # Window deposits holding a match to a transaction on another statement.
+      def load_linked_elsewhere(statement)
+        deposit_window(statement)
+          .where(id: DepositMatch.joins(:bank_statement_transaction)
+                                 .where.not(bank_statement_transactions: { bank_statement_id: statement.id })
+                                 .select(:till_deposit_id))
+          .includes(deposit_matches: { bank_statement_transaction: :bank_statement })
+          .to_a
       end
 
       def normalize_ref(str)

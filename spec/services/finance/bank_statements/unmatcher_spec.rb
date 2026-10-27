@@ -130,4 +130,34 @@ RSpec.describe Finance::BankStatements::Unmatcher do
       expect(result).not_to be_ok
     end
   end
+
+  # Workflow A: unmatch a line on an ACTIVE statement, then Rematch that same
+  # statement. Unmatcher deletes the match row, so the deposit re-enters the
+  # engine's pool and the same exact amount+date pair is linked again — both
+  # steps audited, counters back where they were.
+  describe "unmatch, then Rematch of the same active statement" do
+    it "re-links the same pair when it still satisfies amount and date", :aggregate_failures do
+      day = Time.current.in_time_zone(business.timezone_object).to_date
+      active = create(:bank_statement, :pending, business: business, branch: branch,
+                      statement_from: day - 3, statement_to: day + 3)
+      dep = TillDeposit.create!(daily_reconciliation: daily_reconciliation, payment_method: payment_method,
+                                deposited_by: actor, amount: 250, deposited_at: Time.current)
+      line = BankStatementTransaction.create!(bank_statement: active, business: business, transaction_date: day,
+                                              amount: 250, raw_data: {}, status: "pending")
+      Finance::DepositVerification::MatchingEngine.call(active.id, actor: actor)
+      expect(line.reload.matched_till_deposit).to eq(dep)
+
+      described_class.call(line.id, actor: actor, notes: "checking")
+      expect([ line.reload.status, dep.reload.deposit_matches.count ]).to eq([ "unexpected", 0 ])
+      expect([ active.reload.matched_rows, active.unmatched_rows ]).to eq([ 0, 1 ])
+
+      Finance::DepositVerification::MatchingEngine.call(active.id, actor: actor, rematch: true)
+
+      expect(line.reload.matched_till_deposit).to eq(dep)
+      expect(line.status).to eq("verified")
+      expect([ active.reload.matched_rows, active.unmatched_rows ]).to eq([ 1, 0 ])
+      expect(AuditLog.for_auditable(line).order(:created_at, :id).pluck(:action))
+        .to eq(%w[auto_matched manual_unmatch auto_matched])
+    end
+  end
 end
