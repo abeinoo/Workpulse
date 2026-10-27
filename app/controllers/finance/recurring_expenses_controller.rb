@@ -11,6 +11,7 @@ class Finance::RecurringExpensesController < Finance::BaseController
   def show
     authorize @recurring
     @generated = @recurring.generated_expenses.recent.includes(:branch).limit(20)
+    @allocations = @recurring.recurring_expense_allocations.includes(:branch).order(:id)
   end
 
   def new
@@ -83,7 +84,7 @@ class Finance::RecurringExpensesController < Finance::BaseController
   def recurring_params
     params.require(:recurring_expense).permit(
       :branch_id, :expense_category_id, :expense_type_id, :amount, :frequency,
-      :start_date, :end_date, :next_run_on, :active,
+      :start_date, :end_date, :next_run_on, :active, :notes,
       recurring_expense_allocations_attributes: [ :id, :branch_id, :allocation_percentage, :_destroy ]
     )
   end
