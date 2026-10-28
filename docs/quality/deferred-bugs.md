@@ -24,7 +24,7 @@ here only so its stable ID and history are kept.
 |---|---|---|---|---|---|---|
 | BUG-001 | Laundry branch consumption report shows every branch when no branch is chosen | Inventory & Purchasing (Laundry) | **High — critical (unauthorized access)** | Confirmed | **Resolved** (`3139cf4`, was Escalated) | — |
 | BUG-002 | Concurrent check-outs on one attendance record: last commit wins | Attendance & Payroll | Medium | Confirmed (reasoning) | Deferred | After Pilot 12 |
-| BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Suspected | Deferred | After Pilot 12 |
+| BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Confirmed (real PostgreSQL failure, `audit_loggable_spec.rb`) | In Progress (core fix `7437e29`, local branch; callers not yet migrated) | Fail-closed caller migration |
 | BUG-004 | Manual-entry / CSV attendance check the payroll lock without a row lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
 | BUG-005 | Permission payroll effect reads the open period without a lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
 | BUG-006 | Device punch reuses a soft-deleted attendance record | Attendance & Payroll | Low | Confirmed (pinned) | Open | Behaviour decision (before API punching) |
@@ -95,27 +95,72 @@ here only so its stable ID and history are kept.
 
 ## BUG-003 — Audit failures inside a transaction are swallowed
 
-* **Source:** F-A4 (§29). **Discovered:** 2026-10-20. **Status:** Deferred.
-* **Domain / files:** shared — `app/models/concerns/audit_loggable.rb:12-24` (`log_audit` rescues every error); callers
-  that audit inside a transaction (e.g. `Requests::Approver#pay`, `#approve_standard`, `#reject`, `Requests::Canceller`).
-* **Observed:** `log_audit` rescues and logs any exception. A database-level `AuditLog` insert failure inside a
-  PostgreSQL transaction aborts it, but the rescue hides that; the commit then rolls back silently while the service
-  returns success.
-* **Expected vs actual:** a failed audit should either roll back visibly or not affect the main operation; today the
-  main operation may be lost while reported as successful.
+* **Source:** F-A4 (§29). **Discovered:** 2026-10-20. **Status:** **In Progress** — core fix `7437e29` committed on
+  the local branch `fix/bug-003-audit-savepoint` (not merged); the fail-closed caller migration and the commit-path
+  test below are outstanding, so the bug is not resolved.
+* **Domain / files:** shared — `app/models/concerns/audit_loggable.rb` (`log_audit`, `log_audit!`); its 121 call sites
+  (static scan, 2026-10-28), 80 of them inside a `transaction` / `with_lock` block.
+* **Observed (before `7437e29`):** `log_audit` rescued and logged any exception. A database-level `AuditLog` insert
+  failure inside a PostgreSQL transaction aborts it, but the rescue hid that; when the audit was the last statement,
+  the COMMIT silently became a ROLLBACK while the service returned success (when SQL followed, it raised instead).
+* **Expected vs actual:** a failed audit should either roll back visibly or not affect the main operation; the main
+  operation could be lost while reported as successful.
 * **Impact:** a payment / approval reported as done but not persisted (if an audit insert ever fails at the database).
-* **Evidence:** Suspected — code pattern only; no database-level audit failure is known to occur.
-  2026-10-27 (DR bank-matching review): the PostgreSQL half reproduced — after a swallowed SQL error inside
-  `ActiveRecord::Base.transaction`, the block returns normally and COMMIT silently becomes ROLLBACK. Callers where
-  `log_audit` is the last statement before commit include `Finance::BankStatements::Unmatcher`, `ManualMatcher` and
-  `Finance::TillDepositVoider` (when the DR is not `deposited`); still no database-level audit failure is known.
-* **Reason for deferral:** cross-cutting (every audited service), low likelihood; `OrganizationAccess::DeleteUser`
-  already uses `AuditLog.create!` for this reason.
-* **Recommended fix:** write the audit in a savepoint (`requires_new`) or let audit errors propagate inside
-  transactions — one shared change, decided once.
-* **Regression tests:** a service example forcing a database-level audit failure inside the transaction: the result
-  reports failure, or the main change persists, consistently.
-* **Review milestone:** after Pilot 12.
+* **Evidence:** Confirmed. 2026-10-27 (DR bank-matching review): the PostgreSQL half reproduced — after a swallowed SQL
+  error inside `ActiveRecord::Base.transaction`, the block returns normally and COMMIT silently becomes ROLLBACK.
+  2026-10-28: `spec/models/concerns/audit_loggable_spec.rb` forces a real foreign-key violation on the audit insert;
+  run against the old `log_audit` body, 10 of its 12 targeted examples fail. No production audit failure is known.
+  The transactional RSpec fixtures had hidden it: they wrap each example in a non-joinable transaction, so a service
+  transaction becomes a savepoint whose RELEASE raises after an abort instead of committing silently.
+* **Decision (owner, 2026-10-28):** fail-open by default — an otherwise valid operation completes when only its audit
+  write fails, and the failure is reported. Fail-closed only where the audit row is the sole record of overwritten or
+  deleted financial state, a required correction history, or a repair event.
+* **Core fix — `7437e29`** "fix: isolate audit writes in a savepoint and report audit failures (BUG-003)":
+  * The entry is written in its own savepoint (`AuditLog.transaction(requires_new: true)`): an audit-only database
+    error rolls back only the audit insert, and the caller's transaction continues and commits.
+  * Audit-only means the caller's transaction is still usable afterwards (a `SELECT 1` on the failure path). Re-raised
+    instead: `ConnectionNotEstablished`, `ConnectionFailed`, `AdapterTimeout`, `SerializationFailure`, a
+    `PG::InFailedSqlTransaction` / `PG::ConnectionBad` anywhere in the cause chain (the caller's transaction was
+    already aborted), or a transaction left unusable. A deadlock, lock or statement timeout on the audit insert is
+    audit-only (Rails: on PostgreSQL, savepoint errors do not invalidate the parent transaction).
+  * Each audit-only failure is logged once (`[AuditLog] Failed to write audit entry {…}`) and reported once through
+    `Rails.error.report` (`handled: true`, `severity: :error`, `source: "audit_log.work_pulse"`). The context holds
+    ids (actor, business, auditable), the action, change / metadata **keys**, the error class and PostgreSQL schema
+    identifiers (SQLSTATE, table, column, constraint) or invalid attribute names — no values and no error message. A
+    failure while reporting never replaces the audit failure.
+  * `log_audit` still returns the `AuditLog`, or `nil` on an audit-only failure. New `log_audit!` raises
+    `AuditLoggable::AuditWriteFailed` (an `ActiveRecord::ActiveRecordError`; the original error is its `cause`) after
+    the same single report, for operations whose audit entry must exist.
+  * **No caller changed.** The services with an explicit `raise … unless logged` (`Finance::DepositorAssigner`,
+    `DepositResponsibilityTransferRequester`, `…Rejecter`) behave as before; `OrganizationAccess::DeleteUser` and the
+    `finance.rake` backfill write `AuditLog.create!` directly and are untouched.
+* **Verification (local, 2026-10-28; CI not yet run on the branch):** the new spec — 17 examples, 0 failures (real
+  foreign-key violation inside and outside a caller transaction, audit as the final statement, later SQL after a
+  failure, one report without values, `log_audit!` cause, lost / unresponsive connection, already-aborted and unusable
+  caller transaction); 770 examples, 0 failures across it, the existing audit-failure specs, the bank-statement
+  services, `TillDepositVoider`, `SessionAmountsEditor`, `DayCloseEditor`, `BankDisputes::CaseUpdater`, the
+  two-connection concurrency specs and `spec/architecture`; RuboCop clean on both files; Brakeman 0 warnings. The
+  full suite was not run.
+* **Risk:** `Rails.error.report` receives the original exception, whose message can include PostgreSQL's DETAIL line
+  (row values). No error subscriber is configured in `app/`, `config/`, `lib/` or the `Gemfile` (checked 2026-10-28),
+  so today the report reaches nothing beyond the log line; any subscriber added later must scrub messages.
+* **Remaining work:**
+  * Migrate the fail-closed callers to `log_audit!`, each with a service example and a "history could not be recorded"
+    result rescued outside its transaction: `Finance::SessionAmountsEditor`, `Finance::DayCloseEditor`,
+    `Finance::BankStatements::Unmatcher#release!` (shared by `Unmatcher`, `Deleter`, `TillDepositVoider`,
+    `StaleMatchRepair`; match rows are hard-deleted), `BankStatements::Ignorer` when the line was matched,
+    `BankDisputes::CaseUpdater` case notes (stored only in the audit), `Employee::InsuranceProfileUpdater`,
+    `Inventory::GoodsReceiptCancelledApprovalNormalizer`; move the three `logged` checks to `log_audit!`.
+  * A non-transactional example of the production COMMIT path — deferred until a shared cleanup helper for
+    non-transactional specs exists (S12; today the guard is copied into each concurrency spec).
+  * Owner decisions: `Salary::ProfileCorrector` (in-place salary edit, audit records field names only; TD-AP4),
+    `Payroll::ObligationEditor` (amount overwrite outside a transaction), `Finance::OpeningFloatAmountsEditor` (audit
+    holds no values), `Inventory::StockIssueEditor` (reopen clears an approval; line edits); whether the transfer
+    requester / rejecter stay fail-closed; whether view audits (`Payroll::EntryViewAudit`, `Salary::ViewAudit`) must
+    fail closed; whether logs may carry filtered values. The other call sites are fail-open.
+* **Regression tests:** `spec/models/concerns/audit_loggable_spec.rb`; to add: a service example per migrated caller
+  and the commit-path example above.
+* **Review milestone:** the fail-closed caller migration (next BUG-003 commit).
 
 ## BUG-004 — Manual-entry / CSV attendance check the payroll lock without a row lock
 

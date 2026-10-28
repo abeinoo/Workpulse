@@ -62,7 +62,7 @@ Result = Struct.new(:ok, :record, :error, keyword_init: true) { def ok? = ok }
 
 Call services in controllers, check `result.ok?`, redirect or re-render. Services raise `ActiveRecord::RecordInvalid` or `ArgumentError` internally and rescue them into `Result.new(ok: false, …)`. Never put business logic in controllers or models.
 
-Services include `AuditLoggable` and call `log_audit(actor:, auditable:, action:, metadata: {})` — failures are swallowed and logged, never abort the primary operation.
+Services include `AuditLoggable` and call `log_audit(actor:, auditable:, action:, metadata: {})`. The entry is written in its own savepoint: an audit-only failure is logged and reported, `log_audit` returns `nil`, and the primary operation continues; a lost connection or an already-aborted transaction is re-raised. `log_audit!` raises `AuditLoggable::AuditWriteFailed` instead, for operations whose audit entry must exist. Policy and the callers still to migrate: BUG-003 in `docs/quality/deferred-bugs.md`.
 
 ### Permissions system
 
